@@ -197,7 +197,12 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
         const canon =
           m[1] === "boolean" && u.slotTs === "Length"
             ? ` — a condition belongs in a ternary that yields numbers: { cond ? 40 : 25 }`
-            : ` — make the expression yield a ${m[2]}`;
+            // The font slot's accepted forms, stated where the mistake is made
+            // (borrowed from coerceFont's own failure text — the type alone
+            // says "string" without saying WHICH string).
+            : u.slot === "fontFamily" || u.slot === "codeFamily"
+              ? ` — a declared font (by name), or a raw family string like "Helvetica, sans-serif"`
+              : ` — make the expression yield a ${m[2]}`;
         return `${home} computes ${article(m[1])}, but '${u.slot}' is typed ${m[2]}${canon}`;
       }
       return msg;

@@ -392,7 +392,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
     // of step with the pointer, and it re-derives with the tick like everything
     // else here.
 
-    pickPath: string = { app.picking && app.tick >= 0 && Inspect.ready() ? Inspect.at(app.pointerX, app.pointerY) : "" },
+    pickPath: string = { app.picking && app.tick >= 0 && Inspect.ready() ? Inspect.at(app.pointerX, app.pointerY, true) : "" },
     aimPath: string = { app.picking ? app.pickPath : app.hoverPath },
     hoverRect: object = { app.tick >= 0 && app.aimPath != "" && Inspect.ready() ? Inspect.rect(app.aimPath) : null },
     selRect: object = { app.tick >= 0 && Inspect.ready() ? Inspect.rect(app.sel) : null },

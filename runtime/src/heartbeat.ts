@@ -78,7 +78,11 @@ export class Heartbeat extends Node implements Ticker {
     this.last = now;
     // The first frame establishes the baseline; nothing has elapsed yet.
     if (prev === null) return true;
-    const dt = Math.min((now - prev) / 1000, MAX_DT);
+    // BOTH ends: the top so a backgrounded tab cannot resume with one enormous
+    // step, the bottom so a clock handover (manual clock near zero after
+    // performance.now baselines) cannot deliver a NEGATIVE dt — measured at
+    // −0.72s, which ran an integrated fling backwards under rung 5.
+    const dt = Math.min(Math.max((now - prev) / 1000, 0), MAX_DT);
     const fn = (this as unknown as Record<string, unknown>).onFrame;
     if (typeof fn === "function") (fn as (dt: number) => void).call(this, dt);
     return this.running;

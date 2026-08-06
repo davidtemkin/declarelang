@@ -49,7 +49,10 @@ on `y`) place a view centered in, or flush against, its parent — resolved reac
 exactly like `100%`. The written-out form `x = { (parent.width - this.width) / 2 }`
 remains the no-magic spelling; the literal is just its name. (On a `Text`,
 `y = center` centers the *ink* — the cap-to-baseline band — so labels read centered
-regardless of font metrics.)
+regardless of font metrics. That makes `Text` the one place the two spellings
+differ: the brace rewrite centers the *box*, so a label that switches to a
+computed `y` sits a couple of pixels off its `y = center` position — center the
+box knowingly, or keep the literal and move the parent.)
 
 ## Layout is a swappable attribute
 

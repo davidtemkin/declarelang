@@ -1,0 +1,551 @@
+/*
+# The Venue
+
+A season of four thousand performances, three halls, and a hold on seats.
+
+The shape of it is one truth and two derivations. `src` is the season, fetched
+once and held; `matchList()` narrows it by title and hall; the count, the list,
+and the empty line all read that one method, so nothing can disagree with
+anything else. Choosing a performance writes `location`, which is the only place
+"which screen" is recorded — the seat map's URL derives from it, so a deep link
+and a click take exactly the same path, and the two surfaces slide past each
+other rather than swapping.
+
+The room is the seat map: sections, rows, seats, replicated from the map the
+service serves. What is still free is two facts, never one — the seat's own
+`status` and `gone`, the seats other people have taken since the map arrived
+(the sales stream says so live, and a refused booking says so at the last
+moment). A seat that goes while it is chosen leaves the selection, because a
+summary that counts a seat somebody else has is the one lie this app must not
+tell.
+*/
+
+script {
+    const VENUE_API = "http://127.0.0.1:8310"
+
+    const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    // The same shape the service validates against, so the button is enabled
+    // exactly when the service would accept the address.
+    const EMAIL_OK = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+
+    // "4,000 performances" — the count is grouped, prices are not (the brief
+    // shows `$240`, whole dollars).
+    function vGroup(n: number): string {
+        const s = String(Math.trunc(n))
+        let out = ""
+        for (let i = 0; i < s.length; i++) {
+            const back = s.length - i
+            out = out + s[i] + (back > 1 && back % 3 == 1 ? "," : "")
+            }
+        return out
+        }
+
+    function vMoney(n: number): string { return "$" + Math.trunc(n) }
+
+    // Dates are read in UTC, the way the service writes them: a season that
+    // shifts by a day depending on who is looking is not one season.
+    function vDay(iso: string): string {
+        const d = new Date(iso)
+        if (isNaN(d.getTime())) return ""
+        return DAY_NAMES[d.getUTCDay()] + " " + d.getUTCDate() + " " + MONTH_NAMES[d.getUTCMonth()]
+        }
+
+    function vTime(iso: string): string {
+        const d = new Date(iso)
+        if (isNaN(d.getTime())) return ""
+        const h = d.getUTCHours()
+        const m = d.getUTCMinutes()
+        const hh = h % 12 == 0 ? 12 : h % 12
+        return hh + ":" + (m < 10 ? "0" + m : "" + m) + (h < 12 ? " am" : " pm")
+        }
+
+    // A seat id is `SECTION-ROW-N`, so its section is the first segment.
+    function vSection(seatId: string): string { return seatId.split("-")[0] }
+
+    function vFree(dark: boolean): number { return dark ? 0x2C6B45 : 0xC3E7CD }
+    function vFreeHot(dark: boolean): number { return dark ? 0x3B8B5B : 0xA9DBB8 }
+    function vGoneFill(dark: boolean): number { return dark ? 0x232D38 : 0xE3E7EC }
+    }
+
+
+/*
+## PerfRow
+
+One performance in the season. Every instance is this one declaration; four
+thousand of them exist as records and about a dozen as views, which is what
+`virtualize` on the block below buys.
+*/
+
+class PerfRow extends View [ height = 54, width = { parent.width }, cornerRadius = 9,
+    fill = { hovered ? theme.control : theme.surface },
+
+    onClick() { app.openPerf("" + :id) },
+
+    day:   Text [ x = 16, y = 10, width = 104, fontSize = 13.5, fontWeight = semibold, wrap = false,
+        text = { vDay("" + :startsAt) } ],
+    time:  Text [ x = 16, y = 30, width = 104, fontSize = 12, wrap = false,
+        textColor = { theme.textMuted }, text = { vTime("" + :startsAt) } ],
+    title: Text [ x = 132, y = 18, fontSize = 16, wrap = false, text = :title ],
+    hall:  Text [ x = { parent.width - 236 }, y = 20, width = 130, fontSize = 13, wrap = false,
+        textColor = { theme.textMuted }, text = :hall ],
+    price: Text [ x = { parent.width - 100 }, y = 20, width = 84, fontSize = 13, textAlign = right, wrap = false,
+        textColor = { theme.textMuted }, text = { "from " + vMoney(:priceFrom) } ]
+    ]
+
+
+/*
+## Seat
+
+Free, taken, or chosen — and "taken" is the seat's own status OR a seat the app
+has since learned is gone. Both readings are live, so a seat sold out from under
+the person changes colour under the pointer.
+*/
+
+class Seat extends View [ width = 20, height = 20, cornerRadius = 4,
+
+    gone:   boolean = { :status == "sold" || app.isGone("" + :id) },
+    picked: boolean = { app.isChosen("" + :id) },
+
+    fill = { classroot.gone ? vGoneFill(app.dark)
+        : classroot.picked ? theme.accent
+        : hovered ? vFreeHot(app.dark) : vFree(app.dark) },
+    stroke = { classroot.picked ? stroke(2, theme.text) : null },
+    tip = { classroot.gone ? ("" + :id + " — taken") : ("" + :id) },
+
+    onClick() { app.pickSeat("" + :id, classroot.gone) }
+    ]
+
+
+/*
+## SeatRowV / SectionV
+
+The house as the house is laid out: a row is its letter, its seats, and its
+letter again; a section is its rows, centred under the stage. Rows centre
+themselves because a row auto-sizes to its seats and `x = center` does the rest
+— so a 22-seat orchestra and an 18-seat balcony taper the way a real room does,
+with no arithmetic anywhere.
+*/
+
+class SeatRowV extends View [ x = center, height = 20,
+    layout: SimpleLayout [ axis = x, spacing = 3 ],
+    lead: Text [ width = 15, y = center, fontSize = 9.5, textAlign = right, wrap = false,
+        textColor = { theme.textFaint }, text = :name ],
+    Seat [ datapath = :seats[] ],
+    trail: Text [ width = 15, y = center, fontSize = 9.5, wrap = false,
+        textColor = { theme.textFaint }, text = :name ]
+    ]
+
+
+class SectionV extends View [ width = { parent.width },
+    layout: SimpleLayout [ axis = y, spacing = 3 ],
+    head: Text [ x = center, fontSize = 11, fontWeight = bold, letterSpacing = 1.4, wrap = false,
+        textColor = { theme.textMuted },
+        text = { ("" + :name).toUpperCase() + "   " + vMoney(:price) } ],
+    pad: View [ width = 2, height = 7 ],
+    SeatRowV [ datapath = :rows[] ]
+    ]
+
+
+/*
+## The app
+*/
+
+App [ appName = "The Venue", minWidth = 760, minHeight = 560,
+    theme = { Themes.sanFrancisco(app.dark) },
+    fill = { theme.bg },
+    textColor = { theme.text },
+
+    // ── the season ────────────────────────────────────────────────────────
+    //
+    // One request, held in memory, narrowed here rather than at the service:
+    // a round trip per keystroke is the one thing that would stop search
+    // feeling immediate, and the whole season is already on this side.
+
+    src: DataSource [ url = { VENUE_API + "/api/performances" } ],
+
+    onInit() { this.src.fetch() },
+
+    query: string = "",
+    hall: string = "",
+
+    matchList() -> array {
+        const v = this.src.value as any
+        if (v == null || v.performances == null) return []
+        const q = this.query.trim().toLowerCase()
+        const h = this.hall
+        return (v.performances as any[]).filter((p) =>
+            (q == "" || (p.title as string).toLowerCase().includes(q)) && (h == "" || p.hallId == h))
+        },
+
+    matchCount: number = { app.matchList().length },
+
+    // The exact copy: "4,000 performances", "1 performance".
+
+    countLabel: string = { vGroup(app.matchCount) + (app.matchCount == 1 ? " performance" : " performances") },
+
+    shown: Dataset [ contents = { ({ rows: app.matchList() }) } ],
+
+    // A new narrowing is a new arrangement, not an edit to the old one, so the
+    // list starts it at the top (twice — once now, once after the projection
+    // has settled under the window's anchor logic).
+
+    rearranged() {
+        this.board.list.scrollY = 0
+        setTimeout(() => { app.board.list.scrollY = 0 }, 0)
+        },
+
+    setQuery(v: string) { this.query = v; this.rearranged() },
+    setHall(v: string)  { this.hall = v; this.rearranged() },
+
+    // ── which surface, and the travel between them ────────────────────────
+    //
+    // `location` is the only record of where we are, so the back button, a
+    // deep link, and a click on a row are one mechanism. `slide` is that fact
+    // made continuous: the season leaves as the room arrives.
+
+    perfId: string = { app.location },
+
+    slide: number = 0,
+    Spring [ attribute = slide, to = { app.perfId == "" ? 0 : 1 }, stiffness = 210, damping = 30 ],
+
+    findPerf(id: string) -> object {
+        const v = this.src.value as any
+        if (v != null && v.performances != null && id != "") {
+            for (const p of v.performances as any[]) if (p.id == id) return p
+            }
+        return ({ })
+        },
+
+    perf: object = { app.findPerf(app.perfId) },
+    perfTitle: string = { "" + ((app.perf as any).title ?? "") },
+    perfHall:  string = { "" + ((app.perf as any).hall ?? "") },
+    perfWhen:  string = { (app.perf as any).startsAt != null
+        ? vDay("" + (app.perf as any).startsAt) + "  ·  " + vTime("" + (app.perf as any).startsAt)
+        : "" },
+
+    openPerf(id: string) {
+        this.chosen = []
+        this.gone = []
+        this.notice = ""
+        this.confirmed = null
+        this.room.plan.scrollY = 0                     // every room opens at the stage
+        // The stream re-dials on a change of performance and reads the map
+        // when it opens; asking for the room already open is the one entry
+        // that changes nothing for it to notice, so that one reads the map
+        // itself.
+        if (this.location == id) this.seatSrc.fetch()
+        else this.location = id
+        },
+
+    back() {
+        this.chosen = []
+        this.gone = []
+        this.notice = ""
+        this.confirmed = null
+        this.location = ""
+        },
+
+    // ── the room ──────────────────────────────────────────────────────────
+    //
+    // The map and the sales feed are ONE subscription to one performance, so
+    // the feed's opening is what reads the map: `onOpen` fires every time the
+    // stream dials, and it dials exactly when `url` or `active` changes —
+    // which is every entry into a room, by a click, a deep link, or the back
+    // button, and again after any reconnection. (`auto = true` would read it
+    // only once per address ever, so a second visit to a hall would show the
+    // first visit's seats — the one thing this room must not do.)
+
+    seatSrc: DataSource [
+        url = { app.perfId == "" ? "" : VENUE_API + "/api/performances/" + app.perfId + "/seats" } ],
+
+    // Other people, buying while this person looks. A seat named here is gone
+    // for everybody, including out of this selection.
+    // `listenTo` names ONLY "seatchanged": the service also sends a named
+    // `event: open`, but EventSource dispatches its own connection-open event
+    // under that same name with no `data` at all, so listening for it delivers
+    // a message whose data is the string "undefined". The connection's own
+    // opening is `sales.open` — a fact to read, not a message to hear.
+
+    sales: EventStream [ listenTo = ["seatchanged"], retry = 3,
+        active = { app.perfId != "" },
+        url = { app.perfId == "" ? "" : VENUE_API + "/api/events?performance=" + app.perfId },
+        onOpen() { app.seatSrc.fetch() },
+        onMessage(e: StreamMessage) { app.seatChanged(e.data) }
+        ],
+
+    gone: string[] = [],
+    chosen: string[] = [],
+
+    isGone(id: string) -> boolean { return this.gone.indexOf(id) >= 0 },
+    isChosen(id: string) -> boolean { return this.chosen.indexOf(id) >= 0 },
+
+    seatChanged(raw: string) {
+        const txt = "" + raw
+        if (txt.indexOf("seatId") < 0) return          // anything but a sale
+        const m = JSON.parse(txt) as any
+        if (m == null || m.seatId == null) return
+        this.lose([ "" + m.seatId ])
+        },
+
+    // The one place a seat is taken away: it joins `gone` (so the room stops
+    // offering it) and leaves `chosen` (so the summary stops counting it).
+
+    lose(ids: string[]) {
+        const fresh = ids.filter((id) => this.gone.indexOf(id) < 0)
+        if (fresh.length > 0) this.gone = [...this.gone, ...fresh]
+        const held = this.chosen.filter((id) => ids.indexOf(id) < 0)
+        if (held.length != this.chosen.length) this.chosen = held
+        },
+
+    pickSeat(id: string, taken: boolean) {
+        if (taken) return
+        this.notice = ""
+        if (this.isChosen(id)) this.chosen = this.chosen.filter((s) => s != id)
+        else this.chosen = [...this.chosen, id]
+        },
+
+    priceOf(id: string) -> number {
+        const v = this.seatSrc.value as any
+        if (v == null || v.sections == null) return 0
+        const key = vSection(id)
+        for (const s of v.sections as any[]) if (s.key == key) return s.price as number
+        return 0
+        },
+
+    total: number = { app.chosen.reduce((sum, id) => sum + app.priceOf(id), 0) },
+
+    // The exact copy: "3 seats · $240".
+
+    summary: string = { app.chosen.length + (app.chosen.length == 1 ? " seat" : " seats")
+        + " · " + vMoney(app.total) },
+
+    // ── booking ───────────────────────────────────────────────────────────
+
+    who: string = "",
+    mail: string = "",
+    notice: string = "",
+    confirmed: object = null,
+
+    formOk: boolean = { app.who.trim() != "" && EMAIL_OK.test(app.mail.trim()) },
+    canBook: boolean = { app.chosen.length > 0 && app.formOk && !app.booker.loading },
+
+    // Said before the attempt, not after it: while the form is short of what
+    // the service needs, the sentence is already on screen and the button is
+    // inert. The other sentence is the service's own, shown as given.
+
+    hint: string = { app.notice != "" ? app.notice
+        : app.chosen.length > 0 && !app.formOk ? "Add a name and an email address."
+        : "" },
+
+    booker: DataSource [ url = { VENUE_API + "/api/bookings" }, method = "POST",
+        body = { ({ performanceId: app.perfId, seatIds: app.chosen,
+                    name: app.who.trim(), email: app.mail.trim() }) } ],
+
+    book() {
+        if (!this.canBook) return
+        this.notice = ""
+        this.booker.fetch().then(() => {
+            if (app.booker.loaded) {
+                app.confirmed = app.booker.value
+                app.chosen = []
+                }
+            else app.refused()
+            })
+        },
+
+    refused() {
+        const b = this.booker.errorBody as any
+        if (b != null && b.conflicts != null) this.lose((b.conflicts as any[]).map((c) => "" + c))
+        this.notice = b != null && b.message != null ? "" + b.message : "That booking did not go through."
+        },
+
+    startOver() {
+        this.confirmed = null
+        this.who = ""
+        this.mail = ""
+        this.back()
+        },
+
+    confCode:  string = { "" + ((app.confirmed as any)?.code ?? "") },
+    confSeats: string = { app.confirmed != null ? ((app.confirmed as any).seats as string[]).join(", ") : "" },
+    confLine:  string = { app.confirmed != null
+        ? (app.confirmed as any).seats.length + ((app.confirmed as any).seats.length == 1 ? " seat" : " seats")
+          + " · " + vMoney((app.confirmed as any).total)
+        : "" },
+
+    // ── geometry ──────────────────────────────────────────────────────────
+
+    listY: number = 172,
+    barOpen: boolean = { app.chosen.length > 0 || app.notice != "" },
+    barH: number = 0,
+    Spring [ attribute = barH, to = { app.barOpen ? 112 : 0 }, stiffness = 240, damping = 30 ],
+    roomTop: number = 76,
+
+    // ══ THE SEASON ════════════════════════════════════════════════════════
+
+    board: View [ y = 0, width = { app.width }, height = { app.height },
+        x = { -0.16 * app.slide * app.width },
+        opacity = { 1 - app.slide },
+        visible = { app.slide < 0.995 },
+
+        brand: Text [ x = 24, y = 20, fontSize = 25, fontWeight = bold, wrap = false, text = "The Venue" ],
+        sub:   Text [ x = 24, y = 54, fontSize = 13, wrap = false, textColor = { theme.textMuted },
+            text = "September through June · three halls" ],
+
+        find: TextInput [ x = 24, y = 90, width = 300, height = 36, padding = 9, cornerRadius = 9,
+            fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+            placeholder = "Search the season by title",
+            text = { app.query },
+            onInput(v: string) { app.setQuery(v) }
+            ],
+
+        halls: Segmented [ x = 340, y = 90, height = 36, width = 400,
+            value = { app.hall },
+            input(v: object) { app.setHall("" + v) },
+            choices = { [ ({ id: "", label: "All halls" }),
+                          ({ id: "grand", label: "Grand Hall" }),
+                          ({ id: "playhouse", label: "Playhouse" }),
+                          ({ id: "studio", label: "Studio" }) ] }
+            ],
+
+        count: Text [ x = 24, y = 142, fontSize = 15, fontWeight = semibold, wrap = false,
+            text = { app.countLabel } ],
+
+        note: Text [ x = { app.width - 300 }, y = 144, width = 276, fontSize = 12.5, textAlign = right, wrap = false,
+            textColor = { theme.textFaint },
+            text = { app.src.failed ? "The season could not be read."
+                : !app.src.loaded ? "Reading the season…"
+                : app.matchCount == 0 ? "Nothing here by that name."
+                : "Pick one to choose seats" } ],
+
+        list: View [ x = 0, y = { app.listY }, width = { app.width }, scrolls = y,
+            height = { app.height - app.listY },
+            inner: View [ x = 24, width = { app.width - 48 }, datapath = { app.shown.value },
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                PerfRow [ datapath = :rows[], virtualize = true ]
+                ]
+            ]
+        ],
+
+    // ══ THE ROOM ══════════════════════════════════════════════════════════
+
+    room: View [ y = 0, width = { app.width }, height = { app.height },
+        x = { (1 - app.slide) * app.width },
+        visible = { app.slide > 0.005 },
+
+        head: View [ width = { parent.width }, height = { app.roomTop }, fill = { theme.surface },
+            rule: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
+            back: Button [ x = 20, y = 21, label = "← The season",
+                onClick() { app.back() }
+                ],
+            title: Text [ x = 190, y = 16, fontSize = 19, fontWeight = bold, wrap = false,
+                text = { app.perfTitle } ],
+            sub: Text [ x = 190, y = 42, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
+                text = { app.perfHall + "   ·   " + app.perfWhen } ],
+            legend: View [ y = 26, height = 22,
+                x = { parent.width - this.width - 20 },
+                layout: SimpleLayout [ axis = x, spacing = 7 ],
+                sw1: View [ width = 14, height = 14, y = center, cornerRadius = 3, fill = { vFree(app.dark) } ],
+                l1: Text [ y = center, fontSize = 11.5, wrap = false, textColor = { theme.textMuted }, text = "free" ],
+                sw2: View [ width = 14, height = 14, y = center, cornerRadius = 3, fill = { theme.accent } ],
+                l2: Text [ y = center, fontSize = 11.5, wrap = false, textColor = { theme.textMuted }, text = "yours" ],
+                sw3: View [ width = 14, height = 14, y = center, cornerRadius = 3, fill = { vGoneFill(app.dark) } ],
+                l3: Text [ y = center, fontSize = 11.5, wrap = false, textColor = { theme.textMuted }, text = "taken" ]
+                ]
+            ],
+
+        plan: View [ y = { app.roomTop }, width = { parent.width }, scrolls = y,
+            height = { app.height - app.roomTop - app.barH },
+
+            stage: View [ y = 22, height = 26, cornerRadius = 13, fill = { theme.control },
+                width = { Math.min(460, parent.width * 0.5) },
+                x = { (parent.width - this.width) / 2 },
+                Text [ x = center, y = center, fontSize = 10.5, fontWeight = bold, letterSpacing = 3.5,
+                    wrap = false, textColor = { theme.textMuted }, text = "STAGE" ]
+                ],
+
+            secs: View [ y = 74, width = { parent.width }, datapath = { app.seatSrc.value },
+                layout: SimpleLayout [ axis = y, spacing = 30 ],
+                SectionV [ datapath = :sections[] ]
+                ],
+
+            waiting: Text [ y = 120, x = center, fontSize = 14, wrap = false,
+                visible = { !app.seatSrc.loaded },
+                textColor = { theme.textMuted },
+                text = { app.seatSrc.failed ? "This hall could not be read." : "Reading the hall…" } ],
+
+            foot: View [ width = 2, height = 40, y = { parent.secs.y + parent.secs.height + 8 } ]
+            ],
+
+        // The summary and the booking, on one bar that rises when there is
+        // something to say and settles back when there is not.
+
+        bar: View [ width = { parent.width }, height = { app.barH }, clip = true,
+            y = { app.height - app.barH },
+            fill = { theme.surface },
+            rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+
+            sum: Text [ x = 24, y = 24, fontSize = 20, fontWeight = bold, wrap = false,
+                visible = { app.chosen.length > 0 }, text = { app.summary } ],
+
+            msg: Text [ x = 24, y = 62, width = { Math.max(120, parent.width - 620) }, fontSize = 12.5, wrap = false,
+                textColor = { app.notice != "" ? theme.errorColor : theme.textMuted },
+                text = { app.hint } ],
+
+            nameF: TextInput [ y = 20, width = 150, height = 36, padding = 9, cornerRadius = 9,
+                x = { parent.width - 560 },
+                fill = { theme.bg }, stroke = { stroke(1, theme.line) },
+                placeholder = "Name",
+                text = { app.who },
+                onInput(v: string) { app.who = v }
+                ],
+            mailF: TextInput [ y = 20, width = 210, height = 36, padding = 9, cornerRadius = 9,
+                x = { parent.width - 398 },
+                fill = { theme.bg }, stroke = { stroke(1, theme.line) },
+                placeholder = "Email address",
+                text = { app.mail },
+                onInput(v: string) { app.mail = v },
+                onEnter() { app.book() }
+                ],
+            go: Button [ y = 20, label = "Confirm booking", primary = true,
+                x = { parent.width - this.width - 24 },
+                disabled = { !app.canBook },
+                onClick() { app.book() }
+                ]
+            ]
+        ],
+
+    // ══ THE CONFIRMATION ══════════════════════════════════════════════════
+    //
+    // Declared last, so it sits over everything without a z-index existing.
+
+    veil: View [ width = { app.width }, height = { app.height },
+        fill = { theme.scrimColor },
+        opacity = { app.confirmed != null ? 0.45 : 0 },
+        visible = { app.confirmed != null } ],
+
+    ticket: View [ width = 420, height = 300, x = center, y = center, cornerRadius = 16,
+        fill = { theme.surface },
+        shadow = { shadow(0, 18, 60, 0x00000044) },
+        visible = { app.confirmed != null },
+
+        h: Text [ x = 32, y = 30, fontSize = 13, fontWeight = bold, letterSpacing = 1.4, wrap = false,
+            textColor = { theme.textMuted }, text = "BOOKED" ],
+        code: Text [ x = 32, y = 54, fontSize = 34, fontWeight = bold, wrap = false,
+            textColor = { theme.accent }, text = { app.confCode } ],
+        what: Text [ x = 32, y = 106, width = 356, fontSize = 17, fontWeight = semibold, wrap = false,
+            text = { app.perfTitle } ],
+        when: Text [ x = 32, y = 130, width = 356, fontSize = 12.5, wrap = false,
+            textColor = { theme.textMuted }, text = { app.perfHall + "   ·   " + app.perfWhen } ],
+        seats: Text [ x = 32, y = 162, width = 356, fontSize = 13, wrap = true,
+            text = { app.confSeats } ],
+        line: Text [ x = 32, y = 206, fontSize = 17, fontWeight = bold, wrap = false,
+            text = { app.confLine } ],
+        again: Button [ x = 32, y = 240, label = "Book another performance", primary = true,
+            onClick() { app.startOver() }
+            ]
+        ]
+    ]

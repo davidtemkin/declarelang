@@ -213,6 +213,16 @@ export class Clock {
     this.frame = this.frame.bind(this);
   }
 
+  /** The scheduler's current timestamp — the same value the next frame's
+   *  `tick(now)` will be measured against. Lets a ticker seed its own baseline
+   *  at ENROLL time, so its first tick integrates a real dt instead of spending
+   *  the frame establishing a baseline (under a hand-cranked clock that
+   *  baseline frame read as "the animation never ran" — two agents,
+   *  independently). */
+  now(): number {
+    return this.sched.now();
+  }
+
   /** Register a ticker and, if the clock was idle, start the frame loop.
    *  Idempotent on an already-registered ticker. */
   add(t: Ticker): void {

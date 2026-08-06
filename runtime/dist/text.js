@@ -29,6 +29,11 @@ import { Constraint } from "./reactive.js";
 export class Text extends View {
     // `selectable` is a prevailing View slot now (inherited): the textStyle derive
     // below reads `this.selectable` so a `selectable` container opts a whole subtree in.
+    /** The per-line advance: the declared leading (a fontSize multiplier, the
+     *  Markdown convention) or, at the 0 default, the font's natural line box. */
+    lineAdvance(m) {
+        return this.lineHeight > 0 ? Math.round(this.fontSize * this.lineHeight) : m.ascent + m.descent;
+    }
     attach(backend, parentSurface) {
         // Auto-size installs at attach (measurement is a browser activity — the
         // model stays Node-importable) and only for unowned, never-set slots: an
@@ -39,7 +44,7 @@ export class Text extends View {
         if (!isSet(this, "height") && ownerOf(this, "height") === null) {
             bindDerived(this, "height", () => {
                 const m = fontMetrics(fontString(this));
-                const lineH = m.ascent + m.descent;
+                const lineH = this.lineAdvance(m);
                 // A bounded width wraps (unless wrap=false) → height extends to the
                 // wrapped line count. Reading `width` keeps this reactive, so a
                 // container/viewport resize re-wraps and re-flows — baseline.
@@ -69,7 +74,7 @@ export class Text extends View {
         const lines = bounded && this.wrap
             ? wrapLines(this.text, font, this.width, this.letterSpacing).length
             : 1;
-        return Math.ceil((m.ascent + m.descent) * lines);
+        return Math.ceil(this.lineAdvance(m) * lines);
     }
     /** The ink band (y axis): first line's cap top to the last line's baseline
      *  — what `y = center` centers (bind.ts bindAlign). Descenders hang below
@@ -85,7 +90,7 @@ export class Text extends View {
         const lines = bounded && this.wrap
             ? wrapLines(this.text, font, this.width, this.letterSpacing).length
             : 1;
-        return { lead: m.ascent - cap, size: (lines - 1) * (m.ascent + m.descent) + cap };
+        return { lead: m.ascent - cap, size: (lines - 1) * this.lineAdvance(m) + cap };
     }
     flush(s) {
         super.flush(s);
@@ -106,6 +111,7 @@ export class Text extends View {
             italic: this.italic,
             textFill: this.textFill,
             selectable: this.selectable,
+            lineHeight: this.lineHeight,
         }), 
         // Constraint is deliberately untyped across compute→apply; this
         // apply's input is exactly its compute's output.
@@ -122,5 +128,6 @@ defineAttributes(Text, {
     textAlign: { def: "left" },
     italic: { def: false },
     textFill: { def: null },
+    lineHeight: { def: 0 },
 });
 //# sourceMappingURL=text.js.map

@@ -145,7 +145,9 @@ class MacSurface {
      *  surface simply drops its sink (setInput(null)) — this is a no-op kept
      *  for protocol completeness. The carved-sink rule needs nothing here
      *  because nothing but our own walk ever hit-tests. */
-    setPointerEvents(_mode) { }
+    /** Consulted by hit() below — the walk decides, so the walk must know. */
+    pe = "";
+    setPointerEvents(mode) { this.pe = mode; }
     setScale(scale, px, py) {
         this.scaleK = scale;
         this.pivotX = px;
@@ -280,6 +282,9 @@ class MacSurface {
                 : null,
             align: style.align ?? "left", wrap: style.wrap === true,
             letterSpacing: style.letterSpacing ?? 0,
+            // Leading as a fontSize multiplier (0 = natural). The host's TextEngine
+            // does not consume it yet — seam row in test/seam.test.mjs.
+            lineHeight: style.lineHeight ?? 0,
             selectable: style.selectable === true,
             shadow: style.shadow == null ? null
                 : [style.shadow.dx, style.shadow.dy, style.shadow.blur, colorToCss(style.shadow.color)],
@@ -512,7 +517,12 @@ class MacSurface {
      *  ignoreclip children survive outside it), scroll frame corrected,
      *  children probed in reverse paint order, then this surface's own sink. */
     hit(px, py) {
-        if (!this.visible || this.opacity <= 0)
+        // OPACITY IS PAINT, NOT PRESENCE (the canvas walk's ruling, mirrored): a
+        // fully transparent view is still hittable — the press-catcher idiom — and
+        // the opacity gate this walk carried made the native host disagree with
+        // both other renderers. The gates are `visible` and `pointerEvents`, whose
+        // "none" is subtree-transparent per the reference.
+        if (!this.visible || this.pe === "none")
             return null;
         let lx = px - this.x;
         let ly = py - this.y;

@@ -70,6 +70,8 @@ on 2026-08-05**; the rest are scoped here.
 | `setPageExtent` | 07-29 | **open** — needs the root to scroll, and this host deliberately pins it (*a root never self-scrolls*). Not a missing setter but a design call: does a tall app scroll its window, or does the root get a content layer? |
 | `travelWith` / `isTraveling` | 08-01 | **open** — surface re-homing. Cheap in principle, since scrolling here *is* a content-layer translation and re-homing is a reparent — but it touches `place()`, the one part of this backend built so that insertion order cannot matter |
 
+| `TextStyle.lineHeight` | 08-06 | **open (field, not method)** — `Text.lineHeight` landed (a fontSize multiplier; web backends + measurer in lockstep). mac-backend forwards it in the TEXTSTYLE payload, but the host's TextEngine does not consume it yet — a declared leading renders at natural line box on Mac until it does |
+
 (`setRowCount` / `setRowIndex`, the windowing-aware AT projection, are DOM-only and out
 of scope until the language has accessibility to project — see §8.)
 

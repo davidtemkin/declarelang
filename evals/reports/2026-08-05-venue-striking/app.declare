@@ -1,0 +1,1412 @@
+/*
+# The Venue
+
+A season of ~4,000 performances, three halls, and the seat you actually want.
+
+## The restatement this program was written against
+
+**Ends.** See the season and narrow it (title, hall, month) with no page buttons and
+no waiting. Walk into a hall that reads as a *room* — where the stage is, which seats
+are gone, roughly where the good ones are — pick seats directly, watch the total move,
+give a name and an email, and come away with something worth showing at the door. Two
+ordinary failures — the service refuses, or somebody else got there first — leave the
+person able to carry on.
+
+**Tokens carried literally.** `4,000 performances` / `1 performance`; `3 seats · $240`;
+whole-dollar prices as `$240`; the service's own sentences, verbatim, from
+`errorBody.message`.
+
+**Constraints.** No payment. No server of our own. No accounts, no persistence. One
+build for a phone and a desk.
+
+**Means demoted.** "Page" → the URL is an attribute: `app.location` is the performance
+id, and every screen derives from it. "Modal" → the booking sheet is a sprung offset on
+a phone and a permanent rail at a desk. "Route transition" → the tapped season row
+*becomes* the hall's header; one sprung scalar `t` carries the whole morph.
+
+**Absences the brief could not ask for.** What travels between the season and the hall
+(the row itself). What a hold costs (nothing visible: seats commit optimistically and
+the truth catches up). What happens to a seat somebody else buys while you look at it
+(it leaves your selection, and says so).
+
+## The architecture
+
+- **One truth per surface.** `season` (all 4,000, held in memory) and `seats` (one
+  hall's map). Everything else is a derivation: `shown` is the filtered projection,
+  `house` is the seat map turned into a *room* — curved rows, a centre aisle, a fanned
+  rake, tiers that narrow as they go back — and `rail` is one row of that room blown up
+  to thumb size.
+- **Selection is records, in one place.** `picks` is the array; `pickKey` is its
+  membership string, so a seat's `chosen` is one cheap read rather than a scan.
+- **The three seat states are shape, not colour**: free is an open chip at full size,
+  gone is a small dark chip, yours is a large accent chip that arrives with a spring.
+  Legible in greyscale, legible with the legend covered.
+- **Phone and desk are one arrangement, differently parameterised.** `compact` decides
+  whether seats are picked in the plan (a precise pointer) or through the **row rail** —
+  the same seats, the same records, at 44 points, opened by tapping the room.
+*/
+
+script {
+    const VAPI = "http://127.0.0.1:8310"
+
+    // ── ink and paper, one accent ────────────────────────────────────────────
+    const PAPER = 0xF3EEE3
+    const CARD = 0xFFFCF5
+    const INK = 0x17130F
+    const INK2 = 0x3B342B
+    const MUTED = 0x8C8175
+    const FAINT = 0xB3A996
+    const LINE = 0xDDD3C1
+    const ACC = 0xC4351C
+    const ACC_D = 0x9A2712
+    const ACC_H = 0xD44A30
+    const GONE = 0x74695A
+    const WASH = 0xEAE3D4
+
+    const SERIF = "Iowan Old Style, Palatino Linotype, Palatino, Georgia, Times New Roman, serif"
+
+    const VDOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const VMON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const VMONL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+    // Every label is read in the VENUE's own time (the ISO instants the service
+    // publishes), never the viewer's — a curtain at 19:30 is 19:30 in Lisbon.
+    function vDay(iso: string): string {
+        const d = new Date(iso)
+        return VDOW[d.getUTCDay()] + " " + d.getUTCDate() + " " + VMON[d.getUTCMonth()]
+    }
+
+    function vTime(iso: string): string {
+        const d = new Date(iso)
+        const m = d.getUTCMinutes()
+        let h = d.getUTCHours()
+        const ap = h >= 12 ? "PM" : "AM"
+        h = h % 12
+        if (h === 0) h = 12
+        return h + ":" + String(m).padStart(2, "0") + " " + ap
+    }
+
+    function vMoney(n: number): string { return "$" + Math.round(n).toLocaleString("en-US") }
+
+    // The two quoted strings the brief fixes, in one place each.
+    function vCount(n: number): string {
+        return n === 1 ? "1 performance" : n.toLocaleString("en-US") + " performances"
+    }
+
+    function vSummary(n: number, total: number): string {
+        return n + (n === 1 ? " seat · " : " seats · ") + vMoney(total)
+    }
+
+    function vMonthName(key: string): string {
+        return VMONL[Number(key.slice(5, 7)) - 1] + " " + key.slice(0, 4)
+    }
+
+    // ── the season, projected ────────────────────────────────────────────────
+    // One pass over the 4,000: filter, format, and mark the first row of each
+    // month so the list can rule itself into months without a second structure.
+    function vProject(all: any, q: string, hall: string, mon: string): any {
+        const list = (all && all.performances) ? all.performances : []
+        const ql = q.trim().toLowerCase()
+        const out = []
+        let last = ""
+        for (const p of list) {
+            if (ql !== "" && !p.title.toLowerCase().includes(ql)) continue
+            if (hall !== "" && p.hallId !== hall) continue
+            const mk = p.startsAt.slice(0, 7)
+            if (mon !== "" && mk !== mon) continue
+            const first = mk !== last
+            last = mk
+            out.push({
+                id: p.id, title: p.title, hall: p.hall, hallId: p.hallId,
+                day: vDay(p.startsAt), time: vTime(p.startsAt), price: p.priceFrom,
+                month: vMonthName(mk), first: first,
+            })
+        }
+        return { rows: out }
+    }
+
+    function vFind(all: any, id: string): any {
+        const list = (all && all.performances) ? all.performances : []
+        for (const p of list) if (p.id === id) return p
+        return null
+    }
+
+    function vOne(all: any, id: string): any {
+        const p = vFind(all, id)
+        if (p == null) return { id: id, title: "", hall: "", day: "", time: "", price: 0, ready: false }
+        return {
+            id: p.id, title: p.title, hall: p.hall, day: vDay(p.startsAt),
+            time: vTime(p.startsAt), price: p.priceFrom, ready: true,
+        }
+    }
+
+    // The filter ruler: three halls and every month the season touches, as one
+    // typographic strip rather than three form controls.
+    function vFilters(all: any): any {
+        const list = (all && all.performances) ? all.performances : []
+        const seen: any = {}
+        const months = []
+        for (const p of list) {
+            const k = p.startsAt.slice(0, 7)
+            if (seen[k] !== 1) { seen[k] = 1; months.push(k) }
+        }
+        months.sort()
+        const chips = [
+            { id: "h:", kind: "hall", val: "", label: "ALL HALLS" },
+            { id: "h:grand", kind: "hall", val: "grand", label: "GRAND" },
+            { id: "h:playhouse", kind: "hall", val: "playhouse", label: "PLAYHOUSE" },
+            { id: "h:studio", kind: "hall", val: "studio", label: "STUDIO" },
+            { id: "rule", kind: "rule", val: "", label: "" },
+            { id: "m:", kind: "mon", val: "", label: "ALL" },
+        ]
+        for (const k of months) {
+            chips.push({ id: "m:" + k, kind: "mon", val: k, label: VMON[Number(k.slice(5, 7)) - 1].toUpperCase() })
+        }
+        return { chips: chips }
+    }
+
+    // ── the room ─────────────────────────────────────────────────────────────
+    // A seat map is a list of sections, rows and seats; a ROOM is a shape. The
+    // builder below turns one into the other, in design units that the view
+    // scales to whatever box it is given:
+    //
+    //   · rows CURVE — every seat sits on an arc bowing away from the stage;
+    //   · the rake FANS — a row's pitch grows with its distance from the stage,
+    //     so the house is a trapezoid, not a grid, and no two rows are the
+    //     same width;
+    //   · a CENTRE AISLE splits any row of fourteen or more, exactly where the
+    //     phone's row rail will break it;
+    //   · tiers stack behind the orchestra and narrow as they climb, each on
+    //     its own ground, tinted by price — so "where are the good seats" is
+    //     answered by the drawing rather than by a word.
+    const V_SEAT = 26       // the seat MARK, design units
+    const V_PITCH = 31      // the seat CELL — the hit target, always ≥ the mark
+    const V_ROWP = 27
+    const V_AISLE = 22
+    const V_BOW = 8         // how far a row's ends fall behind its middle
+    const V_SECGAP = 76     // the cross-aisle between tiers
+    const V_PAD = 24
+    const V_STAGEH = 40
+    const V_STAGEGAP = 104
+
+    function vEmptyHouse(): any {
+        return { w: 600, h: 400, seats: [], sections: [], rows: [], stageX: 0, stageY: 0, stageW: 0, stageH: 0, ready: false }
+    }
+
+    function vHouse(map: any): any {
+        if (map == null || map.sections == null || map.sections.length === 0) return vEmptyHouse()
+        const secs = map.sections
+        let total = 0
+        for (const s of secs) total += s.rows.length
+        const prices = secs.map((s: any) => s.price)
+        const pmin = Math.min(...prices)
+        const pmax = Math.max(...prices)
+
+        const seats = []
+        const rows = []
+        const sections = []
+        let g = 0
+        let y = V_STAGEH + V_STAGEGAP
+        let maxW = 0
+
+        for (const sec of secs) {
+            const top = y
+            let secW = 0
+            for (const row of sec.rows) {
+                const n = row.seats.length
+                const half = n >= 14 ? Math.ceil(n / 2) : -1
+                const f = 1 + 0.16 * (total <= 1 ? 0 : g / (total - 1))
+                const pitch = V_PITCH * f
+                const aisle = half > 0 ? V_AISLE * f : 0
+                const span = (n - 1) * pitch + aisle
+                const rowW = span + pitch
+                if (rowW > secW) secW = rowW
+                if (rowW > maxW) maxW = rowW
+                const key = sec.key + "-" + row.name
+                rows.push({
+                    id: key, key: key, sec: sec.key, secName: sec.name, name: row.name,
+                    price: sec.price, n: n, half: half, span: span, pitch: pitch,
+                    cx: 0, uy: y, uw: rowW, g: g,
+                })
+                for (let i = 0; i < n; i++) {
+                    const seat = row.seats[i]
+                    const off = i * pitch + (half > 0 && i >= half ? aisle : 0) - span / 2
+                    const t = span <= 0 ? 0 : off / (span / 2)
+                    seats.push({
+                        id: seat.id, num: seat.number, sold: seat.status === "sold",
+                        price: sec.price, sec: sec.key, secName: sec.name,
+                        rowKey: key, rowName: row.name, idx: i,
+                        cx: off, uy: y + V_BOW * t * t, uw: pitch, uh: V_ROWP, um: V_SEAT,
+                    })
+                }
+                y += V_ROWP
+                g += 1
+            }
+            const tone = pmax === pmin ? 1 : (sec.price - pmin) / (pmax - pmin)
+            sections.push({
+                id: sec.key, key: sec.key, name: sec.name.toUpperCase(), price: sec.price,
+                cw: secW + 34, uy: top - 11, uh: (y - top) + 22 + V_BOW, tone: tone,
+            })
+            y += V_SECGAP
+        }
+
+        const w = maxW + V_PAD * 2
+        const cx = w / 2
+        for (const s of seats) s.ux = cx + s.cx - s.uw / 2
+        for (const r of rows) r.ux = cx - r.uw / 2
+        for (const s of sections) s.ux = cx - s.cw / 2
+        const stageW = Math.max(180, maxW * 0.6)
+        return {
+            w: w, h: y - V_SECGAP + V_PAD, seats: seats, sections: sections, rows: rows,
+            stageX: cx - stageW / 2, stageY: 10, stageW: stageW, stageH: V_STAGEH, ready: true,
+        }
+    }
+
+    // One row, blown up: the same records the plan draws, at thumb scale, with
+    // the centre aisle kept as a gap so the halves read as halves.
+    function vFree(house: any, goneKey: string): number {
+        if (house == null) return 0
+        let n = 0
+        for (const s of house.seats) if (!s.sold && !goneKey.includes("|" + s.id + "|")) n += 1
+        return n
+    }
+
+    function vRail(house: any, key: string): any {
+        if (house == null || key === "") return { seats: [], name: "", secName: "", price: 0, sec: "" }
+        let row: any = null
+        for (const r of house.rows) if (r.key === key) row = r
+        if (row == null) return { seats: [], name: "", secName: "", price: 0, sec: "" }
+        const out = []
+        for (const s of house.seats) {
+            if (s.rowKey !== key) continue
+            out.push({ id: s.id, num: s.num, sold: s.sold, price: s.price, idx: s.idx, pre: (row.half > 0 && s.idx === row.half) ? 18 : 0 })
+        }
+        return { seats: out, name: row.name, secName: row.secName, price: row.price, sec: row.sec, half: row.half }
+    }
+
+    // How many lines the row rail will take, by the same rule `WrappingLayout`
+    // uses — so the sheet reserves exactly the height it is about to need and
+    // the last seat of a row can never fall off the bottom.
+    function vRailLines(n: number, half: number, w: number): number {
+        let x = 0
+        let lines = 1
+        for (let i = 0; i < n; i++) {
+            const cw = 44 + (half > 0 && i === half ? 18 : 0)
+            if (i > 0 && x + cw > w) { lines += 1; x = 0 }
+            x += cw
+        }
+        return lines
+    }
+
+    function vRowIndex(house: any, key: string): number {
+        if (house == null) return -1
+        for (let i = 0; i < house.rows.length; i++) if (house.rows[i].key === key) return i
+        return -1
+    }
+
+    // Where a row sits in the plan — the bracket that says "this row is the one
+    // in your hand". Four scalars, read straight off the model.
+    function vRowBox(house: any, key: string, which: number): number {
+        if (house == null) return 0
+        for (const r of house.rows) {
+            if (r.key !== key) continue
+            return which === 0 ? r.ux : which === 1 ? r.uy : which === 2 ? r.uw : V_ROWP
+        }
+        return 0
+    }
+
+    function vChan(x: number, y: number, u: number): number {
+        return Math.round(x + (y - x) * (u < 0 ? 0 : u > 1 ? 1 : u))
+    }
+
+    function vMix(a: number, b: number, t: number): number {
+        return (vChan((a >> 16) & 255, (b >> 16) & 255, t) << 16)
+             | (vChan((a >> 8) & 255, (b >> 8) & 255, t) << 8)
+             |  vChan(a & 255, b & 255, t)
+    }
+
+    function vLerp(a: number, b: number, t: number): number { return a + (b - a) * t }
+    function vClamp(v: number, a: number, b: number): number { return Math.max(a, Math.min(b, v)) }
+    function vRamp(t: number, a: number, b: number): number { return vClamp((t - a) / (b - a), 0, 1) }
+
+    const V_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+    function vEmailOk(s: string): boolean { return V_EMAIL.test(s.trim()) }
+
+    // The stub's bars: a deterministic comb off the confirmation code, so the
+    // artifact looks like the thing a door scanner reads rather than a picture
+    // of one.
+    function vDashes(n: number): any[] {
+        const out = []
+        for (let i = 0; i < n; i++) out.push({ id: i })
+        return out
+    }
+
+    function vBars(code: string): number[] {
+        const out = []
+        for (let i = 0; i < 42; i++) {
+            const c = code.charCodeAt(i % Math.max(1, code.length)) || 65
+            out.push(((c * (i + 7)) % 4) * 2 + 3)
+        }
+        return out
+    }
+    }
+
+
+/*
+## Rule — a hairline. The house's only border, used everywhere a boundary is
+real and nowhere it is decorative.
+*/
+
+class Rule extends View [ height = 1, fill = { LINE } ]
+
+/*
+## Act — the one button shape: a squared accent bar with letterspaced caps.
+Extends `Control`, so Tab reaches it and Space activates it, exactly like the
+library's own.
+*/
+
+class Act extends Control [ height = 52, cornerRadius = 3,
+    label: string = "",
+    quiet: boolean = false,
+    inkOn: Color = null,
+    edge: Color = null,
+    onClick() { },
+    press() { flashPress(); onClick() },
+    opacity = { disabled ? 0.85 : 1 },
+    fill = { disabled ? 0xE7DFCE
+           : quiet ? (down ? (edge != null ? 0x3A3126 : WASH) : hot ? (edge != null ? 0x2C251C : 0xEDE6D8) : null)
+           : down ? ACC_D : hot ? ACC_H : ACC },
+    stroke = { edge != null ? stroke(1, edge) : quiet ? stroke(1, LINE) : null },
+    t: Text [ x = center, y = center, wrap = false, fontSize = 11.5, fontWeight = bold, letterSpacing = 1.7,
+        textColor = { classroot.disabled ? 0xA1957F : classroot.inkOn != null ? classroot.inkOn
+                    : classroot.quiet ? INK2 : CARD },
+        text = { classroot.label } ]
+    ]
+
+
+/*
+## Chip — one word in the filter ruler. Halls and months share it: the mark of
+being chosen is the accent and a rule under the word, not a box around it.
+*/
+
+class Chip extends View [ height = 40,
+    on: boolean = { :kind == "hall" ? app.hallF == :val : app.monF == :val },
+    width = { :kind == "rule" ? 25 : this.t.width + 22 },
+    t: Text [ x = 11, y = center, wrap = false, fontSize = 11, fontWeight = semibold, letterSpacing = 1.3,
+        visible = { :kind != "rule" },
+        textColor = { classroot.on ? ACC : classroot.hovered ? INK : MUTED }, text = { :label } ],
+    bar: View [ x = 11, y = 27, height = 2, width = { classroot.t.width }, fill = { ACC },
+        visible = { classroot.on } ],
+    div: View [ x = 12, y = 13, width = 1, height = 14, fill = { LINE }, visible = { :kind == "rule" } ],
+    onClick() { app.pickFilter("" + :kind, "" + :val) }
+    ]
+
+
+/*
+## PerfRow — one performance in the season.
+
+The row is the thing that TRAVELS: tapping it hands the app its own rectangle in
+root space, and the hero card takes off from exactly there.
+*/
+
+class PerfRow extends View [
+    width = { parent.width },
+    height = { (:first ? (app.compact ? 52 : 58) : 0) + (app.compact ? 76 : 62) },
+    top: number = { :first ? (app.compact ? 52 : 58) : 0 },
+
+    // the month rule — present only on the first performance of each month
+
+    mHead: View [ visible = { :first }, width = { parent.width }, height = { classroot.top },
+        m: Text [ x = 0, y = { classroot.top - 30 }, wrap = false, fontSize = 12.5, fontWeight = semibold, letterSpacing = 2.4,
+            textColor = { INK }, text = { ("" + :month).toUpperCase() } ],
+        r: Rule [ y = { classroot.top - 9 }, width = { parent.width } ]
+        ],
+
+    hit: View [ y = { classroot.top }, width = { parent.width }, height = { app.compact ? 76 : 62 },
+        fill = { classroot.pressed ? WASH : classroot.hovered ? 0xFAF6EC : null },
+
+        edge: View [ width = 3, height = { parent.height }, fill = { ACC },
+            opacity = { classroot.hovered || classroot.pressed ? 1 : 0 } ],
+
+        day: Text [ x = { app.rowPad }, y = { app.compact ? 15 : (parent.height - this.height) / 2 }, wrap = false,
+            fontSize = 11, fontWeight = semibold, letterSpacing = 1.1, textColor = { MUTED },
+            text = { app.compact ? ("" + :day + "  ·  " + :time) : ("" + :day).toUpperCase() } ],
+        time: Text [ x = { app.rowPad + 98 }, y = center, wrap = false, visible = { !app.compact },
+            fontSize = 11, fontWeight = regular, letterSpacing = 0.6, textColor = { MUTED }, text = { :time } ],
+
+        title: Text [ x = { app.titleX }, y = { app.compact ? 34 : (parent.height - this.height) / 2 }, wrap = false,
+            fontFamily = { SERIF }, fontSize = { app.compact ? 20 : 21 },
+            textColor = { INK }, text = { :title } ],
+
+        hall: Text [ y = center, wrap = false, visible = { !app.compact },
+            x = { parent.width - 200 }, width = 120, textAlign = right,
+            fontSize = 10.5, fontWeight = semibold, letterSpacing = 1.2, textColor = { FAINT },
+            text = { ("" + :hall).toUpperCase() } ],
+        from: Text [ y = { app.compact ? 36 : (parent.height - this.height) / 2 }, wrap = false, textAlign = right,
+            x = { parent.width - (app.compact ? 74 : 70) }, width = { app.compact ? 68 : 62 },
+            fontSize = { app.compact ? 12 : 13 }, fontWeight = semibold, textColor = { INK2 },
+            text = { "from " + vMoney(:price) } ],
+        sub: Text [ x = { app.rowPad }, y = 56, wrap = false, visible = { app.compact },
+            fontSize = 10.5, fontWeight = semibold, letterSpacing = 1.2, textColor = { FAINT },
+            text = { ("" + :hall).toUpperCase() } ],
+
+        r: Rule [ y = { parent.height - 1 }, width = { parent.width } ],
+
+        onClick() {
+            const o = this.rootOrigin()
+            app.enter("" + :id, o.x, o.y, this.width, this.height)
+            }
+        ]
+    ]
+
+
+/*
+## Seat — one seat in the plan.
+
+The CELL is the hit target and is always the full row pitch, so on a phone every
+point inside the room belongs to some seat and a thumb cannot fall between two.
+The MARK inside it is what you see, and it carries the three states as three
+sizes and two fills — readable in greyscale, readable with the legend covered.
+*/
+
+class Seat extends View [
+    x = { :ux * app.hs }, y = { :uy * app.hs },
+    width = { :uw * app.hs }, height = { :uh * app.hs },
+    chosen: boolean = { app.pickKey.includes("|" + :id + "|") },
+    gone: boolean = { :sold || app.goneKey.includes("|" + :id + "|") },
+    sc: number = 1,
+    Spring [ attribute = sc, to = { classroot.chosen ? 1.06 : classroot.gone ? 0.5 : 0.94 },
+        stiffness = 420, damping = 13, epsilon = 0.002 ],
+    tip = { app.compact ? "" : ("" + :secName + " " + :rowName + " " + :num + " · " + vMoney(:price)) },
+
+    m: View [ x = center, y = center,
+        width = { :um * app.hs }, height = { :um * app.hs },
+        cornerRadius = { Math.max(1.5, :um * app.hs * 0.22) },
+        scale = { classroot.sc },
+        fill = { classroot.chosen ? ACC : classroot.gone ? GONE : CARD },
+        stroke = { classroot.chosen || classroot.gone ? null : stroke(1, 0xCEC2AB) },
+        shadow = { classroot.chosen ? shadow(0, 1, 5, 0x9A271288) : null } ],
+
+    onClick() { app.seatTapped("" + :id, "" + :rowKey, :price, :idx) }
+    ]
+
+
+/*
+## SectionGround — the tier a set of rows sits on. Tinted by price, so the
+expensive ground is the warm one nearest the stage.
+*/
+
+class SectionGround extends View [
+    x = { :ux * app.hs }, y = { :uy * app.hs - app.secHead },
+    width = { :cw * app.hs }, height = { :uh * app.hs + app.secHead },
+    cornerRadius = 4,
+    fill = { vMix(0xF4EDDD, 0xE7DCC4, :tone) },
+
+    name: Text [ x = 12, y = 5, wrap = false, fontWeight = bold, letterSpacing = 1.8,
+        fontSize = { app.secType }, textColor = { 0x9B8F79 }, text = { :name } ],
+    price: Text [ y = 4, wrap = false, textAlign = right, width = 90,
+        x = { parent.width - 102 }, fontWeight = semibold,
+        fontSize = { app.secType + 1.5 }, textColor = { 0x6E644F }, text = { vMoney(:price) } ]
+    ]
+
+
+/*
+## RailSeat — the same seat at thumb scale, in the row rail. 44 points of hit
+target, the number printed on it, the same three states.
+*/
+
+class RailSeat extends View [ width = { 44 + :pre }, height = 52,
+    chosen: boolean = { app.pickKey.includes("|" + :id + "|") },
+    gone: boolean = { :sold || app.goneKey.includes("|" + :id + "|") },
+    sc: number = 1,
+    Spring [ attribute = sc, to = { classroot.chosen ? 1 : 0.88 }, stiffness = 420, damping = 14, epsilon = 0.002 ],
+
+    m: View [ y = 3, width = 40, height = 40, cornerRadius = 8,
+        x = { 2 + :pre },
+        scale = { classroot.sc },
+        fill = { classroot.chosen ? ACC : classroot.gone ? GONE : CARD },
+        stroke = { classroot.chosen || classroot.gone ? null : stroke(1, 0xCEC2AB) },
+        shadow = { classroot.chosen ? shadow(0, 2, 7, 0x9A271277) : null },
+        n: Text [ x = center, y = center, wrap = false, fontSize = 13, fontWeight = semibold,
+            textColor = { classroot.chosen ? CARD : classroot.gone ? 0xA79C8C : INK2 },
+            text = { "" + :num } ]
+        ],
+    onClick() { app.toggle("" + :id, :price) }
+    ]
+
+
+/*
+## PickChip — one chosen seat in the rail's ledger, with the way to give it back.
+*/
+
+class PickChip extends View [ width = { parent.width }, height = 30,
+    lbl: Text [ y = center, wrap = false, fontSize = 12.5, textColor = { INK },
+        text = { "" + :label } ],
+    amt: Text [ y = center, wrap = false, textAlign = right, width = 76,
+        x = { parent.width - 100 }, fontSize = 12.5, fontWeight = semibold, textColor = { INK2 },
+        text = { vMoney(:price) } ],
+    x0: View [ width = 24, height = 30, x = { parent.width - 24 },
+        g: Text [ x = center, y = center, wrap = false, fontSize = 15,
+            textColor = { parent.parent.hovered ? ACC : FAINT }, text = "×" ],
+        onClick() { app.toggle("" + :id, :price) }
+        ]
+    ]
+
+
+/*
+## Bar — one stripe of the ticket's stub comb.
+*/
+
+class Bar extends View [ width = { :w }, height = 44, fill = { INK }, opacity = { :w > 5 ? 0.92 : 0.62 } ]
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+App [ appName = "The Venue", minWidth = 320,
+
+    // The app is a fixed stage: the season has its own scroller, the hall fits
+    // its box by construction, and no surface can hand the window a scrollbar.
+
+    scrolls = none,
+    fill = { PAPER },
+    textColor = { INK },
+    fontFamily = ["Inter", "SF Pro Text", "Helvetica Neue", "Helvetica", "Arial", "sans-serif"],
+    fontSize = 14,
+
+    theme = { ({ ...Themes.sanFrancisco(false),
+        accent: ACC, accentText: CARD, surface: PAPER, text: INK, textMuted: MUTED,
+        line: LINE, control: CARD, controlHover: 0xF6F1E6, controlPressed: WASH,
+        controlSelected: WASH, focusRing: ACC, controlRadius: 4 }) },
+
+    // ── the two sources ──────────────────────────────────────────────────────
+
+    season: DataSource [ url = { VAPI + "/api/performances" } ],
+
+    // The address IS the reactive thing: `location` names the performance, so a
+    // deep link, the back button and a tap on a row are one code path.
+
+    seats: DataSource [ auto = true,
+        url = { app.perfId == "" ? "" : VAPI + "/api/performances/" + app.perfId + "/seats" },
+        onLoad() { app.freshHall() }
+        ],
+
+    // Other people, buying. Connected exactly while a hall is open.
+
+    feed: EventStream [ listenTo = ["open", "seatchanged"], retry = 3,
+        url = { app.perfId == "" ? "" : VAPI + "/api/events?performance=" + app.perfId },
+        active = { app.perfId != "" },
+        onMessage(e: StreamMessage) { app.sold(e.type, e.data) }
+        ],
+
+    hold: DataSource [ url = { VAPI + "/api/holds" }, method = "POST" ],
+    booking: DataSource [ url = { VAPI + "/api/bookings" }, method = "POST" ],
+
+    keys: Keys [
+        onKeyUp(e: KeyEvent) {
+            if (e.key != "Escape") return
+            if (app.booked) app.again()
+            else if (app.railKey != "") app.railKey = ""
+            else if (app.perfId != "") app.back()
+            }
+        ],
+
+    onInit() {
+        this.season.fetch()
+        if (this.location != "") this.lastId = this.location
+        },
+
+    // ── where we are ─────────────────────────────────────────────────────────
+
+    perfId: string = { app.location },
+    inHall: boolean = { app.perfId != "" },
+    lastId: string = "",
+
+    // What the hero shows. It survives the exit animation, so the card that
+    // flies home still carries the title it left with.
+
+    showId: string = { app.perfId != "" ? app.perfId : app.lastId },
+    one: Dataset [ contents = { vOne(app.season.value, app.showId) } ],
+
+    // The one scalar the whole season↔hall morph rides.
+
+    t: number = 0,
+    Spring [ attribute = t, to = { app.inHall ? 1 : 0 }, stiffness = 200, damping = 27, epsilon = 0.0015 ],
+
+    booked: boolean = { app.booking.loaded && app.booking.statusCode == 201 },
+    tk: number = 0,
+    Spring [ attribute = tk, to = { app.booked ? 1 : 0 }, stiffness = 190, damping = 26, epsilon = 0.0015 ],
+
+    // ── responsiveness ───────────────────────────────────────────────────────
+    // One threshold, and everything downstream of it. Narrow means: the room is
+    // a MAP you tap to choose a place, and seats are picked in the row rail.
+
+    compact: boolean = { app.width < 780 || (app.touchDevice && app.width < 1080) },
+    rowPad: number = { app.compact ? 18 : 26 },
+    titleX: number = { app.compact ? 18 : 196 },
+    listW: number = { Math.min(880, app.width - (app.compact ? 36 : 76)) },
+    listX: number = { (app.width - app.listW) / 2 },
+    headH: number = 216,
+    hallH: number = { app.compact ? 96 : 108 },
+    railW: number = { app.compact ? 0 : Math.min(400, Math.max(320, app.width * 0.25)) },
+    secHead: number = 22,
+    secType: number = { Math.max(8, Math.min(10.5, 22 * app.hs)) },
+    freeN: number = { vFree(app.house.value, app.goneKey) },
+    houseN: number = { (((app.house.value as any) || ({ })).seats || []).length },
+
+    // ── the filters ──────────────────────────────────────────────────────────
+
+    q: string = "",
+    hallF: string = "",
+    monF: string = "",
+    shown: Dataset [ contents = { vProject(app.season.value, app.q, app.hallF, app.monF) } ],
+    filters: Dataset [ contents = { vFilters(app.season.value) } ],
+    nShown: number = { (((app.shown.value as any) || ({ })).rows || []).length },
+    countLabel: string = { vCount(app.nShown) },
+
+    pickFilter(kind: string, val: string) {
+        if (kind == "hall") this.hallF = this.hallF == val ? "" : val
+        else if (kind == "mon") this.monF = this.monF == val ? "" : val
+        },
+
+    // ── the hall ─────────────────────────────────────────────────────────────
+
+    house: Dataset [ contents = { vHouse(app.seats.value) } ],
+    houseW: number = { ((app.house.value as any) || ({ w: 1 })).w },
+    houseH: number = { ((app.house.value as any) || ({ h: 1 })).h },
+
+    bodyW: number = { app.width - (app.compact ? 0 : app.railW) },
+    bodyH: number = { app.height - app.hallH - (app.compact ? 80 : 0) },
+    hs: number = { Math.min((app.bodyW - 40) / Math.max(1, app.houseW),
+                            (app.bodyH - (app.compact ? 26 : 70)) / Math.max(1, app.houseH), 1.2) },
+    planW: number = { app.houseW * app.hs },
+    planH: number = { app.houseH * app.hs },
+    planX: number = { (app.bodyW - app.planW) / 2 },
+    planTop: number = { app.hallH + (app.compact ? 10 : 13) },
+    planY: number = { app.planTop + Math.max(0, (app.bodyH - app.planH - (app.compact ? 20 : 60)) / 2) },
+    visH: number = { app.height - app.dockH - app.planTop },
+
+    // On a phone the rail slides up over the room; rather than rescaling 700
+    // seats every frame, the room SLIDES, keeping the row you are working in
+    // above the sheet.
+
+    rowMid: number = { (vRowBox(app.house.value, app.railKey, 1)
+                      + vRowBox(app.house.value, app.railKey, 3) / 2) * app.hs },
+    railTop: number = { app.planTop + (app.planH <= app.visH
+        ? (app.visH - app.planH) / 2
+        : vClamp(app.visH / 2 - app.rowMid, app.visH - app.planH, 0)) },
+    shiftTo: number = { app.railKey == "" || !app.compact ? 0 : app.railTop - app.planY },
+    shift: number = 0,
+    Spring [ attribute = shift, to = { app.shiftTo }, stiffness = 210, damping = 28 ],
+
+    // ── selection ────────────────────────────────────────────────────────────
+    // `picks` is the truth; `pickKey`, `pickN` and `pickTotal` are written with
+    // it in one place, so seven hundred seats each read ONE string rather than
+    // scanning an array.
+
+    picks: array = [],
+    pickKey: string = "|",
+    pickN: number = 0,
+    pickTotal: number = 0,
+    picksData: Dataset [ contents = { ({ items: app.picks }) } ],
+    hasPicks: boolean = { app.pickN > 0 },
+    totalShown: number = 0,
+    Spring [ attribute = totalShown, to = { app.pickTotal }, stiffness = 520, damping = 34, epsilon = 0.4 ],
+    summary: string = { vSummary(app.pickN, app.totalShown) },
+
+    goneKey: string = "|",
+    heldKey: string = "|",
+    notice: string = "",
+    railKey: string = "",
+    holdTimer: number = 0,
+    holding: boolean = false,
+
+    // ── the booking ──────────────────────────────────────────────────────────
+
+    bName: string = "",
+    bMail: string = "",
+    nameTouched: boolean = false,
+    mailTouched: boolean = false,
+    nameOk: boolean = { app.bName.trim().length > 0 },
+    mailOk: boolean = { vEmailOk(app.bMail) },
+    canBook: boolean = { app.nameOk && app.mailOk && app.pickN > 0 && !app.booking.loading },
+    sheet: number = 0,
+    sheetOpen: boolean = false,
+    Spring [ attribute = sheet, to = { app.sheetOpen && app.compact ? 1 : 0 }, stiffness = 230, damping = 29, epsilon = 0.0015 ],
+
+    dockH: number = { app.compact
+        ? 8 + (app.notice != "" ? 44 : 0) + (app.railKey != "" ? app.railH : 0) + (app.hasPicks ? 74 : 0)
+        : 0 },
+    railH: number = { 44 + app.railLines * 52 + 12 },
+    railData: Dataset [ contents = { vRail(app.house.value, app.railKey) } ],
+    railCount: number = { (((app.railData.value as any) || ({ })).seats || []).length },
+    railHalf: number = { (((app.railData.value as any) || ({ })).half ?? -1) },
+    railLines: number = { vRailLines(app.railCount, app.railHalf, app.width - 36) },
+    railIdx: number = { vRowIndex(app.house.value, app.railKey) },
+    nRows: number = { (((app.house.value as any) || ({ })).rows || []).length },
+
+    // ── verbs ────────────────────────────────────────────────────────────────
+
+    /* Entering a hall. The row hands over its own rectangle in ROOT space; the
+       hero takes off from exactly there and lands as the hall's header. */
+
+    enter(id: string, x: number, y: number, w: number, h: number) {
+        this.heroX = x
+        this.heroY = y
+        this.heroW = w
+        this.heroH = h
+        this.heroSet = true
+        this.lastId = id
+        // Re-entering the hall you just left: `auto` will not re-ask for an
+        // address it already has, and the house has moved on since — seats you
+        // booked are sold now, and so are anybody else's.
+        if (this.perfId == id) this.seats.fetch()
+        this.location = id
+        },
+
+    back() {
+        this.railKey = ""
+        this.sheetOpen = false
+        this.location = ""
+        },
+
+    again() {
+        this.booking.clear()
+        this.setPicks([])
+        this.heldKey = "|"
+        this.notice = ""
+        this.railKey = ""
+        this.sheetOpen = false
+        this.location = ""
+        },
+
+    /* A new seat map arrived: nothing about the last hall survives it. */
+
+    freshHall() {
+        this.setPicks([])
+        this.goneKey = "|"
+        this.heldKey = "|"
+        this.notice = ""
+        this.railKey = ""
+        this.sheetOpen = false
+        this.nameTouched = false
+        this.mailTouched = false
+        this.booking.clear()
+        },
+
+    setPicks(list: array) {
+        let key = "|"
+        let total = 0
+        for (const p of (list as any[])) { key = key + p.id + "|"; total = total + p.price }
+        this.picks = list
+        this.pickKey = key
+        this.pickN = (list as any[]).length
+        this.pickTotal = total
+        },
+
+    /* A tap in the plan. On a desk it picks the seat; on a phone it opens that
+       seat's ROW at thumb size — the same records, a different representation,
+       and the room slides to keep it in view. */
+
+    seatTapped(id: string, rowKey: string, price: number, idx: number) {
+        this.notice = ""
+        if (!this.compact) { this.toggle(id, price); return }
+        this.railKey = rowKey
+        },
+
+    toggle(id: string, price: number) {
+        this.notice = ""
+        if (this.goneKey.includes("|" + id + "|") || this.isSold(id)) return
+        const list = (this.picks as any[])
+        const at = list.findIndex((p) => p.id === id)
+        if (at >= 0) { this.setPicks(list.filter((p) => p.id !== id)); return }
+        const rec = this.seatRecord(id)
+        this.setPicks([...list, ({ id: id, price: price, label: rec })])
+        this.armHold()
+        },
+
+    isSold(id: string) -> boolean {
+        const h = this.house.value as any
+        if (h == null) return false
+        for (const s of h.seats) if (s.id === id) return s.sold === true
+        return false
+        },
+
+    seatRecord(id: string) -> string {
+        const h = this.house.value as any
+        if (h == null) return id
+        for (const s of h.seats) if (s.id === id) return s.secName + "  " + s.rowName + " " + s.num
+        return id
+        },
+
+    /* Choosing is optimistic — a seat commits the instant it is touched, and the
+       claim follows a beat later, batched. The service is the authority; when it
+       disagrees the seat leaves the selection and says whose fault it was. */
+
+    armHold() {
+        clearTimeout(this.holdTimer)
+        this.holdTimer = setTimeout(() => { app.flushHold() }, 380)
+        },
+
+    flushHold() {
+        if (this.holding || this.perfId == "") return
+        const want = (this.picks as any[])
+            .map((p) => "" + p.id)
+            .filter((id) => !this.heldKey.includes("|" + id + "|") && !this.goneKey.includes("|" + id + "|"))
+        if (want.length === 0) return
+        this.holding = true
+        this.hold.body = ({ performanceId: this.perfId, seatIds: want })
+        this.hold.fetch().then(() => { app.heldBack(want) })
+        },
+
+    heldBack(want: array) {
+        this.holding = false
+        const code = this.hold.statusCode
+        if (code === 200) {
+            let k = this.heldKey
+            for (const id of (want as string[])) k = k + id + "|"
+            this.heldKey = k
+            }
+        else {
+            const body = this.hold.errorBody as any
+            if (code === 409 && body != null) {
+                this.notice = "" + (body.message || "Those seats are no longer available.")
+                this.drop(body.conflicts || [])
+                }
+            }
+        // Anything chosen WHILE that request was in flight was skipped; one more
+        // pass costs nothing when there is nothing left to claim.
+        this.armHold()
+        },
+
+    /* Seats that are gone: out of the selection, dark in the room, and never
+       silently — the person is told which. */
+
+    drop(ids: array) {
+        let g = this.goneKey
+        for (const id of (ids as string[])) if (!g.includes("|" + id + "|")) g = g + id + "|"
+        this.goneKey = g
+        this.setPicks((this.picks as any[]).filter((p) => !g.includes("|" + p.id + "|")))
+        },
+
+    sold(kind: string, data: string) {
+        if (kind != "seatchanged") return
+        const m = JSON.parse(data || "{}")
+        const id = "" + (m.seatId || "")
+        if (id === "") return
+        const mine = this.pickKey.includes("|" + id + "|")
+        this.drop([id])
+        if (mine) this.notice = id + " went to somebody else while you were choosing."
+        },
+
+    stepRow(d: number) {
+        const h = this.house.value as any
+        if (h == null || h.rows.length === 0) return
+        const i = vClamp(this.railIdx + d, 0, h.rows.length - 1)
+        this.railKey = "" + h.rows[i].key
+        },
+
+    confirm() {
+        if (!this.canBook) return
+        this.notice = ""
+        this.booking.body = ({
+            performanceId: this.perfId,
+            seatIds: (this.picks as any[]).map((p) => "" + p.id),
+            name: this.bName,
+            email: this.bMail,
+            })
+        this.booking.fetch().then(() => { app.booked_() })
+        },
+
+    booked_() {
+        const code = this.booking.statusCode
+        if (code === 201) { this.sheetOpen = false; this.railKey = ""; return }
+        const body = this.booking.errorBody as any
+        // The service's own sentence, as it is given.
+        this.notice = "" + ((body && body.message) || this.booking.error || "The booking could not be completed.")
+        if (code === 409 && body != null) this.drop(body.conflicts || [])
+        },
+
+    bookedSeats: string = { app.booking.loaded ? ((app.booking.value as any).seats || []).join("   ") : "" },
+    bookedTotal: string = { app.booking.loaded ? vMoney((app.booking.value as any).total || 0) : "" },
+    bookedCode: string = { app.booking.loaded ? "" + ((app.booking.value as any).code || "") : "" },
+    barsData: Dataset [ contents = { ({ bars: vBars(app.bookedCode).map((w, i) => ({ id: i, w: w })) }) } ],
+    dashData: Dataset [ contents = { ({ dashes: vDashes(40) }) } ],
+    bookedN: number = { app.booking.loaded ? (((app.booking.value as any).seats) || []).length : 0 },
+
+    // hero geometry — the row's rectangle at rest, the header's when landed
+
+    heroX: number = 0,
+    heroY: number = 0,
+    heroW: number = 0,
+    heroH: number = 0,
+    heroSet: boolean = false,
+    fromX: number = { app.heroSet ? app.heroX : 0 },
+    fromY: number = { app.heroSet ? app.heroY : 0 },
+    fromW: number = { app.heroSet ? app.heroW : app.width },
+    fromH: number = { app.heroSet ? app.heroH : app.hallH },
+
+    // ══ THE SEASON ═══════════════════════════════════════════════════════════
+
+    season_: View [ width = { app.width }, height = { app.height },
+        opacity = { 1 - app.t }, visible = { app.t < 0.995 },
+
+        head: View [ width = { parent.width }, height = { app.headH }, fill = { PAPER },
+
+            mark: Text [ x = { app.listX }, y = { app.compact ? 22 : 26 }, wrap = false,
+                fontSize = 12, fontWeight = bold, letterSpacing = 3.4, textColor = { INK },
+                text = "THE VENUE" ],
+
+            find: View [ y = { app.compact ? 50 : 18 },
+                x = { app.compact ? app.listX : app.listX + app.listW - 330 },
+                width = { app.compact ? app.listW : 330 }, height = 38,
+                q: TextInput [ width = { parent.width }, height = 32, fill = null, stroke = null, cornerRadius = 0, padding = 0,
+                    fontSize = { app.compact ? 17 : 15 }, textColor = { INK },
+                    placeholder = "Search the season",
+                    onInput(v: string) { app.q = "" + v }
+                    ],
+                r: Rule [ y = 36, width = { parent.width },
+                    fill = { app.season_.head.find.q.focused ? ACC : LINE } ]
+                ],
+
+            seasonOf: Text [ x = { app.listX }, y = { app.compact ? 104 : 88 }, wrap = false,
+                fontSize = 10, fontWeight = semibold, letterSpacing = 2.2, textColor = { FAINT },
+                text = "THE 2026—27 SEASON" ],
+
+            // The count, exactly as the brief writes it, at the size that says
+            // it is the fact on this page.
+
+            count: Text [ x = { app.listX }, y = { app.compact ? 118 : 102 }, wrap = false,
+                fontSize = { app.compact ? 32 : 44 }, fontWeight = semibold, letterSpacing = -1.4,
+                textColor = { INK }, text = { app.countLabel } ],
+
+            empty: Text [ y = 168, wrap = false, x = { app.listX },
+                fontSize = 12, textColor = { MUTED },
+                visible = { app.season.failed },
+                text = { "The season could not be loaded — " + (app.season.error || "") } ],
+
+            ruler: View [ y = { app.headH - 46 }, height = 40, scrolls = x, clip = true,
+                x = { app.listX }, width = { app.width - app.listX - 20 },
+                inner: View [ height = 40, datapath = { app.filters.value },
+                    layout: SimpleLayout [ axis = x, spacing = 0 ],
+                    Chip [ datapath = :chips[], key = :id ]
+                    ]
+                ],
+            fade: View [ y = { app.headH - 46 }, height = 40, width = 34, pointerEvents = "none",
+                x = { app.width - 34 },
+                fill = { gradient("90deg", 0xF3EEE300, 0xF3EEE3) } ],
+            r: Rule [ y = { app.headH - 1 }, width = { parent.width } ]
+            ],
+
+        list: View [ y = { app.headH }, x = { app.listX }, width = { app.listW },
+            height = { app.height - app.headH }, scrolls = y,
+            inner: View [ width = { parent.width }, datapath = { app.shown.value },
+                layout: SimpleLayout [ axis = y, spacing = 0 ],
+                PerfRow [ datapath = :rows[], key = :id, virtualize = true ]
+                ],
+            none: Text [ y = 40, width = { parent.width }, textAlign = center, wrap = false,
+                fontSize = 14, textColor = { MUTED }, visible = { app.nShown == 0 && app.season.loaded },
+                text = "Nothing in the season matches." ]
+            ]
+        ],
+
+    // ══ THE HALL ═════════════════════════════════════════════════════════════
+
+    hall: View [ width = { app.width }, height = { app.height },
+        visible = { app.t > 0.004 }, opacity = { vRamp(app.t, 0.18, 0.62) },
+
+        // the plan, matted: on a desk the room is a printed sheet on the table,
+        // which is what makes the space around a portrait auditorium deliberate
+
+        mat: View [ visible = { !app.compact && app.seats.loaded }, cornerRadius = 3,
+            x = { app.planX - 40 }, y = { app.planY + app.shift - 24 },
+            width = { app.planW + 80 }, height = { app.planH + 62 },
+            fill = { 0xFCF8EF }, shadow = { shadow(0, 8, 30, 0x2A211814) } ],
+
+        // the room itself, sliding under the rail rather than rescaling
+
+        plan: View [
+            x = { app.planX }, y = { app.planY + app.shift },
+            width = { app.planW }, height = { app.planH },
+            opacity = { vRamp(app.t, 0.45, 1) },
+            datapath = { app.house.value },
+
+            glow: View [ x = { (:stageX - 44) * app.hs }, y = { (:stageY + :stageH) * app.hs },
+                width = { (:stageW + 88) * app.hs }, height = { 70 * app.hs },
+                draw(d: Draw) {
+                    const g = d.createLinearGradient(0, 0, 0, d.h)
+                    g.addColorStop(0, 0xE9C68655)
+                    g.addColorStop(1, 0xE9C68600)
+                    d.fillStyle = g
+                    d.beginPath()
+                    d.moveTo(d.w * 0.2, 0)
+                    d.lineTo(d.w * 0.8, 0)
+                    d.lineTo(d.w, d.h)
+                    d.lineTo(0, d.h)
+                    d.closePath()
+                    d.fill()
+                    }
+                ],
+
+            stage: View [ x = { :stageX * app.hs }, y = { :stageY * app.hs },
+                width = { :stageW * app.hs }, height = { :stageH * app.hs },
+                cornerRadius = 3, fill = { gradient("180deg", 0x33291F, INK) },
+                shadow = { shadow(0, 5, 16, 0x17130F33) },
+                s: Text [ x = center, y = center, wrap = false, textColor = { 0xE0D2B6 },
+                    fontSize = { Math.max(8.5, Math.min(13, 20 * app.hs)) }, fontWeight = semibold,
+                    letterSpacing = { Math.max(2.5, 9 * app.hs) }, text = "STAGE" ]
+                ],
+
+            SectionGround [ datapath = :sections[], key = :key ],
+
+            // the bracket that says which row is in your hand
+
+            brk: View [ visible = { app.compact && app.railKey != "" },
+                x = { vRowBox(app.house.value, app.railKey, 0) * app.hs - 7 },
+                y = { vRowBox(app.house.value, app.railKey, 1) * app.hs - 3 },
+                width = { vRowBox(app.house.value, app.railKey, 2) * app.hs + 14 },
+                height = { vRowBox(app.house.value, app.railKey, 3) * app.hs + 6 },
+                cornerRadius = 4, stroke = { stroke(1.5, ACC) },
+                fill = { 0xC4351C12 } ],
+
+            Seat [ datapath = :seats[], key = :id ]
+            ],
+
+        // A quiet legend — the shapes above should already have said it; this
+        // only names them. The tally is the sentence the drawing already told.
+
+        legend: View [ visible = { !app.compact && app.seats.loaded }, height = 18,
+            y = { app.planY + 13 + app.planH + app.shift }, x = { app.planX },
+            width = { app.planW },
+            layout: SimpleLayout [ axis = x, spacing = 7 ],
+            f0: View [ width = 11, height = 11, y = 4, cornerRadius = 2.5, fill = { CARD }, stroke = { stroke(1, 0xCEC2AB) } ],
+            f1: Text [ y = center, wrap = false, fontSize = 9.5, letterSpacing = 1.2, textColor = { FAINT }, text = "FREE" ],
+            sp0: View [ width = 8, height = 1 ],
+            g0: View [ width = 8, height = 8, y = 6, cornerRadius = 2, fill = { GONE } ],
+            g1: Text [ y = center, wrap = false, fontSize = 9.5, letterSpacing = 1.2, textColor = { FAINT }, text = "GONE" ],
+            sp1: View [ width = 8, height = 1 ],
+            y0: View [ width = 13, height = 13, y = 3, cornerRadius = 3, fill = { ACC } ],
+            y1: Text [ y = center, wrap = false, fontSize = 9.5, letterSpacing = 1.2, textColor = { FAINT }, text = "YOURS" ],
+            sp2: Spacer [ flexes = true ],
+            tally: Text [ y = center, wrap = false, fontSize = 9.5, letterSpacing = 1.2, textColor = { FAINT },
+                text = { app.freeN + " OF " + app.houseN + " SEATS FREE" } ]
+            ],
+
+        loading: Text [ x = center, y = { app.height / 2 }, wrap = false,
+            fontSize = 12, letterSpacing = 1.6, textColor = { FAINT },
+            visible = { app.seats.loading }, text = "OPENING THE HOUSE" ],
+        failed: Text [ x = center, y = { app.height / 2 }, wrap = false, width = { app.width - 80 },
+            textAlign = center, fontSize = 13, textColor = { MUTED },
+            visible = { app.seats.failed },
+            text = { "The seat map could not be loaded — " + (app.seats.error || "") } ],
+
+        // ── the desk rail: the ledger and the form, always visible ───────────
+
+        // Somebody may take twenty seats; the ledger grows with them and the
+        // form rides below it, so the column scrolls rather than running off.
+
+        rail: View [ visible = { !app.compact }, scrolls = y,
+            x = { app.width - app.railW }, y = { app.hallH },
+            width = { app.railW }, height = { app.height - app.hallH },
+            fill = { CARD },
+            edge: Rule [ width = 1, height = { parent.height }, ignoreScroll = true ],
+
+            col: View [ x = 28, y = 22, width = { parent.width - 56 },
+
+                lbl: Text [ wrap = false, fontSize = 9.5, fontWeight = bold, letterSpacing = 2.2,
+                    textColor = { FAINT }, text = "YOUR SEATS" ],
+
+                sum: Text [ y = 20, wrap = false, fontSize = 27, fontWeight = semibold, letterSpacing = -0.7,
+                    textColor = { app.hasPicks ? INK : FAINT },
+                    text = { app.hasPicks ? app.summary : "None yet" } ],
+
+                hint: Text [ y = 62, width = { parent.width }, wrap = true, fontSize = 12, textColor = { MUTED },
+                    visible = { !app.hasPicks },
+                    text = "Choose seats in the plan. Pick as many as you like; pick one again to give it back." ],
+
+                chips: View [ y = 62, width = { parent.width }, visible = { app.hasPicks },
+                    datapath = { app.picksData.value },
+                    layout: SimpleLayout [ axis = y, spacing = 0 ],
+                    PickChip [ datapath = :items[], key = :id ]
+                    ],
+
+                r0: Rule [ y = { 74 + (app.hasPicks ? app.pickN * 30 : 40) }, width = { parent.width } ],
+
+                form: View [ width = { parent.width },
+                    y = { 98 + (app.hasPicks ? app.pickN * 30 : 40) },
+
+                    nl: Text [ wrap = false, fontSize = 9.5, fontWeight = bold, letterSpacing = 2, textColor = { FAINT }, text = "NAME" ],
+                    nf: TextInput [ y = 16, width = { parent.width }, height = 30, fill = null, stroke = null, cornerRadius = 0, padding = 0, fontSize = 16,
+                        placeholder = "Ada Lovelace",
+                        onInput(v: string) { app.bName = "" + v },
+                        onBlur() { app.nameTouched = true }
+                        ],
+                    nr: Rule [ y = 46, width = { parent.width },
+                        fill = { app.nameTouched && !app.nameOk ? ACC : app.hall.rail.col.form.nf.focused ? INK : LINE } ],
+                    nh: Text [ y = 52, wrap = false, fontSize = 11,
+                        textColor = { app.nameTouched && !app.nameOk ? ACC : FAINT },
+                        text = "Required" ],
+
+                    ml: Text [ y = 82, wrap = false, fontSize = 9.5, fontWeight = bold, letterSpacing = 2, textColor = { FAINT }, text = "EMAIL" ],
+                    mf: TextInput [ y = 98, width = { parent.width }, height = 30, fill = null, stroke = null, cornerRadius = 0, padding = 0, fontSize = 16,
+                        placeholder = "ada@example.com",
+                        onInput(v: string) { app.bMail = "" + v },
+                        onBlur() { app.mailTouched = true }
+                        ],
+                    mr: Rule [ y = 128, width = { parent.width },
+                        fill = { app.mailTouched && !app.mailOk ? ACC : app.hall.rail.col.form.mf.focused ? INK : LINE } ],
+                    mh: Text [ y = 134, wrap = false, fontSize = 11,
+                        textColor = { app.mailTouched && !app.mailOk ? ACC : FAINT },
+                        text = "Required — name@example.com" ],
+
+                    go: Act [ y = 168, width = { parent.width },
+                        label = { app.booking.loading ? "CONFIRMING…" : "CONFIRM BOOKING" },
+                        disabled = { !app.canBook },
+                        onClick() { app.confirm() }
+                        ],
+
+                    free: Text [ y = 228, width = { parent.width }, wrap = true, fontSize = 11, textColor = { FAINT },
+                        text = "Nothing is charged and no card is asked for." ],
+
+                    say: Text [ y = 254, width = { parent.width }, wrap = true, fontSize = 12.5,
+                        textColor = { ACC }, visible = { app.notice != "" }, text = { app.notice } ],
+                    tail: View [ y = 300, width = 1, height = 34 ]
+                    ]
+                ]
+            ],
+
+        // ── the phone dock: notice, row rail, summary ────────────────────────
+
+        dock: View [ visible = { app.compact }, ignoreScroll = true,
+            x = 0, width = { app.width },
+            y = { app.height - app.dockH }, height = { app.dockH },
+
+            say: View [ visible = { app.notice != "" }, width = { parent.width }, height = 44,
+                fill = { 0xC4351C14 },
+                t: Text [ x = 18, y = center, width = { parent.width - 36 }, wrap = false,
+                    fontSize = 12.5, textColor = { ACC_D }, text = { app.notice } ],
+                r: Rule [ width = { parent.width }, fill = { 0xC4351C33 } ]
+                ],
+
+            // THE ROW RAIL — the answer to picking a seat with a thumb. The room
+            // above chooses the PLACE; this chooses the SEAT, at 44 points, with
+            // the number printed on it and the neighbouring rows one tap away.
+
+            rail: View [ visible = { app.railKey != "" }, width = { parent.width }, height = { app.railH },
+                y = { app.notice != "" ? 44 : 0 }, fill = { CARD },
+                r: Rule [ width = { parent.width } ],
+                shd: View [ width = { parent.width }, height = 10, y = -10,
+                    fill = { gradient("180deg", 0x17130F00, 0x17130F14) } ],
+
+                datapath = { app.railData.value },
+
+                hdr: View [ width = { parent.width }, height = 44,
+                    prev: View [ width = 50, height = 44,
+                        g: Text [ x = center, y = center, wrap = false, fontSize = 21,
+                            textColor = { app.railIdx > 0 ? INK2 : 0xDCD3C2 }, text = "‹" ],
+                        onClick() { app.stepRow(-1) }
+                        ],
+                    who: Text [ y = center, width = { parent.width - 100 }, x = 50, wrap = false,
+                        textAlign = center, fontSize = 12, fontWeight = semibold, letterSpacing = 1.4,
+                        textColor = { INK },
+                        text = { ("" + :secName).toUpperCase() + "  ·  ROW " + :name + "  ·  " + vMoney(:price) } ],
+                    next: View [ width = 50, height = 44, x = { parent.width - 50 },
+                        g: Text [ x = center, y = center, wrap = false, fontSize = 21,
+                            textColor = { app.railIdx < app.nRows - 1 ? INK2 : 0xDCD3C2 }, text = "›" ],
+                        onClick() { app.stepRow(1) }
+                        ]
+                    ],
+
+                strip: View [ y = 44, x = 18, width = { parent.width - 36 },
+                    layout: WrappingLayout [ spacing = 0, lineSpacing = 0 ],
+                    RailSeat [ datapath = :seats[], key = :id ]
+                    ]
+                ],
+
+            bar: View [ visible = { app.hasPicks }, width = { parent.width }, height = 74, fill = { INK },
+                y = { (app.notice != "" ? 44 : 0) + (app.railKey != "" ? app.railH : 0) },
+                s: Text [ x = 20, y = center, wrap = false, fontSize = 20, fontWeight = semibold,
+                    letterSpacing = -0.4, textColor = { CARD }, text = { app.summary } ],
+                go: Act [ x = { parent.width - 138 }, y = 11, width = 118, height = 52, label = "BOOK",
+                    onClick() { app.sheetOpen = true }
+                    ]
+                ]
+            ],
+
+        way: Text [ visible = { app.compact && app.seats.loaded && app.railKey == "" && !app.hasPicks },
+            y = { app.height - 50 }, width = { app.width }, textAlign = center, wrap = false,
+            fontSize = 10.5, fontWeight = semibold, letterSpacing = 1.9, textColor = { FAINT },
+            text = "TAP THE ROOM TO OPEN A ROW" ],
+
+        // ── the phone booking sheet ─────────────────────────────────────────
+
+        scrim: View [ visible = { app.sheet > 0.004 }, width = { app.width }, height = { app.height },
+            fill = { 0x17130F77 }, opacity = { app.sheet },
+            onClick() { app.sheetOpen = false }
+            ],
+
+        sheet: View [ visible = { app.compact && app.sheet > 0.004 },
+            width = { app.width }, height = 430, cornerRadius = 18, clip = true,
+            fill = { CARD }, x = 0,
+            y = { app.height - 430 * app.sheet },
+
+            grip: View [ x = center, y = 10, width = 40, height = 4, cornerRadius = 2, fill = { 0xDCD3C2 } ],
+
+            col: View [ x = 22, y = 30, width = { parent.width - 44 },
+                lbl: Text [ wrap = false, fontSize = 9.5, fontWeight = bold, letterSpacing = 2.2,
+                    textColor = { FAINT }, text = "YOUR SEATS" ],
+                sum: Text [ y = 18, wrap = false, fontSize = 26, fontWeight = semibold, letterSpacing = -0.6,
+                    textColor = { INK }, text = { app.summary } ],
+                r0: Rule [ y = 62, width = { parent.width } ],
+
+                nl: Text [ y = 78, wrap = false, fontSize = 9.5, fontWeight = bold, letterSpacing = 2, textColor = { FAINT }, text = "NAME" ],
+                nf: TextInput [ y = 94, width = { parent.width }, height = 32, fill = null, stroke = null, cornerRadius = 0, padding = 0, fontSize = 17,
+                    placeholder = "Ada Lovelace",
+                    onInput(v: string) { app.bName = "" + v },
+                    onBlur() { app.nameTouched = true }
+                    ],
+                nr: Rule [ y = 128, width = { parent.width },
+                    fill = { app.nameTouched && !app.nameOk ? ACC : app.hall.sheet.col.nf.focused ? INK : LINE } ],
+                nh: Text [ y = 134, wrap = false, fontSize = 11,
+                    textColor = { app.nameTouched && !app.nameOk ? ACC : FAINT }, text = "Required" ],
+
+                ml: Text [ y = 164, wrap = false, fontSize = 9.5, fontWeight = bold, letterSpacing = 2, textColor = { FAINT }, text = "EMAIL" ],
+                mf: TextInput [ y = 180, width = { parent.width }, height = 32, fill = null, stroke = null, cornerRadius = 0, padding = 0, fontSize = 17,
+                    placeholder = "ada@example.com",
+                    onInput(v: string) { app.bMail = "" + v },
+                    onBlur() { app.mailTouched = true }
+                    ],
+                mr: Rule [ y = 214, width = { parent.width },
+                    fill = { app.mailTouched && !app.mailOk ? ACC : app.hall.sheet.col.mf.focused ? INK : LINE } ],
+                mh: Text [ y = 220, wrap = false, fontSize = 11,
+                    textColor = { app.mailTouched && !app.mailOk ? ACC : FAINT },
+                    text = "Required — name@example.com" ],
+
+                go: Act [ y = 256, width = { parent.width },
+                    label = { app.booking.loading ? "CONFIRMING…" : "CONFIRM BOOKING" },
+                    disabled = { !app.canBook },
+                    onClick() { app.confirm() }
+                    ],
+                free: Text [ y = 316, width = { parent.width }, wrap = true, fontSize = 11, textColor = { FAINT },
+                    text = "Nothing is charged and no card is asked for." ],
+                say: Text [ y = 340, width = { parent.width }, wrap = true, fontSize = 12.5,
+                    textColor = { ACC }, visible = { app.notice != "" }, text = { app.notice } ]
+                ]
+            ]
+        ],
+
+    // ══ THE HERO — the row that became the header ════════════════════════════
+
+    hero: View [ visible = { app.t > 0.003 }, clip = true,
+        datapath = { app.one.value },
+        x = { vLerp(app.fromX, 0, app.t) },
+        y = { vLerp(app.fromY, 0, app.t) },
+        width = { vLerp(app.fromW, app.width, app.t) },
+        height = { vLerp(app.fromH, app.hallH, app.t) },
+        fill = { vMix(CARD, INK, vRamp(app.t, 0.34, 0.62)) },
+        shadow = { shadow(0, 8 * app.t, 26 * app.t, 0x2A211830) },
+
+        home: View [ width = 62, height = { parent.height }, opacity = { vRamp(app.t, 0.6, 1) },
+            g: Text [ x = center, y = center, wrap = false, fontSize = 22,
+                textColor = { parent.hovered ? CARD : 0xB6AB98 }, text = "‹" ],
+            onClick() { app.back() }
+            ],
+
+        title: Text [ wrap = false,
+            x = { vLerp(app.titleX, app.compact ? 56 : 76, app.t) },
+            y = { vLerp(app.compact ? 34 : (app.fromH - 26) / 2, app.compact ? 30 : 32, app.t) },
+            fontFamily = { SERIF },
+            fontSize = { vLerp(app.compact ? 20 : 21, app.compact ? 26 : 38, app.t) },
+            textColor = { vMix(INK, CARD, vRamp(app.t, 0.38, 0.6)) },
+            text = { :title } ],
+
+        meta: Text [ wrap = false, opacity = { vRamp(app.t, 0.55, 1) },
+            x = { vLerp(app.titleX, app.compact ? 56 : 78, app.t) },
+            y = { app.compact ? 64 : 74 },
+            fontSize = { app.compact ? 10.5 : 11 }, fontWeight = semibold, letterSpacing = 1.5,
+            textColor = { 0xA79B87 },
+            text = { (("" + :day) + "  ·  " + :time + "  ·  " + :hall).toUpperCase() } ],
+
+        r: Rule [ y = { parent.height - 1 }, width = { parent.width }, fill = { 0x2B241C },
+            opacity = { app.t } ]
+        ],
+
+    // ══ THE CONFIRMATION — an artifact, not a receipt ════════════════════════
+
+    door: View [ visible = { app.tk > 0.003 }, width = { app.width }, height = { app.height },
+        fill = { vMix(PAPER, 0x231C15, app.tk) },
+
+        stub: View [ x = center, cornerRadius = 6, clip = true, fill = { CARD },
+            width = { Math.min(452, app.width - 34) },
+            height = { app.compact ? 468 : 484 },
+            y = { (app.height - (app.compact ? 468 : 484)) / 2 - 16 + 40 * (1 - app.tk) },
+            opacity = { vRamp(app.tk, 0.15, 1) },
+            shadow = { shadow(0, 22, 54, 0x110C0766) },
+
+            top: View [ width = { parent.width }, height = 54, fill = { INK },
+                m: Text [ x = 24, y = center, wrap = false, fontSize = 11, fontWeight = bold,
+                    letterSpacing = 3.4, textColor = { CARD }, text = "THE VENUE" ],
+                a: Text [ y = center, wrap = false, textAlign = right, width = 120,
+                    x = { parent.width - 144 }, fontSize = 9.5, fontWeight = semibold, letterSpacing = 2,
+                    textColor = { 0x9A8F7C }, text = "ADMIT" ],
+                n: Text [ y = center, wrap = false, textAlign = right, width = 20,
+                    x = { parent.width - 24 }, fontSize = 13, fontWeight = bold,
+                    textColor = { ACC_H }, text = { "" + app.bookedN } ]
+                ],
+
+            body: View [ x = 24, y = 78, width = { parent.width - 48 }, datapath = { app.one.value },
+                t: Text [ width = { parent.width }, wrap = true, fontFamily = { SERIF },
+                    fontSize = { app.compact ? 30 : 34 }, textColor = { INK }, text = { :title } ],
+                d: Text [ y = { app.compact ? 76 : 82 }, wrap = false, fontSize = 11.5, fontWeight = semibold,
+                    letterSpacing = 1.6, textColor = { MUTED },
+                    text = { (("" + :day) + "  ·  " + :time).toUpperCase() } ],
+                h: Text [ y = { app.compact ? 96 : 102 }, wrap = false, fontSize = 11.5, fontWeight = semibold,
+                    letterSpacing = 1.6, textColor = { MUTED }, text = { ("" + :hall).toUpperCase() } ]
+                ],
+
+            r1: Rule [ x = 26, y = 204, width = { parent.width - 52 } ],
+
+            sl: Text [ x = 24, y = 224, wrap = false, fontSize = 9.5, fontWeight = bold, letterSpacing = 2,
+                textColor = { FAINT }, text = "SEATS" ],
+            seats: Text [ x = 24, y = 242, width = { parent.width - 48 }, wrap = true,
+                fontSize = 14, fontWeight = semibold, textColor = { INK }, text = { app.bookedSeats } ],
+
+            tl: Text [ y = 224, wrap = false, textAlign = right, width = 120,
+                x = { parent.width - 144 }, fontSize = 9.5, fontWeight = bold, letterSpacing = 2,
+                textColor = { FAINT }, text = "TOTAL" ],
+            tot: Text [ y = 240, wrap = false, textAlign = right, width = 120,
+                x = { parent.width - 144 }, fontSize = 18, fontWeight = semibold,
+                textColor = { INK }, text = { app.bookedTotal } ],
+
+            perf: View [ x = 0, y = 316, width = { parent.width }, height = 1,
+                datapath = { app.dashData.value },
+                layout: SimpleLayout [ axis = x, spacing = 5 ],
+                View [ width = 6, height = 1, fill = { 0xC9BEA9 }, datapath = :dashes[], key = :id ]
+                ],
+            notchL: View [ x = -9, y = 307, width = 18, height = 18, cornerRadius = 9,
+                fill = { vMix(PAPER, 0x231C15, app.tk) } ],
+            notchR: View [ y = 307, width = 18, height = 18, cornerRadius = 9,
+                x = { parent.width - 9 }, fill = { vMix(PAPER, 0x231C15, app.tk) } ],
+
+            cl: Text [ x = 24, y = 336, wrap = false, fontSize = 9.5, fontWeight = bold, letterSpacing = 2,
+                textColor = { FAINT }, text = "CONFIRMATION" ],
+            code: Text [ x = 24, y = 352, wrap = false, fontSize = 27, fontWeight = bold, letterSpacing = 3.5,
+                textColor = { ACC }, text = { app.bookedCode } ],
+
+            comb: View [ x = 24, y = 392, height = 42, width = { parent.width - 48 },
+                datapath = { app.barsData.value },
+                layout: SimpleLayout [ axis = x, spacing = 3 ],
+                Bar [ datapath = :bars[], key = :id ]
+                ],
+
+            who: Text [ x = 24, y = 444, wrap = false, fontSize = 11, textColor = { MUTED },
+                text = { app.bName + "  ·  " + app.bMail } ]
+            ],
+
+        again: Act [ x = center, quiet = true, width = { Math.min(452, app.width - 34) }, height = 48,
+            y = { (app.height + (app.compact ? 468 : 484)) / 2 + 6 + 60 * (1 - app.tk) },
+            opacity = { vRamp(app.tk, 0.3, 1) },
+            inkOn = { 0xC9BCA4 }, edge = { 0x4A3E30 },
+            label = "CHOOSE ANOTHER PERFORMANCE",
+            onClick() { app.again() }
+            ]
+        ]
+    ]

@@ -5691,6 +5691,30 @@ await test("a Text's contentWidth measures its glyphs and re-measures on a bound
   }
 });
 
+await test("Text.lineHeight: a fontSize multiplier drives wrapped height, contentHeight, and the auto-height derive", () => {
+  // The leading knob (assessment 1.2, landed 2026-08-06): 0 keeps the font's
+  // natural line box; a multiplier makes each line advance
+  // round(fontSize × lineHeight), in the measurer and both backends alike.
+  const r = compile(`App [ width = 400, height = 400,
+    a: Text [ width = 120, fontSize = 16, text = "a paragraph long enough to wrap onto several lines for the measure" ],
+    b: Text [ width = 120, fontSize = 16, lineHeight = 1.5, text = "a paragraph long enough to wrap onto several lines for the measure" ],
+  ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.ok(app.a.height > 16, `the natural paragraph wrapped (${app.a.height})`);
+    assert.ok(app.b.height > app.a.height * 1.1,
+      `1.5 leading is taller than natural: ${app.a.height} -> ${app.b.height}`);
+    assert.ok(app.b.contentHeight > app.a.contentHeight, "contentHeight follows the leading");
+    // reactive: widen the leading and the auto height re-derives
+    app.b.lineHeight = 2.0;
+    settle();
+    assert.ok(app.b.height > app.a.height * 1.4, `leading is live (${app.b.height})`);
+  } finally {
+    app.discard();
+  }
+});
+
 await test("createView: imperative creation by name — a full citizen, loudly-checked names", () => {
   const app = build(`class Chip extends View [ width = 30, height = 10,
     label: string = "",

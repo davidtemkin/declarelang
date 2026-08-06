@@ -368,8 +368,13 @@ export function bridgeFor(root: Node): Record<string, unknown> {
       const n = find(root, path);
       return n === null ? null : expandValue(n, attr, trail);
     },
-    at: (x: number, y: number) => {
-      const v = pickAt(root, x, y);
+    at: (x: number, y: number, pierce = false) => {
+      // Default = the router's own rule (pointer-transparent views are
+      // skipped, subtree included) — `at()` is the assert surface's "what
+      // would take this press", and answering with a view no press can reach
+      // made the act of looking lie. `pierce = true` remains for the
+      // Inspector's pick tool, which legitimately wants decorative views.
+      const v = pickAt(root, x, y, pierce);
       return v === null ? null : { path: pathOf(root, v), kind: kindName(v) };
     },
     /** WHY that point resolved so — the hit walk's own decisions in order.
@@ -423,8 +428,8 @@ function pathOf(root: Node, n: Node): string {
  *  (This used to be a second, cruder implementation — plain rectangle
  *  containment, blind to clip, scale, and pivot — which is precisely the
  *  duplication that produced a mis-hit window corner elsewhere.) */
-export function pickAt(root: Node, x: number, y: number): View | null {
-  return hitAt(root, x, y, true) as View | null;
+export function pickAt(root: Node, x: number, y: number, pierce = true): View | null {
+  return hitAt(root, x, y, pierce) as View | null;
 }
 
 /** WHY the point resolved the way it did — the hit walk's own decisions, in

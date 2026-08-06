@@ -1,0 +1,35 @@
+/*
+# TouchLab Full
+
+The full-gesture-control half of the lab (see touchlab.declare): the raw touch
+family on the App itself — the map-app archetype. Every finger belongs to the
+app; the browser must not zoom (probe HUD scale stays 1.000). The bookkeeping
+law under test is the multi-finger one: after ANY gesture — pinch included —
+starts == ends + cancels and down == 0. A leaked finger (the pre-fix bug: a
+non-captor finger's lift never reached touchEnd) shows as starts > ends +
+cancels and a stuck `down`.
+*/
+
+App [ width = { app.hostWidth }, height = { app.hostHeight }, fill = 0x101418,
+
+    starts:  number = 0,
+    moves:   number = 0,
+    ends:    number = 0,
+    cancels: number = 0,
+    down:    number = 0,
+    peak:    number = 0,
+
+    onTouchStart(e: TouchEvent)  {
+        app.starts = app.starts + 1;
+        app.down = e.touches.length;
+        if (e.touches.length > app.peak) app.peak = e.touches.length;
+        },
+    onTouchMove(e: TouchEvent)   { app.moves = app.moves + 1; app.down = e.touches.length },
+    onTouchEnd(e: TouchEvent)    { app.ends = app.ends + 1; app.down = e.touches.length },
+    onTouchCancel(e: TouchEvent) { app.cancels = app.cancels + 1; app.down = e.touches.length },
+
+    hud: Text [ x = 12, y = 54, fontSize = 17, textColor = 0xEEEEEE,
+        text = { `S${app.starts} M${app.moves} E${app.ends} C${app.cancels} down${app.down} peak${app.peak}` } ],
+    note: Text [ x = 12, y = 84, fontSize = 13, textColor = 0x88AAFF,
+        text = "full claim — every finger is the app's" ]
+    ]

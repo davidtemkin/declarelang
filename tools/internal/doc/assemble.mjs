@@ -425,7 +425,7 @@ const requestsDoc = (spine) => ["# Request types", "", "*The addressable request
 const VOCAB_NOTE = {
   Draw: "the recorder a `draw(d: Draw)` body receives — Canvas2D-shaped",
   DrawGradient: "a gradient built inside a drawing, via `d.createLinearGradient(…)`",
-  Color: "a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black",
+  Color: "a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black. **Alpha, by context**: a constant carries it in the literal — `0xRRGGBBAA` (or `#RRGGBBAA`), in bare slots and `{ }` bodies alike; a computed alpha calls `colorWithAlpha(rgb, a)` in a body; inside `draw()` the canvas takes its own CSS string (`\"rgba(51,102,153,0.5)\"`). `rgba(…)` is never a slot spelling",
   Length: "a number of pixels, or a `Percent` from a bare `50%` literal",
   Percent: "what a bare `50%` literal becomes; you never write the type",
   Shape: "a clip shape",

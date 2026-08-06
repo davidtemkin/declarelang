@@ -158,8 +158,43 @@ const WALK_RAW = `App [ fill = #202830,
 const walkCompiled = compile(WALK_RAW);
 assert.deepEqual(walkCompiled.errors, [], "walk fixture compiles clean");
 
+// ── The iOS missing-cancel takeover (input.ts scroll-takeover detector) ─────
+// Measured on the simulator (iOS 18.2, tools/internal/sim + ?probe): when an
+// interior pane takes a live finger's gesture, iOS Safari sends NO
+// pointercancel and NO touchcancel — scroll events simply begin mid-press,
+// and the finger later lifts with a CLEAN pointerup. The router synthesizes
+// the documented `e.canceled` release from the scroll itself; these pins
+// hold the synthesis, the trailing-up swallow, the mouse immunity, and the
+// containment guard — in Chrome, by hand-dispatching iOS's event order
+// (Chrome's own gesture engine would have said pointercancel).
+const TAKEOVER_RAW = `App [ width = 640, height = 400, fill = #202830,
+    upClean: number = 0,
+    upCanceled: number = 0,
+    tEnds: number = 0,
+    tCancels: number = 0,
+    pane: View [ x = 20, y = 20, width = 300, height = 300, fill = #3A4855, scrolls = y,
+        chip: View [ x = 10, y = 10, width = 120, height = 40, fill = #607080,
+            onHold(e: PointerEvent) { },
+            onPointerMove(e: PointerEvent) { },
+            onPointerUp(e: PointerUpEvent) {
+                if (e.canceled) app.upCanceled = app.upCanceled + 1;
+                else app.upClean = app.upClean + 1;
+            },
+            ],
+        tall: View [ x = 0, y = 60, width = 300, height = 900, fill = #46586A ],
+        ],
+    mesa: View [ x = 360, y = 20, width = 200, height = 200, fill = #445566,
+        onTouchStart(e: TouchEvent) { },
+        onTouchEnd(e: TouchEvent) { app.tEnds = app.tEnds + 1 },
+        onTouchCancel(e: TouchEvent) { app.tCancels = app.tCancels + 1 },
+        ],
+    ]`;
+const takeoverCompiled = compile(TAKEOVER_RAW);
+assert.deepEqual(takeoverCompiled.errors, [], "takeover fixture compiles clean");
+
 const pages = {
   "/dom-claims": pageHtml("DomBackend", claimsCompiled.source),
+  "/dom-takeover": pageHtml("DomBackend", takeoverCompiled.source),
   "/canvas-claims": pageHtml("CanvasBackend", claimsCompiled.source),
   "/dom-lock": pageHtml("DomBackend", lockCompiled.source),
   "/dom-page": pageHtml("DomBackend", pageCompiled.source),
@@ -759,6 +794,89 @@ await test("dom: hovered/pressed hit where things PAINT — page scroll, pane sc
   });
   assert.equal(va.deep, true, "viewAt(contentX, contentY) answers the painted view");
   await tp.close();
+});
+
+// ── The scroll-takeover detector: iOS's missing cancel, synthesized ─────────
+
+await open("/dom-takeover");
+
+// The suite's shorthand: press with a given pointer on the element at a
+// point (dispatching ON the element, so the router's containment guard sees
+// a real pressed target), and scroll the pane by writing scrollTop (Chrome
+// then fires the same async scroll event iOS emits during a pan takeover).
+const press = (x, y, id, type) => page.evaluate(([px, py, pid, pt]) => {
+  const el = document.elementFromPoint(px, py);
+  el.dispatchEvent(new PointerEvent("pointerdown", {
+    pointerId: pid, pointerType: pt, isPrimary: true,
+    clientX: px, clientY: py, button: 0, buttons: 1, bubbles: true,
+  }));
+}, [x, y, id, type]);
+const lift = (x, y, id, type) => page.evaluate(([px, py, pid, pt]) => {
+  window.dispatchEvent(new PointerEvent("pointerup", {
+    pointerId: pid, pointerType: pt, isPrimary: true,
+    clientX: px, clientY: py, bubbles: true,
+  }));
+}, [x, y, id, type]);
+const scrollPane = (top) => page.evaluate((t) => {
+  const pane = [...document.querySelectorAll("div")]
+    .find((d) => d.clientHeight > 0 && d.scrollHeight > d.clientHeight + 10);
+  pane.scrollTop = t;
+}, top);
+const counters = () => page.evaluate(() => ({
+  u: window.__app.upClean, c: window.__app.upCanceled,
+  te: window.__app.tEnds, tc: window.__app.tCancels,
+}));
+
+await test("takeover: a scroll under a live finger press resolves it as canceled — no pointercancel needed", async () => {
+  await press(60, 45, 7, "touch"); // the chip, inside the pane
+  await scrollPane(40);
+  await page.waitForFunction(() => window.__app.upCanceled === 1, { timeout: 5000 });
+  const r = await counters();
+  assert.equal(r.c, 1, "the press resolved as the canceled release");
+  assert.equal(r.u, 0, "and not as a clean one");
+});
+
+await test("takeover: the trailing clean pointerup is swallowed — and only that one", async () => {
+  await lift(60, 85, 7, "touch"); // the browser closing its books
+  let r = await counters();
+  assert.equal(r.u, 0, "no second release from the browser's own up");
+  // the swallow is per-gesture: a full tap afterwards delivers normally
+  // (pane back to top first — the takeover left the chip scrolled away)
+  await scrollPane(0);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await press(60, 45, 8, "touch");
+  await lift(60, 45, 8, "touch");
+  r = await counters();
+  assert.equal(r.u, 1, "the next gesture's release arrives clean");
+  assert.equal(r.c, 1, "and cancels nothing");
+});
+
+await test("takeover: a mouse drag never competes with scrolling — a mid-drag scroll keeps the capture", async () => {
+  await scrollPane(0);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await press(60, 45, 9, "mouse");
+  await scrollPane(80);
+  await page.waitForFunction(() => {
+    const pane = [...document.querySelectorAll("div")].find((d) => d.clientHeight > 0 && d.scrollHeight > d.clientHeight + 10);
+    return pane.scrollTop === 80;
+  }, { timeout: 5000 });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  let r = await counters();
+  assert.equal(r.c, 1, "the mouse press was not canceled");
+  await lift(200, 300, 9, "mouse");
+  r = await counters();
+  assert.equal(r.u, 2, "the drag's release reached its captor");
+});
+
+await test("takeover: containment — another pane's scroll is not this press's takeover", async () => {
+  await press(400, 100, 10, "touch"); // mesa, OUTSIDE the pane
+  await scrollPane(120);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  let r = await counters();
+  assert.equal(r.tc, 0, "the unrelated scroll canceled nothing");
+  await lift(400, 100, 10, "touch");
+  r = await counters();
+  assert.equal(r.te, 1, "the finger's own end arrived");
 });
 
 await open("/dom-lock");

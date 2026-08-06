@@ -118,7 +118,7 @@ export declare function bridgeFor(root: Node): Record<string, unknown>;
  *  (This used to be a second, cruder implementation — plain rectangle
  *  containment, blind to clip, scale, and pivot — which is precisely the
  *  duplication that produced a mis-hit window corner elsewhere.) */
-export declare function pickAt(root: Node, x: number, y: number): View | null;
+export declare function pickAt(root: Node, x: number, y: number, pierce?: boolean): View | null;
 /** WHY the point resolved the way it did — the hit walk's own decisions, in
  *  order: what it descended into, what it skipped and for which reason, and
  *  what finally took the point.

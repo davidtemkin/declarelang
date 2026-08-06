@@ -507,6 +507,11 @@ var DeclareMac = (() => {
     const p = new Parser(tokenize(source));
     const { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts } = parseTopDecls(p);
     const root = p.parseElement();
+    const trailing = p.peek();
+    if (trailing.kind === "ident" && (trailing.text === "class" || trailing.text === "stylesheet" || trailing.text === "style" || trailing.text === "font" || trailing.text === "include")) {
+      p.errors.push(new DeclareError(`'${trailing.text}' after the root instance \u2014 declarations (class, stylesheet, style, font, include) come BEFORE the App; move this above it`, trailing.pos));
+      throw new DeclareErrors(p.errors);
+    }
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
       throw new DeclareErrors(p.errors);
@@ -1501,6 +1506,15 @@ var DeclareMac = (() => {
         constructor(sched = browserScheduler) {
           this.sched = sched;
           this.frame = this.frame.bind(this);
+        }
+        /** The scheduler's current timestamp — the same value the next frame's
+         *  `tick(now)` will be measured against. Lets a ticker seed its own baseline
+         *  at ENROLL time, so its first tick integrates a real dt instead of spending
+         *  the frame establishing a baseline (under a hand-cranked clock that
+         *  baseline frame read as "the animation never ran" — two agents,
+         *  independently). */
+        now() {
+          return this.sched.now();
         }
         /** Register a ticker and, if the clock was idle, start the frame loop.
          *  Idempotent on an already-registered ticker. */
@@ -2695,7 +2709,14 @@ var DeclareMac = (() => {
           italic: { kind: "boolean" },
           // Fill the glyphs with a gradient (or solid Fill), like the box `fill` —
           // overrides `textColor` when set. `textFill = { gradient("90deg", …) }`.
-          textFill: { kind: "fill" }
+          textFill: { kind: "fill" },
+          // Leading, as a MULTIPLIER of fontSize (the Markdown/RichText convention:
+          // the line box is round(fontSize × lineHeight)). `0` — the default — means
+          // the font's natural line box (ascent + descent), which is also what keeps
+          // a single-line label's geometry byte-identical to the pre-attribute
+          // rendering. Wrapped height, contentHeight, and the `y = center` ink band
+          // all follow it.
+          lineHeight: { kind: "number" }
         }
       };
       ImageSchema = {
@@ -4597,6 +4618,9 @@ var DeclareMac = (() => {
           const plain = it.kind === "number" || it.kind === "string" || it.kind === "hexColor" || it.kind === "ident" && (it.name === "null" || it.name === "true" || it.name === "false");
           if (!plain) {
             errors.push(new DeclareError(`${schema.name}.${a.name}: a bare list holds plain values \u2014 numbers, strings, booleans, null. For anything computed, write the whole list as a { } binding`, it.pos));
+          }
+          if (a.name === "listenTo" && it.kind === "string" && (it.value === "message" || it.value === "open" || it.value === "error")) {
+            errors.push(new DeclareError(`${schema.name}.listenTo: "${it.value}" is the transport's own channel, not an SSE event name \u2014 unnamed messages always arrive (drop the entry), the connection's lifecycle is the read-only 'status'/'open'/'error' surface, and failures arrive at onError`, it.pos));
           }
         }
         continue;
@@ -8405,7 +8429,7 @@ var DeclareMac = (() => {
           if (this.attribute === "" || this.resolveTarget() === null)
             return;
           this.springRunning = true;
-          this.springLastNow = null;
+          this.springLastNow = sharedClock.now();
           sharedClock.add(this);
         }
         isRunning() {
@@ -8485,7 +8509,7 @@ var DeclareMac = (() => {
             this.springLastNow = now;
             return true;
           }
-          const dt = Math.min((now - this.springLastNow) / 1e3, 0.064);
+          const dt = Math.min(Math.max((now - this.springLastNow) / 1e3, 0), 0.064);
           this.springLastNow = now;
           const target = this.resolveTarget();
           const attr = this.attribute;
@@ -9146,7 +9170,13 @@ var DeclareMac = (() => {
         }
         autoUrl = "";
         maybeAuto() {
-          if (!this.auto || this.url === "" || this.url === this.autoUrl)
+          if (!this.auto)
+            return;
+          if (this.url === "") {
+            this.autoUrl = "";
+            return;
+          }
+          if (this.url === this.autoUrl)
             return;
           this.autoUrl = this.url;
           void this.fetch();
@@ -10751,6 +10781,11 @@ var DeclareMac = (() => {
       Text = class extends View {
         // `selectable` is a prevailing View slot now (inherited): the textStyle derive
         // below reads `this.selectable` so a `selectable` container opts a whole subtree in.
+        /** The per-line advance: the declared leading (a fontSize multiplier, the
+         *  Markdown convention) or, at the 0 default, the font's natural line box. */
+        lineAdvance(m) {
+          return this.lineHeight > 0 ? Math.round(this.fontSize * this.lineHeight) : m.ascent + m.descent;
+        }
         attach(backend2, parentSurface) {
           if (!isSet(this, "width") && ownerOf(this, "width") === null) {
             bindDerived(this, "width", () => Math.ceil(textWidth(this.text, fontString(this), this.letterSpacing)));
@@ -10758,7 +10793,7 @@ var DeclareMac = (() => {
           if (!isSet(this, "height") && ownerOf(this, "height") === null) {
             bindDerived(this, "height", () => {
               const m = fontMetrics(fontString(this));
-              const lineH = m.ascent + m.descent;
+              const lineH = this.lineAdvance(m);
               const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
               const lines = bounded && this.wrap ? wrapLines(this.text, fontString(this), this.width, this.letterSpacing).length : 1;
               return Math.ceil(lineH * lines);
@@ -10781,7 +10816,7 @@ var DeclareMac = (() => {
           const m = fontMetrics(font);
           const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
           const lines = bounded && this.wrap ? wrapLines(this.text, font, this.width, this.letterSpacing).length : 1;
-          return Math.ceil((m.ascent + m.descent) * lines);
+          return Math.ceil(this.lineAdvance(m) * lines);
         }
         /** The ink band (y axis): first line's cap top to the last line's baseline
          *  — what `y = center` centers (bind.ts bindAlign). Descenders hang below
@@ -10795,7 +10830,7 @@ var DeclareMac = (() => {
           const cap = capHeight(font);
           const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
           const lines = bounded && this.wrap ? wrapLines(this.text, font, this.width, this.letterSpacing).length : 1;
-          return { lead: m.ascent - cap, size: (lines - 1) * (m.ascent + m.descent) + cap };
+          return { lead: m.ascent - cap, size: (lines - 1) * this.lineAdvance(m) + cap };
         }
         flush(s) {
           super.flush(s);
@@ -10812,7 +10847,8 @@ var DeclareMac = (() => {
               align: this.textAlign,
               italic: this.italic,
               textFill: this.textFill,
-              selectable: this.selectable
+              selectable: this.selectable,
+              lineHeight: this.lineHeight
             }),
             // Constraint is deliberately untyped across compute→apply; this
             // apply's input is exactly its compute's output.
@@ -10830,7 +10866,8 @@ var DeclareMac = (() => {
         wrap: { def: true },
         textAlign: { def: "left" },
         italic: { def: false },
-        textFill: { def: null }
+        textFill: { def: null },
+        lineHeight: { def: 0 }
       });
     }
   });
@@ -12826,11 +12863,15 @@ var DeclareMac = (() => {
         }
       };
       Markdown = class extends RichText {
+        // `?? ""` on both: an unresolved `:path` is defined to fall back to the
+        // default, but one browser-side crash report (`.replace` on null) suggests a
+        // path where a null still reaches here — unreproduced headless, guarded
+        // anyway, since the correct rendering of a null source IS the empty flow.
         sourceKey() {
-          return this.text;
+          return this.text ?? "";
         }
         parseSource() {
-          return parse(this.text);
+          return parse(this.text ?? "");
         }
       };
       HTMLText = class extends RichText {
@@ -12899,7 +12940,7 @@ var DeclareMac = (() => {
           this.last = now;
           if (prev === null)
             return true;
-          const dt = Math.min((now - prev) / 1e3, MAX_DT);
+          const dt = Math.min(Math.max((now - prev) / 1e3, 0), MAX_DT);
           const fn = this.onFrame;
           if (typeof fn === "function")
             fn.call(this, dt);
@@ -13186,8 +13227,11 @@ var DeclareMac = (() => {
     const deliver = (e) => cb.message({ data: typeof e.data === "string" ? e.data : String(e.data), type: e.type, id: e.lastEventId });
     es.onopen = () => cb.open();
     es.onmessage = deliver;
-    for (const type of listen)
+    for (const type of listen) {
+      if (type === "message" || type === "open" || type === "error")
+        continue;
       es.addEventListener(type, deliver);
+    }
     es.onerror = () => {
       if (es.readyState === EventSource.CLOSED)
         cb.end(`the server closed the stream at ${url}`, true);
@@ -15151,8 +15195,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         const n = find(root, path);
         return n === null ? null : expandValue(n, attr, trail);
       },
-      at: (x, y) => {
-        const v = pickAt(root, x, y);
+      at: (x, y, pierce = false) => {
+        const v = pickAt(root, x, y, pierce);
         return v === null ? null : { path: pathOf(root, v), kind: kindName(v) };
       },
       /** WHY that point resolved so — the hit walk's own decisions in order.
@@ -15183,8 +15227,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     }
     return ["app", ...parts].join(".");
   }
-  function pickAt(root, x, y) {
-    return hitAt(root, x, y, true);
+  function pickAt(root, x, y, pierce = true) {
+    return hitAt(root, x, y, pierce);
   }
   function explainHit(root, x, y, pierce = false) {
     const { hit, notes } = traceHitAt(root, x, y, pierce);
@@ -15744,6 +15788,13 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     let hoveredSink = null;
     const fingers = /* @__PURE__ */ new Map();
     const touchList = () => [...fingers.values()];
+    let touchSink = null;
+    let pressId = null;
+    let pressFinger = false;
+    let pressEl = null;
+    let lastX = 0;
+    let lastY = 0;
+    let swallowUp = null;
     const clearHover = () => {
       if (hoveredSink !== null)
         hoveredSink("pointerOut", 0, 0);
@@ -15782,6 +15833,12 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       const p0 = rootPoint !== void 0 ? rootPoint(e) : { x: e.clientX, y: e.clientY };
       pressX = p0.x;
       pressY = p0.y;
+      pressId = e.pointerId;
+      pressFinger = e.pointerType !== "mouse";
+      pressEl = typeof Element !== "undefined" && e.target instanceof Element ? e.target : null;
+      lastX = p0.x;
+      lastY = p0.y;
+      swallowUp = null;
       if (t !== null) {
         const el = typeof Element !== "undefined" && e.target instanceof Element ? e.target : null;
         const editable = typeof HTMLElement !== "undefined" && el instanceof HTMLElement && (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
@@ -15794,6 +15851,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
           flushPendingClick();
         if (t.wantsTouch === true) {
           fingers.set(e.pointerId, { id: e.pointerId, x: p0.x, y: p0.y });
+          touchSink = t;
           t.sink("touchStart", p0.x, p0.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p0.x, y: p0.y }] });
         }
         t.sink("pointerDown", t.x, t.y);
@@ -15837,6 +15895,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       if (held === null || rootPoint === void 0)
         return;
       const p = rootPoint(e);
+      lastX = p.x;
+      lastY = p.y;
       if (!wandered) {
         const dx = p.x - pressX;
         const dy = p.y - pressY;
@@ -15854,19 +15914,28 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       held.sink("pointerMove", p.x, p.y);
     });
     listen("pointerup", (e) => {
+      if (swallowUp !== null && e.pointerId === swallowUp) {
+        swallowUp = null;
+        return;
+      }
       suppressSelection(false);
       disarmHold();
       holdCapture = false;
       const t = resolve(e);
       const captor = held;
       held = null;
+      const gone = fingers.get(e.pointerId);
+      if (gone !== void 0) {
+        fingers.delete(e.pointerId);
+        if (touchSink !== null) {
+          const tp = rootPoint !== void 0 ? rootPoint(e) : { x: gone.x, y: gone.y };
+          touchSink.sink("touchEnd", tp.x, tp.y, { touches: touchList(), changed: [gone] });
+        }
+        if (fingers.size === 0)
+          touchSink = null;
+      }
       if (captor !== null) {
         const p = rootPoint !== void 0 ? rootPoint(e) : { x: captor.x, y: captor.y };
-        if (captor.wantsTouch === true && fingers.has(e.pointerId)) {
-          const gone = fingers.get(e.pointerId);
-          fingers.delete(e.pointerId);
-          captor.sink("touchEnd", p.x, p.y, { touches: touchList(), changed: [gone] });
-        }
         captor.sink("pointerUp", p.x, p.y, { canceled: false });
         if (t !== null && t.key === captor.key && !wandered) {
           const now = Date.now();
@@ -15905,23 +15974,63 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         clearHover();
     });
     listen("pointercancel", (e) => {
+      if (swallowUp !== null && e.pointerId === swallowUp) {
+        swallowUp = null;
+        return;
+      }
       suppressSelection(false);
       disarmHold();
       holdCapture = false;
       const captor = held;
       held = null;
+      const gone = fingers.get(e.pointerId);
+      if (gone !== void 0) {
+        fingers.delete(e.pointerId);
+        if (touchSink !== null) {
+          const tp = rootPoint !== void 0 ? rootPoint(e) : { x: gone.x, y: gone.y };
+          touchSink.sink("touchCancel", tp.x, tp.y, { touches: touchList(), changed: [gone] });
+        }
+        if (fingers.size === 0)
+          touchSink = null;
+      }
       if (captor !== null) {
         const p = rootPoint !== void 0 ? rootPoint(e) : { x: captor.x, y: captor.y };
-        if (captor.wantsTouch === true && fingers.has(e.pointerId)) {
-          const gone = fingers.get(e.pointerId);
-          fingers.delete(e.pointerId);
-          captor.sink("touchCancel", p.x, p.y, { touches: touchList(), changed: [gone] });
-        }
         captor.sink("pointerUp", p.x, p.y, { canceled: true });
       }
       if (e.pointerType === "touch")
         clearHover();
     });
+    {
+      const scrollListener = (e) => {
+        if (!alive()) {
+          window.removeEventListener("scroll", scrollListener, true);
+          return;
+        }
+        if (held === null || !pressFinger || holdCapture)
+          return;
+        const s = e.target;
+        const isEl = typeof Element !== "undefined" && s instanceof Element;
+        if (isEl && pressEl !== null && !s.contains(pressEl))
+          return;
+        suppressSelection(false);
+        disarmHold();
+        const captor = held;
+        held = null;
+        swallowUp = pressId;
+        const gone = pressId !== null ? fingers.get(pressId) : void 0;
+        if (gone !== void 0 && pressId !== null) {
+          fingers.delete(pressId);
+          if (touchSink !== null) {
+            touchSink.sink("touchCancel", gone.x, gone.y, { touches: touchList(), changed: [gone] });
+          }
+          if (fingers.size === 0)
+            touchSink = null;
+        }
+        captor.sink("pointerUp", lastX, lastY, { canceled: true });
+        clearHover();
+      };
+      window.addEventListener("scroll", scrollListener, true);
+    }
   }
 
   // runtime/dist/canvas-backend.js
@@ -16152,7 +16261,10 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
      *  surface simply drops its sink (setInput(null)) — this is a no-op kept
      *  for protocol completeness. The carved-sink rule needs nothing here
      *  because nothing but our own walk ever hit-tests. */
-    setPointerEvents(_mode) {
+    /** Consulted by hit() below — the walk decides, so the walk must know. */
+    pe = "";
+    setPointerEvents(mode) {
+      this.pe = mode;
     }
     setScale(scale, px, py) {
       this.scaleK = scale;
@@ -16286,6 +16398,9 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         align: style.align ?? "left",
         wrap: style.wrap === true,
         letterSpacing: style.letterSpacing ?? 0,
+        // Leading as a fontSize multiplier (0 = natural). The host's TextEngine
+        // does not consume it yet — seam row in test/seam.test.mjs.
+        lineHeight: style.lineHeight ?? 0,
         selectable: style.selectable === true,
         shadow: style.shadow == null ? null : [style.shadow.dx, style.shadow.dy, style.shadow.blur, colorToCss(style.shadow.color)]
       });
@@ -16509,7 +16624,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
      *  ignoreclip children survive outside it), scroll frame corrected,
      *  children probed in reverse paint order, then this surface's own sink. */
     hit(px, py) {
-      if (!this.visible || this.opacity <= 0)
+      if (!this.visible || this.pe === "none")
         return null;
       let lx = px - this.x;
       let ly = py - this.y;

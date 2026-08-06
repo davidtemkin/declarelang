@@ -16,9 +16,17 @@ function browserEventSource(url, listen, cb) {
     es.onmessage = deliver;
     // EventSource has no catch-all: a named `event:` type reaches only a
     // listener registered for that exact name — the fact that forces the
-    // `listen` attribute (streams.md §2).
-    for (const type of listen)
+    // `listen` attribute (streams.md §2). The three names EventSource OWNS are
+    // never message channels: "message" is already wired (a second listener
+    // double-delivered every unnamed event), and "open"/"error" deliver plain
+    // Events whose `data` is undefined — which String()-ed into the literal
+    // text "undefined" arriving as a message. The checker refuses these in a
+    // literal list; this guard covers the data-borne one.
+    for (const type of listen) {
+        if (type === "message" || type === "open" || type === "error")
+            continue;
         es.addEventListener(type, deliver);
+    }
     es.onerror = () => {
         // CONNECTING = the platform is retrying (its own backoff, Last-Event-ID
         // resume): not final, and not a fact for the error channel — §3 says

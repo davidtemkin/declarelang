@@ -46,7 +46,12 @@ export class VerifyAssertion extends Error {}
 async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend" }, fn) {
   const baseHref = "/" + relative(ROOT, resolve(appDir)).split("\\").join("/") + "/";
   const cfg = { backend: backendClass, source: compiled.source, deps: compiled.deps };
+  // The viewport meta is LOAD-BEARING: without it a mobile-sized emulation
+  // renders the legacy 980px desktop layout viewport, so every phone assertion
+  // silently measured a desktop — which falsified the mobile half of any
+  // multi-viewport claim made through this harness.
   const hostPage = `<!doctype html><meta charset="utf-8"><title>verify</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <base href="${baseHref}">
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
@@ -168,6 +173,13 @@ bootHost(cfg);
           if (!ok) throw new VerifyAssertion(`motion did not settle within ${maxMs} ms`);
         },
         async settleData() { step("settleData"); await page.waitForNetworkIdle({ idleTime: 250, timeout: 10000 }); },
+        /** Assign an attribute on a live node — the write twin of the asserts'
+         *  find-based read. An assignment, so constraints fire exactly as a
+         *  handler's write would; a { }-owned slot refuses exactly as it should. */
+        async set(path, name, value) {
+          step(`set ${path}.${name}`);
+          await page.evaluate((p, a, v) => { window.__declare.find(p)[a] = v; }, path, name, value);
+        },
         page,
       };
 
@@ -183,12 +195,32 @@ bootHost(cfg);
           if (n !== null && n.visible && n.width > 0 && n.height > 0) fail(`expected '${path}' hidden — it is visible`);
         },
         async attr(path, name, expected) {
-          const v = await page.evaluate((p, a) => window.__declare.explain(p, a)?.value, path, name);
-          if (v !== expected) fail(`expected ${path}.${name} = ${JSON.stringify(expected)}, got ${JSON.stringify(v)}`);
+          // find(path)[attr] is the LIVE read — it answers for formula-defaulted
+          // slots too, where explain()'s value can be absent (a formula has no
+          // cell); explain stays the fallback for what find cannot reach.
+          const v = await page.evaluate((p, a) => {
+            const n = window.__declare.find(p);
+            return n != null && a in n ? n[a] : window.__declare.explain(p, a)?.value;
+          }, path, name);
+          // STRUCTURAL equality: these values crossed the page boundary as
+          // JSON, so identity is the wrong comparator — it failed every array
+          // while printing two identical-looking values at the reader.
+          const same = v === expected || JSON.stringify(v) === JSON.stringify(expected);
+          if (!same) fail(`expected ${path}.${name} = ${JSON.stringify(expected)}, got ${JSON.stringify(v)}`);
         },
         async approx(path, name, expected, tol = 1) {
-          const v = await page.evaluate((p, a) => window.__declare.explain(p, a)?.value, path, name);
+          const v = await page.evaluate((p, a) => {
+            const n = window.__declare.find(p);
+            return n != null && a in n ? n[a] : window.__declare.explain(p, a)?.value;
+          }, path, name);
           if (typeof v !== "number" || Math.abs(v - expected) > tol) fail(`expected ${path}.${name} ≈ ${expected} (±${tol}), got ${JSON.stringify(v)}`);
+        },
+        /** Structural equality on any two values the script already holds —
+         *  for reads made through page.evaluate, where identity never holds. */
+        equal(actual, expected, label = "values") {
+          if (actual !== expected && JSON.stringify(actual) !== JSON.stringify(expected)) {
+            fail(`expected ${label} to be ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+          }
         },
         async text(path, contains) {
           const n = await node(path);
@@ -229,7 +261,12 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
       await mod.default({ drive: app.drive, expect: app.expect, page: app.page });
     } catch (e) {
       const where = app.log.length > 0 ? ` (after: ${app.log.slice(-3).join(" → ")})` : "";
-      failures.push(`${e instanceof VerifyAssertion ? "" : "unexpected error: "}${e?.message ?? e}${where}`);
+      // For an unexpected error, the first stack frame is the difference
+      // between "my assert threw here" and an anonymous page error a reader
+      // cannot distinguish from a runtime crash.
+      const frame = e instanceof VerifyAssertion ? "" :
+        (String(e?.stack ?? "").split("\n").find((l) => l.includes(".mjs")) ?? "").trim();
+      failures.push(`${e instanceof VerifyAssertion ? "" : "unexpected error: "}${e?.message ?? e}${where}${frame ? `\n      at ${frame}` : ""}`);
     }
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     return { ok: failures.length === 0, failures, log: app.log };
@@ -313,7 +350,16 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
   return withHost({ compiled, appDir, fixturesDir, backendClass }, async ({ openApp }) => {
     const failures = [];
     const results = [];
+    const KNOWN_STATE_KEYS = new Set(["name", "viewport", "clock", "scheme", "dpr", "mask", "route"]);
     for (const st of states) {
+      for (const k of Object.keys(st)) {
+        if (KNOWN_STATE_KEYS.has(k)) continue;
+        // Unknown keys used to be IGNORED, which is how an agent shipped
+        // `width`/`height` at the top level and got 1024×768 baselines with no
+        // warning — a silently-wrong capture is worse than a loud one.
+        const hint = k === "width" || k === "height" ? ` — did you mean viewport: { width, height }?` : "";
+        console.warn(`states: '${st.name ?? "?"}' has unknown key '${k}' (ignored)${hint}`);
+      }
       const viewport = st.viewport ?? { width: 1024, height: 768 };
       const app = await openApp({ ...viewport, clock: st.clock ?? null, scheme: st.scheme ?? "light", dpr: st.dpr ?? 1 });
       try {

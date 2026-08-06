@@ -198,7 +198,7 @@ declare const Inspect: {
   expand(path: string, attr: string, trail: readonly string[]): any;
   dependents(attr: string): { path: string; attr: string; label: string }[];
   rect(path: string): { x: number; y: number; width: number; height: number } | null;
-  at(x: number, y: number): string;
+  at(x: number, y: number, pierce?: boolean): string;
   stats(): { nodes: number; ownedSlots: number; motionBusy: boolean };
   hasData(path: string): boolean;
   dataKeys(path: string): string[];

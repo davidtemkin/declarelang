@@ -26,7 +26,9 @@ import { LANGUAGE_METHOD_EFFECTS } from "./effects.js";
 
 const SCOPE_ROOTS = new Set(["parent", "classroot"]); // `this` via ThisKeyword; `app` is `this.root`
 const GLOBALS = new Set(["Inspect","Math","Object","JSON","Array","Number","String","Boolean","Date","console","parseInt","parseFloat","isNaN","isFinite","Infinity","NaN","undefined","null","RegExp","Symbol","Map","Set","Promise","Intl","Error"]);
-const CONSTRUCTORS = new Set(["gradient","stroke","shadow","stop"]);
+// …plus colorWithAlpha, the lowered-alpha helper compile.ts now resolves in
+// callee position (its arguments carry any deps; the call itself is pure).
+const CONSTRUCTORS = new Set(["gradient","stroke","shadow","stop","colorWithAlpha"]);
 const ITER = new Set(["map","filter","find","findIndex","some","every","reduce","reduceRight","forEach","sort","flatMap","slice","concat","indexOf","includes","join","keys","values","entries","flat","at","reverse","fill","findLast"]);
 const PURE_METHODS = new Set(["toFixed","toString","toPrecision","valueOf","toExponential","toUpperCase","toLowerCase","trim","trimStart","trimEnd","padStart","padEnd","charAt","charCodeAt","codePointAt","substring","substr","repeat","startsWith","endsWith","split","replace","replaceAll","match","matchAll","search","normalize","localeCompare","slice","at","indexOf","lastIndexOf","includes","getFullYear","getMonth","getDate","getDay","getHours","getMinutes","getSeconds","getTime","getMilliseconds","getTimezoneOffset","toISOString","toLocaleDateString","toLocaleTimeString","toLocaleString","toDateString","getUTCFullYear","getUTCMonth","getUTCDate"]);
 const NODE_COLLECTIONS = new Set(["children","childViews","subviews","views","members","instances"]);
@@ -671,7 +673,11 @@ function checkParams(
       const e = paramEscape(n, followed);
       if (e === "returned") returned.add(n.text);
       else if (e === "stored") {
-        errors.push(new DepError(`${who} lets its '${n.text}' parameter escape — bound to a local, stored, or handed to something the compiler can't read through, so an attribute read past that point can't be traced back to the call site; read through the parameter directly (${n.text}.someAttr), or do the work in a method`, n.getStart()));
+        // Name the REAL triggers (closure capture, opaque callees) and the
+        // real escape hatch: plain property reads are already fine, and the
+        // identical code as a METHOD is accepted — for a primitive parameter
+        // "read through it" was advice that could not be followed.
+        errors.push(new DepError(`${who} lets its '${n.text}' parameter escape — captured by a closure, stored, or handed to a callee the compiler can't read through (regex.test(${n.text}), a library call), so reads past that point can't be traced to the call site. Plain property reads (${n.text}.someAttr) are fine as-is; for anything more, make it a method — the identical code is accepted there, because a method's reads are analyzed at its own call sites`, n.getStart()));
       }
     }
     ts.forEachChild(n, visit);

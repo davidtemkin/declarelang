@@ -55,7 +55,12 @@ export class Spring extends Animator {
         if (this.attribute === "" || this.resolveTarget() === null)
             return;
         this.springRunning = true;
-        this.springLastNow = null;
+        // Seed the baseline NOW rather than on the first tick: enrollment is the
+        // moment motion begins, so the first tick integrates a real dt. With a null
+        // seed the first tick only recorded a baseline — invisible at 60Hz, but
+        // under a driven clock one `clock.step()` moved nothing, which reads
+        // exactly as "the spring never ran".
+        this.springLastNow = sharedClock.now();
         sharedClock.add(this);
     }
     isRunning() {
@@ -139,9 +144,11 @@ export class Spring extends Animator {
             this.springLastNow = now; // first frame: dt = 0, settle nothing yet
             return true;
         }
-        // seconds, clamped so a backgrounded tab (one huge dt) cannot detonate the
-        // integration when it resumes.
-        const dt = Math.min((now - this.springLastNow) / 1000, 0.064);
+        // seconds, clamped at BOTH ends: a backgrounded tab (one huge dt) cannot
+        // detonate the integration when it resumes, and a clock handover (a driven
+        // clock starting near zero after performance.now baselines) cannot run it
+        // backwards.
+        const dt = Math.min(Math.max((now - this.springLastNow) / 1000, 0), 0.064);
         this.springLastNow = now;
         const target = this.resolveTarget();
         const attr = this.attribute;

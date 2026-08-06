@@ -1256,6 +1256,17 @@ export function parseProgram(source: string): Program {
   const p = new Parser(tokenize(source));
   const { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts } = parseTopDecls(p);
   const root = p.parseElement();
+  // A declaration AFTER the root instance is the one likely author mistake a
+  // bare "expected end of input" teaches nothing about — name the ordering
+  // rule at the exact token.
+  const trailing = p.peek();
+  if (trailing.kind === "ident" &&
+      (trailing.text === "class" || trailing.text === "stylesheet" || trailing.text === "style" || trailing.text === "font" || trailing.text === "include")) {
+    p.errors.push(new DeclareError(
+      `'${trailing.text}' after the root instance — declarations (class, stylesheet, style, font, include) come BEFORE the App; move this above it`,
+      trailing.pos));
+    throw new DeclareErrors(p.errors);
+  }
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
   return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, root };

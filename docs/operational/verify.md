@@ -66,6 +66,43 @@ The full `drive` / `expect` vocabulary, and the `explain()` call that lets an as
 be structural rather than numeric, are in
 [Introspection](declare-docs:operational:introspection).
 
+## Writing a states script
+
+`--states` takes a module whose default export is an **array of named states** —
+each one page-state to capture and compare against its baseline. The full key
+vocabulary (anything else warns and is ignored — `width`/`height` at the top
+level is the classic mistake; they belong inside `viewport`):
+
+| key | shape | what it does |
+|---|---|---|
+| `name` | `string` | the baseline's file name — stable across runs |
+| `viewport` | `{ width, height }` | the captured window, in CSS pixels |
+| `clock` | ISO date `string` | pin the WALL clock (`Date`) so a rendered time reads the same every run — the driven animation clock is separate and untouched |
+| `scheme` | `"light"` \| `"dark"` | the color scheme the capture renders under (default light) |
+| `dpr` | `number` | device pixel ratio of the capture (default 1) |
+| `route` | `async ({ drive, expect, page })` | drive the app INTO this state before capturing — clicks, settles, anything an assert script can do |
+| `mask` | `[{ x, y, w, h }, …]` | rectangles **excluded from comparison** |
+
+`mask` is what makes rung 6 usable over **live data** at all: mask the clock, the
+feed, the avatar — assert everything else to the pixel. Without it, one moving
+region forces the whole state off the ladder.
+
+```js
+export default [
+  { name: "phone-dark", viewport: { width: 390, height: 720 }, scheme: "dark",
+    mask: [{ x: 12, y: 40, w: 120, h: 24 }] },
+];
+```
+
+Three facts assert scripts learn the hard way, recorded here instead:
+**`drive.find(path).attr("name")` is the real read** for any attribute — including
+formula-valued ones (`inspect().attrs` carries only *written* slots, so a formula
+attribute reads as absent there); `evaluate()` returns an Inspector **transcript
+object** that serializes to `{}` — read values with `find(path).attr`, not by
+JSON-ing a transcript; and a `drive.page.evaluate` callback must **`return null`,
+never `undefined`** — an undefined return fails the rung as an anonymous page
+error indistinguishable from a crash.
+
 ## Running the ladder across the corpus
 
 Two suites, split at the browser boundary:

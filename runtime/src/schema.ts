@@ -421,6 +421,13 @@ const TextSchema: ComponentSchema = {
     // Fill the glyphs with a gradient (or solid Fill), like the box `fill` —
     // overrides `textColor` when set. `textFill = { gradient("90deg", …) }`.
     textFill: { kind: "fill" },
+    // Leading, as a MULTIPLIER of fontSize (the Markdown/RichText convention:
+    // the line box is round(fontSize × lineHeight)). `0` — the default — means
+    // the font's natural line box (ascent + descent), which is also what keeps
+    // a single-line label's geometry byte-identical to the pre-attribute
+    // rendering. Wrapped height, contentHeight, and the `y = center` ink band
+    // all follow it.
+    lineHeight: { kind: "number" },
   },
 };
 

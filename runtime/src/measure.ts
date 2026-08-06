@@ -46,6 +46,9 @@ export interface TextStyle {
   /** Opt back into native text selection (the app root suppresses it): the run
    *  becomes a selection/pointer target. Off by default (app feel). */
   readonly selectable?: boolean;
+  /** Leading as a fontSize multiplier (line box = round(fontSize × lineHeight));
+   *  0/absent = the font's natural ascent + descent. */
+  readonly lineHeight?: number;
 }
 
 // Created on first use — never at import or instantiation time — so the

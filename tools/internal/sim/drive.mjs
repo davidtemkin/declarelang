@@ -7,6 +7,35 @@
 //
 //   node drive.mjs <sessionId> <command> [args...]
 //
+// Getting a session (2026-08-06 recipe, validated):
+//   xcrun simctl boot <udid> && open -a Simulator
+//   (cd tools/internal/sim && npx appium server -p 4723 &)
+//   curl -s -X POST http://127.0.0.1:4723/session -H 'content-type: application/json' -d '{
+//     "capabilities":{"alwaysMatch":{"platformName":"iOS",
+//       "appium:automationName":"XCUITest","browserName":"Safari",
+//       "appium:udid":"<udid>","appium:newCommandTimeout":900}}}'
+//   → value.sessionId. Default newCommandTimeout is 60s — a thinking pause
+//   kills the session; set 900.
+//
+// COORDINATES: these commands speak native screen points; Safari's web
+// content sits BELOW the browser chrome — measured 2026-08-06 (iPhone 16
+// Pro, portrait): to hit page point (x, y), send (x, y + 62). Calibrate a
+// new device/orientation with ?probe: a hold anywhere logs its landing
+// `ts` point (clientX/Y) to probe.jsonl; offset = sent y − logged y.
+//
+// MULTITOUCH: `mobile: pinch` never reached the web view here (all-zero
+// counters on a full-claim page). What works is W3C actions — two pointer
+// input sources, POST /session/<sid>/actions, staggered pauses/lifts as
+// needed. See the lab pages: touchlab.declare (zones: touch-family pad,
+// hold-gated chip in a scrolls pane) and touchlab-full.declare (App-level
+// full claim); both surface their counters on screen, so a screenshot IS
+// the assertion.
+//
+// THE FULL REGRESSION: node regress.mjs <sessionId> — every measured gesture
+// contract (labs + homepage pack) as one repeatable pass/fail run; its header
+// documents the synthesis quirks (humanized double-taps, the clearing tap
+// after holds) the hard way taught us.
+//
 // Commands:
 //   go <url>                      — navigate Safari
 //   swipe <x1> <y1> <x2> <y2> [ms=120]   — one-finger drag (screen points)

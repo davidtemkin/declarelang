@@ -612,7 +612,9 @@ class CanvasSurface implements Surface {
 
   // pointer-events is a DOM compositing concept; the canvas paints its own
   // display list and hit-tests it, so there is nothing to yield to here.
-  setPointerEvents(): void { /* no-op on canvas */ }
+  /** Consulted by hit() below — the walk realizes what CSS realizes on DOM. */
+  pe = "";
+  setPointerEvents(m: string): void { this.pe = m; }
   // Paint-inert: the cursor rides the hover walk (hit() carries it to the
   // router's onHover, which brushes the host element) — nothing to repaint.
   setCursor(c: string): void { this.cursorStyle = c; }
@@ -677,7 +679,9 @@ class CanvasSurface implements Surface {
     this.textGradient = st.textFill != null && isGradient(st.textFill) ? st.textFill : null;
     const fm = fontMetrics(this.font);
     this.ascent = fm.ascent;
-    this.lineHeight = fm.ascent + fm.descent;
+    this.lineHeight = st.lineHeight != null && st.lineHeight > 0
+      ? Math.round(st.fontSize * st.lineHeight)
+      : fm.ascent + fm.descent;
     this.textShadow = st.shadow ?? null;
     this.letterSpacing = st.letterSpacing;
     this.wrap = st.wrap ?? false;
@@ -983,6 +987,12 @@ class CanvasSurface implements Surface {
     // considers only `visible`. The gates that mean "not there" are `visible`
     // and `pointerEvents`; this is not one of them.
     if (!this.visible) return null;
+    // The other gate. "none" is SUBTREE-transparent — the model walk
+    // (interaction.ts leafAt) and the reference both state the subtree rule,
+    // and this walk claimed its comment while never consulting the value: a
+    // press-catcher marked pointerEvents = "none" still swallowed presses on
+    // canvas. (DOM realizes the same rule through CSS inheritance.)
+    if (this.pe === "none") return null;
     let lx = px - this.x;
     let ly = py - this.y;
     if (this.scaleK !== 1) {

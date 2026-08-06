@@ -1,0 +1,90 @@
+/*
+# TouchLab Page
+
+The page-shape half of the lab (see touchlab.declare): the App is TALLER than
+its host, so the browser scrolls the document — the ruled primary-content
+shape, and the only scroll a browser upgrades to pinch. The `bar` is
+ignoreScroll chrome, so the counters stay readable in every screenshot.
+
+Zones, one per contract:
+  clicky / dbly / holdy — the resolved layer (click, dblClick, hold).
+  dragy  — an immediate-claim drag (onPointerMove alone): a finger landing
+           here is the app's from the first move; the page must not pan.
+  dragx  — claim = x on a y-scrolling page: sideways is the app's, down is
+           the page's (and arrives as the canceled release).
+  prose  — a Markdown document: the flow species is selectable by default;
+           a long-press here SHOULD select (the subtractive realization).
+  strip  — tap-to-stop: a clickable band in the scrolling content. A tap
+           during deceleration belongs to the scroll (UIKit's rule) and
+           must NOT click; a tap at rest must.
+*/
+
+App [ width = { app.hostWidth }, height = 1600, fill = 0x101418,
+
+    clicks:  number = 0,
+    dbls:    number = 0,
+    dblC:    number = 0,
+    holds:   number = 0,
+    dragM:   number = 0,
+    dragUp:  number = 0,
+    dragC:   number = 0,
+    xM:      number = 0,
+    xUp:     number = 0,
+    xC:      number = 0,
+    stripT:  number = 0,
+
+    bar: View [ ignoreScroll = true, width = { app.width }, height = 76, fill = 0x10202C,
+        hud: Text [ x = 10, y = 46, fontSize = 14, textColor = 0xEEEEEE,
+            text = { `c${app.clicks} d${app.dbls} h${app.holds} strip${app.stripT} | drag m${app.dragM} u${app.dragUp} x${app.dragC} | ax m${app.xM} u${app.xUp} x${app.xC}` } ]
+        ],
+
+    clicky: View [ x = 12, y = 90, width = 116, height = 56, fill = 0x2A4A2A, cornerRadius = 8,
+        onClick() { app.clicks = app.clicks + 1 },
+        Text [ x = 10, y = 18, fontSize = 13, textColor = 0xCCDDCC, text = "click" ]
+        ],
+    dbly: View [ x = 140, y = 90, width = 116, height = 56, fill = 0x4A2A2A, cornerRadius = 8,
+        onDblClick() { app.dbls = app.dbls + 1 },
+        onClick()    { app.dblC = app.dblC + 1 },
+        Text [ x = 10, y = 18, fontSize = 13, textColor = 0xDDCCCC, text = "dbl" ]
+        ],
+    holdy: View [ x = 268, y = 90, width = 116, height = 56, fill = 0x2A2A4A, cornerRadius = 8,
+        onHold() { app.holds = app.holds + 1 },
+        Text [ x = 10, y = 18, fontSize = 13, textColor = 0xCCCCDD, text = "hold" ]
+        ],
+
+    dragy: View [ x = 12, y = 160, width = 180, height = 70, fill = 0x334455, cornerRadius = 8,
+        onPointerMove(e: PointerEvent)  { app.dragM = app.dragM + 1 },
+        onPointerUp(e: PointerUpEvent)  {
+            if (e.canceled) app.dragC = app.dragC + 1;
+            else app.dragUp = app.dragUp + 1;
+            },
+        Text [ x = 10, y = 24, fontSize = 13, textColor = 0xAABBCC, text = "drag (mine)" ]
+        ],
+    dragx: View [ x = 204, y = 160, width = 180, height = 70, fill = 0x3A4A5A, cornerRadius = 8, claim = x,
+        onPointerMove(e: PointerEvent)  { app.xM = app.xM + 1 },
+        onPointerUp(e: PointerUpEvent)  {
+            if (e.canceled) app.xC = app.xC + 1;
+            else app.xUp = app.xUp + 1;
+            },
+        Text [ x = 10, y = 24, fontSize = 13, textColor = 0xAABBCC, text = "x-drag" ]
+        ],
+
+    prose: Markdown [ x = 12, y = 246, width = { app.width - 24 },
+        text = "Press and **hold** this paragraph to select it — a document is selectable by default." ],
+
+    strip: View [ x = 12, y = 330, width = { app.width - 24 }, height = 1180, fill = 0x1A222A, cornerRadius = 12,
+        onClick() { app.stripT = app.stripT + 1 },
+        r1:  Text [ x = 16, y = 20,   fontSize = 15, textColor = 0x778899, text = "strip 1 — tap me (at rest: counts; while stopping a scroll: must not)" ],
+        r2:  Text [ x = 16, y = 120,  fontSize = 15, textColor = 0x778899, text = "strip 2" ],
+        r3:  Text [ x = 16, y = 220,  fontSize = 15, textColor = 0x778899, text = "strip 3" ],
+        r4:  Text [ x = 16, y = 320,  fontSize = 15, textColor = 0x778899, text = "strip 4" ],
+        r5:  Text [ x = 16, y = 420,  fontSize = 15, textColor = 0x778899, text = "strip 5" ],
+        r6:  Text [ x = 16, y = 520,  fontSize = 15, textColor = 0x778899, text = "strip 6" ],
+        r7:  Text [ x = 16, y = 620,  fontSize = 15, textColor = 0x778899, text = "strip 7" ],
+        r8:  Text [ x = 16, y = 720,  fontSize = 15, textColor = 0x778899, text = "strip 8" ],
+        r9:  Text [ x = 16, y = 820,  fontSize = 15, textColor = 0x778899, text = "strip 9" ],
+        r10: Text [ x = 16, y = 920,  fontSize = 15, textColor = 0x778899, text = "strip 10" ],
+        r11: Text [ x = 16, y = 1020, fontSize = 15, textColor = 0x778899, text = "strip 11" ],
+        r12: Text [ x = 16, y = 1120, fontSize = 15, textColor = 0x778899, text = "strip 12" ]
+        ]
+    ]

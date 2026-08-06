@@ -11,6 +11,10 @@ export declare class Text extends View {
     textAlign: "left" | "center" | "right";
     italic: boolean;
     textFill: Fill | null;
+    lineHeight: number;
+    /** The per-line advance: the declared leading (a fontSize multiplier, the
+     *  Markdown convention) or, at the 0 default, the font's natural line box. */
+    private lineAdvance;
     attach(backend: RenderBackend, parentSurface: Surface | null): void;
     /** A Text's own content folds into `contentWidth`/`contentHeight` as its
      *  MEASURED glyph extent — the way an Image folds in its bitmap (view.ts

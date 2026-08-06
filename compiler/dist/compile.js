@@ -106,11 +106,16 @@ import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES } from "../../runtime/dist/include.js";
 import { typecheckBodies } from "./typecheck.js";
 import { Diag, toDiagnostic, renderReport } from "../../runtime/dist/diagnostics.js";
-/** The value-constructor names (styling rung): in CALLEE position they are
- *  the constructors expr.ts scopes into every body — `stroke(…)` builds a
- *  Stroke while bare `stroke` is still the slot — so resolution leaves them
- *  alone there. */
-const CONSTRUCTORS = new Set(CONSTRUCTOR_NAMES);
+/** The names resolution leaves alone in CALLEE position: the four value
+ *  constructors expr.ts scopes into every body — `stroke(…)` builds a Stroke
+ *  while bare `stroke` is still the slot — plus one more: the spine's
+ *  global-function table publishes `colorWithAlpha(rgb, a)` and every body's
+ *  runtime scope carries it (expr.ts LOWERED — it is the lowering target for
+ *  `0xRRGGBBAA` literals), so a DYNAMIC alpha (`colorWithAlpha(theme.accent,
+ *  hover ? 0.8 : 0.4)`) is callable exactly as documented; the literal
+ *  spelling stays `0xRRGGBBAA` for constant alpha. Callee position only,
+ *  like the constructors — bare `colorWithAlpha` is still a member name. */
+const CALLEE_GLOBALS = new Set([...CONSTRUCTOR_NAMES, "colorWithAlpha"]);
 /** Assemble the unified diagnostic view: each error/warning becomes a coded
  *  Diagnostic (its own catalog code if a factory set one, else the phase
  *  fallback) CARRYING its rendered form, plus the whole-compile `report` —
@@ -884,7 +889,7 @@ class Resolver {
         if (idents === null)
             return; // TS could not parse what new Function did — leave the body alone
         for (const id of idents) {
-            if (id.callee && CONSTRUCTORS.has(id.name))
+            if (id.callee && CALLEE_GLOBALS.has(id.name))
                 continue; // a value constructor, not a member
             if (id.name === "app") {
                 // `app` (language §11) — the running App at the top of the tree. Sugar

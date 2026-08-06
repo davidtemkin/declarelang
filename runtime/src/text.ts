@@ -39,8 +39,15 @@ export class Text extends View {
   declare textAlign: "left" | "center" | "right";
   declare italic: boolean;
   declare textFill: Fill | null;
+  declare lineHeight: number;
   // `selectable` is a prevailing View slot now (inherited): the textStyle derive
   // below reads `this.selectable` so a `selectable` container opts a whole subtree in.
+
+  /** The per-line advance: the declared leading (a fontSize multiplier, the
+   *  Markdown convention) or, at the 0 default, the font's natural line box. */
+  private lineAdvance(m: { ascent: number; descent: number }): number {
+    return this.lineHeight > 0 ? Math.round(this.fontSize * this.lineHeight) : m.ascent + m.descent;
+  }
 
   override attach(backend: RenderBackend, parentSurface: Surface | null): void {
     // Auto-size installs at attach (measurement is a browser activity — the
@@ -52,7 +59,7 @@ export class Text extends View {
     if (!isSet(this, "height") && ownerOf(this, "height") === null) {
       bindDerived(this, "height", () => {
         const m = fontMetrics(fontString(this));
-        const lineH = m.ascent + m.descent;
+        const lineH = this.lineAdvance(m);
         // A bounded width wraps (unless wrap=false) → height extends to the
         // wrapped line count. Reading `width` keeps this reactive, so a
         // container/viewport resize re-wraps and re-flows — baseline.
@@ -82,7 +89,7 @@ export class Text extends View {
     const lines = bounded && this.wrap
       ? wrapLines(this.text, font, this.width, this.letterSpacing).length
       : 1;
-    return Math.ceil((m.ascent + m.descent) * lines);
+    return Math.ceil(this.lineAdvance(m) * lines);
   }
 
   /** The ink band (y axis): first line's cap top to the last line's baseline
@@ -98,7 +105,7 @@ export class Text extends View {
     const lines = bounded && this.wrap
       ? wrapLines(this.text, font, this.width, this.letterSpacing).length
       : 1;
-    return { lead: m.ascent - cap, size: (lines - 1) * (m.ascent + m.descent) + cap };
+    return { lead: m.ascent - cap, size: (lines - 1) * this.lineAdvance(m) + cap };
   }
 
   protected override flush(s: Surface): void {
@@ -122,6 +129,7 @@ export class Text extends View {
         italic: this.italic,
         textFill: this.textFill,
         selectable: this.selectable,
+        lineHeight: this.lineHeight,
       }),
       // Constraint is deliberately untyped across compute→apply; this
       // apply's input is exactly its compute's output.
@@ -141,4 +149,5 @@ defineAttributes(Text, {
   textAlign: { def: "left" },
   italic: { def: false },
   textFill: { def: null },
+  lineHeight: { def: 0 },
 });

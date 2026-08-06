@@ -1,0 +1,35 @@
+/*
+# TouchLab HTML
+
+Minimal repro hunt (2026-08-06): on the homepage, a pan STARTING on the hero
+HTMLText prose goes nowhere on iOS — no pan, no selection — while the same
+gesture pans fine from the margin, and pans fine on a Markdown paragraph in
+touchlab-page. This page isolates the ingredient: one tall App, one HTMLText
+with a styled span, one Markdown control, filler below.
+*/
+
+App [ width = { app.hostWidth }, height = 1600, fill = 0x101418,
+
+    html: HTMLText [ x = 12, y = 120, width = { app.width - 24 },
+        html = "Just as SQL is a domain-specific language, <span style='color:#4ade80'>Declare</span> is a DSL for user interfaces — drag on this paragraph and the page should pan." ],
+
+    md: Markdown [ x = 12, y = 320, width = { app.width - 24 },
+        text = "The **Markdown** control paragraph — drag here too; this one panned in touchlab-page." ],
+
+    sel16: Text [ x = 12, y = 460, width = { app.width - 24 }, selectable = true,
+        fontSize = 16, textColor = 0xBBCCDD,
+        text = "A selectable = true Text paragraph, 16px — the homepage species. Drag here: does the page pan?" ],
+
+    f1: Text [ x = 12, y = 560,  fontSize = 15, textColor = 0x778899, text = "filler 1" ],
+    box: View [ x = 12, y = 700, width = { app.width - 24 }, height = 160, clip = true,
+        fill = 0x18202A, cornerRadius = 8,
+        inner: Text [ x = 8, y = 8, width = { app.width - 40 }, selectable = true,
+            fontSize = 16, textColor = 0xBBCCDD,
+            text = "Selectable text INSIDE a clipping View — the homepage section shape. Drag here." ],
+        over: View [ x = 8, y = 300, width = 40, height = 40, fill = 0x223344 ]
+        ],
+
+    f2: Text [ x = 12, y = 760,  fontSize = 15, textColor = 0x778899, text = "filler 2" ],
+    f3: Text [ x = 12, y = 960,  fontSize = 15, textColor = 0x778899, text = "filler 3" ],
+    f4: Text [ x = 12, y = 1160, fontSize = 15, textColor = 0x778899, text = "filler 4" ]
+    ]

@@ -1011,8 +1011,12 @@ export abstract class RichText extends View {
 /** Rich content authored in Markdown (`text`). */
 export class Markdown extends RichText {
   declare text: string;
-  protected sourceKey(): string { return this.text; }
-  protected parseSource(): Block[] { return parse(this.text); }
+  // `?? ""` on both: an unresolved `:path` is defined to fall back to the
+  // default, but one browser-side crash report (`.replace` on null) suggests a
+  // path where a null still reaches here — unreproduced headless, guarded
+  // anyway, since the correct rendering of a null source IS the empty flow.
+  protected sourceKey(): string { return this.text ?? ""; }
+  protected parseSource(): Block[] { return parse(this.text ?? ""); }
 }
 
 /** Rich content authored in a WHITELISTED HTML subset (`html`), validated at

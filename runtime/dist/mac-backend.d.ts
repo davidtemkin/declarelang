@@ -113,7 +113,9 @@ declare class MacSurface implements Surface {
      *  surface simply drops its sink (setInput(null)) — this is a no-op kept
      *  for protocol completeness. The carved-sink rule needs nothing here
      *  because nothing but our own walk ever hit-tests. */
-    setPointerEvents(_mode: string): void;
+    /** Consulted by hit() below — the walk decides, so the walk must know. */
+    pe: string;
+    setPointerEvents(mode: string): void;
     setScale(scale: number, px: number, py: number): void;
     setClip(pathData: string | null): void;
     setBoxClip(on: boolean): void;

@@ -23,6 +23,9 @@ export interface TextStyle {
     /** Opt back into native text selection (the app root suppresses it): the run
      *  becomes a selection/pointer target. Off by default (app feel). */
     readonly selectable?: boolean;
+    /** Leading as a fontSize multiplier (line box = round(fontSize × lineHeight));
+     *  0/absent = the font's natural ascent + descent. */
+    readonly lineHeight?: number;
 }
 /** Inject the measuring context for a DOM-less host — the environment
  *  contract's text-metrics seam (docs/system-design/capabilities.md §3, verify §2.8).

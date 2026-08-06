@@ -98,7 +98,8 @@ toolbar, and the overlay layer that stages parked furniture are all this one att
 
 ## scrolls
 Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,
-or `both`. A scrolling view clips to its box; overflow along a declared axis becomes its
+or `both`. One class overrides that default: an **`App` scrolls `y` by default**, and its
+scroller is the page itself (the ruled page shape — see `App`). A scrolling view clips to its box; overflow along a declared axis becomes its
 scroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out
 of frame. The value is a token **string** in a `{ }` body — compare explicitly
 (`scrolls == "y"`), never truthily: `"none"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.

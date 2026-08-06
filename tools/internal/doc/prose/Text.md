@@ -11,6 +11,20 @@ View [ textColor = royalblue, fontSize = 15,
     ]
 ```
 
+A `Text` is **one uniform run** — it cannot bold a single word. For inline emphasis
+inside a label ("FEAT: **the rest bold**"), reach for `HTMLText`: it flows styled
+runs in one wrapped line at label scale (`html = "FEAT: <b>the rest bold</b>"`),
+and `accents` can carry a gradient word. `Markdown` is the same machinery at
+document scale.
+
+## lineHeight
+Leading, as a **multiplier of `fontSize`** — the same convention as
+`RichText.lineHeight`: each line advances `round(fontSize × lineHeight)` pixels.
+`0` (the default) keeps the font's natural line box, so a single-line label is
+untouched. Wrapped height, `contentHeight`, and the `y = center` ink band all
+follow the declared leading, on both backends and in the measurer alike —
+`lineHeight = 1.5` on a wrapped paragraph is the measured-prose-density knob.
+
 ## text
 The string to display. Literal, or a `{ }` constraint that recomputes as its
 dependencies change — `text = { classroot.label }` re-renders the moment `label` does,

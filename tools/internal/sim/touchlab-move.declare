@@ -1,0 +1,29 @@
+/*
+# TouchLab Move
+
+The poisoning hypothesis (2026-08-06 hunt, see gestures.md): selectable text
+whose GEOMETRY is written after WebKit's first commit leaves a stale
+touch-region — pans starting on it are refused until the node reattaches.
+Two selectable paragraphs, same page: `still` never moves; `mover` slides
+down 60px one second after boot. If the hypothesis holds, `still` pans and
+`mover` refuses after its move.
+*/
+
+App [ width = { app.hostWidth }, height = 1600, fill = 0x101418,
+
+    t: number = 0,
+    clock: Heartbeat [ onFrame(dt: number) { if (app.t < 2) app.t = app.t + dt }
+        ],
+
+    still: Text [ x = 12, y = 150, width = { app.width - 24 }, selectable = true,
+        fontSize = 16, textColor = 0xBBCCDD,
+        text = "STILL — a selectable paragraph that never moves after boot. Drag on it and the page should pan." ],
+
+    mover: Text [ x = 12, y = { app.t > 1 ? 360 : 300 }, width = { app.width - 24 },
+        selectable = true, fontSize = 16, textColor = 0xDDCCBB,
+        text = "MOVER — a selectable paragraph that slides down one second after boot. Drag on it after the move." ],
+
+    f1: Text [ x = 12, y = 560,  fontSize = 15, textColor = 0x778899, text = "filler 1" ],
+    f2: Text [ x = 12, y = 900,  fontSize = 15, textColor = 0x778899, text = "filler 2" ],
+    f3: Text [ x = 12, y = 1300, fontSize = 15, textColor = 0x778899, text = "filler 3" ]
+    ]

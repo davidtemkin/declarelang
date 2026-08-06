@@ -173,6 +173,87 @@ driven by hand, logged in `tools/internal/measure/results.jsonl`.
   via a document-level class (dom-backend watchPinchZoom); at scale 1 the
   contain semantics return untouched.
 
+- **iOS sends NO cancel of any kind when an interior pane takes a live
+  gesture** (measured 2026-08-06, iPhone 16 Pro sim / iOS 18.2, Appium
+  XCUITest + `?probe`, `tools/internal/sim/touchlab.declare`): a flick
+  starting on a hold-gated draggable inside a `scrolls = y` pane began
+  native panning ~170 ms in, **with the finger still down — and the page got
+  no `pointercancel`, no `touchcancel`, then a CLEAN `pointerup` at lift**
+  (probe listens for both; zero across the session). Chrome announces the
+  same takeover with `pointercancel`, which is what the `e.canceled` contract
+  rode on — so on iOS the contract silently failed. The takeover fact is
+  still observable: a scroll event arriving from a container of the pressed
+  element while a finger's press is live and unclaimed. input.ts's
+  scroll-takeover detector synthesizes the canceled release from exactly that
+  fact and swallows the finger's trailing clean `pointerup`; validated
+  closed-loop on the simulator (the same flick now reaches the chip as
+  `e.canceled`). The rest of the contract measured true on the same rig: the
+  hold-gated claim's post-hold drag kept the pane still (holdCapture's
+  non-passive touchmove preventDefault holds on real WebKit), and a
+  two-finger spread with staggered lifts on a full-claim app delivered
+  balanced books — starts == ends, `down` back to 0, `visualViewport.scale`
+  pinned at 1.0.
+- **A long-press on app background (the gaps between views) starts iOS text
+  selection** (same session: `elementFromPoint` says `body`, computed
+  `user-select` is `text`, and the hold produced a `Range` selection): view
+  divs are `none` and Declare's root div is pointer-events-transparent, so
+  the press falls through to the selectable body. Fixing it means either
+  `user-select: none` on body — which inverts the subtractive realization's
+  "stamped leaves wear NO explicit user-select" clause (they would then need
+  explicit `text`) — or a body-level stamp. Ruling pending; recorded here so
+  the next session starts from the fact, not the surprise.
+
+- **SOLVED iOS BUG (2026-08-06, found on the homepage, sim iOS 18.2): a pan
+  starting on a freshly-stamped selectable leaf was REFUSED outright.**
+  WebKit received the full unprevented touch stream (verified: 15 touchmoves,
+  none defaultPrevented, no pointercancel) and simply never scrolled — and
+  never selected either. Effective touch-action was `manipulation` along the
+  verified chain. MECHANISM: WebKit paints its touch EventRegions (the
+  selectability bit included) per composited layer at paint time, and iOS's
+  text-interaction recognizers arbitrate every touch-down against that
+  snapshot; a leaf stamped selectable while boot is still laying text out
+  gets its region painted at pre-settle geometry, and the pan recognizer
+  then waits forever on a text gesture that never resolves. Pinned by: a
+  static transplant of the identical DOM+CSS panning fine; a same-node
+  detach/reinsert (same listeners, same observers) curing it permanently;
+  any later repaint of the leaf (one-frame visibility toggle, or a
+  user-select none→default flip) curing it equally. Exonerated on the way,
+  so nobody re-walks the hunt: touch-action, gradient-ink spans and sibling
+  structure (both layout-shift artifacts — ALWAYS re-verify the press point
+  with elementFromPoint before believing a pan result), stylesheets,
+  editables, video, canvas, fixed chrome, every listener class (census DIAG
+  now in probe.js: ?skiptype/?noptr/?noio/?noro/?forcepassivewheel), and
+  Intersection/ResizeObserver. "What changed": the subtractive selection
+  realization (c6feb60) made selectable leaves pointer-hittable — before it
+  text was pointer-events:none, presses fell through to body, and the
+  arbitration path never engaged (production, which predates nothing —
+  measured equally dead — confirmed the trigger is that realization, not a
+  recent commit). External corroboration: WebKit Bug 183870 (pointer-events
+  none/auto nesting breaks iOS scroll arbitration, open since 2018) and the
+  acknowledged stale-EventRegion bug class (overlay regions stuck; Twitch
+  fix 261950). THE FIX (dom-backend refreshSelectableRegion): a selectable
+  leaf is stamped wearing inline `user-select: none`, cleared two frames
+  later, coalesced page-wide — clearing the property forces WebKit to
+  rebuild the region at settled geometry. Selection is merely unavailable
+  for two frames after a leaf appears; the subtractive at-rest invariant
+  (no explicit user-select on selectable leaves) still holds. Validated
+  closed-loop: homepage paragraph and 40px hero headline both pan on the
+  sim; long-press selection on flow content still selects.
+- **The page-tier takeover DOES announce itself**: during document scrolls
+  the probe heard `ts → pointercancel → te` (the working homepage pans) —
+  unlike the interior-pane tier, which cancels nothing (the entry above).
+  The scroll-takeover detector covers both tiers regardless; on the page
+  tier it merely beats the pointercancel that was coming anyway.
+- **iOS smart-zoom ignores `touch-action: manipulation` — root AND element**
+  (measured: double-tap zoomed to 1.6 with both set). What the heuristic
+  consults is whether the tap lands on/under an element with a CLICK
+  LISTENER — and Declare wires input at the window, so every element read
+  as dead content and the whole painted UI conceded double-tap zoom on iOS.
+  attachRoot now registers a no-op click listener on the app root: measured
+  on the homepage — dblClick delivered at scale 1, a click-only view's
+  double tap becomes two clicks (no zoom), the user's pinch survives
+  (2.63), and a tap on selectable text places only a caret.
+
 Measurement lore, so nobody repeats the lost hours: WebDriver/safaridriver
 cannot measure focus zoom (the software keyboard never rises under automation,
 and a live safaridriver process keeps suppressing it even after its session
@@ -187,5 +268,13 @@ never fires).
 
 `test/gesture.test.mjs` — both backends in a real browser: the realization
 table's values, the repeal, the clip↔root-default coupling, wheel delivery and
-its arbitration, canvas per-gesture claims, and the lock/release cycle of the
-viewport rewrite. The 16px warning is pinned in `test/unit.test.mjs`.
+its arbitration, canvas per-gesture claims, the lock/release cycle of the
+viewport rewrite, and the scroll-takeover detector (synthesis, trailing-up
+swallow, mouse immunity, containment — Chrome replaying iOS's event order).
+The 16px warning is pinned in `test/unit.test.mjs`. The iOS ground truth
+itself is re-runnable any time as ONE command: `tools/internal/sim/regress.mjs`
+— 23 checks covering every contract above (the labs plus the homepage pack:
+text pans, pinned navbar, double-tap, link navigation), run twice green
+2026-08-06 against iOS 18.2; drive.mjs's header has the session recipe, and
+regress.mjs's header records the synthesis quirks (humanized double-taps, the
+clearing tap after holds) that cost hours to learn.

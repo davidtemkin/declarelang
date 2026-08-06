@@ -91,6 +91,54 @@ function applyEditScheme(el: HTMLElement, fill: Fill): void {
 // setEditable's, on a NATIVE editable element: already a text-interaction
 // surface to the platform, no island semantics (claim-surface.md).
 
+// ── The iOS selectable-region refresh ────────────────────────────────────────
+// WebKit paints its touch EventRegions (the selectability bit included) per
+// composited layer AT PAINT TIME, and iOS's text-interaction recognizers
+// arbitrate every touch-down against that snapshot. A leaf stamped selectable
+// while the boot is still laying text out gets its region painted at
+// PRE-SETTLE geometry — and a pan that starts on such a leaf is then REFUSED
+// outright: WebKit receives the whole unprevented touch stream and simply
+// never scrolls, and never selects either (measured 2026-08-06, iOS 18.2 sim,
+// the homepage — full hunt log in gestures.md; a same-node reattach or any
+// later repaint of the leaf cures it, which is how the mechanism was pinned).
+// The cure the runtime adopts: a selectable leaf is stamped wearing inline
+// `user-select: none`, cleared two frames later — by then its geometry has
+// settled, and clearing the property forces WebKit to rebuild the region at
+// the leaf's REAL place. Invisible (selection is merely unavailable for two
+// frames after the leaf appears), coalesced page-wide per flush, and it keeps
+// the subtractive invariant AT REST: a selectable leaf still wears no
+// explicit user-select once the flush has run.
+let selectableRegionPending: HTMLElement[] | null = null;
+function refreshSelectableRegion(el: HTMLElement): void {
+  const s = el.style as CSSStyleDeclaration & { webkitUserSelect: string };
+  s.userSelect = "none";
+  s.webkitUserSelect = "none";
+  if (typeof requestAnimationFrame !== "function") {
+    s.userSelect = "";
+    s.webkitUserSelect = "";
+    return;
+  }
+  if (selectableRegionPending !== null) {
+    selectableRegionPending.push(el);
+    return;
+  }
+  selectableRegionPending = [el];
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const els = selectableRegionPending;
+    selectableRegionPending = null;
+    if (els === null) return;
+    for (const e of els) {
+      // Only if still stamped — `selectable` may have toggled off meanwhile,
+      // and an unselectable leaf's `none` must stand.
+      if (e.dataset.declareSelectable !== undefined) {
+        const es = e.style as CSSStyleDeclaration & { webkitUserSelect: string };
+        es.userSelect = "";
+        es.webkitUserSelect = "";
+      }
+    }
+  }));
+}
+
 /** Element → its surface's input sink. Setting a sink is also what flips the
  *  element's pointer-events on, so membership here and native hit-testability
  *  are the same fact. Module-level (not per-backend) because DomBackend is
@@ -299,6 +347,20 @@ export class DomBackend implements RenderBackend {
     // host page's regime), and the root element is not yet in the host here.
     (root as DomSurface).embeddedRoot = embedded;
     (root as DomSurface).refreshTouchAction();
+    // …but touch-action alone does not retire double-tap zoom on iOS.
+    // Measured (2026-08-06, iOS 18.2 sim, tools/internal/sim): with
+    // `manipulation` on the ROOT — and even ON the tapped element — a double
+    // tap still smart-zoomed to 1.6. What WebKit's heuristic actually
+    // consults is whether the tap lands on (or under) an element with a
+    // CLICK LISTENER — and Declare wires all input at the window, so every
+    // element reads as dead content. One no-op listener on the root makes
+    // the whole painted UI "interactive" to the heuristic and retires smart
+    // zoom app-wide (measured: dblClick delivered at scale 1; a click-only
+    // view's double tap became two clicks, no zoom) — which is exactly the
+    // root default's stated intent. Pinch-zoom is untouched: the heuristic
+    // gates only the double-tap gesture. Inert otherwise: the router never
+    // reads element listeners.
+    rootEl.addEventListener("click", () => {});
     // …and while the user IS pinch-zoomed, scroller containment yields to
     // viewport panning (see watchPinchZoom — the measured iOS chain trap).
     watchPinchZoom(host.ownerDocument);
@@ -1084,8 +1146,10 @@ class DomSurface implements Surface {
     host.style.userSelect = selectable ? "" : "none";
     (host.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = selectable ? "" : "none";
     host.style.pointerEvents = selectable ? "auto" : "none";
-    if (selectable) host.dataset.declareSelectable = "1";
-    else delete host.dataset.declareSelectable;
+    if (selectable) {
+      host.dataset.declareSelectable = "1";
+      refreshSelectableRegion(host);
+    } else delete host.dataset.declareSelectable;
     for (const b of blocks) {
       // A `pre` block is a real <pre>: whitespace preserved and, being code, it does
       // NOT wrap — long lines keep their shape and the block scrolls HORIZONTALLY
@@ -1524,9 +1588,14 @@ class DomSurface implements Surface {
     s.width = st.wrap || align !== "left" ? "100%" : "";
     // Pin the first baseline to the font ascent: a line-height of exactly
     // ascent+descent leaves no half-leading, so DOM text and the Canvas
-    // backend's fillText(…, ascent) place identical glyph geometry.
+    // backend's fillText(…, ascent) place identical glyph geometry. A declared
+    // `lineHeight` (a fontSize multiplier, the Markdown convention) replaces
+    // the natural box with the same round(fontSize × lineHeight) the model's
+    // measure math uses — both backends and the measurer stay in lockstep.
     const m = fontMetrics(fontString(st));
-    s.lineHeight = m.ascent + m.descent + "px";
+    s.lineHeight = (st.lineHeight != null && st.lineHeight > 0
+      ? Math.round(st.fontSize * st.lineHeight)
+      : m.ascent + m.descent) + "px";
     // Selection, subtractive (the ruling above the class): an unselectable
     // run wears `none`; a selectable run wears NO explicit value — platform
     // default, like any web page — plus the stamp and a real pointer target
@@ -1537,8 +1606,10 @@ class DomSurface implements Surface {
     s.userSelect = sel ? "" : "none";
     (s as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = sel ? "" : "none";
     s.pointerEvents = sel ? "auto" : "none";
-    if (sel) el.dataset.declareSelectable = "1";
-    else delete el.dataset.declareSelectable;
+    if (sel) {
+      el.dataset.declareSelectable = "1";
+      refreshSelectableRegion(el);
+    } else delete el.dataset.declareSelectable;
   }
 
   /** The text run element, created on first use. A positioned <span> — not a

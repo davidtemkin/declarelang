@@ -1,0 +1,94 @@
+/*
+# TouchLab
+
+The iOS-simulator gesture lab (drive with tools/internal/sim/drive.mjs; serve
+from the repo dev server, navigate Safari to
+/tools/internal/sim/touchlab.declare?probe). Three zones, each owning a
+different rung of the gesture-claim ladder, each surfacing its counters as
+on-screen text so a screenshot IS the assertion:
+
+  pad   — the onTouch* family (claims every finger). The bookkeeping law under
+          test: after any gesture, starts == ends + cancels and down == 0.
+          A leaked finger (the pre-fix bug: a non-captor finger's lift never
+          reached touchEnd) shows up as starts > ends + cancels.
+  chip  — onHold + drag handlers inside a scrolls=y pane: the claim engages at
+          the hold. A quick swipe must scroll the pane and reach the chip as a
+          canceled gesture (WebKit takeover → pointercancel → the fixed
+          cleanup path). A press-and-wait must lift it (held++), then drag.
+  pane  — scrolls = y, delegation tier: pans under one finger, pinches under
+          two, never upgrades (interior pane, not the page scroll).
+*/
+
+App [ width = { app.hostWidth }, height = { app.hostHeight }, fill = 0x101418,
+
+    starts:  number = 0,
+    moves:   number = 0,
+    ends:    number = 0,
+    cancels: number = 0,
+    down:    number = 0,
+
+    hud: Text [ x = 12, y = 54, fontSize = 17, textColor = 0xEEEEEE,
+        text = { `S${app.starts} M${app.moves} E${app.ends} C${app.cancels} down${app.down}` } ],
+
+    pad: View [ x = 12, y = 84, width = { app.width - 24 }, height = 230,
+        fill = 0x223355, cornerRadius = 12,
+        onTouchStart(e: TouchEvent)  { app.starts = app.starts + 1; app.down = e.touches.length },
+        onTouchMove(e: TouchEvent)   { app.moves = app.moves + 1; app.down = e.touches.length },
+        onTouchEnd(e: TouchEvent)    { app.ends = app.ends + 1; app.down = e.touches.length },
+        onTouchCancel(e: TouchEvent) { app.cancels = app.cancels + 1; app.down = e.touches.length },
+        Text [ x = 12, y = 10, fontSize = 13, textColor = 0x88AAFF,
+            text = "pad — onTouch* claims every finger" ]
+        ],
+
+    pane: View [ x = 12, y = 326, width = { app.width - 24 },
+        height = { app.height - 338 }, fill = 0x1A1F24, cornerRadius = 12,
+        scrolls = y,
+
+        chip: View [ x = 16, y = 10, width = 220, height = 48, cornerRadius = 10,
+            held:  number = 0,
+            drags: number = 0,
+            gone:  number = 0,     // canceled gestures (scroll won the finger)
+            taps:  number = 0,     // clicks coexist with the hold-gated claim
+            lifted: boolean = false,
+            fill = { this.lifted ? 0xE08030 : 0x3A4450 },
+            onClick()                      { this.taps = this.taps + 1 },
+            onHold(e: PointerEvent)        { this.lifted = true; this.held = this.held + 1 },
+            onPointerMove(e: PointerEvent) { if (this.lifted) this.drags = this.drags + 1 },
+            onPointerUp(e: PointerUpEvent) {
+                if (e.canceled) this.gone = this.gone + 1;
+                this.lifted = false;
+                },
+            Text [ x = 10, y = 14, fontSize = 14, textColor = 0xFFFFFF,
+                text = { `hold ${pane.chip.held}  drag ${pane.chip.drags}  c ${pane.chip.gone}  t ${pane.chip.taps}` } ]
+            ],
+
+        rows: View [ x = 16, y = 70, width = { pane.width - 32 },
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            r1:  Text [ fontSize = 15, textColor = 0x778899, text = "row 1" ],
+            r2:  Text [ fontSize = 15, textColor = 0x778899, text = "row 2" ],
+            r3:  Text [ fontSize = 15, textColor = 0x778899, text = "row 3" ],
+            r4:  Text [ fontSize = 15, textColor = 0x778899, text = "row 4" ],
+            r5:  Text [ fontSize = 15, textColor = 0x778899, text = "row 5" ],
+            r6:  Text [ fontSize = 15, textColor = 0x778899, text = "row 6" ],
+            r7:  Text [ fontSize = 15, textColor = 0x778899, text = "row 7" ],
+            r8:  Text [ fontSize = 15, textColor = 0x778899, text = "row 8" ],
+            r9:  Text [ fontSize = 15, textColor = 0x778899, text = "row 9" ],
+            r10: Text [ fontSize = 15, textColor = 0x778899, text = "row 10" ],
+            r11: Text [ fontSize = 15, textColor = 0x778899, text = "row 11" ],
+            r12: Text [ fontSize = 15, textColor = 0x778899, text = "row 12" ],
+            r13: Text [ fontSize = 15, textColor = 0x778899, text = "row 13" ],
+            r14: Text [ fontSize = 15, textColor = 0x778899, text = "row 14" ],
+            r15: Text [ fontSize = 15, textColor = 0x778899, text = "row 15" ],
+            r16: Text [ fontSize = 15, textColor = 0x778899, text = "row 16" ],
+            r17: Text [ fontSize = 15, textColor = 0x778899, text = "row 17" ],
+            r18: Text [ fontSize = 15, textColor = 0x778899, text = "row 18" ],
+            r19: Text [ fontSize = 15, textColor = 0x778899, text = "row 19" ],
+            r20: Text [ fontSize = 15, textColor = 0x778899, text = "row 20" ],
+            r21: Text [ fontSize = 15, textColor = 0x778899, text = "row 21" ],
+            r22: Text [ fontSize = 15, textColor = 0x778899, text = "row 22" ],
+            r23: Text [ fontSize = 15, textColor = 0x778899, text = "row 23" ],
+            r24: Text [ fontSize = 15, textColor = 0x778899, text = "row 24" ],
+            r25: Text [ fontSize = 15, textColor = 0x778899, text = "row 25" ]
+            ]
+        ]
+    ]

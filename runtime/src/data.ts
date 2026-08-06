@@ -390,7 +390,17 @@ export class DataSource extends Dataset {
   private autoUrl = "";
 
   maybeAuto(): void {
-    if (!this.auto || this.url === "" || this.url === this.autoUrl) return;
+    if (!this.auto) return;
+    if (this.url === "") {
+      // Going empty RESETS the memo: the contract is "fetch whenever a
+      // non-empty url arrives or changes", and A → "" → A is an arrival.
+      // Keeping the memo across the empty state made the second visit to a
+      // screen show the first visit's data — silently, on the most ordinary
+      // navigation shape there is.
+      this.autoUrl = "";
+      return;
+    }
+    if (this.url === this.autoUrl) return;
     this.autoUrl = this.url;
     void this.fetch();
   }

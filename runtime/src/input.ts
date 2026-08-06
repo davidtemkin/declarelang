@@ -185,6 +185,31 @@ export function routeInput(
   // maintained while some view under the gesture wants raw touch.
   const fingers = new Map<number, TouchPoint>();
   const touchList = (): TouchPoint[] => [...fingers.values()];
+  /** The view hearing the touch family this session — set at the first
+   *  touchStart, cleared when the last finger lifts. Deliberately SEPARATE from
+   *  `held` (the pointer capture): a multi-finger release arrives as one
+   *  pointerup per finger, and only the FIRST still holds the capture — `held`
+   *  is nulled by it — so touch bookkeeping keyed on the captor leaked every
+   *  simultaneously-released finger. touchList() then carried a phantom, and the
+   *  next one-finger tap read as two: every pinch poisoned the next tap until
+   *  reload. */
+  let touchSink: HitTarget | null = null;
+  // The live press's identity beyond `held`: its pointerId, whether it is a
+  // finger (pen included — both pan), the DOM element it landed on, and its
+  // last root-space point. These exist for the scroll-takeover detector below:
+  // iOS Safari (measured 2026-08-06, iOS 18.2 sim) takes an interior pane's
+  // pan mid-gesture with NO pointercancel and NO touchcancel — the pan just
+  // starts, and the finger later lifts with a CLEAN pointerup. Chrome says
+  // pointercancel, and the `e.canceled` contract rode on it; on iOS the
+  // takeover fact must be read from the scroll itself.
+  let pressId: number | null = null;
+  let pressFinger = false;
+  let pressEl: Element | null = null;
+  let lastX = 0;
+  let lastY = 0;
+  // A pointerId whose release was already synthesized (scroll takeover): the
+  // browser's trailing clean pointerup must not deliver a second release.
+  let swallowUp: number | null = null;
   const clearHover = (): void => {
     if (hoveredSink !== null) hoveredSink("pointerOut", 0, 0);
     hoveredKey = null;
@@ -227,6 +252,12 @@ export function routeInput(
     const p0 = rootPoint !== undefined ? rootPoint(e) : { x: e.clientX, y: e.clientY };
     pressX = p0.x;
     pressY = p0.y;
+    pressId = e.pointerId;
+    pressFinger = e.pointerType !== "mouse";
+    pressEl = typeof Element !== "undefined" && e.target instanceof Element ? e.target : null;
+    lastX = p0.x;
+    lastY = p0.y;
+    swallowUp = null;
     if (t !== null) {
       // The browser ANCHORS its native text selection at mousedown; flipping
       // user-select off on the first captured move (below) is too late in
@@ -276,6 +307,7 @@ export function routeInput(
       if (pendingClick !== null && t.key !== lastClickKey) flushPendingClick();
       if (t.wantsTouch === true) {
         fingers.set(e.pointerId, { id: e.pointerId, x: p0.x, y: p0.y });
+        touchSink = t;
         t.sink("touchStart", p0.x, p0.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p0.x, y: p0.y }] });
       }
       t.sink("pointerDown", t.x, t.y);
@@ -325,6 +357,8 @@ export function routeInput(
     }
     if (held === null || rootPoint === undefined) return;
     const p = rootPoint(e);
+    lastX = p.x;
+    lastY = p.y;
     // The slop test: once the pointer has wandered past the threshold this
     // gesture can no longer activate anything, and any pending hold is off.
     if (!wandered) {
@@ -343,21 +377,34 @@ export function routeInput(
     held.sink("pointerMove", p.x, p.y);
   });
   listen("pointerup", (e) => {
+    // A release the scroll-takeover detector already synthesized: the gesture
+    // was resolved as canceled when the browser took it; this clean up is the
+    // browser closing its books, not a second release for the app.
+    if (swallowUp !== null && e.pointerId === swallowUp) {
+      swallowUp = null;
+      return;
+    }
     suppressSelection(false);
     disarmHold();
     holdCapture = false; // a hold-gated drag ends with its finger
     const t = resolve(e);
     const captor = held;
     held = null;
+    // EVERY finger strikes off, captured or not (see touchSink above) — and the
+    // session owner hears its touchEnd even when the capture already ended.
+    const gone = fingers.get(e.pointerId);
+    if (gone !== undefined) {
+      fingers.delete(e.pointerId);
+      if (touchSink !== null) {
+        const tp = rootPoint !== undefined ? rootPoint(e) : { x: gone.x, y: gone.y };
+        touchSink.sink("touchEnd", tp.x, tp.y, { touches: touchList(), changed: [gone] });
+      }
+      if (fingers.size === 0) touchSink = null;
+    }
     if (captor !== null) {
       // The presser captured the pointer, so the release goes to IT (root-space
       // coords) — a drag drops on its owner even released over another view.
       const p = rootPoint !== undefined ? rootPoint(e) : { x: captor.x, y: captor.y };
-      if (captor.wantsTouch === true && fingers.has(e.pointerId)) {
-        const gone = fingers.get(e.pointerId)!;
-        fingers.delete(e.pointerId);
-        captor.sink("touchEnd", p.x, p.y, { touches: touchList(), changed: [gone] });
-      }
       captor.sink("pointerUp", p.x, p.y, { canceled: false });
       // Click rule: press and release resolved to the same view, and the
       // pointer never wandered past slop (a moved finger was swiping, whatever
@@ -404,6 +451,10 @@ export function routeInput(
     if (e.pointerType === "touch") clearHover();
   });
   listen("pointercancel", (e) => {
+    if (swallowUp !== null && e.pointerId === swallowUp) {
+      swallowUp = null;
+      return;
+    }
     suppressSelection(false);
     disarmHold();
     holdCapture = false;
@@ -413,15 +464,69 @@ export function routeInput(
     // interruption (`e.canceled`) rather than a drop.
     const captor = held;
     held = null;
+    const gone = fingers.get(e.pointerId);
+    if (gone !== undefined) {
+      fingers.delete(e.pointerId);
+      if (touchSink !== null) {
+        const tp = rootPoint !== undefined ? rootPoint(e) : { x: gone.x, y: gone.y };
+        touchSink.sink("touchCancel", tp.x, tp.y, { touches: touchList(), changed: [gone] });
+      }
+      if (fingers.size === 0) touchSink = null;
+    }
     if (captor !== null) {
       const p = rootPoint !== undefined ? rootPoint(e) : { x: captor.x, y: captor.y };
-      if (captor.wantsTouch === true && fingers.has(e.pointerId)) {
-        const gone = fingers.get(e.pointerId)!;
-        fingers.delete(e.pointerId);
-        captor.sink("touchCancel", p.x, p.y, { touches: touchList(), changed: [gone] });
-      }
       captor.sink("pointerUp", p.x, p.y, { canceled: true });
     }
     if (e.pointerType === "touch") clearHover();
   });
+  // ── The scroll-takeover detector (iOS's missing cancel) ────────────────────
+  // Measured on the simulator (iOS 18.2, 2026-08-06, tools/internal/sim +
+  // ?probe): when an interior `scrolls` pane takes a live finger's gesture,
+  // iOS Safari sends NO pointercancel and NO touchcancel — scroll events
+  // simply begin mid-gesture, and the finger later lifts with a clean
+  // pointerup. Chrome announces the same takeover with pointercancel, which
+  // the listener above turns into the documented `e.canceled` release; on iOS
+  // that contract silently failed. The takeover FACT is still observable: a
+  // scroll arriving from a container of the pressed element, while a finger's
+  // press is live and unclaimed, is the browser declaring the gesture its own.
+  // Resolve the press as canceled right there — same delivery as a real
+  // pointercancel — and swallow the finger's trailing clean pointerup.
+  //
+  // Guards, each load-bearing: `held !== null` (no live press, nothing to
+  // cancel — momentum scroll after a lift lands here); `pressFinger` (a mouse
+  // drag never competes with scrolling — wheeling mid-drag must not cancel
+  // it); `!holdCapture` (past the hold the app owns the finger; any scroll
+  // then is programmatic and must not break the claimed drag); containment
+  // (another pane's programmatic scroll is not this gesture's takeover).
+  // A press landing DURING deceleration gets canceled by the tail's scroll
+  // events — matching the platform: a touch that stops a scroll is the
+  // scroll's, and clicks nothing.
+  {
+    const scrollListener = (e: Event): void => {
+      if (!alive()) {
+        window.removeEventListener("scroll", scrollListener, true);
+        return;
+      }
+      if (held === null || !pressFinger || holdCapture) return;
+      const s = e.target;
+      const isEl = typeof Element !== "undefined" && s instanceof Element;
+      if (isEl && pressEl !== null && !(s as Element).contains(pressEl)) return;
+      suppressSelection(false);
+      disarmHold();
+      const captor = held;
+      held = null;
+      swallowUp = pressId;
+      const gone = pressId !== null ? fingers.get(pressId) : undefined;
+      if (gone !== undefined && pressId !== null) {
+        fingers.delete(pressId);
+        if (touchSink !== null) {
+          touchSink.sink("touchCancel", gone.x, gone.y, { touches: touchList(), changed: [gone] });
+        }
+        if (fingers.size === 0) touchSink = null;
+      }
+      captor.sink("pointerUp", lastX, lastY, { canceled: true });
+      clearHover();
+    };
+    window.addEventListener("scroll", scrollListener, true);
+  }
 }

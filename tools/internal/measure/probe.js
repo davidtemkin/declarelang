@@ -9,6 +9,74 @@
 // them to tools/internal/measure/probe.jsonl. Also paints a tiny pointer-inert
 // HUD so the tester can narrate against what they feel.
 (() => {
+  // DIAG census (temporary, iOS no-pan hunt 2026-08-06): record every touch/
+  // pointer/wheel/scroll listener REGISTRATION — target, type, passive flag —
+  // so two pages' registration sets can be diffed. Read via window.__regs.
+  window.__regs = [];
+  const AEL = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function (type, fn, opts) {
+    // DIAG variant (?probe&skiptype=a,b): refuse to register the named types
+    // on ELEMENTS (window/document untouched) — type-level bisection.
+    if (this !== window && this !== document && location.search.includes("skiptype=")) {
+      const skip = (location.search.match(/skiptype=([a-z,]+)/) || [])[1];
+      if (skip && skip.split(",").includes(type)) return;
+    }
+    if (this !== window && this !== document ? true : /^(touch|pointer|wheel|scroll|gesture)/.test(type)) {
+      const t = this === window ? "window" : this === document ? "document" : (this.tagName || String(this));
+      window.__regs.push({ t, type,
+        passive: typeof opts === "object" && opts !== null ? opts.passive : undefined,
+        capture: typeof opts === "object" && opts !== null ? !!opts.capture : !!opts });
+    }
+    // DIAG variant (?probe&forcepassivewheel): register element-level wheel
+    // listeners PASSIVE to test whether their non-passive registration is
+    // what kills iOS touch panning over their regions.
+    if (/^pointer/.test(type) && this !== window && this !== document) {
+      const last = window.__regs[window.__regs.length - 1];
+      if (last) last.stack = String(new Error().stack || "").split("\n").slice(1, 4).join(" | ");
+      // DIAG variant (?probe&noptr): drop element-level pointer listeners to
+      // test whether their registration kills iOS touch panning.
+      if (location.search.includes("noptr")) return;
+    }
+    if (type === "wheel" && this !== window && location.search.includes("forcepassivewheel")) {
+      const o = typeof opts === "object" && opts !== null ? Object.assign({}, opts, { passive: true }) : { passive: true, capture: !!opts };
+      return AEL.call(this, type, fn, o);
+    }
+    return AEL.call(this, type, fn, opts);
+  };
+  // DIAG (iOS no-pan hunt): observer census + skip variants — ?noio skips
+  // IntersectionObserver.observe, ?noro skips ResizeObserver.observe.
+  window.__obs = { io: 0, ro: 0 };
+  if (window.IntersectionObserver) {
+    const IOO = IntersectionObserver.prototype.observe;
+    IntersectionObserver.prototype.observe = function (el) {
+      window.__obs.io++;
+      if (location.search.includes("noio")) return;
+      return IOO.call(this, el);
+    };
+  }
+  if (window.ResizeObserver) {
+    const ROO = ResizeObserver.prototype.observe;
+    ResizeObserver.prototype.observe = function (el, o) {
+      window.__obs.ro++;
+      if (location.search.includes("noro")) return;
+      return ROO.call(this, el, o);
+    };
+  }
+  // DIAG (?usflip): prototype of the region-rebuild fix at RUNTIME timing —
+  // two rAFs after load, flip every stamped selectable leaf user-select
+  // none -> default for one frame (rebuilds WebKit's EventRegion at settled
+  // geometry). If pans work with this, the runtime can adopt the same flip.
+  if (location.search.includes("usflip")) {
+    const delay = Number((location.search.match(/usflip=(\d+)/) || [])[1] || 0);
+    setTimeout(() => requestAnimationFrame(() => {
+      const leaves = document.querySelectorAll("[data-declare-selectable]");
+      window.__usflip = { n: leaves.length, t: Math.round(performance.now()) };
+      for (const el of leaves) el.style.webkitUserSelect = "none";
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        for (const el of leaves) el.style.webkitUserSelect = "";
+      }));
+    }), delay);
+  }
   const sid = Math.random().toString(36).slice(2, 8);
   const t0 = Date.now();
   const buf = [];

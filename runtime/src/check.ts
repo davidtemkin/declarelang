@@ -905,6 +905,19 @@ function checkSourceNode(el: Element, schema: ComponentSchema, errors: DeclareEr
             `${schema.name}.${a.name}: a bare list holds plain values — numbers, strings, booleans, null. For anything computed, write the whole list as a { } binding`,
             it.pos));
         }
+        // `listenTo` names SSE event types, and three names are the transport's
+        // own, not channels: "message" is every unnamed event and is always
+        // delivered (listing it double-delivered), and "open"/"error" are
+        // lifecycle Events with no data — subscribing to one delivered the
+        // literal string "undefined" as a message. The list is usually a bare
+        // literal, so this is refusable at compile time; a data-borne list is
+        // guarded at the transport (stream-seam.ts).
+        if (a.name === "listenTo" && it.kind === "string" &&
+            (it.value === "message" || it.value === "open" || it.value === "error")) {
+          errors.push(new DeclareError(
+            `${schema.name}.listenTo: "${it.value}" is the transport's own channel, not an SSE event name — unnamed messages always arrive (drop the entry), the connection's lifecycle is the read-only 'status'/'open'/'error' surface, and failures arrive at onError`,
+            it.pos));
+        }
       }
       continue;
     }
