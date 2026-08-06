@@ -11,6 +11,11 @@ none.
 
 ---
 
+> **Sandbox setup has changed.** The procedure below describes the condition; the
+> mechanics are now in `evals/apps/README.md`, and the rule is `rm -rf evals` on the
+> clone with the brief staged at `task/`. A per-file denylist is not sufficient now that
+> these artifacts are committed.
+
 ## What the agent is given
 
 A fresh checkout of the repository, and two files:

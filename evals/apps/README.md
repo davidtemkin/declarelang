@@ -9,19 +9,46 @@ venue/     seat booking. brief · api/ · accept.mjs (12 phases) · reference.de
 cadence/   training log, design-led. brief · api/          (no acceptance yet)
 ```
 
-**What the solving agent sees:** `brief.md` and `api/` only. `accept.mjs`,
-`reference.declare` and `api/selftest.mjs` are withheld — an acceptance written or shown
-after a solution exists grades on a curve.
+**Setting up a sandbox — the whole rule.** These artifacts are committed, so a clean
+clone of this repository contains the hidden acceptance, a worked reference solution,
+three prior agents' complete programs under `evals/reports/`, and a bug report naming
+every known defect with reproductions. An agent given an unmodified clone can read the
+test it is graded on, copy a solution, and route around every trap.
 
-**Running a task.** Clone the repo fresh, stage only the brief and `api/`, start the
-fixture, and give the agent the distro framing (*this repository is the only source of
-truth; start at README.md*). Score afterwards with `accept.mjs` from a tree the agent
+So the sandbox is built by **deleting `evals/` outright** and staging the task
+somewhere else. A denylist of individual files is not sufficient and has already failed
+once:
+
+```bash
+git clone <repo> run-<task>
+cd run-<task>
+rm -rf evals                          # unconditionally, the whole directory
+mkdir -p task/api my-apps
+cp <source>/evals/apps/<task>/brief.md        task/
+cp <source>/evals/apps/<task>/api/API.md      task/api/
+cp <source>/evals/apps/<task>/api/server.mjs  task/api/
+npm install && npm run build
+node task/api/server.mjs --port=<8310|8320>
+```
+
+The brief lives at `task/` in the sandbox precisely so that `rm -rf evals` cannot take
+it with it. Verify before launching — the agent should have exactly three files, and
+none of these should exist anywhere in the tree:
+
+```bash
+find . -name accept.mjs -o -name reference.declare -o -name 'app.declare' -o -name '*-bugs.md'
+```
+
+Give the agent the distro framing (*this repository is the only source of truth; start
+at README.md*), the path to `task/brief.md`, the fixture's port, and a dev-server port
+that no other run is using. Nothing about the language, and nothing about known defects.
+
+**Scoring happens elsewhere.** Keep a separate checkout that still has `evals/`, copy
+the finished program into it, and run the acceptance there — from a tree the agent
 never touched.
 
 ```
-node evals/apps/venue/api/server.mjs                 # :8310
-node evals/apps/cadence/api/server.mjs               # :8320
-node evals/apps/venue/api/selftest.mjs               # 36 checks — the fixture keeps its promises
+node evals/apps/venue/api/selftest.mjs      # 36 checks — the fixture keeps its promises
 node tools/verify.mjs <app>.declare --assert evals/apps/venue/accept.mjs
 ```
 
