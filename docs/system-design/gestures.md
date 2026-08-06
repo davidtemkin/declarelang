@@ -200,10 +200,13 @@ driven by hand, logged in `tools/internal/measure/results.jsonl`.
   the stamp remains the fact input.ts reads). Inside a selectable region the
   normal-page mechanics stand whole: native anchoring, native painting,
   document-order ranges, cross-block sweeps; outside, painted UI offers the
-  long-press nothing. Phase 2 (recorded, not built): a press on the gaps
-  BETWEEN blocks inside a `selectable = true` container should anchor like a
-  normal page — needs a container-level realization (surface method + seam
-  rows); rides the next selection touch.
+  long-press nothing. Phase 2 BUILT
+  same day: a `selectable = true` container realizes as a SELECTION SURFACE
+  (`setSelectableRegion` — optional seam method, DOM-only with declared
+  reasons; View.flush carries the pre-attach state, the Image.stretches
+  discipline) — pointer-hittable, explicit `text`, stamped, region-flipped —
+  so a press on the gaps BETWEEN its blocks anchors a native selection like
+  a normal page. Pinned in gesture.test (39); device regression 24/24.
 
 - **SOLVED iOS BUG (2026-08-06, found on the homepage, sim iOS 18.2): a pan
   starting on a freshly-stamped selectable leaf was REFUSED outright.**
