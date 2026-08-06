@@ -115,9 +115,9 @@ function writeArtifact(key, artifact) {
 // The homepage's figures, computed rather than claimed: line metrics for the
 // apps it cites, written beside it as its own material (stats.json — the same
 // pattern as language.json, so the live page, the dev server, and both crawls
-// read the same bytes). Written BEFORE the compile loop so the
-// homepage crawl below (and the bake after it) reads this run's figures,
-// never last commit's.
+// read the same bytes). Before the compile loop when both halves run in one
+// pass; under derive, its own rule (see the split note below).
+if (!process.argv.includes("--no-stats")) {
 const stats = {};
 for (const rel of ["apps/homepage/homepage.declare", "apps/calendar/calendar.declare",
                    "apps/tracker/tracker.declare", "apps/desktop/desktop.declare"]) {
@@ -136,6 +136,18 @@ if (!existsSync(statsFile) || readFileSync(statsFile, "utf8") !== statsJson) {
   writeFileSync(statsFile, statsJson);
   console.log(`prewarm: wrote apps/homepage/stats.json (${Object.entries(stats).map(([k, v]) => `${k} ${v.code} code · ${(v.wireGzip / 1024).toFixed(1)}KB gz`).join(", ")})`);
 }
+
+}
+
+// The two halves are SEPARATE derive rules, because they sit on opposite sides
+// of stamp-stats: the stats above are an input to the figure stamping, while the
+// compile-and-crawl loop below READS the stamped prose — the homepage crawl
+// fetches declare-faq.md and docs/declare.md, so it must run after their figures
+// are current. As one pass, the crawl always carried LAST round's figures (the
+// same one-round lag the buildId had), which the derive graph refused the moment
+// the edges were declared. `--stats-only` is the first rule; `--no-stats` the
+// second; a bare run still does both, stats first (the standalone behavior).
+if (process.argv.includes("--stats-only")) process.exit(0);
 
 console.log(`prewarm: generating committed cache for ${PROGRAMS.length} program(s) → bundles/cache/`);
 // `--timing`: a line per STEP as it happens, with its own cost. This script is the

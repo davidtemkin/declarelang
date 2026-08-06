@@ -26,7 +26,7 @@
 // Chain position: after extract (it reads its output and scans the corpus), before
 // prewarm (nothing downstream reads it yet).
 
-import { readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FLAG_SPECS, DEFAULT_FLAGS } from "../../../compiler/dist/flags.js";
@@ -605,12 +605,27 @@ function buildBrowse(dm, spine) {
 // ── projection 1: the comprehensive JSON ─────────────────────────────────────
 
 function comprehensiveModel(spine) {
-  const docsModel = JSON.parse(readFileSync(join(ROOT, "docs/declare-model.json"), "utf8"));
-  const registry = buildRegistry();
+  // The doc tree comes from extract's INTERMEDIATE (.derive/docs-extract.json)
+  // when one exists — the normal case, since derive orders extract before this —
+  // and falls back to the committed model's own doc-tree sections otherwise (a
+  // standalone or fresh-clone run: the same self-read this tool always did).
+  // This is what makes docs/declare-model.json a single-author artifact: extract
+  // no longer touches it, so a bare extract can no longer corrupt it.
+  const EXTRACT = join(ROOT, ".derive/docs-extract.json");
+  const docsModel = JSON.parse(readFileSync(existsSync(EXTRACT) ? EXTRACT : join(ROOT, "docs/declare-model.json"), "utf8"));
+  const registry = buildRegistry(docsModel.reference);
   const links = { ids: Object.fromEntries(Object.keys(registry).sort().map((k) => [k, registry[k]])), outgoing: scan(registry).outgoing };
   return JSON.stringify({
     meta: {
-      version: 1, buildId: docsModel.buildId ?? docsModel.meta?.buildId,
+      // The id comes from bundles/version.json, which stamp-version has already
+      // written by the time this runs (assemble is last in the derive graph,
+      // ordered by this very dependency). It used to come from extract, which
+      // read it before stamp-version wrote it — a cycle whose symptom was the
+      // committed model trailing every build by exactly one id.
+      version: 1, buildId: (() => {
+        try { return JSON.parse(readFileSync(join(ROOT, "bundles/version.json"), "utf8")).build ?? "dev"; }
+        catch { return docsModel.meta?.buildId ?? "dev"; }
+      })(),
       note: "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
       pipeline: {
         assembledFrom: ["runtime schemas (live code)", "compiler/dist/scaffold LANGUAGE_API", "compiler/dist/flags FLAG_SPECS", "compiler/dist/reqtypes REQ", "runtime diagnostics catalog (source-scanned codes)", "library/autoincludes.json", "tools/ops.mjs (the operations registry)", "apps/docs/docs-model.json (extract.mjs)", "the declare-docs: link registry (links.mjs, called as a library)"],

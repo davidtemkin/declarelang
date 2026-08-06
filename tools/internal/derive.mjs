@@ -1,70 +1,67 @@
-// derive — regenerate every committed artifact that is DERIVED from the tree,
-// in dependency order, from one door.
+// derive — every committed artifact that is DERIVED from the tree, as a RULE
+// GRAPH: declared inputs, declared outputs, order validated against the
+// declarations, and a rule skipped when nothing it reads has changed.
 //
-// THE PROBLEM THIS EXISTS FOR. Three generated artifacts are committed: the
-// prewarm cache (bundles/cache/), the documentation model
-// (docs/declare-model.json), and the production builds (apps/*/dist + the
-// stats.json they embed). Each had its own regeneration command and its own
-// gate, and nothing derived them — so any source edit staled whichever ones
-// depended on it, and the knowledge of WHICH to regenerate lived only in the
-// text of a test failure. Three of main's commits in a row were instances of
-// exactly that, each one a person or an agent reading a failure message and
-// running the command it named.
+// This is a make, structured as one because the problem is make-shaped and the
+// previous shape — nine stages in a hand-maintained order, all running
+// unconditionally — failed in exactly the ways make exists to prevent:
 //
-// The loop is the bug, not the individual staleness. So: one command that knows
-// the graph, runs the stages in order, and reports what moved.
+//   · ORDER BY COMMENT. The order was right because a comment said so. When
+//     extract quietly grew a read of bundles/version.json — written five stages
+//     later — nothing objected, and every committed model trailed the build id
+//     by one derive. That was a CYCLE (extract → version.json → stamp-version →
+//     bundles/cache → prewarm), survivable only because one edge happened to be
+//     weak. Here, a rule whose input is produced by a LATER rule is a build
+//     error that names both rules and the file.
 //
-// ORDER IS LOAD-BEARING, and it is not obvious — it is why this cannot be a
-// checklist someone follows by hand:
+//   · EVERYTHING, ALWAYS. A no-op derive cost ~21s — extract alone re-reading
+//     every prose file and re-measuring every island stage to conclude nothing
+//     changed — and the pre-commit hook pays it on every commit. Here a rule
+//     runs only when the hash of its declared inputs differs from the manifest
+//     (.derive/manifest.json, untracked); a doc edit runs the doc rules and a
+//     commit touching neither runs nearly nothing. The gates remain the
+//     backstop for a wrongly-narrow input list: assemble --check, the prewarm
+//     freshness gate and dist-freshness all verify content independently.
 //
-//   prewarm  writes apps/homepage/stats.json (measured wire figures)
-//      └─ declarec EMBEDS stats.json into apps/homepage/dist
+//   · TWO AUTHORS, ONE FILE. extract and assemble both wrote
+//     docs/declare-model.json; a bare extract deleted assemble's half. Now
+//     extract writes an untracked intermediate (.derive/docs-extract.json),
+//     assemble is the committed model's only author, and two rules declaring
+//     the same output is a build error.
 //
-// so prewarm invalidates the dist every time it moves a number, and a dist
-// rebuilt before prewarm is stale the moment prewarm runs. That cycle is what
-// made the dist stale on essentially every commit; the repair was not "remember
-// to rebuild the dist" but "rebuild it after the thing that invalidates it."
+// A rule's own tool sources are among its inputs, so editing a generator reruns
+// it. Input hashes are recorded AFTER the rule runs (the post-image), so a rule
+// that stamps one of its own inputs (assemble → docs/operational markers)
+// settles immediately instead of re-triggering itself once per derive.
+//
+// STAMPS vs OUTPUTS. An output is a file this rule authors whole. A stamp is a
+// marker-delimited or token write INTO a file someone else authors (a `?v=`, a
+// `<!--stat-->` figure, a baked region). Stamps participate in ordering — a rule
+// reading a stamped file runs after the stamper — but not in tamper detection,
+// because the surrounding file is legitimately edited by hand.
 //
 // USAGE
-//   node tools/internal/derive.mjs                  regenerate what is stale
-//   node tools/internal/derive.mjs --check          exit 1 if anything WAS stale
-//   node tools/internal/derive.mjs --timing         per-stage cost
-//   node tools/internal/derive.mjs --paths          print the derived paths and exit
-//
-// `--check` is honest rather than clever: every generator here is already
-// idempotent and only writes what changed, so the check is "run them, and see
-// which outputs moved." That costs a full derive (~13s) and cannot lie, where a
-// hand-maintained input list could.
+//   node tools/internal/derive.mjs                regenerate what is stale
+//   node tools/internal/derive.mjs --all          ignore the manifest, run everything
+//   node tools/internal/derive.mjs --check        exit 1 if anything WAS stale
+//   node tools/internal/derive.mjs --timing       per-rule cost + skip report
+//   node tools/internal/derive.mjs --paths        print the committed derived paths
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, statSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fileSet as fileSetIn, setHash as setHashIn, fileHash as fileHashIn, forget } from "./filesets.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const CHECK = has("--check");
 const TIMING = has("--timing");
+const ALL = has("--all");
 
-/** Every path a stage below may write. `--check` and the pre-commit hook both
- *  need this list, and it must not drift from the stages — so it lives once. */
-const DERIVED = [
-  "bundles/cache",
-  "bundles",
-  "apps/homepage/stats.json",
-  "apps/docs/docs-model.json",
-  "apps/docs/chapters",
-  "apps/docs/demos",
-  "docs/declare-model.json",
-  "index.html",
-  "apps/*/index.html",
-  "service-worker.js",
-  "README.md",
-  "docs/declare.md",
-  "apps/homepage/declare-faq.md",
-];
+const run = (cmd, args) => execFileSync(cmd, args, { cwd: ROOT, encoding: "utf8", stdio: "pipe", maxBuffer: 1 << 28 });
 
 /** The committed production builds, discovered rather than listed — a new app
  *  with a dist should not need this file edited. */
@@ -76,116 +73,241 @@ function distApps() {
     .map((a) => ({ app: a, out: `apps/${a}/dist`, src: `apps/${a}/${a}.declare` }));
 }
 
+// ── the rules ────────────────────────────────────────────────────────────────
+// Input/output specs: a string is a file or a directory (recursive); an object
+// is a filtered walk { dir, ext?, exclude?: [dir names], pre?/notPre?: basename
+// prefix }; "apps/*/index.html" is the one glob shape in use. Every rule lists
+// its own tool sources as inputs. The prefix filters exist for one real case:
+// apps/docs/demos/ holds AUTHORED per-class examples beside GENERATED seg_*
+// islands — extract reads the former and owns the latter, and the whole-dir
+// claim was the first thing the graph validator rejected.
+
+const RULES = [
+  {
+    name: "tsc", always: true,       // tsc owns its own incrementality (~0.4s no-op)
+    inputs: ["runtime/src", "compiler/src", "tsconfig.json", "runtime/tsconfig.json", "compiler/tsconfig.json"],
+    outputs: [],                     // dist dirs are inputs to later rules, not managed artifacts
+    run: () => run("npx", ["tsc", "-b"]),
+  },
+  {
+    name: "bundles",                 // the committed platform bundles — pure functions of tree inputs
+    inputs: ["tools/internal/bundle-freshness.mjs", "tools/internal/build-boot.mjs", "tools/internal/build-compiler.mjs",
+             "runtime/dist", "compiler/dist", "browser"],
+    outputs: [{ dir: "bundles", exclude: ["cache", "version.json"] }],
+    run: () => run("node", ["--input-type=module", "-e",
+      `import { rebuildStale } from "${join(ROOT, "tools/internal/bundle-freshness.mjs")}"; rebuildStale("${ROOT}", { log: console.log });`]),
+  },
+  {
+    name: "stats",                   // the measured figures (in-memory production builds; no crawl, no prose read)
+    inputs: ["tools/internal/prewarm.mjs", "tools/declarec.mjs", "compiler/dist", "runtime/dist", "library", "browser",
+             { dir: "apps", ext: ".declare", exclude: ["dist"], notPre: "seg_" }],
+    outputs: ["apps/homepage/stats.json"],
+    run: () => run("node", ["tools/internal/prewarm.mjs", "--stats-only"]),
+  },
+  {
+    name: "stamp-stats",             // measured figures into prose citations
+    inputs: ["tools/internal/stamp-stats.mjs", "apps/homepage/stats.json"],
+    outputs: [],
+    stamps: ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md"],
+    run: () => run("node", ["tools/internal/stamp-stats.mjs"]),
+  },
+  {
+    name: "prewarm",                 // the compiled-program cache + crawl artifacts. AFTER stamp-stats,
+                                     // because the homepage crawl fetches the FAQ and docs/declare.md —
+                                     // as one pass with stats, the cached crawl carried LAST round's
+                                     // stamped figures (the buildId lag's third sibling; found by this graph)
+    inputs: ["tools/internal/prewarm.mjs", "compiler/dist", "runtime/dist", "library",
+             { dir: "apps", ext: ".declare", exclude: ["dist"], notPre: "seg_" },
+             "apps/homepage/demos", "apps/homepage/stats.json",
+             "apps/homepage/declare-faq.md", "apps/homepage/getstarted.md", "docs/declare.md"],
+    outputs: ["bundles/cache"],
+    run: () => run("node", ["tools/internal/prewarm.mjs", "--no-stats"]),
+  },
+  {
+    name: "extract",                 // the doc tree: intermediate model + the docs app's chapters and demo islands
+    inputs: [{ dir: "tools/internal/doc", exclude: ["assemble.mjs"] }, "runtime/dist", "compiler/dist", "library",
+             "docs/guide", "docs/tenets",
+             { dir: "apps/docs/demos", notPre: "seg_" }],       // the authored per-class examples it embeds
+    outputs: [".derive/docs-extract.json", "apps/docs/chapters",
+              { dir: "apps/docs/demos", pre: "seg_" }],         // the generated islands, and only those
+    run: () => run("node", ["tools/internal/doc/extract.mjs"]),
+  },
+  {
+    name: "dist",                    // the committed production builds (embed stats.json; crawl fetches declare.md)
+    inputs: ["tools/declarec.mjs", "compiler/dist", "runtime/dist", "browser", "library",
+             { dir: "bundles", exclude: ["cache", "version.json"] },
+             { dir: "apps/homepage", exclude: ["dist", "index.html"] }, "docs/declare.md"],
+    outputs: distApps().map((d) => d.out),
+    run: () => { for (const d of distApps()) run("node", ["tools/declarec.mjs", d.src, "-o", d.out, "--crawler"]); },
+  },
+  {
+    name: "bake-crawler",            // the root page's static extraction (runs the homepage itself)
+    inputs: ["tools/internal/bake-homepage-crawler.mjs", "compiler/dist", "runtime/dist", "library",
+             { dir: "apps/homepage", exclude: ["dist", "index.html"] }, "docs/declare.md"],
+    outputs: [],
+    stamps: ["index.html"],
+    run: () => run("node", ["tools/internal/bake-homepage-crawler.mjs"]),
+  },
+  {
+    name: "bake-stubs",              // the cold-static stub page per program directory
+    inputs: ["tools/internal/bake-app-stubs.mjs", { dir: "apps", ext: ".declare", exclude: ["dist"], notPre: "seg_" }],
+    outputs: [],
+    stamps: ["apps/*/index.html"],
+    run: () => run("node", ["tools/internal/bake-app-stubs.mjs"]),
+  },
+  {
+    name: "stamp-version",           // the cache-busting id, hashed over the finished platform
+    inputs: ["tools/internal/stamp-version.mjs", "tools/internal/bundle-freshness.mjs",
+             "browser", "compiler/dist", "runtime/dist", "library",
+             { dir: "bundles", exclude: ["version.json"] },
+             "index.html", "service-worker.js", "apps/*/index.html"],
+    outputs: ["bundles/version.json"],
+    stamps: ["service-worker.js", "index.html", "apps/*/index.html"],
+    run: () => run("node", ["tools/internal/stamp-version.mjs"]),
+  },
+  {
+    name: "assemble",                // the ONE committed doc model + projections; needs the final build id
+    inputs: ["tools/internal/doc/assemble.mjs", "tools/internal/doc/links.mjs", "tools/internal/ops.mjs",
+             ".derive/docs-extract.json", "compiler/dist", "runtime/dist", "library",
+             "bundles/version.json", "skill/SKILL.md",
+             { dir: "docs", exclude: ["declare-model.json"] }],
+    outputs: ["docs/declare-model.json", ".claude/skills/declare/SKILL.md"],
+    stamps: ["docs/operational/flags.md", "docs/operational/getting-started.md"],
+    run: () => run("node", ["tools/internal/doc/assemble.mjs"]),
+  },
+];
+
+// ── spec → file set (tools/internal/filesets.mjs — shared with run-gates) ────
+
+const fileSet = (specs) => fileSetIn(ROOT, specs);
+const setHash = (files) => setHashIn(ROOT, files);
+const fileHash = (abs) => fileHashIn(abs);
+
+// ── the graph, validated ─────────────────────────────────────────────────────
+// Two invariants, both build errors, both the failure modes this file has
+// actually had:
+//   1. one author per output — two rules declaring the same output path;
+//   2. no forward reads — a rule whose input is an output or stamp of a LATER
+//      rule (the buildId cycle, which ran silently for a week).
+
+function validate() {
+  const producers = new Map();                                   // path → rule name (outputs only)
+  for (const r of RULES) {
+    for (const f of fileSet(r.outputs)) {
+      const prior = producers.get(f);
+      if (prior !== undefined && prior !== r.name) {
+        console.error(`derive: INVALID GRAPH — '${f}' is an output of both '${prior}' and '${r.name}'.`);
+        console.error(`  One author per committed artifact; make one of them a stamp, or split the file.`);
+        process.exit(1);
+      }
+      producers.set(f, r.name);
+    }
+  }
+  const producedAt = new Map();                                  // path → earliest producing index
+  RULES.forEach((r, i) => {
+    for (const f of [...fileSet(r.outputs), ...fileSet(r.stamps)]) {
+      if (!producedAt.has(f)) producedAt.set(f, i);
+    }
+  });
+  RULES.forEach((r, i) => {
+    for (const f of fileSet(r.inputs)) {
+      const j = producedAt.get(f);
+      if (j !== undefined && j > i) {
+        console.error(`derive: INVALID GRAPH — '${r.name}' reads '${f}', which '${RULES[j].name}' produces LATER.`);
+        console.error(`  Reorder the rules, or delete the edge — a forward read is a cycle waiting for a second edge.`);
+        process.exit(1);
+      }
+    }
+  });
+}
+
+// ── the committed derived paths (for the hook and --paths) ───────────────────
+// Generated from the rules so it cannot drift from them; .derive/* is untracked
+// and excluded. Stamped files are included: the hook must stage them.
+function derivedPaths() {
+  const out = [];
+  for (const r of RULES) {
+    for (const s of [...(r.outputs ?? []), ...(r.stamps ?? [])]) {
+      const p = typeof s === "object" ? s.dir : s;
+      if (p.startsWith(".derive")) continue;
+      if (!out.includes(p)) out.push(p);
+    }
+  }
+  return out;
+}
+
 if (has("--paths")) {
-  for (const p of [...DERIVED, ...distApps().map((d) => d.out)]) console.log(p);
+  for (const p of derivedPaths()) console.log(p);
   process.exit(0);
 }
 
-const run = (cmd, args) => execFileSync(cmd, args, { cwd: ROOT, encoding: "utf8", stdio: "pipe", maxBuffer: 1 << 28 });
+// ── run ──────────────────────────────────────────────────────────────────────
 
-/** The stages, in the order the graph requires. Each is `[label, fn]`. */
-const STAGES = [
-  // 1. the compiled toolchain everything downstream runs ON. Incremental; a
-  //    no-op when nothing in runtime/src or compiler/src moved.
-  ["tsc", () => run("npx", ["tsc", "-b"])],
+validate();
 
-  // 2. the prewarm cache AND apps/homepage/stats.json. Must precede the dist
-  //    builds, which embed stats.json — see the header.
-  ["prewarm", () => run("node", ["tools/internal/prewarm.mjs"])],
+const MANIFEST = join(ROOT, ".derive/manifest.json");
+const manifest = existsSync(MANIFEST)
+  ? (() => { try { return JSON.parse(readFileSync(MANIFEST, "utf8")); } catch { return {}; } })()
+  : {};
 
-  // 3. the measured figures, stamped into prose (<!--stat:key--> markers), so a
-  //    quoted number cannot rot against the artifact it describes.
-  ["stamp-stats", () => run("node", ["tools/internal/stamp-stats.mjs"])],
+const specKey = (r) => createHash("sha1")
+  .update(JSON.stringify({ i: r.inputs, o: r.outputs, s: r.stamps ?? [] })).digest("hex").slice(0, 8);
 
-  // 4-5. the documentation model: extract reads the runtime schemas, the prose
-  //      files and the guide; assemble augments the SAME file with spine/links.
-  ["extract", () => run("node", ["tools/internal/doc/extract.mjs"])],
-  ["assemble", () => run("node", ["tools/internal/doc/assemble.mjs"])],
-
-  // 6. the committed production builds — AFTER prewarm, because they embed
-  //    stats.json. This is the edge that was missing entirely.
-  ["dist", () => {
-    for (const d of distApps()) run("node", ["tools/declarec.mjs", d.src, "-o", d.out, "--crawler"]);
-  }],
-
-  // 7. the static surfaces baked from the built page
-  ["bake-crawler", () => run("node", ["tools/internal/bake-homepage-crawler.mjs"])],
-  ["bake-stubs", () => run("node", ["tools/internal/bake-app-stubs.mjs"])],
-
-  // 8. stale platform bundles, then the cache-busting build id LAST — it hashes
-  //    everything above, so it must see their final state.
-  //
-  //    KNOWN ONE-BUILD LAG (measured 2026-08-05). extract (stage 4) reads the
-  //    build id out of bundles/version.json and bakes it into declare-model.json;
-  //    this stage rewrites that file. So on any run where content changed, the
-  //    model lands carrying the PREVIOUS id and the next derive catches it up —
-  //    which is why a commit can be followed by a one-line `buildId` diff. It
-  //    converges (verified: three consecutive runs, identical), so it is a lag and
-  //    not a fixpoint chase, and nothing downstream reads the model's id for
-  //    cache-busting. The clean fix is to stamp the model's id HERE rather than in
-  //    extract, since this stage is the one that knows the final answer.
-  ["stamp-version", () => run("node", ["tools/internal/stamp-version.mjs"])],
-];
-
-/** A (path → mtime:size) snapshot of every derived FILE.
- *
- *  Not `git status`: that answers "does this differ from the last commit", which
- *  is the wrong question in a tree where the derived artifacts are ALREADY dirty
- *  — a merge in progress, an unstaged rebuild — because then a genuinely stale
- *  artifact is indistinguishable from one that was merely already modified. It
- *  under-reported exactly that way on first use.
- *
- *  CONTENT, not mtime. Most generators here write only what changed, but not all:
- *  extract.mjs rewrites every chapter JSON on every run, so an mtime comparison
- *  called 83 artifacts stale on a tree that was perfectly current. Hashing costs
- *  a read of each derived file twice and answers the question actually being
- *  asked — did the BYTES change — which is the one a reader cares about. */
-function snapshotDerived() {
-  const patterns = [...DERIVED, ...distApps().map((d) => d.out)];
-  const seen = new Map();
-  const walk = (rel) => {
-    const abs = join(ROOT, rel);
-    if (!existsSync(abs)) return;
-    let st; try { st = statSync(abs); } catch { return; }
-    if (st.isDirectory()) { for (const e of readdirSync(abs)) walk(join(rel, e)); return; }
-    try { seen.set(rel, createHash("sha1").update(readFileSync(abs)).digest("hex")); } catch { /* vanished mid-walk */ }
-  };
-  for (const p of patterns) {
-    if (!p.includes("*")) { walk(p); continue; }
-    // one glob shape is used: apps/*/index.html
-    const [head, tail] = p.split("*");
-    const base = join(ROOT, head);
-    if (!existsSync(base)) continue;
-    for (const e of readdirSync(base)) walk(join(head, e, tail).replace(/\/+/g, "/"));
-  }
-  return seen;
-}
-
-const before = snapshotDerived();
 const t0 = Date.now();
-for (const [label, fn] of STAGES) {
+let ran = 0, skipped = 0;
+const movedFiles = [];
+
+for (const r of RULES) {
+  const key = `${r.name}:${specKey(r)}`;
+  const rec = manifest[key];
+  const preOut = new Map([...fileSet(r.outputs)].map((f) => [f, fileHash(join(ROOT, f))]));
+  const inNow = setHash(fileSet(r.inputs));
+
+  const fresh = !ALL && !r.always && rec !== undefined
+    && rec.in === inNow
+    && rec.out === setHash(new Set(preOut.keys()));
+  if (fresh) {
+    skipped++;
+    if (TIMING) console.log(`    skip      ${r.name}`);
+    continue;
+  }
+
   const s = Date.now();
-  try { fn(); } catch (e) {
-    console.error(`derive: ${label} FAILED\n${(e.stdout ?? "") + (e.stderr ?? e.message)}`);
+  try { r.run(); } catch (e) {
+    console.error(`derive: ${r.name} FAILED\n${(e.stdout ?? "") + (e.stderr ?? e.message)}`);
     process.exit(1);
   }
-  if (TIMING) console.log(`  ${String(Date.now() - s).padStart(6)}ms  ${label}`);
+  ran++;
+
+  // Post-image bookkeeping: a rule may have changed its own inputs (stamps) and
+  // its outputs — drop stale memo entries and rehash.
+  for (const f of [...fileSet(r.inputs), ...fileSet(r.outputs), ...fileSet(r.stamps)]) forget(join(ROOT, f));
+  const outSet = fileSet(r.outputs);
+  for (const f of outSet) {
+    if (preOut.get(f) !== fileHash(join(ROOT, f))) movedFiles.push(f);
+  }
+  for (const f of preOut.keys()) if (!outSet.has(f)) movedFiles.push(f);   // deleted output
+  manifest[key] = { in: setHash(fileSet(r.inputs)), out: setHash(outSet) };
+  if (TIMING) console.log(`  ${String(Date.now() - s).padStart(6)}ms  ${r.name}`);
 }
 
-const after = snapshotDerived();
+// prune manifest entries for renamed/re-specced rules
+for (const k of Object.keys(manifest)) {
+  if (!RULES.some((r) => k === `${r.name}:${specKey(r)}`)) delete manifest[k];
+}
+mkdirSync(dirname(MANIFEST), { recursive: true });
+writeFileSync(MANIFEST, JSON.stringify(manifest, null, 1) + "\n");
+
 const total = ((Date.now() - t0) / 1000).toFixed(1);
 
 if (CHECK) {
-  // a file this run rewrote (new mtime) or created was stale in the tree
-  const stale = [...after.keys()].filter((p) => before.get(p) !== after.get(p));
-  if (stale.length > 0) {
-    console.error(`derive --check: ${stale.length} artifact(s) were STALE — run \`node tools/internal/derive.mjs\` and stage them:`);
-    for (const p of stale) console.error(`   ${p}`);
+  if (movedFiles.length > 0) {
+    console.error(`derive --check: ${movedFiles.length} artifact(s) were STALE — run \`node tools/internal/derive.mjs\` and stage them:`);
+    for (const p of movedFiles.slice(0, 20)) console.error(`   ${p}`);
     process.exit(1);
   }
-  console.log(`derive --check: all derived artifacts current (${total}s)`);
+  console.log(`derive --check: all derived artifacts current (${ran} ran, ${skipped} skipped, ${total}s)`);
 } else {
-  const moved = [...after.keys()].filter((p) => before.get(p) !== after.get(p));
-  console.log(`derive: ${moved.length} of ${after.size} derived file(s) regenerated (${total}s)`);
-  for (const p of moved.slice(0, 12)) console.log(`   ${p}`);
+  console.log(`derive: ${movedFiles.length} derived file(s) regenerated — ${ran} rule(s) ran, ${skipped} skipped (${total}s)`);
+  for (const p of movedFiles.slice(0, 12)) console.log(`   ${p}`);
 }

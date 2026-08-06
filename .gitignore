@@ -46,3 +46,7 @@ mac-host/.build/
 # the window-finder the native rigs share: winb.swift is tracked, the compiled
 # helper is per-machine (win.mjs rebuilds it on demand) — same split as pointer.
 mac-host/winb
+
+# derive's rule manifest + intermediates (tools/internal/derive.mjs): per-clone
+# skip state and the extract→assemble handoff — regenerated, never committed.
+.derive/

@@ -41,7 +41,11 @@ function titleOf(file) {
 }
 
 /** id → { path (repo-relative), title, kind }. */
-export function buildRegistry() {
+/** `reference` (optional): the extract model's reference map, passed by assemble
+ *  so the registry is built from the doc tree of THIS run rather than from the
+ *  committed model of the last one. The CLI (`--check`) passes nothing and reads
+ *  the committed model — correct for a gate, which judges the committed corpus. */
+export function buildRegistry(reference) {
   const ids = {};
   const add = (id, file, kind, title) => {
     ids[id] = { path: path.relative(ROOT, file), title: title ?? titleOf(file), kind };
@@ -64,11 +68,9 @@ export function buildRegistry() {
   ids["essay:why-declare"] = { path: "apps/homepage/homepage.declare", title: "Why Declare", kind: "essay" };
 
   // Reference symbols: the model's node keys are already the IDs (`View.width`).
-  if (existsSync(MODEL)) {
-    const model = JSON.parse(readFileSync(MODEL, "utf8"));
-    for (const key of Object.keys(model.reference ?? {})) {
-      ids[key] = { path: "docs/declare-model.json", title: key, kind: "reference" };
-    }
+  const ref = reference ?? (existsSync(MODEL) ? JSON.parse(readFileSync(MODEL, "utf8")).reference : null);
+  for (const key of Object.keys(ref ?? {})) {
+    ids[key] = { path: "docs/declare-model.json", title: key, kind: "reference" };
   }
   return ids;
 }

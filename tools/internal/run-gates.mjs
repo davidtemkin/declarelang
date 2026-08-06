@@ -13,18 +13,35 @@
 // numbers come from the harness (`DECLARE_TIMING=1`), which is a different
 // altitude — a runner can only ever see suites.
 //
-//   node tools/internal/run-gates.mjs              # all, in npm-test order
+//   node tools/internal/run-gates.mjs              # what the change-set touches
+//   node tools/internal/run-gates.mjs --all        # every suite, unconditionally
 //   node tools/internal/run-gates.mjs --timing     # …and per-case detail
 //   node tools/internal/run-gates.mjs --only unit,docs,crawl
 //   node tools/internal/run-gates.mjs --bail        # stop at the first failure
 //
 // The suite ORDER is read from package.json's own `test` script rather than
 // duplicated here — a second list would drift, and the drift would be silent.
+//
+// DON'T TEST WHAT'S NOT CHANGED. A suite is a rule: declared inputs, and a
+// recorded hash of them from its last GREEN run (.derive/gates.json, untracked
+// — the same mechanism derive.mjs uses for build rules, same walker,
+// tools/internal/filesets.mjs). A suite whose inputs are byte-identical to the
+// last time it passed is reported `skip` and not run; `--all` runs everything,
+// and is the right habit before a push and after anything structural.
+//
+// The maps err COARSE on purpose — every suite depends on the core (runtime,
+// compiler, library, its own file, the harness), so a core edit still runs the
+// world, and skipping only ever kicks in for scoped edits (docs, one app, the
+// server). A suite with NO entry in SUITE_INPUTS always runs: unmapped means
+// unskippable, so an unlisted dependency fails safe. The residual risk is a
+// mapped list that is too narrow; if a suite ever misses a regression through
+// skipping, the fix is its input list, not distrust of the mechanism.
 
-import { readFileSync, appendFileSync, writeFileSync } from "node:fs";
+import { readFileSync, appendFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fileSet, setHash } from "./filesets.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const argv = process.argv.slice(2);
@@ -42,6 +59,59 @@ function suites() {
   return names.filter((s) => want.has(s.name));
 }
 
+// Every suite depends on these; a change here runs everything mapped.
+const CORE = ["runtime/src", "compiler/src", "library", "test/harness.mjs", "package.json"];
+const T = (name) => `test/${name}.test.mjs`;
+
+/** Declared inputs per suite, BEYOND core + its own file. A suite absent from
+ *  this map always runs. Coarse over narrow, always. */
+const SUITE_INPUTS = {
+  // pure core: compiled behavior + fixtures inside the test file itself
+  "unit": [], "seam": ["runtime/src"], "diagnostics-hints": [], "databinding": [],
+  "materialization": [], "dataschema": [], "datasource-failure": [], "table": [],
+  "dep-extract": [], "dep-projection": [], "script-block": [], "static-constraint": [],
+  "highlight": [], "inspect": [], "md": [], "themes": [], "html": [], "richtext": [],
+  "components": [], "streams": ["server"], "schema-completeness": ["docs/declare-model.json", "tools/internal/doc"],
+  // the doc corpus
+  "docs": ["docs", "tools/internal/doc", "tools/internal/ops.mjs", "skill", ".claude/skills",
+           "apps/homepage/getstarted.md", "apps/homepage/declare-faq.md", "apps/docs", "bundles/version.json"],
+  "ops": ["tools", "docs", "skill", ".claude/skills", "apps/homepage/getstarted.md", "apps/homepage/declare-faq.md"],
+  // formatting covers every canon .declare file
+  "format": ["tools/format.mjs", { dir: "apps", ext: ".declare" }, { dir: "test", ext: ".declare" },
+             { dir: "evals", ext: ".declare" }],
+  // apps and their drives
+  "tracker": ["apps/tracker", "server", "browser"],
+  "desktop-input": ["apps/desktop", "server", "browser"],
+  "verify-apps": ["apps", "tools/verify.mjs"],
+  "crawl": ["apps/homepage", "browser", "server", "docs/declare.md"],
+  "gesture": ["test/probe", "browser", "server"],
+  "perceptual": ["test/probe", "test/artifacts", "browser", "server"],
+  // the toolchain and its delivery
+  "scaffold": ["compiler/src"],
+  "declarec": ["tools/declarec.mjs", "browser", "bundles"],
+  "slim": ["tools", "bundles", "browser"],
+  "prewarm": ["tools/internal/prewarm.mjs", "bundles/cache", "apps", "docs/declare.md"],
+  "serve-parity": ["server", "browser"],
+  "serve": ["server", "browser", "bundles"],
+  "serve-browser": ["server", "browser", "bundles"],
+  "streams-browser": ["server", "browser"],
+  "network-browser": ["server", "browser"],
+  "toolchain-realm": ["tools", "server"],
+  "hydrate": ["browser", "server", "bundles", "apps/homepage"],
+  "prod-parity": ["tools", "browser", "server", "bundles", "apps/homepage"],
+  "dist-freshness": ["apps/homepage/dist", "tools", "apps/homepage/stats.json"],
+};
+
+const GATES_MANIFEST = resolve(ROOT, ".derive/gates.json");
+const manifest = existsSync(GATES_MANIFEST)
+  ? (() => { try { return JSON.parse(readFileSync(GATES_MANIFEST, "utf8")); } catch { return {}; } })()
+  : {};
+const suiteHash = (s) => {
+  const extra = SUITE_INPUTS[s.name];
+  if (extra === undefined) return null;                        // unmapped — always runs
+  return setHash(ROOT, fileSet(ROOT, [...CORE, s.path, ...extra]));
+};
+
 const LOG = resolve(ROOT, "gates.log");
 writeFileSync(LOG, `# gates ${new Date().toISOString()}\n`);
 const line = (s) => { process.stdout.write(s + "\n"); appendFileSync(LOG, s + "\n"); };
@@ -53,7 +123,15 @@ const env = { ...process.env, ...(has("--timing") ? { DECLARE_TIMING: "1" } : {}
 const results = [];
 const t0 = Date.now();
 
+let skippedCount = 0;
 for (const s of list) {
+  const inHash = suiteHash(s);
+  if (!has("--all") && inHash !== null && manifest[s.name] === inHash) {
+    skippedCount++;
+    results.push({ ...s, ms: 0, ok: true, tail: "(inputs unchanged since last green)", skipped: true });
+    line(`  skip         --  ${s.name.padEnd(20)} inputs unchanged since last green`);
+    continue;
+  }
   const started = Date.now();
   const r = spawnSync("node", [s.path], { cwd: ROOT, encoding: "utf8", env, maxBuffer: 1 << 28 });
   const ms = Date.now() - started;
@@ -63,15 +141,22 @@ for (const s of list) {
   const tail = out.trim().split("\n").filter((l) => /passed,\s*\d+ failed/.test(l)).pop();
   const ok = r.status === 0 && (tail === undefined || / 0 failed/.test(tail));
   results.push({ ...s, ms, ok, tail: tail ?? `exit ${r.status}` });
+  if (ok && inHash !== null) manifest[s.name] = inHash;        // green → record; red stays unrecorded and reruns
+  else if (!ok) delete manifest[s.name];
   line(`  ${ok ? "ok  " : "FAIL"} ${String((ms / 1000).toFixed(1)).padStart(6)}s  ${s.name.padEnd(20)} ${tail ?? ""}`);
   if (has("--timing")) for (const l of out.split("\n").filter((l) => l.includes("⏱"))) line(`      ${l.trim()}`);
   if (!ok && has("--bail")) break;
 }
 
+mkdirSync(dirname(GATES_MANIFEST), { recursive: true });
+writeFileSync(GATES_MANIFEST, JSON.stringify(manifest, null, 1) + "\n");
+
 const total = (Date.now() - t0) / 1000;
 const failed = results.filter((r) => !r.ok);
 line("");
-line(`gates: ${results.length - failed.length}/${results.length} suites green in ${total.toFixed(1)}s`);
+const ranOnly = results.filter((r) => !r.skipped);
+line(`gates: ${ranOnly.length - failed.length}/${ranOnly.length} suites green in ${total.toFixed(1)}s`
+  + (skippedCount > 0 ? ` (${skippedCount} skipped — inputs unchanged since last green; --all runs everything)` : ""));
 // Ranked, because the point is to see where the time actually went. A suite that
 // is a tenth of the run is worth naming; the rest is noise.
 const ranked = [...results].sort((a, b) => b.ms - a.ms).filter((r) => r.ms / 1000 >= total * 0.02);

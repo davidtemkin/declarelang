@@ -49,7 +49,17 @@ const TARGETS = [                                        // the documented compo
 // THE single documentation model. extract writes the walkable doc tree here;
 // assemble.mjs then augments the SAME file in place with the spine/links/meta.
 // One model, two scoped writers, no intermediate artifact.
-const OUT = path.join(ROOT, "docs/declare-model.json");
+// The extractor's output is an INTERMEDIATE, not the committed artifact.
+// docs/declare-model.json has exactly one author — assemble — which reads this
+// file and emits the final model (spine, links, browse, meta + the doc tree
+// carried through). Two tools writing one committed file in sequence was the
+// structural bug behind a whole class of failures: a bare extract used to
+// DELETE assemble's half (patched with a carry-forward hack, now deleted), and
+// the buildId extract baked in was one stamp-version behind by construction.
+// Untracked (.derive/ is gitignored); derive.mjs orders extract before assemble
+// by declared IO, and a standalone assemble falls back to the committed model's
+// own doc-tree sections — the same self-read it always did.
+const OUT = path.join(ROOT, ".derive/docs-extract.json");
 
 // `--check` is the prose-binding GATE and must be READ-ONLY: extract writes the
 // model, assemble then augments the SAME file with its spine/browse sections —
@@ -620,11 +630,12 @@ for (const n of Object.values(nodes)) {
   n.chain = chain;
 }
 
-const buildId = (() => {
-  const vp = path.join(ROOT, "bundles/version.json");
-  if (existsSync(vp)) { try { return JSON.parse(readFileSync(vp, "utf8")).build ?? "dev"; } catch {} }
-  return "dev";
-})();
+// (No buildId here, deliberately. The extractor once baked the id from
+// bundles/version.json into its output — a genuine CYCLE, since stamp-version
+// writes that file after hashing bundles/cache, which prewarm derives from this
+// tool's outputs. The committed model always trailed by one build. The id is
+// assemble's to stamp: it runs after stamp-version by declared dependency and
+// reads the final answer.)
 
 // derived projection for array-based renderers (the Declare doc app) — same node
 // objects, inlined as arrays so datapath replication can walk them. The reference
@@ -743,24 +754,15 @@ for (const ch of guide) {
 }
 const spine = guide.map(({ id, num, title, short, part }) => ({ id, num, title, short, part }));
 
-// CARRY FORWARD the sections assemble owns (`meta`, `spine`, `links`, `browse`).
-// This file is written twice per pipeline — extract writes the doc tree, assemble
-// augments the SAME file — so a bare `extract` used to DELETE assemble's half and
-// leave a model with no browse tree at all: structurally invalid, not merely stale.
-// The docs app renders `browse`, so the artifact was broken until someone
-// remembered to run assemble; `assemble --check` then failed with "STALE", which
-// reads as "regenerate me" rather than "you destroyed half the file". Derive owns
-// the order and always runs both, so this only bites a hand-run extract — which is
-// exactly when the tree looks fine and is not.
-//
-// Preserving them keeps the artifact VALID and merely stale in assemble's half,
-// which `assemble --check` then reports correctly: it recomputes the spine and
-// compares, so a carried-forward section that has genuinely drifted still fails.
-const prior = existsSync(OUT) ? (() => { try { return JSON.parse(readFileSync(OUT, "utf8")); } catch { return {}; } })() : {};
-const carried = {};
-for (const k of ["meta", "spine", "links", "browse"]) if (prior[k] !== undefined) carried[k] = prior[k];
-const model = { version: 1, buildId, reference: nodes, roots, tree, guide: spine, guideParts, tenets, ...carried };
-if (!CHECK) writeFileSync(OUT, JSON.stringify(model, null, 2) + "\n");
+// One author per committed file: this model is the intermediate assemble reads
+// (see OUT above), so there is nothing of assemble's to preserve and no way for
+// a bare extract to corrupt the committed artifact any more — the carry-forward
+// hack that used to live here is dead by construction.
+const model = { version: 1, reference: nodes, roots, tree, guide: spine, guideParts, tenets };
+if (!CHECK) {
+  mkdirSync(path.dirname(OUT), { recursive: true });
+  writeFileSync(OUT, JSON.stringify(model, null, 2) + "\n");
+}
 
 // ── report ──
 const counts = Object.values(nodes).reduce((a, n) => ((a[n.kind] = (a[n.kind] ?? 0) + 1), a), {});
@@ -772,14 +774,6 @@ console.log(`  guide:   ${guide.length} chapters in ${guideParts.length} parts (
 console.log(`  tenets:  ${tenets.length} (${tenets.map((t) => t.title).join(" · ")})`);
 console.log(`  islands: ${Object.keys(genFiles).length} inline runnable examples written to apps/docs/demos/seg_*.declare`);
 console.log(`  @api:    ${documented} documented / ${Object.keys(nodes).length - documented} structural-only`);
-// This tool writes HALF the model. Say so, every time — the failure it prevents is
-// a hand-run extract that leaves assemble's sections stale, which then surfaces
-// three suites away as "STALE docs/declare-model.json" with nothing pointing back
-// here. Derive owns the order; this line is for the person who bypassed it.
-if (!CHECK && Object.keys(carried).length > 0) {
-  console.log(`  NOTE:    spine/links/browse are assemble's and were carried forward UNCHANGED.`);
-  console.log(`           This model is half-current — run \`node tools/internal/derive.mjs\`.`);
-}
 
 // The prose-binding gate: a `## heading` nobody claimed is prose the reference
 // silently drops. Always reported; fatal under `--check` (the ops gate).
