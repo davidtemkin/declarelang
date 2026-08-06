@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "f7ab1b1db9a7",
+  "buildId": "cd190f7fa2d7",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -40883,6 +40883,14 @@
      "label": "Markdown file",
      "path": "docs/system-design/text-and-markdown.md",
      "preview": "Status: SETTLED 2026-07-08 (David). Surfaced by the homepage build: Text never wrapped (white-space: pre, \"wrap semantics: open question\"), blocking real prose. This is the ruling for wrapping and for Markdown as a native, full-featured con…"
+    },
+    {
+     "name": "Transform",
+     "subtitle": "rotation, pinch, and the typography surface (SEED)",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/transform.md",
+     "preview": "Status: scoped, not yet designed — the next session's arc (David, 2026-08-06). This seed exists so the scope survives the session boundary; the full plan replaces it, at the grade of compositing.md. Why one arc Rotation, the pinch primitive…"
     },
     {
      "name": "Verification",

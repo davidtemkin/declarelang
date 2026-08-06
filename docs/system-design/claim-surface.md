@@ -107,6 +107,18 @@ the DOM realization in `refreshTouchAction` (`pan-y pinch-zoom` for
 every claim follows), and the pin in `test/gesture.test.mjs` ("the
 AXIS-SCOPED claim keeps vertical pan").
 
+## The iOS rule for new claims — RULED 2026-08-06 (David)
+
+**Any change to input declarations or gesture claims requires iOS-simulator
+validation and a regression case.** Headless Chrome replays what a spec says a
+browser does; iOS does what iOS does (the 2026-08-06 session found the missing
+pane-tier cancel, the ignored `touch-action: manipulation`, and the stale
+EventRegion this way — none visible in emulation). Mechanism, not memory: the
+rig is `tools/internal/sim/` (drive.mjs header has the session recipe), the
+suite is `regress.mjs` — extend it with a case for the new claim, run it green
+(23+ checks), and its stamp quiets the run-gates advisory that fires whenever
+the touch-input sources move.
+
 ## Held true by
 
 `test/gesture.test.mjs`: the claims table per view (none / pinch-zoom /

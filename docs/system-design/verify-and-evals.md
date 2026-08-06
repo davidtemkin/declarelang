@@ -74,6 +74,21 @@ Exposure: in-page as `window.__declare.inspect` etc. (dev/verify builds; strippe
 Motion must be assertable and screenshots reproducible, so the clock must be drivable:
 
 - Runtime already centralizes frame scheduling; add a **test clock**: `__declare.clock.mode("manual")`, `.step(ms)`, `.settleMotion(maxMs)` (run springs/animators to rest, error if not settled by maxMs).
+- **Settle and ambient motion — RULED 2026-08-06 (David): derivation, never a
+  declaration.** A pulsing live-indicator meant `motionBusy` never fell and the
+  one determinism primitive timed out (assessment 3.2). The fix is NOT an
+  `ambient` flag (an app-side declaration could drift from the motion it
+  describes); perpetuity is already derivable from the motion declarations
+  themselves: a `Heartbeat` is life by KIND (it runs while `running` — never a
+  transition); an `Animator` declares its own perpetuity (`loop`/`repeat`); a
+  `Spring` settles by definition. So settleMotion's predicate narrows to the
+  FINITE motion — springs and non-looping animators — and Heartbeats/looping
+  animators keep painting without holding settle open. The one residual shape,
+  a spring perpetually re-armed from its own rest (ping-pong), is detected by
+  non-convergence: after K re-arms of the same source within one settle, stop
+  and NAME it ("app.pulse re-armed 6× — driven by its own rest; treated as
+  ambient") — a diagnosed note, never a silent timeout. NOT YET IMPLEMENTED —
+  the predicate needs kind-tagged clock tickers; queued for the next arc.
 - Verify drives it: "click, step 120 ms, snapshot mid-flight, settleMotion, assert" — the calendar's zoom becomes a *deterministic* sequence of assertable frames. This is the difference between our screenshots-during-transitions (timing-lucky) and a real oracle.
 
 ### 2.4 Assertions — at the language's altitude

@@ -75,11 +75,14 @@ function applyEditScheme(el, fill) {
 // the text leaves (Text runs, rich-flow hosts) whose effective `selectable`
 // is false, and NOTHING ever writes `user-select: text` on painted content —
 // selectable text sits at platform defaults, indistinguishable from any web
-// page. The shape iOS punishes (an explicit `text` island inside a `none`
-// page turns drags into selection instead of panning — measured 2026-07-29:
-// hero swipes died exactly on selectable runs) is thereby unconstructible,
-// which is what let the per-pointer-kind split (COARSE) be deleted: one
-// realization, both pointer kinds, and `selectable` finally governs touch.
+// page. (AMENDED 2026-08-06, David's selection-edges ruling: the page
+// baseline is now an inherited `none` on <html> and stamped leaves DO wear
+// explicit `text` — the 2026-07-29 "text island in a none page" trap turned
+// out to be the EventRegion staleness solved by refreshSelectableRegion, not
+// the explicit value itself; measured on the sim, drags on explicit-text
+// runs pan fine once the region is rebuilt at settled geometry. What the
+// none-baseline buys is the other measured bug: gap long-presses no longer
+// find a selectable body under painted UI.)
 // Boxes are never written — so native editables and islands stay selectable
 // by inheritance with no opt-back-in, and a `selectable` region inside a
 // tappable card needs no `text` to escape anything. Selectable leaves are
@@ -129,9 +132,12 @@ function refreshSelectableRegion(el) {
             // Only if still stamped — `selectable` may have toggled off meanwhile,
             // and an unselectable leaf's `none` must stand.
             if (e.dataset.declareSelectable !== undefined) {
+                // EXPLICIT `text`, not "": since the selection-edges fix the page
+                // baseline is an inherited `none` (attachRoot), so a cleared value
+                // would fall back to unselectable.
                 const es = e.style;
-                es.userSelect = "";
-                es.webkitUserSelect = "";
+                es.userSelect = "text";
+                es.webkitUserSelect = "text";
             }
         }
     }));
@@ -330,6 +336,21 @@ export class DomBackend {
         // page that gives none, and a painted UI draws its own (`pressed`); the
         // property inherits, so one write covers every view.
         rootEl.style.webkitTapHighlightColor = "transparent";
+        // The selection-edges fix (RULED 2026-08-06, David — "do the normal web
+        // page thing" INSIDE selectable regions, painted-UI outside): the page
+        // baseline is user-select NONE, carried on <html> so body inherits it
+        // (input.ts suppressSelection toggles body's own style; its "" restore
+        // then falls back to this inherited none, never to a selectable body).
+        // Stamped selectable leaves override with EXPLICIT `text` — the measured
+        // iOS bug this kills: a long-press on the GAPS between views hit the
+        // selectable body and popped a text selection over painted UI
+        // (gestures.md, 2026-08-06). Top-level only: an island must not restyle
+        // its host page's root.
+        if (!embedded) {
+            const hs = rootEl.ownerDocument.documentElement.style;
+            hs.userSelect = "none";
+            hs.webkitUserSelect = "none";
+        }
         // Touch gestures are NOT suppressed here: the browser owns every gesture
         // until a view claims one by declaring the handler that answers it
         // (refreshTouchAction — the app root's default keeps pan for an app the
@@ -1132,8 +1153,8 @@ class DomSurface {
         host.textContent = "";
         // Subtractive selection (the class ruling): `none` on an unselectable
         // flow, platform default + the stamp on a selectable one — never `text`.
-        host.style.userSelect = selectable ? "" : "none";
-        host.style.webkitUserSelect = selectable ? "" : "none";
+        host.style.userSelect = selectable ? "text" : "none";
+        host.style.webkitUserSelect = selectable ? "text" : "none";
         host.style.pointerEvents = selectable ? "auto" : "none";
         if (selectable) {
             host.dataset.declareSelectable = "1";
@@ -1633,8 +1654,8 @@ class DomSurface {
         // box; a selectable one must catch the selection gesture itself).
         const el = this.textRun();
         const sel = st.selectable === true;
-        s.userSelect = sel ? "" : "none";
-        s.webkitUserSelect = sel ? "" : "none";
+        s.userSelect = sel ? "text" : "none";
+        s.webkitUserSelect = sel ? "text" : "none";
         s.pointerEvents = sel ? "auto" : "none";
         if (sel) {
             el.dataset.declareSelectable = "1";

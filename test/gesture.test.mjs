@@ -280,7 +280,7 @@ await test("dom+canvas: an EMBEDDED island's root default never retires pan — 
   await open("/dom-claims"); // restore the suite's working page
 });
 
-await test("dom: a coarse pointer keeps selection at web defaults — no explicit user-select anywhere", async () => {
+await test("dom: a coarse pointer gets the same amended realization — none baseline, text on stamped leaves only", async () => {
   // The iOS pan-theft (claim-surface.md): explicit `text` islands inside a
   // `none` page make drags select instead of pan. On a touch device the root
   // never writes `none` and `selectable` writes no explicit `text`.
@@ -291,16 +291,22 @@ await test("dom: a coarse pointer keeps selection at web defaults — no explici
   const r = await tp.evaluate(() => ({
     coarse: matchMedia("(pointer: coarse)").matches,
     rootUS: document.querySelector("[data-declare-app]").style.userSelect || "(unset)",
-    explicit: [...document.querySelectorAll("*")].some(
-      (el) => el.style.userSelect === "text" && el.tagName !== "INPUT" && el.tagName !== "TEXTAREA"),
+    htmlUS: document.documentElement.style.userSelect,
+    // AMENDED 2026-08-06 (selection edges): explicit `text` now lives on
+    // stamped leaves and ONLY there — the page baseline is an inherited
+    // <html> none, so gap presses find nothing selectable.
+    strays: [...document.querySelectorAll("*")].some(
+      (el) => el.style.userSelect === "text" && el.dataset.declareSelectable === undefined
+        && el.tagName !== "INPUT" && el.tagName !== "TEXTAREA"),
   }));
   await tp.close();
   assert.equal(r.coarse, true, "fixture page must emulate a coarse pointer");
   assert.notEqual(r.rootUS, "none");
-  assert.equal(r.explicit, false);
+  assert.equal(r.htmlUS, "none", "the page baseline rides <html>");
+  assert.equal(r.strays, false, "`text` only ever on stamped leaves");
 });
 
-await test("dom: the subtractive selection realization — `none` on unselectable leaves, defaults + stamp elsewhere, `text` never", async () => {
+await test("dom: the subtractive selection realization, amended — <html> none baseline, explicit `text` on exactly the stamped leaves", async () => {
   const tp = await browser.newPage();
   await tp.goto(`${B}/dom-selection`, { waitUntil: "networkidle2", timeout: 30000 });
   await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
@@ -317,8 +323,10 @@ await test("dom: the subtractive selection realization — `none` on unselectabl
     return {
       rootUS: root.style.userSelect || "(unset)",
       tapFlash: root.style.webkitTapHighlightColor,
-      textWrittenAnywhere: [...root.querySelectorAll("*")].some(
-        (el) => el.style.userSelect === "text" && el.tagName !== "INPUT" && el.tagName !== "TEXTAREA"),
+      strayText: [...root.querySelectorAll("*")].some(
+        (el) => el.style.userSelect === "text" && el.dataset.declareSelectable === undefined
+          && el.tagName !== "INPUT" && el.tagName !== "TEXTAREA"),
+      htmlUS: document.documentElement.style.userSelect,
       prose: { us: prose.style.userSelect || "(unset)", stamped: prose.dataset.declareSelectable === "1", pe: getComputedStyle(prose).pointerEvents },
       label: { us: label.style.userSelect, stamped: "declareSelectable" in label.dataset },
       doc: { us: doc.style.userSelect || "(unset)", stamped: doc.dataset.declareSelectable === "1" },
@@ -326,12 +334,13 @@ await test("dom: the subtractive selection realization — `none` on unselectabl
     };
   });
   await tp.close();
-  assert.equal(r.rootUS, "(unset)", "the root writes no user-select at all");
+  assert.equal(r.rootUS, "(unset)", "the root DIV writes no user-select — the baseline rides <html>");
+  assert.equal(r.htmlUS, "none", "the page baseline: painted UI is unselectable by default");
   assert.equal(r.tapFlash, "transparent", "the tap flash retires at the root — a painted UI draws its own feedback");
-  assert.equal(r.textWrittenAnywhere, false, "`text` is never written on painted content");
-  assert.deepEqual(r.prose, { us: "(unset)", stamped: true, pe: "auto" }, "selectable Text: platform default + the stamp + a pointer target");
+  assert.equal(r.strayText, false, "explicit `text` only on stamped leaves (AMENDED 2026-08-06)");
+  assert.deepEqual(r.prose, { us: "text", stamped: true, pe: "auto" }, "selectable Text: explicit `text` + the stamp + a pointer target");
   assert.deepEqual(r.label, { us: "none", stamped: false }, "unselectable Text: leaf `none`, no stamp");
-  assert.deepEqual(r.doc, { us: "(unset)", stamped: true }, "Markdown with no declaration: the flow-species default — a document selects");
+  assert.deepEqual(r.doc, { us: "text", stamped: true }, "Markdown with no declaration: the flow-species default — a document selects");
   assert.deepEqual(r.vetoed, { us: "none", stamped: false }, "…and one `selectable = false` provision on the card vetoes it");
 });
 

@@ -236,12 +236,12 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
             // Selectable content carries the realization's stamp (dom-backend:
             // `data-declare-selectable` on exactly the leaves whose effective
             // `selectable` is true) — the press landed on selectable text iff the
-            // target sits under one. Under the subtractive realization selectable
-            // text wears NO explicit `user-select`, so a computed-style probe for
-            // `text` can no longer answer; the stamp is the fact itself. The
-            // computed check that remains is the veto: a drag view's element-level
-            // `none` (setInput) inherits over stamped content beneath it, and the
-            // claim wins there by design.
+            // target sits under one. (AMENDED 2026-08-06, selection edges: stamped
+            // leaves now ALSO wear explicit `user-select: text` over the page's
+            // inherited <html> `none` baseline; the stamp stays the fact this
+            // check reads.) The computed check that remains is the veto: a drag
+            // view's element-level `none` (setInput) inherits over stamped content
+            // beneath it, and the claim wins there by design.
             const cs = el !== null && typeof getComputedStyle === "function" ? getComputedStyle(el) : null;
             const selectable = el !== null &&
                 typeof el.closest === "function" &&

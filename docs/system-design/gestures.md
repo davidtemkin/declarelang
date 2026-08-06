@@ -193,15 +193,17 @@ driven by hand, logged in `tools/internal/measure/results.jsonl`.
   two-finger spread with staggered lifts on a full-claim app delivered
   balanced books — starts == ends, `down` back to 0, `visualViewport.scale`
   pinned at 1.0.
-- **A long-press on app background (the gaps between views) starts iOS text
-  selection** (same session: `elementFromPoint` says `body`, computed
-  `user-select` is `text`, and the hold produced a `Range` selection): view
-  divs are `none` and Declare's root div is pointer-events-transparent, so
-  the press falls through to the selectable body. Fixing it means either
-  `user-select: none` on body — which inverts the subtractive realization's
-  "stamped leaves wear NO explicit user-select" clause (they would then need
-  explicit `text`) — or a body-level stamp. Ruling pending; recorded here so
-  the next session starts from the fact, not the surprise.
+- **A long-press on app background (the gaps between views) started iOS text
+  selection** — FIXED 2026-08-06 (David's selection-edges ruling): the page
+  baseline is now an inherited `user-select: none` on `<html>`, and stamped
+  selectable leaves wear explicit `text` (the subtractive clause AMENDED —
+  the stamp remains the fact input.ts reads). Inside a selectable region the
+  normal-page mechanics stand whole: native anchoring, native painting,
+  document-order ranges, cross-block sweeps; outside, painted UI offers the
+  long-press nothing. Phase 2 (recorded, not built): a press on the gaps
+  BETWEEN blocks inside a `selectable = true` container should anchor like a
+  normal page — needs a container-level realization (surface method + seam
+  rows); rides the next selection touch.
 
 - **SOLVED iOS BUG (2026-08-06, found on the homepage, sim iOS 18.2): a pan
   starting on a freshly-stamped selectable leaf was REFUSED outright.**

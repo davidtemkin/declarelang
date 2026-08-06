@@ -146,6 +146,19 @@ await go("/tools/internal/sim/touchlab.declare");
   check("chip hold-drag: claim beats scroll, drags delivered", c.held >= 1 && c.drags > 0 && pt2 === 0, JSON.stringify(c) + ` pane ${pt2}`);
 }
 
+if (section("touchlab")) {
+  // the selection-edges fix (2026-08-06): a long-press on the GAP between
+  // pad and pane — painted background — must select NOTHING (it used to hit
+  // the selectable body and pop a Range over painted UI)
+  await js("getSelection().removeAllRanges(); return 1;");
+  const pad = await aim("pad — onTouch*");
+  await act(finger(seqHold(pad.x, pad.y + 245, 1000))); // ~12px gap below the pad
+  await sleep(700);
+  const gapSel = await js("return getSelection().type;");
+  check("gap long-press selects nothing (painted UI, none baseline)", gapSel !== "Range", "sel " + gapSel);
+  await clearingTap();
+}
+
 // ── TouchLab-full: the full-claim App ───────────────────────────────────────
 if (section("full")) {
 console.log("touchlab-full (full gesture control)");
