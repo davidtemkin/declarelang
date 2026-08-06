@@ -114,6 +114,16 @@ const STAGES = [
 
   // 8. stale platform bundles, then the cache-busting build id LAST — it hashes
   //    everything above, so it must see their final state.
+  //
+  //    KNOWN ONE-BUILD LAG (measured 2026-08-05). extract (stage 4) reads the
+  //    build id out of bundles/version.json and bakes it into declare-model.json;
+  //    this stage rewrites that file. So on any run where content changed, the
+  //    model lands carrying the PREVIOUS id and the next derive catches it up —
+  //    which is why a commit can be followed by a one-line `buildId` diff. It
+  //    converges (verified: three consecutive runs, identical), so it is a lag and
+  //    not a fixpoint chase, and nothing downstream reads the model's id for
+  //    cache-busting. The clean fix is to stamp the model's id HERE rather than in
+  //    extract, since this stage is the one that knows the final answer.
   ["stamp-version", () => run("node", ["tools/internal/stamp-version.mjs"])],
 ];
 
