@@ -15,6 +15,8 @@ export declare class Image extends View {
      *  until the replacement lands. Load/error *events* wait for the rung that
      *  consumes them (the doc defines no Image load event yet). */
     loaded: boolean;
+    naturalWidth: number;
+    naturalHeight: number;
     /** True when the CURRENT source's load failed — the broken-avatar fact
      *  (`fallback: View [ visible = { pic.failed } ]`). Read-only, reset when
      *  a new load starts, so it always speaks about the present `source`;

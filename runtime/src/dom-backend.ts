@@ -1684,6 +1684,16 @@ class DomSurface implements Surface {
     // an <img> reports naturalWidth, a <video> videoWidth — same fact, two
     // spellings, and the un-stretched axis is pinned to it either way
     const nat = naturalSize(img);
+    // The aspect-preserving fits ride the platform: the element fills the box
+    // and object-fit letterboxes (contain) or crops (cover) — the same math
+    // the canvas walk does by hand.
+    if (this.stretch === "cover" || this.stretch === "contain") {
+      s.width = "100%";
+      s.height = "100%";
+      s.objectFit = this.stretch;
+      return;
+    }
+    s.objectFit = "";
     s.width = this.stretch === "width" || this.stretch === "both" ? "100%" : `${nat.width}px`;
     s.height = this.stretch === "height" || this.stretch === "both" ? "100%" : `${nat.height}px`;
   }

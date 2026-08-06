@@ -14,9 +14,23 @@ changes. A stateless helper in a `script { }` beats wrapping a class around one
 computed URL.
 
 ## stretches
-How the bitmap fills a box whose size differs from the image's natural size: `none`
-(default — natural size, no scaling), `width`, `height`, or `both`. The first built-in
-enum attribute — `stretches = both` scales the picture to the box on both axes.
+How the bitmap fills a box whose size differs from the image's natural size. The axis
+stretches distort by design: `none` (default — natural size, no scaling), `width`,
+`height`, or `both` (`stretches = both` scales the picture to the box on both axes).
+The **aspect-preserving fits** never distort: `contain` scales the whole picture into
+the box and letterboxes the remainder; `cover` fills the box completely and crops the
+overflow — the photograph-in-a-card value, and with `width = 100%` the responsive
+hero. Both center the bitmap.
+
+## naturalWidth
+The bitmap's intrinsic width in pixels — `0` until `loaded`, then the file's own
+dimension. **Read-only.** With `naturalHeight`, the aspect-true layout fact:
+`height = { pic.width * pic.naturalHeight / Math.max(1, pic.naturalWidth) }` keeps a
+width-driven image at its photographed proportions.
+
+## naturalHeight
+The bitmap's intrinsic height in pixels — `0` until `loaded`. **Read-only**; see
+`naturalWidth` for the aspect-ratio idiom.
 
 ## loaded
 The bitmap has landed — the reactive fact a placeholder derives from

@@ -59,6 +59,8 @@ export class Image extends View {
    *  until the replacement lands. Load/error *events* wait for the rung that
    *  consumes them (the doc defines no Image load event yet). */
   declare loaded: boolean;
+  declare naturalWidth: number;
+  declare naturalHeight: number;
 
   /** True when the CURRENT source's load failed — the broken-avatar fact
    *  (`fallback: View [ visible = { pic.failed } ]`). Read-only, reset when
@@ -119,6 +121,8 @@ export class Image extends View {
       // auto-extent derive owning the slot folds the natural size in through
       // contentExtent instead, woken by the `loaded` write below).
       this.natural = { width: img.naturalWidth, height: img.naturalHeight };
+      setBound(this, "naturalWidth", img.naturalWidth);
+      setBound(this, "naturalHeight", img.naturalHeight);
       if (!isSet(this, "width") && ownerOf(this, "width") === null) {
         setBound(this, "width", img.naturalWidth);
       }
@@ -141,4 +145,6 @@ defineAttributes(Image, {
   stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
   loaded: { def: false },
   failed: { def: false },
+  naturalWidth: { def: 0 },
+  naturalHeight: { def: 0 },
 });

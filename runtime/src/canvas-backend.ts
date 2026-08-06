@@ -1294,9 +1294,28 @@ class CanvasSurface implements Surface {
       const vid = this.image as HTMLVideoElement;
       const natW = typeof vid.videoWidth === "number" ? vid.videoWidth : (this.image as HTMLImageElement).naturalWidth;
       const natH = typeof vid.videoWidth === "number" ? vid.videoHeight : (this.image as HTMLImageElement).naturalHeight;
-      const w = st === "width" || st === "both" ? this.width : natW;
-      const h = st === "height" || st === "both" ? this.height : natH;
-      ctx.drawImage(this.image, 0, 0, w, h);
+      if (st === "cover" || st === "contain") {
+        // Aspect-preserving: one scale for both axes — max fills-and-crops
+        // (cover), min letterboxes (contain) — centered either way; cover
+        // clips to the box, exactly object-fit's crop.
+        const sc = natW > 0 && natH > 0
+          ? (st === "cover" ? Math.max : Math.min)(this.width / natW, this.height / natH)
+          : 0;
+        const dw = natW * sc;
+        const dh = natH * sc;
+        if (st === "cover") {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, this.width, this.height);
+          ctx.clip();
+        }
+        ctx.drawImage(this.image, (this.width - dw) / 2, (this.height - dh) / 2, dw, dh);
+        if (st === "cover") ctx.restore();
+      } else {
+        const w = st === "width" || st === "both" ? this.width : natW;
+        const h = st === "height" || st === "both" ? this.height : natH;
+        ctx.drawImage(this.image, 0, 0, w, h);
+      }
       // a running video changes pixels with no write to the graph: ask for the
       // next frame here, or the picture would freeze on its first one
       if (this.videoRunning()) this.compositor.invalidate();

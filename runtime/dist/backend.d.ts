@@ -47,7 +47,7 @@ export interface RichBlock {
  *  current frame is the picture. Both answer `drawImage`; both place as an
  *  absolutely-positioned child on the DOM. */
 export type Bitmap = HTMLImageElement | HTMLVideoElement;
-export type Stretch = "none" | "width" | "height" | "both";
+export type Stretch = "none" | "width" | "height" | "both" | "cover" | "contain";
 /** The pointer events a view can answer at R5 (`onPointerDown` / `onPointerUp` /
  *  `onClick`). A click is not a platform event here — the shared router
  *  (input.ts) synthesizes it as "press and release resolved to the same

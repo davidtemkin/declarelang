@@ -440,7 +440,10 @@ const ImageSchema: ComponentSchema = {
   base: ViewSchema,
   attrs: {
     source: { kind: "string" },
-    stretches: enumType("Stretch", "none", "width", "height", "both"),
+    // `cover`/`contain` (2026-08-06, assessment 1.1): the aspect-PRESERVING
+    // fits — contain letterboxes inside the box, cover fills and crops it —
+    // beside the axis stretches, which distort by design.
+    stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain"),
     // READ-ONLY (below): the load lifecycle as two facts, surfaced 2026-07-30
     // (David's ruling) when the network-transport tests found them unreadable
     // from constraints. `loaded` = a bitmap has landed (the placeholder
@@ -449,8 +452,12 @@ const ImageSchema: ComponentSchema = {
     // load starts.
     loaded: { kind: "boolean" },
     failed: { kind: "boolean" },
+    // The bitmap's intrinsic size — zero until `loaded`. What an aspect-true
+    // layout derives from: `height = { pic.width * pic.naturalHeight / Math.max(1, pic.naturalWidth) }`.
+    naturalWidth: { kind: "number" },
+    naturalHeight: { kind: "number" },
   },
-  readOnly: ["loaded", "failed"],
+  readOnly: ["loaded", "failed", "naturalWidth", "naturalHeight"],
 };
 // Video (2026-08): Image's twin — the same `source`/`stretches`/`loaded`/
 // `failed` vocabulary, plus the transport as ATTRIBUTES rather than controls.
@@ -462,7 +469,7 @@ const VideoSchema: ComponentSchema = {
   base: ViewSchema,
   attrs: {
     source: { kind: "string" },
-    stretches: enumType("Stretch", "none", "width", "height", "both"),
+    stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain"),
     playing: { kind: "boolean" },
     loop: { kind: "boolean" },
     muted: { kind: "boolean" },

@@ -47,7 +47,7 @@ export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; li
  *  absolutely-positioned child on the DOM. */
 export type Bitmap = HTMLImageElement | HTMLVideoElement;
 
-export type Stretch = "none" | "width" | "height" | "both";
+export type Stretch = "none" | "width" | "height" | "both" | "cover" | "contain";
 
 /** The pointer events a view can answer at R5 (`onPointerDown` / `onPointerUp` /
  *  `onClick`). A click is not a platform event here — the shared router

@@ -83,6 +83,12 @@ try {
     assert.ok(await page.evaluate(() => document.body.innerText.includes("img:loaded")));
   });
 
+  await test("a loaded Image reports its natural dimensions (assessment 1.1)", async () => {
+    // dot.png is a served 1×1 — the naturals populate from the real decode
+    await page.waitForFunction(() => document.body.innerText.includes("nat:1x1"), { timeout: 15000 });
+    assert.ok(await page.evaluate(() => document.body.innerText.includes("nat:1x1")));
+  });
+
   await test("an undecodable Image source reports .failed (the broken-avatar fact)", async () => {
     await page.waitForFunction(() => document.body.innerText.includes("imgfail:yes"), { timeout: 15000 });
     assert.ok(await page.evaluate(() => document.body.innerText.includes("imgfail:yes")));

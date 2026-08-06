@@ -423,12 +423,30 @@ await test("Text and Image inherit View's schema (x/y/clip/…)", () => {
   assert.deepEqual(check(parse("Image [ visible=false, fill=teal ]")), []);
 });
 
+await test("Image: cover/contain accepted, natural dimensions read-only (assessment 1.1, 2026-08-06)", () => {
+  const r = compile(`App [ width = 200, height = 200,
+    pic: Image [ width = 100, height = 60, stretches = cover, source = "x.png" ],
+    ratio: number = { app.pic.naturalWidth > 0 ? app.pic.naturalHeight / app.pic.naturalWidth : 0 },
+  ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.pic.stretches, "cover");
+    assert.equal(app.pic.naturalWidth, 0, "0 until loaded (headless never loads)");
+    assert.equal(app.ratio, 0, "derives read the honest zero");
+  } finally {
+    app.discard();
+  }
+  const bad = compile("App [ width = 10, p: Image [ naturalWidth = 5 ] ]", {});
+  assert.match(bad.errors.map((e) => e.message).join("; "), /naturalWidth.*read-only|read-only.*naturalWidth/i);
+});
+
 await test("check() rejects bad Text/Image values with pointed messages", () => {
   const cases = [
     ["Text [ fontWeight=heavy ]", /Text\.fontWeight expects a FontWeight \(one of .*\bmedium\b.*\bbold\b.*\), got 'heavy'/],
     ["Text [ text=42 ]", /Text\.text expects a string, got the number 42/],
     ['Text [ fontSize="big" ]', /Text\.fontSize expects a number, got the string "big"/],
-    ["Image [ stretches=sideways ]", /Image\.stretches expects a Stretch \(one of none \| width \| height \| both\), got 'sideways'/],
+    ["Image [ stretches=sideways ]", /Image\.stretches expects a Stretch \(one of none \| width \| height \| both \| cover \| contain\), got 'sideways'/],
     ["Image [ source=7 ]", /Image\.source expects a string, got the number 7/],
   ];
   for (const [src, want] of cases) {

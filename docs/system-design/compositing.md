@@ -108,6 +108,22 @@ adoption reaches them (§7.4). Tokens are measured into the reference by the
 theme-token spine automatically; the required-vs-optional split stays honest because
 every read will be guarded.
 
+### 3.4 `tint` — an Image attribute (ADDED 2026-08-06, assessment 4.2)
+
+```declare-fragment
+icon: Image [ source = "glyph.png", tint = { theme.accent } ]
+```
+
+A color multiplied over the bitmap's alpha — the one-mask-asset, many-colors
+idiom the 4.2 field report hit (an agent shipped two pre-recolored PNGs for
+want of it). It is a compositing operation, which is why it lives in this plan
+and not as an Image one-off: DOM realizes it as a masked background
+(`mask-image: url(...)` + `background: color`) or `filter`, canvas as a
+`source-in` fill over the drawn bitmap in an offscreen group (the §5 machinery),
+Mac as `CIColorMultiply`/template-image rendering. `tint = null` (default) is
+the untouched bitmap. Rides whatever phase lands the canvas offscreen groups,
+since `source-in` needs them; needs no new ruling.
+
 ## 4. Semantics — the two rulings, and the defaults proposed
 
 ### 4.1 What a view blends against (RULING 1)

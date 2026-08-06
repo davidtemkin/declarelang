@@ -18,5 +18,6 @@ App [ width = 340, height = 160, fill = white, textColor = black,
     g: Text [ x = 10, y = 10, text = { got.loaded ? `get:${got.value.msg}` : "get:..." } ],
     p: Text [ x = 10, y = 40, text = { sent.loaded ? `post:${sent.value.method}:${sent.value.q}` : "post:..." } ],
     i: Text [ x = 10, y = 70, text = { pic.loaded ? "img:loaded" : "img:..." } ],
+    n: Text [ x = 10, y = 85, text = { `nat:${pic.naturalWidth}x${pic.naturalHeight}` } ],
     f: Text [ x = 120, y = 70, text = { bad.failed ? "imgfail:yes" : "imgfail:..." } ]
     ]

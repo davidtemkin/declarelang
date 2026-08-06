@@ -135,7 +135,7 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
 
 await test("scaffold: enum-typed attributes emit named string-literal unions", () => {
   const s = scaffoldFor(PROGRAM);
-  assert.ok(s.includes(`type Stretch = "none" | "width" | "height" | "both";`), "Stretch enum alias");
+  assert.ok(s.includes(`type Stretch = "none" | "width" | "height" | "both" | "cover" | "contain";`), "Stretch enum alias");
   assert.ok(s.includes(`type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black";`), "FontWeight enum alias");
   // Axis reaches the scaffold through a DECLARED enum now (the built-in value
   // enums are declarable — library SimpleLayout's `axis: Axis = y`):
