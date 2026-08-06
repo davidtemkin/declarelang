@@ -67,3 +67,30 @@ The **format-distance** metric (raw output vs. its canonical form) rides along f
 4. Self-test: `node tools/verify.mjs evals/tasks/<id>/reference.declare --assert evals/tasks/<id>/assert.mjs`
    must be green through R5. (A failing reference means the acceptance is wrong.)
 5. `node evals/harness/run.mjs --tasks <id> --solver reference` — the cell must be green.
+
+## Coverage — the dark-surface detector
+
+The 2026-08 field round taught one structural lesson (assessment §6): **gaps
+survive app-scale evals exactly where no brief ever points.** Image fit hid
+behind square fixtures, typographic leading behind unmeasured prose, rotation
+behind agents designing within the language's reach. Five greenfield builds
+missed in three days what one pixel-target replication found in an hour —
+because a fixed external target is the only brief an agent can't quietly
+design around.
+
+Two standing rules follow, plus a tool:
+
+- **Replication is repertoire.** Pixel-target replication of an existing
+  design belongs in every round (code-to-code *translation* stays low-value;
+  that ruling holds).
+- **Briefs demand the dark surface deliberately.** When the sweep below names
+  a dark region, the next brief points at it — and every eval `Image` gets at
+  least one non-square source, because a 1:1 fixture hides every aspect bug
+  by construction.
+- **The sweep:** `node tools/internal/coverage-sweep.mjs` joins every schema
+  attribute against the whole corpus (apps, evals, tests, library, docs
+  examples) and lists the ones **exercised by nothing**. A report, not a
+  gate: a zero is a fact to aim a brief at. First run (2026-08-06): 13 of
+  178 attributes dark — among them `Animator.paused`/`relative`,
+  `Video.playbackRate`/`ended`, and the `heading*`/`code*` prevailing tokens
+  — which is 13 places the next silent field failure was already waiting.
