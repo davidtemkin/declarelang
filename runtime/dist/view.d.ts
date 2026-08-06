@@ -105,6 +105,13 @@ export declare class View extends Node {
     focusable: boolean;
     focusTrap: boolean;
     anchor: string;
+    /** The linking triple (location.md §0): `link` — this view IS a link to the
+     *  reference ("" = not a link); `replace` — following it overwrites the
+     *  current history entry; `shows` — this view manifests the named location
+     *  (its visibility is lowered to a `visible` binding at instantiation). */
+    link: string;
+    replace: boolean;
+    shows: string;
     /** Clip the subtree (paint AND hit-test). Two forms on one slot: a Shape
      *  string clips to that SVG path (view-local coordinates); the boolean
      *  box-clip `true` clips to the view's own box (0,0,width,height), tracking
@@ -392,7 +399,7 @@ export declare class View extends Node {
      *  Surface; a no-op before attach or with nothing scrolling above. (Named for
      *  the platform primitive — `reveal` is deliberately left free as a member name,
      *  e.g. a `reveal:` fade-in Spring.) */
-    scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;
+    scrollIntoView(align?: "start" | "nearest", smooth?: boolean, inset?: number): void;
     /** Promotion (planes.md §1 — order is a slot): re-link this view among its
      *  siblings, tree and surface both. `raise()` moves it to the FRONT (last
      *  child — stacking is source order); `raise(below)` moves it to just BENEATH
@@ -414,6 +421,11 @@ export declare class View extends Node {
      *  A handler receives one plain event argument — the pointer position in
      *  this view's own coordinates. */
     private inputSink;
+    /** Re-derive the surface's input wiring — the pusher for attributes that
+     *  GRANT interest by their value (`link`; a post-attach handler install goes
+     *  through here too). Idempotent: attach-time flush and this call converge
+     *  on the same sink/wants pair. */
+    rewireInput(): void;
     /** What the ROUTER needs to know about this view's declared handlers to
      *  arbitrate gestures for it (input.ts HitTarget): whether it answers
      *  double-clicks (so its single click waits out the double window), holds,
@@ -547,6 +559,37 @@ export declare class App extends View {
      *  convention). */
     createView(tag: string, parent: View, props?: Record<string, unknown>): View;
     navigate(to: string): void;
+    /** The reference schemes a link may carry (location.md §0.4) — the shared
+     *  predicate lives at the render seam (backend.ts allowedRef), because the
+     *  realization path enforces it too: a disallowed scheme never becomes an
+     *  href, so copy-link and middle-click — native paths that never enter
+     *  follow — stay shut. */
+    static allowedRef(ref: string): boolean;
+    /** The destination part of a location — the runtime strips ITS OWN trailing
+     *  `@name` (§6's one shared grammar character); the app never writes the
+     *  split. `shows` lowers to a comparison against this (instantiate.ts). */
+    destinationOf(loc: string): string;
+    /** The history verb the NEXT location mirror should use (location.md §0.5.6):
+     *  "push" (default), or "replace" — set by follow when the link carries
+     *  `replace = true`, and by the host itself on traversal/cold arrivals so a
+     *  redirect can never mint an entry (no Back loops). Consumed (reset to
+     *  "push") by the host at the mirror. A plain field, like pendingNav. */
+    pendingHistoryVerb: "push" | "replace";
+    /** follow(ref) — the ONE operation behind every arrival (location.md §0.5):
+     *  a linked view's activation, a rich-text href, a cold URL, back/forward.
+     *  Source requests, runtime delivers, destination decides. The app-scoped
+     *  hook `onFollow(ref) -> ref'` (a user-declared method, §0.6) is applied
+     *  ONCE — transform, veto (""), or side-effect; then an external reference
+     *  leaves through `navigate`, and a `#…` writes `location`. The anchor
+     *  reveal rides the existing retained intent (resolveReveal); an anchorless
+     *  arrival seeds the scroll to the top. Re-following the current reference
+     *  re-runs the arrival step — no dead clicks. */
+    follow(ref: string, replace?: boolean): void;
+    /** The destination gating an anchored view: walk the tree for `anchor ===
+     *  name`, then up from it for the nearest `shows`. null = no such anchor
+     *  (the name is a destination or a computed location); "" = an anchor
+     *  outside any destination (reveal within the current location). */
+    private destinationOfAnchor;
     /** app→host channel for openWindow, exactly like pendingNav: the verb writes
      *  it, the host polls it on the next frame and window.opens (still inside the
      *  click's transient user activation, so it isn't popup-blocked). */
@@ -580,6 +623,18 @@ export declare class App extends View {
      *  splits at the surface seam (DOM scrollIntoView / canvas scroll clamp). Returns
      *  the name it revealed this call (else null) — the host ignores it; tests read it. */
     resolveReveal(): string | null;
+    /** Re-arm the reveal intent for the CURRENT location — follow's no-dead-click
+     *  rule (§0.5): re-following `#why@story` while already there re-runs the
+     *  reveal, which resolveReveal's location-change guard would otherwise skip. */
+    rearmReveal(): void;
+    /** Cancel a HELD reveal intent — the user's first scroll or touch takes
+     *  ownership of the viewport (location.md §0.5.5, the uncontrolled-editor
+     *  rule): a reference SEEDS the scroll position, it never owns it. The host
+     *  calls this from its scroll/wheel/touch listeners; a reveal that already
+     *  landed cleared the intent itself, so this is a no-op then — which is what
+     *  makes the reveal's own scrollIntoView (whose scroll event arrives a tick
+     *  later) safe from self-cancellation. */
+    cancelReveal(): void;
     /** The app's size floor. An app that degrades below some width declares
      *  `minWidth = 600` and the auto-extent never goes under it: in a narrower
      *  host the app holds its floor and the STAGE pans natively (the page
@@ -590,6 +645,11 @@ export declare class App extends View {
      *  own formula and wins untouched. */
     minWidth: number;
     minHeight: number;
+    /** Linking knobs (location.md §0): `revealInset` — pixels of fixed chrome a
+     *  reveal must clear (the scroll-margin analogue); `crawlSeeds` — extra
+     *  references the extraction crawl seeds beyond the registry. */
+    revealInset: number;
+    crawlSeeds: unknown[];
     /** The app's human name — hosts surface it where names go: the page title
      *  (host-client mirrors it per settle, before the location history push so
      *  back/forward entries carry the state's name) and the crawled document's

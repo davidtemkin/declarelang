@@ -11,6 +11,33 @@ export interface CrawlOptions {
      *  passes a same-origin fetch. Absolute urls never reach this — they are the
      *  network, and the network fails the crawl. */
     data?: (url: string) => Promise<unknown> | unknown;
+    /** The compile's authored link namespace (Compiled.linkRegistry, location.md
+     *  §0.3): destinations SEED the crawl (the authored surface needs no
+     *  discovery), and every bare fragment edge met during traversal is resolved
+     *  against it — an unknown authored name FAILS the crawl (the data tier's
+     *  check). Absent (an old caller): edges pass unchecked, seeds are the
+     *  default location only — the pre-registry behavior, kept whole. */
+    registry?: {
+        destinations: readonly string[];
+        anchors: Readonly<Record<string, string>>;
+    };
+    /** Traversal budget (location.md §0.8.4): the maximum number of location
+     *  boots. Overflow THROWS naming the abandoned frontier — silent truncation
+     *  forbidden. Termination is the app's obligation: its reachable set over
+     *  fixture material must be finite. */
+    budget?: number;
+    /** WARM crawl (the follow-equivalence dividend, location.md §0.8): ONE boot,
+     *  then location flips on the shared app — an incremental settle per
+     *  destination instead of a fresh build + data re-parse per destination.
+     *  Legal exactly because warm arrival == cold arrival is now follow's
+     *  stated postcondition; measured on apps/docs: 206s cold → 2.5s warm,
+     *  91/91 documents byte-identical. Guarded, not trusted: `verifyWarm`
+     *  documents (default 2, deterministic picks) are ALSO cold-booted and
+     *  compared byte-for-byte — a divergence fails the crawl loudly, naming
+     *  the location, because a warm/cold split is precisely the dishonesty
+     *  §9 exists to keep out of the index. */
+    warm?: boolean;
+    verifyWarm?: number;
 }
 /** One crawled location: its canonical KEY (anchor stripped, default canonicalized
  *  — also the section id in the assembled document), a representative LOCATION that

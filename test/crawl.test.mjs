@@ -17,9 +17,25 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(path.join(ROOT, p), "utf8");
 const compileAt = (rel) => compile(read(rel), { originDir: path.join(ROOT, path.dirname(rel)) });
 
+await test("crawl: WARM mode matches cold byte-for-byte, with the parity gate on (location.md §0.8)", async () => {
+  const r = compileAt("apps/homepage/homepage.declare");
+  const base = { deps: r.deps, links: r.links, registry: r.linkRegistry,
+    data: diskDataResolver(path.join(ROOT, "apps/homepage")) };
+  const cold = await crawlLocations(r.source, base);
+  const warm = await crawlLocations(r.source, { ...base, warm: true, verifyWarm: 3 });
+  assert.equal(warm.length, cold.length, "same document set");
+  for (const d of cold) {
+    const w = warm.find((x) => x.key === d.key);
+    assert.ok(w !== undefined, `warm crawl missing '${d.key}'`);
+    assert.equal(w.html, d.html, `warm document '${d.key}' must be byte-identical to cold`);
+  }
+});
+
 await test("crawl: homepage emits the #why and #language documents, linked from the front page", async () => {
   const r = compileAt("apps/homepage/homepage.declare");
-  const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links,
+  // registry included — the modern call (location.md §0.8): bare-anchor edges
+  // ("#apps") resolve to their destinations instead of minting phantom keys
+  const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links, registry: r.linkRegistry,
     data: diskDataResolver(path.join(ROOT, "apps/homepage")) });
   const keys = docs.map((d) => d.key).sort();
   assert.deepEqual(keys, ["", "faq", "getstarted", "language", "why"], "the default page, the FAQ, the get-started guide, the language doc, and the why article");

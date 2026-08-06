@@ -108,8 +108,16 @@ async function bootAt(source, opts, location, refusals) {
         app.hostWidth = env.hostWidth;
         app.hostHeight = env.hostHeight;
         app.dark = env.dark;
-        if (location !== "")
-            app.location = location; // "" = the declared default (seed nothing)
+        // "" = the declared default (seed nothing). A seeded location routes
+        // through FOLLOW when the app declares an onFollow (location.md §0.8.3):
+        // the crawl sees the same redirects users do — the hook runs at t=0
+        // initials, exactly the cold-arrival contract (§0.6).
+        if (location !== "") {
+            if (typeof app.onFollow === "function")
+                app.follow("#" + location);
+            else
+                app.location = location;
+        }
         settle();
         await drainAsync();
         while (pending.size > 0) {
@@ -124,6 +132,57 @@ async function bootAt(source, opts, location, refusals) {
         provideTransport(prev);
         provideStreams(prevStreams);
     }
+}
+/** A WARM crawl session (CrawlOptions.warm): the same boot bootAt performs,
+ *  but the transport/stream providers stay installed for the session's whole
+ *  life — later flips may fetch (a location-derived DataSource url) — and the
+ *  app is REUSED: `flip(location)` is an incremental settle plus data
+ *  quiescence, not a build. Arrival semantics match bootAt exactly (follow
+ *  when the app declares onFollow; a raw seed otherwise), so the two paths
+ *  cannot drift in what an arrival MEANS — only in what it costs. */
+async function warmSession(source, opts, refusals) {
+    const env = { ...DEFAULT_ENV, ...opts.env };
+    if (typeof document === "undefined")
+        provideMeasurer(approximateMeasurer());
+    const pending = new Set();
+    const prev = provideTransport(crawlTransport(opts, refusals, pending));
+    const refuseStream = (url) => {
+        throw new Error(`crawl refused stream connection — ${url} (streams are never indexed)`);
+    };
+    const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
+    const app = build(source, { deps: opts.deps, links: opts.links });
+    app.attach(new HeadlessBackend(), null);
+    app.hostWidth = env.hostWidth;
+    app.hostHeight = env.hostHeight;
+    app.dark = env.dark;
+    const quiesce = async () => {
+        settle();
+        await drainAsync();
+        while (pending.size > 0) {
+            await Promise.allSettled([...pending]);
+            settle();
+            await drainAsync();
+        }
+        settle();
+    };
+    await quiesce();
+    return {
+        app,
+        flip: async (location) => {
+            if (location !== "" && location !== app.location) {
+                if (typeof app.onFollow === "function")
+                    app.follow("#" + location);
+                else
+                    app.location = location;
+            }
+            await quiesce();
+        },
+        dispose: () => {
+            app.discard();
+            provideTransport(prev);
+            provideStreams(prevStreams);
+        },
+    };
 }
 /** The fragment locations linked from an emitted document — every `href="#…"`
  *  (staticHtml's realization of a location link). Anchors ride along; the caller
@@ -167,29 +226,117 @@ async function crawlAll(source, opts = {}) {
     const byKey = new Map();
     const byHash = new Map(); // output hash → the key that owns it
     const queue = [""]; // start at the default
-    while (queue.length > 0) {
-        const location = queue.shift();
-        const key = canonKey(location, defaultLoc);
-        if (byKey.has(key))
-            continue;
-        const app = await bootAt(source, opts, key === "" ? "" : location, refusals);
-        const html = staticHtml(app);
-        const links = fragmentHrefs(html);
-        app.discard();
-        // Rule 3: identical serialized bytes → one document (an output-hash alias).
-        const h = hashOf(html);
-        const owner = byHash.get(h);
-        if (owner !== undefined) {
-            byKey.set(key, byKey.get(owner));
-            continue;
+    const badRefs = new Map(); // unknown bare name → where it was met
+    // A traversal EDGE, resolved (location.md §0.3/§0.8): a bare name may be an
+    // anchor — its location is the registry-derived destination, compounded so
+    // the anchor rides to the reveal. An unknown bare name under a registry is
+    // the data tier's check failing — recorded, and fatal below. Compounds and
+    // computed locations pass through (canonKey strips/keeps as ruled).
+    const resolveEdge = (l, at) => {
+        const reg = opts.registry;
+        if (reg === undefined)
+            return l; // pre-registry caller
+        if (l === "" || l.includes("@") || l.includes("/"))
+            return l;
+        if (reg.anchors[l] !== undefined)
+            return reg.anchors[l] === "" ? null : reg.anchors[l] + "@" + l;
+        if (!reg.destinations.includes(l)) {
+            badRefs.set("#" + l, at);
+            return null;
         }
-        byHash.set(h, key);
-        byKey.set(key, { key, location: key === "" ? "" : location, html });
-        for (const l of links) {
-            const k = canonKey(l, defaultLoc);
-            if (!byKey.has(k) && !queue.some((q) => canonKey(q, defaultLoc) === k))
-                queue.push(l);
+        return l;
+    };
+    // SEEDS (§0.8.2): the authored surface needs no discovery — every registry
+    // destination, plus the app's own `crawlSeeds` (an ordinary attribute, read
+    // at t=0 off the probe).
+    for (const d of opts.registry?.destinations ?? [])
+        queue.push(d);
+    const declaredSeeds = probe.crawlSeeds;
+    if (Array.isArray(declaredSeeds)) {
+        for (const s of declaredSeeds)
+            if (typeof s === "string" && s.startsWith("#"))
+                queue.push(s.slice(1));
+    }
+    const budget = opts.budget ?? 512;
+    let boots = 0;
+    // WARM mode (CrawlOptions.warm): one session, flips instead of boots.
+    const session = opts.warm === true ? await warmSession(source, opts, refusals) : null;
+    try {
+        while (queue.length > 0) {
+            const location = queue.shift();
+            const key = canonKey(location, defaultLoc);
+            if (byKey.has(key))
+                continue;
+            // §0.8.4 — termination is DECLARED, never inferred: overflow names the
+            // frontier it abandoned. An unbounded family (next-month, forever) is the
+            // app's bug; bound what the links emit over fixtures, or raise the budget
+            // deliberately.
+            if (++boots > budget) {
+                const frontier = [location, ...queue].slice(0, 12).map((q) => "#" + (q || defaultLoc)).join(", ");
+                throw new Error(`crawl exceeded its budget of ${budget} locations — the reachable set over fixture ` +
+                    `material must be finite (docs/system-design/location.md §0.8.4). Abandoned frontier: ${frontier}` +
+                    (queue.length > 11 ? ` … and ${queue.length - 11} more` : ""));
+            }
+            let html;
+            if (session !== null) {
+                await session.flip(key === "" ? defaultLoc : location);
+                html = staticHtml(session.app);
+            }
+            else {
+                const app = await bootAt(source, opts, key === "" ? "" : location, refusals);
+                html = staticHtml(app);
+                app.discard();
+            }
+            const links = fragmentHrefs(html);
+            // Rule 3: identical serialized bytes → one document (an output-hash alias).
+            const h = hashOf(html);
+            const owner = byHash.get(h);
+            if (owner !== undefined) {
+                byKey.set(key, byKey.get(owner));
+                continue;
+            }
+            byHash.set(h, key);
+            byKey.set(key, { key, location: key === "" ? "" : location, html });
+            for (const raw of links) {
+                const l = resolveEdge(raw, "#" + (key || defaultLoc));
+                if (l === null)
+                    continue;
+                const k = canonKey(l, defaultLoc);
+                if (!byKey.has(k) && !queue.some((q) => canonKey(q, defaultLoc) === k))
+                    queue.push(l);
+            }
         }
+        // The warm/cold PARITY GATE: a deterministic sample of documents is
+        // re-derived by cold boot and compared byte-for-byte — an app whose
+        // rendering depends on HOW a location is arrived at must be crawled cold,
+        // and silence here would put the divergence IN THE INDEX.
+        if (session !== null) {
+            const keys = [...byKey.keys()].filter((k) => k !== "");
+            const n = Math.min(opts.verifyWarm ?? 2, keys.length);
+            const picks = new Set();
+            for (let i = 0; i < n; i++)
+                picks.add(keys[Math.floor((i * (keys.length - 1)) / Math.max(1, n - 1))]);
+            for (const k of picks) {
+                const doc = byKey.get(k);
+                const app = await bootAt(source, opts, doc.location, refusals);
+                const coldHtml = staticHtml(app);
+                app.discard();
+                if (coldHtml !== doc.html) {
+                    throw new Error(`warm crawl diverged from a cold boot at '#${k}' (${doc.html.length} vs ${coldHtml.length} bytes) — ` +
+                        `this app's rendering depends on how a location is arrived at, which the index must not ` +
+                        `encode. Crawl it cold (warm: false), or remove the arrival-order dependence.`);
+                }
+            }
+        }
+    }
+    finally {
+        session?.dispose();
+    }
+    if (badRefs.size > 0) {
+        const lines = [...badRefs].map(([ref, at]) => `  ${ref} (linked from ${at})`).join("\n");
+        throw new Error(`crawl found references naming no declared destination or anchor:\n${lines}\n` +
+            `Every bare '#name' must be a shows or anchor name (docs/system-design/location.md §0.3) — ` +
+            `the data tier is crawl-checked, so a bad reference in nav data fails the build here.`);
     }
     if (refusals.size > 0) {
         const lines = [...refusals].map(([url, why]) => `  ${url} — ${why}`).join("\n");

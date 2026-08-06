@@ -2510,6 +2510,18 @@ var DeclareMac = (() => {
           // `-2` on duplicates. "" (the default) = not an anchor. A plain string the
           // reveal walk reads after settle — no rendering effect.
           anchor: { kind: "string" },
+          // The linking triple (location.md §0). `link`: this view IS a link to the
+          // reference — "#name" in-app, a URL out; "" = not a link (no interest, no
+          // focus stop, nothing for the crawl); any view can carry it, and interest
+          // derives from it the way it does from a declared handler. `replace`:
+          // following this link overwrites the current history entry instead of
+          // pushing — fine-grained movement WITHIN a place (a deck's arrows).
+          // `shows`: this view manifests the named location — visibility derives
+          // from it (the location's destination part equals the name), and the name
+          // joins the program's link registry; literal, App-tree only (check.ts).
+          link: { kind: "string" },
+          replace: { kind: "boolean" },
+          shows: { kind: "string" },
           // Read-only intrinsics — the auto-extent computation (view.ts), surfaced:
           // the bounding-box extent of this view's visible children on each axis. A
           // constraint may READ them to clamp a size (`height = { Math.min(
@@ -2648,11 +2660,26 @@ var DeclareMac = (() => {
           // viewed file's name) — an ordinary reactive attr, so "dynamic title" is
           // not a mechanism, just a binding. "" (the default) = no opinion; the host
           // keeps its served title.
-          appName: { kind: "string" }
+          appName: { kind: "string" },
+          // `revealInset` — the scroll-margin analogue (location.md §0.5.4): a reveal
+          // lands this many pixels short of the viewport top, clearing fixed chrome
+          // (a 56px sticky header) without per-page marker views. One knob, app-wide.
+          revealInset: { kind: "number" },
+          // `crawlSeeds` — extra references the extraction crawl seeds beyond the
+          // registry (location.md §0.8.2): computed locations worth emitting that no
+          // rendered link reaches. An ordinary attribute; the extractor reads it at
+          // t=0. Meaningless at runtime, harmless to set.
+          crawlSeeds: { kind: "array" }
         },
         // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
         // set is a compile error) — like View's contentWidth/contentHeight.
-        readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType"]
+        readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType"],
+        // `onFollow(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
+        // follow() applies it ONCE to every arrival — a linked view, a prose href, a
+        // cold URL, back/forward — before routing. Return the reference to proceed
+        // with; "" vetoes. Declared as an EVENT so the checker admits the handler;
+        // unlike the pointer family it is called BY follow and returns a value.
+        events: ["follow"]
       };
       TextSchema = {
         name: "Text",
@@ -3061,6 +3088,8 @@ var DeclareMac = (() => {
         // Keys: an overlay took/released the nav keys
         link: "string",
         // RichText: the href
+        follow: "string",
+        // App: the reference being followed (onFollow returns the one to proceed with; "" vetoes)
         frame: "number",
         // Heartbeat: dt, in SECONDS
         focusChange: "View",
@@ -5730,6 +5759,15 @@ var DeclareMac = (() => {
   });
 
   // runtime/dist/backend.js
+  function allowedRef(ref) {
+    if (ref.startsWith("#"))
+      return true;
+    const m = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(ref);
+    if (m === null)
+      return true;
+    const scheme = m[1].toLowerCase();
+    return scheme === "http" || scheme === "https" || scheme === "mailto";
+  }
   var POINTER_TYPES, TOUCH_TYPES;
   var init_backend = __esm({
     "runtime/dist/backend.js"() {
@@ -6579,7 +6617,33 @@ var DeclareMac = (() => {
     if (typeof h === "function")
       h.call(view, arg);
   }
+  function markRichPending(v) {
+    const walk = (n) => {
+      const f = n;
+      if (typeof f.measurePending === "boolean" && f.surface?.deferredRichMeasure === true)
+        f.measurePending = true;
+      for (const c of n.children)
+        walk(c);
+    };
+    walk(v);
+  }
+  function anyRichPending(root) {
+    let pending = false;
+    const walk = (n) => {
+      if (pending)
+        return;
+      if (n.measurePending === true) {
+        pending = true;
+        return;
+      }
+      for (const c of n.children)
+        walk(c);
+    };
+    walk(root);
+    return pending;
+  }
   function findAnchor(root, name) {
+    const inset = root.revealInset ?? 0;
     const views = [];
     const slugs = [];
     const walk = (n) => {
@@ -6589,14 +6653,14 @@ var DeclareMac = (() => {
           views.push({ base: v.anchor, fire: () => {
             if (v.surface === null)
               return false;
-            v.scrollIntoView();
+            v.scrollIntoView("start", false, inset);
             return true;
           } });
         }
         const flow = n;
         if (typeof flow.anchorSlugs === "function" && typeof flow.revealAnchor === "function") {
           for (const s of flow.anchorSlugs())
-            slugs.push({ base: s, fire: () => flow.revealAnchor(s) });
+            slugs.push({ base: s, fire: () => flow.revealAnchor(s, inset) });
         }
       }
       for (const c of n.children)
@@ -6941,6 +7005,10 @@ var DeclareMac = (() => {
           const sink = this.inputSink();
           if (sink !== null)
             s.setInput(sink, this.inputWants());
+          if (this.cursor === "" && this.link !== "")
+            s.setCursor("pointer");
+          if (this.link !== "")
+            s.setLink?.(this.link, this.label ?? "");
           if (this.draw)
             this.bindDraw();
         }
@@ -7015,8 +7083,8 @@ var DeclareMac = (() => {
          *  Surface; a no-op before attach or with nothing scrolling above. (Named for
          *  the platform primitive — `reveal` is deliberately left free as a member name,
          *  e.g. a `reveal:` fade-in Spring.) */
-        scrollIntoView(align, smooth) {
-          this.surface?.scrollIntoView(align, smooth);
+        scrollIntoView(align, smooth, inset) {
+          this.surface?.scrollIntoView(align, smooth, inset);
         }
         /** Promotion (planes.md §1 — order is a slot): re-link this view among its
          *  siblings, tree and surface both. `raise()` moves it to the FRONT (last
@@ -7063,7 +7131,7 @@ var DeclareMac = (() => {
         inputSink() {
           const self = this;
           const handled = POINTER_TYPES.some((t) => typeof self[handlerName(t)] === "function");
-          if (!handled && this.tip === "")
+          if (!handled && this.tip === "" && this.link === "")
             return null;
           return (type, x, y, extra) => {
             if (this.tip !== "") {
@@ -7076,7 +7144,25 @@ var DeclareMac = (() => {
             }
             if (handled)
               fireEvent(this, type, extra === void 0 ? { x, y } : { x, y, ...extra });
+            if (type === "click" && this.link !== "") {
+              const app = this.root;
+              app?.follow?.(this.link, this.replace);
+            }
           };
+        }
+        /** Re-derive the surface's input wiring — the pusher for attributes that
+         *  GRANT interest by their value (`link`; a post-attach handler install goes
+         *  through here too). Idempotent: attach-time flush and this call converge
+         *  on the same sink/wants pair. */
+        rewireInput() {
+          const s = this.surface;
+          if (s === null)
+            return;
+          const sink = this.inputSink();
+          if (sink !== null)
+            s.setInput(sink, this.inputWants());
+          if (this.cursor === "")
+            s.setCursor(this.link !== "" ? "pointer" : "");
         }
         /** What the ROUTER needs to know about this view's declared handlers to
          *  arbitrate gestures for it (input.ts HitTarget): whether it answers
@@ -7157,7 +7243,11 @@ var DeclareMac = (() => {
         cornerRadius: { def: 0, push: (v, r) => v.surface?.setCornerRadius(r) },
         stroke: { def: null, push: (v, st) => v.surface?.setStroke(st), equal: strokeEqual },
         shadow: { def: null, push: (v, sh) => v.surface?.setShadow(sh), equal: shadowEqual },
-        visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
+        visible: { def: true, push: (v, b) => {
+          v.surface?.setVisible(b);
+          if (b)
+            markRichPending(v);
+        } },
         ignoreLayout: { def: false, push: (v) => {
           const p = v.parent;
           if (p instanceof View)
@@ -7179,6 +7269,24 @@ var DeclareMac = (() => {
         // slot the reveal walk reads after settle; "" = not an anchor. No push: it has
         // no surface effect. (Materializes §6's "named view"; heading slugs are the rest.)
         anchor: { def: "" },
+        // `link` — the view IS a link to this reference (location.md §0): "#name" in-app,
+        // anything else out through `navigate`. "" = not a link (no interest, no focus
+        // stop, nothing for the crawl). Interest derives from it exactly as from declared
+        // handlers (inputSink) — the `tip` precedent — so the push REWIRES the surface's
+        // input when the value changes (empty↔non-empty flips interest itself).
+        link: { def: "", push: (v) => {
+          v.rewireInput();
+          v.surface?.setLink?.(v.link, v.label ?? "");
+        } },
+        // `replace` — this link overwrites the current history entry instead of pushing
+        // (location.md §0.5.6): fine-grained movement WITHIN a place (a deck's arrows),
+        // not movement between places. Read by App.follow when the link is followed.
+        replace: { def: false },
+        // `shows` — this view manifests the named location (location.md §0.4). The slot
+        // stores the name for the registry and introspection; the VISIBILITY it implies
+        // is lowered to a `visible` binding at instantiation (instantiate.ts), so the
+        // hit walk, focus traversal, and auto-extent all see it through the one channel.
+        shows: { def: "" },
         clip: { def: null, push: (v, c) => v.applyClip(c) },
         // Scroll container: the axis enum wires the backend's native scroll per
         // declared axis and feeds the user's offsets back into `scrollY`/`scrollX`
@@ -7239,7 +7347,7 @@ var DeclareMac = (() => {
         datapath: { def: null }
       });
       focusDiscardHook = null;
-      App = class extends View {
+      App = class _App extends View {
         /** app→host navigation channel: `navigate(to)` sets it, the host (host-client.js
          *  / a backend) polls it, opens the URL, and clears it to "". A plain field, not
          *  a reactive attribute — nothing in the tree renders from it, and no Declare
@@ -7263,6 +7371,93 @@ var DeclareMac = (() => {
         }
         navigate(to) {
           this.pendingNav = to;
+        }
+        /** The reference schemes a link may carry (location.md §0.4) — the shared
+         *  predicate lives at the render seam (backend.ts allowedRef), because the
+         *  realization path enforces it too: a disallowed scheme never becomes an
+         *  href, so copy-link and middle-click — native paths that never enter
+         *  follow — stay shut. */
+        static allowedRef(ref) {
+          return allowedRef(ref);
+        }
+        /** The destination part of a location — the runtime strips ITS OWN trailing
+         *  `@name` (§6's one shared grammar character); the app never writes the
+         *  split. `shows` lowers to a comparison against this (instantiate.ts). */
+        destinationOf(loc) {
+          const at = loc.indexOf("@");
+          return at >= 0 ? loc.slice(0, at) : loc;
+        }
+        /** The history verb the NEXT location mirror should use (location.md §0.5.6):
+         *  "push" (default), or "replace" — set by follow when the link carries
+         *  `replace = true`, and by the host itself on traversal/cold arrivals so a
+         *  redirect can never mint an entry (no Back loops). Consumed (reset to
+         *  "push") by the host at the mirror. A plain field, like pendingNav. */
+        pendingHistoryVerb = "push";
+        /** follow(ref) — the ONE operation behind every arrival (location.md §0.5):
+         *  a linked view's activation, a rich-text href, a cold URL, back/forward.
+         *  Source requests, runtime delivers, destination decides. The app-scoped
+         *  hook `onFollow(ref) -> ref'` (a user-declared method, §0.6) is applied
+         *  ONCE — transform, veto (""), or side-effect; then an external reference
+         *  leaves through `navigate`, and a `#…` writes `location`. The anchor
+         *  reveal rides the existing retained intent (resolveReveal); an anchorless
+         *  arrival seeds the scroll to the top. Re-following the current reference
+         *  re-runs the arrival step — no dead clicks. */
+        follow(ref, replace = false) {
+          if (!_App.allowedRef(ref))
+            return;
+          const hook = this.onFollow;
+          if (typeof hook === "function") {
+            const out = hook.call(this, ref);
+            if (typeof out !== "string" || out === "")
+              return;
+            ref = out;
+            if (!_App.allowedRef(ref))
+              return;
+          }
+          if (!ref.startsWith("#")) {
+            this.navigate(ref);
+            return;
+          }
+          let loc = ref.slice(1);
+          if (loc !== "" && loc.indexOf("@") < 0 && loc.indexOf("/") < 0) {
+            const dest = this.destinationOfAnchor(loc);
+            if (dest !== null)
+              loc = dest === "" ? this.destinationOf(this.location) + "@" + loc : dest + "@" + loc;
+          }
+          if (replace)
+            this.pendingHistoryVerb = "replace";
+          const same = this.location === loc;
+          this.location = loc;
+          if (loc.indexOf("@") < 0)
+            this.scrollIntoView("start");
+          else if (same)
+            this.rearmReveal();
+        }
+        /** The destination gating an anchored view: walk the tree for `anchor ===
+         *  name`, then up from it for the nearest `shows`. null = no such anchor
+         *  (the name is a destination or a computed location); "" = an anchor
+         *  outside any destination (reveal within the current location). */
+        destinationOfAnchor(name) {
+          let found = null;
+          const walk = (n) => {
+            if (found !== null)
+              return;
+            if (n instanceof View && n.anchor === name) {
+              found = n;
+              return;
+            }
+            for (const c of n.children)
+              walk(c);
+          };
+          walk(this);
+          const f = found;
+          if (f === null)
+            return null;
+          for (let v = f; v !== null; v = v.parent instanceof View ? v.parent : null) {
+            if (v.shows !== "")
+              return v.shows;
+          }
+          return "";
         }
         /** app→host channel for openWindow, exactly like pendingNav: the verb writes
          *  it, the host polls it on the next frame and window.opens (still inside the
@@ -7309,12 +7504,30 @@ var DeclareMac = (() => {
           const name = this.pendingAnchor;
           if (name === null || name === "")
             return null;
+          if (anyRichPending(this))
+            return null;
           const fire = findAnchor(this, name);
           if (fire !== null && fire()) {
             this.pendingAnchor = null;
             return name;
           }
           return null;
+        }
+        /** Re-arm the reveal intent for the CURRENT location — follow's no-dead-click
+         *  rule (§0.5): re-following `#why@story` while already there re-runs the
+         *  reveal, which resolveReveal's location-change guard would otherwise skip. */
+        rearmReveal() {
+          this.lastRevealLocation = null;
+        }
+        /** Cancel a HELD reveal intent — the user's first scroll or touch takes
+         *  ownership of the viewport (location.md §0.5.5, the uncontrolled-editor
+         *  rule): a reference SEEDS the scroll position, it never owns it. The host
+         *  calls this from its scroll/wheel/touch listeners; a reveal that already
+         *  landed cleared the intent itself, so this is a no-op then — which is what
+         *  makes the reveal's own scrollIntoView (whose scroll event arrives a tick
+         *  later) safe from self-cancellation. */
+        cancelReveal() {
+          this.pendingAnchor = null;
         }
         /** The App's auto-extent is the HOST, not its content: an unset width/height
          *  follows hostWidth/hostHeight (reactive on resize), so the root app fills its
@@ -7380,6 +7593,14 @@ var DeclareMac = (() => {
         // An app whose content fits has nothing to scroll — the fixed window is
         // this default, idle. A calendar-shaped app may state `scrolls = none`.
         scrolls: { def: "y", push: pushScrolls },
+        // `revealInset` — the scroll-margin analogue (location.md §0.5.4): fixed
+        // chrome (a sticky header) overlaps a reveal target pinned to the viewport
+        // top; the reveal lands this many pixels short instead. One knob, app-wide.
+        revealInset: { def: 0 },
+        // `crawlSeeds` — extra references the extraction crawl seeds beyond the
+        // registry (location.md §0.8.2): computed locations worth emitting that no
+        // rendered link reaches. An ordinary attribute the extractor reads at t=0.
+        crawlSeeds: { def: [] },
         // Stored reactive slots the runtime feeds (index.ts). Read-only to USER code
         // via schema.readOnly (a compile error) — not `readOnly: true` here, which
         // would throw the setter the runtime feed needs. `width`/`height` default to
@@ -9251,7 +9472,7 @@ var DeclareMac = (() => {
       for (const m of tabOrderOf(v)) {
         if (!m.visible)
           continue;
-        if (m.focusable)
+        if (m.focusable || m.link !== "")
           out.push(m);
         if (m.focusTrap && m !== root)
           continue;
@@ -9294,8 +9515,13 @@ var DeclareMac = (() => {
         return;
       }
       const f = focus.getFocus();
-      if (f !== null)
+      if (f !== null) {
         fireEvent(f, "keyDown", e);
+        if (e.code === "Enter" && f.link !== "") {
+          const app = f.root;
+          app?.follow?.(f.link, f.replace);
+        }
+      }
     });
     const offUp = keys.onKeyUp((e) => {
       if (e.code === "Tab")
@@ -9386,7 +9612,7 @@ var DeclareMac = (() => {
           this.apply(view);
         }
         apply(view) {
-          if (view !== null && !(view.focusable && view.visible))
+          if (view !== null && !((view.focusable || view.link !== "") && view.visible))
             return;
           if (this.changing) {
             this.queued = true;
@@ -12355,6 +12581,26 @@ var DeclareMac = (() => {
           this.render();
         }
         onLink = null;
+        /** The default link behavior (location.md §0.5). §12.2's mechanism, closed:
+         *  a Markdown/HTMLText instance is a RichText PARENT holding TextFlow
+         *  children — an author's declared `onLink` installs on the parent, while
+         *  each flow reads its own `this.onLink`, so no handler ever arrived and
+         *  every authored href was dead. The default therefore walks UP: the
+         *  nearest ancestor with a declared onLink wins whole (the docs app's
+         *  openDocLink keeps its custom routing untouched); with none, the href
+         *  goes into the app's follow — "#story" navigates in-app, a URL leaves
+         *  through navigate. Bound, so either backend can take it as a bare fn. */
+        followLink = (href) => {
+          for (let n = this.parent; n !== null; n = n.parent) {
+            const h = n.onLink;
+            if (typeof h === "function") {
+              h.call(n, href);
+              return;
+            }
+          }
+          const app = this.root;
+          app?.follow?.(href);
+        };
         manual = [];
         /** Canvas only: each heading anchor's y offset inside this flow, captured on
          *  the manual layout (the DOM path finds the tagged element instead). */
@@ -12373,10 +12619,19 @@ var DeclareMac = (() => {
          *  DOM finds the `data-anchor` element and scrolls it natively; Canvas passes the
          *  recorded y offset so the surface clamps the scroll ancestor. Returns whether
          *  it revealed — false before the flow has realized that heading. */
-        revealAnchor(slug) {
+        revealAnchor(slug, inset = 0) {
           const within2 = this.anchorYs.has(slug) ? this.anchorYs.get(slug) : -1;
-          return this.surface?.revealRichAnchor(slug, within2) ?? false;
+          return this.surface?.revealRichAnchor(slug, within2, inset) ?? false;
         }
+        /** True while this flow's height is a PROVISIONAL number — rendered (or just
+         *  un-hidden), with the backend's asynchronous measurement still outstanding
+         *  (§12.1: the DOM's ResizeObserver reports a frame after layout; a flow
+         *  inside a display:none subtree measures 0 until re-shown). The reveal
+         *  machinery HOLDS an anchored arrival while any flow reports true
+         *  (location.md §0.5.3 — the component-sourced veto). Set at render and at
+         *  visibility-flip (view.ts markRichPending); cleared by the measurement
+         *  callback. Synchronous backends (headless, canvas) never set it. */
+        measurePending = false;
         /** The flow's EFFECTIVE `selectable` — the species default (ruled
          *  2026-07-30): a flowing document is selectable BY ITS NATURE, so when
          *  nobody on the prevailing chain says otherwise, the answer is true — the
@@ -12406,6 +12661,7 @@ var DeclareMac = (() => {
         /** The backend re-measured the native flow (font load, or becoming visible
          *  after attaching under a zero-sized ancestor). Track it so the stack re-flows. */
         onMeasured(h) {
+          this.measurePending = false;
           if (this.surface !== null && h >= 0)
             this.height = h;
         }
@@ -12413,8 +12669,8 @@ var DeclareMac = (() => {
           const s = this.surface;
           if (s === null)
             return;
-          const link = this.onLink ?? (() => {
-          });
+          const link = this.onLink ?? this.followLink;
+          this.measurePending = s.deferredRichMeasure === true;
           const h = s.setRichContent(this.content, this.effSelectable(), this.flowWidth, (nh) => this.onMeasured(nh), link);
           if (h >= 0) {
             this.clearManual();
@@ -12422,7 +12678,7 @@ var DeclareMac = (() => {
             return;
           }
           this.clearManual();
-          const { views, height, anchors } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? void 0);
+          const { views, height, anchors } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? this.followLink);
           this.anchorYs = anchors;
           let at = 0;
           for (const v of views) {
@@ -12487,9 +12743,12 @@ var DeclareMac = (() => {
           return !!r.dark;
         }
         /** A link run was activated. Mechanism only: fire `onLink(href)` for the app to
-         *  dispatch (scroll to an anchor, set a route, open externally). Unhandled, it
-         *  falls back to the App's `navigate` channel — so external links work with no
-         *  wiring, and an app that owns routing overrides by declaring `onLink`. */
+         *  dispatch (custom routing — the docs app's openDocLink); unhandled, the href
+         *  goes into the App's FOLLOW (location.md §0.5) — "#story" navigates in-app,
+         *  anything else leaves through navigate — so authored prose links work with
+         *  no wiring at all. (The old fallback was `navigate(href)` raw, which sent a
+         *  fragment ref to the HOST as an outbound URL — the browser then opened
+         *  DISTRO_ROOT + "#…", a different page entirely: §12.2's second half.) */
         dispatchLink(href) {
           if (typeof this.onLink === "function") {
             fireEvent(this, "link", href);
@@ -12498,7 +12757,11 @@ var DeclareMac = (() => {
           let r = this;
           while (r instanceof View && r.parent !== null)
             r = r.parent;
-          r.navigate?.(href);
+          const app = r;
+          if (typeof app.follow === "function")
+            app.follow(href);
+          else
+            app.navigate?.(href);
         }
         /** The last layout's blocks, with the geometry each derived from. */
         laid = [];
@@ -15428,6 +15691,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   init_shape();
 
   // runtime/dist/dom-backend.js
+  init_backend();
   init_value();
 
   // runtime/dist/boxpaint.js

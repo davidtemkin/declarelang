@@ -27,12 +27,29 @@ import type { Program, Element, LinkTarget } from "../../runtime/dist/parser.js"
  *  an anchor; a navigate in `onInit` (or any non-activation handler) does not. */
 const ACTIVATION = new Set(["onClick"]);
 
+/** AUTHORED `link` attributes → the navigation relation, directly (location.md
+ *  §0.3): a literal slot IS its target — no inference, no drift. Runs before
+ *  extractLinks, which then fills only elements with no authored link (the
+ *  un-migrated corpus). A constraint-valued link has no static target here;
+ *  the extractor reads the LIVE `link` value off the settled tree instead
+ *  (the crawl-checked tier). */
+export function attachAuthoredLinks(program: Program): void {
+  const visit = (el: Element): void => {
+    const a = el.attrs.find((x) => x.name === "link");
+    if (a !== undefined && a.value.kind === "string" && a.value.value !== "") el.link = { href: a.value.value };
+    for (const c of el.children) visit(c);
+  };
+  visit(program.root);
+  for (const c of program.classes) visit(c.body);
+}
+
 /** Attach `element.link` for every element whose activation handler calls
  *  `navigate(to)` with a resolvable target. Mutates the program in place;
- *  serializeLinks (runtime links.ts) then reads it in walk order. */
+ *  serializeLinks (runtime links.ts) then reads it in walk order. An authored
+ *  link (attachAuthoredLinks) always wins — inference never overwrites it. */
 export function extractLinks(program: Program): void {
   const visit = (el: Element, isClassRoot: boolean): void => {
-    const t = linkOf(el, isClassRoot);
+    const t = el.link === undefined ? linkOf(el, isClassRoot) : undefined;
     if (t) el.link = t;
     for (const c of el.children) visit(c, false);
   };

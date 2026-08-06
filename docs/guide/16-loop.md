@@ -20,47 +20,73 @@ matches its name *is* that program's address. The *same address* answers
 (what a crawler sees — below). No project scaffold, no route config, no build step
 between an edit and a reload.
 
-## The URL is an attribute
+## The URL is an attribute; links are declared
 
 Inside the app, "where the user is" was always just state — a `tab`, a `chapter`, a
-`selectedId` — with `visible` deriving from it. Deep linking, then, needs exactly one
-new thing: that state, reflected in the URL. That is `location`, a built-in two-way
-reactive App attribute holding the fragment:
+`selectedId` — with views deriving from it. Deep linking needs exactly one new thing:
+that state, reflected in the URL. That is `location`, a built-in two-way reactive App
+attribute holding the fragment — and the views that manifest its values declare so
+with `shows`:
 
 ```declare
 App [ width = 420, height = 200, fill = whitesmoke, location = "home",
 
-    home: View [ visible = { app.location == "home" }, x = 20, y = 20,
-        Text [ text = "Home — click to visit the detail view" ],
-        onClick() { app.location = "detail" }
+    home: View [ shows = "home", x = 20, y = 20,
+        Text [ text = "Home — visit the detail view", link = "#detail" ]
         ],
 
-    detail: View [ visible = { app.location == "detail" }, x = 20, y = 20,
-        Text [ text = "Detail — the URL now ends in #detail. Back returns." ],
-        onClick() { app.location = "home" }
+    detail: View [ shows = "detail", x = 20, y = 20,
+        Text [ text = "Detail — the URL ends in #detail. Back returns.", link = "#home" ]
         ]
     ]
 ```
 
-Writing it navigates — one history entry per change. The back button writes it back,
-and your state re-derives; you never handle a history event. A deep link is nothing
-special — just an initial value, arriving before first paint. The declared initial
-*is* the default, so the bare URL stays clean. And the app owns the grammar: it is
-just a string you `split`, so `mode` and `chapter` derive from it — this
-documentation's entire navigation is three lines of exactly that.
+`shows = "home"` is the visibility you would have written by hand (`visible` still
+composes on top for further gating — an auth check, say), and it registers the name:
+the compiler now knows every destination, so `link = "#detial"` is a **compile error**
+naming the real names, and the crawler knows where to go without guessing. `link`
+makes any view a link — no handler: following, the real `<a>` (hover preview,
+⌘-click, copy-link), the keyboard stop, and the crawler's edge all come from the one
+attribute. The same references work in authored Markdown — `[the detail](#detail)` in
+a rendered `.md` follows identically, with no wiring.
 
-One discipline makes all of it free, and you already know it from
-[chapter 3](declare-docs:guide:relationships): **derived state is never assigned.**
-Every click writes `location`; `mode` and `chapter` only derive. Both are computed
-defaults, so nothing protects them (chapter 3): assign `chapter` directly in a handler
-and the write simply lands, the formula is gone — works once, and the back button
-silently dies. One writer; everything else derives. (A trailing `@name`
-in the fragment scrolls a named view or a rendered heading into view once it exists —
-deep links into *content*, with the loading race handled for you.)
+A place *inside* a destination is named with `anchor = "story"` — and linked as bare
+`#story`, from anywhere: the compiler (and the runtime) derive which destination
+holds it, so the link survives the content moving. The landing waits for rendered
+prose to finish measuring before it scrolls, and `App.revealInset = 56` keeps it
+clear of your fixed header. Writing `location` navigates — one history entry per
+change; `replace = true` beside a link overwrites instead (a slide deck's arrows must
+not bury the Back button). The back button writes `location` back and your state
+re-derives; you never handle a history event. A deep link is nothing special — an
+initial value, arriving before first paint. The declared initial *is* the default, so
+the bare URL stays clean.
 
-> **From React:** this paragraph replaced the router. No route table, no `<Link>`
-> component, no navigation API, no history listener — and the "router state vs app
-> state" question dissolves, because location *is* app state.
+For computed families the grammar after `#` is the app's own — `#deck/q3/47` is a
+string you `split`, and `deckId`/`page` derive from it; this documentation's entire
+navigation is three lines of exactly that. One discipline makes all of it free, and
+you already know it from [chapter 3](declare-docs:guide:relationships): **derived
+state is never assigned.** Links write `location`; everything else derives.
+
+When you need code in the path, it's there: `onClick` beside a `link` runs first
+(close the menu, then go); a handler may compute and call `app.follow(ref)` itself;
+and one app-scoped hook sees every arrival — click, prose, pasted URL, back/forward:
+
+```declare-fragment
+onFollow(ref: string) -> string {
+    if (ref == "#pricing") return "#plans"   // moved pages
+    return ref                                // "" vetoes
+    }
+```
+
+On a cold arrival it runs before any data loads — so don't gate access here. Gate at
+the destination, where a raw URL cannot walk around it: two views sharing one `shows`
+name, split on `visible = { app.authed }`, and the login screen renders with the
+location preserved — finishing auth lands the user where they aimed.
+
+> **From React:** this section replaced the router. No route table, no `<Link>`
+> component, no guards, no history listener — and the "router state vs app state"
+> question dissolves, because location *is* app state, and links are attributes the
+> compiler can check.
 
 ## Crawlers, without a server
 

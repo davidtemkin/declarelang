@@ -237,6 +237,18 @@ const ViewSchema: ComponentSchema = {
     // `-2` on duplicates. "" (the default) = not an anchor. A plain string the
     // reveal walk reads after settle — no rendering effect.
     anchor: { kind: "string" },
+    // The linking triple (location.md §0). `link`: this view IS a link to the
+    // reference — "#name" in-app, a URL out; "" = not a link (no interest, no
+    // focus stop, nothing for the crawl); any view can carry it, and interest
+    // derives from it the way it does from a declared handler. `replace`:
+    // following this link overwrites the current history entry instead of
+    // pushing — fine-grained movement WITHIN a place (a deck's arrows).
+    // `shows`: this view manifests the named location — visibility derives
+    // from it (the location's destination part equals the name), and the name
+    // joins the program's link registry; literal, App-tree only (check.ts).
+    link: { kind: "string" },
+    replace: { kind: "boolean" },
+    shows: { kind: "string" },
     // Read-only intrinsics — the auto-extent computation (view.ts), surfaced:
     // the bounding-box extent of this view's visible children on each axis. A
     // constraint may READ them to clamp a size (`height = { Math.min(
@@ -366,10 +378,25 @@ const AppSchema: ComponentSchema = {
     // not a mechanism, just a binding. "" (the default) = no opinion; the host
     // keeps its served title.
     appName: { kind: "string" },
+    // `revealInset` — the scroll-margin analogue (location.md §0.5.4): a reveal
+    // lands this many pixels short of the viewport top, clearing fixed chrome
+    // (a 56px sticky header) without per-page marker views. One knob, app-wide.
+    revealInset: { kind: "number" },
+    // `crawlSeeds` — extra references the extraction crawl seeds beyond the
+    // registry (location.md §0.8.2): computed locations worth emitting that no
+    // rendered link reaches. An ordinary attribute; the extractor reads it at
+    // t=0. Meaningless at runtime, harmless to set.
+    crawlSeeds: { kind: "array" },
   },
   // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
   // set is a compile error) — like View's contentWidth/contentHeight.
   readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType"],
+  // `onFollow(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
+  // follow() applies it ONCE to every arrival — a linked view, a prose href, a
+  // cold URL, back/forward — before routing. Return the reference to proceed
+  // with; "" vetoes. Declared as an EVENT so the checker admits the handler;
+  // unlike the pointer family it is called BY follow and returns a value.
+  events: ["follow"],
 };
 
 // Text (R3): a text run sized by native browser metrics when width/height
@@ -988,6 +1015,7 @@ export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
   input: "string",                                 // TextInput: the new text
   navClaim: "boolean",                             // Keys: an overlay took/released the nav keys
   link: "string",                                  // RichText: the href
+  follow: "string",                                // App: the reference being followed (onFollow returns the one to proceed with; "" vetoes)
   frame: "number",                                 // Heartbeat: dt, in SECONDS
   focusChange: "View",                             // Focus: the newly focused view
   geometry: "FocusGeometry",

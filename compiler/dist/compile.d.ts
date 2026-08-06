@@ -18,6 +18,14 @@ export interface Compiled {
      *  `source` is. Rides the ONE result like `deps`; the runtime zips it back on
      *  and the static extractor turns each into an `<a href>`. */
     links?: readonly SerializedLink[];
+    /** The authored link namespace (location.md §0.3, registry.ts): every shows
+     *  name, and every registered anchor with the destination that gates it.
+     *  Present exactly when `source` is. The crawler's seeds and the checked
+     *  vocabulary for evaluated references. */
+    linkRegistry?: {
+        destinations: readonly string[];
+        anchors: Readonly<Record<string, string>>;
+    };
     errors: DeclareError[];
     warnings: DeclareError[];
     diagnostics: Diagnostic[];

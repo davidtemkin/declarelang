@@ -71,6 +71,24 @@ Navigate the host **out** of the app: `app.navigate("https://…")` for an exter
 is a service **method**, not an attribute — call it from a handler; `app.navigate = …` is an
 error.
 
+## follow()
+The **one operation behind every arrival** (docs/system-design/location.md §0.5): a linked
+view's activation, an authored href in rendered prose, a pasted URL, and back/forward all
+reduce to `app.follow(ref)`. The reference passes through `onFollow` once; an external
+reference leaves through `navigate`; a `#…` reference writes `location` — a bare anchor
+name (`"#story"`) first derives its destination from the tree, so the author never writes
+a compound. An anchored arrival is not finished until the target is rendered, **measured**,
+and in the viewport (`revealInset` honored); an anchorless one starts at the top. You
+rarely call this yourself — `link` calls it for you — but a handler that computes its
+destination may: `app.follow(picked)`. `follow(ref, true)` replaces the current history
+entry instead of pushing (the `replace` attribute's path).
+
+## destinationOf()
+The destination part of a location: strips the runtime's own trailing `@name` —
+`app.destinationOf("why@story")` is `"why"`. The one string rule the runtime owns (§6);
+apps never hand-write that split. This is the comparison `shows` lowers to, exposed so
+your own grammar code can agree with it.
+
 ## location
 The app's slice of the URL — the **fragment**, as one two-way reactive string
 (docs/system-design/location.md). The host seeds it from the URL *before first settle* (a deep link

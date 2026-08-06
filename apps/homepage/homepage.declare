@@ -93,21 +93,17 @@ Width auto-fits the label plus 12px of padding each side.
 
 class NavLink extends View [ height = 33, cornerRadius = 8,
     label:   string = "",
-    url:     string = "",
-    to:      string = "",
-    at:      string = "",
+
+    // ONE reference (location.md §0.3) where three fields and an if-chain
+    // stood: "#why" is a destination, "#apps" a bare anchor (the runtime
+    // derives its location and reveals it), a URL leaves the app. The follow,
+    // the real <a> (hover preview, ⌘-click, copy-link), the keyboard stop,
+    // and the crawler's edge all come from the `link` the use site sets.
 
     // pressed deepens the pill + lights the label — the tap feedback a touch
     // device gets in place of hover (mouseDown/Up fire on a tap, hover does not).
 
     fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
-
-    // A pill goes one of three ways: `to` is an in-app location (a fragment —
-    // write `app.location`); `at` names a SECTION of that location's flow, and
-    // lands on it instead of the top; `url` is an out-of-app target (the
-    // `navigate` service action, capabilities.md §6). Never more than one door.
-
-    onClick()     { if (classroot.to != "") { app.location = classroot.to; if (classroot.at != "") app.toSection(classroot.at); else app.toTop() } else if (classroot.url != "") app.navigate(classroot.url) },
     lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
         text = { classroot.label },
         textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.muted } ],
@@ -132,9 +128,6 @@ what these two surfaces already were.
 
 class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerRadius = 8,
     label:   string = "",
-    url:     string = "",
-    to:      string = "",
-    at:      string = "",
 
     // a child row: same type size and the same thumb height as its parent —
     // these are destinations, not annotations, and shrinking them would say
@@ -144,7 +137,11 @@ class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerR
     sub:     boolean = false,
 
     fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
-    onClick()     { app.menuOpen = false; if (classroot.to != "") { app.location = classroot.to; if (classroot.at != "") app.toSection(classroot.at); else app.toTop() } else if (classroot.url != "") app.navigate(classroot.url) },
+
+    // the coexistence rule (location.md §0.4): the handler runs — closing the
+    // sheet — then the follow. Navigation itself is the `link`.
+
+    onClick()     { app.menuOpen = false },
 
     lbl: Text [ x = { classroot.sub ? 30 : 14 }, y = center, fontFamily = [Sans, "system-ui", "sans-serif"],
         fontSize = 16, fontWeight = medium,
@@ -161,11 +158,10 @@ class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerR
 class MobileNavGroup extends View [ width = { parent.width },
     height = { this.contentHeight },
     layout: SimpleLayout [ axis = y, spacing = 0 ],
-    MobileNavRow [ label = { :label }, to = { :to }, at = { :at }, url = { :url } ],
+    MobileNavRow [ label = { :label }, link = { :link } ],
     kids: View [ width = { parent.width }, height = { this.contentHeight },
         layout: SimpleLayout [ axis = y, spacing = 0 ],
-        MobileNavRow [ datapath = :children[], sub = true,
-            label = { :label }, to = { :to }, at = { :at }, url = { :url } ]
+        MobileNavRow [ datapath = :children[], sub = true, label = { :label }, link = { :link } ]
         ]
     ]
 
@@ -275,6 +271,27 @@ class MiniMetric extends View [
 
 
 /*
+### The sequence badge
+
+The three applications are the page’s one enumerated set, and the layout around
+them is busy enough that the set reads as three unrelated rows. A number pins
+each title to the sequence: the ordinal in the page’s ink, on an accent disc.
+The disc is CAP-HEIGHT to the title it fronts — the 22px semibold caps run
+≈16px — so it reads as part of the title’s line, not a bullet floating beside
+it. Ink-on-accent is the page’s existing convention for “text on the accent”
+(the primary Button’s label), so the badge introduces no new pairing.
+*/
+
+class AppNum extends View [ width = 16, height = 16, cornerRadius = 8,
+    n: string = "",
+    fill = { theme.accent },
+    visible = { n != "" },
+    num: Text [ x = center, y = center, fontSize = 11, fontWeight = bold, wrap = false,
+        selectable = false, textColor = { theme.ink }, text = { classroot.n } ]
+    ]
+
+
+/*
 ### An application card
 
 The tracker and the desktop: a screenshot over the app’s name, what it does as
@@ -285,6 +302,7 @@ do not bubble, that link answers its own click without the card also firing.
 
 class AppCard extends View [
     title:   string = "",
+    num:     string = "",
     shot:    string = "",
     blurb:   string = "",
     figures: string = "",
@@ -306,6 +324,12 @@ class AppCard extends View [
 
     head: View [ width = { parent.width }, height = { this.contentHeight },
         layout: SimpleLayout [ axis = x, spacing = 10 ],
+
+        // centered against the row rather than pinned to the cap band: the
+        // heading's descent pulls the row's center a hair below the caps',
+        // which reads correctly for a disc (it has no baseline of its own)
+
+        seq: AppNum [ n = { classroot.num }, y = { (parent.height - this.height) / 2 } ],
         name: Heading [ fontSize = 22, wrap = false, selectable = false,
             textColor = { classroot.hot ? theme.accent : theme.text },
             text = { classroot.title },
@@ -612,6 +636,7 @@ content natively; the chrome further down (header, cursor) are its
 // and LLMs ever read the stale copy. Exactly the readers this page is for.
 
 App [ tagline: string = "a UI language for you and your AI",
+    revealInset = 80,
     appName = { "Declare — " + app.tagline },
     theme = { {
         // text, brightest to faintest
@@ -654,50 +679,12 @@ App [ tagline: string = "a UI language for you and your AI",
 
     toTop() { this.scrollIntoView("start") },
 
-    // A nav destination may name a SECTION of the front page rather than its
-    // top — `at` on a navItems entry. The section is a named node of the page
-    // flow, so both surfaces aim at the same one: the `Apps` pill, and the
-    // `Apps` header row in the sheet. "start" and not "nearest", because a
-    // section already partly on screen must still come to the top.
-
-    // Deferred by a turn, ALWAYS. `location` is written in the same handler that
-    // calls this, and until that write lands the front page is still hidden — a
-    // hidden view has no geometry, so revealing it there scrolls nothing (from
-    // the essay the page simply stayed at the top; from home it worked, which is
-    // what made the bug look like a path error). One turn later both arrivals
-    // are laid out, so there is a single path rather than a visible/hidden
-    // branch. The timer outlives no node — it hangs off the App, which is the
-    // whole program — so there is nothing to cancel (declare.md §10).
-
-    toSection(name: string) {
-        if (name != "apps") return
-        setTimeout(() => { this.scroller.page.appsMark.scrollIntoView("start") }, 0)
-        },
-
-    /* A link inside the authored Markdown — the FAQ, the guide, the language
-       document. `Markdown` never navigates on its own: it RAISES the href
-       (RichText's `link` event) and the app decides, which is what lets a
-       document written in plain .md reach an in-app destination at all.
-
-       A leading `#` is this app's own location — the fragment IS `app.location`
-       (location.md), so writing it navigates, deep-links and back-buttons with
-       nothing else wired. Anything else leaves through the `navigate` service
-       action.
-
-       Locations only, no `@name` anchors. The language has them (location.md
-       §6) and they are the right tool for landing inside a long page — but the
-       reveal resolves in the same frame as the location write, while rendered
-       prose is still being measured (its heights arrive a frame later, through
-       the DOM backend's ResizeObserver), so an anchor into this essay lands
-       against a half-built page. Measured: the target's y read 711 on the
-       arriving frame and 2053 from the next frame on. A link that has to be
-       right is a link to a location. */
-
-    openLink(href: string) {
-        if (href.startsWith("#")) { app.location = href.slice(1); app.toTop(); return }
-        app.navigate(href)
-        },
-
+    /* No link-routing code. Every href in the rendered Markdown below — the
+       FAQ's, the guide's, the language doc's — routes through the runtime's
+       own default: a "#name" follows in-app (destination or anchor alike,
+       measured-reveal and all), anything else leaves through `navigate`
+       (location.md §0.5). The openLink method and the three onLink handlers
+       that stood here are the code this design exists to delete. */
     // the page’s textual material, fetched DIRECTLY as text (format = "text"):
     // the core doc itself (docs/declare.md — up the tree, but still the
     // deployed repo’s own material), the getting-started guide, and the FAQ.
@@ -738,18 +725,21 @@ App [ tagline: string = "a UI language for you and your AI",
     // sheet, where there is room for both.
 
     navItems: array = { [
-        ({ label: "Getting Started", to: "getstarted", at: "", url: "", children: [] }),
-        ({ label: "Why Declare",     to: "why",        at: "", url: "", children: [] }),
-        ({ label: "FAQ",             to: "faq",        at: "", url: "", children: [] }),
-        ({ label: "Apps", to: "home", at: "apps", url: "", children: [
-            ({ label: "Calendar", to: "", at: "", url: "apps/calendar/calendar.declare", children: [] }),
-            ({ label: "Desktop",  to: "", at: "", url: "apps/desktop/desktop.declare",  children: [] }),
-            ({ label: "Tracker",  to: "", at: "", url: "apps/tracker/tracker.declare",  children: [] }),
+        ({ label: "Getting Started", link: "#getstarted", children: [] }),
+        ({ label: "Why Declare",     link: "#why",        children: [] }),
+        ({ label: "FAQ",             link: "#faq",        children: [] }),
+        // "#apps" is a BARE ANCHOR (§01's section carries `anchor = "apps"`):
+        // the runtime derives its destination and lands on it — no section
+        // machinery here, and the reference survives the section moving.
+        ({ label: "Apps", link: "#apps", children: [
+            ({ label: "Calendar", link: "apps/calendar/calendar.declare", children: [] }),
+            ({ label: "Desktop",  link: "apps/desktop/desktop.declare",  children: [] }),
+            ({ label: "Tracker",  link: "apps/tracker/tracker.declare",  children: [] }),
             ] }),
-        ({ label: "Docs",     to: "", at: "", url: "apps/docs/docs.declare", children: [] }),
+        ({ label: "Docs",     link: "apps/docs/docs.declare", children: [] }),
         // last, and the only item that leaves the site — an off-site link placed
         // mid-row would split the applications from the Docs they belong beside
-        ({ label: "GitHub",   to: "", at: "", url: "https://github.com/davidtemkin/declarelang", children: [] }),
+        ({ label: "GitHub",   link: "https://github.com/davidtemkin/declarelang", children: [] }),
         ] },
 
     // the closing enumeration's content, as DATA — so the section is a shape
@@ -853,7 +843,7 @@ App [ tagline: string = "a UI language for you and your AI",
     // scrolls by default, and its scroller is the browser's): taller than the
     // window, so the document scrolls, with the full native gesture tier
 
-    scroller: View [ width = { app.width }, visible = { app.location == "home" },
+    scroller: View [ width = { app.width }, shows = "home",
 
         // full-bleed blueprint behind the column, sized to the page's full
         // extent — its offset AND its height, so the paper runs to the very
@@ -930,30 +920,13 @@ App [ tagline: string = "a UI language for you and your AI",
                     layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 16 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     why: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
-                        onClick() { app.location = "why"; app.toTop() }
-                        ],
+                        link = "#why" ],
                     Dot [ y = 1, visible = { parent.width >= 600 } ],
                     onefile: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "The whole language, in one file →",
-                        onClick() { app.location = "language"; app.toTop() }
-                        ]
+                        link = "#language" ]
                     ]
                 ],
-
-            /* The `Apps` nav destination's landing mark. `scrollIntoView` pins a
-               view's top to the VIEWPORT's top, and the header is 56px of fixed
-               chrome over that — aimed at the section itself, the arrival buries
-               the "01" and cuts the headline in half. So the nav aims here
-               instead: a zero-size mark riding 80px above the section, which
-               puts the eyebrow a comfortable 24px clear of the header.
-
-               `ignoreLayout` is what makes it free — the page's flow skips it
-               entirely, so it claims no slot and adds no spacing, and its y
-               derives from the section it marks rather than restating the
-               flow's arithmetic. */
-
-            appsMark: View [ ignoreLayout = true, width = 1, height = 1,
-                y = { parent.apps.y - 80 } ],
 
             /* ### 01 — Three applications. The calendar leads at full width; the
                tracker and the desktop share the row beneath, and stack on a
@@ -963,7 +936,11 @@ App [ tagline: string = "a UI language for you and your AI",
                prewarm pass regenerates from the real production builds, so no
                number here can drift from the tree. */
 
-            apps: View [ width = { parent.width }, opacity = 0,
+            // `anchor = "apps"` — the §01 section IS the `#apps` reference's
+            // target; App.revealInset clears the fixed header (the hand-placed
+            // marker view this replaces was measured drift waiting to happen)
+
+            apps: View [ anchor = "apps", width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
                     to = { app.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
 
@@ -996,6 +973,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
                         head: View [ width = { parent.width }, height = { this.contentHeight },
                             layout: SimpleLayout [ axis = x, spacing = 10 ],
+                            seq: AppNum [ n = "1", y = { (parent.height - this.height) / 2 } ],
                             name: Heading [ fontSize = 22, wrap = false, selectable = false,
                                 textColor = { this.parent.parent.parent.hot ? theme.accent : theme.text },
                                 text = "Declare Calendar",
@@ -1075,7 +1053,7 @@ App [ tagline: string = "a UI language for you and your AI",
                     layout: ResponsiveLayout [ plan = { [({ from: 720, flow: "row", gap: 56, share: ({ trk: 50, dsk: 50 }) }),
                                                          ({ from: 0, flow: "stack", gap: 56, share: ({ trk: 100, dsk: 100 }) })] } ],
 
-                    trk: AppCard [ title = "Declare Tracker",
+                    trk: AppCard [ title = "Declare Tracker", num = "2",
                         shot   = "shots/tracker.webp",
                         url    = "apps/tracker/tracker.declare",
                         srcUrl = "apps/tracker/tracker.declare?viewer",
@@ -1091,7 +1069,7 @@ App [ tagline: string = "a UI language for you and your AI",
                               + hpWire(app.stats.read(["tracker","wireGzip"])) + ", before its data"
                               + " · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies" } ],
 
-                    dsk: AppCard [ title = "Declare Desktop",
+                    dsk: AppCard [ title = "Declare Desktop", num = "3",
                         shot   = "shots/desktop.webp",
                         url    = "apps/desktop/desktop.declare",
                         srcUrl = "apps/desktop/desktop.declare?viewer",
@@ -1263,9 +1241,7 @@ App [ tagline: string = "a UI language for you and your AI",
                closer: ~88px above, ~90px below instead of 112/112 */
 
             cta: View [ width = { parent.width }, height = 0,
-                Button [ width = 260, x = center, y = -24, label = "Get Started →",
-                    onClick() { app.location = "getstarted"; app.toTop() }
-                    ]
+                Button [ width = 260, x = center, y = -24, label = "Get Started →", link = "#getstarted" ]
                 ],
 
             /* ### Footer */
@@ -1287,7 +1263,7 @@ App [ tagline: string = "a UI language for you and your AI",
        prose in `"""` blocks: HTML collapses the line breaks, so the source wraps
        and the page flows. */
 
-    whyView: View [ visible = { app.location == "why" }, width = { app.width }, fill = { theme.ink },
+    whyView: View [ shows = "why", width = { app.width }, fill = { theme.ink },
         grid: GridBg [ x = 0, width = { app.width },
             // Follows the scroll rather than spanning the document. `ignoreScroll`
             // would lift it out of paint order and composite it OVER the content;
@@ -1440,7 +1416,12 @@ App [ tagline: string = "a UI language for you and your AI",
                    block markup to keep consistent with the prose above. */
 
                 breath: View [ width = 8, height = 18 ],
-                rule:   View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+
+                // `anchor = "story"` — "#story" reaches this note from anywhere
+                // (the FAQ's cross-reference), the destination derived, the
+                // landing measured-reveal'd, the header cleared by revealInset
+
+                rule:   View [ anchor = "story", width = { parent.width }, height = 1, fill = { theme.line } ],
                 Marker [ text = "WHERE THIS CAME FROM" ],
                 Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
                     I co-founded Laszlo Systems and led the team behind OpenLaszlo — a
@@ -1455,7 +1436,6 @@ App [ tagline: string = "a UI language for you and your AI",
                 // flow's built-in blue.
 
                 Para [ fontSize = 16, bodyColor = { theme.muted }, linkColor = { theme.accent },
-                    onLink(href: string) { app.navigate(href) },
                     html = """
                     What brought me back to UI development was
                     <a href="https://davidtemkin.com/about-mesa/">Mesa</a>, a zoomable
@@ -1464,8 +1444,7 @@ App [ tagline: string = "a UI language for you and your AI",
                     60fps floor, even on a phone. It’s been positively amazing to see how
                     fast today’s browsers have become — and how powerful and flexible
                     today’s web platform is.
-                    """
-                    ],
+                    """ ],
                 Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
                     And yet the web as it actually stands is still, mostly, slow and
                     clunky. Even brand-new sites. How can that be?
@@ -1513,7 +1492,7 @@ App [ tagline: string = "a UI language for you and your AI",
        loading and failure are lifecycle states the view derives from, never
        a blank. */
 
-    languageView: View [ visible = { app.location == "language" }, width = { app.width }, fill = { theme.ink },
+    languageView: View [ shows = "language", width = { app.width }, fill = { theme.ink },
         // TEST: viewport-height backdrop instead of document-height
 
         grid: GridBg [ x = 0, width = { app.width },
@@ -1541,9 +1520,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 failed:  Text [ visible = { app.lang.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
                     text = { "The language file did not load — " + (app.lang.error || "") } ],
                 doc: Markdown [ visible = { app.lang.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
-                    text = { app.lang.value || "" },
-                    onLink(href: string) { app.openLink(href) }
-                    ],
+                    text = { app.lang.value || "" } ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
                 tail: View [ width = 8, height = 40 ]
@@ -1560,7 +1537,7 @@ App [ tagline: string = "a UI language for you and your AI",
        the static document like any other reachable location. Loading and failure
        are lifecycle states the view derives from, never a blank. */
 
-    getStartedView: View [ visible = { app.location == "getstarted" }, width = { app.width }, fill = { theme.ink },
+    getStartedView: View [ shows = "getstarted", width = { app.width }, fill = { theme.ink },
         grid: GridBg [ x = 0, width = { app.width },
             // Follows the scroll rather than spanning the document. `ignoreScroll`
             // would lift it out of paint order and composite it OVER the content;
@@ -1586,9 +1563,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 failed:  Text [ visible = { app.guide.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
                     text = { "The guide did not load — " + (app.guide.error || "") } ],
                 doc: Markdown [ visible = { app.guide.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
-                    text = { app.guide.value || "" },
-                    onLink(href: string) { app.openLink(href) }
-                    ],
+                    text = { app.guide.value || "" } ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
                 tail: View [ width = 8, height = 40 ]
@@ -1598,7 +1573,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
     /* ## The FAQ view — the Get Started pattern at #faq */
 
-    faqView: View [ visible = { app.location == "faq" }, width = { app.width }, fill = { theme.ink },
+    faqView: View [ shows = "faq", width = { app.width }, fill = { theme.ink },
         grid: GridBg [ x = 0, width = { app.width },
             // Follows the scroll rather than spanning the document. `ignoreScroll`
             // would lift it out of paint order and composite it OVER the content;
@@ -1624,9 +1599,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 failed:  Text [ visible = { app.faq.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
                     text = { "The FAQ did not load — " + (app.faq.error || "") } ],
                 doc: Markdown [ visible = { app.faq.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
-                    text = { app.faq.value || "" },
-                    onLink(href: string) { app.openLink(href) }
-                    ],
+                    text = { app.faq.value || "" } ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
                 tail: View [ width = 8, height = 40 ]
@@ -1676,7 +1649,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
             brand: View [ y = 18, height = 22,
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
-                onClick() { app.location = "home"; app.toTop() },
+                link = "#home",
                 Heading [ fontSize = 15, textFill = { theme.brand }, text = "Declare" ]
                 ],
 
@@ -1688,7 +1661,7 @@ App [ tagline: string = "a UI language for you and your AI",
             nav: View [ y = 11,
                 layout: SimpleLayout [ axis = x, spacing = 2 ],
                 datapath = { app.navSource.value },
-                NavLink [ datapath = :items[], label = { :label }, to = { :to }, at = { :at }, url = { :url } ]
+                NavLink [ datapath = :items[], label = { :label }, link = { :link } ]
                 ],
 
             // the kebab — three stacked dots (the page's dot motif), the pill's own

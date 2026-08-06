@@ -76,8 +76,8 @@ One program renders through managed DOM elements or directly to a single canvas 
 
 Concretely, measured from the deployed production artifacts:
 
-- **Wire size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->71<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).
-- **Source size**: the tracker — a million issues, search as you type, editing in place with undo — is <!--stat:tracker.total-->1,699<!--/stat--> lines: <!--stat:tracker.code-->1,278<!--/stat--> of code and <!--stat:tracker.comment-->211<!--/stat--> of comments, and no dependencies. It ships at <!--stat:tracker.wireKB-->89<!--/stat--> KB gzipped before its data, which a `DataSource` fetches at run time.
+- **Wire size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->72<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).
+- **Source size**: the tracker — a million issues, search as you type, editing in place with undo — is <!--stat:tracker.total-->1,699<!--/stat--> lines: <!--stat:tracker.code-->1,278<!--/stat--> of code and <!--stat:tracker.comment-->211<!--/stat--> of comments, and no dependencies. It ships at <!--stat:tracker.wireKB-->90<!--/stat--> KB gzipped before its data, which a `DataSource` fetches at run time.
 - **Responsiveness**: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.
 - **Startup**: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.
 
@@ -116,7 +116,7 @@ Declare is a from-the-ground-up modern successor to OpenLaszlo, the open-source 
 
 ### Who was crazy enough to do this?
 
-David Temkin, who co-founded Laszlo Systems and led the team behind OpenLaszlo. He writes about [what led from one to the other](#why) at the end of the "Why Declare" essay.
+David Temkin, who co-founded Laszlo Systems and led the team behind OpenLaszlo. He writes about [what led from one to the other](#story) at the end of the "Why Declare" essay.
 
 ### Can I try it without installing anything?
 

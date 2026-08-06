@@ -374,6 +374,12 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   App: [
     `  navigate(to: string): void;`,
     `  openWindow(to: string): void;`,
+    // The ONE operation behind every arrival (location.md §0.5): follow(ref)
+    // applies the app's onFollow hook once, then routes — external through
+    // navigate, "#…" into a location write + reveal. destinationOf strips the
+    // runtime's own trailing `@name`; apps never hand-write that split.
+    `  follow(ref: string, replace?: boolean): void;`,
+    `  destinationOf(loc: string): string;`,
     // The Inspector service action (view.ts App.inspect): a button calls
     // `app.inspect("run:<slot>")` to open the Inspector on an embedded app, or
     // `app.inspect()` for this one. Rides the same host-polled channel shape as

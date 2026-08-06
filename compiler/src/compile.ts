@@ -52,7 +52,8 @@ import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks, type SerializedLink } from "../../runtime/dist/links.js";
 import { annotateProgram } from "./dep-extract.js";
 import { schemaCheck } from "./schema-check.js";
-import { extractLinks } from "./links.js";
+import { extractLinks, attachAuthoredLinks } from "./links.js";
+import { buildRegistry, checkReferences } from "./registry.js";
 import ts from "typescript";
 import { stripEditsFor, tsBodySyntax } from "./strip-types.js";
 
@@ -123,6 +124,11 @@ export interface Compiled {
    *  `source` is. Rides the ONE result like `deps`; the runtime zips it back on
    *  and the static extractor turns each into an `<a href>`. */
   links?: readonly SerializedLink[];
+  /** The authored link namespace (location.md §0.3, registry.ts): every shows
+   *  name, and every registered anchor with the destination that gates it.
+   *  Present exactly when `source` is. The crawler's seeds and the checked
+   *  vocabulary for evaluated references. */
+  linkRegistry?: { destinations: readonly string[]; anchors: Readonly<Record<string, string>> };
   errors: DeclareError[];
   warnings: DeclareError[];
   diagnostics: Diagnostic[];
@@ -402,13 +408,15 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
       }
     }
   }
-  const merged = libSources.length > 0
+  let merged = libSources.length > 0
     ? libSources.join("\n") + "\n" + mainSource
     : mainSource;
   // Every phase below indexes into `merged`; the author indexes into their own
-  // file. `rb` closes that gap on the way out (see makeRebaser).
+  // file. `rb` closes that gap on the way out (see makeRebaser). The prelude
+  // length is captured BEFORE the shows-lowering below edits the main region.
+  const preludeLen = merged.length - mainSource.length;
   let preludeLines = 0;
-  for (let i = merged.length - mainSource.length - 1; i >= 0; i--) if (merged[i] === "\n") preludeLines++;
+  for (let i = preludeLen - 1; i >= 0; i--) if (merged[i] === "\n") preludeLines++;
   const rb = makeRebaser(mainSource, preludeLines);
   const rbAll = (es: readonly DeclareError[]): DeclareError[] => es.map(rb);
 
@@ -422,6 +430,65 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
     if (e instanceof DeclareError) { const es = rbAll([e]); return { source: null, errors: es, warnings: [], ...diagnose(es, [], "syntax") }; }
     throw e;
   }
+  // ── the LINK REGISTRY (location.md §0.3, registry.ts) ───────────────────
+  // BEFORE the lowering, deliberately: these checks read the AUTHORED program
+  // — the double-gate lint must see the author's visible, not the location
+  // gate the lowering is about to synthesize. Authored names collected and
+  // uniqueness-enforced; every literal reference resolved; the migration lint.
+  const regResult = buildRegistry(program);
+  const refResult = checkReferences(program, regResult.registry);
+  const regErrors = rbAll([...regResult.errors, ...refResult.errors]);
+  const regWarnings = rbAll([...regResult.warnings, ...refResult.warnings]);
+  if (regErrors.length > 0) return { source: null, errors: regErrors, warnings: regWarnings, ...diagnose(regErrors, regWarnings, "structure") };
+  const linkRegistry = {
+    destinations: [...regResult.registry.destinations],
+    anchors: Object.fromEntries(regResult.registry.anchors),
+  };
+
+  // ── `shows` LOWERING (location.md §0.4) ─────────────────────────────────
+  // `shows = "why"` implies the visibility: the location's DESTINATION part
+  // (the runtime strips its own trailing `@name` — app.destinationOf) equals
+  // the name. Lowered HERE, as a text edit on the merged source, because the
+  // pipeline is source-spliced: everything downstream — check, resolution,
+  // typecheck, DEP EXTRACTION, emission — then treats the implied binding as
+  // authored code, so its `app.location` read is statically wired like any
+  // other and the trusted path needs no special case. An authored `visible`
+  // constraint ANDs on top (wrapped in place); an authored literal `false`
+  // wins whole (shows adds a gate, never resurrects a hidden view). Inserted
+  // text carries NO newline, so the author↔merged line mapping (rb) is
+  // untouched; only columns after an insertion on that one line drift.
+  {
+    const edits: { start: number; end: number; text: string }[] = [];
+    const gate = (name: string): string => `app.destinationOf(app.location) == ${JSON.stringify(name)}`;
+    const walk = (el: Element): void => {
+      const sh = el.attrs.find((a) => a.name === "shows");
+      if (sh !== undefined && sh.value.kind === "string") {
+        const vis = el.attrs.find((a) => a.name === "visible");
+        if (vis === undefined) {
+          edits.push({ start: sh.pos.offset, end: sh.pos.offset, text: `visible = { ${gate(sh.value.value)} }, ` });
+        } else if (vis.value.kind === "ident" && vis.value.name === "true") {
+          edits.push({ start: vis.value.pos.offset, end: vis.value.pos.offset + 4, text: `{ ${gate(sh.value.value)} }` });
+        } else if (vis.value.kind === "code") {
+          const inner = vis.value.pos.offset + 1;
+          edits.push({ start: inner, end: inner, text: ` (${gate(sh.value.value)}) && (` });
+          edits.push({ start: inner + vis.value.src.length, end: inner + vis.value.src.length, text: `) ` });
+        }
+      }
+      for (const c of el.children) walk(c);
+    };
+    walk(program.root); // App tree only — `shows` in a class body is a check error (§0.4)
+    if (edits.length > 0) {
+      edits.sort((a, b) => b.start - a.start);
+      for (const e of edits) merged = merged.slice(0, e.start) + e.text + merged.slice(e.end);
+      try {
+        program = parseProgram(merged); // later phases index the LOWERED text
+      } catch (e) {
+        if (e instanceof DeclareError) { const es = rbAll([e]); return { source: null, errors: es, warnings: [], ...diagnose(es, [], "syntax") }; }
+        throw e;
+      }
+    }
+  }
+
   const errors = rbAll(check(program));
   if (errors.length > 0) return { source: null, errors, warnings: [], ...diagnose(errors, [], "structure") };
 
@@ -433,7 +500,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   for (const s of program.stylesheets) r.resolveStylesheet(s.body);
   for (const s of program.styles) r.resolveBundle(s.body);
   r.resolveElement(program.root, [], program.root);
-  r.warnings.push(...smallFieldWarnings(program, merged.length - mainSource.length));
+  r.warnings.push(...smallFieldWarnings(program, preludeLen));
   const byPos = (a: DeclareError, b: DeclareError) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);
   r.errors.sort(byPos);
   r.warnings.sort(byPos);
@@ -563,12 +630,14 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
     const ws = rbAll(r.warnings);
     return { source: null, errors: errs, warnings: ws, ...diagnose(errs, ws, "constraint") };
   }
-  // The navigation relation (capabilities.md §6): attach each activation
-  // handler's navigate(to) target onto its element, then serialize alongside
-  // deps. Analysis-only — no diagnostics, an unresolvable target is just no link.
+  // The navigation relation (capabilities.md §6): AUTHORED `link` attributes
+  // are the ground truth (attachAuthoredLinks — a literal slot becomes {href}
+  // directly); handler inference (extractLinks) remains for the un-migrated
+  // corpus, attaching only where no authored link exists.
+  attachAuthoredLinks(depProgram);
   extractLinks(depProgram);
-  const okWarnings = rbAll(r.warnings);
-  return { source: out, deps: serializeDeps(depProgram), links: serializeLinks(depProgram), errors: [], warnings: okWarnings, ...diagnose([], okWarnings, "name") };
+  const okWarnings = rbAll([...r.warnings, ...regWarnings]);
+  return { source: out, deps: serializeDeps(depProgram), links: serializeLinks(depProgram), linkRegistry, errors: [], warnings: okWarnings, ...diagnose([], okWarnings, "name") };
 }
 
 /** Rebase positions from the MERGED source onto the author's own file.

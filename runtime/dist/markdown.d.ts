@@ -30,9 +30,12 @@ export declare abstract class RichText extends View {
      *  the root App's OS `dark`, read by walking to the tree root. */
     private isDark;
     /** A link run was activated. Mechanism only: fire `onLink(href)` for the app to
-     *  dispatch (scroll to an anchor, set a route, open externally). Unhandled, it
-     *  falls back to the App's `navigate` channel — so external links work with no
-     *  wiring, and an app that owns routing overrides by declaring `onLink`. */
+     *  dispatch (custom routing — the docs app's openDocLink); unhandled, the href
+     *  goes into the App's FOLLOW (location.md §0.5) — "#story" navigates in-app,
+     *  anything else leaves through navigate — so authored prose links work with
+     *  no wiring at all. (The old fallback was `navigate(href)` raw, which sent a
+     *  fragment ref to the HOST as an outbound URL — the browser then opened
+     *  DISTRO_ROOT + "#…", a different page entirely: §12.2's second half.) */
     private dispatchLink;
     /** The last layout's blocks, with the geometry each derived from. */
     private laid;

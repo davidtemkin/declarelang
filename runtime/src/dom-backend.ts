@@ -18,7 +18,7 @@
 // is target → nearest sinked surface; the pairing/click rule is shared
 // (input.ts), so both backends decide clicks identically.
 
-import type { Bitmap, EditableSpec, InputSink, InputWants, RenderBackend, RichBlock, Stretch, Surface } from "./backend.js";
+import { allowedRef, type Bitmap, type EditableSpec, type InputSink, type InputWants, type RenderBackend, type RichBlock, type Stretch, type Surface } from "./backend.js";
 import { colorToCss, isGradient, type Fill, type Shadow, type Stroke } from "./value.js";
 import { type BoxState } from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight, type TextStyle } from "./measure.js";
@@ -250,8 +250,17 @@ function paintedAbove(a: HTMLElement, b: HTMLElement): boolean {
 }
 
 export class DomBackend implements RenderBackend {
+  /** Fragment-href realization base (location.md §0.9). null (the default,
+   *  top level) = this document's own page. "" = an EMBEDDED app: fragment
+   *  refs realize no native anchor at all (they would target the HOST page's
+   *  fragment; routing still follows in-app). A URL = an embedder that knows
+   *  the child's true program address, restoring the native affordances. */
+  linkBase: string | null = null;
+
   createSurface(): Surface {
-    return new DomSurface();
+    const s = new DomSurface();
+    s.linkBase = this.linkBase;
+    return s;
   }
 
   attachRoot(host: HTMLElement, root: Surface): void {
@@ -816,22 +825,76 @@ class DomSurface implements Surface {
     if (Math.abs(el.scrollLeft - v) > 0.5) el.scrollLeft = v;
   }
 
-  scrollIntoView(align: "start" | "nearest" = "start", smooth = false): void {
+  scrollIntoView(align: "start" | "nearest" = "start", smooth = false, inset = 0): void {
     // Native walks the scrollable ancestors (document included) and does the
     // offset math; block:start aligns the view to the top (the click-to-jump
     // index), block:nearest moves the minimum distance (the focus reveal).
     // align drives BOTH axes: block for a vertical scroller, inline for a
     // horizontal one — so "nearest" reveals minimally and "start" pins the
     // element to the container's leading edge (a Miller strip's left). smooth animates.
+    // `inset` — land short of the top, clearing fixed chrome (location.md
+    // §0.5.4): realized as scroll-margin, which native scrollIntoView honors.
+    if (inset > 0) this.element.style.scrollMarginTop = `${inset}px`;
     this.element.scrollIntoView({ block: align, inline: align, behavior: smooth ? "smooth" : "auto" });
   }
 
-  revealRichAnchor(slug: string, _within: number): boolean {
+  /** Rich text measures ASYNCHRONOUSLY here — the ResizeObserver in
+   *  setRichContent reports the flowed height after layout (§12.1's measured
+   *  mechanism). The reveal machinery holds anchored arrivals while any
+   *  flow's measurement is outstanding (location.md §0.5.3). */
+  get deferredRichMeasure(): boolean { return typeof ResizeObserver !== "undefined"; }
+
+  /** The linked view's REAL anchor (location.md §0.4): an `<a href>` overlay
+   *  filling the box — a sibling-overlay above the content, never a wrapper,
+   *  so interactive children stay valid HTML (the ruled card pattern). It buys
+   *  the native contract: status-bar preview on hover, ⌘/middle-click
+   *  open-in-tab, right-click copy-link. A PLAIN left click is
+   *  preventDefault-ed — the input walk owns routing and follows the
+   *  reference; modified clicks belong to the browser (the rich-text link
+   *  rule, applied to views). The scheme allowlist is enforced HERE, at
+   *  emission — a disallowed href never enters the document, so the native
+   *  paths that bypass follow stay shut. `linkBase` (set by the backend for
+   *  EMBEDDED apps, §0.9) prefixes fragment refs with the app's own program
+   *  URL so copy-link copies the truth; null = this document's own page. */
+  linkBase: string | null = null;
+  private linkEl: HTMLAnchorElement | null = null;
+  setLink(href: string, label = ""): void {
+    // linkBase "" = an EMBEDDED app (§0.9): fragment refs realize NO native
+    // anchor — one inside an island would target the host page's fragment
+    // and copy-link would copy a lie. Routing is untouched (the input walk
+    // follows); external links keep their real anchors.
+    if (href === "" || !allowedRef(href) || (href.startsWith("#") && this.linkBase === "")) {
+      this.linkEl?.remove();
+      this.linkEl = null;
+      return;
+    }
+    if (this.linkEl === null) {
+      const a = this.element.ownerDocument.createElement("a");
+      const s = a.style;
+      s.position = "absolute";
+      s.left = "0"; s.top = "0"; s.right = "0"; s.bottom = "0";
+      s.zIndex = "1";              // above sibling content within this box
+      s.color = "transparent";     // it has no text of its own
+      a.addEventListener("click", (e) => {
+        if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) e.preventDefault();
+      });
+      this.linkEl = a;
+      this.element.appendChild(a);
+    }
+    const loc = this.element.ownerDocument.location;
+    this.linkEl.href = href.startsWith("#")
+      ? (this.linkBase ?? loc.pathname + loc.search) + href
+      : href;
+    if (label !== "") this.linkEl.setAttribute("aria-label", label);
+  }
+
+  revealRichAnchor(slug: string, _within: number, inset = 0): boolean {
     // The heading is a real element in the flow (setRichContent tagged it with
     // `data-anchor`); scroll IT — `within` is the canvas path's concern. Missing
     // ⇒ the flow hasn't rendered that heading yet (held intent, retried later).
     const el = this.richEl?.querySelector(`[data-anchor="${slug}"]`) as HTMLElement | null;
     if (el === null || el === undefined) return false;
+    if (inset > 0) el.style.scrollMarginTop = `${inset}px`;
     el.scrollIntoView({ block: "start" });
     return true;
   }

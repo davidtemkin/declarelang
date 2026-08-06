@@ -114,6 +114,14 @@ const TABLE = {
     headless: NOT_APPLICABLE,
   },
 
+  // ── the linking seam (location.md §0, 2026-08-05) ────────────────────────
+
+  setLink: {
+    dom: true,
+    canvas: "deliberate — no elements, so no native <a> to realize: a linked view on canvas still follows (the input walk owns routing), still takes focus and Enter (focus.ts), and still shows the pointer cursor (HitTarget.cursor). What it lacks is the browser-native contract — status-bar preview, ⌘-click, copy-link — which only a real anchor can give; part of canvas's larger unbuilt AT story",
+    mac: "GAP (not yet built) — AppKit could carry the link affordances (NSAccessibility link role; the pointing-hand cursor is already native there), but nothing is wired. Routing works; the natives are absent",
+    headless: NOT_APPLICABLE,
+  },
   scrollToY: {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
@@ -202,9 +210,16 @@ for (const member of members) {
 // ring out of the scroller it rides while its coordinates still read that
 // scroller's content space, so the first Tab of a session painted the ring a
 // scroller-origin above its target. Raise now asks before it moves.
+// 13 → 14 (2026-08-05, the linking merge — location.md §0): setLink — a
+// linked view's REAL <a> overlay, the native affordances; routing never
+// depends on it, so a backend without it degrades to follow-only. (The same
+// merge added `deferredRichMeasure`, an optional data PROPERTY the method
+// scan here does not count: absent = synchronous rich measurement, which is
+// what keeps headless reveals first-call while DOM reveals hold for the
+// ResizeObserver.)
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 13,
+  assert.equal(members.length, 14,
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);

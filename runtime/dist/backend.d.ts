@@ -1,6 +1,12 @@
 import type { Fill, Shadow, Stroke } from "./value.js";
 import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
+/** The reference schemes a link may carry (location.md §0.4): the app's own
+ *  fragment, the web's, mail, or a relative path — never javascript:/data:.
+ *  Shared by BOTH enforcement points: App.follow (the operation), and the
+ *  realization seam (a disallowed scheme never becomes an href, so the native
+ *  paths that bypass follow — copy-link, middle-click — stay shut too). */
+export declare function allowedRef(ref: string): boolean;
 /** One styled run of rich text (or a hard line break). Fully RESOLVED — the
  *  RichText component bakes the effective font/color into each run so a backend
  *  just realizes what it is told (no palette knowledge across the seam). */
@@ -254,8 +260,29 @@ export interface Surface {
      *  container itself, clamps to its content extent, and sets the offset.
      *  `align` "nearest" scrolls the MINIMUM distance that makes the surface
      *  visible — and not at all when it already is (the web's focus-reveal
-     *  behavior; keyboard traversal uses it so Tab never lands offscreen). */
-    scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;
+     *  behavior; keyboard traversal uses it so Tab never lands offscreen).
+     *  `inset` (location.md §0.5.4) — land this many pixels SHORT of the
+     *  viewport top, clearing fixed chrome: the scroll-margin analogue. DOM
+     *  realizes it as scroll-margin-top (native scrollIntoView honors it);
+     *  canvas subtracts it from the clamp. 0/absent = the old behavior. */
+    scrollIntoView(align?: "start" | "nearest", smooth?: boolean, inset?: number): void;
+    /** OPTIONAL — realize this view's `link` (location.md §0.4) as a REAL
+     *  anchor: an `<a href>` overlaying the box (a sibling-overlay, never a
+     *  wrapper — interactive children stay valid HTML, the ruled card pattern).
+     *  Buys the native contract: status-bar preview, ⌘/middle-click, copy-link.
+     *  A plain left click is preventDefault-ed — routing belongs to the input
+     *  walk, which follows the reference (view.ts inputSink). "" removes.
+     *  `label` seeds the accessible name (aria-label) for content-free links.
+     *  Backends without it (canvas, headless) still follow via the router —
+     *  they lose only the browser-native affordances. */
+    setLink?(href: string, label?: string): void;
+    /** OPTIONAL — true when this backend measures rich text ASYNCHRONOUSLY (the
+     *  DOM's ResizeObserver reports the flowed height after layout, a frame
+     *  behind the render — §12.1's measured mechanism). The reveal machinery
+     *  reads it to HOLD an anchored arrival while any flow's measurement is
+     *  outstanding (location.md §0.5.3, the component-sourced veto). Absent =
+     *  synchronous (headless synthetic metrics, canvas font-metric flow). */
+    deferredRichMeasure?: boolean;
     /** OPTIONAL — a windowed block's LOGICAL extent when this surface IS the
      *  scroller (rows as direct children of a scrolling Table/DataGrid): the
      *  scroll RANGE must span all N logical rows while only a window of them
@@ -292,7 +319,7 @@ export interface Surface {
      *  element carrying `data-anchor` — native `scrollIntoView`. Canvas: clamp the
      *  scroll ancestor to the flow's top plus `within`. Returns whether it revealed
      *  (false ⇒ the anchor isn't in this flow's realized content yet). */
-    revealRichAnchor(slug: string, within: number): boolean;
+    revealRichAnchor(slug: string, within: number, inset?: number): boolean;
     /** Reflect an `embed` marker onto the surface so a HOST can find this view's
      *  element (data attribute on DOM) and mount foreign content (an editor, a
      *  preview iframe) inside it — the sanctioned seam for embedding non-Declare UI

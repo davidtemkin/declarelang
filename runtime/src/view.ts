@@ -14,7 +14,7 @@ import { Node, runRetire } from "./node.js";
 import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
-import { POINTER_TYPES, TOUCH_TYPES, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
+import { POINTER_TYPES, TOUCH_TYPES, allowedRef, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
 import { Tip } from "./tip.js";
 
 // Imperative creation's injection seam (instantiate.ts provides; the cycle
@@ -218,6 +218,13 @@ export class View extends Node {
   declare focusable: boolean;
   declare focusTrap: boolean;
   declare anchor: string;
+  /** The linking triple (location.md §0): `link` — this view IS a link to the
+   *  reference ("" = not a link); `replace` — following it overwrites the
+   *  current history entry; `shows` — this view manifests the named location
+   *  (its visibility is lowered to a `visible` binding at instantiation). */
+  declare link: string;
+  declare replace: boolean;
+  declare shows: string;
   /** Clip the subtree (paint AND hit-test). Two forms on one slot: a Shape
    *  string clips to that SVG path (view-local coordinates); the boolean
    *  box-clip `true` clips to the view's own box (0,0,width,height), tracking
@@ -609,6 +616,11 @@ export class View extends Node {
     if (this.scrolls === "x" || this.scrolls === "both") s.setScrollX?.(true, (x) => { this.scrollX = x; });
     const sink = this.inputSink();
     if (sink !== null) s.setInput(sink, this.inputWants());
+    // a linked view wears the link affordance from first paint (rewireInput
+    // carries post-attach changes; this is the attach-time half), and realizes
+    // its REAL anchor where the backend can (location.md §0.4)
+    if (this.cursor === "" && this.link !== "") s.setCursor("pointer");
+    if (this.link !== "") s.setLink?.(this.link, (this as unknown as { label?: string }).label ?? "");
     if (this.draw) this.bindDraw();
   }
 
@@ -685,8 +697,8 @@ export class View extends Node {
    *  Surface; a no-op before attach or with nothing scrolling above. (Named for
    *  the platform primitive — `reveal` is deliberately left free as a member name,
    *  e.g. a `reveal:` fade-in Spring.) */
-  scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void {
-    this.surface?.scrollIntoView(align, smooth);
+  scrollIntoView(align?: "start" | "nearest", smooth?: boolean, inset?: number): void {
+    this.surface?.scrollIntoView(align, smooth, inset);
   }
 
   /** Promotion (planes.md §1 — order is a slot): re-link this view among its
@@ -734,7 +746,11 @@ export class View extends Node {
     // A tip-carrying view is hover-interactive by that fact alone (pay-per-use
     // extends to the tip attribute): its sink reports over/out/press to the
     // Tip service; declared handlers, when present, fire exactly as before.
-    if (!handled && this.tip === "") return null;
+    // A LINKED view is interactive by the same rule (location.md §0.4): `link`
+    // grants interest the way a handler does, and a plain click follows the
+    // reference — AFTER any declared onClick (handler first, then follow; the
+    // handler cannot cancel — veto belongs to onFollow, or to link = "").
+    if (!handled && this.tip === "" && this.link === "") return null;
     return (type, x, y, extra) => {
       if (this.tip !== "") {
         if (type === "pointerOver") Tip.over(this);
@@ -745,7 +761,26 @@ export class View extends Node {
       // whatever fact this event kind carries (`canceled` on a release, the
       // finger list on the raw touch family).
       if (handled) fireEvent(this, type, extra === undefined ? { x, y } : { x, y, ...extra });
+      if (type === "click" && this.link !== "") {
+        const app = this.root as unknown as { follow?: (ref: string, replace?: boolean) => void };
+        app?.follow?.(this.link, this.replace);
+      }
     };
+  }
+
+  /** Re-derive the surface's input wiring — the pusher for attributes that
+   *  GRANT interest by their value (`link`; a post-attach handler install goes
+   *  through here too). Idempotent: attach-time flush and this call converge
+   *  on the same sink/wants pair. */
+  rewireInput(): void {
+    const s = this.surface;
+    if (s === null) return;
+    const sink = this.inputSink();
+    if (sink !== null) s.setInput(sink, this.inputWants());
+    // A linked view reads as a link: the pointer affordance, unless the author
+    // set an explicit cursor. (The DOM path also gets this from the realized
+    // anchor; canvas gets it only from here.)
+    if (this.cursor === "") s.setCursor(this.link !== "" ? "pointer" : "");
   }
 
   /** What the ROUTER needs to know about this view's declared handlers to
@@ -829,7 +864,17 @@ defineAttributes(View, {
   cornerRadius: { def: 0, push: (v, r) => v.surface?.setCornerRadius(r) },
   stroke: { def: null, push: (v, st) => v.surface?.setStroke(st), equal: strokeEqual },
   shadow: { def: null, push: (v, sh) => v.surface?.setShadow(sh), equal: shadowEqual },
-  visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
+  visible: { def: true, push: (v, b) => {
+    v.surface?.setVisible(b);
+    // Un-hiding re-arms the measurement veto for every rich flow underneath
+    // (location.md §0.5.3): a flow inside a display:none subtree measured 0,
+    // and its TRUE height arrives only after this flip, through the backend's
+    // ResizeObserver. Until it does, an anchored reveal into this subtree
+    // would land against a half-built page (§12.1's warm-arrival race) — so
+    // each flow reports pending, and the retained intent holds. Deferred
+    // backends only: a synchronous backend's heights were right while hidden.
+    if (b) markRichPending(v);
+  } },
   ignoreLayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.childrenMutated(); } },
   ignoreClip: { def: false, push: (v, b: boolean) => v.surface?.setIgnoreClip?.(b) },
   ignoreScroll: { def: false, push: (v, b: boolean) => v.surface?.setIgnoreScroll?.(b) },
@@ -847,6 +892,24 @@ defineAttributes(View, {
   // slot the reveal walk reads after settle; "" = not an anchor. No push: it has
   // no surface effect. (Materializes §6's "named view"; heading slugs are the rest.)
   anchor: { def: "" },
+  // `link` — the view IS a link to this reference (location.md §0): "#name" in-app,
+  // anything else out through `navigate`. "" = not a link (no interest, no focus
+  // stop, nothing for the crawl). Interest derives from it exactly as from declared
+  // handlers (inputSink) — the `tip` precedent — so the push REWIRES the surface's
+  // input when the value changes (empty↔non-empty flips interest itself).
+  link: { def: "", push: (v) => {
+    v.rewireInput();
+    v.surface?.setLink?.(v.link, (v as unknown as { label?: string }).label ?? "");
+  } },
+  // `replace` — this link overwrites the current history entry instead of pushing
+  // (location.md §0.5.6): fine-grained movement WITHIN a place (a deck's arrows),
+  // not movement between places. Read by App.follow when the link is followed.
+  replace: { def: false },
+  // `shows` — this view manifests the named location (location.md §0.4). The slot
+  // stores the name for the registry and introspection; the VISIBILITY it implies
+  // is lowered to a `visible` binding at instantiation (instantiate.ts), so the
+  // hit walk, focus traversal, and auto-extent all see it through the one channel.
+  shows: { def: "" },
   clip: { def: null, push: (v, c) => v.applyClip(c) },
   // Scroll container: the axis enum wires the backend's native scroll per
   // declared axis and feeds the user's offsets back into `scrollY`/`scrollX`
@@ -947,15 +1010,47 @@ export function fireEvent(view: View, event: string, arg?: unknown): void {
  *  action for `name` (which reports whether it actually revealed — false before the
  *  target is attached/rendered, so the caller keeps holding the intent), or null
  *  when the name is not present in the tree at all. */
+/** Re-arm the rich-measurement veto for every flow under `v` — the visible
+ *  pusher's half of the §0.5.3 hold (see markdown.ts measurePending). Duck-
+ *  typed to avoid a view→markdown import cycle; deferred backends only. */
+function markRichPending(v: View): void {
+  const walk = (n: Node): void => {
+    const f = n as unknown as { measurePending?: boolean; surface?: { deferredRichMeasure?: boolean } | null };
+    if (typeof f.measurePending === "boolean" && f.surface?.deferredRichMeasure === true) f.measurePending = true;
+    for (const c of n.children) walk(c);
+  };
+  walk(v);
+}
+
+/** Any rich flow in the tree still awaiting its settled measurement? The
+ *  reveal HOLDS while true (location.md §0.5.3) — tree-wide on purpose: a
+ *  reveal's landing depends on every flow above the target in document order,
+ *  and "which flows sit between" is exactly the geometry that isn't settled
+ *  yet. Conservative, cheap (only runs while an intent is held), and false
+ *  everywhere on synchronous backends — headless stays first-call (§0.11). */
+function anyRichPending(root: View): boolean {
+  let pending = false;
+  const walk = (n: Node): void => {
+    if (pending) return;
+    if ((n as unknown as { measurePending?: boolean }).measurePending === true) { pending = true; return; }
+    for (const c of n.children) walk(c);
+  };
+  walk(root);
+  return pending;
+}
+
 function findAnchor(root: View, name: string): (() => boolean) | null {
+  // The reveal inset (location.md §0.5.4): fixed chrome the landing must
+  // clear, one app-wide knob, threaded to both target kinds.
+  const inset = (root as unknown as { revealInset?: number }).revealInset ?? 0;
   const views: { base: string; fire: () => boolean }[] = [];
   const slugs: { base: string; fire: () => boolean }[] = [];
   const walk = (n: Node): void => {
     if (n instanceof View) {
-      if (n.anchor !== "") { const v = n; views.push({ base: v.anchor, fire: () => { if (v.surface === null) return false; v.scrollIntoView(); return true; } }); }
-      const flow = n as unknown as { anchorSlugs?: () => string[]; revealAnchor?: (s: string) => boolean };
+      if (n.anchor !== "") { const v = n; views.push({ base: v.anchor, fire: () => { if (v.surface === null) return false; v.scrollIntoView("start", false, inset); return true; } }); }
+      const flow = n as unknown as { anchorSlugs?: () => string[]; revealAnchor?: (s: string, inset?: number) => boolean };
       if (typeof flow.anchorSlugs === "function" && typeof flow.revealAnchor === "function") {
-        for (const s of flow.anchorSlugs()) slugs.push({ base: s, fire: () => flow.revealAnchor!(s) });
+        for (const s of flow.anchorSlugs()) slugs.push({ base: s, fire: () => flow.revealAnchor!(s, inset) });
       }
     }
     for (const c of n.children) walk(c);
@@ -1079,6 +1174,90 @@ export class App extends View {
 
   navigate(to: string): void { this.pendingNav = to; }
 
+  /** The reference schemes a link may carry (location.md §0.4) — the shared
+   *  predicate lives at the render seam (backend.ts allowedRef), because the
+   *  realization path enforces it too: a disallowed scheme never becomes an
+   *  href, so copy-link and middle-click — native paths that never enter
+   *  follow — stay shut. */
+  static allowedRef(ref: string): boolean { return allowedRef(ref); }
+
+  /** The destination part of a location — the runtime strips ITS OWN trailing
+   *  `@name` (§6's one shared grammar character); the app never writes the
+   *  split. `shows` lowers to a comparison against this (instantiate.ts). */
+  destinationOf(loc: string): string {
+    const at = loc.indexOf("@");
+    return at >= 0 ? loc.slice(0, at) : loc;
+  }
+
+  /** The history verb the NEXT location mirror should use (location.md §0.5.6):
+   *  "push" (default), or "replace" — set by follow when the link carries
+   *  `replace = true`, and by the host itself on traversal/cold arrivals so a
+   *  redirect can never mint an entry (no Back loops). Consumed (reset to
+   *  "push") by the host at the mirror. A plain field, like pendingNav. */
+  pendingHistoryVerb: "push" | "replace" = "push";
+
+  /** follow(ref) — the ONE operation behind every arrival (location.md §0.5):
+   *  a linked view's activation, a rich-text href, a cold URL, back/forward.
+   *  Source requests, runtime delivers, destination decides. The app-scoped
+   *  hook `onFollow(ref) -> ref'` (a user-declared method, §0.6) is applied
+   *  ONCE — transform, veto (""), or side-effect; then an external reference
+   *  leaves through `navigate`, and a `#…` writes `location`. The anchor
+   *  reveal rides the existing retained intent (resolveReveal); an anchorless
+   *  arrival seeds the scroll to the top. Re-following the current reference
+   *  re-runs the arrival step — no dead clicks. */
+  follow(ref: string, replace = false): void {
+    if (!App.allowedRef(ref)) return;
+    const hook = (this as unknown as { onFollow?: (r: string) => string }).onFollow;
+    if (typeof hook === "function") {
+      const out = hook.call(this, ref);
+      if (typeof out !== "string" || out === "") return;
+      ref = out;
+      if (!App.allowedRef(ref)) return;
+    }
+    if (!ref.startsWith("#")) { this.navigate(ref); return }
+    let loc = ref.slice(1);
+    // A BARE NAME may be an anchor (location.md §0.3): the author writes
+    // "#story" and never the compound — the destination is DERIVED, here,
+    // from the tree itself: the anchored view's nearest `shows` ancestor.
+    // (The compiler checked the name against the same registry at build; this
+    // is the runtime answering the same question off the live structure, so
+    // the two cannot drift.) A name that is no anchor falls through to a
+    // plain location write — destinations and computed locations unchanged.
+    if (loc !== "" && loc.indexOf("@") < 0 && loc.indexOf("/") < 0) {
+      const dest = this.destinationOfAnchor(loc);
+      if (dest !== null) loc = dest === "" ? this.destinationOf(this.location) + "@" + loc : dest + "@" + loc;
+    }
+    if (replace) this.pendingHistoryVerb = "replace";
+    const same = this.location === loc;
+    this.location = loc;
+    // Anchorless: the destination starts at its top — the scroll must not
+    // inherit the previous view's offset (the toTop discipline, now follow's).
+    // Anchored: resolveReveal owns the landing (its intent re-arms on the
+    // location CHANGE; a same-reference re-follow re-arms it here).
+    if (loc.indexOf("@") < 0) this.scrollIntoView("start");
+    else if (same) this.rearmReveal();
+  }
+
+  /** The destination gating an anchored view: walk the tree for `anchor ===
+   *  name`, then up from it for the nearest `shows`. null = no such anchor
+   *  (the name is a destination or a computed location); "" = an anchor
+   *  outside any destination (reveal within the current location). */
+  private destinationOfAnchor(name: string): string | null {
+    let found: View | null = null;
+    const walk = (n: Node): void => {
+      if (found !== null) return;
+      if (n instanceof View && n.anchor === name) { found = n; return; }
+      for (const c of n.children) walk(c);
+    };
+    walk(this);
+    const f = found as View | null;   // assigned in the closure — TS can't see it
+    if (f === null) return null;
+    for (let v: View | null = f; v !== null; v = v.parent instanceof View ? v.parent : null) {
+      if (v.shows !== "") return v.shows;
+    }
+    return "";
+  }
+
   /** app→host channel for openWindow, exactly like pendingNav: the verb writes
    *  it, the host polls it on the next frame and window.opens (still inside the
    *  click's transient user activation, so it isn't popup-blocked). */
@@ -1124,6 +1303,15 @@ export class App extends View {
     }
     const name = this.pendingAnchor;
     if (name === null || name === "") return null;
+    // THE MEASUREMENT VETO (location.md §0.5.3, closing §12.1): while any rich
+    // flow's height is provisional — just rendered, or just un-hidden by this
+    // very location change — the page's geometry is not the page's geometry,
+    // and a reveal that "succeeds" against it lands ~a-viewport wrong and
+    // clears the intent. Hold; the flows' measurement callbacks lift the veto
+    // within a frame, and the host retries every frame while an intent is
+    // held. Synchronous backends never set the flag, so headless (and the
+    // pinned first-call contract) are untouched.
+    if (anyRichPending(this)) return null;
     const fire = findAnchor(this, name);
     // Clear the intent only when the reveal ACTUALLY landed — the name being present
     // in `content` before its element is attached/rendered (the cold-deep-link race)
@@ -1131,6 +1319,20 @@ export class App extends View {
     if (fire !== null && fire()) { this.pendingAnchor = null; return name; }
     return null;
   }
+
+  /** Re-arm the reveal intent for the CURRENT location — follow's no-dead-click
+   *  rule (§0.5): re-following `#why@story` while already there re-runs the
+   *  reveal, which resolveReveal's location-change guard would otherwise skip. */
+  rearmReveal(): void { this.lastRevealLocation = null; }
+
+  /** Cancel a HELD reveal intent — the user's first scroll or touch takes
+   *  ownership of the viewport (location.md §0.5.5, the uncontrolled-editor
+   *  rule): a reference SEEDS the scroll position, it never owns it. The host
+   *  calls this from its scroll/wheel/touch listeners; a reveal that already
+   *  landed cleared the intent itself, so this is a no-op then — which is what
+   *  makes the reveal's own scrollIntoView (whose scroll event arrives a tick
+   *  later) safe from self-cancellation. */
+  cancelReveal(): void { this.pendingAnchor = null; }
 
   /** The app's size floor. An app that degrades below some width declares
    *  `minWidth = 600` and the auto-extent never goes under it: in a narrower
@@ -1142,6 +1344,11 @@ export class App extends View {
    *  own formula and wins untouched. */
   declare minWidth: number;
   declare minHeight: number;
+  /** Linking knobs (location.md §0): `revealInset` — pixels of fixed chrome a
+   *  reveal must clear (the scroll-margin analogue); `crawlSeeds` — extra
+   *  references the extraction crawl seeds beyond the registry. */
+  declare revealInset: number;
+  declare crawlSeeds: unknown[];
 
   /** The app's human name — hosts surface it where names go: the page title
    *  (host-client mirrors it per settle, before the location history push so
@@ -1226,6 +1433,14 @@ defineAttributes(App, {
   // An app whose content fits has nothing to scroll — the fixed window is
   // this default, idle. A calendar-shaped app may state `scrolls = none`.
   scrolls: { def: "y", push: pushScrolls },
+  // `revealInset` — the scroll-margin analogue (location.md §0.5.4): fixed
+  // chrome (a sticky header) overlaps a reveal target pinned to the viewport
+  // top; the reveal lands this many pixels short instead. One knob, app-wide.
+  revealInset: { def: 0 },
+  // `crawlSeeds` — extra references the extraction crawl seeds beyond the
+  // registry (location.md §0.8.2): computed locations worth emitting that no
+  // rendered link reaches. An ordinary attribute the extractor reads at t=0.
+  crawlSeeds: { def: [] },
   // Stored reactive slots the runtime feeds (index.ts). Read-only to USER code
   // via schema.readOnly (a compile error) — not `readOnly: true` here, which
   // would throw the setter the runtime feed needs. `width`/`height` default to

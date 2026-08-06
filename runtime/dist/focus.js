@@ -81,7 +81,9 @@ export class FocusService {
         this.apply(view);
     }
     apply(view) {
-        if (view !== null && !(view.focusable && view.visible))
+        // a linked view is a focus stop by that fact alone (location.md §0.4) —
+        // the <a> contract: keyboard reaches every link, Enter follows it
+        if (view !== null && !((view.focusable || view.link !== "") && view.visible))
             return;
         if (this.changing) {
             this.queued = true;
@@ -251,8 +253,8 @@ function sequence(root) {
         for (const m of tabOrderOf(v)) {
             if (!m.visible)
                 continue;
-            if (m.focusable)
-                out.push(m);
+            if (m.focusable || m.link !== "")
+                out.push(m); // links are stops (§0.4)
             if (m.focusTrap && m !== root)
                 continue; // a nested trap is a separate group
             walk(m);
@@ -311,8 +313,16 @@ export function deliverKeys(keys, focus) {
             return;
         }
         const f = focus.getFocus();
-        if (f !== null)
+        if (f !== null) {
+            // Enter on a focused LINKED view follows the reference — the <a>
+            // contract's keyboard half (location.md §0.4). The handler still fires
+            // (coexistence rule: handler, then follow — same order as a click).
             fireEvent(f, "keyDown", e);
+            if (e.code === "Enter" && f.link !== "") {
+                const app = f.root;
+                app?.follow?.(f.link, f.replace);
+            }
+        }
     });
     const offUp = keys.onKeyUp((e) => {
         if (e.code === "Tab")

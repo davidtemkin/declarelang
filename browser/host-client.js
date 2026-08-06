@@ -67,7 +67,12 @@ export async function bootHost(cfg) {
   const locationInitial = app.location;               // the declared initial = the default (§3)
   const seedFrag = fragmentOf() || cfg.location;       // the URL fragment wins; else a host override (?view=)
   if (seedFrag) {
-    app.location = seedFrag;                           // an empty fragment leaves the initial alone (§3)
+    // A COLD ARRIVAL is a follow (location.md §0.5): the app-scoped onFollow
+    // hook applies — at t=0, declared initials, before any data loads (§0.6's
+    // stated caveat) — and a redirect leaves the URL out of step with the app,
+    // which the canonicalize-by-replace below squares up, minting no entry.
+    if (typeof app.follow === "function") app.follow("#" + seedFrag);
+    else app.location = seedFrag;                      // an empty fragment leaves the initial alone (§3)
     settle();                                          // propagate to the location-derived constraints SYNCHRONOUSLY,
   }                                                     // before the first paint — the deep link's view, no home→target flash
   await loadFonts(fontFacesOf(app));
@@ -103,17 +108,42 @@ export async function bootHost(cfg) {
   // writes location holds location == initial, so the fragment stays empty, nothing
   // pushes. Retires the homepage's hand-wired `route`↔`#why` mirror.
   let mirrored = app.location;                          // what the URL currently reflects (seeded above)
-  // Canonicalize a default-valued deep link (`#home`) to a clean URL — once, and by
-  // REPLACE (not push), so it leaves no dead history entry.
-  if (app.location === locationInitial && location.hash) {
-    history.replaceState(null, "", location.pathname + location.search);
-  }
+  // The page's OWN path+query, never a bare "#frag": history resolves against
+  // the DOCUMENT BASE, and a source page's <base> points elsewhere (measured
+  // on ?viewer, 2026-08-01). Clean URL at the declared initial (§3).
+  const urlFor = (loc) => location.pathname + location.search +
+    (loc === locationInitial ? "" : "#" + loc);
+  // Square the URL to the app BY REPLACE — no entry minted. Covers: the
+  // default-valued deep link (`#home` → clean URL, the old rule), a cold
+  // arrival the onFollow hook redirected or vetoed, and every history
+  // traversal (below). Also consumes a pending replace verb: the URL now
+  // agrees with the app, so there is nothing left for the mirror to do.
+  const syncByReplace = () => {
+    const url = urlFor(app.location);
+    if (location.pathname + location.search + location.hash !== url) history.replaceState(null, "", url);
+    mirrored = app.location;
+    if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
+  };
+  syncByReplace();
   const onPop = () => {
     if (stopped) return;
-    app.location = fragmentOf() || locationInitial;    // an empty fragment restores the initial (§3)
-    mirrored = app.location;                            // the host wrote it — don't echo it back as a push
+    // A TRAVERSAL arrival is a follow (location.md §0.5.6): the onFollow hook
+    // applies, and whatever it decides — pass, redirect, veto — the result is
+    // squared to THIS entry by replace. A traversal never pushes, so a
+    // redirect rule can never trap Back in a loop.
+    const ref = fragmentOf() || locationInitial;       // an empty fragment restores the initial (§3)
+    if (typeof app.follow === "function") app.follow("#" + ref);
+    else app.location = ref;
+    syncByReplace();
   };
   addEventListener("popstate", onPop);
+  // A held reveal intent dies on the user's first gesture (location.md
+  // §0.5.5): wheel/touch are unambiguously the user's; the reveal's own
+  // programmatic scroll cannot self-cancel because a LANDED reveal already
+  // cleared the intent synchronously, before its scroll event dispatches.
+  const onUserScroll = () => { if (!stopped && typeof app.cancelReveal === "function") app.cancelReveal(); };
+  addEventListener("wheel", onUserScroll, { passive: true });
+  addEventListener("touchstart", onUserScroll, { passive: true });
   // app.appName → document.title, the same mirror-per-settle discipline as
   // location (the app never touches document; the name rides a declared attr
   // the host owns). "" = no opinion — the served title stands. The MAPPING
@@ -126,14 +156,20 @@ export async function bootHost(cfg) {
   const locTick = () => {
     if (stopped) return;
     titled = reflectAppName(app, servedTitle, titled);
-    if (app.location !== mirrored) {                   // the app navigated — one push per changed settle
+    if (app.location !== mirrored) {                   // the app navigated — one entry per changed settle
       mirrored = app.location;
-      const frag = app.location === locationInitial ? "" : app.location;   // clean URL at the default (§3)
-      // Anchored to the page's OWN path+query, never a bare "#frag": history
-      // resolves its url against the DOCUMENT BASE, and a source page's <base>
-      // points at the Viewer's directory — a bare fragment would silently
-      // rewrite the whole URL to apps/viewer/ (measured on ?viewer, 2026-08-01).
-      history.pushState(null, "", location.pathname + location.search + (frag ? "#" + frag : ""));
+      // The history VERB (location.md §0.5.6): "push" (the default) makes an
+      // entry; a follow whose link declared `replace = true` armed "replace" —
+      // fine-grained movement within a place overwrites instead of burying
+      // the Back button. Consumed here, exactly once.
+      const verb = app.pendingHistoryVerb === "replace" ? "replace" : "push";
+      if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
+      if (verb === "replace") history.replaceState(null, "", urlFor(app.location));
+      else history.pushState(null, "", urlFor(app.location));
+    } else if (app.pendingHistoryVerb === "replace") {
+      // a same-location follow (or a vetoed one) armed the verb with nothing
+      // to mirror — disarm it, or an unrelated later push would wrongly replace
+      app.pendingHistoryVerb = "push";
     }
     // The `@name` reveal (docs/system-design/location.md §6) — a retained intent, resolved each
     // frame so a cold deep link fires once the target (a DataSource-fed heading) is
@@ -152,6 +188,8 @@ export async function bootHost(cfg) {
     for (const k in raf) cancelAnimationFrame(raf[k]);
     removeEventListener("keydown", onKey);
     removeEventListener("popstate", onPop);
+    removeEventListener("wheel", onUserScroll);
+    removeEventListener("touchstart", onUserScroll);
     host.querySelectorAll('[data-declare-slot^="run:"]').forEach((box) => {
       if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
     });
@@ -200,7 +238,15 @@ export async function bootHost(cfg) {
     // `auto` shows scrollbars only on real overflow, so a fitting app is untouched.
     box.style.overflow = "auto";
     try {
-      const childApp = await renderAsync(compiled.source, box, new DomBackend(), { deps: compiled.deps });
+      // An EMBEDDED app never realizes native fragment hrefs (location.md
+      // §0.9): a real "#why" anchor inside an island targets the HOST page's
+      // fragment, and copy-link copies a lie. linkBase "" suppresses the
+      // fragment overlay — in-app routing still works (the router follows);
+      // external links keep their real anchors. An embedder that knows the
+      // child's true program URL may set it instead, restoring the natives.
+      const backend = new DomBackend();
+      backend.linkBase = "";
+      const childApp = await renderAsync(compiled.source, box, backend, { deps: compiled.deps });
       box.__childApp = childApp;
       if (childApp) childApp.demoSources = seeds;         // populate a nested copy's own editors
     } catch (e) {}

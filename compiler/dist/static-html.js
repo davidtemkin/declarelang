@@ -181,6 +181,13 @@ const weightNum = (t) => parseInt(cssWeight(t.fontWeight), 10) || 400;
  *  settled instance at t=0. An empty value → null (the value carries the
  *  conditionality — `navigate(this.link)` with `link = ""` links nothing). */
 function navHref(v) {
+    // The LIVE `link` attribute wins (location.md §0.3): an authored link — a
+    // literal, or a constraint's SETTLED value (the data tier: `link = { :to }`
+    // over nav records) — is the ground truth; `_navLink` (the literal stamp +
+    // the old handler inference) covers the un-migrated corpus.
+    const live = v.link;
+    if (typeof live === "string" && live !== "")
+        return live;
     const link = v._navLink;
     if (link === undefined)
         return null;

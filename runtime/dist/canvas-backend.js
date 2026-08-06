@@ -1107,10 +1107,12 @@ class CanvasSurface {
      *  this surface, so reveal is a `scrollIntoView` clamped to that offset. `within`
      *  < 0 means the flow hasn't laid the heading out yet — not handled. `slug` is
      *  the DOM path's key; here the offset already resolved it. */
-    revealRichAnchor(_slug, within) {
+    revealRichAnchor(_slug, within, inset = 0) {
         if (within < 0)
             return false;
-        this.scrollIntoView(within);
+        // `inset` (location.md §0.5.4): land short of the top — the clamp's twin
+        // of the DOM path's scroll-margin.
+        this.scrollIntoView(within - inset);
         return true;
     }
     /** The write half of `scrollY` — same clamp as scrollBy, so a program write
@@ -1134,8 +1136,8 @@ class CanvasSurface {
      *  targets a point INSIDE this surface (a heading's offset) instead of its top.
      *  "nearest" scrolls the minimum distance that reveals the surface — nothing
      *  when it is already visible (the keyboard traversal's reveal). */
-    scrollIntoView(align = 0, _smooth = false) {
-        const within = typeof align === "number" ? align : 0;
+    scrollIntoView(align = 0, _smooth = false, inset = 0) {
+        const within = (typeof align === "number" ? align : 0) - inset;
         let cur = this;
         let off = 0;
         while (cur.parent !== null && !cur.parent.scrolls) {

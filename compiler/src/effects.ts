@@ -39,6 +39,17 @@ export const LANGUAGE_METHOD_EFFECTS: ReadonlyMap<string, readonly string[]> = n
   // extracted separately, by links.ts, from the CALL SITE.
   ["navigate", []],
   ["openWindow", []],
+  // App.destinationOf(loc) (view.ts) — strips the runtime's own trailing
+  // `@name` from a location string. A pure function of its ARGUMENT: the
+  // argument's own reads (`app.location` at every lowered `shows` gate) are
+  // extracted at the call site, so the binding wires exactly them. PURE.
+  ["destinationOf", []],
+  // App.follow(ref) — the one arrival operation (location.md §0.5). Like
+  // navigate: an ACTION a handler calls — it writes location and the host
+  // channels, and reads no reactive cell the CALLER's analysis must wire (the
+  // app-scoped onFollow hook runs inside it imperatively, never as a tracked
+  // read). The LINK relation itself is authored (`link =`), not inferred here.
+  ["follow", []],
   // View.raise(below?) (runtime/src/view.ts) — promotion: re-links the view to
   // the front of its siblings, or just beneath `below` when given (planes.md
   // §1, order-as-slot). Structural mutation, no reactive READ → pure for

@@ -35,7 +35,7 @@ async function handle(m) {
       const compiled = compile(m.source, { originDir: m.originDir });
       if (compiled.source === null) return { ok: false, report: compiled.report };
       const ex = await crawlExtract(compiled.source, {
-        deps: compiled.deps, links: compiled.links, data: diskDataResolver(m.originDir),
+        deps: compiled.deps, links: compiled.links, registry: compiled.linkRegistry, warm: true, data: diskDataResolver(m.originDir),
       });
       const title = ex.title || "";
       return { ok: true, html: ex.html, title, doc: m.document ? crawlerDocument(ex.html, title || m.fallbackTitle || path.basename(m.originDir)) : undefined };

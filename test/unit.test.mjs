@@ -6607,19 +6607,28 @@ await test("@name reveal: heading slugs, named-view priority, -2 suffixes, held 
     assert.equal(app.resolveReveal(), null, "an unknown anchor is held (returns null), not fired");
   } finally { app.discard(); }
 
-  // (b) duplicate names: preorder-first is the base slug, the next gets `-2`, no third.
-  //     A no-anchor location change CANCELS the intent.
+  // (b) duplicate REGISTERED names are a compile error (location.md §0.4: the
+  //     registry replaces `-2` suffixing for App-tree anchors — a URL breaks
+  //     at build, never silently renumbers). Suffixing survives only for
+  //     UNREGISTERED names — class-internal anchors, exercised right after.
   const r2 = compile(`App [ width = 200, height = 200, location = "x",
     a: View [ anchor = "sec", width = 10, height = 10 ],
     b: View [ anchor = "sec", width = 10, height = 10 ],
   ]`);
-  assert.equal(r2.errors.length, 0, "`anchor` is a checkable View attribute");
-  const app2 = settleHeadless(r2.source, { deps: r2.deps });
+  assert.ok(r2.errors.length > 0, "duplicate registered anchors fail the build");
+  assert.ok(r2.errors.some((e) => /declared twice/.test(e.message)), "the error names the duplication");
+  const r2b = compile(`class Spot extends View [ inner: View [ anchor = "sec", width = 5, height = 5 ] ]
+App [ width = 200, height = 200, location = "x",
+    a: Spot [ width = 10, height = 10 ],
+    b: Spot [ width = 10, height = 10 ],
+  ]`);
+  assert.equal(r2b.errors.length, 0, "class-internal anchors don't collide in the registry");
+  const app2 = settleHeadless(r2b.source, { deps: r2b.deps });
   try {
     app2.location = "x@sec"; settle();
-    assert.equal(app2.resolveReveal(), "sec", "first duplicate = the base name (preorder)");
+    assert.equal(app2.resolveReveal(), "sec", "first instance = the base name (preorder)");
     app2.location = "x@sec-2"; settle();
-    assert.equal(app2.resolveReveal(), "sec-2", "second duplicate = the -2 suffix");
+    assert.equal(app2.resolveReveal(), "sec-2", "second instance = the -2 suffix");
     app2.location = "x@sec-3"; settle();
     assert.equal(app2.resolveReveal(), null, "no third target — held");
     app2.location = "x"; settle();

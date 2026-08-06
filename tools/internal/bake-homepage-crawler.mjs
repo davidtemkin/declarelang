@@ -57,7 +57,7 @@ if (compiled.source === null) {
 // the fragment, which is the single source the <title> and the social cards are
 // stamped from. One boot, both answers.
 const ex = await crawlExtract(compiled.source, {
-  deps: compiled.deps, links: compiled.links,
+  deps: compiled.deps, links: compiled.links, registry: compiled.linkRegistry, warm: true,
   data: diskDataResolver(path.dirname(HOMEPAGE)),
 });
 const html = ex === null ? null : ex.html;

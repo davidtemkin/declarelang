@@ -617,7 +617,7 @@ const r10PageHtml = (backendClass) => `<!doctype html>
 const ANIM_RAW = `App [ width=240, height=160, fill=#20242C,
   box: View [ x=20, y=60, width=40, height=40, fill=#4FC3F7,
     slide: Animator [ attribute=x, to=140, duration=600, motion=easeBoth, started=false ] ],
-  follow: View [ x={ box.x }, y=112, width=40, height=36, fill=#E9C46A ] ]`;
+  chaser: View [ x={ box.x }, y=112, width=40, height=36, fill=#E9C46A ] ]`;
 const animCompiled = compile(ANIM_RAW);
 if (animCompiled.errors.length > 0 || animCompiled.warnings.length > 0) {
   throw new Error("animation program did not compile clean:\n" +
@@ -648,7 +648,7 @@ const animPageHtml = (backendClass) => `<!doctype html>
       vals.push(box.x);
       frames++;
       const settled = vals.length >= 2 && box.x === to && vals[vals.length - 2] === to;
-      if (settled || frames >= 240) resolve({ vals, from, to, followX: app.follow.x });
+      if (settled || frames >= 240) resolve({ vals, from, to, followX: app.chaser.x });
       else requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
@@ -669,7 +669,7 @@ const ANIM2_RAW = `App [ width=240, height=160, fill=#20242C,
   box: View [ x=20, y=60, width=40, height=40, fill=#4FC3F7,
     a: Animator [ attribute=x, relative=true, to=80, duration=600, motion=linear, started=false ],
     b: Animator [ attribute=x, relative=true, to=40, duration=600, motion=linear, started=false ] ],
-  follow: View [ x={ box.x }, y=112, width=40, height=36, fill=#E9C46A ] ]`;
+  chaser: View [ x={ box.x }, y=112, width=40, height=36, fill=#E9C46A ] ]`;
 const anim2Compiled = compile(ANIM2_RAW);
 if (anim2Compiled.errors.length > 0 || anim2Compiled.warnings.length > 0) {
   throw new Error("A2 composition program did not compile clean:\n" +
@@ -697,7 +697,7 @@ const anim2PageHtml = (backendClass) => `<!doctype html>
       vals.push(box.x);
       frames++;
       const settled = vals.length >= 2 && box.x === to && vals[vals.length - 2] === to;
-      if (settled || frames >= 240) resolve({ vals, from, to, followX: app.follow.x });
+      if (settled || frames >= 240) resolve({ vals, from, to, followX: app.chaser.x });
       else requestAnimationFrame(step);
     };
     requestAnimationFrame(step);

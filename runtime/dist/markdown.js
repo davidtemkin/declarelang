@@ -486,6 +486,26 @@ class TextFlow extends View {
         this.render();
     }
     onLink = null;
+    /** The default link behavior (location.md §0.5). §12.2's mechanism, closed:
+     *  a Markdown/HTMLText instance is a RichText PARENT holding TextFlow
+     *  children — an author's declared `onLink` installs on the parent, while
+     *  each flow reads its own `this.onLink`, so no handler ever arrived and
+     *  every authored href was dead. The default therefore walks UP: the
+     *  nearest ancestor with a declared onLink wins whole (the docs app's
+     *  openDocLink keeps its custom routing untouched); with none, the href
+     *  goes into the app's follow — "#story" navigates in-app, a URL leaves
+     *  through navigate. Bound, so either backend can take it as a bare fn. */
+    followLink = (href) => {
+        for (let n = this.parent; n !== null; n = n.parent) {
+            const h = n.onLink;
+            if (typeof h === "function") {
+                h.call(n, href);
+                return;
+            }
+        }
+        const app = this.root;
+        app?.follow?.(href);
+    };
     manual = [];
     /** Canvas only: each heading anchor's y offset inside this flow, captured on
      *  the manual layout (the DOM path finds the tagged element instead). */
@@ -504,10 +524,19 @@ class TextFlow extends View {
      *  DOM finds the `data-anchor` element and scrolls it natively; Canvas passes the
      *  recorded y offset so the surface clamps the scroll ancestor. Returns whether
      *  it revealed — false before the flow has realized that heading. */
-    revealAnchor(slug) {
+    revealAnchor(slug, inset = 0) {
         const within = this.anchorYs.has(slug) ? this.anchorYs.get(slug) : -1;
-        return this.surface?.revealRichAnchor(slug, within) ?? false;
+        return this.surface?.revealRichAnchor(slug, within, inset) ?? false;
     }
+    /** True while this flow's height is a PROVISIONAL number — rendered (or just
+     *  un-hidden), with the backend's asynchronous measurement still outstanding
+     *  (§12.1: the DOM's ResizeObserver reports a frame after layout; a flow
+     *  inside a display:none subtree measures 0 until re-shown). The reveal
+     *  machinery HOLDS an anchored arrival while any flow reports true
+     *  (location.md §0.5.3 — the component-sourced veto). Set at render and at
+     *  visibility-flip (view.ts markRichPending); cleared by the measurement
+     *  callback. Synchronous backends (headless, canvas) never set it. */
+    measurePending = false;
     /** The flow's EFFECTIVE `selectable` — the species default (ruled
      *  2026-07-30): a flowing document is selectable BY ITS NATURE, so when
      *  nobody on the prevailing chain says otherwise, the answer is true — the
@@ -538,6 +567,7 @@ class TextFlow extends View {
     /** The backend re-measured the native flow (font load, or becoming visible
      *  after attaching under a zero-sized ancestor). Track it so the stack re-flows. */
     onMeasured(h) {
+        this.measurePending = false; // the settled height has arrived (the veto lifts)
         if (this.surface !== null && h >= 0)
             this.height = h;
     }
@@ -545,7 +575,16 @@ class TextFlow extends View {
         const s = this.surface;
         if (s === null)
             return;
-        const link = this.onLink ?? (() => { });
+        // The DEFAULT for a rich-text link is the app's own follow (location.md
+        // §0.5): a plain click on an authored href reaches the app with no wiring —
+        // "#story" navigates in-app, a URL leaves through navigate — and an
+        // explicit onLink handler still wins whole. This closes §12.2 (every
+        // authored .md link was dead unless each flow hand-wired a handler).
+        const link = this.onLink ?? this.followLink;
+        // Arm the veto BEFORE the flow: on a deferred-measure backend the settled
+        // height arrives through onMeasured a frame later; until then this flow's
+        // height is provisional and an anchored reveal must hold (§0.5.3).
+        this.measurePending = s.deferredRichMeasure === true;
         const h = s.setRichContent(this.content, this.effSelectable(), this.flowWidth, (nh) => this.onMeasured(nh), link);
         if (h >= 0) { // native path: the backend flowed + measured
             this.clearManual();
@@ -554,7 +593,7 @@ class TextFlow extends View {
         }
         // Canvas: lay the runs out as child views ourselves.
         this.clearManual();
-        const { views, height, anchors } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? undefined);
+        const { views, height, anchors } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? this.followLink);
         this.anchorYs = anchors;
         let at = 0;
         for (const v of views) {
@@ -994,9 +1033,12 @@ export class RichText extends View {
         return !!r.dark;
     }
     /** A link run was activated. Mechanism only: fire `onLink(href)` for the app to
-     *  dispatch (scroll to an anchor, set a route, open externally). Unhandled, it
-     *  falls back to the App's `navigate` channel — so external links work with no
-     *  wiring, and an app that owns routing overrides by declaring `onLink`. */
+     *  dispatch (custom routing — the docs app's openDocLink); unhandled, the href
+     *  goes into the App's FOLLOW (location.md §0.5) — "#story" navigates in-app,
+     *  anything else leaves through navigate — so authored prose links work with
+     *  no wiring at all. (The old fallback was `navigate(href)` raw, which sent a
+     *  fragment ref to the HOST as an outbound URL — the browser then opened
+     *  DISTRO_ROOT + "#…", a different page entirely: §12.2's second half.) */
     dispatchLink(href) {
         if (typeof this.onLink === "function") {
             fireEvent(this, "link", href);
@@ -1005,10 +1047,11 @@ export class RichText extends View {
         let r = this;
         while (r instanceof View && r.parent !== null)
             r = r.parent;
-        // The root App's navigate SERVICE ACTION (capabilities.md §6) — the same call
-        // a link/button makes in a handler; the host opens it. (A non-App root has no
-        // navigate; the link is then inert, as before.)
-        r.navigate?.(href);
+        const app = r;
+        if (typeof app.follow === "function")
+            app.follow(href);
+        else
+            app.navigate?.(href); // a non-App root: external links keep working
     }
     /** The last layout's blocks, with the geometry each derived from. */
     laid = [];

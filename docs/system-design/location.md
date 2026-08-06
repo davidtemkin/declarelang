@@ -279,6 +279,67 @@ ruling the two silently disagree on anchor arrivals).
   synchronously with synthetic metrics, so headless remains first-call) when
   §0.5.3 lands.
 
+### 0.12 As built (2026-08-05, this tree) — deviations and closures
+
+§0.1–§0.10 are IMPLEMENTED in this tree and proven by probes (my-apps/*-probe.mjs,
+run against the dev server) plus the suites (unit 421, crawl 6, docs 31, verify-apps
+36 — all green). Where implementation bent the spec, the record:
+
+- **`onFollow` is a declared App EVENT** (`events: ["follow"]`, payload `string`),
+  not a free-form method — the checker's handler whitelist is strict, and the
+  result is stronger: the hook is typed, documented surface.
+- **§12.2's diagnosis, corrected.** Prose links were not dead — the flow-level
+  default fell back to `navigate(raw href)`, which sent "#why" to the HOST as an
+  outbound URL: the browser opened DISTRO_ROOT + "#why", a different page. The fix
+  is one line: the unhandled fallback is `follow`. A declared `onLink` still wins
+  whole (the docs app's custom routing untouched).
+- **Bare anchors resolve at RUNTIME too.** `follow("#story")` walks the tree for
+  the anchored view, derives its gating `shows`, and writes the compound
+  (`why@story`) — the URL carries the compound; the author never writes it
+  (compile error, with the rewrite). Compiler registry and runtime derivation
+  answer the same question from the same structure, so they cannot drift.
+- **The pinned reveal test restated** (§0.11 anticipated it): App-tree duplicate
+  anchors are now the build error; `-2` suffixing survives for class-internal
+  anchors only (test/unit.test.mjs, the reveal block).
+- **Embedded apps SUPPRESS native fragment hrefs** (linkBase ""), rather than
+  realizing own-URL anchors — the honest v1: the host cannot know an arbitrary
+  island's program URL. An embedder that does know it may set `linkBase` and
+  restore the natives. Routing inside islands is unaffected.
+- **The `<a>` realization is an overlay child** (absolutely filling, z-raised,
+  plain-click preventDefault-ed), never a wrapper — interactive children stay
+  valid HTML. Known cost: a linked container's overlay sits over its content
+  (text selection under a linked card is sacrificed; native-input-inside-linked-
+  container is pathological and documented as such).
+- **The scheme allowlist lives at BOTH seams** (backend.ts `allowedRef`): follow
+  refuses, and realization never emits — copy-link/middle-click stay shut.
+
+**Deferred, explicitly** (the merge should carry these forward as open items):
+- Virtualized targets (H3): a reveal into a `virtualize = true` region still has
+  no replicator-materialization path.
+- Build-time dead-link checking of authored `.md` (§0.8.5): not implemented — the
+  crawl tier covers rendered prose links (they realize as `<a>` and are
+  traversed/checked); the literal-DataSource-chain build check remains future.
+- Canvas AT synthesis (§0.4): linked views are focus stops and Enter follows on
+  canvas; synthesized AT link nodes are not yet emitted.
+- The label compile-check for text-free linked views: the runtime honors a
+  `label` for aria-label at realization; the compiler does not yet enforce it.
+- **The WARM crawl landed** (the follow-equivalence dividend): `warm: true` on
+  CrawlOptions boots ONCE and flips location per destination — measured on
+  apps/docs: **206s cold → 2.5s warm** (11.8s with the default parity gate:
+  `verifyWarm` documents re-derived by cold boot and compared byte-for-byte;
+  a divergence fails the crawl naming the location). 91/91 documents
+  byte-identical on docs, 5/5 on the homepage; crawl.test pins the parity.
+  bake-homepage-crawler and the dev server's toolchain worker run warm now;
+  prewarm and other callers stay cold until flipped deliberately.
+- **`follow` and `destinationOf` are RESERVED App member names now** — a child
+  named `follow:` on the App root fails at build ("already a member of the
+  running App", the existing guard; the perceptual suite's follower fixture
+  renamed to `chaser`). Same class of grab as `navigate`/`openWindow`; the
+  compile-time reservation check for App children is a pre-existing gap that
+  covers all of them equally.
+- The extraction env vector does not yet pin the clock (§0.6/§0.8): a
+  Date-reading onFollow would crawl non-deterministically; unchanged from main.
+
 ---
 
 Status of the record below: **RATIFIED, awaiting implementation**

@@ -404,23 +404,50 @@ carries the live host facts — viewport, colour scheme, pointer — as reactive
 holds the floor, and the host pans instead. It is a policy the host cooperates with rather than
 clamp arithmetic you write into constraints — and it is the App's alone, not a view attribute.
 
-### The URL is an attribute
+### The URL is an attribute; links are declared
 
-There is no router. **`location`** is the app's slice of the URL, as one two-way reactive string.
-The host seeds it before the first settle, mirrors app writes outward, and writes it back on
-back and forward.
+There is no router. **`location`** is the app's slice of the URL, as one two-way reactive string
+the host seeds before first settle, mirrors outward, and writes back on back/forward. A view
+that manifests a location declares it with **`shows`**; a place inside one is named with
+**`anchor`**; and any view becomes a link with **`link`** — one reference string, the same one
+an authored Markdown href carries:
 
 ```declare-fragment
-mode = { app.location.split("/")[0] },     // derive state FROM location
-onClick() { app.location = "why" }        // write location TO navigate
+home: View [ shows = "home",
+    pill: Text [ text = "Why", link = "#why" ],           // a destination
+    faq:  Text [ text = "The note", link = "#story" ],    // an anchor — its location DERIVED
+    repo: Text [ text = "GitHub", link = "https://github.com/example" ]
+    ],
+why: View [ shows = "why",
+    note: View [ anchor = "story", width = 200, height = 80 ]
+    ]
 ```
 
-Never assign the derived state — that displaces its constraint (§5) and disconnects the back
-button. Because state derives from `location`, the build's crawler — which boots the app headless
-and captures what each URL renders — can walk it cold at every location
-it links to, which is what makes a deep link indexable.
+`shows` implies the visibility (the location's destination part equals the name — the runtime
+strips its own trailing `@name`), and the compiler gains a **registry**: every literal reference
+is checked at build — a typo'd `#stroy` is a compile error naming the real names — and
+data-driven references (`link = { :to }`) are checked when the crawl evaluates them. A linked
+view realizes a REAL `<a href>` (hover preview, ⌘-click, copy-link, a keyboard stop, the
+crawler's edge); `link = ""` is not a link at all. `replace = true` beside a link overwrites the
+history entry — fine-grained movement within a place (a deck's arrows) must not bury Back.
 
-→ the App's own attributes: the model reference
+Every arrival — a link, a prose href, a pasted URL, back/forward — reduces to one operation,
+`app.follow(ref)`, and one app-scoped hook sees them all: `onFollow(ref) -> ref'` may transform,
+veto (`""`), or log; it runs ONCE, and on a cold arrival it runs at declared initials, before
+any data loads — so gate access at the destination, where a raw URL cannot bypass it:
+
+```declare-fragment
+account: View [ shows = "account", visible = { app.authed } ],
+login:   View [ shows = "account", visible = { !app.authed } ]   // location preserved
+```
+
+For computed families the grammar after `#` is the app's own (`#deck/q3/47` — parse it from
+`app.location`, derive everything). Never assign the derived state — that displaces its
+constraint (§5) and disconnects the back button. The build's crawler boots the app headless at
+every registry destination and traverses the links each render emits — which is what makes a
+deep link indexable, and why the crawl fails loudly on a reference naming nothing.
+
+→ `link`/`shows`/`anchor`/`replace`, `App.follow`/`onFollow`/`revealInset`: the model reference
 
 ## 7. Data
 
