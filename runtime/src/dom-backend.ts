@@ -795,14 +795,42 @@ class DomSurface implements Surface {
   private clipData: string | null = null;
   private clipObj: Path2D | null = null;
 
+  /** Selection phase 2 (RULED 2026-08-06, David — "the normal web page
+   *  thing" inside selectable regions): a container the author declared
+   *  `selectable = true` becomes a SELECTION SURFACE — pointer-hittable and
+   *  explicitly `text`, stamped, region-flipped — so a press on the gaps
+   *  BETWEEN its blocks anchors a native selection exactly as it would on a
+   *  page. Leaves keep winning where they exist (deepest hittable element);
+   *  this only catches what used to fall through to the inert body. */
+  private selectableRegion = false;
+  setSelectableRegion(on: boolean): void {
+    const el = this.element;
+    this.selectableRegion = on;
+    const st = el.style as CSSStyleDeclaration & { webkitUserSelect: string };
+    if (on) {
+      st.userSelect = "text";
+      st.webkitUserSelect = "text";
+      el.dataset.declareSelectable = "1";
+      refreshSelectableRegion(el);
+    } else {
+      st.userSelect = "";
+      st.webkitUserSelect = "";
+      delete el.dataset.declareSelectable;
+    }
+    this.updateCarved();
+  }
+
   /** Reconcile carved-sink state (see CARVED): membership, and the element's
-   *  effective pointer-events — authored override > carved-inert > sink default. */
+   *  effective pointer-events — authored override > carved-inert > sink default
+   *  (a declared selection surface counts as a pointer target). */
   private updateCarved(): void {
     const el = this.element;
     if (this.clipData !== null && SINKS.has(el)) CARVED.set(el, this);
     else CARVED.delete(el);
     el.style.pointerEvents =
-      this.peOverride !== "" ? this.peOverride : CARVED.has(el) ? "none" : SINKS.has(el) ? "auto" : "none";
+      this.peOverride !== "" ? this.peOverride
+        : CARVED.has(el) ? "none"
+        : SINKS.has(el) || this.selectableRegion ? "auto" : "none";
   }
 
   /** Does the viewport point fall in this carved sink's clipped region?

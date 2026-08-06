@@ -7041,6 +7041,8 @@ var DeclareMac = (() => {
          *  attach, so a backend that keeps content in arrival order (the DOM) gets
          *  exactly the paint order the Canvas walk uses: content, then children. */
         flush(s) {
+          if (this.selectable === true)
+            s.setSelectableRegion?.(true);
           s.setX(this.x);
           s.setY(this.y);
           s.setWidth(this.width);
@@ -7379,7 +7381,13 @@ var DeclareMac = (() => {
         // derive is the consumer that crosses the seam). Defaults are the
         // browser-native text defaults Text carried through R3–R9.
         textColor: { def: 0, prevailing: true },
-        selectable: { def: false, prevailing: true },
+        selectable: {
+          def: false,
+          prevailing: true,
+          // Phase-2 selection: an explicitly-selectable container realizes as a
+          // selection surface (optional-chained — DOM-only affordance).
+          push: (v, val) => v.surface?.setSelectableRegion?.(val === true)
+        },
         fontSize: { def: 16, prevailing: true },
         fontFamily: { def: "sans-serif", prevailing: true },
         fontWeight: { def: "normal", prevailing: true },

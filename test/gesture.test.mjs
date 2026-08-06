@@ -135,6 +135,10 @@ const SEL_RAW = `App [ width = 640, height = 700, fill = #202830,
         vetoed: Markdown [ width = 280, text = "a vetoed document" ],
         onClick() { },
         ],
+    region: View [ x = 20, y = 440, width = 300, height = 200, selectable = true,
+        p1: Text [ y = 8, text = "first block" ],
+        p2: Text [ y = 60, text = "second block" ],
+        ],
     ]`;
 const selCompiled = compile(SEL_RAW);
 assert.deepEqual(selCompiled.errors, [], "selection fixture compiles clean");
@@ -342,6 +346,25 @@ await test("dom: the subtractive selection realization, amended — <html> none 
   assert.deepEqual(r.label, { us: "none", stamped: false }, "unselectable Text: leaf `none`, no stamp");
   assert.deepEqual(r.doc, { us: "text", stamped: true }, "Markdown with no declaration: the flow-species default — a document selects");
   assert.deepEqual(r.vetoed, { us: "none", stamped: false }, "…and one `selectable = false` provision on the card vetoes it");
+});
+
+await test("dom: selection phase 2 — a selectable CONTAINER is a selection surface (gaps anchor like a page)", async () => {
+  const tp = await browser.newPage();
+  await tp.goto(`${B}/dom-selection`, { waitUntil: "networkidle2", timeout: 30000 });
+  await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
+  // settle past the region-flip's two frames
+  await tp.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+  const r = await tp.evaluate(() => {
+    const region = [...document.querySelectorAll("[data-declare-selectable]")]
+      .find((el) => el.tagName === "DIV" && el.textContent.includes("first block") && el.textContent.includes("second block"));
+    if (!region) return { found: false };
+    const cs = getComputedStyle(region);
+    return { found: true, pe: cs.pointerEvents, us: cs.webkitUserSelect || cs.userSelect };
+  });
+  await tp.close();
+  assert.equal(r.found, true, "the selectable container carries the stamp");
+  assert.equal(r.pe, "auto", "…and is a pointer target, so gap presses anchor on it");
+  assert.equal(r.us, "text", "…with explicit text over the none baseline");
 });
 
 await test("dom: hovered/pressed hit where things PAINT — page scroll, pane scroll, ignoreScroll chrome", async () => {

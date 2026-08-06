@@ -92,6 +92,12 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
+  setSelectableRegion: {
+    dom: true,
+    canvas: "native text selection is a DOM affordance — the canvas walk has no selection to anchor (selection phase 2, 2026-08-06)",
+    mac: "the host's selection story rides its native TextEngine; a region surface awaits that design (native-host.md)",
+    headless: NOT_APPLICABLE,
+  },
   travelWith: {
     dom: true, canvas: true,
     mac: "GAP (not yet built) — surface re-homing: chrome that must ride a scroller's content (the focus ring) or escape one (the DataGrid's header). The callers all check the RETURN value and keep a reactive root-space fallback, so the native host degrades to correct-but-lagging geometry rather than breaking — which is exactly why this absence could go unnoticed without this table",
@@ -219,7 +225,7 @@ for (const member of members) {
 // ResizeObserver.)
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 14,
+  assert.equal(members.length, 15,
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);

@@ -289,6 +289,12 @@ export interface Surface {
      *  exists. DOM realizes it as a zero-width strut; null clears. Without it
      *  the range ends at the last materialized row — the scrollbar treadmill. */
     setVirtualExtent?(h: number | null): void;
+    /** Selection phase 2 (2026-08-06): a `selectable = true` CONTAINER becomes
+     *  a selection surface — presses on the gaps between its blocks anchor a
+     *  native selection like a normal page. DOM-only by nature (native
+     *  selection is a DOM affordance); optional so the other realizations
+     *  honestly lack it. */
+    setSelectableRegion?(on: boolean): void;
     /** OPTIONAL — travel with a scroller: re-host this surface's element inside
      *  `host`'s scroll container so the PLATFORM carries it with the scrolled
      *  content (zero-lag chrome that belongs to content — the focus ring around
