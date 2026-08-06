@@ -63,6 +63,12 @@ export interface Provenance {
         /** Typed into the Inspector at runtime — not compiled from source. */
         live: boolean;
         deps: readonly string[] | null;
+        /** The MACHINERY writer, when the owner is not an authored constraint —
+         *  "SimpleLayout" for layout-owned geometry (P2-2, field report
+         *  2026-08-05: an anonymous owner with null source/deps was explain()'s
+         *  one silent answer, at exactly the moment "a layout wrote it" was the
+         *  answer being asked for). Null for authored constraints. */
+        writer: string | null;
         /** The authored `{ … }` text, when this constraint came from a program. */
         source: string | null;
         pos: {

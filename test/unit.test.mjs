@@ -55,6 +55,8 @@ import {
   headingSlug,
 } from "../runtime/dist/index.js";
 import { scanDatapaths, rewriteDatapaths, fillDatapaths } from "../runtime/dist/datapath.js";
+import { provideTransport } from "../runtime/dist/data.js";
+import { explain } from "../runtime/dist/inspect.js";
 import { sample, motionToken, MOTION_TOKENS, Clock, setClock } from "../runtime/dist/animate.js";
 import { Animator, AnimatorGroup } from "../runtime/dist/animator.js";
 
@@ -1703,6 +1705,46 @@ App [ width = 1, height = 1, B [ ] ]`);
 });
 
 // ── R6: check() over classes and declarations ────────────────────────────────
+
+await test("P1-2: set-then-fetch in one handler requests the NEW address (settle-at-fetch)", async () => {
+  const r12 = compile(`App [ width = 10,
+    q: string = "a",
+    d: DataSource [ url = { "https://x.test/" + app.q } ],
+  ]`, {});
+  assert.equal(r12.errors.length, 0, r12.errors.map((e) => e.message).join("; "));
+  const app = build(r12.source, { deps: r12.deps });
+  const seen = [];
+  const prev = provideTransport((url) => { seen.push(url); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) }); });
+  try {
+    app.q = "b";           // same-breath write…
+    await app.d.fetch();   // …then fetch: must see the settled url
+    assert.equal(seen[0], "https://x.test/b", "fetch read the settled address, not the stale one");
+  } finally {
+    provideTransport(prev);
+    app.discard();
+  }
+});
+
+await test("P2-2: explain() names the layout that owns a child's geometry", () => {
+  const r22 = compile(`App [ width = 200, height = 200,
+    col: View [ width = 100,
+      layout: SimpleLayout [ axis = y, spacing = 4 ],
+      a: View [ width = 10, height = 10 ],
+      b: View [ width = 10, height = 10 ],
+    ],
+  ]`, {});
+  assert.equal(r22.errors.length, 0, r22.errors.map((e) => e.message).join("; "));
+  const app = build(r22.source, { deps: r22.deps });
+  try {
+    const p = explain(app.col.b, "y");
+    assert.ok(p.constraint !== null, "layout ownership reports as a constraint");
+    assert.equal(p.constraint.writer, "SimpleLayout", "…and the WRITER is named");
+    const own = explain(app.col, "width");
+    assert.ok(own.constraint === null || own.constraint.writer === null, "authored slots name no machinery writer");
+  } finally {
+    app.discard();
+  }
+});
 
 await test("declaration order is the author's business — decls after the App, forward extends, and the two unbuildable shapes (ruled 2026-08-06)", () => {
   // The parser accepts declarations on either side of the root instance, and

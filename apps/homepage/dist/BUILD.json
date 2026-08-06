@@ -165,7 +165,7 @@
     "id": "apps/homepage/stats.json",
     "kind": "file",
     "v": {
-     "hash": "473da920630cb9ec",
+     "hash": "ec6828ab0808f839",
      "size": 575
     }
    },
@@ -429,8 +429,8 @@
     "id": "runtime/dist/data.js",
     "kind": "file",
     "v": {
-     "hash": "b1e3e98ddf9f1272",
-     "size": 26407
+     "hash": "ca6633a19d558600",
+     "size": 26897
     }
    },
    {
@@ -549,8 +549,8 @@
     "id": "runtime/dist/inspect.js",
     "kind": "file",
     "v": {
-     "hash": "a3297f24542c36da",
-     "size": 24569
+     "hash": "81fe7ed0a075569e",
+     "size": 25204
     }
    },
    {

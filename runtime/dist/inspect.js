@@ -222,6 +222,18 @@ export function explain(node, attr) {
                 static: owner.isStatic,
                 live: owner.live === true,
                 deps: owner.wiredPaths,
+                // A sourceless owner is machinery — and for a box slot the writer
+                // is almost always the parent's layout. Name it (duck-typed on
+                // `place`, the Layout contract; kindName resists minification).
+                writer: owner.source == null
+                    ? (() => {
+                        const p = node.parent ?? null;
+                        const lay = p?.layout;
+                        return lay != null && typeof lay.place === "function"
+                            ? kindName(lay)
+                            : null;
+                    })()
+                    : null,
                 source: owner.source,
                 pos: owner.sourcePos,
             }

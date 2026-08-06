@@ -39,7 +39,7 @@
 // module's plain-JSON + region-cells design sheds (APPROACH §2/§6).
 
 import { Node } from "./node.js";
-import { Cell, isTracking } from "./reactive.js";
+import { Cell, isTracking, settle } from "./reactive.js";
 import { DeclareError } from "./errors.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import type { AttrType } from "./value.js";
@@ -429,6 +429,13 @@ export class DataSource extends Dataset {
    *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
   async fetch(): Promise<void> {
     const seq = ++this.seq;
+    // Settle FIRST (P1-2, field report 2026-08-05, three independent runs):
+    // constraint settle is a microtask, and a handler that writes a slot this
+    // source's `url`/`body` derives from and then calls fetch() in the same
+    // breath would otherwise read the OLD address — the wrong resource loads,
+    // silently. One synchronous settle makes "set, then fetch" mean what it
+    // says; idempotent when nothing is pending.
+    settle();
     // The address is read ONCE and carried: `url` is a slot like any other, so a
     // constraint may re-settle it while this request is in flight, and a message
     // that re-read `this.url` after the await named an address that was never

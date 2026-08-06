@@ -236,6 +236,12 @@ export interface Provenance {
     /** Typed into the Inspector at runtime — not compiled from source. */
     live: boolean;
     deps: readonly string[] | null;
+    /** The MACHINERY writer, when the owner is not an authored constraint —
+     *  "SimpleLayout" for layout-owned geometry (P2-2, field report
+     *  2026-08-05: an anonymous owner with null source/deps was explain()'s
+     *  one silent answer, at exactly the moment "a layout wrote it" was the
+     *  answer being asked for). Null for authored constraints. */
+    writer: string | null;
     /** The authored `{ … }` text, when this constraint came from a program. */
     source: string | null;
     pos: { line: number; col: number } | null;
@@ -267,6 +273,18 @@ export function explain(node: Node, attr: string): Provenance {
           static: owner.isStatic,
           live: owner.live === true,
           deps: owner.wiredPaths,
+          // A sourceless owner is machinery — and for a box slot the writer
+          // is almost always the parent's layout. Name it (duck-typed on
+          // `place`, the Layout contract; kindName resists minification).
+          writer: owner.source == null
+            ? (() => {
+                const p = (node as { parent?: Node | null }).parent ?? null;
+                const lay = (p as { layout?: unknown } | null)?.layout;
+                return lay != null && typeof (lay as { place?: unknown }).place === "function"
+                  ? kindName(lay as Node)
+                  : null;
+              })()
+            : null,
           source: owner.source,
           pos: owner.sourcePos,
         }
