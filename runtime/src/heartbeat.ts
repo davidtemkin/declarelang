@@ -33,6 +33,10 @@ import { defineAttributes } from "./attributes.js";
 const MAX_DT = 1 / 15;
 
 export class Heartbeat extends Node implements Ticker {
+  /** Life by KIND (Ticker.perpetual): a Heartbeat integrates while `running`
+   *  and never "arrives" — it must not hold settleMotion open. */
+  readonly perpetual = true;
+
   /** Running? `false` pauses the heartbeat without discarding the member —
    *  a live slot, so `running = { app.simulating }` is the idiom. */
   declare running: boolean;

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "c2fb97e8ff14",
+  "buildId": "9ffec441cb3a",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -12693,7 +12693,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 162
+    "line": 163
    },
    "parent": "Animator",
    "seeAlso": [],
@@ -12709,7 +12709,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 166
+    "line": 167
    },
    "parent": "Animator",
    "seeAlso": [],
@@ -12725,7 +12725,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 186
+    "line": 187
    },
    "parent": "Animator",
    "seeAlso": [],
@@ -12746,7 +12746,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 196
+    "line": 197
    },
    "parent": "Animator",
    "seeAlso": [],
@@ -12767,7 +12767,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 249
+    "line": 253
    },
    "parent": "Animator",
    "seeAlso": [],
@@ -12783,7 +12783,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 261
+    "line": 265
    },
    "parent": "Animator",
    "seeAlso": [],
@@ -12799,7 +12799,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 272
+    "line": 276
    },
    "parent": "Animator",
    "seeAlso": [],
@@ -13189,7 +13189,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 405
+    "line": 409
    },
    "parent": "AnimatorGroup",
    "seeAlso": [],
@@ -13205,7 +13205,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 409
+    "line": 413
    },
    "parent": "AnimatorGroup",
    "seeAlso": [],
@@ -13221,7 +13221,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 418
+    "line": 422
    },
    "parent": "AnimatorGroup",
    "seeAlso": [],
@@ -13242,7 +13242,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 429
+    "line": 433
    },
    "parent": "AnimatorGroup",
    "seeAlso": [],
@@ -13263,7 +13263,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 440
+    "line": 444
    },
    "parent": "AnimatorGroup",
    "seeAlso": [],
@@ -13279,7 +13279,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 449
+    "line": 453
    },
    "parent": "AnimatorGroup",
    "seeAlso": [],
@@ -13295,7 +13295,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/animator.ts",
-    "line": 460
+    "line": 464
    },
    "parent": "AnimatorGroup",
    "seeAlso": [],
@@ -29760,7 +29760,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/animator.ts",
-      "line": 196
+      "line": 197
      },
      "parent": "Animator",
      "seeAlso": [],
@@ -29781,7 +29781,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/animator.ts",
-      "line": 249
+      "line": 253
      },
      "parent": "Animator",
      "seeAlso": [],
@@ -30147,7 +30147,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/animator.ts",
-      "line": 429
+      "line": 433
      },
      "parent": "AnimatorGroup",
      "seeAlso": [],
@@ -30168,7 +30168,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/animator.ts",
-      "line": 440
+      "line": 444
      },
      "parent": "AnimatorGroup",
      "seeAlso": [],

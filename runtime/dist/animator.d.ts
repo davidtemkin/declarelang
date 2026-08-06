@@ -32,6 +32,7 @@ export declare class Animator extends Node implements Animatable {
     motion: Motion;
     /** How many times to play from→to (default 1; Infinity legal, LZX). */
     repeat: number;
+    perpetual: boolean;
     /** Opt-in auto-start at init. Default **false** — a deliberate divergence
      *  from LZX's `start="true"`: auto-start is the rare case (most animation is
      *  triggered), and the default's failure is silent — a start/reverse pair on

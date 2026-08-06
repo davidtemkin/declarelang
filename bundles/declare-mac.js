@@ -1545,6 +1545,14 @@ var DeclareMac = (() => {
         get busy() {
           return this.tickers.size > 0;
         }
+        /** Any FINITE motion in flight — the settle predicate (busy minus the
+         *  perpetual tickers; see Ticker.perpetual). */
+        get settling() {
+          for (const t of this.tickers)
+            if (t.perpetual !== true)
+              return true;
+          return false;
+        }
         /** Swap the frame source IN PLACE, keeping enrolled tickers — how the driven
          *  clock (inspect.ts: `step`/`settleMotion`, verify-and-evals.md §2.3) takes
          *  over from rAF and hands back. Cancels any pending frame on the old
@@ -7737,6 +7745,7 @@ var DeclareMac = (() => {
       init_attributes();
       LEDGER = /* @__PURE__ */ Symbol("animatedAttributes");
       Animator = class _Animator extends Node2 {
+        perpetual = false;
         // ── Per-run state: set by start(), read by tick(), cleared by end(). All
         //    the driving inputs are SAMPLED at start (animation.md §1) so writing
         //    `to`/`duration`/… mid-run has no effect until a restart. ────────────
@@ -7831,6 +7840,7 @@ var DeclareMac = (() => {
           this.runDuration = this.duration;
           this.runMotion = this.motion;
           this.cyclesLeft = this.repeat;
+          this.perpetual = this.repeat === Infinity;
           this.elapsed = 0;
           this.lastNow = null;
           this.running = true;
@@ -12946,6 +12956,9 @@ var DeclareMac = (() => {
       init_attributes();
       MAX_DT = 1 / 15;
       Heartbeat = class extends Node2 {
+        /** Life by KIND (Ticker.perpetual): a Heartbeat integrates while `running`
+         *  and never "arrives" — it must not hold settleMotion open. */
+        perpetual = true;
         /** The previous frame's timestamp, or null before the first tick. */
         last = null;
         registered = false;
@@ -15460,18 +15473,24 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
           manual.fire(ms);
           settle();
         },
-        /** Run all in-flight motion to rest (springs settle, animators finish),
-         *  frame by frame. Returns false if `maxMs` of stepped time wasn't enough —
-         *  the assertion harness's "this never settles" signal. */
+        /** Run all in-flight FINITE motion to rest (springs settle, non-looping
+         *  animators finish), frame by frame. Perpetual motion — a Heartbeat, an
+         *  `repeat = Infinity` animator — is life, not transition (RULED
+         *  2026-08-06; Ticker.perpetual): it keeps ticking under the steps but
+         *  never holds settle open, so a pulsing indicator no longer makes the one
+         *  determinism primitive time out. Returns false if `maxMs` of stepped
+         *  time wasn't enough — the "this never settles" signal, now reserved for
+         *  genuine non-convergence (e.g. a spring perpetually re-armed from its
+         *  own rest). */
         settleMotion(maxMs = 5e3) {
           if (clockMode !== "manual")
             this.manual();
           let t = 0;
-          while (sharedClock.busy && t < maxMs) {
+          while (sharedClock.settling && t < maxMs) {
             this.step(16.7);
             t += 16.7;
           }
-          return !sharedClock.busy;
+          return !sharedClock.settling;
         }
       };
       leafText = (v) => {

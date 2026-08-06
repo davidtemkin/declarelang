@@ -227,6 +227,14 @@ export class Clock {
     get busy() {
         return this.tickers.size > 0;
     }
+    /** Any FINITE motion in flight — the settle predicate (busy minus the
+     *  perpetual tickers; see Ticker.perpetual). */
+    get settling() {
+        for (const t of this.tickers)
+            if (t.perpetual !== true)
+                return true;
+        return false;
+    }
     /** Swap the frame source IN PLACE, keeping enrolled tickers — how the driven
      *  clock (inspect.ts: `step`/`settleMotion`, verify-and-evals.md §2.3) takes
      *  over from rAF and hands back. Cancels any pending frame on the old

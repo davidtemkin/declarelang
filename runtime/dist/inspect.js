@@ -297,18 +297,24 @@ export const clock = {
         manual.fire(ms);
         settle();
     },
-    /** Run all in-flight motion to rest (springs settle, animators finish),
-     *  frame by frame. Returns false if `maxMs` of stepped time wasn't enough —
-     *  the assertion harness's "this never settles" signal. */
+    /** Run all in-flight FINITE motion to rest (springs settle, non-looping
+     *  animators finish), frame by frame. Perpetual motion — a Heartbeat, an
+     *  `repeat = Infinity` animator — is life, not transition (RULED
+     *  2026-08-06; Ticker.perpetual): it keeps ticking under the steps but
+     *  never holds settle open, so a pulsing indicator no longer makes the one
+     *  determinism primitive time out. Returns false if `maxMs` of stepped
+     *  time wasn't enough — the "this never settles" signal, now reserved for
+     *  genuine non-convergence (e.g. a spring perpetually re-armed from its
+     *  own rest). */
     settleMotion(maxMs = 5000) {
         if (clockMode !== "manual")
             this.manual();
         let t = 0;
-        while (sharedClock.busy && t < maxMs) {
+        while (sharedClock.settling && t < maxMs) {
             this.step(16.7);
             t += 16.7;
         }
-        return !sharedClock.busy;
+        return !sharedClock.settling;
     },
 };
 // ── the page bridge ─────────────────────────────────────────────────────────

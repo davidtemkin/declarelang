@@ -87,8 +87,12 @@ Motion must be assertable and screenshots reproducible, so the clock must be dri
   a spring perpetually re-armed from its own rest (ping-pong), is detected by
   non-convergence: after K re-arms of the same source within one settle, stop
   and NAME it ("app.pulse re-armed 6× — driven by its own rest; treated as
-  ambient") — a diagnosed note, never a silent timeout. NOT YET IMPLEMENTED —
-  the predicate needs kind-tagged clock tickers; queued for the next arc.
+  ambient") — a diagnosed note, never a silent timeout. IMPLEMENTED 2026-08-06:
+  `Ticker.perpetual` (Heartbeat by kind; Animator when `repeat = Infinity`),
+  `Clock.settling` as the finite-motion predicate, settleMotion rides it —
+  pinned in unit ("settleMotion waits for transitions, not for life"). The
+  ping-pong non-convergence NAMING remains future polish; the timeout it
+  reserves is now honest.
 - Verify drives it: "click, step 120 ms, snapshot mid-flight, settleMotion, assert" — the calendar's zoom becomes a *deterministic* sequence of assertable frames. This is the difference between our screenshots-during-transitions (timing-lucky) and a real oracle.
 
 ### 2.4 Assertions — at the language's altitude

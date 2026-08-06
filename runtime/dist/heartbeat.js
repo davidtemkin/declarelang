@@ -30,6 +30,9 @@ import { defineAttributes } from "./attributes.js";
  *  explodes; ~4 frames at 60Hz is the standard clamp. */
 const MAX_DT = 1 / 15;
 export class Heartbeat extends Node {
+    /** Life by KIND (Ticker.perpetual): a Heartbeat integrates while `running`
+     *  and never "arrives" — it must not hold settleMotion open. */
+    perpetual = true;
     /** The previous frame's timestamp, or null before the first tick. */
     last = null;
     registered = false;

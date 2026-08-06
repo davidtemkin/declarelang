@@ -1706,6 +1706,30 @@ App [ width = 1, height = 1, B [ ] ]`);
 
 // ── R6: check() over classes and declarations ────────────────────────────────
 
+await test("3.2: settleMotion waits for transitions, not for life (perpetual tickers — ruled 2026-08-06)", () => {
+  const clock = new Clock({ now: () => tNow, request: (cb) => { pending = cb; return 1; }, cancel: () => { pending = null; } });
+  let tNow = 0; let pending = null;
+  setClock(clock);
+  try {
+    const app = build(`App [ width = 100, height = 100,
+      v: number = 0,
+      beat: Heartbeat [ onFrame(dt: number) { this.parent.v = this.parent.v + dt } ],
+      box: View [ x = 0, width = 10, height = 10,
+        s: Spring [ attribute = x, to = 50 ] ],
+    ]`);
+    try {
+      assert.equal(clock.busy, true, "the heartbeat ticks (life paints)");
+      // drive frames until the spring rests: settling must FALL even though
+      // the heartbeat never stops
+      let steps = 0;
+      while (clock.settling && steps < 600) { tNow += 16.7; const cb = pending; pending = null; if (cb) cb(tNow); steps++; }
+      assert.equal(clock.settling, false, "the spring's transition settled");
+      assert.equal(clock.busy, true, "…while the heartbeat keeps the clock alive");
+      assert.ok(steps < 600, "settled by convergence, not by cap");
+    } finally { app.discard(); }
+  } finally { setClock(new Clock()); }
+});
+
 await test("P1-2: set-then-fetch in one handler requests the NEW address (settle-at-fetch)", async () => {
   const r12 = compile(`App [ width = 10,
     q: string = "a",

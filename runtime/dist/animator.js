@@ -58,6 +58,7 @@ function numOf(target, attr) {
     return typeof v === "number" ? v : 0;
 }
 export class Animator extends Node {
+    perpetual = false;
     // ── Per-run state: set by start(), read by tick(), cleared by end(). All
     //    the driving inputs are SAMPLED at start (animation.md §1) so writing
     //    `to`/`duration`/… mid-run has no effect until a restart. ────────────
@@ -164,6 +165,9 @@ export class Animator extends Node {
         this.runDuration = this.duration;
         this.runMotion = this.motion;
         this.cyclesLeft = this.repeat;
+        // Declared perpetuity (Ticker.perpetual): `repeat = Infinity` is life —
+        // it keeps painting without holding settleMotion open.
+        this.perpetual = this.repeat === Infinity;
         this.elapsed = 0;
         this.lastNow = null;
         this.running = true;

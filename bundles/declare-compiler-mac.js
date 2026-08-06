@@ -767,6 +767,10 @@ var DeclareCompilerMac = (() => {
       get busy() {
         return this.tickers.size > 0;
       }
+      get settling() {
+        for (let p of this.tickers) if (p.perpetual !== true) return true;
+        return false;
+      }
       setScheduler(p) {
         this.handle !== null && (this.sched.cancel(this.handle), this.handle = null), this.sched = p, this.tickers.size > 0 && !this.ticking && (this.handle = this.sched.request(this.frame));
       }
@@ -94842,6 +94846,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
     Sd();
     uCt = /* @__PURE__ */ Symbol("animatedAttributes");
     i1 = class y extends vp {
+      perpetual = false;
       running = false;
       grouped = false;
       runTarget = null;
@@ -94877,7 +94882,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
         let A = FWe(p), P = A.get(T), B = P === void 0;
         P === void 0 && (P = { expected: 0, count: 0, displaced: null }, A.set(T, P)), P.count === 0 && (P.displaced = Dc(p, T), P.displaced?.suspend());
         let U = fCt(p, T);
-        B && (P.expected = this.from !== null ? this.from : U), this.runDelta = this.relative ? this.to : this.to - P.expected, P.expected += this.runDelta, P.count += 1, this.fromJump = this.from !== null ? this.from - U : 0, this.traveled = 0, this.runDuration = this.duration, this.runMotion = this.motion, this.cyclesLeft = this.repeat, this.elapsed = 0, this.lastNow = null, this.running = true, Ia(this, "settled", false), this.grouped || mm.add(this), this.fire("onStart");
+        B && (P.expected = this.from !== null ? this.from : U), this.runDelta = this.relative ? this.to : this.to - P.expected, P.expected += this.runDelta, P.count += 1, this.fromJump = this.from !== null ? this.from - U : 0, this.traveled = 0, this.runDuration = this.duration, this.runMotion = this.motion, this.cyclesLeft = this.repeat, this.perpetual = this.repeat === 1 / 0, this.elapsed = 0, this.lastNow = null, this.running = true, Ia(this, "settled", false), this.grouped || mm.add(this), this.fire("onStart");
       }
       stop() {
         this.running && (this.grouped || mm.remove(this), this.releaseSlot(false), this.end());
@@ -97635,6 +97640,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
     HI();
     Sd();
     ewt = 1 / 15, DU = class extends vp {
+      perpetual = true;
       last = null;
       registered = false;
       constructor() {
@@ -98711,8 +98717,8 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
     }, settleMotion(y = 5e3) {
       f4 !== "manual" && this.manual();
       let p = 0;
-      for (; mm.busy && p < y; ) this.step(16.7), p += 16.7;
-      return !mm.busy;
+      for (; mm.settling && p < y; ) this.step(16.7), p += 16.7;
+      return !mm.settling;
     } };
     UU = (y) => {
       if (y == null) return "null";

@@ -113,6 +113,7 @@ export class Animator extends Node implements Animatable {
   declare motion: Motion;
   /** How many times to play from→to (default 1; Infinity legal, LZX). */
   declare repeat: number;
+  perpetual = false;
   /** Opt-in auto-start at init. Default **false** — a deliberate divergence
    *  from LZX's `start="true"`: auto-start is the rare case (most animation is
    *  triggered), and the default's failure is silent — a start/reverse pair on
@@ -235,6 +236,9 @@ export class Animator extends Node implements Animatable {
     this.runDuration = this.duration;
     this.runMotion = this.motion;
     this.cyclesLeft = this.repeat;
+    // Declared perpetuity (Ticker.perpetual): `repeat = Infinity` is life —
+    // it keeps painting without holding settleMotion open.
+    this.perpetual = this.repeat === Infinity;
     this.elapsed = 0;
     this.lastNow = null;
     this.running = true;

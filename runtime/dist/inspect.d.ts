@@ -100,9 +100,15 @@ export declare const clock: {
     /** Advance time by `ms` (one synthetic frame), then settle the reactive
      *  graph — every constraint downstream of the motion lands before return. */
     step(ms?: number): void;
-    /** Run all in-flight motion to rest (springs settle, animators finish),
-     *  frame by frame. Returns false if `maxMs` of stepped time wasn't enough —
-     *  the assertion harness's "this never settles" signal. */
+    /** Run all in-flight FINITE motion to rest (springs settle, non-looping
+     *  animators finish), frame by frame. Perpetual motion — a Heartbeat, an
+     *  `repeat = Infinity` animator — is life, not transition (RULED
+     *  2026-08-06; Ticker.perpetual): it keeps ticking under the steps but
+     *  never holds settle open, so a pulsing indicator no longer makes the one
+     *  determinism primitive time out. Returns false if `maxMs` of stepped
+     *  time wasn't enough — the "this never settles" signal, now reserved for
+     *  genuine non-convergence (e.g. a spring perpetually re-armed from its
+     *  own rest). */
     settleMotion(maxMs?: number): boolean;
 };
 /** The `window.__declare` surface boot.ts installs for a top-level app: the

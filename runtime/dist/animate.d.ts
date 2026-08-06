@@ -55,6 +55,14 @@ export declare const MOTION_TOKENS: readonly string[];
  *  when the last one drops the clock goes idle. */
 export interface Ticker {
     tick(now: number): boolean;
+    /** Life, not transition (RULED 2026-08-06, David — verify-and-evals.md
+     *  "Settle and ambient motion"): a ticker whose perpetuity is DERIVED from
+     *  its own declaration — a Heartbeat (runs while `running`, never arrives
+     *  anywhere) or an Animator with `repeat = Infinity`. It keeps painting but
+     *  does not hold `settling` open, so settleMotion waits only for
+     *  transitions. Never an author-facing flag — derivation, not declaration,
+     *  so nothing can drift. */
+    perpetual?: boolean;
 }
 /** The frame source the clock drives itself from — the one seam that makes it
  *  testable. The runtime binds it to `requestAnimationFrame` /
@@ -101,6 +109,9 @@ export declare class Clock {
     get running(): boolean;
     /** Whether any motion is in flight — what `settleMotion` (inspect.ts) polls. */
     get busy(): boolean;
+    /** Any FINITE motion in flight — the settle predicate (busy minus the
+     *  perpetual tickers; see Ticker.perpetual). */
+    get settling(): boolean;
     /** Swap the frame source IN PLACE, keeping enrolled tickers — how the driven
      *  clock (inspect.ts: `step`/`settleMotion`, verify-and-evals.md §2.3) takes
      *  over from rAF and hands back. Cancels any pending frame on the old
