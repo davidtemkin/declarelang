@@ -1,5 +1,6 @@
 // derive — every committed artifact that is DERIVED from the tree, as a RULE
-// GRAPH: declared inputs, declared outputs, order validated against the
+// GRAPH (design record: docs/system-design/derivation.md · usage:
+// docs/operational/derive.md): declared inputs, declared outputs, order validated against the
 // declarations, and a rule skipped when nothing it reads has changed.
 //
 // This is a make, structured as one because the problem is make-shaped and the

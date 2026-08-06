@@ -1,4 +1,5 @@
-// run-gates — the test chain, with a clock on it.
+// run-gates — the test chain, with a clock on it, and suites as RULES
+// (design record: docs/system-design/derivation.md · usage: docs/operational/derive.md).
 //
 // `npm test` was 44 suites joined by `&&`: one opaque command that prints
 // whatever each suite prints and takes as long as it takes. Two failure modes

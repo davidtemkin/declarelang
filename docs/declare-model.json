@@ -5901,6 +5901,11 @@
     "title": "Building for production",
     "kind": "operational"
    },
+   "operational:derive": {
+    "path": "docs/operational/derive.md",
+    "title": "Derived artifacts and the gates — what runs when",
+    "kind": "operational"
+   },
    "operational:dev-server": {
     "path": "docs/operational/dev-server.md",
     "title": "The dev server",
@@ -39651,6 +39656,14 @@
      "preview": "For deployment you do not want a compiler on the critical path. declarec precompiles an app at build time and emits a self-contained, static directory — the Declare analogue of a bundler's production build. bash node tools/declarec.mjs apps…"
     },
     {
+     "name": "Derived artifacts and the gates",
+     "subtitle": "what runs when",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/operational/derive.md",
+     "preview": "This repository commits its generated artifacts — the prewarm cache, the documentation model, the production builds, the baked static pages, the build id — so a clone hosts and runs with no build step. Two commands keep those artifacts true…"
+    },
+    {
      "name": "The dev server",
      "subtitle": "",
      "kind": "doc",
@@ -39880,6 +39893,14 @@
      "label": "Markdown file",
      "path": "docs/system-design/declare.md",
      "preview": "Working name; provisional — a direction under active design, not a committed build. The language is specified in declare-language.md(declare-language.md); the compiler and runtime in declare-implementation.md(declare-implementation.md). The…"
+    },
+    {
+     "name": "Derivation",
+     "subtitle": "the build, commit, and gate pipeline as a rule graph",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/derivation.md",
+     "preview": "Status: BUILT AND RATIFIED-IN-USE, 2026-08-05 (David's ruling: \"fundamentally this is like a makefile — there should be structure\"). This is the design record for tools/internal/derive.mjs and tools/internal/run-gates.mjs in their rule-grap…"
     },
     {
      "name": "Designing a Language for LLMs",
