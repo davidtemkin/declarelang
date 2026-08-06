@@ -26,10 +26,12 @@ export interface ClassInfo {
  *  shape", now plugged in). Per-PROGRAM on purpose: the global SCHEMAS stays
  *  built-ins only, so two programs' classes can never collide.
  *
- *  A base must be declared above its subclass (or be a built-in); children
- *  inside bodies may reference classes declared later — declaration order
- *  constrains inheritance, not composition. A class that (transitively)
- *  contains itself is an error here: it could never finish instantiating. */
+ *  Declaration order constrains NOTHING (ruled 2026-08-06): a base may be
+ *  declared anywhere in the program — the build below runs in dependency
+ *  order regardless of source order — and children inside bodies were always
+ *  order-free. The two unbuildable shapes are loud errors here: an `extends`
+ *  cycle (the chain can never bottom out) and a class that (transitively)
+ *  contains itself (it could never finish instantiating). */
 export declare function programSchemas(classes: readonly ClassDecl[]): {
     infos: ClassInfo[];
     schemas: Record<string, ComponentSchema>;

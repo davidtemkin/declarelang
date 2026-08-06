@@ -142,6 +142,14 @@ order-inert. An included file is a library of definitions (it declares no `App` 
 its own). And the standard library needs no include at all: a bare `Button [ … ]` tag
 auto-includes it.
 
+Order, meanwhile, is yours: declarations read fine above the `App` — the customary
+layout — and compile just as well below it, and `extends` may name a class declared
+later, so the class you extract mid-edit can land wherever the edit put it. Don't
+let that freedom grow one long file, though. `include` partitions *your own program*,
+not just shared libraries: the theme in one file, the components in another, the
+`App` left holding the tree it actually shows. A file a few hundred lines long can
+be read whole — which is the point of a language whose whole surface fits in one.
+
 ---
 
 **What you can now say:** you can shape a program — when structure stays inline, when

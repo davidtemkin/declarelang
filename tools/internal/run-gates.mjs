@@ -103,6 +103,26 @@ const SUITE_INPUTS = {
   "dist-freshness": ["apps/homepage/dist", "tools", "apps/homepage/stats.json"],
 };
 
+// ── The iOS advisory (David, 2026-08-06) ────────────────────────────────────
+// The real-device gesture regression (tools/internal/sim/regress.mjs — a
+// booted simulator + Appium) is TOO HEAVY for routine gates and is NOT run
+// here. What gates do instead is remember: regress.mjs stamps the hash of
+// the touch-input sources on a fully green run (.derive/ios-regress.json),
+// and when those sources have changed since, the summary below says so —
+// an advisory, never a failure. The input list is the surface a real device
+// exercises differently from headless Chrome: the router, the two web
+// backends' claim/selection realizations, the hit walk, the viewport lock,
+// and the rig itself.
+const IOS_INPUTS = ["runtime/src/input.ts", "runtime/src/dom-backend.ts",
+  "runtime/src/canvas-backend.ts", "runtime/src/interaction.ts",
+  "runtime/src/viewport-lock.ts",
+  // the rig by extension — a bare dir would sweep node_modules and the
+  // ever-growing appium.log, and the stamp would never go quiet
+  { dir: "tools/internal/sim", ext: ".mjs" },
+  { dir: "tools/internal/sim", ext: ".declare" }];
+const IOS_STAMP = resolve(ROOT, ".derive/ios-regress.json");
+const iosHash = () => setHash(ROOT, fileSet(ROOT, IOS_INPUTS));
+
 const GATES_MANIFEST = resolve(ROOT, ".derive/gates.json");
 const manifest = existsSync(GATES_MANIFEST)
   ? (() => { try { return JSON.parse(readFileSync(GATES_MANIFEST, "utf8")); } catch { return {}; } })()
@@ -165,6 +185,15 @@ if (ranked.length > 0) {
   line("gates: where the time went —");
   for (const r of ranked) {
     line(`   ${String((r.ms / 1000).toFixed(1)).padStart(7)}s  ${String(Math.round((r.ms / 10) / total)).padStart(3)}%  ${r.name}`);
+  }
+}
+{
+  const stamped = existsSync(IOS_STAMP)
+    ? (() => { try { return JSON.parse(readFileSync(IOS_STAMP, "utf8")).hash; } catch { return null; } })()
+    : null;
+  if (stamped !== iosHash()) {
+    line(`gates: note — touch-input sources changed since the last green iOS regression;`
+      + ` when convenient: node tools/internal/sim/regress.mjs <sessionId> (recipe in tools/internal/sim/drive.mjs)`);
   }
 }
 if (failed.length > 0) {

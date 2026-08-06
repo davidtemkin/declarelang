@@ -243,7 +243,8 @@ its base. Promote a one-off to a named `class` when you instantiate it twice, or
 to name its type.
 
 Besides `class`, the top level holds `script`, `include`, `use`, `font`, `style`, and
-`stylesheet` — that is the complete set. **`script { … }`** holds free TypeScript, models and
+`stylesheet` — that is the complete set, **in any order**, before or after the root instance;
+`extends` may name a class declared later in the file. **`script { … }`** holds free TypeScript, models and
 helpers; a constraint may call one and the compiler reads through it (§5). **`include
 [ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
 a component the build would otherwise drop, for when your code constructs it by name at runtime

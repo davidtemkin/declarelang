@@ -272,7 +272,11 @@ its arbitration, canvas per-gesture claims, the lock/release cycle of the
 viewport rewrite, and the scroll-takeover detector (synthesis, trailing-up
 swallow, mouse immunity, containment — Chrome replaying iOS's event order).
 The 16px warning is pinned in `test/unit.test.mjs`. The iOS ground truth
-itself is re-runnable any time as ONE command: `tools/internal/sim/regress.mjs`
+itself is DELIBERATELY not part of routine gates (David, 2026-08-06 — a booted
+simulator is too heavy to demand per-commit): run-gates instead prints an
+advisory when the touch-input sources have moved since the last green stamped
+run (.derive/ios-regress.json — regress.mjs stamps it on 23/23). Re-runnable
+any time as ONE command: `tools/internal/sim/regress.mjs`
 — 23 checks covering every contract above (the labs plus the homepage pack:
 text pans, pinned navbar, double-tap, link navigation), run twice green
 2026-08-06 against iOS 18.2; drive.mjs's header has the session recipe, and

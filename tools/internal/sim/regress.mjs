@@ -269,4 +269,25 @@ await go("/apps/homepage/");
 }
 
 console.log(`\nregress: ${pass} passed, ${fail} failed`);
+if (fail === 0) {
+  // Stamp the green run: run-gates compares the touch-input sources against
+  // this hash and prints its advisory only when they have moved since
+  // (the real-device pass is too heavy for routine gates — David, 2026-08-06).
+  const { fileSet, setHash } = await import("../filesets.mjs");
+  const { writeFileSync, mkdirSync } = await import("node:fs");
+  const { resolve: rp, dirname: dn } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const ROOT = rp(dn(fileURLToPath(import.meta.url)), "../../..");
+  const IOS_INPUTS = ["runtime/src/input.ts", "runtime/src/dom-backend.ts",
+    "runtime/src/canvas-backend.ts", "runtime/src/interaction.ts",
+    "runtime/src/viewport-lock.ts",
+    // by extension, matching run-gates: a bare dir would sweep node_modules
+    // and the ever-growing appium.log, and the stamp would never go quiet
+    { dir: "tools/internal/sim", ext: ".mjs" },
+    { dir: "tools/internal/sim", ext: ".declare" }];
+  const stamp = rp(ROOT, ".derive/ios-regress.json");
+  mkdirSync(dn(stamp), { recursive: true });
+  writeFileSync(stamp, JSON.stringify({ hash: setHash(ROOT, fileSet(ROOT, IOS_INPUTS)), at: new Date().toISOString() }, null, 1) + "\n");
+  console.log("regress: stamped .derive/ios-regress.json — gates go quiet until the touch-input sources move");
+}
 process.exit(fail > 0 ? 1 : 0);

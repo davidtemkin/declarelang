@@ -1250,23 +1250,27 @@ function parseTopDecls(p: Parser): {
 }
 
 /** Parse a whole Declare source: `include`s and top-level declarations
- *  (classes, stylesheets, style bundles — in any order), then the root
- *  instance. */
+ *  (classes, stylesheets, style bundles), the root instance, and — ruled
+ *  2026-08-06 — declarations may FOLLOW the root too, in any order. The
+ *  reading convention stays declarations-first (the guide says so; the
+ *  formatter never reorders), but the parser accepts the natural writing
+ *  motion: a class extracted from the tree and pasted at the bottom of the
+ *  file compiles. The languages Declare keeps company with (Go, Rust, Swift,
+ *  Kotlin, LZX) are all order-free at the top level; the define-before-use
+ *  holdouts (C, F#, XAML's StaticResource) are the resented company. */
 export function parseProgram(source: string): Program {
   const p = new Parser(tokenize(source));
-  const { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts } = parseTopDecls(p);
+  const before = parseTopDecls(p);
   const root = p.parseElement();
-  // A declaration AFTER the root instance is the one likely author mistake a
-  // bare "expected end of input" teaches nothing about — name the ordering
-  // rule at the exact token.
-  const trailing = p.peek();
-  if (trailing.kind === "ident" &&
-      (trailing.text === "class" || trailing.text === "stylesheet" || trailing.text === "style" || trailing.text === "font" || trailing.text === "include")) {
-    p.errors.push(new DeclareError(
-      `'${trailing.text}' after the root instance — declarations (class, stylesheet, style, font, include) come BEFORE the App; move this above it`,
-      trailing.pos));
-    throw new DeclareErrors(p.errors);
-  }
+  const after = parseTopDecls(p);
+  const classes = [...before.classes, ...after.classes];
+  const stylesheets = [...before.stylesheets, ...after.stylesheets];
+  const styles = [...before.styles, ...after.styles];
+  const fonts = [...before.fonts, ...after.fonts];
+  const includes = [...before.includes, ...after.includes];
+  const includeSpans = [...before.includeSpans, ...after.includeSpans];
+  const uses = [...before.uses, ...after.uses];
+  const scripts = [...before.scripts, ...after.scripts];
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
   return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, root };

@@ -410,23 +410,29 @@ function analyze(tokens) {
 
   const at = (word, next) => tok().kind === "ident" && tok().raw === word && tok(1).kind === next;
 
-  for (;;) {
-    if (at("include", "lb")) parseDirective("include");
-    else if (at("use", "lb")) parseDirective("use");
-    else if (at("class", "ident")) {
-      p++;
-      expect("ident", "the class's name");
-      if (tok().kind === "ident" && tok().raw === "extends") { p++; expect("ident", "the base component's name"); }
-      parseBody(true);
-    } else if (at("stylesheet", "ident") || at("style", "ident") || at("font", "ident")) {
-      p++;
-      expect("ident", "the declaration's name");
-      parseBody(true);
-    } else if (at("script", "code")) {
-      p += 2; // `script { … }` — the body is opaque TS, passed through verbatim
-    } else break;
-  }
+  const parseTopDecls = () => {
+    for (;;) {
+      if (at("include", "lb")) parseDirective("include");
+      else if (at("use", "lb")) parseDirective("use");
+      else if (at("class", "ident")) {
+        p++;
+        expect("ident", "the class's name");
+        if (tok().kind === "ident" && tok().raw === "extends") { p++; expect("ident", "the base component's name"); }
+        parseBody(true);
+      } else if (at("stylesheet", "ident") || at("style", "ident") || at("font", "ident")) {
+        p++;
+        expect("ident", "the declaration's name");
+        parseBody(true);
+      } else if (at("script", "code")) {
+        p += 2; // `script { … }` — the body is opaque TS, passed through verbatim
+      } else break;
+    }
+  };
+  parseTopDecls();
   if (tok().kind !== "eof") parseElement(true); // the root instance
+  // Declarations may FOLLOW the root (ruled 2026-08-06). The formatter is
+  // line-level by design, so they format IN PLACE — never hoisted.
+  parseTopDecls();
   if (tok().kind !== "eof") fail(`expected end of input, got '${tok().raw}'`);
 
   return { bodies };

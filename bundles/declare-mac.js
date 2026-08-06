@@ -505,13 +505,17 @@ var DeclareMac = (() => {
   }
   function parseProgram(source) {
     const p = new Parser(tokenize(source));
-    const { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts } = parseTopDecls(p);
+    const before = parseTopDecls(p);
     const root = p.parseElement();
-    const trailing = p.peek();
-    if (trailing.kind === "ident" && (trailing.text === "class" || trailing.text === "stylesheet" || trailing.text === "style" || trailing.text === "font" || trailing.text === "include")) {
-      p.errors.push(new DeclareError(`'${trailing.text}' after the root instance \u2014 declarations (class, stylesheet, style, font, include) come BEFORE the App; move this above it`, trailing.pos));
-      throw new DeclareErrors(p.errors);
-    }
+    const after = parseTopDecls(p);
+    const classes = [...before.classes, ...after.classes];
+    const stylesheets = [...before.stylesheets, ...after.stylesheets];
+    const styles = [...before.styles, ...after.styles];
+    const fonts = [...before.fonts, ...after.fonts];
+    const includes = [...before.includes, ...after.includes];
+    const includeSpans = [...before.includeSpans, ...after.includeSpans];
+    const uses = [...before.uses, ...after.uses];
+    const scripts = [...before.scripts, ...after.scripts];
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
       throw new DeclareErrors(p.errors);
@@ -3865,21 +3869,46 @@ var DeclareMac = (() => {
     const errors = [];
     const classNames = new Set(classes.map((c) => c.name));
     const isComponentName = (n) => Object.hasOwn(schemas, n) || classNames.has(n);
+    const byName = /* @__PURE__ */ new Map();
     for (const decl of classes) {
-      if (Object.hasOwn(schemas, decl.name)) {
+      if (Object.hasOwn(SCHEMAS, decl.name) || byName.has(decl.name)) {
         errors.push(new DeclareError(`there is already a component named '${decl.name}'`, decl.pos));
         continue;
       }
+      byName.set(decl.name, decl);
+    }
+    const state = /* @__PURE__ */ new Map();
+    const build2 = (decl) => {
+      if (state.get(decl.name) === "done")
+        return;
+      if (state.get(decl.name) === "building")
+        return;
+      state.set(decl.name, "building");
       if (!Object.hasOwn(schemas, decl.base)) {
-        errors.push(new DeclareError(`unknown base '${decl.base}' \u2014 a class extends a built-in component or a class declared above it`, decl.basePos));
-        continue;
+        const userBase = byName.get(decl.base);
+        if (userBase !== void 0) {
+          if (state.get(decl.base) === "building") {
+            errors.push(new DeclareError(`'${decl.name}' and '${decl.base}' extend each other (an inheritance cycle) \u2014 the chain can never reach a built-in; break the loop`, decl.basePos));
+            state.set(decl.name, "done");
+            return;
+          }
+          build2(userBase);
+        }
+      }
+      if (!Object.hasOwn(schemas, decl.base)) {
+        if (!byName.has(decl.base)) {
+          errors.push(new DeclareError(`unknown base '${decl.base}' \u2014 a class extends a built-in component or a class declared in this program`, decl.basePos));
+        }
+        state.set(decl.name, "done");
+        return;
       }
       const base2 = schemas[decl.base];
       const NODE_ROOTS = ["Dataset", "DataSource", "Animator", "AnimatorGroup", "Heartbeat", "Keys", "Focus", "Tip", "State"];
       const wired = descendsFrom(base2, "View") || descendsFrom(base2, "Layout") || descendsFrom(base2, "Node") && !NODE_ROOTS.some((n) => descendsFrom(base2, n));
       if (!wired) {
         errors.push(new DeclareError(`subclassing '${decl.base}' is not wired yet \u2014 a class extends View, Layout, or Node today (Dataset/Animator want the same plumbing; State is declarative)`, decl.basePos));
-        continue;
+        state.set(decl.name, "done");
+        return;
       }
       const attrs = {};
       const defaults = {};
@@ -3903,7 +3932,10 @@ var DeclareMac = (() => {
       const schema = { name: decl.name, base: base2, attrs, prevailing, readOnly };
       schemas[decl.name] = schema;
       infos.push({ decl, schema, defaults });
-    }
+      state.set(decl.name, "done");
+    };
+    for (const decl of byName.values())
+      build2(decl);
     const uses = /* @__PURE__ */ new Map();
     const collect = (el, into) => {
       for (const child of el.children) {

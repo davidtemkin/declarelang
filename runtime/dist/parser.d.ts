@@ -282,8 +282,14 @@ export interface Library {
  *  parseProgram (which build()/render() call). */
 export declare function parse(source: string): Element;
 /** Parse a whole Declare source: `include`s and top-level declarations
- *  (classes, stylesheets, style bundles — in any order), then the root
- *  instance. */
+ *  (classes, stylesheets, style bundles), the root instance, and — ruled
+ *  2026-08-06 — declarations may FOLLOW the root too, in any order. The
+ *  reading convention stays declarations-first (the guide says so; the
+ *  formatter never reorders), but the parser accepts the natural writing
+ *  motion: a class extracted from the tree and pasted at the bottom of the
+ *  file compiles. The languages Declare keeps company with (Go, Rust, Swift,
+ *  Kotlin, LZX) are all order-free at the top level; the define-before-use
+ *  holdouts (C, F#, XAML's StaticResource) are the resented company. */
 export declare function parseProgram(source: string): Program;
 /** Parse an INCLUDED file (composition.md §1): the same top-level
  *  declarations as a program, then eof — a library declares classes,

@@ -263,7 +263,7 @@ App [ width = 400, height = 100, fill = black,
     Chip [ label = "two" ]
     ]</code></pre>
 <p><strong><code>App</code> is the one root</strong>, one per program; with <code>width</code> and <code>height</code> unset it fills its host. <strong>Any instance may declare its own members</strong> — state, methods, handlers — with no class at all, because the compiler synthesizes an anonymous subclass, and the instance remains a subtype of its base. Promote a one-off to a named <code>class</code> when you instantiate it twice, or when you need to name its type.</p>
-<p>Besides <code>class</code>, the top level holds <code>script</code>, <code>include</code>, <code>use</code>, <code>font</code>, <code>style</code>, and <code>stylesheet</code> — that is the complete set. <strong><code>script { … }</code></strong> holds free TypeScript, models and helpers; a constraint may call one and the compiler reads through it (§5). <strong><code>include
+<p>Besides <code>class</code>, the top level holds <code>script</code>, <code>include</code>, <code>use</code>, <code>font</code>, <code>style</code>, and <code>stylesheet</code> — that is the complete set, <strong>in any order</strong>, before or after the root instance; <code>extends</code> may name a class declared later in the file. <strong><code>script { … }</code></strong> holds free TypeScript, models and helpers; a constraint may call one and the compiler reads through it (§5). <strong><code>include
 [ "path.declare" ]</code></strong> merges another file's top-level declarations, once. <strong><code>use [ Name ]</code></strong> keeps a component the build would otherwise drop, for when your code constructs it by name at runtime (<code>app.createView</code>, §7). <strong><code>font Name [ … ]</code></strong> declares a font family (<code>Face</code> children carry web-font files; a use site picks with <code>fontFamily = [Name, "system-ui"]</code>), and <code>style</code> and <code>stylesheet</code> are style constructs (§9).</p>
 <h3><code>classroot</code></h3>
 <p><strong><code>classroot</code> is legal only inside the body of a <code>class</code> you are defining, and nowhere else.</strong> It is a tool for <em>authoring a component</em>, not for navigating a tree; if you are not writing <code>class Name extends Base [ … ]</code>, you do not want it.</p>
@@ -623,4 +623,4 @@ npm start</code></pre>
 </section>
 </div></div>
 <script>document.getElementById("declare-static")?.remove()</script>
-<script type="module" src="./app.6b06fdce.js"></script>
+<script type="module" src="./app.9bd52c75.js"></script>

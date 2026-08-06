@@ -46,10 +46,12 @@ export interface ClassInfo {
  *  shape", now plugged in). Per-PROGRAM on purpose: the global SCHEMAS stays
  *  built-ins only, so two programs' classes can never collide.
  *
- *  A base must be declared above its subclass (or be a built-in); children
- *  inside bodies may reference classes declared later — declaration order
- *  constrains inheritance, not composition. A class that (transitively)
- *  contains itself is an error here: it could never finish instantiating. */
+ *  Declaration order constrains NOTHING (ruled 2026-08-06): a base may be
+ *  declared anywhere in the program — the build below runs in dependency
+ *  order regardless of source order — and children inside bodies were always
+ *  order-free. The two unbuildable shapes are loud errors here: an `extends`
+ *  cycle (the chain can never bottom out) and a class that (transitively)
+ *  contains itself (it could never finish instantiating). */
 export function programSchemas(classes: readonly ClassDecl[]): {
   infos: ClassInfo[];
   schemas: Record<string, ComponentSchema>;
@@ -62,21 +64,54 @@ export function programSchemas(classes: readonly ClassDecl[]): {
   // later — or by its own (`class Menu [ child: Menu = null ]`, the shape a
   // submenu chain needs). A component AttrType stores only the name, so no
   // schema has to exist yet; the scaffold emits the classes base-before-derived
-  // regardless of source order. The stricter "declared above it" rule stays on
-  // `extends`, where the base's ATTRIBUTES really are needed to build the chain.
+  // regardless of source order. `extends` needs the base's ATTRIBUTES to build
+  // the chain, so the loop below runs base-before-derived too — by RECURSING
+  // into a not-yet-built user base, never by demanding the author sort the file.
   const classNames = new Set(classes.map((c) => c.name));
   const isComponentName = (n: string): boolean => Object.hasOwn(schemas, n) || classNames.has(n);
+  // Duplicate names report in FILE order (stable messages), before build order
+  // reshuffles anything; later duplicates drop out of the build entirely.
+  const byName = new Map<string, ClassDecl>();
   for (const decl of classes) {
-    if (Object.hasOwn(schemas, decl.name)) {
+    if (Object.hasOwn(SCHEMAS, decl.name) || byName.has(decl.name)) {
       errors.push(new DeclareError(`there is already a component named '${decl.name}'`, decl.pos));
       continue;
     }
+    byName.set(decl.name, decl);
+  }
+  const state = new Map<string, "building" | "done">();
+  const build = (decl: ClassDecl): void => {
+    if (state.get(decl.name) === "done") return;
+    if (state.get(decl.name) === "building") return; // cycle — reported by the guard below
+    state.set(decl.name, "building");
     if (!Object.hasOwn(schemas, decl.base)) {
-      errors.push(new DeclareError(
-        `unknown base '${decl.base}' — a class extends a built-in component or a class declared above it`,
-        decl.basePos
-      ));
-      continue; // no schema to chain to; uses of this class report as unknown
+      const userBase = byName.get(decl.base);
+      if (userBase !== undefined) {
+        // An `extends` cycle can never bottom out — name the loop at the decl
+        // whose base closes it, and leave both unbuilt (uses report unknown).
+        if (state.get(decl.base) === "building") {
+          errors.push(new DeclareError(
+            `'${decl.name}' and '${decl.base}' extend each other (an inheritance cycle) — the chain can never reach a built-in; break the loop`,
+            decl.basePos
+          ));
+          state.set(decl.name, "done");
+          return;
+        }
+        build(userBase); // dependency first — source order is the author's business
+      }
+    }
+    if (!Object.hasOwn(schemas, decl.base)) {
+      // A user base that FAILED to build already reported its own cause (a
+      // cycle, an unknown base of its own) — an "unknown base" echo here
+      // would bury the real message under position-sorted noise.
+      if (!byName.has(decl.base)) {
+        errors.push(new DeclareError(
+          `unknown base '${decl.base}' — a class extends a built-in component or a class declared in this program`,
+          decl.basePos
+        ));
+      }
+      state.set(decl.name, "done");
+      return; // no schema to chain to; uses of this class report as unknown
     }
     const base = schemas[decl.base];
     // The general rule is that a class may be subclassed like any class. Three
@@ -100,7 +135,8 @@ export function programSchemas(classes: readonly ClassDecl[]): {
         `subclassing '${decl.base}' is not wired yet — a class extends View, Layout, or Node today (Dataset/Animator want the same plumbing; State is declarative)`,
         decl.basePos
       ));
-      continue;
+      state.set(decl.name, "done");
+      return;
     }
     const attrs: Record<string, AttrType> = {};
     const defaults: Record<string, AttrValue | undefined> = {};
@@ -118,7 +154,9 @@ export function programSchemas(classes: readonly ClassDecl[]): {
     const schema: ComponentSchema = { name: decl.name, base, attrs, prevailing, readOnly };
     schemas[decl.name] = schema;
     infos.push({ decl, schema, defaults });
-  }
+    state.set(decl.name, "done");
+  };
+  for (const decl of byName.values()) build(decl);
   // Containment cycles: DFS over "class → user classes used in its body".
   const uses = new Map<string, Set<string>>();
   const collect = (el: Element, into: Set<string>): void => {

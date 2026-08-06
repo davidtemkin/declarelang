@@ -1686,6 +1686,29 @@ App [ width = 1, height = 1, B [ ] ]`);
 
 // ── R6: check() over classes and declarations ────────────────────────────────
 
+await test("declaration order is the author's business — decls after the App, forward extends, and the two unbuildable shapes (ruled 2026-08-06)", () => {
+  // The parser accepts declarations on either side of the root instance, and
+  // programSchemas builds in dependency order regardless of source order —
+  // the natural writing motion (a class extracted and pasted at the bottom)
+  // compiles. What still refuses, loudly: an inheritance cycle, and a second
+  // root instance.
+  const errs = (src) => check(parseProgram(src)).map((e) => e.message);
+  assert.deepEqual(errs("App [ width = 10, height = 10, k: K [ ] ]\nclass K extends View [ f: number = 7 ]"), [],
+    "a class after the App compiles");
+  assert.deepEqual(errs("class A extends B [ g: number = 2 ]\nclass B extends View [ f: number = 1 ]\nApp [ width = 10, a: A [ ] ]"), [],
+    "extends reaches a class declared below");
+  assert.deepEqual(errs("App [ width = 10 ]\nstylesheet S [ ]"), [], "a stylesheet after the App compiles");
+  assert.match(errs("class A extends B [ ]\nclass B extends A [ ]\nApp [ width = 10 ]").join("; "),
+    /extend each other \(an inheritance cycle\).*break the loop/s);
+  assert.equal(errs("class A extends B [ ]\nclass B extends A [ ]\nApp [ width = 10 ]").length, 1,
+    "the cycle reports ONCE — no unknown-base echo for the partner");
+  assert.throws(() => parseProgram("App [ width = 10 ]\nApp [ width = 5 ]"), /expected end of input/,
+    "one root instance, still");
+  // and the late class is a full citizen at runtime
+  const app = build("App [ width = 10, height = 10, k: K [ ] ]\nclass K extends View [ f: number = 7 ]");
+  assert.equal(app.k.f, 7, "a class declared below the App instantiates");
+});
+
 await test("check() validates class declarations, every error positioned", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
   assert.match(errs("class A extends Widget [ ]\nApp [ width=1 ]")[0], /unknown base 'Widget'.*line 1, col 17/s);
