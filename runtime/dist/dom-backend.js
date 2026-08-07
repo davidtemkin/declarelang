@@ -1763,6 +1763,8 @@ class DomSurface {
     }
     setImage(image) {
         this.imgEl?.remove();
+        this.tintEl?.remove();
+        this.tintEl = null;
         this.imgEl = image;
         if (image !== null) {
             const s = image.style;
@@ -1772,12 +1774,63 @@ class DomSurface {
             s.pointerEvents = "none"; // content is inert — hits are box-geometry
             this.applyStretch();
             this.placeContent(image);
+            this.applyTint();
         }
     }
     setImageStretch(stretch) {
         this.stretch = stretch;
-        if (this.imgEl !== null)
+        if (this.imgEl !== null) {
             this.applyStretch();
+            this.applyTint();
+        }
+    }
+    /** Tint (compositing.md §3.4): the bitmap becomes a MASK — its own pixels
+     *  hide, and a color layer wearing `mask-image: url(src)` takes its exact
+     *  geometry, so the result is the tint color shaped by the bitmap's alpha
+     *  (template-image rendering). Bitmaps only — a <video> frame is not a
+     *  CSS mask source, so a tinted video keeps its own pixels. */
+    tintColor = null;
+    tintEl = null;
+    setImageTint(color) {
+        this.tintColor = color;
+        this.applyTint();
+    }
+    applyTint() {
+        const img = this.imgEl;
+        if (this.tintColor === null || img === null || !(img instanceof HTMLImageElement)) {
+            this.tintEl?.remove();
+            this.tintEl = null;
+            if (img !== null)
+                img.style.visibility = "";
+            return;
+        }
+        if (this.tintEl === null) {
+            const t = img.ownerDocument.createElement("div");
+            t.style.position = "absolute";
+            t.style.pointerEvents = "none"; // content is inert — hits are box-geometry
+            img.insertAdjacentElement("afterend", t); // exactly the bitmap's paint slot
+            this.tintEl = t;
+        }
+        const t = this.tintEl.style;
+        // same box the img occupies (applyStretch wrote these)
+        t.left = img.style.left;
+        t.top = img.style.top;
+        t.width = img.style.width;
+        t.height = img.style.height;
+        t.background = colorToCss(this.tintColor);
+        const fit = this.stretch === "cover" || this.stretch === "contain";
+        // without object-fit an <img> stretches its content to its box, which is
+        // mask-size 100% 100%; the aspect fits map to the mask's own cover/contain
+        const size = fit ? this.stretch : "100% 100%";
+        t.webkitMaskImage = `url("${img.src}")`;
+        t.maskImage = `url("${img.src}")`;
+        t.webkitMaskSize = size;
+        t.maskSize = size;
+        t.webkitMaskRepeat = "no-repeat";
+        t.maskRepeat = "no-repeat";
+        t.webkitMaskPosition = "center";
+        t.maskPosition = "center";
+        img.style.visibility = "hidden";
     }
     /** `100%` tracks the view box natively (a later resize costs no image
      *  bookkeeping); the un-stretched axis is pinned to the NATURAL dimension —

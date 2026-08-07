@@ -90,14 +90,17 @@ its dock, windows, menus, and wallpaper are fully canvas-capable (the
 magnification sweep holds the same ~120 fps), while a window that hosts an
 embedded app shows its frame without its tenant.
 
-**Overlay effects are not yet at parity.** Frosted surfaces — the dock
-shelf, translucent chrome — use CSS backdrop blur in the DOM renderer. The
-canvas compositor can blur what it *draws* (the desktop wallpaper is a
-`draw()` blur, identical in both), but it does not yet sample what lies
-*beneath* a translucent surface, so canvas frost renders as plain
-translucency. This is the one visible gap in the parity numbers above, and
-it is scheduled: backdrop sampling is coming to the compositor, and the
-perceptual suite will hold it to the same tolerance as everything else.
+**Overlay effects are at parity.** Frosted surfaces — a menu's panel, a
+dock shelf, translucent chrome — are the `backdrop` attribute
+(`backdrop = frost(radius, saturation)`), and every renderer realizes it
+natively: the DOM as compositor `backdrop-filter`, the canvas compositor by
+sampling what has already painted beneath the view at composite time (the
+painter's model makes that natural), the Mac host by sampling its layer
+tree through the same blur, in the same color space. The perceptual suite
+holds the three to the same tolerance as everything else — the frost probes
+sit alongside the blur ones in the gate corpus — and the measured cost of a
+frosted header over a scrolling canvas list is about a tenth of a
+millisecond per frame.
 
 ## Choosing
 

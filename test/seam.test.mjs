@@ -78,6 +78,10 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
+  setImageTint: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
 
   setPageExtent: {
     dom: true, canvas: true,
@@ -250,9 +254,13 @@ for (const member of members) {
 // contract as setBlend, and its Mac row is the declared shape of the plan
 // itself: the web pair lands first, the native NSVisualEffectView realization
 // is phase 4, and this row is where that gap is said out loud until then.
+// 17 → 18 (2026-08-06, compositing phase 5): setImageTint — the one-mask-
+// asset idiom (Image.tint, compositing.md §3.4), a compositing operation at
+// the bitmap: color from the slot, shape from the bitmap's alpha, on all
+// three painting backends from day one.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 17,
+  assert.equal(members.length, 18,
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);

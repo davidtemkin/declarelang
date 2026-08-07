@@ -404,10 +404,13 @@ class Menu extends View [ visible = { shown }, width = 220,
         height = { Math.min(this.body.contentHeight + 10, app.height - 8) },
         cornerRadius = { typeof theme.menuRadius == "number" ? theme.menuRadius : 8 },
 
-        // a frosted material when the theme names one (the macOS vibrancy read),
-        // else the solid surface. Translucent today; a `backdrop` blur is pending.
+        // a frosted material when the theme names one (the macOS vibrancy
+        // read), else the solid surface: `menuMaterial` is the translucent
+        // wash, and a theme that also elects `menuBackdrop` gets true frost —
+        // the panel samples and blurs what lies beneath it, wash over blur.
 
         fill = { theme.menuMaterial != null ? theme.menuMaterial : theme.surface },
+        backdrop = { theme.menuBackdrop != null ? theme.menuBackdrop : null },
         stroke = { stroke(1, theme.line) },
         shadow = { theme.menuShadow != null ? theme.menuShadow : shadow(0, 10, 40, 0x00000038) },
 

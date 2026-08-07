@@ -71,6 +71,8 @@ export class Image extends View {
         // Pushers fire on *change*; attach's flush carries the pre-attach state
         // across (the image element itself arrives via load's async landing).
         s.setImageStretch(this.stretches);
+        if (this.tint !== null)
+            s.setImageTint?.(this.tint);
     }
     /** (Re)load `source` — called at attach and by the `source` pusher. */
     load() {
@@ -124,6 +126,7 @@ export class Image extends View {
 defineAttributes(Image, {
     source: { def: "", push: (i) => i.load() },
     stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
+    tint: { def: null, push: (i, v) => i.surface?.setImageTint?.(v) },
     loaded: { def: false },
     failed: { def: false },
     naturalWidth: { def: 0 },

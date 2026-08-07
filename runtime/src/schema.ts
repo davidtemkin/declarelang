@@ -465,6 +465,11 @@ const ImageSchema: ComponentSchema = {
     // fits — contain letterboxes inside the box, cover fills and crops it —
     // beside the axis stretches, which distort by design.
     stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain"),
+    // A color multiplied over the bitmap's ALPHA (compositing.md §3.4): the
+    // one-mask-asset, many-colors idiom — result color = tint, shape = the
+    // bitmap's alpha, exactly template-image rendering. null (the default) =
+    // the untouched bitmap. `tint = { theme.accent }` is the canonical read.
+    tint: { kind: "color" },
     // READ-ONLY (below): the load lifecycle as two facts, surfaced 2026-07-30
     // (David's ruling) when the network-transport tests found them unreadable
     // from constraints. `loaded` = a bitmap has landed (the placeholder

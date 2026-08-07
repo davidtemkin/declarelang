@@ -16,6 +16,7 @@
 import { View } from "./view.js";
 import type { RenderBackend, Stretch, Surface } from "./backend.js";
 import { defineAttributes, isSet, ownerOf, setBound } from "./attributes.js";
+import type { Color } from "./value.js";
 
 /** THE ASSET BASE — the data.ts `provideTransport` shape, for bitmaps.
  *
@@ -52,6 +53,10 @@ export function resolveAsset(source: string): string {
 export class Image extends View {
   declare source: string;
   declare stretches: Stretch;
+  /** A color multiplied over the bitmap's ALPHA (the one-mask-asset idiom —
+   *  compositing.md §3.4): shape from the bitmap, color from here, exactly
+   *  template-image rendering. null = the untouched bitmap. */
+  declare tint: Color;
   /** True once a bitmap has arrived (and any natural-sizing applied) —
    *  reactive, read-only surface (schema'd 2026-07-30), so constraints can
    *  derive from it: `visible = { !pic.loaded }` is the placeholder idiom.
@@ -92,6 +97,7 @@ export class Image extends View {
     // Pushers fire on *change*; attach's flush carries the pre-attach state
     // across (the image element itself arrives via load's async landing).
     s.setImageStretch(this.stretches);
+    if (this.tint !== null) s.setImageTint?.(this.tint);
   }
 
   /** (Re)load `source` — called at attach and by the `source` pusher. */
@@ -143,6 +149,7 @@ export class Image extends View {
 defineAttributes(Image, {
   source: { def: "", push: (i) => i.load() },
   stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
+  tint: { def: null, push: (i, v) => i.surface?.setImageTint?.(v) },
   loaded: { def: false },
   failed: { def: false },
   naturalWidth: { def: 0 },

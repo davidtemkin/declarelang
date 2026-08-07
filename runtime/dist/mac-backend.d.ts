@@ -40,6 +40,7 @@ export declare const OP: {
     readonly RICHWIDTH: 34;
     readonly BLEND: 35;
     readonly BACKDROP: 36;
+    readonly TINT: 37;
 };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
@@ -174,6 +175,9 @@ declare class MacSurface implements Surface {
     setDrawing(list: DisplayList | null): void;
     setImage(image: unknown | null): void;
     setImageStretch(stretch: Stretch): void;
+    /** Tint (compositing.md §3.4): the color rides as CSS text; the Swift side
+     *  re-derives the bitmap as an alpha-mask fill (LayerTree case 37). */
+    setImageTint(color: number | null): void;
     /** Native rich text: the host lays the blocks out (Core Text) and answers
      *  the flowed height, which the runtime treats exactly as the DOM
      *  backend's measured height. `selectable` mounts a real NSTextView so

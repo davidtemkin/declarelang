@@ -31,7 +31,7 @@ export const OP = {
     SCROLL: 21, SCROLLPOS: 22, CURSOR: 23, EDIT: 24, EDITFOCUS: 25,
     RICH: 26, RICHSCROLL: 27, EMBED: 28, IGNORECLIP: 29,
     SCROLLX: 30, SCROLLXPOS: 31, PAGEFILL: 32,
-    IGNORESCROLL: 33, RICHWIDTH: 34, BLEND: 35, BACKDROP: 36,
+    IGNORESCROLL: 33, RICHWIDTH: 34, BLEND: 35, BACKDROP: 36, TINT: 37,
 };
 function host() {
     const h = globalThis.__declareMacHost;
@@ -311,6 +311,11 @@ class MacSurface {
         emit(OP.IMAGE, this.id, handle);
     }
     setImageStretch(stretch) { emit(OP.STRETCH, this.id, stretch); }
+    /** Tint (compositing.md §3.4): the color rides as CSS text; the Swift side
+     *  re-derives the bitmap as an alpha-mask fill (LayerTree case 37). */
+    setImageTint(color) {
+        emit(OP.TINT, this.id, color === null ? null : colorToCss(color));
+    }
     /** Native rich text: the host lays the blocks out (Core Text) and answers
      *  the flowed height, which the runtime treats exactly as the DOM
      *  backend's measured height. `selectable` mounts a real NSTextView so

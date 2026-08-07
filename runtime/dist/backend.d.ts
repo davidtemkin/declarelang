@@ -1,4 +1,4 @@
-import type { Backdrop, Fill, Shadow, Stroke } from "./value.js";
+import type { Backdrop, Color, Fill, Shadow, Stroke } from "./value.js";
 import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
 /** The reference schemes a link may carry (location.md §0.4): the app's own
@@ -375,6 +375,12 @@ export interface Surface {
      *  so a moving picture is the same content kind, not a second one. */
     setImage(image: Bitmap | null): void;
     setImageStretch(stretch: Stretch): void;
+    /** Tint (compositing.md §3.4): a color multiplied over the bitmap's ALPHA
+     *  — result color = tint, shape = the bitmap's alpha (template-image
+     *  rendering; the canvas realizes it as a `source-in` fill, the DOM as a
+     *  masked color layer, the Mac as an alpha-mask fill). null = untouched.
+     *  Optional — a backend without bitmaps omits it; the seam table says. */
+    setImageTint?(color: Color): void;
     /** Route pointer input to this surface (null stops it). A surface with a
      *  sink is *interactive*: it owns its geometry box for hit-testing, and
      *  the backend delivers events through the sink in view-local

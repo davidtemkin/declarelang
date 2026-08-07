@@ -1634,6 +1634,7 @@ var DeclareMac = (() => {
         menuShadow: { "dx": 0, "dy": 12, "blur": 44, "color": 4294967360 },
         menuHl: { "angle": 180, "stops": [{ "offset": null, "color": 2066175 }, { "offset": null, "color": 26862 }] },
         menuMaterial: 8488877019,
+        menuBackdrop: { "blur": 24, "saturate": 1.5 },
         menuTitleHl: 8589934372,
         scrimColor: 0,
         scrimOpacity: 0.12,
@@ -1683,6 +1684,7 @@ var DeclareMac = (() => {
         menuShadow: { "dx": 0, "dy": 12, "blur": 44, "color": 4294967411 },
         menuHl: { "angle": 180, "stops": [{ "offset": null, "color": 2854911 }, { "offset": null, "color": 684011 }] },
         menuMaterial: 5036060390,
+        menuBackdrop: { "blur": 24, "saturate": 1.5 },
         menuTitleHl: 8589934374,
         scrimColor: 0,
         scrimOpacity: 0.3,
@@ -2778,6 +2780,11 @@ var DeclareMac = (() => {
           // fits — contain letterboxes inside the box, cover fills and crops it —
           // beside the axis stretches, which distort by design.
           stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain"),
+          // A color multiplied over the bitmap's ALPHA (compositing.md §3.4): the
+          // one-mask-asset, many-colors idiom — result color = tint, shape = the
+          // bitmap's alpha, exactly template-image rendering. null (the default) =
+          // the untouched bitmap. `tint = { theme.accent }` is the canonical read.
+          tint: { kind: "color" },
           // READ-ONLY (below): the load lifecycle as two facts, surfaced 2026-07-30
           // (David's ruling) when the network-transport tests found them unreadable
           // from constraints. `loaded` = a bitmap has landed (the placeholder
@@ -4044,7 +4051,10 @@ var DeclareMac = (() => {
         if (asStroke.ok)
           return asStroke.value;
         const asShadow = coerce({ kind: "shadow" }, lit);
-        return asShadow.ok ? asShadow.value : void 0;
+        if (asShadow.ok)
+          return asShadow.value;
+        const asBackdrop = coerce({ kind: "backdrop" }, lit);
+        return asBackdrop.ok ? asBackdrop.value : void 0;
       }
       default:
         return void 0;
@@ -4470,7 +4480,7 @@ var DeclareMac = (() => {
       seen.set(a.name, a.pos);
       const t = coerceToken(a.value);
       if (t === void 0) {
-        errors.push(new DeclareError(`${where}.theme.${a.name}: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow) \u2014 got ${describeLiteral(a.value)}`, a.value.pos));
+        errors.push(new DeclareError(`${where}.theme.${a.name}: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow/frost) \u2014 got ${describeLiteral(a.value)}`, a.value.pos));
       }
     }
     return errors;
@@ -11015,6 +11025,8 @@ var DeclareMac = (() => {
         flush(s) {
           super.flush(s);
           s.setImageStretch(this.stretches);
+          if (this.tint !== null)
+            s.setImageTint?.(this.tint);
         }
         /** (Re)load `source` — called at attach and by the `source` pusher. */
         load() {
@@ -11056,6 +11068,7 @@ var DeclareMac = (() => {
       defineAttributes(Image, {
         source: { def: "", push: (i) => i.load() },
         stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
+        tint: { def: null, push: (i, v) => i.surface?.setImageTint?.(v) },
         loaded: { def: false },
         failed: { def: false },
         naturalWidth: { def: 0 },
@@ -16257,7 +16270,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     IGNORESCROLL: 33,
     RICHWIDTH: 34,
     BLEND: 35,
-    BACKDROP: 36
+    BACKDROP: 36,
+    TINT: 37
   };
   function host() {
     const h = globalThis.__declareMacHost;
@@ -16557,6 +16571,11 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     }
     setImageStretch(stretch) {
       emit(OP.STRETCH, this.id, stretch);
+    }
+    /** Tint (compositing.md §3.4): the color rides as CSS text; the Swift side
+     *  re-derives the bitmap as an alpha-mask fill (LayerTree case 37). */
+    setImageTint(color) {
+      emit(OP.TINT, this.id, color === null ? null : colorToCss(color));
     }
     /** Native rich text: the host lays the blocks out (Core Text) and answers
      *  the flowed height, which the runtime treats exactly as the DOM

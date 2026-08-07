@@ -773,7 +773,39 @@ class CanvasSurface {
     }
     setImage(image) {
         this.image = image;
+        this.tinted = null;
         this.compositor.invalidate();
+    }
+    /** Tint (compositing.md §3.4): a `source-in` fill over the drawn bitmap in
+     *  an offscreen — result color = tint, alpha = the bitmap's — cached at
+     *  natural size until the image or the tint changes (a playing video
+     *  re-tints per frame; its pixels change with no write to the graph). */
+    tintColor = null;
+    tinted = null;
+    setImageTint(color) {
+        this.tintColor = color;
+        this.tinted = null;
+        this.compositor.invalidate();
+    }
+    tintedBitmap(natW, natH) {
+        if (this.tintColor === null || this.image === null)
+            return this.image;
+        if (natW <= 0 || natH <= 0)
+            return this.image;
+        if (this.tinted === null || this.videoRunning()) {
+            const c = this.tinted ?? document.createElement("canvas");
+            c.width = natW;
+            c.height = natH;
+            const tctx = c.getContext("2d");
+            tctx.clearRect(0, 0, natW, natH);
+            tctx.drawImage(this.image, 0, 0, natW, natH);
+            tctx.globalCompositeOperation = "source-in";
+            tctx.fillStyle = colorToCss(this.tintColor);
+            tctx.fillRect(0, 0, natW, natH);
+            tctx.globalCompositeOperation = "source-over";
+            this.tinted = c;
+        }
+        return this.tinted;
     }
     /** A PLAYING video is the one content kind whose pixels change with no write
      *  to the graph: nothing invalidates, so nothing would repaint. The paint
@@ -1478,6 +1510,7 @@ class CanvasSurface {
             const vid = this.image;
             const natW = typeof vid.videoWidth === "number" ? vid.videoWidth : this.image.naturalWidth;
             const natH = typeof vid.videoWidth === "number" ? vid.videoHeight : this.image.naturalHeight;
+            const bmp = this.tintedBitmap(natW, natH) ?? this.image;
             if (st === "cover" || st === "contain") {
                 // Aspect-preserving: one scale for both axes — max fills-and-crops
                 // (cover), min letterboxes (contain) — centered either way; cover
@@ -1493,14 +1526,14 @@ class CanvasSurface {
                     ctx.rect(0, 0, this.width, this.height);
                     ctx.clip();
                 }
-                ctx.drawImage(this.image, (this.width - dw) / 2, (this.height - dh) / 2, dw, dh);
+                ctx.drawImage(bmp, (this.width - dw) / 2, (this.height - dh) / 2, dw, dh);
                 if (st === "cover")
                     ctx.restore();
             }
             else {
                 const w = st === "width" || st === "both" ? this.width : natW;
                 const h = st === "height" || st === "both" ? this.height : natH;
-                ctx.drawImage(this.image, 0, 0, w, h);
+                ctx.drawImage(bmp, 0, 0, w, h);
             }
             // a running video changes pixels with no write to the graph: ask for the
             // next frame here, or the picture would freeze on its first one

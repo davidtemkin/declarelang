@@ -22,6 +22,14 @@ the box and letterboxes the remainder; `cover` fills the box completely and crop
 overflow — the photograph-in-a-card value, and with `width = 100%` the responsive
 hero. Both center the bitmap.
 
+## tint
+A **color multiplied over the bitmap's alpha** — the result is the tint color wherever
+the bitmap is opaque, nothing where it is transparent (template-image rendering). The
+one-mask-asset, many-colors idiom: ship a single alpha-mask glyph and color it per use,
+`tint = { theme.accent }`, instead of pre-recoloring assets. `null` (the default) is
+the untouched bitmap. A `Color`, so any color form works, and a `{ }` body makes it
+state.
+
 ## naturalWidth
 The bitmap's intrinsic width in pixels — `0` until `loaded`, then the file's own
 dimension. **Read-only.** With `naturalHeight`, the aspect-true layout fact:

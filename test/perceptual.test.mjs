@@ -424,6 +424,17 @@ const FROST_SOURCE = `App [ width=240, height=160, fill=#181C22,
   panel: View [ x=20, y=30, width=200, height=70, backdrop=frost(8), fill=#FFFFFF66, cornerRadius=12 ],
   sat: View [ x=20, y=110, width=200, height=40, backdrop=frost(6, 1.6), fill=#10141866 ] ]`;
 
+// The tint scene (compositing.md §3.4): the same half-opaque 80×80 SVG mask
+// twice — tinted and untouched. The tinted one must render as PURE tint
+// color where the mask is opaque and nothing where it is transparent
+// (template-image rendering); the untouched twin proves null really is the
+// unmodified bitmap. Natural size = drawn size, so neither backend rescales
+// (the boundary column stays a soft band for rasterizer AA only).
+const TINT_MASK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='40' height='80' fill='white'/%3E%3C/svg%3E";
+const TINT_SOURCE = `App [ width=240, height=160, fill=#20242C,
+  Image [ x=20, y=20, tint=#3FA34D, source="${TINT_MASK}" ],
+  Image [ x=120, y=20, source="${TINT_MASK}" ] ]`;
+
 // One page template per backend and program; the only differences are which
 // backend class renders and which source. The canvas backend's first paint is
 // its scheduled rAF, so readiness is flagged one frame after that (double-rAF
@@ -790,6 +801,8 @@ function serveDist() {
     "/canvas-blend": pageHtml("CanvasBackend", BLEND_SOURCE),
     "/dom-frost": pageHtml("DomBackend", FROST_SOURCE),
     "/canvas-frost": pageHtml("CanvasBackend", FROST_SOURCE),
+    "/dom-tint": pageHtml("DomBackend", TINT_SOURCE),
+    "/canvas-tint": pageHtml("CanvasBackend", TINT_SOURCE),
     // The box-clip CONTAINMENT test: an App declaring `clip = true` (the
     // calendar's fixed-window design) with a panel parked BEYOND the frame —
     // the browser must gain no scroll extent and focus must not shift the frame.
@@ -2553,6 +2566,37 @@ try {
     for (const s of diff.soft) {
       assert.ok(s.mean <= 4, `${s.label}: mean blurred delta ${s.mean} > 4 (frost diverges between backends?)`);
     }
+  });
+
+  // ── the view compositing tier: `tint` (compositing.md §3.4) ──────────────
+
+  const TINT_BG = [0x20, 0x24, 0x2c];
+  const TINT_PROBES = [
+    { at: [40, 60], color: [0x3f, 0xa3, 0x4d], label: "tinted mask, opaque half — pure tint color" },
+    { at: [85, 60], color: TINT_BG, label: "tinted mask, transparent half — nothing painted" },
+    { at: [140, 60], color: [255, 255, 255], label: "untinted twin, opaque half — untouched white" },
+    { at: [185, 60], color: TINT_BG, label: "untinted twin, transparent half" },
+  ];
+
+  const domTint = await renderShot("/dom-tint", 1, "tint-dom.png");
+  const canvasTint = await renderShot("/canvas-tint", 1, "tint-canvas.png");
+
+  for (const [name, shot] of [["DOM", domTint], ["Canvas", canvasTint]]) {
+    await test(`${name}: image tint — color from the slot, shape from the bitmap's alpha`, async () => {
+      const actual = await samplePixels(shot.page, shot.png, TINT_PROBES.map((p) => p.at));
+      TINT_PROBES.forEach((p, i) => assertColorNear(actual[i], p.color, `${name} ${p.label}`));
+    });
+  }
+
+  await test("cross-backend: the tint scene agrees (mask edges soft — rasterizer AA)", async () => {
+    const diff = await diffShots(canvasTint.page, domTint.png, canvasTint.png, {
+      soft: [
+        { x: 56, y: 16, w: 10, h: 90, label: "tinted mask boundary" },
+        { x: 156, y: 16, w: 10, h: 90, label: "untinted mask boundary" },
+      ],
+    });
+    assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
+    assert.equal(diff.over, 0, `strict channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
   });
 
   await test("DOM: `clip = true` is CONTAINMENT — off-box children add no document scroll; focus cannot shift the frame", async () => {

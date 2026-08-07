@@ -1,5 +1,6 @@
 import { View } from "./view.js";
 import type { RenderBackend, Stretch, Surface } from "./backend.js";
+import type { Color } from "./value.js";
 /** Set the base that relative bitmap sources resolve against; returns the
  *  previous one, so a scoped caller can restore it — the provideTransport
  *  contract. */
@@ -8,6 +9,10 @@ export declare function resolveAsset(source: string): string;
 export declare class Image extends View {
     source: string;
     stretches: Stretch;
+    /** A color multiplied over the bitmap's ALPHA (the one-mask-asset idiom —
+     *  compositing.md §3.4): shape from the bitmap, color from here, exactly
+     *  template-image rendering. null = the untouched bitmap. */
+    tint: Color;
     /** True once a bitmap has arrived (and any natural-sizing applied) —
      *  reactive, read-only surface (schema'd 2026-07-30), so constraints can
      *  derive from it: `visible = { !pic.loaded }` is the placeholder idiom.

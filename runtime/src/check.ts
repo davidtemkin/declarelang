@@ -481,7 +481,7 @@ export function checkThemeRecord(where: string, rec: Element): DeclareError[] {
     const t = coerceToken(a.value);
     if (t === undefined) {
       errors.push(new DeclareError(
-        `${where}.theme.${a.name}: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow) — got ${describeLiteral(a.value)}`,
+        `${where}.theme.${a.name}: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow/frost) — got ${describeLiteral(a.value)}`,
         a.value.pos
       ));
     }

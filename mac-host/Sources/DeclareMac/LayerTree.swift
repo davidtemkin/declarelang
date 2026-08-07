@@ -54,6 +54,9 @@ final class Node {
     var scrollExtentX: CGFloat = 0
     var vbar: Scrollbar?
     var hbar: Scrollbar?
+    /// Image tint (compositing.md §3.4): the bitmap re-derives as this color
+    /// shaped by its own alpha — template-image rendering. nil = untouched.
+    var tint: CGColor?
     /// The frost (compositing.md §5.3): what to sample beneath this node.
     var backdrop: (blur: CGFloat, saturate: CGFloat)?
     /// The frosted sample, masked by the node's cornerRadius — FIRST in the
@@ -487,6 +490,13 @@ final class LayerTree {
             // the layer must be re-placed because its parent-relative y is now
             // measured against a box that no longer scrolls under it.
             if let p = n.parent { restack(p); place(n) }
+        case 37: // TINT — the color multiplied over the bitmap's alpha
+            // (compositing.md §3.4, template-image rendering); the contents
+            // re-derive from the original on every change, so un-tinting
+            // restores the untouched bitmap.
+            guard let n = nodes[id] else { return }
+            n.tint = str(a(0)).flatMap { CSSColor.parse($0)?.cgColor }
+            applyImage(n)
         case 36: // BACKDROP — the frost (compositing.md §5.3, AS BUILT: CPU
             // sampling, the fallback the plan records — an NSVisualEffectView
             // is an AppKit SUBVIEW, and a subview always draws above the whole
@@ -873,7 +883,7 @@ final class LayerTree {
             l.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull()]
             n.image = l; restack(n)
         }
-        l.contents = img
+        l.contents = n.tint.flatMap { LayerTree.tinted(img, $0) } ?? img
         l.contentsGravity = n.stretch == "fill" ? .resize : (n.stretch == "cover" ? .resizeAspectFill : .resizeAspect)
         l.masksToBounds = true
         l.bounds = CGRect(origin: .zero, size: n.box.size)
@@ -882,6 +892,21 @@ final class LayerTree {
 
     func imageLoaded(handle: Int, image: CGImage) {
         for (_, n) in nodes where n.imageHandle == handle { applyImage(n) }
+    }
+
+    /// The tint composite (compositing.md §3.4): fill the color through the
+    /// bitmap's own alpha — `clip(to:mask:)` is exactly `source-in`.
+    private static func tinted(_ img: CGImage, _ color: CGColor) -> CGImage? {
+        let w = img.width, h = img.height
+        guard w > 0, h > 0,
+              let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        let rect = CGRect(x: 0, y: 0, width: w, height: h)
+        ctx.clip(to: rect, mask: img)
+        ctx.setFillColor(color)
+        ctx.fill(rect)
+        return ctx.makeImage()
     }
 
     private func applyGradient(_ n: Node, _ spec: [String: Any]) {

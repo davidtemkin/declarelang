@@ -61,7 +61,7 @@
     "id": "apps/homepage/declare-faq.md",
     "kind": "file",
     "v": {
-     "hash": "49ff971a1f417f63",
+     "hash": "9da4a42e4c050786",
      "size": 23956
     }
    },
@@ -165,7 +165,7 @@
     "id": "apps/homepage/stats.json",
     "kind": "file",
     "v": {
-     "hash": "cf3eb8165346b027",
+     "hash": "5e10fa56b6e81d8e",
      "size": 575
     }
    },
@@ -205,8 +205,8 @@
     "id": "runtime/dist/themes-data.js",
     "kind": "file",
     "v": {
-     "hash": "82c50aa44200251d",
-     "size": 9441
+     "hash": "448a3831c8146645",
+     "size": 9543
     }
    },
    {
@@ -317,8 +317,8 @@
     "id": "runtime/dist/schema.js",
     "kind": "file",
     "v": {
-     "hash": "0920e54197c2c205",
-     "size": 58647
+     "hash": "1e1f109ae10e7357",
+     "size": 59008
     }
    },
    {
@@ -397,16 +397,16 @@
     "id": "runtime/dist/check.js",
     "kind": "file",
     "v": {
-     "hash": "96c35f8a2477842a",
-     "size": 80828
+     "hash": "2e3dbf756dc3f835",
+     "size": 80834
     }
    },
    {
     "id": "runtime/dist/program-schema.js",
     "kind": "file",
     "v": {
-     "hash": "e71c20e553b349f2",
-     "size": 18294
+     "hash": "fd8136e49a322128",
+     "size": 18432
     }
    },
    {
@@ -477,8 +477,8 @@
     "id": "runtime/dist/image.js",
     "kind": "file",
     "v": {
-     "hash": "57d6fa021ef8af06",
-     "size": 6264
+     "hash": "3b7c592e629a97c5",
+     "size": 6408
     }
    },
    {
@@ -605,8 +605,8 @@
     "id": "runtime/dist/dom-backend.js",
     "kind": "file",
     "v": {
-     "hash": "d709581b68401933",
-     "size": 100377
+     "hash": "69beefefcb07102c",
+     "size": 102635
     }
    }
   ],

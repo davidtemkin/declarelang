@@ -199,7 +199,10 @@ export function coerceToken(lit) {
             if (asStroke.ok)
                 return asStroke.value;
             const asShadow = coerce({ kind: "shadow" }, lit);
-            return asShadow.ok ? asShadow.value : undefined;
+            if (asShadow.ok)
+                return asShadow.value;
+            const asBackdrop = coerce({ kind: "backdrop" }, lit);
+            return asBackdrop.ok ? asBackdrop.value : undefined;
         }
         default:
             return undefined;
