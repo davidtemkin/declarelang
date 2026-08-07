@@ -1,0 +1,19 @@
+// The frost (`backdrop`), probed where its ABSENCE shows: a frosted panel
+// over a high-contrast field, offset so the panel's region is unambiguous.
+// Without backdrop sampling the panel renders as plain translucency — the
+// bars stay sharp through the wash, a large localized diff. The saturation
+// argument rides too (the macOS-material range), so a realization that
+// blurs but forgets saturate is also visible.
+
+App [ width = 400, height = 250, fill = #101418,
+
+    bars: View [ x = 0, y = 0, width = 400, height = 250,
+        View [ x = 0, y = 0, width = 100, height = 250, fill = #E4572E ],
+        View [ x = 100, y = 0, width = 100, height = 250, fill = #17BEBB ],
+        View [ x = 200, y = 0, width = 100, height = 250, fill = #FFC914 ],
+        View [ x = 300, y = 0, width = 100, height = 250, fill = #2E282A ]
+        ],
+
+    panel: View [ x = 60, y = 45, width = 280, height = 160,
+        backdrop = frost(18, 1.4), fill = #F9F9FB66, cornerRadius = 16 ]
+    ]

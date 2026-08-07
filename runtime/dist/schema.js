@@ -96,6 +96,14 @@ const ViewSchema = {
         // compositing is paint, never input. Tokens are camelCase (`colorDodge`),
         // the W3C mode set every renderer carries natively.
         blend: enumType("Blend", "normal", "multiply", "screen", "overlay", "darken", "lighten", "colorDodge", "colorBurn", "hardLight", "softLight", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "plusLighter"),
+        // The frost (compositing.md §3.2): sample what has already painted
+        // beneath this view's own painted shape — box, cornerRadius, or shape
+        // clip, over-scanned by the blur radius so edges do not bleed dry —
+        // filter it (`frost(radius, saturation?)`), and paint the view's own
+        // `fill` OVER the result: the platform-material shape. Samples within
+        // the same isolating ancestor blending sees (§4.2); re-samples as
+        // content moves beneath — that is the point of frost. null = none.
+        backdrop: { kind: "backdrop" },
         clip: { kind: "shape" },
         // Scroll: which AXES of interior overflow this view scrolls (ruled
         // 2026-07-29, the axis-enum form — the Stretch shape): `none` (the View

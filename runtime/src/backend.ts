@@ -9,7 +9,7 @@
 // names a substrate (APPROACH §4) — the property that lets a later optimizing
 // runtime choose a backend per view / per hierarchy.
 
-import type { Fill, Shadow, Stroke } from "./value.js";
+import type { Backdrop, Fill, Shadow, Stroke } from "./value.js";
 import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
 
@@ -198,6 +198,17 @@ export interface Surface {
    *  Paint only, never input. Optional — a backend that composites nothing
    *  (headless) omits it, with its seam-table row saying so. */
   setBlend?(mode: string): void;
+
+  /** The frost (compositing.md §3.2): sample everything already painted
+   *  beneath this surface's own painted shape at the moment it paints,
+   *  blur by `blur` px (over-scanning the sample by the same radius so
+   *  edges do not bleed dry), multiply saturation by `saturate`, and land
+   *  the result clipped to the shape — the surface's own fill then paints
+   *  over it, which is how every platform's material works. null = none.
+   *  DOM: `backdrop-filter`, compositor-native. Canvas: the sample-under
+   *  technique at composite time. Optional — a backend that composites
+   *  nothing omits it; the seam table says which. */
+  setBackdrop?(spec: Backdrop | null): void;
 
   /** Clip this surface's subtree to a shape (SVG path data, view-local
    *  coordinates); null = unclipped. Applied at composite time — moving or

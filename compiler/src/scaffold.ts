@@ -100,12 +100,14 @@ interface Gradient { angle: number; stops: readonly { offset: number | null; col
 type Fill = Color | Gradient;
 interface Stroke { width: number; color: Color }
 interface Shadow { dx: number; dy: number; blur: number; color: Color }
+interface Backdrop { blur: number; saturate: number }
 type Theme = Readonly<Record<string, any>>;
 interface Cursor { readonly data: any; readonly path: readonly string[] }
 declare function gradient(...args: (Color | string | { offset: number | null; color: Color })[]): Gradient;
 declare function stroke(width: number, color: Color): Stroke;
 declare function stop(offset: number, color: Color): { offset: number; color: Color };
 declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;
+declare function frost(radius: number, saturation?: number): Backdrop;
 declare function colorWithAlpha(rgb: number, a: number): number;
 interface DrawGradient { addColorStop(offset: number, color: string | Color): void }
 /** The canvas drawing context a \`draw(d: Draw)\` body receives — a Canvas2D-
@@ -241,6 +243,7 @@ export function tsType(t: AttrType): string {
     case "fill": return "Fill";
     case "stroke": return "Stroke | null";
     case "shadow": return "Shadow | null";
+    case "backdrop": return "Backdrop | null";
     case "motion": return "Motion"; // the token union + MotionCurve brand (prelude)
     case "styles": return "string[]"; // a static bundle-name list
     case "stylesheet": return "string | null"; // a declared stylesheet by name

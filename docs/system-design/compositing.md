@@ -253,6 +253,14 @@ setBackdrop?(spec: { blur: number; saturate: number } | null): void
   method): a frost over a scrolling list is the worst case — budget it, and record
   the figure. Interaction with the adaptive draw cache must be stated: a frosted
   region invalidates on under-content change, not on its own state.
+- **MEASURED (2026-08-06, phase 3 landing):** an 800×90 frosted header
+  (`frost(20, 1.4)`) riding a scrolling 800×600 60-row list, dpr 2, headless
+  Chrome on an M-series: mean compositor paint **0.25 ms/frame without frost →
+  0.36 ms with**, worst frame 0.7 → 1.0 ms — the sample-under adds ~0.1 ms
+  mean at this size and stays an order of magnitude inside a 120 Hz budget.
+  The invalidation statement holds as built: the compositor repaints the scene
+  on any invalidate, so a frosted region follows under-content change with no
+  bookkeeping of its own.
 
 ### 5.3 Mac
 

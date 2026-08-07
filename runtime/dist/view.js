@@ -10,7 +10,7 @@
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
 import { Node, runRetire } from "./node.js";
-import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
+import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName } from "./stylesheet.js";
 import { POINTER_TYPES, TOUCH_TYPES, allowedRef } from "./backend.js";
 import { Tip } from "./tip.js";
@@ -437,6 +437,8 @@ export class View extends Node {
             s.setScale(this.scale, this.pivotX, this.pivotY);
         if (this.blend !== "normal")
             s.setBlend?.(this.blend);
+        if (this.backdrop !== null)
+            s.setBackdrop?.(this.backdrop);
         this.applyClip(this.clip);
         if (this.scrolls === "y" || this.scrolls === "both")
             s.setScroll?.(true, (y) => { this.scrollY = y; });
@@ -723,6 +725,7 @@ defineAttributes(View, {
     // optional-chained (the ignoreScroll pattern): backends adopt independently,
     // and the seam table (test/seam.test.mjs) says which have.
     blend: { def: "normal", push: (v, b) => v.surface?.setBlend?.(b) },
+    backdrop: { def: null, push: (v, b) => v.surface?.setBackdrop?.(b), equal: backdropEqual },
     focusable: { def: false },
     focusTrap: { def: false },
     // `anchor` — the view's name in the reveal namespace (location.md §6). A stored

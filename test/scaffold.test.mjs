@@ -127,6 +127,8 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
     "declare function gradient(",
     "declare function stroke(width: number, color: Color): Stroke;",
     "declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;",
+    "interface Backdrop { blur: number; saturate: number }",
+    "declare function frost(radius: number, saturation?: number): Backdrop;",
     "declare function colorWithAlpha(rgb: number, a: number): number;",
   ]) {
     assert.ok(s.includes(line), `prelude should contain: ${line}`);

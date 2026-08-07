@@ -1,5 +1,5 @@
 import { Node } from "./node.js";
-import { type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
+import { type Backdrop, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { type Stylesheet } from "./stylesheet.js";
 import { type RenderBackend, type Surface } from "./backend.js";
@@ -92,6 +92,11 @@ export declare class View extends Node {
      *  blending). `normal` = plain painting. A blending view blends as a unit,
      *  children included; paint only — hit testing and focus never change. */
     blend: "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "colorDodge" | "colorBurn" | "hardLight" | "softLight" | "difference" | "exclusion" | "hue" | "saturation" | "color" | "luminosity" | "plusLighter";
+    /** The frost (`frost(radius, saturation?)`; null = none): what has already
+     *  painted beneath this view, sampled through a blur within the view's own
+     *  painted shape — the view's `fill` then paints OVER the frosted sample,
+     *  the platform-material shape. Paint only, never input. */
+    backdrop: Backdrop | null;
     /** Which axes of interior overflow this view scrolls — `"none"` (the View
      *  default), `"y"`, `"x"`, or `"both"`. Overflow along a declared axis
      *  becomes scroll range; along any other axis it is out of frame. */

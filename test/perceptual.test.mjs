@@ -408,6 +408,22 @@ const BLEND_SOURCE = `App [ width=240, height=160, fill=#20242C,
   pane: View [ x=140, y=50, width=80, height=60, scrolls=y,
     View [ x=10, y=10, width=60, height=30, blend=multiply, fill=#CC3344 ] ] ]`;
 
+// The frost scene (compositing.md §6): a frosted panel over four
+// high-contrast bars. Interior points over a UNIFORM bar are inert to the
+// blur (blur of uniform = uniform), so the discriminating probes sit ON the
+// bar boundaries, where frost mixes the neighbours ~50/50 under the wash and
+// plain translucency keeps them sharp — a huge, probe-visible difference.
+// The second panel carries the saturation argument (dark wash, frost(6,1.6))
+// for cross-backend agreement; the two panels are soft regions in the diff
+// (kernel-edge behaviour is the 2.75% blur precedent), strict everywhere else.
+const FROST_SOURCE = `App [ width=240, height=160, fill=#181C22,
+  View [ x=0, y=0, width=60, height=160, fill=#E4572E ],
+  View [ x=60, y=0, width=60, height=160, fill=#17BEBB ],
+  View [ x=120, y=0, width=60, height=160, fill=#FFC914 ],
+  View [ x=180, y=0, width=60, height=160, fill=#2E282A ],
+  panel: View [ x=20, y=30, width=200, height=70, backdrop=frost(8), fill=#FFFFFF66, cornerRadius=12 ],
+  sat: View [ x=20, y=110, width=200, height=40, backdrop=frost(6, 1.6), fill=#10141866 ] ]`;
+
 // One page template per backend and program; the only differences are which
 // backend class renders and which source. The canvas backend's first paint is
 // its scheduled rAF, so readiness is flagged one frame after that (double-rAF
@@ -772,6 +788,8 @@ function serveDist() {
     "/canvas-c2": pageHtml("CanvasBackend", C2_SOURCE),
     "/dom-blend": pageHtml("DomBackend", BLEND_SOURCE),
     "/canvas-blend": pageHtml("CanvasBackend", BLEND_SOURCE),
+    "/dom-frost": pageHtml("DomBackend", FROST_SOURCE),
+    "/canvas-frost": pageHtml("CanvasBackend", FROST_SOURCE),
     // The box-clip CONTAINMENT test: an App declaring `clip = true` (the
     // calendar's fixed-window design) with a panel parked BEYOND the frame —
     // the browser must gain no scroll extent and focus must not shift the frame.
@@ -2493,6 +2511,48 @@ try {
     const diff = await diffShots(canvasBlend.page, domBlend.png, canvasBlend.png);
     assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
     assert.equal(diff.over, 0, `channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+  });
+
+  // ── the view compositing tier: `backdrop` — the frost (compositing.md §6) ─
+
+  // Interior points over a uniform bar: blur(uniform) = uniform, so the value
+  // is exact wash arithmetic (0.4·white + 0.6·bar) — these pin the wash, not
+  // the blur. The boundary probes pin the BLUR: frost mixes the two bars
+  // ~50/50 under the wash (tolerance widened for the half-pixel kernel
+  // asymmetry), while plain translucency would land the sharp bar color —
+  // ~50 per channel away, far outside even the widened tolerance.
+  const FROST_PROBES = [
+    { at: [30, 10], color: [0xe4, 0x57, 0x2e], label: "bar 1, unfrosted" },
+    { at: [210, 10], color: [0x2e, 0x28, 0x2a], label: "bar 4, unfrosted" },
+    { at: [40, 65], color: [239, 154, 130], label: "wash over uniform bar 1" },
+    { at: [90, 65], color: [116, 216, 214], label: "wash over uniform bar 2" },
+    { at: [150, 65], color: [255, 223, 114], label: "wash over uniform bar 3" },
+    { at: [60, 65], color: [177, 185, 172], tol: 14, label: "frosted bar 1|2 boundary (~50/50 mix)" },
+    { at: [120, 65], color: [185, 219, 164], tol: 14, label: "frosted bar 2|3 boundary (~50/50 mix)" },
+  ];
+
+  const domFrost = await renderShot("/dom-frost", 1, "frost-dom.png");
+  const canvasFrost = await renderShot("/canvas-frost", 1, "frost-canvas.png");
+
+  for (const [name, shot] of [["DOM", domFrost], ["Canvas", canvasFrost]]) {
+    await test(`${name}: backdrop frost — wash arithmetic exact, boundaries actually blurred`, async () => {
+      const actual = await samplePixels(shot.page, shot.png, FROST_PROBES.map((p) => p.at));
+      FROST_PROBES.forEach((p, i) => assertColorNear(actual[i], p.color, `${name} ${p.label}`, p.tol ?? 4));
+    });
+  }
+
+  await test("cross-backend: the frost scene agrees (panels soft — the blur-kernel precedent)", async () => {
+    const diff = await diffShots(canvasFrost.page, domFrost.png, canvasFrost.png, {
+      soft: [
+        { x: 8, y: 18, w: 224, h: 94, label: "frosted panel + its edge ring" },
+        { x: 8, y: 98, w: 224, h: 62, label: "saturated panel + its edge ring" },
+      ],
+    });
+    assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
+    assert.equal(diff.over, 0, `strict channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+    for (const s of diff.soft) {
+      assert.ok(s.mean <= 4, `${s.label}: mean blurred delta ${s.mean} > 4 (frost diverges between backends?)`);
+    }
   });
 
   await test("DOM: `clip = true` is CONTAINMENT — off-box children add no document scroll; focus cannot shift the frame", async () => {

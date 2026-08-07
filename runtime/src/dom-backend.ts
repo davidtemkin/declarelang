@@ -790,6 +790,18 @@ class DomSurface implements Surface {
     this.element.style.mixBlendMode = mode === "normal" ? "" : mode.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
   }
 
+  setBackdrop(spec: { blur: number; saturate: number } | null): void {
+    // Compositor-native, effectively free. The element's own border-radius /
+    // clip-path already bounds the sampled region (the view's painted shape),
+    // and CSS over-scans the sample internally. `backdrop-filter` also
+    // isolates in CSS — which matches the §4.1 list, since a frosted view is
+    // an offscreen group on canvas too. The -webkit- twin carries Safari.
+    const v = spec === null ? "" : `blur(${spec.blur}px) saturate(${spec.saturate})`;
+    const s = this.element.style as CSSStyleDeclaration & { backdropFilter: string; webkitBackdropFilter: string };
+    s.backdropFilter = v;
+    s.webkitBackdropFilter = v;
+  }
+
   setClip(d: string | null): void {
     // clip-path clips native hit-testing along with the pixels, so the
     // clipped-away part of an interactive box falls through — the same

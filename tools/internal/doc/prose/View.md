@@ -373,6 +373,20 @@ both `pivotX`/`pivotY` to scale about the middle rather than the top-left.
 ## pivotY
 The vertical pivot — the twin of `pivotX`.
 
+## backdrop
+The **frost** — `frost(radius)` or `frost(radius, saturation)`; `null` (the default) =
+none. What has already painted beneath this view is sampled within the view's **own
+painted shape** (its box, rounded by `cornerRadius`, or its `clip` shape), blurred by
+`radius`, saturation-scaled, and the view's own `fill` then paints **over** the frosted
+sample — a translucent wash over a blurred backdrop, which is how every platform's
+material works. Content moving beneath re-frosts; that is the point. Samples reach the
+same isolating ancestor `blend` does, and like `blend` it is paint only — input never
+changes. `saturation` defaults to `1`; materials in the macOS style run about `1.4`–`1.8`.
+
+```declare
+panel: View [ backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12 ]
+```
+
 ## blend
 The **compositing operator** this view lands with against what has already painted
 beneath it — `normal` (the default), or one of the W3C blend modes in camelCase

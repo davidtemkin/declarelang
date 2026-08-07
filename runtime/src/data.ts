@@ -610,6 +610,7 @@ export function coerceData(type: AttrType, v: unknown, def: unknown): unknown {
     case "record":
     case "stroke":
     case "shadow":
+    case "backdrop":
     case "motion":
     case "styles":
     case "stylesheet":

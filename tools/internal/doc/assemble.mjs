@@ -451,6 +451,8 @@ const VOCAB_NOTE = {
   stroke: "build a `Stroke`",
   shadow: "build a `Shadow`",
   stop: "one colour stop, for `gradient(…)`",
+  frost: "build a `Backdrop` — blur (and optionally saturate) what lies beneath the view, under its own fill",
+  Backdrop: "the frost a `backdrop` slot holds — blur radius and saturation, from `frost(…)`",
   colorWithAlpha: "an `0xRRGGBB` plus an alpha, as the packed form the paint slots take",
   cubicBezier: "a custom easing curve",
   back: "an overshooting easing curve",

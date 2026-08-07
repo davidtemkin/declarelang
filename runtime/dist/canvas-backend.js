@@ -671,6 +671,14 @@ class CanvasSurface {
         for (let p = from; p !== null; p = p.parent)
             p.blends += delta;
     }
+    /** The frost spec (setBackdrop); null = none. Painted by paintFrost at the
+     *  top of paintContent — under the view's own fill, over everything already
+     *  on the surface. */
+    backdrop = null;
+    setBackdrop(spec) {
+        this.backdrop = spec;
+        this.compositor.invalidate();
+    }
     setBlend(mode) {
         // The schema's camelCase token → the canvas operator. The single-surface
         // painter's model realizes §4.1 directly: at the moment this surface
@@ -1416,10 +1424,53 @@ class CanvasSurface {
         ctx.drawImage(layer, 0, 0);
         ctx.restore();
     }
+    /** The sample-under frost (compositing.md §5.2), which the single-surface
+     *  painter's model makes natural: at the moment this surface paints,
+     *  everything beneath it is already on the target — capture the view's
+     *  region over-scanned by the blur radius (so edges do not bleed dry),
+     *  redraw it through `ctx.filter = blur() saturate()` clipped to the
+     *  view's own painted shape, and let paintBox lay the fill over it.
+     *  Region-bounded; inside a group layer the target IS the group, so the
+     *  sample honors the same isolation blending does (§4.2). Re-sampling
+     *  happens for free: the compositor repaints the scene when anything
+     *  invalidates, so a frosted region follows under-content change without
+     *  its own bookkeeping (the adaptive-draw-cache interaction stated in the
+     *  plan — invalidation is under-content-driven, never own-state-driven). */
+    paintFrost(ctx) {
+        const b = this.backdrop;
+        if (this.width <= 0 || this.height <= 0)
+            return;
+        const m = ctx.getTransform();
+        // the walk is translate+scale only, so m.a/m.d are the axis scales
+        const pad = b.blur;
+        const dx0 = Math.max(0, Math.floor(-pad * m.a + m.e));
+        const dy0 = Math.max(0, Math.floor(-pad * m.d + m.f));
+        const dx1 = Math.min(ctx.canvas.width, Math.ceil((this.width + pad) * m.a + m.e));
+        const dy1 = Math.min(ctx.canvas.height, Math.ceil((this.height + pad) * m.d + m.f));
+        const dw = dx1 - dx0, dh = dy1 - dy0;
+        if (dw <= 0 || dh <= 0)
+            return;
+        const snap = document.createElement("canvas");
+        snap.width = dw;
+        snap.height = dh;
+        snap.getContext("2d").drawImage(ctx.canvas, dx0, dy0, dw, dh, 0, 0, dw, dh);
+        ctx.save();
+        // clip to the view's own painted shape (rounded box; an explicit shape
+        // clip from paint()'s bracket composes by intersection)
+        this.box ??= boxShape(this.width, this.height, this.cornerRadius);
+        ctx.clip(this.box);
+        // blur is stated in view px; the filter runs in device space
+        ctx.filter = `blur(${b.blur * m.a}px) saturate(${b.saturate})`;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(snap, dx0, dy0);
+        ctx.restore();
+    }
     /** Paint order: box (shadow, fill, inside border), image, drawing, text,
      *  then children — the same content order the DOM backend's element order
      *  produces. */
     paintContent(ctx, skipExempt = false) {
+        if (this.backdrop !== null)
+            this.paintFrost(ctx);
         this.paintBox(ctx);
         if (this.image !== null) {
             const st = this.stretch;

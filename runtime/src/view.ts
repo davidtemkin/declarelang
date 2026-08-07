@@ -11,7 +11,7 @@
 // the full state once — literals cost no reactive machinery at all.
 
 import { Node, runRetire } from "./node.js";
-import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
+import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
 import { POINTER_TYPES, TOUCH_TYPES, allowedRef, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
@@ -207,6 +207,11 @@ export class View extends Node {
     | "lighten" | "colorDodge" | "colorBurn" | "hardLight" | "softLight"
     | "difference" | "exclusion" | "hue" | "saturation" | "color"
     | "luminosity" | "plusLighter";
+  /** The frost (`frost(radius, saturation?)`; null = none): what has already
+   *  painted beneath this view, sampled through a blur within the view's own
+   *  painted shape — the view's `fill` then paints OVER the frosted sample,
+   *  the platform-material shape. Paint only, never input. */
+  declare backdrop: Backdrop | null;
   /** Which axes of interior overflow this view scrolls — `"none"` (the View
    *  default), `"y"`, `"x"`, or `"both"`. Overflow along a declared axis
    *  becomes scroll range; along any other axis it is out of frame. */
@@ -626,6 +631,7 @@ export class View extends Node {
     if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
       s.setScale(this.scale, this.pivotX, this.pivotY);
     if (this.blend !== "normal") s.setBlend?.(this.blend);
+    if (this.backdrop !== null) s.setBackdrop?.(this.backdrop);
     this.applyClip(this.clip);
     if (this.scrolls === "y" || this.scrolls === "both") s.setScroll?.(true, (y) => { this.scrollY = y; });
     if (this.scrolls === "x" || this.scrolls === "both") s.setScrollX?.(true, (x) => { this.scrollX = x; });
@@ -904,6 +910,7 @@ defineAttributes(View, {
   // optional-chained (the ignoreScroll pattern): backends adopt independently,
   // and the seam table (test/seam.test.mjs) says which have.
   blend: { def: "normal", push: (v, b: string) => v.surface?.setBlend?.(b) },
+  backdrop: { def: null, push: (v, b) => v.surface?.setBackdrop?.(b), equal: backdropEqual },
   focusable: { def: false },
   focusTrap: { def: false },
   // `anchor` — the view's name in the reveal namespace (location.md §6). A stored

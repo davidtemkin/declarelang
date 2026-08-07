@@ -67,6 +67,11 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
+  setBackdrop: {
+    dom: true, canvas: true,
+    mac: "GAP (deliberate, compositing.md §7 — phase 3 lands the web pair, phase 4 the native realization: an NSVisualEffectView overlay hosted by the Overlays.swift discipline, masked by the view's cornerRadius, held to the §4.3 per-program perceptual baseline). Until then a frosted panel on the native host renders as plain translucency — exactly the pre-frost web rendering the themes' translucent washes were shaped for",
+    headless: NOT_APPLICABLE,
+  },
 
   setPageExtent: {
     dom: true, canvas: true,
@@ -235,9 +240,13 @@ for (const member of members) {
 // backends adopt independently — and rowed from day one so an absence is a
 // declaration, never an inference; the blendview probe is the pixel half
 // (a backend that ignores setBlend renders visibly flat-wrong there).
+// 16 → 17 (2026-08-06, compositing phase 3): setBackdrop, the frost. Same
+// contract as setBlend, and its Mac row is the declared shape of the plan
+// itself: the web pair lands first, the native NSVisualEffectView realization
+// is phase 4, and this row is where that gap is said out loud until then.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 16,
+  assert.equal(members.length, 17,
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);

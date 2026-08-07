@@ -41,6 +41,13 @@ as a unit, children included, and every renderer realizes the same operator nati
 Blending stops at the nearest isolating boundary — the app root, a faded
 (`opacity < 1`) group, a scroller's content; a plain container is transparent to it.
 
+And the material one: `backdrop = frost(20)` samples whatever lies beneath the view,
+blurs it, and lets the view's own translucent `fill` wash over the result — the
+frosted-panel look every platform's menus and sheets wear. `frost(radius, saturation)`
+takes an optional saturation multiplier (macOS-style materials run about 1.4–1.8);
+the sample keeps to the view's own painted shape, so a rounded panel frosts a rounded
+region.
+
 ## Drawing what attributes cannot say
 
 Boxes, rounding, strokes and shadows cover most of an interface. For the rest — a gauge

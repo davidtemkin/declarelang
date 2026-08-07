@@ -45,12 +45,24 @@ export interface Shadow {
     readonly blur: number;
     readonly color: Color;
 }
+/** A backdrop material (`backdrop` on the view box — the frost): sample what
+ *  has already painted beneath the view's own shape, blur it by `blur`,
+ *  multiply saturation by `saturate`, then let the view's own `fill` paint
+ *  over the result — how every platform's material works. Constructed by
+ *  `frost(radius, saturation?)`; extensible later (brightness, tint) without
+ *  a new attribute. */
+export interface Backdrop {
+    readonly blur: number;
+    readonly saturate: number;
+}
 export declare function gradient(...args: (number | string | GradientStop)[]): Gradient;
 export declare const stop: (offset: number, color: Color) => GradientStop;
 export declare const stroke: (width: number, color: Color) => Stroke;
 export declare const shadow: (dx: number, dy: number, blur: number, color: Color) => Shadow;
+export declare const frost: (radius: number, saturation?: number) => Backdrop;
 export declare function shadowEqual(a: Shadow | null, b: Shadow | null): boolean;
 export declare function strokeEqual(a: Stroke | null, b: Stroke | null): boolean;
+export declare function backdropEqual(a: Backdrop | null, b: Backdrop | null): boolean;
 export declare function fillEqual(a: Fill, b: Fill): boolean;
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
  *  wholesale-swapped, never mutated in place). The default is SAN FRANCISCO
@@ -86,7 +98,7 @@ export type Length = number | Percent;
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Motion | readonly ShapeField[];
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Backdrop | Motion | readonly ShapeField[];
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
 export declare function isPercent(v: AttrValue): v is Percent;
@@ -128,6 +140,8 @@ export type AttrType = {
     readonly kind: "stroke";
 } | {
     readonly kind: "shadow";
+} | {
+    readonly kind: "backdrop";
 } | {
     readonly kind: "motion";
 } | {

@@ -219,7 +219,7 @@ isComponent = () => false) {
         return err(`'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
     }
     if (RESERVED.includes(d.name)) {
-        return err(`'${d.name}' is a value constructor (gradient/stroke/shadow/stop) — it cannot be a member name`, d.pos);
+        return err(`'${d.name}' is a value constructor (gradient/stroke/shadow/stop/frost) — it cannot be a member name`, d.pos);
     }
     if (attrType(schema, d.name) !== null) {
         // A read-only intrinsic must not advise "write name = …" — setting it is

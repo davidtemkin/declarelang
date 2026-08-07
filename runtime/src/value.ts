@@ -72,6 +72,17 @@ export interface Shadow {
   readonly color: Color;
 }
 
+/** A backdrop material (`backdrop` on the view box — the frost): sample what
+ *  has already painted beneath the view's own shape, blur it by `blur`,
+ *  multiply saturation by `saturate`, then let the view's own `fill` paint
+ *  over the result — how every platform's material works. Constructed by
+ *  `frost(radius, saturation?)`; extensible later (brightness, tint) without
+ *  a new attribute. */
+export interface Backdrop {
+  readonly blur: number;
+  readonly saturate: number;
+}
+
 // ── The value constructors' RUNTIME forms — the same names inside `{ }`
 // bodies (expr.ts puts them in scope), producing the same immutable
 // plain-data records the literal grammar coerces to. One asymmetry, recorded:
@@ -100,6 +111,8 @@ export const stop = (offset: number, color: Color): GradientStop => Object.freez
 export const stroke = (width: number, color: Color): Stroke => Object.freeze({ width, color });
 export const shadow = (dx: number, dy: number, blur: number, color: Color): Shadow =>
   Object.freeze({ dx, dy, blur, color });
+export const frost = (radius: number, saturation = 1): Backdrop =>
+  Object.freeze({ blur: radius, saturate: saturation });
 
 // Structural equality for the decoration values (ruled: the === write gate
 // extends to shallow structural equality for these — a constraint
@@ -113,6 +126,10 @@ export function shadowEqual(a: Shadow | null, b: Shadow | null): boolean {
 
 export function strokeEqual(a: Stroke | null, b: Stroke | null): boolean {
   return a !== null && b !== null && a.width === b.width && a.color === b.color;
+}
+
+export function backdropEqual(a: Backdrop | null, b: Backdrop | null): boolean {
+  return a !== null && b !== null && a.blur === b.blur && a.saturate === b.saturate;
 }
 
 export function fillEqual(a: Fill, b: Fill): boolean {
@@ -166,7 +183,7 @@ export type Length = number | Percent;
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Motion | readonly ShapeField[];
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Backdrop | Motion | readonly ShapeField[];
 
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
@@ -221,6 +238,9 @@ export type AttrType =
   | { readonly kind: "fill" }
   | { readonly kind: "stroke" }
   | { readonly kind: "shadow" }
+  // The backdrop material (compositing.md §3.2): its literal form is the
+  // `frost(radius, saturation?)` constructor, `null` (the default) = none.
+  | { readonly kind: "backdrop" }
   // Animation (animation.md §1): an easing curve. Two written forms, both
   // already in the grammar — a bare named token (`easeBoth`, `quartOut`, like
   // any enum) or a value constructor (`cubicBezier(…)`, `back(…)`, `steps(…)`,
@@ -379,6 +399,8 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       return coerceStroke(lit);
     case "shadow":
       return coerceShadow(lit);
+    case "backdrop":
+      return coerceBackdrop(lit);
     case "motion":
       return coerceMotion(lit);
     case "styles":
@@ -508,6 +530,18 @@ function coerceShadow(lit: Literal): Coerced {
   const color = argColor(lit.args[3]);
   if (dx === null || dy === null || blur === null || color === null || blur < 0) return fail(SHADOW);
   return ok({ dx, dy, blur, color });
+}
+
+const BACKDROP = `a Backdrop (frost(radius) or frost(radius, saturation) — blur what lies beneath, saturation ≥ 0 (default 1) — or null)`;
+
+function coerceBackdrop(lit: Literal): Coerced {
+  if (lit.kind === "ident" && lit.name === "null") return ok(null);
+  if (lit.kind !== "call" || lit.name !== "frost") return fail(BACKDROP);
+  if (lit.args.length < 1 || lit.args.length > 2) return fail(BACKDROP);
+  const radius = argNumber(lit.args[0]);
+  const saturation = lit.args.length === 2 ? argNumber(lit.args[1]) : 1;
+  if (radius === null || saturation === null || radius < 0 || saturation < 0) return fail(BACKDROP);
+  return ok(frost(radius, saturation));
 }
 
 // ── Motion (animation.md §1) ─────────────────────────────────────────────────

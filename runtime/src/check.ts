@@ -1514,7 +1514,7 @@ export function checkMethod(schema: ComponentSchema, m: Method): CheckedMethod {
     return err(`${schema.name}.${m.name} is an attribute — a method may not take an attribute's name`, m.pos);
   }
   if (RESERVED.includes(m.name)) {
-    return err(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop) — it cannot be a member name`, m.pos);
+    return err(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop/frost) — it cannot be a member name`, m.pos);
   }
   // A METHOD named exactly like one of this component's EVENTS is a dead member:
   // the runtime fires the event, which resolves to the `on…` handler, and nothing

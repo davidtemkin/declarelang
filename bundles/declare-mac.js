@@ -1974,6 +1974,9 @@ var DeclareMac = (() => {
   function strokeEqual(a, b) {
     return a !== null && b !== null && a.width === b.width && a.color === b.color;
   }
+  function backdropEqual(a, b) {
+    return a !== null && b !== null && a.blur === b.blur && a.saturate === b.saturate;
+  }
   function fillEqual(a, b) {
     if (!isGradient(a) || !isGradient(b))
       return false;
@@ -2070,6 +2073,8 @@ var DeclareMac = (() => {
         return coerceStroke(lit);
       case "shadow":
         return coerceShadow(lit);
+      case "backdrop":
+        return coerceBackdrop(lit);
       case "motion":
         return coerceMotion(lit);
       case "styles":
@@ -2178,6 +2183,19 @@ var DeclareMac = (() => {
       return fail(SHADOW);
     return ok({ dx, dy, blur, color });
   }
+  function coerceBackdrop(lit) {
+    if (lit.kind === "ident" && lit.name === "null")
+      return ok(null);
+    if (lit.kind !== "call" || lit.name !== "frost")
+      return fail(BACKDROP);
+    if (lit.args.length < 1 || lit.args.length > 2)
+      return fail(BACKDROP);
+    const radius = argNumber(lit.args[0]);
+    const saturation = lit.args.length === 2 ? argNumber(lit.args[1]) : 1;
+    if (radius === null || saturation === null || radius < 0 || saturation < 0)
+      return fail(BACKDROP);
+    return ok(frost(radius, saturation));
+  }
   function coerceMotion(lit) {
     if (lit.kind === "ident") {
       const m = motionToken(lit.name);
@@ -2274,7 +2292,7 @@ var DeclareMac = (() => {
     const v = c - ALPHA;
     return "#" + Math.floor(v / 256).toString(16).padStart(6, "0") + (v % 256).toString(16).padStart(2, "0");
   }
-  var ALPHA, stop, stroke, shadow, DEFAULT_THEME, DECLARED_TYPES, DECLARED_TYPE_NAMES, ok, fail, COLOR, FILL, STROKE, SHADOW, MOTION, SHAPE;
+  var ALPHA, stop, stroke, shadow, frost, DEFAULT_THEME, DECLARED_TYPES, DECLARED_TYPE_NAMES, ok, fail, COLOR, FILL, STROKE, SHADOW, BACKDROP, MOTION, SHAPE;
   var init_value = __esm({
     "runtime/dist/value.js"() {
       "use strict";
@@ -2286,6 +2304,7 @@ var DeclareMac = (() => {
       stop = (offset, color) => Object.freeze({ offset, color });
       stroke = (width, color) => Object.freeze({ width, color });
       shadow = (dx, dy, blur, color) => Object.freeze({ dx, dy, blur, color });
+      frost = (radius, saturation = 1) => Object.freeze({ blur: radius, saturate: saturation });
       DEFAULT_THEME = SanFrancisco;
       DECLARED_TYPES = {
         number: { kind: "number" },
@@ -2316,6 +2335,7 @@ var DeclareMac = (() => {
       FILL = `a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, \u2026stops), or null)`;
       STROKE = `a Stroke (stroke(width, color) \u2014 drawn inside the box \u2014 or null)`;
       SHADOW = `a Shadow (shadow(dx, dy, blur, color), or null)`;
+      BACKDROP = `a Backdrop (frost(radius) or frost(radius, saturation) \u2014 blur what lies beneath, saturation \u2265 0 (default 1) \u2014 or null)`;
       MOTION = `a Motion (a named curve like easeBoth, quartOut, expoIn, or laszloBoth; or a constructor: cubicBezier(x1, y1, x2, y2), back(overshoot), steps(n[, jumpStart | jumpEnd]), laszlo(beginPole, endPole))`;
       SHAPE = `a Shape (SVG path data in a string, like "M0 0 L80 0 L40 60 Z", or null)`;
     }
@@ -2423,6 +2443,14 @@ var DeclareMac = (() => {
           // compositing is paint, never input. Tokens are camelCase (`colorDodge`),
           // the W3C mode set every renderer carries natively.
           blend: enumType("Blend", "normal", "multiply", "screen", "overlay", "darken", "lighten", "colorDodge", "colorBurn", "hardLight", "softLight", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "plusLighter"),
+          // The frost (compositing.md §3.2): sample what has already painted
+          // beneath this view's own painted shape — box, cornerRadius, or shape
+          // clip, over-scanned by the blur radius so edges do not bleed dry —
+          // filter it (`frost(radius, saturation?)`), and paint the view's own
+          // `fill` OVER the result: the platform-material shape. Samples within
+          // the same isolating ancestor blending sees (§4.2); re-samples as
+          // content moves beneath — that is the point of frost. null = none.
+          backdrop: { kind: "backdrop" },
           clip: { kind: "shape" },
           // Scroll: which AXES of interior overflow this view scrolls (ruled
           // 2026-07-29, the axis-enum form — the Stretch shape): `none` (the View
@@ -3760,7 +3788,7 @@ var DeclareMac = (() => {
       "use strict";
       init_datapath();
       init_value();
-      DECOR = { gradient, stroke, shadow, stop };
+      DECOR = { gradient, stroke, shadow, stop, frost };
       LOWERED = { colorWithAlpha };
       SCOPE = { ...DECOR, ...LOWERED };
       PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
@@ -4028,7 +4056,7 @@ var DeclareMac = (() => {
       return err2(`'${d.name}' is a scope noun (language \xA711) \u2014 it cannot be declared`, d.pos);
     }
     if (RESERVED.includes(d.name)) {
-      return err2(`'${d.name}' is a value constructor (gradient/stroke/shadow/stop) \u2014 it cannot be a member name`, d.pos);
+      return err2(`'${d.name}' is a value constructor (gradient/stroke/shadow/stop/frost) \u2014 it cannot be a member name`, d.pos);
     }
     if (attrType(schema, d.name) !== null) {
       if (isReadOnly(schema, d.name)) {
@@ -4989,7 +5017,7 @@ var DeclareMac = (() => {
       return err2(`${schema.name}.${m.name} is an attribute \u2014 a method may not take an attribute's name`, m.pos);
     }
     if (RESERVED.includes(m.name)) {
-      return err2(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop) \u2014 it cannot be a member name`, m.pos);
+      return err2(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop/frost) \u2014 it cannot be a member name`, m.pos);
     }
     if (eventsOf(schema).includes(m.name)) {
       return err2(`${schema.name}.${m.name}(\u2026) is never called \u2014 '${m.name}' is an EVENT here, delivered to '${handlerName(m.name)}'. Rename it to '${handlerName(m.name)}(\u2026)'. (The 'input(v)' value pattern belongs to CONTROLS \u2014 Checkbox, Slider, Segmented \u2014 which fire no such event; an editor delivers through its event instead.)`, m.pos);
@@ -7078,6 +7106,8 @@ var DeclareMac = (() => {
             s.setScale(this.scale, this.pivotX, this.pivotY);
           if (this.blend !== "normal")
             s.setBlend?.(this.blend);
+          if (this.backdrop !== null)
+            s.setBackdrop?.(this.backdrop);
           this.applyClip(this.clip);
           if (this.scrolls === "y" || this.scrolls === "both")
             s.setScroll?.(true, (y) => {
@@ -7351,6 +7381,7 @@ var DeclareMac = (() => {
         // optional-chained (the ignoreScroll pattern): backends adopt independently,
         // and the seam table (test/seam.test.mjs) says which have.
         blend: { def: "normal", push: (v, b) => v.surface?.setBlend?.(b) },
+        backdrop: { def: null, push: (v, b) => v.surface?.setBackdrop?.(b), equal: backdropEqual },
         focusable: { def: false },
         focusTrap: { def: false },
         // `anchor` — the view's name in the reveal namespace (location.md §6). A stored
@@ -9041,6 +9072,7 @@ var DeclareMac = (() => {
       case "record":
       case "stroke":
       case "shadow":
+      case "backdrop":
       case "motion":
       case "styles":
       case "stylesheet":

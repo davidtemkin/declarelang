@@ -48,6 +48,7 @@ export function gradient(...args) {
 export const stop = (offset, color) => Object.freeze({ offset, color });
 export const stroke = (width, color) => Object.freeze({ width, color });
 export const shadow = (dx, dy, blur, color) => Object.freeze({ dx, dy, blur, color });
+export const frost = (radius, saturation = 1) => Object.freeze({ blur: radius, saturate: saturation });
 // Structural equality for the decoration values (ruled: the === write gate
 // extends to shallow structural equality for these — a constraint
 // re-producing an equal record stops the cascade like a scalar). Each is
@@ -58,6 +59,9 @@ export function shadowEqual(a, b) {
 }
 export function strokeEqual(a, b) {
     return a !== null && b !== null && a.width === b.width && a.color === b.color;
+}
+export function backdropEqual(a, b) {
+    return a !== null && b !== null && a.blur === b.blur && a.saturate === b.saturate;
 }
 export function fillEqual(a, b) {
     if (!isGradient(a) || !isGradient(b))
@@ -218,6 +222,8 @@ export function coerce(type, lit) {
             return coerceStroke(lit);
         case "shadow":
             return coerceShadow(lit);
+        case "backdrop":
+            return coerceBackdrop(lit);
         case "motion":
             return coerceMotion(lit);
         case "styles":
@@ -354,6 +360,20 @@ function coerceShadow(lit) {
     if (dx === null || dy === null || blur === null || color === null || blur < 0)
         return fail(SHADOW);
     return ok({ dx, dy, blur, color });
+}
+const BACKDROP = `a Backdrop (frost(radius) or frost(radius, saturation) — blur what lies beneath, saturation ≥ 0 (default 1) — or null)`;
+function coerceBackdrop(lit) {
+    if (lit.kind === "ident" && lit.name === "null")
+        return ok(null);
+    if (lit.kind !== "call" || lit.name !== "frost")
+        return fail(BACKDROP);
+    if (lit.args.length < 1 || lit.args.length > 2)
+        return fail(BACKDROP);
+    const radius = argNumber(lit.args[0]);
+    const saturation = lit.args.length === 2 ? argNumber(lit.args[1]) : 1;
+    if (radius === null || saturation === null || radius < 0 || saturation < 0)
+        return fail(BACKDROP);
+    return ok(frost(radius, saturation));
 }
 // ── Motion (animation.md §1) ─────────────────────────────────────────────────
 //
