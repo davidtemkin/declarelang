@@ -186,6 +186,26 @@ const WALK_RAW = `App [ fill = #202830,
 const walkCompiled = compile(WALK_RAW);
 assert.deepEqual(walkCompiled.errors, [], "walk fixture compiles clean");
 
+// ROTATED LOCALIZATION (compositing.md Part II). The browser TARGETS through
+// a CSS transform natively, but the view-local point does not come for free:
+// `clientX - rect.left` against a transformed element measures inside the
+// AABB, not the view (dom-backend localPoint is the inversion). One rotated
+// frame records what its handlers hear; default pivot (top-left), 30°, so
+// visual(local) = origin + R(30°)·local and nothing about the box is axis-
+// aligned. The canvas backend answers through its own walk — same pins.
+const ROT_RAW = `App [ width = 640, height = 400, fill = #202830,
+    hx: number = -1,
+    hy: number = -1,
+    whx: number = -1,
+    why: number = -1,
+    frame: View [ x = 220, y = 90, width = 240, height = 160, fill = #334455, rotation = 30,
+        onPointerDown(e: PointerEvent) { app.hx = e.x; app.hy = e.y },
+        onWheel(e: WheelEvent) { app.whx = e.x; app.why = e.y },
+        ],
+    ]`;
+const rotCompiled = compile(ROT_RAW);
+assert.deepEqual(rotCompiled.errors, [], "rotation fixture compiles clean");
+
 // ── The iOS missing-cancel takeover (input.ts scroll-takeover detector) ─────
 // Measured on the simulator (iOS 18.2, tools/internal/sim + ?probe): when an
 // interior pane takes a live finger's gesture, iOS Safari sends NO
@@ -234,6 +254,8 @@ const pages = {
   "/dom-coarse": pageHtml("DomBackend", coarseCompiled.source),
   "/dom-selection": pageHtml("DomBackend", selCompiled.source),
   "/dom-walk": pageHtml("DomBackend", walkCompiled.source),
+  "/dom-rot": pageHtml("DomBackend", rotCompiled.source),
+  "/canvas-rot": pageHtml("CanvasBackend", rotCompiled.source),
 };
 
 const server = http.createServer(async (req, res) => {
@@ -434,6 +456,63 @@ await test("dom: hovered/pressed hit where things PAINT — page scroll, pane sc
     return { deep: app.viewAt(140, 930) === app.deep, chrome: app.viewAt(140, 930 - window.scrollY) !== app.deep };
   });
   assert.equal(va.deep, true, "viewAt(contentX, contentY) answers the painted view");
+  await tp.close();
+});
+
+// A window-local point of the 30°-rotated frame, in page coordinates
+// (origin 220,90 — top-left pivot): visual = origin + R(30°)·local.
+const rotAt = (lx, ly) => {
+  const a = (30 * Math.PI) / 180;
+  return { x: 220 + lx * Math.cos(a) - ly * Math.sin(a), y: 90 + lx * Math.sin(a) + ly * Math.cos(a) };
+};
+
+await test("dom: a ROTATED view hears view-local coordinates, not AABB arithmetic", async () => {
+  const tp = await browser.newPage();
+  await tp.goto(`${B}/dom-rot`, { waitUntil: "networkidle2", timeout: 30000 });
+  await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
+  const p = rotAt(30, 20);
+  await tp.mouse.move(p.x, p.y);
+  await tp.mouse.down();
+  await tp.mouse.up();
+  const got = await tp.evaluate(() => [window.__app.hx, window.__app.hy]);
+  assert.ok(Math.abs(got[0] - 30) <= 1 && Math.abs(got[1] - 20) <= 1,
+    `pointerdown at visual(30,20) localizes to (30,20) — got (${got[0]}, ${got[1]})`);
+  // the vacated axis-aligned corner (inside the AABB, outside the rotated
+  // box) belongs to whatever is beneath — the frame must NOT hear it
+  await tp.evaluate(() => { window.__app.hx = -1; window.__app.hy = -1; });
+  await tp.mouse.move(455, 95); // near the old top-right corner, now vacated by the swing
+  await tp.mouse.down();
+  await tp.mouse.up();
+  const missed = await tp.evaluate(() => window.__app.hx);
+  assert.equal(missed, -1, "a point the rotation vacated no longer hits the frame");
+  await tp.close();
+});
+
+await test("dom: the wheel over a ROTATED claimant localizes the same way", async () => {
+  const tp = await browser.newPage();
+  await tp.goto(`${B}/dom-rot`, { waitUntil: "networkidle2", timeout: 30000 });
+  await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
+  const p = rotAt(200, 40);
+  await tp.mouse.move(p.x, p.y);
+  await tp.mouse.wheel({ deltaY: 60 });
+  await new Promise((r) => setTimeout(r, 120));
+  const got = await tp.evaluate(() => [window.__app.whx, window.__app.why]);
+  assert.ok(Math.abs(got[0] - 200) <= 1 && Math.abs(got[1] - 40) <= 1,
+    `wheel at visual(200,40) localizes to (200,40) — got (${got[0]}, ${got[1]})`);
+  await tp.close();
+});
+
+await test("canvas: the rotated walk answers the same local point — parity", async () => {
+  const tp = await browser.newPage();
+  await tp.goto(`${B}/canvas-rot`, { waitUntil: "networkidle2", timeout: 30000 });
+  await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
+  const p = rotAt(30, 20);
+  await tp.mouse.move(p.x, p.y);
+  await tp.mouse.down();
+  await tp.mouse.up();
+  const got = await tp.evaluate(() => [window.__app.hx, window.__app.hy]);
+  assert.ok(Math.abs(got[0] - 30) <= 1 && Math.abs(got[1] - 20) <= 1,
+    `canvas pointerdown at visual(30,20) localizes to (30,20) — got (${got[0]}, ${got[1]})`);
   await tp.close();
 });
 

@@ -13,6 +13,7 @@ import { DeclareError } from "./errors.js";
 import { Keys } from "./keys.js";
 import { Focus, deliverKeys } from "./focus.js";
 import { bridgeFor } from "./inspect.js";
+import { localPoint } from "./dom-backend.js";
 /** Load web fonts into the document so BOTH backends see them — one FontFace
  *  serves the Canvas backend's `ctx.font`/measureText and the DOM backend's
  *  `font-family` alike. A sanctioned runtime primitive: font loading lives in
@@ -227,9 +228,13 @@ function wireEnvironmentEmbedded(app, host) {
             host.style.overflow = "auto";
     };
     const move = (e) => {
-        const r = host.getBoundingClientRect();
-        app.pointerX = e.clientX - r.left;
-        app.pointerY = e.clientY - r.top;
+        // localPoint, not rect arithmetic: the box may sit inside a TRANSFORMED
+        // host subtree (a rotated desktop window hosting this island), where the
+        // rect is the transformed AABB and client-minus-corner lands in the wrong
+        // frame. With no live transforms this is the same rect subtraction.
+        const p = localPoint(host, e.clientX, e.clientY);
+        app.pointerX = p.x;
+        app.pointerY = p.y;
         app.hovering = e.pointerType !== "touch"; // a touch has no hover (see wireEnvironment)
         const t = e.target;
         app.pointerOverText =
@@ -239,9 +244,9 @@ function wireEnvironmentEmbedded(app, host) {
     const unTheme = wireColorScheme(app); // re-rendered embedded apps must drop the mq listener
     const unPointer = wireTouchDevice(app);
     const down = (e) => {
-        const r = host.getBoundingClientRect();
-        app.pointerX = e.clientX - r.left;
-        app.pointerY = e.clientY - r.top;
+        const p = localPoint(host, e.clientX, e.clientY);
+        app.pointerX = p.x;
+        app.pointerY = p.y;
         app.hovering = e.pointerType !== "touch";
         app.pointerDown = true;
     };

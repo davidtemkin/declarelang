@@ -98791,12 +98791,12 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
     };
     Xze = (g) => "#" + (g >>> 0).toString(16).padStart(6, "0").toUpperCase().slice(-6);
   });
-  function Owt(g) {
+  function Mwt(g) {
     if (!(g instanceof rs)) return null;
     let p = Ak(g);
     return { x: p.x, y: p.y, width: g.width || 0, height: g.height || 0 };
   }
-  function sVe(g, p, T, A, P) {
+  function oVe(g, p, T, A, P) {
     let B = false, U = false, le = 0;
     try {
       B = BF(g).length > 0;
@@ -98809,10 +98809,10 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
     }
     let fe = { length: le };
     P.push({ path: A, name: xSe(g) ?? "", kind: kv(g), depth: T, hasKids: fe.length > 0, visible: g instanceof rs ? g.visible !== false : true, constrained: B, motion: U }), p[A] === true && g.children.forEach((Pe, Ee) => {
-      Pe instanceof rs && sVe(Pe, p, T + 1, `${A}.${xSe(Pe) ?? Ee}`, P);
+      Pe instanceof rs && oVe(Pe, p, T + 1, `${A}.${xSe(Pe) ?? Ee}`, P);
     });
   }
-  function Fwt(g) {
+  function jwt(g) {
     let p = 0;
     for (let T = 0; T < g.length; T++) {
       let A = g[T];
@@ -98842,7 +98842,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
       return String(g);
     }
   }
-  function oVe(g) {
+  function cVe(g) {
     let p = JT(g);
     if (p !== null) try {
       return p.data.read([...p.path]);
@@ -98850,11 +98850,11 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
       return;
     }
   }
-  function cVe(g) {
-    let p = oVe(g);
+  function lVe(g) {
+    let p = cVe(g);
     return p == null || typeof p != "object" ? [] : Array.isArray(p) ? p.map((T, A) => String(A)) : Object.keys(p);
   }
-  function iVe(g, p) {
+  function aVe(g, p) {
     let T = yx(p);
     if (T.length === 0) return null;
     let A = T.find((P) => P.many);
@@ -98875,29 +98875,29 @@ Select a view under a 'datapath' (a replicated row) to read ':' paths.` : null;
         let B = A;
         for (; B < p.length && /[A-Za-z0-9_$]/.test(p[B]); ) B++;
         let U = p.slice(A, B), le = T.replace(/\s+$/, "").slice(-1), fe = p.slice(B).replace(/^\s+/, "").slice(0, 1);
-        !(le === "." || le === "?") && !(fe === ":") && !Lwt.has(U) ? U === "app" ? T += "this.root" : U in g ? T += `this.${U}` : T += U : T += U, A = B;
+        !(le === "." || le === "?") && !(fe === ":") && !Jwt.has(U) ? U === "app" ? T += "this.root" : U in g ? T += `this.${U}` : T += U : T += U, A = B;
         continue;
       }
       T += P, A++;
     }
     return T;
   }
-  function Mwt(g, p, T) {
+  function Uwt(g, p, T) {
     let A = T.trim(), P = (At, Ve = A) => ({ ok: false, input: Ve, text: At, verb: "error" });
     if (A === "") return P("");
     let B = Cv(g, p);
     if (B === null) return P(`no object at '${p}'`);
     let U = B, le = B.classroot ?? null, fe = (At) => {
-      let Ve = iVe(B, At);
+      let Ve = aVe(B, At);
       if (Ve !== null) return { error: Ve };
-      let Ne = eVe(TSe(B, At));
+      let Ne = tVe(TSe(B, At));
       if (Ne !== null) return { error: Ne };
       let En = Jh(TSe(B, At));
       if ("error" in En) return { error: En.error };
       try {
         let an = En.fn.call(B, B.parent, le), ir = yx(At);
         if (an === null && ir.length > 0) {
-          let ti = cVe(B), yi = ir.filter((us) => {
+          let ti = lVe(B), yi = ir.filter((us) => {
             let jn = us.path.split(".")[0];
             return ti.length > 0 && !ti.includes(jn);
           });
@@ -98909,7 +98909,7 @@ it has: ${ti.join(", ")}` };
         return { error: `threw \u2014 ${an.message}` };
       }
     };
-    if (Rwt(A)) {
+    if (Bwt(A)) {
       if (!(B instanceof rs)) return P("only a View can take a child");
       try {
         let Ve = gv(`App [
@@ -98923,13 +98923,13 @@ ${A}
 `)) : P(At.message);
       }
     }
-    let Pe = Fwt(A);
+    let Pe = jwt(A);
     if (Pe !== null) {
-      let { attr: At, rest: Ve } = Pe, Ne = rVe(Ve);
+      let { attr: At, rest: Ve } = Pe, Ne = iVe(Ve);
       if (Ne !== null) {
-        let an = iVe(B, Ne);
+        let an = aVe(B, Ne);
         if (an !== null) return P(an);
-        let ir = TSe(B, Ne), ti = eVe(ir);
+        let ir = TSe(B, Ne), ti = tVe(ir);
         if (ti !== null) return P(ti);
         try {
           Dc(B, At) !== null && rU(B, At), GF(B, At, ir, { line: 0, col: 0 }, le);
@@ -98949,12 +98949,12 @@ Replace the constraint instead:  ${At} = { \u2026 }`);
         return P(an.message);
       }
     }
-    let Ee = rVe(A), $e = fe(Ee ?? A);
+    let Ee = iVe(A), $e = fe(Ee ?? A);
     if ("error" in $e) return P($e.error);
     let ie = Ee === null && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(A) ? "read" : "eval";
     return { ok: true, input: A, verb: ie, text: kSe($e.value) };
   }
-  function aVe(g) {
+  function sVe(g) {
     let p = [], T = g;
     for (; T !== null && T.parent !== null; ) {
       let A = xSe(T);
@@ -98963,16 +98963,16 @@ Replace the constraint instead:  ${At} = { \u2026 }`);
     return ["app", ...p].join(".");
   }
   var SSe;
-  var Pwt;
+  var Lwt;
   var bSe;
-  var eVe;
   var tVe;
   var nVe;
+  var rVe;
   var Uh;
   var xSe;
-  var Rwt;
-  var rVe;
-  var Lwt;
+  var Bwt;
+  var iVe;
+  var Jwt;
   var CSe;
   var wSe = xo(() => {
     "use strict";
@@ -98988,21 +98988,21 @@ Replace the constraint instead:  ${At} = { \u2026 }`);
     UU();
     F_();
     gm();
-    SSe = null, Pwt = () => ({ x: 0, y: 0 }), bSe = Pwt, eVe = EF, tVe = [], nVe = "", Uh = () => {
+    SSe = null, Lwt = () => ({ x: 0, y: 0 }), bSe = Lwt, tVe = EF, nVe = [], rVe = "", Uh = () => {
       if (SSe === null) throw new Bt("Inspect: no subject app is attached");
       return SSe;
     };
     xSe = (g) => VU(g);
-    Rwt = (g) => /^[A-Z][A-Za-z0-9_]*\s*\[/.test(g.trim()), rVe = (g) => {
+    Bwt = (g) => /^[A-Z][A-Za-z0-9_]*\s*\[/.test(g.trim()), iVe = (g) => {
       let p = g.trim();
       return p.startsWith("{") && p.endsWith("}") ? p.slice(1, -1).trim() : null;
     };
-    Lwt = /* @__PURE__ */ new Set(["true", "false", "null", "undefined", "new", "typeof", "instanceof", "in", "of", "return", "const", "let", "var", "if", "else", "for", "while", "do", "function", "this", "parent", "classroot", "void", "delete", "class", "extends", "yield", "await"]);
+    Jwt = /* @__PURE__ */ new Set(["true", "false", "null", "undefined", "new", "typeof", "instanceof", "in", "of", "return", "const", "let", "var", "if", "else", "for", "while", "do", "function", "this", "parent", "classroot", "void", "delete", "class", "extends", "yield", "await"]);
     CSe = { ready: () => SSe !== null, rows: (g) => {
       let p = [];
-      sVe(Uh(), g ?? {}, 0, "app", p);
+      oVe(Uh(), g ?? {}, 0, "app", p);
       let T = JSON.stringify(p);
-      return T === nVe ? tVe : (nVe = T, tVe = p, p);
+      return T === rVe ? nVe : (rVe = T, nVe = p, p);
     }, node: (g) => Ete(Uh(), g), kindOf: (g) => {
       let p = Cv(Uh(), g);
       return p === null ? "" : kv(p);
@@ -99029,7 +99029,7 @@ Replace the constraint instead:  ${At} = { \u2026 }`);
       if ("error" in A) return "";
       try {
         let P = A.fn.call(T, T.parent, T.classroot ?? null);
-        return P instanceof rs ? aVe(P) : "";
+        return P instanceof rs ? sVe(P) : "";
       } catch {
         return "";
       }
@@ -99039,13 +99039,13 @@ Replace the constraint instead:  ${At} = { \u2026 }`);
     }, dependents: (g) => gSe(Uh(), g), rect: (g) => {
       let p = Cv(Uh(), g);
       if (p === null) return null;
-      let T = Owt(p);
+      let T = Mwt(p);
       if (T === null) return null;
       let A = bSe();
       return { x: T.x + A.x, y: T.y + A.y, width: T.width, height: T.height };
     }, at: (g, p) => {
       let T = bSe(), A = hSe(Uh(), g - T.x, p - T.y);
-      return A === null ? "" : aVe(A);
+      return A === null ? "" : sVe(A);
     }, explainHit: (g, p, T = false) => {
       let A = bSe();
       return Qze(Uh(), g - A.x, p - A.y, T);
@@ -99054,11 +99054,11 @@ Replace the constraint instead:  ${At} = { \u2026 }`);
       return p !== null && JT(p) !== null;
     }, dataKeys: (g) => {
       let p = Cv(Uh(), g);
-      return p === null ? [] : cVe(p);
+      return p === null ? [] : lVe(p);
     }, dataRows: (g) => {
       let p = Cv(Uh(), g);
       if (p === null) return [];
-      let T = oVe(p);
+      let T = cVe(p);
       if (T == null || typeof T != "object") return [];
       let A = [];
       for (let [P, B] of Object.entries(T).slice(0, 200)) {
@@ -99077,7 +99077,7 @@ Replace the constraint instead:  ${At} = { \u2026 }`);
       } catch {
         return "";
       }
-    }, evaluate: (g, p) => Mwt(Uh(), g, p), clock: mSe };
+    }, evaluate: (g, p) => Uwt(Uh(), g, p), clock: mSe };
   });
   q6();
   F_();
@@ -101024,6 +101024,11 @@ ${U.join(`
   PU();
   s4();
   $U();
+  rTe();
+  dy();
+  dy();
+  c4();
+  sU();
   q6();
   MJ();
   NF();
@@ -101049,11 +101054,6 @@ ${U.join(`
   IF();
   c4();
   Jbe();
-  rTe();
-  dy();
-  dy();
-  c4();
-  sU();
   F_();
   dy();
   c4();
@@ -101095,13 +101095,13 @@ ${U.join(`
     return { resolve: (le, fe) => zUe(le, fe, U, B), autoincludes: () => T, resolveLibrary: (le) => B(A, le) };
   }
   var TVe = null;
-  function z3t(g) {
+  function $3t(g) {
     TVe = g;
   }
   function SVe(g) {
     return g.files !== void 0 || g.manifest !== void 0 ? g : TVe ?? g;
   }
-  function V3t(g, p = {}) {
+  function q3t(g, p = {}) {
     let { files: T, manifest: A, libraryRoot: P, host: B, ...U } = { ...SVe(p), ...nAt(p) };
     return ZJ(g, { ...U, host: B ?? bVe({ files: T, manifest: A, libraryRoot: P }) });
   }
@@ -101109,7 +101109,7 @@ ${U.join(`
     let { files: p, manifest: T, libraryRoot: A, ...P } = g;
     return P;
   }
-  function $3t(g, p = {}) {
+  function H3t(g, p = {}) {
     let T = SVe(p), A = bVe({ files: T.files, manifest: T.manifest, libraryRoot: T.libraryRoot }), P = (T.libraryRoot ?? "library") + "/", B = /* @__PURE__ */ new Map(), U = (ti) => (ti !== null && !B.has(ti.canonical) && (p.trackLibrary !== false || !ti.canonical.startsWith(P)) && B.set(ti.canonical, { id: ti.canonical, kind: "file", v: p.validators?.[ti.canonical] ?? { hash: vVe(ti.source) } }), ti), le = { resolve: (ti, yi) => U(A.resolve(ti, yi)), autoincludes: () => A.autoincludes(), resolveLibrary: (ti) => U(A.resolveLibrary(ti)) }, { files: fe, manifest: Pe, libraryRoot: Ee, mainId: $e, mainValidator: ie, validators: At, props: Ve, trackLibrary: Ne, ...En } = p, an = ZJ(g, { ...En, host: p.host ?? le }), ir = [];
     return $e !== void 0 && ir.push({ id: $e, kind: "file", v: ie ?? { hash: vVe(g) } }), ir.push(...B.values()), { ...an, closure: { entries: ir, props: Ve ?? {} } };
   }
@@ -111775,5 +111775,5 @@ declare type ParameterDecorator = (target: Object, propertyKey: string | symbol 
   B1e((g) => rAt[g]);
 
   // bundles/.compiler-mac-entry.js
-  globalThis.__declareCompiler = { compile: V3t, compileTracked: $3t, setDefaultLibrary: z3t, highlight: eCt };
+  globalThis.__declareCompiler = { compile: q3t, compileTracked: H3t, setDefaultLibrary: $3t, highlight: eCt };
 })();

@@ -61,7 +61,7 @@
     "id": "apps/homepage/declare-faq.md",
     "kind": "file",
     "v": {
-     "hash": "ab86dbde89ee8a4e",
+     "hash": "3796be08dd1a313b",
      "size": 23956
     }
    },
@@ -165,7 +165,7 @@
     "id": "apps/homepage/stats.json",
     "kind": "file",
     "v": {
-     "hash": "4dd800b7fa6a9549",
+     "hash": "9ff90cf557586991",
      "size": 575
     }
    },
@@ -554,22 +554,6 @@
     }
    },
    {
-    "id": "runtime/dist/boot.js",
-    "kind": "file",
-    "v": {
-     "hash": "8d7d6432e0ca9ee0",
-     "size": 19593
-    }
-   },
-   {
-    "id": "runtime/dist/hydrate.js",
-    "kind": "file",
-    "v": {
-     "hash": "e4e2b8ceb3d48362",
-     "size": 1725
-    }
-   },
-   {
     "id": "runtime/dist/boxpaint.js",
     "kind": "file",
     "v": {
@@ -605,8 +589,24 @@
     "id": "runtime/dist/dom-backend.js",
     "kind": "file",
     "v": {
-     "hash": "75fccc7f17e71086",
-     "size": 104962
+     "hash": "a22abafd90b0ead8",
+     "size": 109033
+    }
+   },
+   {
+    "id": "runtime/dist/boot.js",
+    "kind": "file",
+    "v": {
+     "hash": "ee94f0df862a0b81",
+     "size": 19925
+    }
+   },
+   {
+    "id": "runtime/dist/hydrate.js",
+    "kind": "file",
+    "v": {
+     "hash": "e4e2b8ceb3d48362",
+     "size": 1725
     }
    }
   ],

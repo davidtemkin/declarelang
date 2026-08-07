@@ -15768,208 +15768,6 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   init_keys();
   init_focus();
   init_inspect();
-  async function loadFonts(fonts) {
-    if (typeof FontFace === "undefined" || typeof document === "undefined")
-      return;
-    await Promise.all(fonts.map(async (f) => {
-      const face = new FontFace(f.family, f.src, {
-        weight: String(f.weight ?? "normal"),
-        style: f.style ?? "normal"
-      });
-      await face.load();
-      document.fonts.add(face);
-    }));
-  }
-  function isEmbedded(host2) {
-    return typeof document !== "undefined" && typeof host2.closest === "function" && host2.closest("[data-declare-app], [data-declare-embed]") !== null;
-  }
-  var TEARDOWN = /* @__PURE__ */ new WeakMap();
-  function wireInput(app, host2, chrome = false) {
-    const embedded = isEmbedded(host2);
-    wireEnvironment(app, host2, chrome ? false : embedded);
-    if (chrome || embedded)
-      return;
-    Focus.setRoot(app);
-    Keys.listen(() => app.surface !== null);
-    deliverKeys(Keys, Focus);
-    window.__declare = bridgeFor(app);
-  }
-  function wireColorScheme(app) {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    app.dark = mq.matches;
-    const update = () => {
-      app.dark = mq.matches;
-    };
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }
-  function wireTouchDevice(app) {
-    const primary = window.matchMedia("(pointer: coarse)");
-    const anyCoarse = window.matchMedia("(any-pointer: coarse)");
-    const anyFine = window.matchMedia("(any-pointer: fine)");
-    const update = () => {
-      app.touchDevice = primary.matches;
-      app.hasTouch = anyCoarse.matches;
-      app.hasPointer = anyFine.matches;
-    };
-    update();
-    primary.addEventListener("change", update);
-    anyCoarse.addEventListener("change", update);
-    anyFine.addEventListener("change", update);
-    return () => {
-      primary.removeEventListener("change", update);
-      anyCoarse.removeEventListener("change", update);
-      anyFine.removeEventListener("change", update);
-    };
-  }
-  function wireEnvironment(app, host2, embedded) {
-    if (typeof window === "undefined")
-      return;
-    if (embedded)
-      return wireEnvironmentEmbedded(app, host2);
-    const w = window;
-    wireColorScheme(app);
-    wireTouchDevice(app);
-    const size = () => {
-      const de = w.document.documentElement;
-      app.hostWidth = de.clientWidth;
-      app.hostHeight = de.clientHeight;
-    };
-    const scroll = () => {
-      app.scrollY = w.scrollY;
-    };
-    const move = (e) => {
-      app.pointerX = e.clientX;
-      app.pointerY = e.clientY;
-      app.lastPointerType = e.pointerType === "touch" || e.pointerType === "pen" ? e.pointerType : "mouse";
-      app.hovering = e.pointerType !== "touch";
-      const t = e.target;
-      app.pointerOverText = t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA");
-    };
-    const out = (e) => {
-      if (e.relatedTarget === null) {
-        app.hovering = false;
-        app.pointerOverText = false;
-      }
-    };
-    const down = (e) => {
-      app.pointerX = e.clientX;
-      app.pointerY = e.clientY;
-      app.hovering = e.pointerType !== "touch";
-      app.lastPointerType = e.pointerType === "touch" || e.pointerType === "pen" ? e.pointerType : "mouse";
-      app.pointerDown = true;
-    };
-    const up = () => {
-      app.pointerDown = false;
-    };
-    size();
-    scroll();
-    w.addEventListener("resize", size);
-    w.addEventListener("scroll", scroll, { passive: true });
-    w.addEventListener("pointermove", move, { passive: true, capture: true });
-    w.addEventListener("pointerdown", down, { passive: true, capture: true });
-    w.addEventListener("pointerup", up, { passive: true, capture: true });
-    w.addEventListener("pointercancel", up, { passive: true, capture: true });
-    w.addEventListener("pointerout", out);
-  }
-  function wireEnvironmentEmbedded(app, host2) {
-    const sync = () => {
-      app.hostWidth = host2.clientWidth;
-      app.hostHeight = host2.clientHeight;
-      if (app.minWidth > 0 || app.minHeight > 0)
-        host2.style.overflow = "auto";
-    };
-    const move = (e) => {
-      const r = host2.getBoundingClientRect();
-      app.pointerX = e.clientX - r.left;
-      app.pointerY = e.clientY - r.top;
-      app.hovering = e.pointerType !== "touch";
-      const t = e.target;
-      app.pointerOverText = t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA");
-    };
-    const leave = () => {
-      app.hovering = false;
-      app.pointerOverText = false;
-    };
-    const unTheme = wireColorScheme(app);
-    const unPointer = wireTouchDevice(app);
-    const down = (e) => {
-      const r = host2.getBoundingClientRect();
-      app.pointerX = e.clientX - r.left;
-      app.pointerY = e.clientY - r.top;
-      app.hovering = e.pointerType !== "touch";
-      app.pointerDown = true;
-    };
-    const up = () => {
-      app.pointerDown = false;
-    };
-    sync();
-    host2.addEventListener("pointermove", move, { passive: true, capture: true });
-    host2.addEventListener("pointerdown", down, { passive: true, capture: true });
-    host2.addEventListener("pointerup", up, { passive: true });
-    host2.addEventListener("pointercancel", up, { passive: true });
-    host2.addEventListener("pointerleave", leave);
-    let ro = null;
-    if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(sync);
-      ro.observe(host2);
-    }
-    TEARDOWN.set(app, () => {
-      host2.removeEventListener("pointermove", move, { capture: true });
-      host2.removeEventListener("pointerdown", down, { capture: true });
-      host2.removeEventListener("pointerup", up);
-      host2.removeEventListener("pointercancel", up);
-      host2.removeEventListener("pointerleave", leave);
-      ro?.disconnect();
-      unTheme();
-      unPointer();
-    });
-  }
-  function mountApp(app, host2, backend2, opts = {}) {
-    app.attach(backend2, null);
-    backend2.attachRoot(host2, app.surface);
-    applyDeclaredScroll(app);
-    wireInput(app, host2, opts.chrome === true);
-    return app;
-  }
-  function applyDeclaredScroll(v) {
-    if (v.scrolls !== "none") {
-      if (v.scrollY !== 0)
-        v.surface?.scrollToY?.(v.scrollY);
-      if (v.scrollX !== 0)
-        v.surface?.scrollToX?.(v.scrollX);
-    }
-    for (const c of v.children)
-      if (c instanceof View)
-        applyDeclaredScroll(c);
-  }
-
-  // runtime/dist/index.js
-  init_parser();
-  init_include();
-  init_check();
-  init_program_schema();
-  init_instantiate();
-  init_inspect_service();
-  init_inspect();
-  init_node();
-  init_view();
-  init_text();
-  init_image();
-  init_text_input();
-  init_layout();
-  init_data();
-  init_image();
-  init_video();
-  init_stream_seam();
-  init_tip();
-  init_animator();
-  init_reactive();
-  init_inspect();
-  init_draw();
-  init_font();
-  init_measure();
-  init_shape();
 
   // runtime/dist/dom-backend.js
   init_backend();
@@ -16325,6 +16123,253 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       window.addEventListener("scroll", scrollListener, true);
     }
   }
+
+  // runtime/dist/dom-backend.js
+  var TRANSFORMS = /* @__PURE__ */ new WeakMap();
+  var liveTransforms = 0;
+  function declareTransformed(el) {
+    if (liveTransforms === 0)
+      return false;
+    for (let a = el; a !== null; a = a.parentElement) {
+      if (TRANSFORMS.has(a))
+        return true;
+    }
+    return false;
+  }
+  function localPoint(el, cx, cy) {
+    if (declareTransformed(el))
+      return throughTransforms(el, cx, cy);
+    const r = el.getBoundingClientRect();
+    return { x: cx - r.left, y: cy - r.top };
+  }
+  function throughTransforms(el, cx, cy) {
+    const op = el.offsetParent;
+    let x, y;
+    if (op instanceof HTMLElement) {
+      const p = localPoint(op, cx, cy);
+      x = p.x - op.clientLeft + op.scrollLeft - el.offsetLeft;
+      y = p.y - op.clientTop + op.scrollTop - el.offsetTop;
+    } else {
+      const r = el.getBoundingClientRect();
+      x = cx - r.left;
+      y = cy - r.top;
+    }
+    const t = TRANSFORMS.get(el);
+    if (t !== void 0) {
+      const rad = -t.deg * Math.PI / 180;
+      const c = Math.cos(rad);
+      const s = Math.sin(rad);
+      const dx = (x - t.ox) / t.k;
+      const dy = (y - t.oy) / t.k;
+      x = t.ox + dx * c - dy * s;
+      y = t.oy + dx * s + dy * c;
+    }
+    return { x, y };
+  }
+
+  // runtime/dist/boot.js
+  async function loadFonts(fonts) {
+    if (typeof FontFace === "undefined" || typeof document === "undefined")
+      return;
+    await Promise.all(fonts.map(async (f) => {
+      const face = new FontFace(f.family, f.src, {
+        weight: String(f.weight ?? "normal"),
+        style: f.style ?? "normal"
+      });
+      await face.load();
+      document.fonts.add(face);
+    }));
+  }
+  function isEmbedded(host2) {
+    return typeof document !== "undefined" && typeof host2.closest === "function" && host2.closest("[data-declare-app], [data-declare-embed]") !== null;
+  }
+  var TEARDOWN = /* @__PURE__ */ new WeakMap();
+  function wireInput(app, host2, chrome = false) {
+    const embedded = isEmbedded(host2);
+    wireEnvironment(app, host2, chrome ? false : embedded);
+    if (chrome || embedded)
+      return;
+    Focus.setRoot(app);
+    Keys.listen(() => app.surface !== null);
+    deliverKeys(Keys, Focus);
+    window.__declare = bridgeFor(app);
+  }
+  function wireColorScheme(app) {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    app.dark = mq.matches;
+    const update = () => {
+      app.dark = mq.matches;
+    };
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }
+  function wireTouchDevice(app) {
+    const primary = window.matchMedia("(pointer: coarse)");
+    const anyCoarse = window.matchMedia("(any-pointer: coarse)");
+    const anyFine = window.matchMedia("(any-pointer: fine)");
+    const update = () => {
+      app.touchDevice = primary.matches;
+      app.hasTouch = anyCoarse.matches;
+      app.hasPointer = anyFine.matches;
+    };
+    update();
+    primary.addEventListener("change", update);
+    anyCoarse.addEventListener("change", update);
+    anyFine.addEventListener("change", update);
+    return () => {
+      primary.removeEventListener("change", update);
+      anyCoarse.removeEventListener("change", update);
+      anyFine.removeEventListener("change", update);
+    };
+  }
+  function wireEnvironment(app, host2, embedded) {
+    if (typeof window === "undefined")
+      return;
+    if (embedded)
+      return wireEnvironmentEmbedded(app, host2);
+    const w = window;
+    wireColorScheme(app);
+    wireTouchDevice(app);
+    const size = () => {
+      const de = w.document.documentElement;
+      app.hostWidth = de.clientWidth;
+      app.hostHeight = de.clientHeight;
+    };
+    const scroll = () => {
+      app.scrollY = w.scrollY;
+    };
+    const move = (e) => {
+      app.pointerX = e.clientX;
+      app.pointerY = e.clientY;
+      app.lastPointerType = e.pointerType === "touch" || e.pointerType === "pen" ? e.pointerType : "mouse";
+      app.hovering = e.pointerType !== "touch";
+      const t = e.target;
+      app.pointerOverText = t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA");
+    };
+    const out = (e) => {
+      if (e.relatedTarget === null) {
+        app.hovering = false;
+        app.pointerOverText = false;
+      }
+    };
+    const down = (e) => {
+      app.pointerX = e.clientX;
+      app.pointerY = e.clientY;
+      app.hovering = e.pointerType !== "touch";
+      app.lastPointerType = e.pointerType === "touch" || e.pointerType === "pen" ? e.pointerType : "mouse";
+      app.pointerDown = true;
+    };
+    const up = () => {
+      app.pointerDown = false;
+    };
+    size();
+    scroll();
+    w.addEventListener("resize", size);
+    w.addEventListener("scroll", scroll, { passive: true });
+    w.addEventListener("pointermove", move, { passive: true, capture: true });
+    w.addEventListener("pointerdown", down, { passive: true, capture: true });
+    w.addEventListener("pointerup", up, { passive: true, capture: true });
+    w.addEventListener("pointercancel", up, { passive: true, capture: true });
+    w.addEventListener("pointerout", out);
+  }
+  function wireEnvironmentEmbedded(app, host2) {
+    const sync = () => {
+      app.hostWidth = host2.clientWidth;
+      app.hostHeight = host2.clientHeight;
+      if (app.minWidth > 0 || app.minHeight > 0)
+        host2.style.overflow = "auto";
+    };
+    const move = (e) => {
+      const p = localPoint(host2, e.clientX, e.clientY);
+      app.pointerX = p.x;
+      app.pointerY = p.y;
+      app.hovering = e.pointerType !== "touch";
+      const t = e.target;
+      app.pointerOverText = t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA");
+    };
+    const leave = () => {
+      app.hovering = false;
+      app.pointerOverText = false;
+    };
+    const unTheme = wireColorScheme(app);
+    const unPointer = wireTouchDevice(app);
+    const down = (e) => {
+      const p = localPoint(host2, e.clientX, e.clientY);
+      app.pointerX = p.x;
+      app.pointerY = p.y;
+      app.hovering = e.pointerType !== "touch";
+      app.pointerDown = true;
+    };
+    const up = () => {
+      app.pointerDown = false;
+    };
+    sync();
+    host2.addEventListener("pointermove", move, { passive: true, capture: true });
+    host2.addEventListener("pointerdown", down, { passive: true, capture: true });
+    host2.addEventListener("pointerup", up, { passive: true });
+    host2.addEventListener("pointercancel", up, { passive: true });
+    host2.addEventListener("pointerleave", leave);
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(sync);
+      ro.observe(host2);
+    }
+    TEARDOWN.set(app, () => {
+      host2.removeEventListener("pointermove", move, { capture: true });
+      host2.removeEventListener("pointerdown", down, { capture: true });
+      host2.removeEventListener("pointerup", up);
+      host2.removeEventListener("pointercancel", up);
+      host2.removeEventListener("pointerleave", leave);
+      ro?.disconnect();
+      unTheme();
+      unPointer();
+    });
+  }
+  function mountApp(app, host2, backend2, opts = {}) {
+    app.attach(backend2, null);
+    backend2.attachRoot(host2, app.surface);
+    applyDeclaredScroll(app);
+    wireInput(app, host2, opts.chrome === true);
+    return app;
+  }
+  function applyDeclaredScroll(v) {
+    if (v.scrolls !== "none") {
+      if (v.scrollY !== 0)
+        v.surface?.scrollToY?.(v.scrollY);
+      if (v.scrollX !== 0)
+        v.surface?.scrollToX?.(v.scrollX);
+    }
+    for (const c of v.children)
+      if (c instanceof View)
+        applyDeclaredScroll(c);
+  }
+
+  // runtime/dist/index.js
+  init_parser();
+  init_include();
+  init_check();
+  init_program_schema();
+  init_instantiate();
+  init_inspect_service();
+  init_inspect();
+  init_node();
+  init_view();
+  init_text();
+  init_image();
+  init_text_input();
+  init_layout();
+  init_data();
+  init_image();
+  init_video();
+  init_stream_seam();
+  init_tip();
+  init_animator();
+  init_reactive();
+  init_inspect();
+  init_draw();
+  init_font();
+  init_measure();
+  init_shape();
 
   // runtime/dist/canvas-backend.js
   init_errors();

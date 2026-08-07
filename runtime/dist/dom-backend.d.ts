@@ -1,4 +1,12 @@
 import { type RenderBackend, type Surface } from "./backend.js";
+/** Client point → el's view-local (pre-transform layout) coordinates.
+ *  Exported for the embedded-app environment wiring (boot.ts): an island's
+ *  box-relative pointer must come through the same inversion, or a child app
+ *  inside a transformed host subtree hears skewed coordinates. */
+export declare function localPoint(el: HTMLElement, cx: number, cy: number): {
+    x: number;
+    y: number;
+};
 export declare class DomBackend implements RenderBackend {
     /** Fragment-href realization base (location.md §0.9). null (the default,
      *  top level) = this document's own page. "" = an EMBEDDED app: fragment

@@ -285,6 +285,74 @@ function ensureScrollFrame(scrollerEl) {
  *  part of an interactive box falls through") kept by the runtime instead of
  *  leaked to the app. Iterated per event, so a plain Map (destroy() removes). */
 const CARVED = new Map();
+// ── Transform-aware localization ─────────────────────────────────────────────
+// The browser's own hit-test follows CSS transforms, so a rotated or scaled
+// view TARGETS correctly — but localizing the point by rect subtraction does
+// not: getBoundingClientRect() on a transformed element is the AABB of the
+// transformed box, and `clientX - rect.left` measures inside the wrong frame.
+// TRANSFORMS holds every live declare transform (applyTransform maintains it,
+// destroy retires it); localPoint pulls a client point down through the layout
+// chain instead — offsetLeft/scrollLeft are UNtransformed layout facts, so
+// each transformed hop inverts about its own origin, exactly the walk the
+// canvas backend's invertTransform does model-side. An embedded child app's
+// router rides the same path through its rootEl, which is how an island inside
+// a rotated host window hears honest coordinates. Zero live transforms —
+// almost every app, almost all the time — is the untouched fast path.
+const TRANSFORMS = new WeakMap();
+let liveTransforms = 0;
+/** Is any live declare transform on el's ancestor chain (self included)? */
+function declareTransformed(el) {
+    if (liveTransforms === 0)
+        return false;
+    for (let a = el; a !== null; a = a.parentElement) {
+        if (TRANSFORMS.has(a))
+            return true;
+    }
+    return false;
+}
+/** Client point → el's view-local (pre-transform layout) coordinates.
+ *  Exported for the embedded-app environment wiring (boot.ts): an island's
+ *  box-relative pointer must come through the same inversion, or a child app
+ *  inside a transformed host subtree hears skewed coordinates. */
+export function localPoint(el, cx, cy) {
+    if (declareTransformed(el))
+        return throughTransforms(el, cx, cy);
+    const r = el.getBoundingClientRect();
+    return { x: cx - r.left, y: cy - r.top };
+}
+function throughTransforms(el, cx, cy) {
+    const op = el.offsetParent;
+    let x, y;
+    if (op instanceof HTMLElement) {
+        // op's local space first (recursion bottoms out at the first hop with a
+        // clean chain, where the rect is honest), then across the layout offset:
+        // offsetLeft is unscrolled layout, so the scroll rejoins here.
+        const p = localPoint(op, cx, cy);
+        x = p.x - op.clientLeft + op.scrollLeft - el.offsetLeft;
+        y = p.y - op.clientTop + op.scrollTop - el.offsetTop;
+    }
+    else {
+        // No offsetParent (fixed against the viewport): a transformed ancestor
+        // would itself be a containing block, so the chain above is clean and the
+        // rect is honest.
+        const r = el.getBoundingClientRect();
+        x = cx - r.left;
+        y = cy - r.top;
+    }
+    const t = TRANSFORMS.get(el);
+    if (t !== undefined) {
+        // Forward is scale-then-rotate about (ox, oy) — uniform, so they commute
+        // and one inverse rotation over the descaled offset undoes both.
+        const rad = (-t.deg * Math.PI) / 180;
+        const c = Math.cos(rad);
+        const s = Math.sin(rad);
+        const dx = (x - t.ox) / t.k;
+        const dy = (y - t.oy) / t.k;
+        x = t.ox + dx * c - dy * s;
+        y = t.oy + dx * s + dy * c;
+    }
+    return { x, y };
+}
 /** Shared 2D context for Path2D point tests (the canvas backend's hitCtx twin). */
 let carveCtx = null;
 function carveHitCtx() {
@@ -482,12 +550,9 @@ export class DomBackend {
                     }
                 }
             }
-            const r = el.getBoundingClientRect();
-            return { key: el, sink: SINKS.get(el), ...WANTS.get(el), pinch, x: e.clientX - r.left, y: e.clientY - r.top };
-        }, (e) => {
-            const r = rootEl.getBoundingClientRect();
-            return { x: e.clientX - r.left, y: e.clientY - r.top };
-        });
+            const p = localPoint(el, e.clientX, e.clientY);
+            return { key: el, sink: SINKS.get(el), ...WANTS.get(el), pinch, x: p.x, y: p.y };
+        }, (e) => localPoint(rootEl, e.clientX, e.clientY));
         // Tap-to-dismiss for native editable fields. Desktop blurs a focused
         // input/textarea when you press a non-focusable element, but mobile Safari
         // keeps focus (and the keyboard) up when a plain view is tapped — so blur it
@@ -773,8 +838,13 @@ class DomSurface {
         if (this.scaleK === 1 && this.rotationDeg === 0) {
             this.element.style.transform = "";
             this.element.style.transformOrigin = "";
+            if (TRANSFORMS.delete(this.element))
+                liveTransforms--;
             return;
         }
+        if (!TRANSFORMS.has(this.element))
+            liveTransforms++;
+        TRANSFORMS.set(this.element, { k: this.scaleK, deg: this.rotationDeg, ox: pivotX, oy: pivotY });
         this.element.style.transformOrigin = pivotX + "px " + pivotY + "px";
         this.element.style.transform =
             (this.scaleK !== 1 ? "scale(" + this.scaleK + ")" : "") +
@@ -863,9 +933,18 @@ class DomSurface {
         if (r.width <= 0 || cx < r.left || cx >= r.right || cy < r.top || cy >= r.bottom)
             return false;
         // (No visibility test: `visible = false` is `display: none`, which already
-        // fails the rect check above, and opacity no longer prunes input.)
-        const k = el.offsetWidth > 0 ? r.width / el.offsetWidth : 1;
+        // fails the rect check above, and opacity no longer prunes input.
+        // The AABB pre-cull stays valid under transforms: the drawn shape is
+        // inside the transformed box, which is inside its AABB.)
         this.clipObj ??= new Path2D(this.clipData);
+        if (declareTransformed(el)) {
+            // A declare transform (own or ancestral) on the chain: full inversion.
+            const p = throughTransforms(el, cx, cy);
+            return carveHitCtx().isPointInPath(this.clipObj, p.x, p.y);
+        }
+        // No declare transform, but possibly a foreign uniform scale from an
+        // embedding host page — the rect/layout ratio unwinds exactly that.
+        const k = el.offsetWidth > 0 ? r.width / el.offsetWidth : 1;
         return carveHitCtx().isPointInPath(this.clipObj, (cx - r.left) / k, (cy - r.top) / k);
     }
     /** True when this surface opts out of its parent's box-clip (ignoreClip). */
@@ -1454,13 +1533,13 @@ class DomSurface {
                 const s = SINKS.get(el);
                 if (s === undefined)
                     return;
-                const r = el.getBoundingClientRect();
+                const p = localPoint(el, e.clientX, e.clientY);
                 // View-local point (the positional rule of pointerDown/click), the raw
                 // deltas, and `pinch`: a trackpad pinch arrives on the wheel stream
                 // with the zoom-intent flag set (a mouse user's ctrl+wheel zoom
                 // reports the same way) — one handler hears wheels, trackpad scrolls,
                 // and trackpad pinches.
-                s("wheel", e.clientX - r.left, e.clientY - r.top, { deltaX: e.deltaX, deltaY: e.deltaY, pinch: e.ctrlKey });
+                s("wheel", p.x, p.y, { deltaX: e.deltaX, deltaY: e.deltaY, pinch: e.ctrlKey });
                 e.preventDefault();
             };
             el.addEventListener("wheel", this.wheelListener, { passive: false });
@@ -1978,6 +2057,8 @@ class DomSurface {
         this.richObserver?.disconnect();
         this.onRichResize = undefined;
         CARVED.delete(this.element);
+        if (TRANSFORMS.delete(this.element))
+            liveTransforms--;
         this.element.remove();
     }
 }
