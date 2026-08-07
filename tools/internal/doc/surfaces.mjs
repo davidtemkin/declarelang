@@ -213,6 +213,11 @@ export const SURFACES = [
     docsLive: "operational/", spineKeys: ["commands"], gated: false,
     why: "gated by EXECUTION instead — ops.test runs every test:true entry against its declared expectation, which is stronger than a prose check",
   },
+  {
+    id: "concepts", label: "declare-help's concept table", source: "tools/internal/doc/concepts.json",
+    docsLive: "operational/help.md", spineKeys: ["concepts"], gated: false,
+    why: "gated by EXECUTION instead — declare-help.test asserts every synonym target resolves in the reference and every negative entry answers its trigger words with exit 0",
+  },
 ];
 
 /** Every spine section must be claimed by some surface — gated or explicitly not.

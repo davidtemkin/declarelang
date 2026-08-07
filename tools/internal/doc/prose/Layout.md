@@ -48,6 +48,13 @@ returned boxes name, restoring any authored value when the layout detaches or
 stops naming them (one slot, one owner: arranging a child whose `x` is
 already bound is a pointed error, not a silent fight).
 
+**Replication composes.** A layout is not only for children you write out by
+hand: views stamped by a `datapath` are ordinary members of `laid()`, so a
+data-driven list under a layout is arranged exactly like hand-written
+siblings — the count may change with every reconcile, and the next pass
+simply arranges the new set. A `Dataset` shapes the records; the layout owns
+the geometry; neither needs to know the other exists.
+
 For animated reflow, extend `TweenLayout` instead — the same `place()`
 contract, interpolated through its scalar `t`.
 
@@ -55,7 +62,9 @@ contract, interpolated through its scalar `t`.
 The children this layout manages, in order — **the one definition of what a strategy is
 responsible for**, and the list your `place()` must return boxes for, aligned by index.
 Invisible children are included so a skipped child still gets the slot it would occupy;
-that is what makes re-showing one need no special case.
+that is what makes re-showing one need no special case. Replicated children are included
+too: a `datapath` stamp is an ordinary child here, so a custom layout arranges a
+data-driven list with no extra wiring.
 
 **This is the method a custom layout is written against.** A `Layout` subclass overriding
 `place()` is the sanctioned extension point, and `laid()` is how it reaches the children —

@@ -57,7 +57,7 @@ import {
 import { scanDatapaths, rewriteDatapaths, fillDatapaths } from "../runtime/dist/datapath.js";
 import { provideTransport } from "../runtime/dist/data.js";
 import { explain } from "../runtime/dist/inspect.js";
-import { sample, motionToken, MOTION_TOKENS, Clock, setClock } from "../runtime/dist/animate.js";
+import { sample, motionToken, MOTION_TOKENS, Clock, setClock, sharedClock } from "../runtime/dist/animate.js";
 import { Animator, AnimatorGroup } from "../runtime/dist/animator.js";
 
 const SAMPLE = `App [ width=240, height=160, fill=#1E3A49,
@@ -2391,6 +2391,38 @@ await test("a laid axis with its own author binding is a hard conflict — two o
   }
 });
 
+await test("a size-claiming layout displaces the yielding auto-derive (issue #16)", () => {
+  // Children with NO authored size carry the auto-extent runtime derive on
+  // width/height — the default for every templated/data-driven child. A
+  // place() that returns w/h must displace that derive (a yielding owner
+  // yields to ANY newcomer, attributes.ts own()), never die on "already
+  // bound": that refusal was issue #16, where a treemap's provably-correct
+  // geometry was computed and thrown away on every arrangement pass.
+  const app = buildL(`App [ width=100, height=80,
+    View [ Text [ text = "a" ] ], View [ Text [ text = "b" ] ] ]`);
+  class Halves extends Layout {
+    place() {
+      const w = this.view.width / this.laid().length;
+      return this.laid().map((c, i) => ({ x: i * w, y: 0, w, h: this.view.height }));
+    }
+  }
+  app.layout = new Halves();
+  settle();
+  assert.deepEqual(
+    app.children.map((c) => [c.x, c.width, c.height]),
+    [[0, 50, 80], [50, 50, 80]],
+    "auto-derived sizes yielded to the arrangement"
+  );
+  // …while an AUTHORED size binding on a claimed slot stays the hard
+  // conflict it always was — the error is reserved for two real authors.
+  assert.throws(() => {
+    const b = buildL(`App [ width=100, height=80,
+      View [ width = { parent.width / 2 }, height=10 ] ]`);
+    b.layout = new Halves();
+    settle();
+  }, /View\.width is already bound/);
+});
+
 await test("the layout slot is swappable and cancellable at runtime (the doc's reactive slot)", () => {
   const app = buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y ],
@@ -4307,13 +4339,40 @@ await test("Animator: start() drives a plain target slot to `to`, then goes idle
   anim.motion = LINEAR;
   anim.start();
   assert.equal(sched.scheduled, true, "starting registers a live frame loop");
-  sched.frame(1000);
-  assert.equal(view.height, 25, "the first frame anchors at `from` (t = 0)");
-  sched.frame(1050); // +50ms → t = 0.5 → linear → 125
+  // The baseline is seeded at start() (the issue-#17 arming fix): elapsed time
+  // counts from the START, not from the first frame — a frame at the start's
+  // own timestamp anchors at `from`, and a late first frame has moved.
+  sched.frame(0);
+  assert.equal(view.height, 25, "a frame at the start instant anchors at `from` (t = 0)");
+  sched.frame(50); // +50ms → t = 0.5 → linear → 125
   assert.equal(view.height, 125, "half-way through, linearly");
-  sched.frame(1100); // +100ms → t = 1 → exact landing
+  sched.frame(100); // +100ms → t = 1 → exact landing
   assert.equal(view.height, 225, "lands exactly on `to`");
   assert.equal(sched.scheduled, false, "the last animator finishing goes idle (idle-zero)");
+});
+
+await test("Animator: a scheduler handover rebases in-flight anchors (issue #17)", () => {
+  // Two schedulers with unrelated origins — rAF's performance.now() vs the
+  // driven clock's own counter. A swap mid-flight must not let the anchor
+  // from one timeline be measured against the other: before the rebase fix,
+  // the first driven steps integrated a NEGATIVE dt (clamped to 0), which
+  // read as "the animation never ran".
+  const real = fakeScheduler();
+  setClock(new Clock(real));
+  const view = new View();
+  view.height = 0;
+  const a = new Animator();
+  view.appendChild(a);
+  a.attribute = "height";
+  a.to = 100;
+  a.duration = 100;
+  a.motion = LINEAR;
+  real.frame(500); // establish a late real-time origin
+  a.start(); // anchor seeded at real now = 500
+  const driven = fakeScheduler(); // its timeline starts at 0 — 500 behind
+  sharedClock.setScheduler(driven); // the handover rebases the anchor to 0
+  driven.frame(50); // 50ms of driven time
+  assert.equal(view.height, 50, "driven time advances the motion from the swap point, not from the skew");
 });
 
 await test("Animator: `from` defaults to the slot's current value; an explicit `from` overrides", () => {
@@ -4721,11 +4780,12 @@ await test("Animator: an onStop that start()s again restarts cleanly (re-entrant
   assert.equal(runs, 1);
   assert.equal(view.height, 100, "run 1 landed on its to");
   assert.equal(sched.scheduled, true, "restarted — the clock stays live");
-  sched.frame(150); // run 2 first tick: t = 0 → anchors at the new from (0)
-  assert.equal(view.height, 0);
-  sched.frame(200); // run 2 half-way (no double-ticking would put it here, not further)
+  // Run 2's clock starts at the RESTART moment (t=100, inside run 1's last
+  // frame) — the start()-seeded baseline of the issue-#17 arming fix — so its
+  // elapsed time counts from there, with no anchor frame spent.
+  sched.frame(150); // 50ms into run 2 → half-way (no double-ticking would put it further)
   assert.equal(view.height, 25);
-  sched.frame(250); // run 2 completes
+  sched.frame(200); // run 2 completes
   assert.equal(view.height, 50, "run 2 landed on its new to");
   assert.equal(runs, 2, "onStop fired for run 2 as well (no restart this time)");
   assert.equal(sched.scheduled, false, "and then the clock goes idle");

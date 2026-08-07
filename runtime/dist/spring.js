@@ -129,6 +129,14 @@ export class Spring extends Animator {
         else
             setTimeout(() => { this.arriving = false; }, 0);
     }
+    /** Shift the anchor across a scheduler handover (Ticker.rebase); the
+     *  Animator half never runs for a spring, but super keeps its own anchor
+     *  coherent if it ever does. */
+    rebase(delta) {
+        super.rebase(delta);
+        if (this.springLastNow !== null)
+            this.springLastNow += delta;
+    }
     tick(now) {
         if (!this.springRunning)
             return false;

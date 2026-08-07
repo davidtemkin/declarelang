@@ -98,7 +98,11 @@ export declare const clock: {
     /** Hand the clock back to the real frame source. */
     auto(): void;
     /** Advance time by `ms` (one synthetic frame), then settle the reactive
-     *  graph — every constraint downstream of the motion lands before return. */
+     *  graph — every constraint downstream of the motion lands before return.
+     *  Settles BEFORE firing too: a write earlier in this same turn (a bridge
+     *  `evaluate`, a handler) may not have propagated to the motion tier yet —
+     *  a spring must retarget from it before the frame it is stepped through,
+     *  or the step ticks against stale targets and reads as lost motion. */
     step(ms?: number): void;
     /** Run all in-flight FINITE motion to rest (springs settle, non-looping
      *  animators finish), frame by frame. Perpetual motion — a Heartbeat, an

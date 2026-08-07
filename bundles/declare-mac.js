@@ -1556,12 +1556,20 @@ var DeclareMac = (() => {
         /** Swap the frame source IN PLACE, keeping enrolled tickers — how the driven
          *  clock (inspect.ts: `step`/`settleMotion`, verify-and-evals.md §2.3) takes
          *  over from rAF and hands back. Cancels any pending frame on the old
-         *  scheduler and re-arms on the new one if motion is in flight. */
+         *  scheduler and re-arms on the new one if motion is in flight. The two
+         *  timelines share no origin, so every in-flight ticker's anchors are
+         *  REBASED by the swap's offset — a handover is a change of frame source,
+         *  never a jump in any motion's elapsed time (in either direction: the old
+         *  skew ate the driven clock's first steps as negative dt, and a long
+         *  settleMotion left `auto()` frozen until real time caught back up). */
         setScheduler(s) {
           if (this.handle !== null) {
             this.sched.cancel(this.handle);
             this.handle = null;
           }
+          const delta = s.now() - this.sched.now();
+          for (const t of this.tickers)
+            t.rebase?.(delta);
           this.sched = s;
           if (this.tickers.size > 0 && !this.ticking)
             this.handle = this.sched.request(this.frame);
@@ -3219,6 +3227,55 @@ var DeclareMac = (() => {
         "DrawGradient"
         // the `draw(d: Draw)` context (draw.ts)
       ]);
+    }
+  });
+
+  // runtime/dist/teach.js
+  function cssAttributeHint(name) {
+    const h = Object.hasOwn(CSS_ATTRIBUTE_HINTS, name) ? CSS_ATTRIBUTE_HINTS[name] : "";
+    return h ? ` \u2014 the CSS instinct: ${h}` : "";
+  }
+  function hintedForeignName(name) {
+    return name.length >= 5 ? nearestName(name, Object.keys(CSS_ATTRIBUTE_HINTS)) : null;
+  }
+  var CSS_ATTRIBUTE_HINTS;
+  var init_teach = __esm({
+    "runtime/dist/teach.js"() {
+      "use strict";
+      init_diagnostics();
+      CSS_ATTRIBUTE_HINTS = {
+        border: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 drawn inside the box",
+        borderWidth: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 width and color travel together",
+        borderColor: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 width and color travel together",
+        borderStyle: "a border is 'stroke = { stroke(width, color) }' \u2014 solid only",
+        boxShadow: "a shadow is 'shadow = { shadow(dx, dy, blur, 0x00000040) }'",
+        background: "the paint slot is 'fill' (a color or gradient(\u2026))",
+        backgroundColor: "the paint slot is 'fill'",
+        borderRadius: "rounding is 'cornerRadius'",
+        color: "text color is 'textColor' (prevailing \u2014 set it on a container)",
+        zIndex: "stacking is source order \u2014 later siblings draw above; there is no z-index",
+        overflow: "clipping is 'clip = true'; scrolling is 'scrolls = y' (the axis enum)",
+        display: "arrangement is the 'layout' attribute \u2014 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
+        flexDirection: "arrangement is the 'layout' attribute \u2014 'axis = x' or 'axis = y'",
+        justifyContent: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
+        alignItems: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
+        gap: "spacing rides the layout \u2014 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
+        margin: "there is no margin \u2014 position with x/y, a layout's spacing, or a wrapping View",
+        padding: "there is no padding \u2014 inset children with x/y or an inner View",
+        onChange: "the edit event is 'onInput()'",
+        // CSS names for capabilities Declare HAS, reached through the wrong door:
+        // These earn their place by the table's own rule — one true equivalent each
+        // — and they matter because "no such attribute" ends the search at exactly
+        // the wrong moment. (`rotation` graduated from this table 2026-08-06: it IS
+        // a View attribute now — compositing.md Part II.)
+        rotate: "rotation is the attribute \u2014 'rotation = 45' (degrees, clockwise, about pivotX/pivotY); inside a drawing, d.rotate(rad)",
+        transform: "there is no transform: position is x/y, size is width/height, 'scale' and 'rotation' transform about a pivot, and arbitrary geometry is a 'draw(d: Draw)' member",
+        filter: "blur and friends are drawing ops \u2014 take a 'draw(d: Draw)' member and set d.filter; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
+        blur: "blur is a drawing op \u2014 take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
+        mixBlendMode: "compositing is the 'blend' attribute \u2014 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
+        backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' \u2014 samples and blurs what lies beneath the view's own shape",
+        mask: "masking is 'clip' \u2014 true for the box, or a path for an arbitrary shape"
+      };
     }
   });
 
@@ -4941,10 +4998,6 @@ var DeclareMac = (() => {
       errors.push(new DeclareError(m.kind === "set" && first.kind === "set" ? `${schema.name}.${m.name} is set twice (first set at line ${first.pos.line}, col ${first.pos.col})` : m.kind === "method" && first.kind === "method" ? `${schema.name}.${m.name} is declared twice ${at}` : `${schema.name}.${m.name}: '${m.name}' is already ${kindName2[first.kind]} ${at} \u2014 members share one namespace`, m.pos));
     }
   }
-  function cssAttributeHint(name) {
-    const h = Object.hasOwn(CSS_ATTRIBUTE_HINTS, name) ? CSS_ATTRIBUTE_HINTS[name] : "";
-    return h ? ` \u2014 the CSS instinct: ${h}` : "";
-  }
   function attrNames(schema) {
     const out = [];
     for (let sc = schema; sc !== null; sc = sc.base) {
@@ -4958,7 +5011,7 @@ var DeclareMac = (() => {
     const hint = cssAttributeHint(name);
     if (hint !== "")
       return hint;
-    const hinted = name.length >= 5 ? nearestName(name, Object.keys(CSS_ATTRIBUTE_HINTS)) : null;
+    const hinted = hintedForeignName(name);
     if (hinted !== null)
       return cssAttributeHint(hinted);
     const near = nearestName(name, attrNames(schema));
@@ -5076,7 +5129,7 @@ var DeclareMac = (() => {
     }
     return { ok: true };
   }
-  var EMPTY_ENV, UNSTYLABLE, CSS_ATTRIBUTE_HINTS;
+  var EMPTY_ENV, UNSTYLABLE;
   var init_check = __esm({
     "runtime/dist/check.js"() {
       "use strict";
@@ -5084,6 +5137,7 @@ var DeclareMac = (() => {
       init_errors();
       init_schema();
       init_diagnostics();
+      init_teach();
       init_include();
       init_value();
       init_expr();
@@ -5097,39 +5151,6 @@ var DeclareMac = (() => {
         cursor: "a data cursor is structure",
         styles: "a bundle list cannot arrive through the styling channels",
         stylesheet: "a stylesheet cannot set the stylesheet"
-      };
-      CSS_ATTRIBUTE_HINTS = {
-        border: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 drawn inside the box",
-        borderWidth: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 width and color travel together",
-        borderColor: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 width and color travel together",
-        borderStyle: "a border is 'stroke = { stroke(width, color) }' \u2014 solid only",
-        boxShadow: "a shadow is 'shadow = { shadow(dx, dy, blur, 0x00000040) }'",
-        background: "the paint slot is 'fill' (a color or gradient(\u2026))",
-        backgroundColor: "the paint slot is 'fill'",
-        borderRadius: "rounding is 'cornerRadius'",
-        color: "text color is 'textColor' (prevailing \u2014 set it on a container)",
-        zIndex: "stacking is source order \u2014 later siblings draw above; there is no z-index",
-        overflow: "clipping is 'clip = true'; scrolling is 'scrolls = y' (the axis enum)",
-        display: "arrangement is the 'layout' attribute \u2014 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
-        flexDirection: "arrangement is the 'layout' attribute \u2014 'axis = x' or 'axis = y'",
-        justifyContent: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
-        alignItems: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
-        gap: "spacing rides the layout \u2014 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
-        margin: "there is no margin \u2014 position with x/y, a layout's spacing, or a wrapping View",
-        padding: "there is no padding \u2014 inset children with x/y or an inner View",
-        onChange: "the edit event is 'onInput()'",
-        // CSS names for capabilities Declare HAS, reached through the wrong door:
-        // These earn their place by the table's own rule — one true equivalent each
-        // — and they matter because "no such attribute" ends the search at exactly
-        // the wrong moment. (`rotation` graduated from this table 2026-08-06: it IS
-        // a View attribute now — compositing.md Part II.)
-        rotate: "rotation is the attribute \u2014 'rotation = 45' (degrees, clockwise, about pivotX/pivotY); inside a drawing, d.rotate(rad)",
-        transform: "there is no transform: position is x/y, size is width/height, 'scale' and 'rotation' transform about a pivot, and arbitrary geometry is a 'draw(d: Draw)' member",
-        filter: "blur and friends are drawing ops \u2014 take a 'draw(d: Draw)' member and set d.filter; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
-        blur: "blur is a drawing op \u2014 take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
-        mixBlendMode: "compositing is the 'blend' attribute \u2014 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
-        backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' \u2014 samples and blurs what lies beneath the view's own shape",
-        mask: "masking is 'clip' \u2014 true for the box, or a path for an arbitrary shape"
       };
     }
   });
@@ -7957,7 +7978,7 @@ var DeclareMac = (() => {
           this.cyclesLeft = this.repeat;
           this.perpetual = this.repeat === Infinity;
           this.elapsed = 0;
-          this.lastNow = null;
+          this.lastNow = sharedClock.now();
           this.running = true;
           setBound(this, "settled", false);
           if (!this.grouped)
@@ -7990,12 +8011,17 @@ var DeclareMac = (() => {
          *  (an enclosing group's pause) freezes progression while keeping `lastNow`
          *  fresh so nothing jumps on unpause. Returns whether still running (false
          *  drops it from the clock; a group reads it to retire a finished member). */
+        /** Shift the anchor across a scheduler handover (Ticker.rebase). */
+        rebase(delta) {
+          if (this.lastNow !== null)
+            this.lastNow += delta;
+        }
         tick(now, frozen = false) {
           if (!this.running)
             return false;
           if (this.lastNow === null)
             this.lastNow = now;
-          const dt = now - this.lastNow;
+          const dt = Math.max(now - this.lastNow, 0);
           this.lastNow = now;
           if (this.paused || frozen)
             return true;
@@ -8142,6 +8168,10 @@ var DeclareMac = (() => {
          *  only the head member per frame; `simultaneous` advances all. A `frozen`
          *  group (its own pause, or an enclosing group's) keeps running members'
          *  clocks fresh but neither starts pending members nor advances progression. */
+        rebase(delta) {
+          for (const m of this.active)
+            m.rebase?.(delta);
+        }
         tick(now, frozen = false) {
           if (!this.running)
             return false;
@@ -8319,11 +8349,19 @@ var DeclareMac = (() => {
         }
         /** Claim `slot` on `child` for constraint `k`: capture the authored base
          *  (first claim only — rearm must not capture the arrangement's own writes),
-         *  then take ownership. Errors loudly on a standing author binding (two
-         *  owners), naming both sides. */
+         *  then take ownership. Errors loudly on a standing AUTHOR binding (two
+         *  owners), naming both sides. A *yielding* prior — auto-extent, auto-size,
+         *  the runtime derive every child without an authored size carries — is not
+         *  a second author: it yields to a layout's claim exactly as it yields to an
+         *  author write (`own` disposes it), which is what lets a `place()` that
+         *  returns sizes arrange children that never declared any. Refusing it here
+         *  was the bug a data-driven treemap found (issue #16): every templated
+         *  child auto-derives its size, so the arrangement died on a conflict the
+         *  ownership machinery downstream was built to resolve — and the message
+         *  blamed an authored binding that did not exist. */
         claim(child, slot, k, label) {
           const prior = ownerOf(child, slot);
-          if (prior !== null) {
+          if (prior !== null && !prior.yielding) {
             throw new DeclareError(`${child.constructor.name}.${slot} is already bound (by ${prior.label}), but ${label} arranges its children's ${slot} \u2014 drop one of the two`);
           }
           const base2 = this.bases.get(child) ?? {};
@@ -8659,6 +8697,14 @@ var DeclareMac = (() => {
             setTimeout(() => {
               this.arriving = false;
             }, 0);
+        }
+        /** Shift the anchor across a scheduler handover (Ticker.rebase); the
+         *  Animator half never runs for a spring, but super keeps its own anchor
+         *  coherent if it ever does. */
+        rebase(delta) {
+          super.rebase(delta);
+          if (this.springLastNow !== null)
+            this.springLastNow += delta;
         }
         tick(now) {
           if (!this.springRunning)
@@ -13154,6 +13200,13 @@ var DeclareMac = (() => {
           sharedClock.remove(this);
           this.last = null;
         }
+        /** Shift the anchor across a scheduler handover (Ticker.rebase) — the
+         *  resume-yields-no-step rule at `join()` is about ENROLLMENT; a live
+         *  heartbeat crossing a clock handover has no reason to skip a beat. */
+        rebase(delta) {
+          if (this.last !== null)
+            this.last += delta;
+        }
         /** Called once per frame by the shared clock. Returns whether to keep
          *  ticking (the clock's protocol). */
         tick(now) {
@@ -15404,7 +15457,16 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     walk(root);
     return { nodes, ownedSlots: owned, motionBusy: sharedClock.busy };
   }
+  function primeEvalService() {
+    if (evalService !== null || evalServicePriming)
+      return;
+    evalServicePriming = true;
+    void Promise.resolve().then(() => (init_inspect_service(), inspect_service_exports)).then((m) => {
+      evalService = m;
+    });
+  }
   function bridgeFor(root) {
+    primeEvalService();
     return {
       inspect: (path) => {
         const n = path !== void 0 ? find(root, path) : root;
@@ -15440,10 +15502,17 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       explainHit: (x, y, pierce = false) => explainHit(root, x, y, pierce),
       dependents: (attr) => dependentsOf(root, attr),
       /** Evaluate Declare in the scope of a node — read, set, bind, or add a view.
-       *  The Inspector's strip and an agent hit the same entry point. */
-      evaluate: async (path, src) => {
-        const m = await Promise.resolve().then(() => (init_inspect_service(), inspect_service_exports));
-        return m.evaluateIn(root, path, src);
+       *  The Inspector's strip and an agent hit the same entry point. Once the
+       *  primed service is loaded (which boot arranges), the effect lands
+       *  synchronously inside this call — set-then-step-then-read in one turn
+       *  works; only the promise wrapper remains, for the result value. */
+      evaluate: (path, src) => {
+        if (evalService !== null)
+          return Promise.resolve(evalService.evaluateIn(root, path, src));
+        return Promise.resolve().then(() => (init_inspect_service(), inspect_service_exports)).then((m) => {
+          evalService = m;
+          return m.evaluateIn(root, path, src);
+        });
       },
       clock
     };
@@ -15575,7 +15644,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     }
     return out;
   }
-  var isView2, REGISTRY_NAME, registryIndexed, ManualScheduler, manual, clockMode, clock, leafText, sliceKind, HEX;
+  var isView2, REGISTRY_NAME, registryIndexed, ManualScheduler, manual, clockMode, clock, evalService, evalServicePriming, leafText, sliceKind, HEX;
   var init_inspect = __esm({
     "runtime/dist/inspect.js"() {
       "use strict";
@@ -15632,10 +15701,15 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
           sharedClock.setScheduler(browserScheduler);
         },
         /** Advance time by `ms` (one synthetic frame), then settle the reactive
-         *  graph — every constraint downstream of the motion lands before return. */
+         *  graph — every constraint downstream of the motion lands before return.
+         *  Settles BEFORE firing too: a write earlier in this same turn (a bridge
+         *  `evaluate`, a handler) may not have propagated to the motion tier yet —
+         *  a spring must retarget from it before the frame it is stepped through,
+         *  or the step ticks against stale targets and reads as lost motion. */
         step(ms = 16.7) {
           if (clockMode !== "manual")
             this.manual();
+          settle();
           manual.fire(ms);
           settle();
         },
@@ -15659,6 +15733,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
           return !sharedClock.settling;
         }
       };
+      evalService = null;
+      evalServicePriming = false;
       leafText = (v) => {
         if (v === null || v === void 0)
           return "null";

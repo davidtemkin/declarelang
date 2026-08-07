@@ -238,12 +238,20 @@ export class Clock {
     /** Swap the frame source IN PLACE, keeping enrolled tickers — how the driven
      *  clock (inspect.ts: `step`/`settleMotion`, verify-and-evals.md §2.3) takes
      *  over from rAF and hands back. Cancels any pending frame on the old
-     *  scheduler and re-arms on the new one if motion is in flight. */
+     *  scheduler and re-arms on the new one if motion is in flight. The two
+     *  timelines share no origin, so every in-flight ticker's anchors are
+     *  REBASED by the swap's offset — a handover is a change of frame source,
+     *  never a jump in any motion's elapsed time (in either direction: the old
+     *  skew ate the driven clock's first steps as negative dt, and a long
+     *  settleMotion left `auto()` frozen until real time caught back up). */
     setScheduler(s) {
         if (this.handle !== null) {
             this.sched.cancel(this.handle);
             this.handle = null;
         }
+        const delta = s.now() - this.sched.now();
+        for (const t of this.tickers)
+            t.rebase?.(delta);
         this.sched = s;
         if (this.tickers.size > 0 && !this.ticking)
             this.handle = this.sched.request(this.frame);

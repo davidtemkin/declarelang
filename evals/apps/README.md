@@ -41,7 +41,9 @@ find . -name accept.mjs -o -name reference.declare -o -name 'app.declare' -o -na
 
 Give the agent the distro framing (*this repository is the only source of truth; start
 at README.md*), the path to `task/brief.md`, the fixture's port, and a dev-server port
-that no other run is using. Nothing about the language, and nothing about known defects.
+that no other run is using. One tool line rides the contract: *facts about components
+and attributes: `node tools/declare-help.mjs <name>`* — so the next round measures the
+tool. Nothing else about the language, and nothing about known defects.
 
 **Scoring happens elsewhere.** Keep a separate checkout that still has `evals/`, copy
 the finished program into it, and run the acceptance there — from a tree the agent

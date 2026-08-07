@@ -55,6 +55,10 @@ export declare class Spring extends Animator {
      *  expanded row scrolled out and back must return at its open height,
      *  and the measured ladder must never see it slide.) */
     arrive(): void;
+    /** Shift the anchor across a scheduler handover (Ticker.rebase); the
+     *  Animator half never runs for a spring, but super keeps its own anchor
+     *  coherent if it ever does. */
+    rebase(delta: number): void;
     tick(now: number): boolean;
 }
 /** Walk a newly-pointed subtree and arm every spring in it (see

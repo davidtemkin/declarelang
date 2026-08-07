@@ -290,10 +290,15 @@ export const clock = {
         sharedClock.setScheduler(browserScheduler);
     },
     /** Advance time by `ms` (one synthetic frame), then settle the reactive
-     *  graph — every constraint downstream of the motion lands before return. */
+     *  graph — every constraint downstream of the motion lands before return.
+     *  Settles BEFORE firing too: a write earlier in this same turn (a bridge
+     *  `evaluate`, a handler) may not have propagated to the motion tier yet —
+     *  a spring must retarget from it before the frame it is stepped through,
+     *  or the step ticks against stale targets and reads as lost motion. */
     step(ms = 16.7) {
         if (clockMode !== "manual")
             this.manual();
+        settle();
         manual.fire(ms);
         settle();
     },
@@ -318,10 +323,26 @@ export const clock = {
     },
 };
 // ── the page bridge ─────────────────────────────────────────────────────────
+/** The evaluate service, loaded lazily (it is heavy and boot never needs it)
+ *  but PRIMED when the first bridge is created — so by the time anyone calls
+ *  `evaluate`, the write applies synchronously INSIDE the call, before the
+ *  caller's next statement. Without this, `evaluate("app", 'app.x = 1')`
+ *  followed in the same turn by `clock.step()` stepped over a write that had
+ *  not landed yet — a sequence that reads as "the Spring never re-evaluates"
+ *  (GitHub #17's readout) against a spring that is fine. */
+let evalService = null;
+let evalServicePriming = false;
+function primeEvalService() {
+    if (evalService !== null || evalServicePriming)
+        return;
+    evalServicePriming = true;
+    void import("./inspect-service.js").then((m) => { evalService = m; });
+}
 /** The `window.__declare` surface boot.ts installs for a top-level app: the
  *  whole inspect API bound to that app's root. What verify's rung 5 drives,
  *  and what a human pokes in the console. */
 export function bridgeFor(root) {
+    primeEvalService();
     return {
         inspect: (path) => {
             const n = path !== undefined ? find(root, path) : root;
@@ -359,10 +380,17 @@ export function bridgeFor(root) {
         explainHit: (x, y, pierce = false) => explainHit(root, x, y, pierce),
         dependents: (attr) => dependentsOf(root, attr),
         /** Evaluate Declare in the scope of a node — read, set, bind, or add a view.
-         *  The Inspector's strip and an agent hit the same entry point. */
-        evaluate: async (path, src) => {
-            const m = await import("./inspect-service.js");
-            return m.evaluateIn(root, path, src);
+         *  The Inspector's strip and an agent hit the same entry point. Once the
+         *  primed service is loaded (which boot arranges), the effect lands
+         *  synchronously inside this call — set-then-step-then-read in one turn
+         *  works; only the promise wrapper remains, for the result value. */
+        evaluate: (path, src) => {
+            if (evalService !== null)
+                return Promise.resolve(evalService.evaluateIn(root, path, src));
+            return import("./inspect-service.js").then((m) => {
+                evalService = m;
+                return m.evaluateIn(root, path, src);
+            });
         },
         clock,
     };

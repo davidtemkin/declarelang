@@ -18,7 +18,7 @@ compiler disagree, the compiler is right. Status: pre-1.0, under active design (
 
 | where | what is there | go when |
 |---|---|---|
-| [`declare-model.json`](declare-model.json) | every component, attribute, type, method, event and diagnostic — generated from source, keyed `Class.attr` under `reference`. A class's page carries its own members and then each ancestor's, so everything reachable on it is on one page | you need a name, a type, or a signature |
+| [`declare-model.json`](declare-model.json) | every component, attribute, type, method, event and diagnostic — generated from source, keyed `Class.attr` under `reference`. A class's page carries its own members and then each ancestor's, so everything reachable on it is on one page. The way in is `node tools/declare-help.mjs <name>` — one answer per question, did-you-mean included | you need a name, a type, or a signature |
 | `library/` | the standard components — controls, structure, layouts, embedding, and the `Control` base your own controls extend — written in Declare | you want to know what ships, or to read how one is built |
 | `apps/` | complete programs; `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->840<!--/stat--> lines) is the reference | you want the idiom at full scale |
 | [`docs/guide/`](guide/01-thinking-in-declare.md) | a narrative course, chapter by chapter | you want the reasoning, or you are learning rather than looking up |

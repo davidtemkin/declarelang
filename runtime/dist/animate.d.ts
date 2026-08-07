@@ -63,6 +63,14 @@ export interface Ticker {
      *  transitions. Never an author-facing flag — derivation, not declaration,
      *  so nothing can drift. */
     perpetual?: boolean;
+    /** Carry this ticker's time anchors across a scheduler handover: `delta` is
+     *  (new timeline's now − old timeline's now) at the swap, and every stored
+     *  absolute timestamp must shift by it. Without this, an anchor recorded
+     *  under one clock is measured against the other's frames — the driven
+     *  clock's first steps then integrate a NEGATIVE dt (clamped to zero), which
+     *  reads as "the animation never ran" (GitHub #17's readout). The clock
+     *  calls it in `setScheduler`; a ticker with no stored times omits it. */
+    rebase?(delta: number): void;
 }
 /** The frame source the clock drives itself from — the one seam that makes it
  *  testable. The runtime binds it to `requestAnimationFrame` /
@@ -115,7 +123,12 @@ export declare class Clock {
     /** Swap the frame source IN PLACE, keeping enrolled tickers — how the driven
      *  clock (inspect.ts: `step`/`settleMotion`, verify-and-evals.md §2.3) takes
      *  over from rAF and hands back. Cancels any pending frame on the old
-     *  scheduler and re-arms on the new one if motion is in flight. */
+     *  scheduler and re-arms on the new one if motion is in flight. The two
+     *  timelines share no origin, so every in-flight ticker's anchors are
+     *  REBASED by the swap's offset — a handover is a change of frame source,
+     *  never a jump in any motion's elapsed time (in either direction: the old
+     *  skew ate the driven clock's first steps as negative dt, and a long
+     *  settleMotion left `auto()` frozen until real time caught back up). */
     setScheduler(s: FrameScheduler): void;
     /** One frame: read `now` once, tick every ticker with that same value,
      *  drop the finished, then either re-arm for the next frame or go idle. A

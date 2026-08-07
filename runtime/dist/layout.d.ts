@@ -87,8 +87,16 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
     protected abstract place(): Box[];
     /** Claim `slot` on `child` for constraint `k`: capture the authored base
      *  (first claim only — rearm must not capture the arrangement's own writes),
-     *  then take ownership. Errors loudly on a standing author binding (two
-     *  owners), naming both sides. */
+     *  then take ownership. Errors loudly on a standing AUTHOR binding (two
+     *  owners), naming both sides. A *yielding* prior — auto-extent, auto-size,
+     *  the runtime derive every child without an authored size carries — is not
+     *  a second author: it yields to a layout's claim exactly as it yields to an
+     *  author write (`own` disposes it), which is what lets a `place()` that
+     *  returns sizes arrange children that never declared any. Refusing it here
+     *  was the bug a data-driven treemap found (issue #16): every templated
+     *  child auto-derives its size, so the arrangement died on a conflict the
+     *  ownership machinery downstream was built to resolve — and the message
+     *  blamed an authored binding that did not exist. */
     protected claim(child: View, slot: string, k: Constraint, label: string): void;
     /** Release `k`'s claim of `slot` on `child`; during a rearm, restore the
      *  authored base (see `rearming` — a full detach keeps the last values).

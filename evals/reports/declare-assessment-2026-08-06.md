@@ -228,3 +228,40 @@ null-`:path` headless — clean (see 5.7). "Button unpressable by synthetic inpu
 harness arithmetic. Unfilled full-frame `View` absorbing clicks — documented
 press-catcher behavior. The replication app's R5-clean claim — did not reproduce
 (10s wait timeout, live-timing suspected); its R1–R4 and pixel-parity claims verified.
+
+---
+
+# Addendum — evening round (Lightwell + continuity revision), 2026-08-06
+
+**New items, validated:**
+
+1. **Decoded bitmaps are per-`Image`-instance; there is no shared decode cache — HIGH,
+   and the recommended shape is an invariant, not an API.** A print traveling between
+   surfaces cannot hand its already-decoded bitmap across: the runtime creates a fresh
+   `<img>` per source, so a session's first flight double-draws and later ones can flash
+   the previous photograph. Don't add a handle/ref type (leaks identity, fights the
+   model) or a preload verb (imperative, partial). Give the runtime **one shared decode
+   table keyed by source** — the `measure.ts` move ("one shared measurer so they cannot
+   disagree"): any `Image` whose source is cached boots with `loaded = true` and real
+   `naturalWidth/Height` on frame one. Bounded LRU; no new authoring surface; fixes the
+   whole class. This matters more than it looks: continuity is the platform's founding
+   argument, and this is a flash in the middle of its signature move.
+2. **`app.scrollY` is assignable but not a setter** (`view.ts:1460`) — the write lands
+   on the attribute, the page never moves, the virtualized window rebuilds around a
+   place nobody is standing. Found only because a *revision* depended on scroll truth;
+   the original app had the bug and its own assertion passed by reading back the
+   lied-to attribute. Refuse the write or make it push. (Tier 2 — silent, blessed by
+   the ladder.)
+3. **Computed alpha arithmetic silently yields an opaque colour** — only *literal*
+   `0xRRGGBBAA` lowers to `colorWithAlpha`; `BASE * 256 + a` compiles, typechecks, and
+   renders navy. Worth a diagnostic on packed-range numerics; document beside 2.3.
+4. **`scrollIntoView`'s documented third parameter (`inset`) is missing from the
+   scaffold** (`scaffold.ts:413` declares two) — reference and runtime say three.
+5. Third independent sighting: **a Spring takes no motion on the first `clock.step()`
+   after a target change** — promote from doc-line to fix.
+
+**Round verdict:** the fix wave held. The photo brief was buildable entirely from the
+reference (no runtime-source archaeology), the revision agent executed the same-object
+morph with interruptibility costing zero lines, and resting baselines stayed
+pixel-identical through the change. Remaining friction has moved off the language core
+into doc placement, harness seams, and the planned compositing work.

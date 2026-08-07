@@ -65,6 +65,13 @@ export class Heartbeat extends Node {
         sharedClock.remove(this);
         this.last = null;
     }
+    /** Shift the anchor across a scheduler handover (Ticker.rebase) — the
+     *  resume-yields-no-step rule at `join()` is about ENROLLMENT; a live
+     *  heartbeat crossing a clock handover has no reason to skip a beat. */
+    rebase(delta) {
+        if (this.last !== null)
+            this.last += delta;
+    }
     /** Called once per frame by the shared clock. Returns whether to keep
      *  ticking (the clock's protocol). */
     tick(now) {

@@ -2334,7 +2334,11 @@ try {
       assert.equal(from, 20);
       assert.equal(to, 140);
       assert.ok(vals.length >= 8, `a real multi-frame animation (got ${vals.length} frames)`);
-      assert.equal(vals[0], from, "the first frame anchors at from (t = 0)");
+      // Elapsed time counts from start(), not from the first frame (the
+      // issue-#17 arming fix) — so the first sampled frame has ~one frame of
+      // real motion in it: at or after `from`, well short of the journey.
+      assert.ok(vals[0] >= from - 1e-6 && vals[0] < from + (to - from) / 2,
+        `the first frame starts at/near from (got ${vals[0]})`);
       assert.equal(vals[vals.length - 1], to, "lands exactly on to");
       for (let i = 1; i < vals.length; i++) {
         assert.ok(vals[i] >= vals[i - 1] - 1e-6, `monotone through the run (frame ${i})`);
@@ -2394,7 +2398,10 @@ try {
       assert.equal(from, 20);
       assert.equal(to, 140, "the composed sum of both deltas (+80 and +40), not either alone (100 / 60)");
       assert.ok(vals.length >= 8, `a real multi-frame animation (got ${vals.length} frames)`);
-      assert.equal(vals[0], from, "the first frame anchors at from (t = 0)");
+      // First frame carries ~one frame of real motion (see the note on the
+      // single-animator test above — the issue-#17 arming fix).
+      assert.ok(vals[0] >= from - 1e-6 && vals[0] < from + (to - from) / 2,
+        `the first frame starts at/near from (got ${vals[0]})`);
       assert.equal(vals[vals.length - 1], to, "lands EXACTLY on the composed sum (the ledger's expected end, no drift)");
       for (let i = 1; i < vals.length; i++) {
         assert.ok(vals[i] >= vals[i - 1] - 1e-6, `monotone through the run (frame ${i})`);

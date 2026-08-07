@@ -81,11 +81,24 @@ to learn it, or jump to the chapter your task needs:
 particular.)
 
 **For an exact fact** — an attribute's name, an enum's tokens, a flag, a diagnostic code,
-a standard-library component — go to `docs/declare-model.json`. It is the whole
-documentation corpus as one queryable structure (the reference, the vocabulary, the
-standard library, even the guide and tenets); for a fact, grep its `spine` and `reference`
-rather than reading it whole. It is the single authority for these details, so nothing
-here restates them.
+a standard-library component — ask the help tool:
+
+```bash
+node tools/declare-help.mjs Slider.value     # any dotted name, class, attribute,
+node tools/declare-help.mjs rotation         # concept, enum, or diagnostic code
+```
+
+It answers in the compiler's register, did-you-mean included — and for a thing that
+deliberately does not exist it names the real door in one sentence (exit 0; a true
+miss exits 1 and says what was searched, so silence is trustworthy). Treat
+**capability claims** the same way as names: before asserting the platform cannot do
+something, or that two features do not compose, ask — a limitation you infer from
+resemblance to other frameworks is usually wrong here, and the absences that are real
+are curated answers, not guesses. Its store is
+`docs/declare-model.json` — the whole documentation corpus as one queryable structure,
+the single authority for these details, so nothing here restates them. For a shape
+the tool doesn't answer (bulk extraction, an unusual join), grep the model's `spine`
+and `reference` rather than reading it whole.
 
 **For the intentions behind the shape** — why the language is the way it is, when a choice
 is a judgment call rather than a fact — `docs/tenets/`.

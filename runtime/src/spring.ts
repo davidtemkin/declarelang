@@ -144,6 +144,14 @@ export class Spring extends Animator {
     else setTimeout(() => { this.arriving = false; }, 0);
   }
 
+  /** Shift the anchor across a scheduler handover (Ticker.rebase); the
+   *  Animator half never runs for a spring, but super keeps its own anchor
+   *  coherent if it ever does. */
+  override rebase(delta: number): void {
+    super.rebase(delta);
+    if (this.springLastNow !== null) this.springLastNow += delta;
+  }
+
   override tick(now: number): boolean {
     if (!this.springRunning) return false;
     // The lazy fallback for a spring constructed outside the init walk —

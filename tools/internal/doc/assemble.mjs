@@ -305,7 +305,39 @@ function buildSpine() {
     diagnostics: diagnosticSpine(),
     library: librarySpine(),
     commands: OPS,
+    concepts: conceptSpine(),
   };
+}
+
+// ── guide `teaches` stamps: which classes each chapter mentions ──────────────
+// The same mention-scan the guide-coverage gate (surfaces.mjs) runs over the
+// joined corpus, run per-chapter and stamped onto the model's guide entries —
+// so declare-help can end a class answer with the chapters that teach it, and
+// the pointers regenerate from the actual files (a guide rewrite cannot
+// orphan them). Derived, zero curation.
+function stampTeaches(guide, spine) {
+  const classes = [...new Set([...Object.keys(spine.schemas), ...Object.keys(spine.librarySchemas)])];
+  return (guide ?? []).map((g) => {
+    let text = "";
+    try { text = readFileSync(join(ROOT, "docs/guide", `${g.id}.md`), "utf8"); } catch { /* a chapter listed but not on disk keeps an empty stamp */ }
+    // name → mention count, so a reader tool can rank "the chapter that teaches
+    // this" above "a chapter that name-drops it" (sorted for stable bytes)
+    const teaches = {};
+    for (const n of classes.sort()) {
+      const hits = text.match(new RegExp(`(^|[^A-Za-z0-9_])${n}([^A-Za-z0-9_]|$)`, "g"))?.length ?? 0;
+      if (hits > 0) teaches[n] = hits;
+    }
+    return { ...g, teaches };
+  });
+}
+
+// ── the concept table: declare-help's synonym → entry map + negative knowledge ─
+// Curated in concepts.json BESIDE this tool (declare-help.md §4) and folded into the
+// spine here so the staleness gate covers it; declare-help.test.mjs asserts every
+// synonym target resolves and every negative entry answers its triggers.
+function conceptSpine() {
+  const raw = JSON.parse(readFileSync(join(ROOT, "tools/internal/doc/concepts.json"), "utf8"));
+  return { synonyms: raw.synonyms, negative: raw.negative };
 }
 
 // ── the BROWSE tree: the single walkable IA over everything documented ────────
@@ -641,7 +673,7 @@ function comprehensiveModel(spine) {
     reference: docsModel.reference,
     roots: docsModel.roots,
     tree: docsModel.tree,
-    guide: docsModel.guide,
+    guide: stampTeaches(docsModel.guide, spine),
     guideParts: docsModel.guideParts,
     tenets: docsModel.tenets,
     browse: buildBrowse(docsModel, spine),

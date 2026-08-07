@@ -126,4 +126,7 @@ covers `declarec` and hosting.
   the complete surface stated once.
 - **Put it in a real project** — [Embedding Declare](declare-docs:operational:embedding),
   when your app should live in its own repo next to a back end rather than in `my-apps/`.
-- **Look something up** — the [reference](declare-docs:reference:index).
+- **Look something up** — `node tools/declare-help.mjs <name-or-question>` answers a
+  name, a concept, an enum, or a diagnostic code in one shot
+  ([declare-help](declare-docs:operational:help)); the browsable form is the
+  [reference](declare-docs:reference:index).

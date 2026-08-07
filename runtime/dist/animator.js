@@ -169,7 +169,12 @@ export class Animator extends Node {
         // it keeps painting without holding settleMotion open.
         this.perpetual = this.repeat === Infinity;
         this.elapsed = 0;
-        this.lastNow = null;
+        // Seed the baseline NOW rather than on the first tick (the same enroll-time
+        // rule the Spring adopted, spring.ts: "enrollment is the start of motion"):
+        // a null seed spends the first frame recording a baseline, which under a
+        // hand-cranked clock reads as "the animation never ran" — a full-duration
+        // step() moved nothing (GitHub #17's Animator readout).
+        this.lastNow = sharedClock.now();
         this.running = true;
         setBound(this, "settled", false); // a new journey un-settles (see `settled`)
         if (!this.grouped)
@@ -202,12 +207,17 @@ export class Animator extends Node {
      *  (an enclosing group's pause) freezes progression while keeping `lastNow`
      *  fresh so nothing jumps on unpause. Returns whether still running (false
      *  drops it from the clock; a group reads it to retire a finished member). */
+    /** Shift the anchor across a scheduler handover (Ticker.rebase). */
+    rebase(delta) {
+        if (this.lastNow !== null)
+            this.lastNow += delta;
+    }
     tick(now, frozen = false) {
         if (!this.running)
             return false;
         if (this.lastNow === null)
-            this.lastNow = now; // first frame: dt = 0 → t = 0
-        const dt = now - this.lastNow;
+            this.lastNow = now; // defensive: start() seeds it
+        const dt = Math.max(now - this.lastNow, 0);
         this.lastNow = now;
         if (this.paused || frozen)
             return true; // frozen in place: hold elapsed, stay live
@@ -373,6 +383,11 @@ export class AnimatorGroup extends Node {
      *  only the head member per frame; `simultaneous` advances all. A `frozen`
      *  group (its own pause, or an enclosing group's) keeps running members'
      *  clocks fresh but neither starts pending members nor advances progression. */
+    rebase(delta) {
+        // The group is the enrolled ticker; the anchors live in its members.
+        for (const m of this.active)
+            m.rebase?.(delta);
+    }
     tick(now, frozen = false) {
         if (!this.running)
             return false;

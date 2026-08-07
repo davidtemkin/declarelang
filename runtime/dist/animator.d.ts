@@ -108,6 +108,8 @@ export declare class Animator extends Node implements Animatable {
      *  (an enclosing group's pause) freezes progression while keeping `lastNow`
      *  fresh so nothing jumps on unpause. Returns whether still running (false
      *  drops it from the clock; a group reads it to retire a finished member). */
+    /** Shift the anchor across a scheduler handover (Ticker.rebase). */
+    rebase(delta: number): void;
     tick(now: number, frozen?: boolean): boolean;
     /** Leave the slot's exact-landing ledger. Decrement the live-animator count;
      *  on a natural completion (`finalize`) with others still running, bring this
@@ -186,6 +188,7 @@ export declare class AnimatorGroup extends Node implements Animatable {
      *  only the head member per frame; `simultaneous` advances all. A `frozen`
      *  group (its own pause, or an enclosing group's) keeps running members'
      *  clocks fresh but neither starts pending members nor advances progression. */
+    rebase(delta: number): void;
     tick(now: number, frozen?: boolean): boolean;
     /** All members done: replay the whole group (repeat) or finish it. */
     private cycleComplete;
