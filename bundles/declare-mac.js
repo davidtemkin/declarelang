@@ -2703,6 +2703,24 @@ var DeclareMac = (() => {
           // answer on a hybrid, where the truth changes per gesture: drive hover-only
           // affordances from it, never layout.
           lastPointerType: { kind: "string" },
+          // THE SAFE AREA — the region the device guarantees free of its own chrome
+          // (a phone's notch/Dynamic Island, the home-indicator bar, rounded
+          // corners). By default an app is LETTERBOXED inside it — the browser keeps
+          // the box clear of the system chrome, the letterbox bars wear the app's
+          // own fill (dom-backend attachRoot), and the four insets read 0. Declaring
+          // `edges = cover` extends the app's box under the system chrome
+          // (viewport-fit=cover, patched into the page's viewport meta at mount) and
+          // the insets become live numbers — pinned chrome then places itself with
+          // them (`y = { app.safeTop }`, a bottom bar's height + `app.safeBottom`).
+          // Read at mount: `edges` is a fact about the app, not a runtime toggle.
+          edges: enumType("Edges", "safe", "cover"),
+          // The live safe-area insets, in pixels — 0 while letterboxed (edges=safe,
+          // or any desktop browser), the device's real insets under `edges = cover`,
+          // re-read on rotation. Fed by the runtime (boot.ts wireSafeArea).
+          safeTop: { kind: "number" },
+          safeBottom: { kind: "number" },
+          safeLeft: { kind: "number" },
+          safeRight: { kind: "number" },
           // The EMBEDDING ENVIRONMENT's parameters — a record the HOST provides and
           // keeps live (an island's slot marker carries `|k=v&k2=v2` after the
           // program path; host-client parses, coerces, and writes the whole record).
@@ -2771,7 +2789,7 @@ var DeclareMac = (() => {
         },
         // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
         // set is a compile error) — like View's contentWidth/contentHeight.
-        readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType"],
+        readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight"],
         // `onFollow(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
         // follow() applies it ONCE to every arrival — a linked view, a prose href, a
         // cold URL, back/forward — before routing. Return the reference to proceed
@@ -7856,6 +7874,31 @@ var DeclareMac = (() => {
         hasPointer: { def: true },
         // a plain desktop until the profile says otherwise
         lastPointerType: { def: "mouse" },
+        // How the app meets the DEVICE'S OWN chrome — a phone's notch/Dynamic Island
+        // and home-indicator bar. `safe` (the default) letterboxes the app inside the
+        // safe region: the browser keeps the box clear of the system chrome, the
+        // letterbox bars wear the app's own `fill`, and every `safe*` inset reads 0 —
+        // nothing to handle. `cover` is the edge-to-edge opt-in: the runtime patches
+        // `viewport-fit=cover` into the page's viewport meta at mount, the box
+        // extends under the system chrome, and the `safeTop`…`safeRight` facts carry
+        // the real insets for pinned chrome to place itself with. A fact about the
+        // app, read at mount — not a runtime toggle.
+        edges: { def: "safe" },
+        // The top safe-area inset, in pixels — the notch/status-bar band. 0 while
+        // letterboxed (`edges = safe`) and on any desktop; the device's real number
+        // under `edges = cover`, live across rotation. Pinned top chrome offsets
+        // itself with it: `y = { app.safeTop }`.
+        safeTop: { def: 0 },
+        // The bottom safe-area inset — the home-indicator band. A pinned bottom bar
+        // reserves it BELOW its buttons: `height = { 56 + app.safeBottom }` with the
+        // content anchored to the bar's top. 0 letterboxed or on desktop; live.
+        safeBottom: { def: 0 },
+        // The side safe-area insets — 0 in portrait, the sensor-housing band on one
+        // side in landscape (rotation re-feeds all four). Full-width pinned chrome
+        // insets both edges: `x = { app.safeLeft }`,
+        // `width = { app.width - app.safeLeft - app.safeRight }`.
+        safeLeft: { def: 0 },
+        safeRight: { def: 0 },
         // the embedding environment's parameters (schema.ts): the HOST replaces the
         // whole record on every change (never mutates), so the default may be one
         // shared frozen empty object — reads like `app.env.dark` never null-crash
@@ -16314,6 +16357,34 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }
+  function wireSafeArea(app, w) {
+    const doc = w.document;
+    if (app.edges === "cover") {
+      let meta = doc.querySelector('meta[name="viewport"]');
+      if (meta === null) {
+        meta = doc.createElement("meta");
+        meta.name = "viewport";
+        meta.content = "width=device-width, initial-scale=1";
+        doc.head.appendChild(meta);
+      }
+      if (!meta.content.includes("viewport-fit")) {
+        meta.content = meta.content === "" ? "viewport-fit=cover" : meta.content + ", viewport-fit=cover";
+      }
+    }
+    const probe = doc.createElement("div");
+    probe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)";
+    doc.body.appendChild(probe);
+    const measure = () => {
+      const s = w.getComputedStyle(probe);
+      app.safeTop = parseFloat(s.paddingTop) || 0;
+      app.safeRight = parseFloat(s.paddingRight) || 0;
+      app.safeBottom = parseFloat(s.paddingBottom) || 0;
+      app.safeLeft = parseFloat(s.paddingLeft) || 0;
+    };
+    measure();
+    w.setTimeout(measure, 0);
+    w.addEventListener("resize", measure);
+  }
   function wireTouchDevice(app) {
     const primary = window.matchMedia("(pointer: coarse)");
     const anyCoarse = window.matchMedia("(any-pointer: coarse)");
@@ -16341,6 +16412,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     const w = window;
     wireColorScheme(app);
     wireTouchDevice(app);
+    wireSafeArea(app, w);
     const size = () => {
       const de = w.document.documentElement;
       app.hostWidth = de.clientWidth;

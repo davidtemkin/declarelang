@@ -34,6 +34,8 @@ font Serif [ family = "Georgia, 'Times New Roman', serif" ]
 
 class Plate extends View [ fill = #FFFDF6, stroke = stroke(1, #E2DACA), clip = true,
     slug: string = "",
+    lift: number = 0,                            // 0 = at rest, 1 = raised (hover) — the shadow deepens, LZPix-style
+    shadow = { shadow(0, 2 + 5 * this.lift, 9 + 13 * this.lift, 0x00000024) },
     pic: Image [ x = 8, y = 8, width = { parent.width - 16 }, height = { parent.height - 16 },
         stretches = contain, source = { classroot.slug == "" ? "" : "plates/" + classroot.slug + ".jpg" } ]
     ]
@@ -45,8 +47,11 @@ class Tile extends View [ width = { app.tileW }, height = { app.tileW + 44 },
     link = { "#b/" + :slug },
     x = { (:gi % app.cols) * (app.tileW + 18) },
     y = { (Math.floor(:gi / app.cols)) * (app.tileW + 62) },
+    hoverT: number = 0,
+    Spring [ attribute = hoverT, to = { classroot.hovered ? 1 : 0 }, stiffness = 220, damping = 20, epsilon = 0.001 ],
     frame: Plate [ width = { parent.width }, height = { parent.width }, slug = { :slug },
-        stroke = { stroke(1, classroot.hovered ? 0x7A3B2E : 0xE2DACA) } ],
+        lift = { classroot.hoverT },
+        scale = { 1 + 0.03 * classroot.hoverT }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 } ],
     cap: Text [ y = { parent.width + 8 }, width = { parent.width }, textAlign = center, wrap = false,
         fontSize = 13, textColor = { classroot.hovered ? 0x7A3B2E : 0x2B2825 }, text = { :name } ],
     lost: Text [ y = { parent.width + 26 }, width = { parent.width }, textAlign = center, wrap = false,
@@ -164,13 +169,19 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
             text = { app.data.failed ? "The field guide failed to load: " + app.data.error : "Fetching the plates…" } ],
         Section [ datapath = :groups[], key = :name ],
         credit: Text [ width = { parent.width }, fontSize = 12, textColor = #8A8272, lineHeight = 1.5,
-            text = "Plates: John James Audubon, The Birds of America (1827–1838), public domain — high-resolution scans courtesy of the National Audubon Society. Prose written for this field guide." ]
+            text = "Plates: John James Audubon, The Birds of America (1827–1838), public domain — high-resolution scans courtesy of the National Audubon Society. Prose written for this field guide." ],
+        pad: View [ width = 1, height = 56 ]
         ],
 
     // ═══ one BIRD — a page with an address you could hand to anyone ══════════
 
-    page: View [ x = { app.colX }, y = 84, width = { app.colW }, visible = { app.bird != null },
+    page: View [ x = { app.colX }, width = { app.colW }, visible = { app.bird != null },
         datapath = { app.bird },
+        arriveT: number = 0,
+        Spring [ attribute = arriveT, to = { app.bird != null ? Number(app.bird.i) : 0 }, stiffness = 190, damping = 24, epsilon = 0.002 ],
+        settle: number = { Math.min(1, Math.abs((app.bird != null ? Number(app.bird.i) : 0) - this.arriveT)) },
+        y = { 84 + this.settle * 12 },
+        opacity = { 1 - this.settle * 0.55 },
         wide: boolean = { app.colW >= 760 },
         plateW: number = { this.wide ? Math.min(560, app.colW - 380) : app.colW },
         frame: Plate [ width = { parent.plateW }, height = { parent.plateW * 1.05 }, slug = { "" + (:slug ?? "") } ],
@@ -197,8 +208,10 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
                 next: Text [ x = { parent.width - this.width }, y = center, fontSize = 14, textColor = #8A8272, wrap = false,
                     visible = { :i < 49 }, link = { "#b/" + app.slugOf(:i + 1) }, text = { app.nameOf(:i + 1) + " →" } ]
                 ],
-            home: Text [ fontSize = 14, textColor = #8A8272, link = "#", text = "← the whole shelf" ]
-            ]
+            home: Text [ fontSize = 14, textColor = #8A8272, link = "#", text = "← the whole shelf" ],
+            pad: View [ width = 1, height = 56 ]
+            ],
+        platePad: View [ x = 0, y = { parent.plateW * 1.05 }, width = 1, height = 72 ]
         ],
 
     // ═══ the QUIZ — one address, a whole SESSION of history entries ══════════
@@ -225,6 +238,10 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
             // the live card — everything on it derives from app.waypoint
 
             live: View [ width = { parent.width }, visible = { app.started && !app.finished },
+                shownT: number = 0,
+                Spring [ attribute = shownT, to = { app.shown }, stiffness = 190, damping = 24, epsilon = 0.002 ],
+                x = { (app.shown - this.shownT) * -42 },
+                opacity = { 1 - Math.min(1, Math.abs(app.shown - this.shownT)) * 0.55 },
                 layout: SimpleLayout [ axis = y, spacing = 14 ],
                 tally: Text [ fontSize = 13, textColor = #8A8272,
                     text = { "Question " + (app.shown + 1) + " of " + app.seeds.length + "   ·   " + app.score + " right so far" } ],
@@ -242,7 +259,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
                     v: Text [ x = 0, y = center, fontFamily = Serif, fontSize = 16,
                         textColor = { app.picked == app.answer ? 0x4A6B4D : 0x9A4632 },
                         text = { app.picked == app.answer ? "Yes — the " + app.nameOf(app.answer) + "." : "No — that's the " + app.nameOf(app.answer) + "." } ],
-                    onward: View [ x = { parent.width - 130 }, width = 130, height = 40, cornerRadius = 8, fill = #2B2825,
+                    onward: View [ x = { parent.width - 130 }, width = 130, height = 40, cornerRadius = 8, fill = #7A3B2E,
                         onClick() { app.advance() },
                         t: Text [ y = center, width = { parent.width }, textAlign = center, fontSize = 14,
                             textColor = #F7F3E8, text = { app.shown + 1 >= app.seeds.length ? "The tally →" : "Next plate →" } ]
@@ -272,7 +289,8 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
                     t: Text [ y = center, width = { parent.width }, textAlign = center, fontFamily = Serif,
                         fontSize = 16, textColor = #F7F3E8, text = "Another ten" ]
                     ]
-                ]
+                ],
+            pad: View [ width = 1, height = 72 ]
             ]
         ]
     ]
