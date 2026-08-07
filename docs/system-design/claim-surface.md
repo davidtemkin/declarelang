@@ -58,6 +58,21 @@ modality.) Everything below is the complete inventory as of 2026-07-29.
 | touchmove | `preventDefault` for hold-capture, touch claim, **two-finger pinch claim**, or **single-finger** drag claim | declarations, as above | an unclaimed second finger's pinch is explicitly left to the browser |
 | wheel | `preventDefault` iff `wheelTo` claimed or `scrollBy` consumed | `onWheel` / `scrolls` declarations | consume-then-claim; unclaimed unconsumed wheels reach the page |
 
+## Mac host (2026-08-07)
+
+The native host has no browser to defer to, so its claim surface has no CSS
+writes and no `preventDefault` — there is no enclosing regime beyond the
+window. What it must still honor is the DELIVERY contract: the same wheel
+walk, the same pinch spelling, so a program hears one stream on all three
+renderers. The conformance oracle, not `gesture.test.mjs`, holds these rows
+(the wheel-claim probe's three cases run three-way).
+
+| site | routes | derives from | deference |
+|---|---|---|---|
+| `scrollWheel` (App.swift) | `__declareWheel(x, y, dx, dy, pinch)` — pinch iff ctrl is held (the browser's own trackpad-pinch spelling, kept deliberately) | the `onWheel` / `scrolls` declarations, consulted by the walk on the far side | `MacSurface.wheelTo` mirrors the canvas walk exactly: a nearer scroller beats a farther claimant, rotated subtrees inverted, pinned chrome (`ignoresScroll`, retained JS-side for this walk) read in frame coordinates. Unclaimed wheels fall back to the scroller walk (`scrollBy`/`scrollByX`) |
+| `magnify(with:)` (App.swift) | `__declareWheel(x, y, 0, -magnification × 100, 1)` — a trackpad pinch IS a wheel with the `pinch` flag, zoom-in negative, scaled to Chrome's per-event range | the same declarations; no separate pinch channel exists to diverge | nothing native consumes magnification first; an unclaimed pinch simply does nothing, exactly as an unclaimed ctrl+wheel does in a painted browser UI |
+| ctl `scroll` verb (Control.swift) | `__declareWheel` with an optional 5th arg = pinch | the conformance driver's scroll step | the test transport rides the production path — the verb proves the walk, not a parallel one |
+
 ## Standing contracts (the residue the audit can't close)
 
 - **Embedding is a marked channel.** The embedded fact reads

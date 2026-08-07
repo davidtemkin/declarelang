@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "d53150ad9088",
+  "buildId": "5153cce3ff45",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -41280,6 +41280,14 @@
      "label": "Markdown file",
      "path": "docs/system-design/diagnostics.md",
      "preview": "Status: mechanism + typecheck v1 implemented + tested 2026-07-05. The general compile-time diagnostic system (src/diagnostics.ts) and the tsc-over-{ }-bodies phase (src/typecheck.ts) that rides on it. 1. The mechanism (all compile-time erro…"
+    },
+    {
+     "name": "Declare doc",
+     "subtitle": "one lookup CLI over the whole documentation spine",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/doc-cli.md",
+     "preview": "Status: DESIGN, ready for implementation handoff. 2026-08-06. Companion to doc-system.md (the spine and its projections) and diagnostics.md §4 (the message register this tool must share). 1. Why (evidence, not taste) Five app-scale eval run…"
     },
     {
      "name": "The documentation system",

@@ -23,7 +23,7 @@
 
 import { build, mountApp, settle, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor,
          Keys, Focus, deliverKeys } from "../runtime/dist/index.js";
-import { MacBackend, flushOps, provideHitPath, macScroll, macRichHeight, macRichLink,
+import { MacBackend, flushOps, provideHitPath, macScroll, macWheel, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
          publishChildName, macScrollTo, surfaceOrigin,
          countOps, peekOps, macTraceHit } from "../runtime/dist/mac-backend.js";
@@ -491,6 +491,10 @@ globalThis.__declareBoot = (url) => macBoot(url).catch((e) => {
   H.bootFailed(String(e && e.message || e));
 });
 globalThis.__declareScroll = (x, y, dy, dx) => macScroll(x, y, dy, dx || 0);
+// The wheel with its CLAIM walk (gestures.md's desktop contract): the nearest
+// onWheel view under the point hears the stream — `pinch` true for a trackpad
+// magnify or ctrl+wheel — and only what no claim takes reaches the scrollers.
+globalThis.__declareWheel = (x, y, dx, dy, pinch) => macWheel(x, y, dx || 0, dy || 0, !!pinch);
 // A scrollbar DRAG addresses one specific scroller by id, rather than routing a
 // delta through the geometric wheel walk.
 globalThis.__declareScrollTo = (id, y, x) => {

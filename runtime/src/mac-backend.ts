@@ -252,7 +252,12 @@ class MacSurface implements Surface {
    *  had recorded as a GAP and gate-baseline.json had sized: `ignorescroll`'s
    *  1.17% structural figure WAS this hole, since no pixel test can see an
    *  absence unless something is actually scrolled under the pinned thing. */
+  /** Retained for the wheel walk (wheelTo): pinned chrome reads FRAME
+   *  coordinates, not the scrolled content's. The Swift side owns the
+   *  visual realization; this is the model's copy of the same fact. */
+  ignoresScroll = false;
   setIgnoreScroll(on: boolean): void {
+    this.ignoresScroll = on;
     emit(OP.IGNORESCROLL, this.id, on ? 1 : 0);
   }
 
@@ -690,6 +695,34 @@ class MacSurface implements Surface {
     return lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
   }
 
+  /** The wheel CLAIM walk (canvas-backend wheelTo, mirrored): descend to the
+   *  view under the point and answer with the nearest `onWheel` CLAIMANT or
+   *  the nearest scroller — whichever is deeper wins, the DOM's delegation
+   *  (an intervening scroller keeps its wheel; a claimant with no nearer
+   *  scroller hears the stream, trackpad pinch included). The transform
+   *  inverse keeps a rotated subtree honest. Null = neither wants it. */
+  wheelTo(px: number, py: number, deltaX: number, deltaY: number, pinch: boolean): "claimed" | "scroller" | null {
+    if (!this.visible || this.opacity <= 0) return null;
+    let lx = px - this.x;
+    let ly = py - this.y;
+    [lx, ly] = this.invertTransform(lx, ly);
+    if ((this.clipData !== null || this.boxClip) && !this.insideClip(lx, ly)) return null;
+    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
+    if ((this.scrolls || this.scrollsX) && !inBox) return null;
+    const cy = this.scrolls ? ly + this.scrollOffset : ly;
+    const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
+    for (let i = this.children.length - 1; i >= 0; i--) {
+      const c = this.children[i];
+      const r = c.wheelTo(c.ignoresScroll ? lx : cx, c.ignoresScroll ? ly : cy, deltaX, deltaY, pinch);
+      if (r !== null) return r;
+    }
+    if (this.wants?.wantsWheel === true && this.sink !== null && inBox) {
+      this.sink("wheel", lx, ly, { deltaX, deltaY, pinch });
+      return "claimed";
+    }
+    return (this.scrolls || this.scrollsX) && inBox ? "scroller" : null;
+  }
+
   /** Route a HORIZONTAL wheel delta to the innermost surface that scrolls on
    *  that axis. A trackpad reports both deltas and the DOM routes each to
    *  whichever ancestor scrolls that way; only the vertical half existed here,
@@ -1018,6 +1051,21 @@ export function macTraceHit(x: number, y: number): void {
 export function macScroll(x: number, y: number, dy: number, dx = 0): void {
   if (dy !== 0) macRoot?.scrollBy(x, y, dy);
   if (dx !== 0) macRoot?.scrollByX(x, y, dx);
+  flushOps();
+}
+
+/** The wheel ENTRY (App.swift scrollWheel and magnify → `__declareWheel`):
+ *  the claim walk first — the nearest `onWheel` view under the point hears
+ *  the stream, `pinch` true for a trackpad magnify or a ctrl+wheel (the
+ *  web's own spelling of desktop pinch, so `e.pinch` zoom math written for
+ *  Chrome runs unchanged here) — then the scroller walk for whatever no
+ *  claim took. This is the native host's half of gestures.md's desktop
+ *  contract; before it, every wheel bypassed `onWheel` entirely. */
+export function macWheel(x: number, y: number, dx: number, dy: number, pinch: boolean): void {
+  if (macRoot?.wheelTo(x, y, dx, dy, pinch) !== "claimed") {
+    if (dy !== 0) macRoot?.scrollBy(x, y, dy);
+    if (dx !== 0) macRoot?.scrollByX(x, y, dx);
+  }
   flushOps();
 }
 export function macRichHeight(id: number, h: number): void {

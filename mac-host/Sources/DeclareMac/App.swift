@@ -221,7 +221,24 @@ final class DeclareView: NSView {
         // A trackpad reports BOTH axes; sending only dy meant the Files column
         // strip could never be dragged sideways even while its scroller showed.
         let dx = -e.scrollingDeltaX * k
-        bridge.call("__declareScroll", [Double(p.x), Double(p.y), Double(dy), Double(dx)])
+        // Through the CLAIM walk (`__declareWheel`), not straight to the
+        // scrollers: a declared `onWheel` view hears its stream first — the
+        // web's delegation, at last native. A ctrl+wheel is a PINCH, exactly
+        // as Chrome spells trackpad pinch, so `e.pinch` zoom math ports.
+        let pinch = e.modifierFlags.contains(.control)
+        bridge.call("__declareWheel", [Double(p.x), Double(p.y), Double(dx), Double(dy), pinch ? 1 : 0])
+        bridge.needsFrame()
+    }
+
+    /// The trackpad PINCH, as the web presents it (gestures.md): a wheel with
+    /// `pinch` true and the magnification mapped onto deltaY — Chrome's own
+    /// ctrl+wheel spelling, zoom-in = negative delta, ×100 so per-event
+    /// deltas land in the same few-unit range Chrome reports. An app's
+    /// `onWheel(e) { if (e.pinch) … }` now behaves identically on the
+    /// native host and in a browser with a trackpad.
+    override func magnify(with e: NSEvent) {
+        let p = pt(e)
+        bridge.call("__declareWheel", [Double(p.x), Double(p.y), 0, Double(-e.magnification * 100), 1])
         bridge.needsFrame()
     }
 

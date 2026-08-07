@@ -441,10 +441,20 @@ ancestor), and delivers cumulative `e.scale` + root-space `e.center`.
 Composition with an unheld drag claim retires pinch-zoom and keeps the
 drag's pan axis (`none` / `pan-y` / `pan-x`). iOS rule satisfied:
 `tools/internal/sim/pinchlab.declare` + two regress cases, full suite 26/26
-green on the simulator (2026-08-06), stamp written. The Mac host has no
-touch path at all (no `magnify(with:)`; trackpad pinch routes to
-`__declareScroll`) — recorded here as the standing gap a future host closes;
-`wantsPinch` rides the wire for symmetry exactly as `wantsTouch` does.
+green on the simulator (2026-08-06), stamp written. The Mac host joined the
+wheel stream the day after (2026-08-07): `scrollWheel` and a new
+`magnify(with:)` both route through `__declareWheel`, which consults
+`onWheel` claims FIRST (`MacSurface.wheelTo` mirrors the canvas walk —
+nearest scroller still beats a farther claimant, rotated subtrees inverted,
+pinned chrome read in frame coordinates via a retained `ignoresScroll`) and
+falls back to the scroller walk only when nothing claims. Desktop pinch
+keeps its one spelling everywhere: ctrl+wheel or `magnify` arrives as a
+wheel with the `pinch` flag set, so a program written against the browser's
+trackpad hears the identical stream natively — three conformance cases pin
+claim delivery, nested-scroller delegation, and the pinch flag three-way.
+The remaining true gap is only touch-screen two-finger `onPinch`, which no
+Mac hardware surfaces; `wantsPinch` rides the wire for symmetry exactly as
+`wantsTouch` does.
 
 # Part III · The text piece — author-facing font metrics
 

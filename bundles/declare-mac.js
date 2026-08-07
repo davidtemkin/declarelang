@@ -16636,7 +16636,12 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
      *  had recorded as a GAP and gate-baseline.json had sized: `ignorescroll`'s
      *  1.17% structural figure WAS this hole, since no pixel test can see an
      *  absence unless something is actually scrolled under the pinned thing. */
+    /** Retained for the wheel walk (wheelTo): pinned chrome reads FRAME
+     *  coordinates, not the scrolled content's. The Swift side owns the
+     *  visual realization; this is the model's copy of the same fact. */
+    ignoresScroll = false;
     setIgnoreScroll(on) {
+      this.ignoresScroll = on;
       emit(OP.IGNORESCROLL, this.id, on ? 1 : 0);
     }
     /** An app ROOT (top-level or an island tenant) — roots keep to their frame
@@ -17102,6 +17107,37 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         return this.insideClip(lx, ly);
       return lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
     }
+    /** The wheel CLAIM walk (canvas-backend wheelTo, mirrored): descend to the
+     *  view under the point and answer with the nearest `onWheel` CLAIMANT or
+     *  the nearest scroller — whichever is deeper wins, the DOM's delegation
+     *  (an intervening scroller keeps its wheel; a claimant with no nearer
+     *  scroller hears the stream, trackpad pinch included). The transform
+     *  inverse keeps a rotated subtree honest. Null = neither wants it. */
+    wheelTo(px, py, deltaX, deltaY, pinch) {
+      if (!this.visible || this.opacity <= 0)
+        return null;
+      let lx = px - this.x;
+      let ly = py - this.y;
+      [lx, ly] = this.invertTransform(lx, ly);
+      if ((this.clipData !== null || this.boxClip) && !this.insideClip(lx, ly))
+        return null;
+      const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
+      if ((this.scrolls || this.scrollsX) && !inBox)
+        return null;
+      const cy = this.scrolls ? ly + this.scrollOffset : ly;
+      const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
+      for (let i = this.children.length - 1; i >= 0; i--) {
+        const c = this.children[i];
+        const r = c.wheelTo(c.ignoresScroll ? lx : cx, c.ignoresScroll ? ly : cy, deltaX, deltaY, pinch);
+        if (r !== null)
+          return r;
+      }
+      if (this.wants?.wantsWheel === true && this.sink !== null && inBox) {
+        this.sink("wheel", lx, ly, { deltaX, deltaY, pinch });
+        return "claimed";
+      }
+      return (this.scrolls || this.scrollsX) && inBox ? "scroller" : null;
+    }
     /** Route a HORIZONTAL wheel delta to the innermost surface that scrolls on
      *  that axis. A trackpad reports both deltas and the DOM routes each to
      *  whichever ancestor scrolls that way; only the vertical half existed here,
@@ -17336,6 +17372,15 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       macRoot?.scrollBy(x, y, dy);
     if (dx !== 0)
       macRoot?.scrollByX(x, y, dx);
+    flushOps();
+  }
+  function macWheel(x, y, dx, dy, pinch) {
+    if (macRoot?.wheelTo(x, y, dx, dy, pinch) !== "claimed") {
+      if (dy !== 0)
+        macRoot?.scrollBy(x, y, dy);
+      if (dx !== 0)
+        macRoot?.scrollByX(x, y, dx);
+    }
     flushOps();
   }
   function macRichHeight(id, h) {
@@ -17703,6 +17748,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     H.bootFailed(String(e && e.message || e));
   });
   globalThis.__declareScroll = (x, y, dy, dx) => macScroll(x, y, dy, dx || 0);
+  globalThis.__declareWheel = (x, y, dx, dy, pinch) => macWheel(x, y, dx || 0, dy || 0, !!pinch);
   globalThis.__declareScrollTo = (id, y, x) => {
     macScrollTo(id, y, x === void 0 || x === null ? null : x);
     settle();

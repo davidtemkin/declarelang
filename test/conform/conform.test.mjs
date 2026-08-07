@@ -223,6 +223,44 @@ await test("conform: what a scroll MOVES is the same on every renderer", async (
   console.log(`    landed at: ${r.answers.map((a) => `${a.host}=${a.value}`).join("  ")}`);
 });
 
+await test("conform: an onWheel CLAIM hears its stream on every renderer", async () => {
+  // The routing the visual gates cannot see (a wired and an unwired host
+  // render identically at rest): a wheel over the claimant delivers to its
+  // handler — same delta, same count — and the browser/compositor/host
+  // scroller machinery all stand aside. Until 2026-08-06 the native host
+  // routed EVERY wheel straight to the scrollers; this is the pin that
+  // keeps the claim walk (`macWheel`) from silently regressing to that.
+  const r = await conform("test/probe/wheelclaim.declare",
+    [["scroll", 100, 60, 60, 0], ["wait", 0.4]],
+    `(() => { const z = __declare.find("app.zoomer"); return { hits: z.hits, dy: z.wdy, pinch: z.wpinch }; })()`,
+    "wheel claim delivery");
+  assert.equal(r.answers[0].value.hits, 1, "the claimant heard exactly one wheel");
+  assert.equal(r.answers[0].value.dy, 60, "the delta arrived unscaled");
+});
+
+await test("conform: a scroller nested INSIDE the claimant keeps its own wheel", async () => {
+  // The delegation walk's other half: the nearer scroller wins, the claimant
+  // hears nothing, the pane moves — identically on all three.
+  const r = await conform("test/probe/wheelclaim.declare",
+    [["scroll", 120, 170, 60, 0], ["wait", 0.5]],
+    `(() => { const z = __declare.find("app.zoomer"); return { hits: z.hits, paneY: Math.round(z.pane.scrollY) }; })()`,
+    "wheel delegation to the nested scroller");
+  assert.equal(r.answers[0].value.hits, 0, "the claimant never heard the pane's wheel");
+  assert.ok(r.answers[0].value.paneY > 0, "the pane scrolled");
+});
+
+await test("conform: a desktop PINCH arrives on the wheel stream with `pinch` set, everywhere", async () => {
+  // gestures.md's desktop contract, now three-way: Chrome spells trackpad
+  // pinch as ctrl+wheel; the native host spells magnify(with:) the same way
+  // (App.swift), so `e.pinch` zoom math ports between them unchanged.
+  const r = await conform("test/probe/wheelclaim.declare",
+    [["scroll", 100, 60, -40, 0, true], ["wait", 0.4]],
+    `(() => { const z = __declare.find("app.zoomer"); return { dy: z.wdy, pinch: z.wpinch }; })()`,
+    "pinch-as-wheel");
+  assert.equal(r.answers[0].value.pinch, true, "the pinch flag arrived");
+  assert.equal(r.answers[0].value.dy, -40, "zoom-in is a negative delta");
+});
+
 await test("conform: the walk's REASONING agrees, not just its answer", async () => {
   // Two backends can agree on the hit and disagree about why — one skipping a
   // view for being invisible where another never reached it. The narration is

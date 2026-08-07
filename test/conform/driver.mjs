@@ -65,6 +65,15 @@ export function browserDriver(page, label) {
       if (verb === "scroll") {
         await page.mouse.move(a[0], a[1]);
         await sleep(0.05);
+        // a[4] = pinch: a desktop pinch IS a ctrl+wheel (gestures.md), and
+        // puppeteer's mouse carries the keyboard's live modifiers, so held
+        // Control makes this the browser's own trackpad-pinch spelling
+        if (a[4]) {
+          await page.keyboard.down("Control");
+          await page.mouse.wheel({ deltaY: a[2] ?? 0, deltaX: a[3] ?? 0 });
+          await page.keyboard.up("Control");
+          return;
+        }
         return page.mouse.wheel({ deltaY: a[2] ?? 0, deltaX: a[3] ?? 0 });
       }
       if (verb === "key") {
@@ -124,7 +133,7 @@ export function macDriver({ inPath = "/tmp/declare-ctl.in", outPath = "/tmp/decl
       if (verb === "wait") return sleep(a[0]);
       if (verb === "move") return void (await ctl(`move ${a[0]} ${a[1]}`));
       if (verb === "click") return void (await ctl(`click ${a[0]} ${a[1]}`));
-      if (verb === "scroll") return void (await ctl(`scroll ${a[0]} ${a[1]} ${a[2] ?? 0} ${a[3] ?? 0}`));
+      if (verb === "scroll") return void (await ctl(`scroll ${a[0]} ${a[1]} ${a[2] ?? 0} ${a[3] ?? 0} ${a[4] ? 1 : 0}`));
       if (verb === "key") return void (await ctl(`key ${a.join(" ")}`));
       throw new Error(`conform: unknown step ${verb}`);
     },

@@ -88,7 +88,11 @@ final class ControlChannel {
             buttons = 0; send("pointerup", num(1), num(2))
             return "ok"
         case "scroll":
-            bridge.call("__declareScroll", [num(1), num(2), num(3), num(4)])
+            // Through the WHEEL entry, claims first — the injected scroll
+            // stands in for a user wheel, so it must behave like one
+            // (an `onWheel` view hears it before any scroller). Optional
+            // fifth arg: pinch (the ctrl+wheel / magnify flag).
+            bridge.call("__declareWheel", [num(1), num(2), num(4), num(3), num(5)])
             bridge.needsFrame()
             return "ok"
         case "key":

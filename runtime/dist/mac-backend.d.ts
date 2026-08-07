@@ -156,6 +156,10 @@ declare class MacSurface implements Surface {
      *  had recorded as a GAP and gate-baseline.json had sized: `ignorescroll`'s
      *  1.17% structural figure WAS this hole, since no pixel test can see an
      *  absence unless something is actually scrolled under the pinned thing. */
+    /** Retained for the wheel walk (wheelTo): pinned chrome reads FRAME
+     *  coordinates, not the scrolled content's. The Swift side owns the
+     *  visual realization; this is the model's copy of the same fact. */
+    ignoresScroll: boolean;
     setIgnoreScroll(on: boolean): void;
     /** An app ROOT (top-level or an island tenant) — roots keep to their frame
      *  and never self-scroll (the DOM's applyScrollStyle root branch). Stamped by
@@ -266,6 +270,13 @@ declare class MacSurface implements Surface {
      *  ancestors — never to an occluded sibling, which is what let a scroll
      *  over the front window drive a scroller in the window behind it. */
     private ownsPoint;
+    /** The wheel CLAIM walk (canvas-backend wheelTo, mirrored): descend to the
+     *  view under the point and answer with the nearest `onWheel` CLAIMANT or
+     *  the nearest scroller — whichever is deeper wins, the DOM's delegation
+     *  (an intervening scroller keeps its wheel; a claimant with no nearer
+     *  scroller hears the stream, trackpad pinch included). The transform
+     *  inverse keeps a rotated subtree honest. Null = neither wants it. */
+    wheelTo(px: number, py: number, deltaX: number, deltaY: number, pinch: boolean): "claimed" | "scroller" | null;
     /** Route a HORIZONTAL wheel delta to the innermost surface that scrolls on
      *  that axis. A trackpad reports both deltas and the DOM routes each to
      *  whichever ancestor scrolls that way; only the vertical half existed here,
@@ -334,6 +345,14 @@ export declare function macScrollTo(id: number, y: number, x?: number | null): v
 /** Narrate the hit walk at a point — a diagnostic for "nothing is hittable here". */
 export declare function macTraceHit(x: number, y: number): void;
 export declare function macScroll(x: number, y: number, dy: number, dx?: number): void;
+/** The wheel ENTRY (App.swift scrollWheel and magnify → `__declareWheel`):
+ *  the claim walk first — the nearest `onWheel` view under the point hears
+ *  the stream, `pinch` true for a trackpad magnify or a ctrl+wheel (the
+ *  web's own spelling of desktop pinch, so `e.pinch` zoom math written for
+ *  Chrome runs unchanged here) — then the scroller walk for whatever no
+ *  claim took. This is the native host's half of gestures.md's desktop
+ *  contract; before it, every wheel bypassed `onWheel` entirely. */
+export declare function macWheel(x: number, y: number, dx: number, dy: number, pinch: boolean): void;
 export declare function macRichHeight(id: number, h: number): void;
 export declare function macRichLink(id: number, href: string): void;
 export declare function macEditInput(id: number, value: string): void;

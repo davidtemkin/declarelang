@@ -1,0 +1,27 @@
+// The wheel CLAIM, probed where ROUTING shows (the visual gate is blind to
+// it — at rest this renders identically wired or not; the conformance
+// oracle asks instead). Three answers the three renderers must share:
+//
+//   zoomer — declares onWheel and records its stream (deltas + the pinch
+//            flag): a wheel over it is CLAIMED, trackpad pinch included;
+//   pane   — a scroller nested INSIDE the claimant: it keeps its own wheel
+//            (the delegation walk defers to the nearer scroller);
+//   side   — a bare scroller outside the claim: plain scrolling, untouched.
+
+App [ width = 400, height = 250, fill = #16191E,
+
+    zoomer: View [ x = 10, y = 10, width = 250, height = 230, fill = #24303B,
+        hits: number = 0,
+        wdy: number = 0,
+        wpinch: boolean = false,
+        onWheel(e: WheelEvent) { this.hits = this.hits + 1; this.wdy = e.deltaY; this.wpinch = e.pinch },
+
+        pane: View [ x = 20, y = 120, width = 210, height = 100, fill = #2E3A45, scrolls = y,
+            tall: View [ x = 0, y = 0, width = 210, height = 400, fill = #3A4855 ]
+            ]
+        ],
+
+    side: View [ x = 280, y = 10, width = 110, height = 230, fill = #202A33, scrolls = y,
+        tall2: View [ x = 0, y = 0, width = 110, height = 500, fill = #2A3641 ]
+        ]
+    ]
