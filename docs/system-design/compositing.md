@@ -1,4 +1,13 @@
-# Compositing — view-level blending and the backdrop, across all three renderers
+# The visual arc — compositing, transform, and the typography surface
+
+One consolidated plan (David, 2026-08-06: "consolidate the transform and
+compositing documents into one, add in the text piece") for the whole
+visual-capability build: **Part I — compositing** (`blend`, `backdrop`, `tint`
+— ratified to build), **Part II — transform** (`rotation`, the `onPinch`
+family), and **Part III — the text piece** (author-facing font metrics).
+Every part obeys the two standing rules at the end of this file.
+
+# Part I · Compositing — view-level blending and the backdrop, across all three renderers
 
 **Status: PLAN, RATIFIED TO BUILD (David, 2026-08-06 — "I am going to want all of
 this implemented").** One unified plan for the compositing surface: `blend` (the
@@ -338,3 +347,75 @@ closes: `docs/guide/20-renderers.md` (frost paragraph), `library/menu.declare`
 `docs/system-design/native-host.md` §4 and §9. Overlay hosting: `Overlays.swift`.
 Offscreen groups: `runtime/src/canvas-backend.ts`. Seam discipline:
 `test/seam.test.mjs`. Baseline policy: `mac-host/gate.mjs` header.
+
+# Part II · Transform — rotation and the pinch primitive
+
+**Status: scoped (David, 2026-08-06 — on rotation: "we not only need to do it,
+we need to do it well"); design details to be settled in-build, hard parts
+named here so none is discovered late.**
+
+## II.1 `View.rotation`
+
+Degrees, **painted-only** like `scale` (layout untouched — the box the tree
+reasons about never rotates); shares scale's pivot machinery (schema.ts:108
+region — pivot points, painted-vs-layout, per-backend realization — every hard
+decision rotation needs was already made for scale) and composes with it
+(one order, documented: scale then rotate about the same pivot).
+
+- **The hard part, named**: hit-testing through the INVERSE transform in the
+  model walk (interaction.ts leafAt + the canvas backend's reverse painter's
+  walk), so `hovered`/`pressed`/claims/`Inspect.at`/`explainHit` stay honest
+  under rotation. CSS-only approaches fake this; Declare's walk must not.
+- Three backends: CSS `transform` / canvas `ctx` transform (text crispness at
+  fractional angles needs care at dpr) / `CATransform3D` on the Mac host —
+  which gets it nearly free, but consumes it via the op protocol (TEXTSTYLE
+  discipline: forward the field, seam-row the gap until the host reads it).
+- **Open policy to rule in-build**: perceptual-baseline tolerance for rotated
+  antialiasing (it differs per backend); `draw()`-tier interplay (a rotated
+  view's drawing rotates with it — the recording replays under the transform).
+- 4.3 (draw() image sources) stays deferred; re-examine once rotation lands —
+  a rotated `Image` dissolves the most common want.
+
+## II.2 The `onPinch` family (assessment 4.4 — deferred here deliberately)
+
+Declaring `onPinchStart/onPinch/onPinchEnd` IS the claim of the two-finger
+gesture over that subtree — realized as `touch-action: pan-x pan-y`
+(single-finger pan stays the page's; only pinch retires — the same narrowing
+`claim = x` performs for drags). The router recognizes two fingers and
+delivers `e.scale` (cumulative) and root-space `e.center`; the canvas backend
+gets its `claimAt` twin. "Roll your own math over a subtree touch claim"
+works today and is not the answer. Pinch nearly always DRIVES scale/rotation
+of a sub-surface — which is why it lives in this part.
+
+# Part III · The text piece — author-facing font metrics
+
+**Status: scoped; the measurement machinery already exists** (measure.ts —
+`fontMetrics()` reads `fontBoundingBoxAscent/Descent`, `capHeight()` probes
+the ink of "H"; it is how `y = center` centers the cap-to-baseline band).
+This part is language SURFACE, not new measurement:
+
+- Read-only, reactive `ascent` / `descent` / `capHeight` / `xHeight` /
+  `baseline` on `Text` (baseline = the y of the first baseline inside the
+  view — what cross-font/cross-size baseline alignment needs; the homepage
+  badge exercise did this by hand arithmetic). Re-derive when the effective
+  font changes (the prevailing slots).
+- Why measurement, not font tables: no web API reads a font's tables; the
+  binary is unreachable for system fonts and carries THREE competing
+  ascent/descent sets (hhea, OS/2 typo, OS/2 win) that browsers disagree on —
+  canvas `measureText` reports what THIS engine will actually render.
+- **Ruling wanted in-build**: `Text`-only, or also a per-font query service.
+- Adjacent, found by the coverage sweep (evals/README.md §Coverage): the four
+  prevailing typography tokens `headingColor`/`headingWeight`/`codeColor`/
+  `codeFamily` are absolute zeros — no theme, sample, doc example, or test
+  touches them. Their first real user is their first integration test; light
+  them up (or retire them deliberately) as part of this part.
+
+# The standing rules (all parts)
+
+1. **The iOS rule** (claim-surface.md, RULED 2026-08-06): any change to input
+   declarations or gesture claims — all of Part II — requires iOS-simulator
+   validation and a `tools/internal/sim/regress.mjs` case, run green; the
+   stamp quiets the run-gates advisory.
+2. **Each phase lands whole**: schema + check + both web backends + mac
+   forward-or-seam-row + prose (the completeness gate demands it) + pins +
+   derive; gates green before the next phase starts.

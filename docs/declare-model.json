@@ -40341,12 +40341,12 @@
      "preview": "Status: DRAFT 2026-07-13, for sequential ruling. Four contracts, each proposed with its concerns surfaced; components are written only after the contracts are ruled, because every later component inherits them. Companion to style.md(style.m…"
     },
     {
-     "name": "Compositing",
-     "subtitle": "view-level blending and the backdrop, across all three renderers",
+     "name": "The visual arc",
+     "subtitle": "compositing, transform, and the typography surface",
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/system-design/compositing.md",
-     "preview": "Status: PLAN, RATIFIED TO BUILD (David, 2026-08-06 — \"I am going to want all of this implemented\"). One unified plan for the compositing surface: blend (the mix-blend-mode analogue, a View attribute) and backdrop (the frost — backdrop sampl…"
+     "preview": "One consolidated plan (David, 2026-08-06: \"consolidate the transform and compositing documents into one, add in the text piece\") for the whole visual-capability build: Part I — compositing (blend, backdrop, tint — ratified to build), Part I…"
     },
     {
      "name": "Composition",
@@ -40883,14 +40883,6 @@
      "label": "Markdown file",
      "path": "docs/system-design/text-and-markdown.md",
      "preview": "Status: SETTLED 2026-07-08 (David). Surfaced by the homepage build: Text never wrapped (white-space: pre, \"wrap semantics: open question\"), blocking real prose. This is the ruling for wrapping and for Markdown as a native, full-featured con…"
-    },
-    {
-     "name": "Transform",
-     "subtitle": "rotation, pinch, and the typography surface (SEED)",
-     "kind": "doc",
-     "label": "Markdown file",
-     "path": "docs/system-design/transform.md",
-     "preview": "Status: scoped, not yet designed — the next session's arc (David, 2026-08-06). This seed exists so the scope survives the session boundary; the full plan replaces it, at the grade of compositing.md. Why one arc Rotation, the pinch primitive…"
     },
     {
      "name": "Verification",
