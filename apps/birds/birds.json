@@ -1,0 +1,840 @@
+{
+ "groups": [
+  {
+   "name": "songbirds",
+   "count": 16,
+   "birds": [
+    {
+     "slug": "american-crow",
+     "name": "American Crow",
+     "latin": "Corvus brachyrhynchos",
+     "plate": 156,
+     "audubonName": "American Crow",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "common-raven",
+      "blue-jay"
+     ],
+     "prose": "Crows recognize individual human faces, hold grudges for years, and teach the grudge to their children — researchers who trapped crows wearing a mask were scolded by that neighborhood's crows a decade later. Families stay together, with last year's young helping raise this year's brood. Winter roosts can number in the tens of thousands.",
+     "i": 0,
+     "gi": 0
+    },
+    {
+     "slug": "american-goldfinch",
+     "name": "American Goldfinch",
+     "latin": "Spinus tristis",
+     "plate": 33,
+     "audubonName": "American Goldfinch",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "northern-cardinal",
+      "indigo-bunting"
+     ],
+     "prose": "A strict vegetarian that waits to nest until July, when the thistles go to seed — cowbird chicks slipped into a goldfinch nest starve on the seed diet, which is as neat a defense as any in birding. The male molts from winter olive to summer gold so completely he looks like a different species. Their flight is a bouncing wave, sung over: po-ta-to-chip.",
+     "i": 1,
+     "gi": 1
+    },
+    {
+     "slug": "american-robin",
+     "name": "American Robin",
+     "latin": "Turdus migratorius",
+     "plate": 131,
+     "audubonName": "American Robin",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "eastern-bluebird",
+      "northern-mockingbird"
+     ],
+     "prose": "The robin running across your lawn is hunting by tilt of head — watching, not listening, for the worm's movement at the mouth of its burrow. Homesick colonists named it for Europe's unrelated redbreast; it is actually a thrush, and its dawn song is often the first birdsong of the day. A robin's egg gave its name to a blue.",
+     "i": 2,
+     "gi": 2
+    },
+    {
+     "slug": "baltimore-oriole",
+     "name": "Baltimore Oriole",
+     "latin": "Icterus galbula",
+     "plate": 12,
+     "audubonName": "Baltimore Oriole",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "red-winged-blackbird",
+      "american-goldfinch"
+     ],
+     "prose": "Named for Lord Baltimore's orange-and-black livery, the oriole is a blackbird that dresses like a flame. Its nest is the marvel: a pouch woven from plant fiber, hair, and string, slung from the tip of a high branch where no climbing predator can follow. It will trade almost anything for half an orange in May.",
+     "i": 3,
+     "gi": 3
+    },
+    {
+     "slug": "barn-swallow",
+     "name": "Barn Swallow",
+     "latin": "Hirundo rustica",
+     "plate": 173,
+     "audubonName": "Barn Swallow",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "purple-martin",
+      "eastern-bluebird"
+     ],
+     "prose": "The world's most widespread swallow, stitching every continent's summer air with that forked tail. It once nested in caves; now it nests almost exclusively on human structures, mortaring cup nests of mud pellets to beams and eaves. A legend says it stole fire from the gods for us, and its burnt tail is the receipt.",
+     "i": 4,
+     "gi": 4
+    },
+    {
+     "slug": "blue-jay",
+     "name": "Blue Jay",
+     "latin": "Cyanocitta cristata",
+     "plate": 102,
+     "audubonName": "Blue Jay",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "american-crow",
+      "common-raven"
+     ],
+     "prose": "A crow in a carnival suit: jays are corvids, with the family's long memory and taste for mischief. They cache thousands of acorns a season and forget enough of them to plant whole oak groves. The blue is not a pigment but a trick of feather structure — grind the feather and the color is gone.",
+     "i": 5,
+     "gi": 5
+    },
+    {
+     "slug": "cedar-waxwing",
+     "name": "Cedar Waxwing",
+     "latin": "Bombycilla cedrorum",
+     "plate": 43,
+     "audubonName": "Cedar Bird",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "ruby-throated-hummingbird",
+      "purple-martin"
+     ],
+     "prose": "A sleek, crested berry specialist that looks airbrushed, down to the red waxy droplets on its wingtips that give it its name. Waxwings are courteous to a fault — a row of them on a branch will pass a berry beak to beak down the line. On overripe fermented fruit, entire flocks get visibly, catastrophically drunk.",
+     "i": 6,
+     "gi": 6
+    },
+    {
+     "slug": "common-raven",
+     "name": "Common Raven",
+     "latin": "Corvus corax",
+     "plate": 101,
+     "audubonName": "Raven",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "american-crow",
+      "blue-jay"
+     ],
+     "prose": "Twice a crow's size, with a wedge tail, a croak like a stone door, and a taste for aerobatics — ravens barrel-roll in flight apparently for the joy of it. They solve multi-step puzzles, plan for tomorrow, and misdirect each other around food caches, which is why they star in the mythologies of the whole northern world. A raven soars; a crow rows.",
+     "i": 7,
+     "gi": 7
+    },
+    {
+     "slug": "eastern-bluebird",
+     "name": "Eastern Bluebird",
+     "latin": "Sialia sialis",
+     "plate": 113,
+     "audubonName": "Blue-bird",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "american-robin",
+      "indigo-bunting"
+     ],
+     "prose": "A small thrush wearing sky on its back and sunset on its breast, hunting insects from fence posts with a drop-pounce. Starlings and house sparrows — both introduced — nearly evicted it from its nest holes in the twentieth century; volunteers running thousands of nest-box trails brought it back. Thoreau said it carries the sky on its back, and nobody has improved on that.",
+     "i": 8,
+     "gi": 8
+    },
+    {
+     "slug": "eastern-meadowlark",
+     "name": "Eastern Meadowlark",
+     "latin": "Sturnella magna",
+     "plate": 136,
+     "audubonName": "Meadow Lark",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "red-winged-blackbird",
+      "northern-bobwhite"
+     ],
+     "prose": "Not a lark but a blackbird in a yellow vest, singing clear flute phrases from fence posts over hayfields. It walks the grass hunting grubs and nests on the bare ground under a woven grass dome. As grasslands vanish into subdivisions and early mowing, its song is becoming the sound of something going missing.",
+     "i": 9,
+     "gi": 9
+    },
+    {
+     "slug": "indigo-bunting",
+     "name": "Indigo Bunting",
+     "latin": "Passerina cyanea",
+     "plate": 74,
+     "audubonName": "Indigo Bird",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "eastern-bluebird",
+      "northern-cardinal"
+     ],
+     "prose": "A finch-sized scrap of saturated blue that sings all summer from powerline and treetop — each male splices together his own song as a yearling and keeps it for life, so counties develop local dialects. The blue is structural, like the jay's; in the hand the bird is actually black. It migrates at night, steering by the stars, which it learns as a nestling watching the sky rotate.",
+     "i": 10,
+     "gi": 10
+    },
+    {
+     "slug": "northern-cardinal",
+     "name": "Northern Cardinal",
+     "latin": "Cardinalis cardinalis",
+     "plate": 159,
+     "audubonName": "Cardinal Grosbeak",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "indigo-bunting",
+      "american-goldfinch"
+     ],
+     "prose": "Named for the red of a cardinal's robes, and one of the few birds whose female sings — often from the nest, in duet with her mate. Cardinals don't migrate, which is why a snowbound feeder can hold a dozen at once like ornaments. Seven states claim it as state bird, more than any other species.",
+     "i": 11,
+     "gi": 11
+    },
+    {
+     "slug": "northern-mockingbird",
+     "name": "Northern Mockingbird",
+     "latin": "Mimus polyglottos",
+     "plate": 21,
+     "audubonName": "Mocking Bird",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "american-robin",
+      "baltimore-oriole"
+     ],
+     "prose": "The Latin name means 'many-tongued mimic,' and a single male may master two hundred songs — other birds', car alarms, gate hinges — singing through moonlit nights in spring. Audubon's plate shows a rattlesnake raiding the nest while four mockingbirds mob it, a scene critics called impossible and birders have since watched happen. Unmated males sing the most, and the loudest.",
+     "i": 12,
+     "gi": 12
+    },
+    {
+     "slug": "purple-martin",
+     "name": "Purple Martin",
+     "latin": "Progne subis",
+     "plate": 22,
+     "audubonName": "Purple Martin",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "barn-swallow",
+      "cedar-waxwing"
+     ],
+     "prose": "The largest North American swallow, and east of the Rockies now almost wholly a tenant of human-built apartment houses — a landlord tradition the colonists learned from Native nations who hung hollow gourds for them. Martins winter in Brazil and return to the same colony, often the same room. An aerial insectivore that eats, drinks, and bathes on the wing.",
+     "i": 13,
+     "gi": 13
+    },
+    {
+     "slug": "red-winged-blackbird",
+     "name": "Red-winged Blackbird",
+     "latin": "Agelaius phoeniceus",
+     "plate": 67,
+     "audubonName": "Red-winged Starling",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "baltimore-oriole",
+      "eastern-meadowlark"
+     ],
+     "prose": "Possibly the most abundant native bird on the continent: every cattail marsh in spring rings with konk-la-ree as males flash their epaulets from the reeds. The red shoulder is a rank badge — males can hide or blaze it at will, and a male with covered epaulets can trespass another's territory unchallenged. Females look like large striped sparrows and run the actual nesting.",
+     "i": 14,
+     "gi": 14
+    },
+    {
+     "slug": "ruby-throated-hummingbird",
+     "name": "Ruby-throated Hummingbird",
+     "latin": "Archilochus colubris",
+     "plate": 47,
+     "audubonName": "Ruby-throated Humming Bird",
+     "group": "songbirds",
+     "status": "",
+     "kin": [
+      "american-goldfinch",
+      "cedar-waxwing"
+     ],
+     "prose": "Three grams of bird — a penny weighs more — that crosses the Gulf of Mexico nonstop twice a year. The wings beat fifty times a second and the heart can pass a thousand beats a minute; to survive a cold night it can drop its body temperature and idle like a banked fire. The ruby throat is structural color: black from most angles, then the bird turns and catches fire.",
+     "i": 15,
+     "gi": 15
+    }
+   ]
+  },
+  {
+   "name": "woodpeckers",
+   "count": 2,
+   "birds": [
+    {
+     "slug": "pileated-woodpecker",
+     "name": "Pileated Woodpecker",
+     "latin": "Dryocopus pileatus",
+     "plate": 111,
+     "audubonName": "Pileated Woodpecker",
+     "group": "woodpeckers",
+     "status": "",
+     "kin": [
+      "ivory-billed-woodpecker",
+      "red-headed-woodpecker"
+     ],
+     "prose": "A crow-sized woodpecker with a scarlet crest, whose feeding holes are so large they can fell small dead trees outright. The drumming carries half a mile; the rectangular excavations shelter owls, ducks, and martens for years after. If you think you've seen an ivory-bill, it was almost certainly this bird — and still worth the double take.",
+     "i": 16,
+     "gi": 0
+    },
+    {
+     "slug": "red-headed-woodpecker",
+     "name": "Red-headed Woodpecker",
+     "latin": "Melanerpes erythrocephalus",
+     "plate": 27,
+     "audubonName": "Red-headed Woodpecker",
+     "group": "woodpeckers",
+     "status": "",
+     "kin": [
+      "pileated-woodpecker",
+      "ivory-billed-woodpecker"
+     ],
+     "prose": "The 'flying checkerboard' — solid crimson hood, bold white wing panels, no other bird like it. Unusually for a woodpecker it catches insects on the wing and hoards acorns in bark crevices, sealing them in with wet wood splinters. It was Audubon's childhood favorite; he claimed a hundred could be shot from one cherry tree in a day, which is roughly what happened to its abundance.",
+     "i": 17,
+     "gi": 1
+    }
+   ]
+  },
+  {
+   "name": "raptors & owls",
+   "count": 9,
+   "birds": [
+    {
+     "slug": "bald-eagle",
+     "name": "Bald Eagle",
+     "latin": "Haliaeetus leucocephalus",
+     "plate": 31,
+     "audubonName": "White-headed Eagle",
+     "group": "raptors & owls",
+     "status": "",
+     "kin": [
+      "golden-eagle",
+      "osprey"
+     ],
+     "prose": "A fish-eagle and an unashamed pirate — its signature move is robbing an osprey in midair, which is the habit that made Franklin call it a bird 'of bad moral character.' The white head takes five years to earn; younger birds are brown and routinely mistaken for goldens. Down to a few hundred pairs in the lower 48 by 1963, it recovered so fully it came off the endangered list entirely.",
+     "i": 18,
+     "gi": 0
+    },
+    {
+     "slug": "barn-owl",
+     "name": "Barn Owl",
+     "latin": "Tyto alba",
+     "plate": 171,
+     "audubonName": "Barn Owl",
+     "group": "raptors & owls",
+     "status": "",
+     "kin": [
+      "snowy-owl",
+      "great-horned-owl"
+     ],
+     "prose": "The ghost in the rafters: a heart-faced owl found on every continent but Antarctica, hunting meadows by ear. Its facial disc is a parabolic dish, and its ears sit at different heights, letting it strike a mouse in total darkness by sound triangulation alone. The call is not a hoot but a long, bone-chilling scream.",
+     "i": 19,
+     "gi": 1
+    },
+    {
+     "slug": "california-condor",
+     "name": "California Condor",
+     "latin": "Gymnogyps californianus",
+     "plate": 426,
+     "audubonName": "Californian Vulture",
+     "group": "raptors & owls",
+     "status": "",
+     "kin": [
+      "golden-eagle",
+      "bald-eagle"
+     ],
+     "prose": "Nine and a half feet of wing — the largest in North America — riding thermals fifty miles without a flap, a scavenger that once followed mammoths. By 1987 exactly twenty-two remained, and every wild bird was captured in a last, bitterly argued gamble. It worked: condors soar again over the Grand Canyon, though lead in carrion gut-shot by hunters remains the wall the recovery leans on.",
+     "i": 20,
+     "gi": 2
+    },
+    {
+     "slug": "golden-eagle",
+     "name": "Golden Eagle",
+     "latin": "Aquila chrysaetos",
+     "plate": 181,
+     "audubonName": "Golden Eagle",
+     "group": "raptors & owls",
+     "status": "",
+     "kin": [
+      "bald-eagle",
+      "red-tailed-hawk"
+     ],
+     "prose": "The bald eagle gets the flag, but the golden is the athlete: a jackrabbit specialist of open country that stoops at speeds approaching a falcon's. It holds hunting territories of many square miles and has been a partner to human falconers across the steppes for thousands of years. The gold is a wash on the nape, visible when the bird bows its head.",
+     "i": 21,
+     "gi": 3
+    },
+    {
+     "slug": "great-horned-owl",
+     "name": "Great Horned Owl",
+     "latin": "Bubo virginianus",
+     "plate": 61,
+     "audubonName": "Great Horned Owl",
+     "group": "raptors & owls",
+     "status": "",
+     "kin": [
+      "snowy-owl",
+      "red-tailed-hawk"
+     ],
+     "prose": "The tiger of the night woods, taking prey from crayfish up to skunks — it is nearly the only regular predator of skunks, having almost no sense of smell to offend. The 'horns' are feather tufts, mood antennae rather than ears. It nests in January, incubating eggs through snowstorms in nests stolen from hawks and crows.",
+     "i": 22,
+     "gi": 4
+    },
+    {
+     "slug": "osprey",
+     "name": "Osprey",
+     "latin": "Pandion haliaetus",
+     "plate": 81,
+     "audubonName": "Fish Hawk",
+     "group": "raptors & owls",
+     "status": "",
+     "kin": [
+      "bald-eagle",
+      "belted-kingfisher"
+     ],
+     "prose": "The only hawk that dives feet-first all the way under: barbed footpads, a reversible outer toe, and closable nostrils make it a fish-catching machine, and it carries its catch head-forward like a torpedo for the flight home. Ospreys nest on channel markers, dead snags, and any platform anyone builds them. A fish in the talons is, more often than not, being watched by a bald eagle with intentions.",
+     "i": 23,
+     "gi": 5
+    },
+    {
+     "slug": "peregrine-falcon",
+     "name": "Peregrine Falcon",
+     "latin": "Falco peregrinus",
+     "plate": 16,
+     "audubonName": "Great-footed Hawk",
+     "group": "raptors & owls",
+     "status": "",
+     "kin": [
+      "red-tailed-hawk",
+      "golden-eagle"
+     ],
+     "prose": "The fastest animal alive: in a hunting stoop a peregrine passes two hundred miles an hour, hitting ducks and pigeons out of the sky with a closed fist. DDT thinned its eggshells until the eastern population was simply gone; banning the pesticide and two decades of releases brought it back, and it now nests on skyscraper ledges, treating cities as cliffs stocked with pigeons.",
+     "i": 24,
+     "gi": 6
+    },
+    {
+     "slug": "red-tailed-hawk",
+     "name": "Red-tailed Hawk",
+     "latin": "Buteo jamaicensis",
+     "plate": 51,
+     "audubonName": "Red-tailed Hawk",
+     "group": "raptors & owls",
+     "status": "",
+     "kin": [
+      "peregrine-falcon",
+      "great-horned-owl"
+     ],
+     "prose": "The hawk on the highway light pole, and the voice of every eagle in the movies — filmmakers dub its raspy scream over the bald eagle's feeble chirping. Redtails ride thermals in lazy circles and can hover in place against a headwind, scanning for rodents. The brick-red tail is the adult's badge; every region has its own light and dark fashions.",
+     "i": 25,
+     "gi": 7
+    },
+    {
+     "slug": "snowy-owl",
+     "name": "Snowy Owl",
+     "latin": "Bubo scandiacus",
+     "plate": 121,
+     "audubonName": "Snowy Owl",
+     "group": "raptors & owls",
+     "status": "",
+     "kin": [
+      "great-horned-owl",
+      "barn-owl"
+     ],
+     "prose": "An Arctic hunter built for the tundra: feathered to the toes, hunting by day through the endless summer light, raising broods on lemmings. In irruption years — when the lemming boom busts — young snowies pour south and turn up on airport runways and beach dunes, to general astonishment. The pure-white birds are old males; females and the young are barred with black.",
+     "i": 26,
+     "gi": 8
+    }
+   ]
+  },
+  {
+   "name": "game birds",
+   "count": 4,
+   "birds": [
+    {
+     "slug": "mourning-dove",
+     "name": "Mourning Dove",
+     "latin": "Zenaida macroura",
+     "plate": 17,
+     "audubonName": "Carolina Turtle Dove",
+     "group": "game birds",
+     "status": "",
+     "kin": [
+      "passenger-pigeon",
+      "northern-bobwhite"
+     ],
+     "prose": "The soft lament that gives it its name is so low-pitched people routinely credit it to owls; the whistle when it flushes is its wings, not its voice. Doves feed their chicks 'crop milk,' a cheese-like secretion both parents produce. The passenger pigeon's closest common relative on this shelf, and a reminder that abundance — it is among the most hunted birds in America — is not the same as safety.",
+     "i": 27,
+     "gi": 0
+    },
+    {
+     "slug": "northern-bobwhite",
+     "name": "Northern Bobwhite",
+     "latin": "Colinus virginianus",
+     "plate": 76,
+     "audubonName": "Virginian Partridge",
+     "group": "game birds",
+     "status": "",
+     "kin": [
+      "ruffed-grouse",
+      "wild-turkey"
+     ],
+     "prose": "It says its own name — a whistled bob-WHITE! from the fencerow — and for two centuries it was the sound of American farmland. Coveys of a dozen roost on the ground in an outward-facing ring, ready to burst in all directions. Clean farming stripped the brushy edges it lives in, and the whistle has gone quiet across much of its old range.",
+     "i": 28,
+     "gi": 1
+    },
+    {
+     "slug": "ruffed-grouse",
+     "name": "Ruffed Grouse",
+     "latin": "Bonasa umbellus",
+     "plate": 41,
+     "audubonName": "Ruffed Grouse",
+     "group": "game birds",
+     "status": "",
+     "kin": [
+      "wild-turkey",
+      "northern-bobwhite"
+     ],
+     "prose": "The drummer of the spring woods: a male stands on his log and beats the air with cupped wings, a thudding heartbeat that accelerates into a blur and carries a quarter mile. In winter the grouse grows comb-like fringes on its toes — seasonal snowshoes — and dives headlong into snowbanks to sleep warm. The flush is a heart-stopping explosion at your feet.",
+     "i": 29,
+     "gi": 2
+    },
+    {
+     "slug": "wild-turkey",
+     "name": "Wild Turkey",
+     "latin": "Meleagris gallopavo",
+     "plate": 1,
+     "audubonName": "Great American Cock",
+     "group": "game birds",
+     "status": "",
+     "kin": [
+      "ruffed-grouse",
+      "northern-bobwhite"
+     ],
+     "prose": "Audubon gave the turkey plate number one, and he meant it: a bird found nowhere but the Americas, painted life-size on the largest paper a press could hold. Wild turkeys roost in trees at dusk, run rather than fly when they can, and see in better color than you do. Benjamin Franklin never actually proposed it for the national seal — but he did write that it was 'a much more respectable bird' than the eagle.",
+     "i": 30,
+     "gi": 3
+    }
+   ]
+  },
+  {
+   "name": "water birds",
+   "count": 15,
+   "birds": [
+    {
+     "slug": "american-flamingo",
+     "name": "American Flamingo",
+     "latin": "Phoenicopterus ruber",
+     "plate": 431,
+     "audubonName": "American Flamingo",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "roseate-spoonbill",
+      "great-egret"
+     ],
+     "prose": "Audubon bent the flamingo's neck into a question mark to fit the bird on the page — the plate is life-size, and the bird is five feet tall. Flamingos feed head-down, pumping water through a bill built like a sieve, and their pink is rented from the shrimp and algae they strain out of it. Lose the diet, lose the color.",
+     "i": 31,
+     "gi": 0
+    },
+    {
+     "slug": "american-white-pelican",
+     "name": "American White Pelican",
+     "latin": "Pelecanus erythrorhynchos",
+     "plate": 311,
+     "audubonName": "American White Pelican",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "brown-pelican",
+      "trumpeter-swan"
+     ],
+     "prose": "One of the continent's largest birds — a nine-foot wingspan — that never dives at all: squadrons swim in coordinated crescents, herding fish into the shallows and scooping in unison. It breeds on remote prairie lake islands and commutes to fisheries thirty miles off. In breeding season the bill grows a strange horn amidships, shed like an antler when courting ends.",
+     "i": 32,
+     "gi": 1
+    },
+    {
+     "slug": "atlantic-puffin",
+     "name": "Atlantic Puffin",
+     "latin": "Fratercula arctica",
+     "plate": 213,
+     "audubonName": "Puffin",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "great-auk",
+      "common-loon"
+     ],
+     "prose": "The 'little friar of the sea' — Fratercula — nests in clifftop burrows and flies underwater on stubby wings, carrying a dozen small fish crosswise in a bill serrated to hold each one. The carnival bill is breeding dress; the colorful plates molt off in winter. Maine's puffins were restored one hand-raised chick at a time, with mirrors and decoys for company.",
+     "i": 33,
+     "gi": 2
+    },
+    {
+     "slug": "belted-kingfisher",
+     "name": "Belted Kingfisher",
+     "latin": "Megaceryle alcyon",
+     "plate": 77,
+     "audubonName": "Belted Kingfisher",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "great-blue-heron",
+      "osprey"
+     ],
+     "prose": "That rattling cry along the creek is a kingfisher patrolling its stretch of water — it hovers, then hits the surface like a thrown dart. Unusually among birds, the female is the flashier one, wearing a rust band the male lacks. Pairs dig nest burrows a man's arm deep into stream banks.",
+     "i": 34,
+     "gi": 3
+    },
+    {
+     "slug": "brown-pelican",
+     "name": "Brown Pelican",
+     "latin": "Pelecanus occidentalis",
+     "plate": 421,
+     "audubonName": "Brown Pelican",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "american-white-pelican",
+      "common-loon"
+     ],
+     "prose": "The only pelican that plunge-dives: it drops from thirty feet, twisting left as it hits to shield its windpipe, and comes up with three gallons of ocean to strain for fish. Air sacs under the skin cushion the crash. DDT collapsed its eggs to shell-less failures; the ban brought it back to every pier in the South, where it sits like a satisfied bureaucrat.",
+     "i": 35,
+     "gi": 4
+    },
+    {
+     "slug": "canada-goose",
+     "name": "Canada Goose",
+     "latin": "Branta canadensis",
+     "plate": 201,
+     "audubonName": "Canada Goose",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "trumpeter-swan",
+      "mallard"
+     ],
+     "prose": "The V overhead is a drafting formation — each bird surfs the wake of the one ahead, and the flock trades the exhausting point position around. Pairs mate for years and defend goslings with a hiss that means it. The great irony: a bird once nearly wiped out by market hunting is now so much at home on golf courses that cities hire dogs to argue with it.",
+     "i": 36,
+     "gi": 5
+    },
+    {
+     "slug": "common-loon",
+     "name": "Common Loon",
+     "latin": "Gavia immer",
+     "plate": 306,
+     "audubonName": "Great Northern Diver",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "atlantic-puffin",
+      "great-auk"
+     ],
+     "prose": "The voice of the north woods: the tremolo, the wail, and the yodel that horror films borrow when they need a haunted lake. Loons have solid bones — nearly unique among flying birds — the ballast of a diver that pursues fish sixty meters down. The legs are set so far aft that a loon can barely walk, which is why it needs a runway of open water and why a loon grounded on wet asphalt is stranded.",
+     "i": 37,
+     "gi": 6
+    },
+    {
+     "slug": "great-blue-heron",
+     "name": "Great Blue Heron",
+     "latin": "Ardea herodias",
+     "plate": 211,
+     "audubonName": "Great Blue Heron",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "great-egret",
+      "snowy-egret"
+     ],
+     "prose": "The sentinel of every shoreline: four feet of patience that stands motionless until a fish forgets it is there, then unfolds a neck like a thrown spear. Herons fly with the neck folded in an S — cranes fly with it straight, which is how you tell them at a distance. They nest colonially in treetop rookeries that look, improbably, like heron apartment blocks.",
+     "i": 38,
+     "gi": 7
+    },
+    {
+     "slug": "great-egret",
+     "name": "Great Egret",
+     "latin": "Ardea alba",
+     "plate": 386,
+     "audubonName": "White Heron",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "snowy-egret",
+      "great-blue-heron"
+     ],
+     "prose": "In breeding season this heron grows aigrettes — trailing lace plumes that fashion once priced at twice their weight in gold, a trade that slaughtered whole rookeries for hats. The outrage over it founded the Audubon Society, which is why this bird is the Society's emblem. The comeback egret hunts every marsh edge in America, plumes intact.",
+     "i": 39,
+     "gi": 8
+    },
+    {
+     "slug": "mallard",
+     "name": "Mallard",
+     "latin": "Anas platyrhynchos",
+     "plate": 221,
+     "audubonName": "Mallard Duck",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "wood-duck",
+      "canada-goose"
+     ],
+     "prose": "The ancestor of nearly every farmyard duck, and the template the word 'duck' brings to mind: the drake's bottle-green head, the hen's brown camouflage and loud, descending quack — hers, not his; drakes only rasp. Mallards tip up rather than dive, sifting seeds with a bill full of comb-like teeth. They will interbreed with practically any duck that says yes.",
+     "i": 40,
+     "gi": 9
+    },
+    {
+     "slug": "roseate-spoonbill",
+     "name": "Roseate Spoonbill",
+     "latin": "Platalea ajaja",
+     "plate": 321,
+     "audubonName": "Roseate Spoonbill",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "american-flamingo",
+      "great-egret"
+     ],
+     "prose": "Pink like a flamingo, for the same dietary reason, but the resemblance ends at the bill: a flat spatula the bird sweeps side to side through the shallows, snapping shut on whatever touches it. Distant flocks over Florida Bay read as clouds of rose. Audubon's plate shows the spoon in profile, mid-sweep — an engraving of an implement as much as a bird.",
+     "i": 41,
+     "gi": 10
+    },
+    {
+     "slug": "snowy-egret",
+     "name": "Snowy Egret",
+     "latin": "Egretta thula",
+     "plate": 242,
+     "audubonName": "Snowy Heron",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "great-egret",
+      "great-blue-heron"
+     ],
+     "prose": "The small white egret with golden slippers: black legs ending in startling yellow feet, which it shuffles along the bottom to scare up prey, dancing where the great egret stands still. Its recurved breeding plumes were the plume trade's dearest prize, and it paid accordingly. Watch the feet — no other white heron wears them.",
+     "i": 42,
+     "gi": 11
+    },
+    {
+     "slug": "trumpeter-swan",
+     "name": "Trumpeter Swan",
+     "latin": "Cygnus buccinator",
+     "plate": 406,
+     "audubonName": "Trumpeter Swan",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "canada-goose",
+      "american-white-pelican"
+     ],
+     "prose": "The heaviest bird native to North America — a big male tops twenty-five pounds and needs a hundred yards of open water to get airborne. Swan-skin powder puffs and quill pens brought it to the edge: by the 1930s fewer than a hundred were known south of Canada. Wing to wing, the recovery worked, and its French-horn call is back on northern lakes.",
+     "i": 43,
+     "gi": 12
+    },
+    {
+     "slug": "whooping-crane",
+     "name": "Whooping Crane",
+     "latin": "Grus americana",
+     "plate": 226,
+     "audubonName": "Hooping Crane",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "great-blue-heron",
+      "trumpeter-swan"
+     ],
+     "prose": "The tallest bird in North America, five feet of white with a bugle that carries two miles — and in 1941 there were fifteen left, one flock, one winter marsh in Texas. Every whooper alive descends from them. Biologists in crane costumes taught captive-reared chicks to migrate behind ultralight aircraft; the recovery is slow, unfinished, and one of conservation's great stubborn efforts.",
+     "i": 44,
+     "gi": 13
+    },
+    {
+     "slug": "wood-duck",
+     "name": "Wood Duck",
+     "latin": "Aix sponsa",
+     "plate": 206,
+     "audubonName": "Summer or Wood Duck",
+     "group": "water birds",
+     "status": "",
+     "kin": [
+      "mallard",
+      "canada-goose"
+     ],
+     "prose": "A duck that perches in trees: clawed toes let it grip branches, and it nests in cavities up to sixty feet high. The day-old ducklings answer their mother's call by jumping — bouncing unharmed off the forest floor like ping-pong balls before walking to water. The drake in breeding dress is the most extravagantly painted duck on the continent, which Audubon clearly relished.",
+     "i": 45,
+     "gi": 14
+    }
+   ]
+  },
+  {
+   "name": "lost birds",
+   "count": 4,
+   "birds": [
+    {
+     "slug": "carolina-parakeet",
+     "name": "Carolina Parakeet",
+     "latin": "Conuropsis carolinensis",
+     "plate": 26,
+     "audubonName": "Carolina Parrot",
+     "group": "lost birds",
+     "status": "extinct",
+     "kin": [
+      "passenger-pigeon",
+      "ivory-billed-woodpecker"
+     ],
+     "prose": "North America had its own parrot: green and gold with an orange face, wintering in cypress swamps as far north as the Ohio valley. Flocks had a fatal loyalty — when one bird was shot, the rest circled back to it, and were shot in turn. The last one died in 1918, in the same Cincinnati Zoo cage that had held Martha, the last passenger pigeon.",
+     "i": 46,
+     "gi": 0
+    },
+    {
+     "slug": "great-auk",
+     "name": "Great Auk",
+     "latin": "Pinguinus impennis",
+     "plate": 341,
+     "audubonName": "Great Auk",
+     "group": "lost birds",
+     "status": "extinct",
+     "kin": [
+      "atlantic-puffin",
+      "common-loon"
+     ],
+     "prose": "The original 'penguin' — the word was its name before explorers reused it in the south — a flightless North Atlantic diver that stood upright on remote skerries. Flightlessness made it effortless provisioning for four centuries of ships. The last confirmed pair was killed on Eldey, Iceland, on June 3, 1844, collected for a museum; Audubon painted his from a specimen, never having seen one alive.",
+     "i": 47,
+     "gi": 1
+    },
+    {
+     "slug": "ivory-billed-woodpecker",
+     "name": "Ivory-billed Woodpecker",
+     "latin": "Campephilus principalis",
+     "plate": 66,
+     "audubonName": "Ivory-billed Woodpecker",
+     "group": "lost birds",
+     "status": "extinct",
+     "kin": [
+      "pileated-woodpecker",
+      "carolina-parakeet"
+     ],
+     "prose": "The 'Lord God bird' — supposedly what people said when one flew over — was the largest woodpecker north of Mexico, a specialist of vast bottomland swamps full of dying timber. The swamps were logged, and the last universally accepted sighting was in 1944. Reported glimpses still surface every few years, each one setting off a search; none has stuck.",
+     "i": 48,
+     "gi": 2
+    },
+    {
+     "slug": "passenger-pigeon",
+     "name": "Passenger Pigeon",
+     "latin": "Ectopistes migratorius",
+     "plate": 62,
+     "audubonName": "Passenger Pigeon",
+     "group": "lost birds",
+     "status": "extinct",
+     "kin": [
+      "mourning-dove",
+      "carolina-parakeet"
+     ],
+     "prose": "Audubon rode under one migrating flock for three days; it darkened the sun the whole way, and he estimated it at over a billion birds — likely the most numerous bird on Earth. Market hunting by telegraph and railroad broke the great colonies in a single generation. The last of her species, a hen named Martha, died in the Cincinnati Zoo on September 1, 1914.",
+     "i": 49,
+     "gi": 3
+    }
+   ]
+  }
+ ]
+}
