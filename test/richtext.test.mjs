@@ -124,6 +124,54 @@ if (!CHROME) {
     assert.ok(pre.probe.colors >= 2, "expected ≥2 span colors, got " + pre.probe.colors);
   });
 
+  // The four prevailing typography tokens' FIRST integration coverage
+  // (compositing.md Part III — the coverage sweep found them absolute
+  // zeros): a container provides headingColor/headingWeight/codeColor/
+  // codeFamily, and the rendered prose beneath must wear all four.
+  const tokensDoc = `App [ width = 480, selectable = true,
+    box: View [ x = 0, y = 0, width = 480, height = 400,
+      headingColor = #AA2233, headingWeight = black,
+      codeColor = #2266AA, codeFamily = "Courier New",
+      Markdown [ x = 20, y = 20, width = 440, text = """
+# Styled Title
+
+Body with \`inline code\` here.
+""" ],
+      ],
+    ]`;
+  const tok = await (async () => {
+    const b = await buildProduction(tokensDoc, {});
+    assert.ok(b.ok, "tokens build failed: " + (b.errors || []).map((e) => e.message).join("; "));
+    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
+    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    try {
+      const page = await browser.newPage();
+      const errs = []; page.on("pageerror", (e) => errs.push(e.message));
+      await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+      await new Promise((r) => setTimeout(r, 350));
+      return { errs, probe: await page.evaluate(() => {
+        const leaf = (needle) => Array.from(document.querySelectorAll("#host *"))
+          .filter((e) => e.childElementCount === 0 && e.textContent.trim() === needle).pop();
+        const h = leaf("Styled Title");
+        const c = leaf("inline code");
+        if (!h || !c) return { found: false };
+        const hs = getComputedStyle(h), cs = getComputedStyle(c);
+        return { found: true, hColor: hs.color, hWeight: hs.fontWeight,
+          cColor: cs.color, cFamily: cs.fontFamily };
+      }) };
+    } finally { await browser.close(); }
+  })();
+  await test("the prevailing typography tokens render: headingColor + headingWeight", () => {
+    assert.equal(tok.errs.length, 0, tok.errs.slice(0, 2).join(" | "));
+    assert.ok(tok.probe.found, "heading/code leaves not found");
+    assert.equal(tok.probe.hColor, "rgb(170, 34, 51)", "headingColor not worn: " + tok.probe.hColor);
+    assert.equal(tok.probe.hWeight, "900", "headingWeight=black not worn: " + tok.probe.hWeight);
+  });
+  await test("the prevailing typography tokens render: codeColor + codeFamily", () => {
+    assert.equal(tok.probe.cColor, "rgb(34, 102, 170)", "codeColor not worn: " + tok.probe.cColor);
+    assert.ok(/Courier New/i.test(tok.probe.cFamily), "codeFamily not worn: " + tok.probe.cFamily);
+  });
+
   const canvas = await render("canvas");
   await test("Canvas fallback renders the same doc without error", () => {
     assert.equal(canvas.errs.length, 0, canvas.errs.slice(0, 2).join(" | "));

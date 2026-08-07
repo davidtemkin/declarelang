@@ -59,6 +59,13 @@ export declare function fontMetrics(font: string): {
  *  that reports no actualBoundingBoxAscent (the deterministic headless stub
  *  predates the field) falls back to the classic 0.7em approximation. */
 export declare function capHeight(font: string): number;
+/** The X-HEIGHT of `font` — the lowercase ink band, probed from a sample
+ *  glyph exactly as capHeight probes "H" (compositing.md Part III: no web
+ *  API reads a font's tables — the binary is unreachable for system fonts
+ *  and carries three competing metric sets browsers disagree on; the
+ *  measurer reports what THIS engine will actually render). The classic
+ *  0.5em approximation carries the deterministic headless stub. */
+export declare function xHeight(font: string): number;
 /** `text` broken into the lines it wraps to within `width` px in `font` —
  *  greedy soft-break at spaces, hard-break at "\n", via the shared measurer.
  *  The DOM backend wraps natively; this is the shared breaker the Canvas

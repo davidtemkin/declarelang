@@ -469,6 +469,25 @@ This part is language SURFACE, not new measurement:
   touches them. Their first real user is their first integration test; light
   them up (or retire them deliberately) as part of this part.
 
+## III.1 As built (2026-08-06)
+
+The five metrics landed as read-only, REACTIVE getters on `Text` (schema'd
+with `readOnly`, measured through `fontString(this)` whose slot reads are
+tracked — so a constraint riding `label.baseline` follows the effective font
+wherever it changes, a re-rooted provider included). `xHeight` joined
+measure.ts beside `capHeight`, probed from "x" with the 0.5 em stub
+fallback. `baseline` = the font ascent — both renderers place the first
+line's baseline there, and a declared `lineHeight` changes only the stride
+(the natural-box rule, now stated as surface). The homepage badge's hand
+arithmetic is `y = { title.y + title.baseline - this.baseline }` now; the
+unit suite pins the idiom reactively. **The in-build ruling taken:
+Text-only v1** — no per-font query service until a real program needs one a
+hidden Text cannot serve. The four zero-coverage typography tokens
+(`headingColor`/`headingWeight`/`codeColor`/`codeFamily`) got their first
+real users: richtext.test renders a provided container's prose and asserts
+all four are worn (they were — the machinery was sound, only unexercised;
+lit up, not retired).
+
 # The standing rules (all parts)
 
 1. **The iOS rule** (claim-surface.md, RULED 2026-08-06): any change to input

@@ -23,7 +23,7 @@
 // multiline is a ruled open question (HANDOFF) — a run never wraps.
 import { View, onDiscard } from "./view.js";
 import { shadowEqual } from "./value.js";
-import { fontMetrics, fontString, textWidth, wrapLines, capHeight } from "./measure.js";
+import { fontMetrics, fontString, textWidth, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight } from "./measure.js";
 import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 export class Text extends View {
@@ -34,6 +34,34 @@ export class Text extends View {
     lineAdvance(m) {
         return this.lineHeight > 0 ? Math.round(this.fontSize * this.lineHeight) : m.ascent + m.descent;
     }
+    // ── Author-facing font metrics (compositing.md Part III) — read-only,
+    // REACTIVE intrinsics of the EFFECTIVE font (the prevailing slots): each
+    // getter measures through fontString(this), whose slot reads are tracked,
+    // so a constraint reading `label.ascent` re-derives when the effective
+    // font changes — a provider re-rooting above included. Measurement, not
+    // font tables, deliberately: no web API reads a font's binary (unreachable
+    // for system fonts, and it carries THREE competing ascent/descent sets
+    // browsers disagree on) — the measurer reports what THIS engine renders.
+    // RULED in-build: Text-only v1 (no per-font query service until a real
+    // program needs one that a hidden Text cannot serve).
+    /** The effective font's ascent above the baseline (the font bounding box,
+     *  a property of the font — independent of this run's characters). */
+    get ascent() { return fontMetrics(fontString(this)).ascent; }
+    /** The effective font's descent below the baseline — ascent + descent is
+     *  the natural line box. */
+    get descent() { return fontMetrics(fontString(this)).descent; }
+    /** The capital ink band above the baseline (probed from "H" — what
+     *  `y = center` optically centers). */
+    get capHeight() { return measureCapHeight(fontString(this)); }
+    /** The lowercase ink band above the baseline (probed from "x"). */
+    get xHeight() { return measureXHeight(fontString(this)); }
+    /** The y of the FIRST baseline inside this view — what cross-font,
+     *  cross-size baseline alignment positions against:
+     *  `y = { title.y + title.baseline - this.baseline }`. Both renderers
+     *  place the first line's baseline at the font ascent (the natural-box
+     *  rule; a declared `lineHeight` changes the stride between lines, never
+     *  where the first baseline sits). */
+    get baseline() { return fontMetrics(fontString(this)).ascent; }
     attach(backend, parentSurface) {
         // Auto-size installs at attach (measurement is a browser activity — the
         // model stays Node-importable) and only for unowned, never-set slots: an
@@ -85,7 +113,7 @@ export class Text extends View {
             return super.alignBand(axis);
         const font = fontString(this);
         const m = fontMetrics(font);
-        const cap = capHeight(font);
+        const cap = measureCapHeight(font);
         const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
         const lines = bounded && this.wrap
             ? wrapLines(this.text, font, this.width, this.letterSpacing).length

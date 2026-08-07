@@ -15,6 +15,24 @@ export declare class Text extends View {
     /** The per-line advance: the declared leading (a fontSize multiplier, the
      *  Markdown convention) or, at the 0 default, the font's natural line box. */
     private lineAdvance;
+    /** The effective font's ascent above the baseline (the font bounding box,
+     *  a property of the font — independent of this run's characters). */
+    get ascent(): number;
+    /** The effective font's descent below the baseline — ascent + descent is
+     *  the natural line box. */
+    get descent(): number;
+    /** The capital ink band above the baseline (probed from "H" — what
+     *  `y = center` optically centers). */
+    get capHeight(): number;
+    /** The lowercase ink band above the baseline (probed from "x"). */
+    get xHeight(): number;
+    /** The y of the FIRST baseline inside this view — what cross-font,
+     *  cross-size baseline alignment positions against:
+     *  `y = { title.y + title.baseline - this.baseline }`. Both renderers
+     *  place the first line's baseline at the font ascent (the natural-box
+     *  rule; a declared `lineHeight` changes the stride between lines, never
+     *  where the first baseline sits). */
+    get baseline(): number;
     attach(backend: RenderBackend, parentSurface: Surface | null): void;
     /** A Text's own content folds into `contentWidth`/`contentHeight` as its
      *  MEASURED glyph extent — the way an Image folds in its bitmap (view.ts

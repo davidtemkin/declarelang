@@ -6845,6 +6845,42 @@ await test("center/end: a size slot refuses the position literal, naming the rul
 });
 
 
+// ── Author-facing font metrics (compositing.md Part III) ────────────────────
+//
+// Read-only, REACTIVE intrinsics of the EFFECTIVE font on Text: measured (the
+// deterministic stub here; the browser's measurer in a page), re-derived when
+// the effective font changes — the prevailing slots, so a provider's write
+// re-derives a consumer's read. `baseline` is the first line's baseline y.
+
+await test("Text metrics: ascent/descent/capHeight/xHeight/baseline are measured, ordered, and consistent", () => {
+  const app = build(`App [ width=400, height=200,
+    a: Text [ text="Title", fontSize=32 ],
+    b: Text [ y=60, text="body", fontSize=16 ],
+    ]`);
+  const [a, b] = app.children;
+  assert.ok(a.ascent > 0 && a.descent > 0, "metrics are positive");
+  assert.equal(a.baseline, a.ascent, "the first baseline sits at the font ascent");
+  assert.ok(a.capHeight <= a.ascent, "cap band fits inside the ascent");
+  assert.ok(a.xHeight <= a.capHeight, "x-height fits inside the cap band");
+  assert.ok(a.ascent > b.ascent, "a larger size measures a larger ascent");
+});
+
+await test("Text metrics are REACTIVE to the effective font — a constraint riding baseline follows a size change", () => {
+  // The cross-size baseline-alignment idiom the metrics exist for: b's y
+  // derives from both baselines; growing a's font re-derives it.
+  const app = build(`App [ width=400, height=200,
+    a: Text [ text="Title", fontSize=32 ],
+    b: Text [ x=120, y={ parent.a.y + parent.a.baseline - this.baseline }, text="beside", fontSize=14 ],
+    ]`);
+  const [a, b] = app.children;
+  const y0 = b.y;
+  assert.ok(Math.abs(a.baseline - (y0 + b.baseline)) < 1e-9, "baselines aligned at build");
+  a.fontSize = 64;
+  settle();
+  assert.ok(b.y > y0, "a larger title re-derives the aligned neighbour's y");
+  assert.ok(Math.abs(a.baseline - (b.y + b.baseline)) < 1e-9, "baselines aligned after the change");
+});
+
 summarize("unit");
 
 // ── the device profile: three independent facts, none of them a guess ───────

@@ -51,3 +51,31 @@ letters; overrides `textColor` when set. `textFill = { gradient("90deg", 0xFFFFF
 A drop shadow on the glyphs — the same `shadow(dx, dy, blur, color)` value as the box
 `shadow` slot, applied to the text instead of the box.
 
+
+## ascent
+The effective font's **ascent** above the baseline (the font bounding box — a property
+of the font, not of this run's characters), in px at the effective size. Read-only and
+**reactive**: it re-derives when the effective font changes, a prevailing provider
+re-rooting above included. Measured from the rendering engine, never read from font
+tables — the tables are unreachable for system fonts and carry three competing metric
+sets; what you get is what this engine actually renders. `ascent + descent` is the
+natural line box.
+
+## descent
+The effective font's **descent** below the baseline — `ascent`'s partner, same
+measured-and-reactive contract.
+
+## capHeight
+The **capital ink band** above the baseline (probed from "H") — the band `y = center`
+optically centers. Read-only, reactive, measured.
+
+## xHeight
+The **lowercase ink band** above the baseline (probed from "x"). Read-only, reactive,
+measured.
+
+## baseline
+The y of the **first baseline** inside this view — the fact cross-font, cross-size
+baseline alignment needs: `y = { title.y + title.baseline - this.baseline }` sits two
+different runs on one line, no hand arithmetic. Both renderers place the first line's
+baseline at the font ascent; a declared `lineHeight` changes the stride between lines,
+never where the first baseline sits. Read-only, reactive.

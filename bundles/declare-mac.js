@@ -2780,8 +2780,18 @@ var DeclareMac = (() => {
           // a single-line label's geometry byte-identical to the pre-attribute
           // rendering. Wrapped height, contentHeight, and the `y = center` ink band
           // all follow it.
-          lineHeight: { kind: "number" }
-        }
+          lineHeight: { kind: "number" },
+          // Author-facing font metrics (compositing.md Part III) — read-only,
+          // reactive intrinsics of the EFFECTIVE font, measured (not read from
+          // tables — see text.ts). `baseline` is the y of the first baseline
+          // inside the view, the cross-font/cross-size alignment fact.
+          ascent: { kind: "number" },
+          descent: { kind: "number" },
+          capHeight: { kind: "number" },
+          xHeight: { kind: "number" },
+          baseline: { kind: "number" }
+        },
+        readOnly: ["ascent", "descent", "capHeight", "xHeight", "baseline"]
       };
       ImageSchema = {
         name: "Image",
@@ -10877,6 +10887,15 @@ var DeclareMac = (() => {
     const size = /(\d+(?:\.\d+)?)px/.exec(font);
     return 0.7 * (size ? parseFloat(size[1]) : 16);
   }
+  function xHeight(font) {
+    const m = measurer();
+    m.font = font;
+    const t = m.measureText("x");
+    if (typeof t.actualBoundingBoxAscent === "number" && t.actualBoundingBoxAscent > 0)
+      return t.actualBoundingBoxAscent;
+    const size = /(\d+(?:\.\d+)?)px/.exec(font);
+    return 0.5 * (size ? parseFloat(size[1]) : 16);
+  }
   function wrapLines(text, font, width, letterSpacing = 0) {
     if (width <= 0)
       return text.split("\n");
@@ -10941,6 +10960,44 @@ var DeclareMac = (() => {
          *  Markdown convention) or, at the 0 default, the font's natural line box. */
         lineAdvance(m) {
           return this.lineHeight > 0 ? Math.round(this.fontSize * this.lineHeight) : m.ascent + m.descent;
+        }
+        // ── Author-facing font metrics (compositing.md Part III) — read-only,
+        // REACTIVE intrinsics of the EFFECTIVE font (the prevailing slots): each
+        // getter measures through fontString(this), whose slot reads are tracked,
+        // so a constraint reading `label.ascent` re-derives when the effective
+        // font changes — a provider re-rooting above included. Measurement, not
+        // font tables, deliberately: no web API reads a font's binary (unreachable
+        // for system fonts, and it carries THREE competing ascent/descent sets
+        // browsers disagree on) — the measurer reports what THIS engine renders.
+        // RULED in-build: Text-only v1 (no per-font query service until a real
+        // program needs one that a hidden Text cannot serve).
+        /** The effective font's ascent above the baseline (the font bounding box,
+         *  a property of the font — independent of this run's characters). */
+        get ascent() {
+          return fontMetrics(fontString(this)).ascent;
+        }
+        /** The effective font's descent below the baseline — ascent + descent is
+         *  the natural line box. */
+        get descent() {
+          return fontMetrics(fontString(this)).descent;
+        }
+        /** The capital ink band above the baseline (probed from "H" — what
+         *  `y = center` optically centers). */
+        get capHeight() {
+          return capHeight(fontString(this));
+        }
+        /** The lowercase ink band above the baseline (probed from "x"). */
+        get xHeight() {
+          return xHeight(fontString(this));
+        }
+        /** The y of the FIRST baseline inside this view — what cross-font,
+         *  cross-size baseline alignment positions against:
+         *  `y = { title.y + title.baseline - this.baseline }`. Both renderers
+         *  place the first line's baseline at the font ascent (the natural-box
+         *  rule; a declared `lineHeight` changes the stride between lines, never
+         *  where the first baseline sits). */
+        get baseline() {
+          return fontMetrics(fontString(this)).ascent;
         }
         attach(backend2, parentSurface) {
           if (!isSet(this, "width") && ownerOf(this, "width") === null) {

@@ -165,7 +165,7 @@
     "id": "apps/homepage/stats.json",
     "kind": "file",
     "v": {
-     "hash": "285a2fba162df7a0",
+     "hash": "4dd800b7fa6a9549",
      "size": 575
     }
    },
@@ -317,8 +317,8 @@
     "id": "runtime/dist/schema.js",
     "kind": "file",
     "v": {
-     "hash": "b95752ce0da5d4ae",
-     "size": 59754
+     "hash": "a7c45c9db354469a",
+     "size": 60319
     }
    },
    {
@@ -461,16 +461,16 @@
     "id": "runtime/dist/measure.js",
     "kind": "file",
     "v": {
-     "hash": "339342ef12559072",
-     "size": 5797
+     "hash": "5d489a2b131e2b2c",
+     "size": 6580
     }
    },
    {
     "id": "runtime/dist/text.js",
     "kind": "file",
     "v": {
-     "hash": "ed24c38187761a10",
-     "size": 7330
+     "hash": "7a4944e57ada9791",
+     "size": 9343
     }
    },
    {

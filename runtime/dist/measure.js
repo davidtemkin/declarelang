@@ -72,6 +72,21 @@ export function capHeight(font) {
     const size = /(\d+(?:\.\d+)?)px/.exec(font);
     return 0.7 * (size ? parseFloat(size[1]) : 16);
 }
+/** The X-HEIGHT of `font` — the lowercase ink band, probed from a sample
+ *  glyph exactly as capHeight probes "H" (compositing.md Part III: no web
+ *  API reads a font's tables — the binary is unreachable for system fonts
+ *  and carries three competing metric sets browsers disagree on; the
+ *  measurer reports what THIS engine will actually render). The classic
+ *  0.5em approximation carries the deterministic headless stub. */
+export function xHeight(font) {
+    const m = measurer();
+    m.font = font;
+    const t = m.measureText("x");
+    if (typeof t.actualBoundingBoxAscent === "number" && t.actualBoundingBoxAscent > 0)
+        return t.actualBoundingBoxAscent;
+    const size = /(\d+(?:\.\d+)?)px/.exec(font);
+    return 0.5 * (size ? parseFloat(size[1]) : 16);
+}
 /** `text` broken into the lines it wraps to within `width` px in `font` —
  *  greedy soft-break at spaces, hard-break at "\n", via the shared measurer.
  *  The DOM backend wraps natively; this is the shared breaker the Canvas

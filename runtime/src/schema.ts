@@ -459,7 +459,17 @@ const TextSchema: ComponentSchema = {
     // rendering. Wrapped height, contentHeight, and the `y = center` ink band
     // all follow it.
     lineHeight: { kind: "number" },
+    // Author-facing font metrics (compositing.md Part III) — read-only,
+    // reactive intrinsics of the EFFECTIVE font, measured (not read from
+    // tables — see text.ts). `baseline` is the y of the first baseline
+    // inside the view, the cross-font/cross-size alignment fact.
+    ascent: { kind: "number" },
+    descent: { kind: "number" },
+    capHeight: { kind: "number" },
+    xHeight: { kind: "number" },
+    baseline: { kind: "number" },
   },
+  readOnly: ["ascent", "descent", "capHeight", "xHeight", "baseline"],
 };
 
 // Image (R3): an async-loaded bitmap. `stretches` is the first built-in
