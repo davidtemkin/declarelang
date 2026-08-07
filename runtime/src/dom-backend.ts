@@ -470,8 +470,18 @@ export class DomBackend implements RenderBackend {
           if (el === null || paintedAbove(cel, el)) el = cel;
         }
         if (el === null) return null;
+        // The nearest PINCH OWNER over this point (input.ts HitTarget.pinch):
+        // the claim covers a subtree, so the walk climbs past interactive
+        // children to the ancestor that declared the family.
+        let pinch: { key: object; sink: import("./input.js").HitTarget["sink"] } | undefined;
+        for (let pe: HTMLElement | null = el; pe !== null; pe = pe === rootEl ? null : pe.parentElement) {
+          if (WANTS.get(pe)?.wantsPinch === true) {
+            const ps = SINKS.get(pe);
+            if (ps !== undefined) { pinch = { key: pe, sink: ps }; break; }
+          }
+        }
         const r = el.getBoundingClientRect();
-        return { key: el, sink: SINKS.get(el)!, ...WANTS.get(el), x: e.clientX - r.left, y: e.clientY - r.top };
+        return { key: el, sink: SINKS.get(el)!, ...WANTS.get(el), pinch, x: e.clientX - r.left, y: e.clientY - r.top };
       },
       (e) => {
         const r = rootEl.getBoundingClientRect();
@@ -766,18 +776,35 @@ class DomSurface implements Surface {
     this.element.style.opacity = String(o);
   }
 
+  // Scale + rotation compose into ONE CSS transform about one origin — the
+  // runtime pushes both calls together (view.ts pushTransform), so the pair
+  // here is never half-updated.
+  private scaleK = 1;
+  private rotationDeg = 0;
   setScale(scale: number, pivotX: number, pivotY: number): void {
+    this.scaleK = scale;
+    this.applyTransform(pivotX, pivotY);
+  }
+  setRotation(deg: number, pivotX: number, pivotY: number): void {
+    this.rotationDeg = deg;
+    this.applyTransform(pivotX, pivotY);
+  }
+  private applyTransform(pivotX: number, pivotY: number): void {
     // A CSS transform is paint-only (never reflows siblings) and the browser
-    // accounts for it in hit-testing, so a scaled interactive box stays
+    // accounts for it in hit-testing, so a transformed interactive box stays
     // correctly clickable. Identity clears the property so an untouched view
-    // pays nothing.
-    if (scale === 1) {
+    // pays nothing. Scale-then-rotate about the shared pivot (the documented
+    // order — commutative for uniform scale, so the CSS right-to-left
+    // application changes nothing).
+    if (this.scaleK === 1 && this.rotationDeg === 0) {
       this.element.style.transform = "";
       this.element.style.transformOrigin = "";
-    } else {
-      this.element.style.transformOrigin = pivotX + "px " + pivotY + "px";
-      this.element.style.transform = "scale(" + scale + ")";
+      return;
     }
+    this.element.style.transformOrigin = pivotX + "px " + pivotY + "px";
+    this.element.style.transform =
+      (this.scaleK !== 1 ? "scale(" + this.scaleK + ")" : "") +
+      (this.rotationDeg !== 0 ? " rotate(" + this.rotationDeg + "deg)" : "");
   }
 
   setBlend(mode: string): void {
@@ -1446,6 +1473,13 @@ class DomSurface implements Surface {
     const w = WANTS.get(el);
     let ta = "";
     if (w?.wantsTouch === true) ta = "none";
+    // The PINCH claim (compositing.md §II.2): declaring the onPinch family
+    // retires exactly the browser's pinch — `pan-x pan-y` keeps single-finger
+    // pan with the enclosing regime (the same narrowing `claim = x` performs
+    // for drags). Composed with an unheld drag claim below: drag takes the
+    // claimed pan axis, pinch takes pinch-zoom, and what remains is the
+    // cross-axis pan (or nothing).
+    else if (w?.wantsPinch === true && !(w?.wantsDrag === true && w?.wantsHold !== true)) ta = "pan-x pan-y";
     // A drag view that ALSO holds is HOLD-GATED (ruled 2026-07-29): it claims
     // nothing at touchdown — the quick swipe stays the browser's pan — and
     // takes the finger only when the hold fires (the non-passive touchmove
@@ -1455,6 +1489,11 @@ class DomSurface implements Surface {
       // keeps vertical pan with the enclosing regime — the browser's own
       // arbitration runs the cross axis natively.
       ta = w.claimAxis === "x" ? "pan-y pinch-zoom" : w.claimAxis === "y" ? "pan-x pinch-zoom" : "pinch-zoom";
+      // …and a drag view that ALSO pinches keeps the drag's pan claim and
+      // retires pinch-zoom too: what remains is the cross-axis pan, or none.
+      if (w?.wantsPinch === true) {
+        ta = w.claimAxis === "x" ? "pan-y" : w.claimAxis === "y" ? "pan-x" : "none";
+      }
     }
     else if (el.dataset.declareApp !== undefined) {
       // The ROOT default keys on the App's reactive page-scrollability fact

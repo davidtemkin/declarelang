@@ -239,7 +239,7 @@ class Compositor {
     // the gesture lives. The raw touch family claims every finger (suppress
     // at touchstart, as root `none` used to); `onPointerMove` claims only the
     // single-finger drag — a second finger's pinch is left to the browser.
-    let claim: { touch: boolean; drag: false | "both" | "x" | "y" } | null = null;
+    let claim: { touch: boolean; pinch: boolean; drag: false | "both" | "x" | "y" } | null = null;
     let claimStart: { x: number; y: number } | null = null; // axis arbitration anchor
     let axisVerdict: "ours" | "theirs" | null = null;       // latched once per gesture
     canvas.addEventListener("touchstart", (e) => {
@@ -252,12 +252,16 @@ class Compositor {
         axisVerdict = null;
       }
       if (claim.touch) e.preventDefault();
+      // the PINCH claim engages at the SECOND finger — one finger stays the
+      // enclosing regime's pan, exactly the DOM's `pan-x pan-y`
+      else if (claim.pinch && e.touches.length >= 2) e.preventDefault();
     }, { passive: false });
     canvas.addEventListener("touchmove", (e) => {
       // a live hold-capture owns the finger regardless of the touchdown claim
       if (holdCaptureActive()) { e.preventDefault(); return; }
       if (claim === null) return;
       if (claim.touch) { e.preventDefault(); return; }
+      if (claim.pinch && e.touches.length >= 2) { e.preventDefault(); return; }
       if (claim.drag === false || e.touches.length !== 1) return;
       if (claim.drag === "both") { e.preventDefault(); return; }
       // The AXIS-SCOPED claim (claim-surface.md, D8 RULED): mirror the DOM's
@@ -517,6 +521,10 @@ class CanvasSurface implements Surface {
   scaleK = 1;
   pivotX = 0;
   pivotY = 0;
+  /** Rotation in degrees, clockwise, about the same pivot — paint walk
+   *  applies it after scale (they commute for uniform scale); the hit walk
+   *  inverts it so a rotated control stays honestly clickable. */
+  rotationDeg = 0;
   scrolls = false;
   scrollOffset = 0;
   /** A windowed block's LOGICAL extent (setVirtualExtent — replicate.ts):
@@ -675,6 +683,33 @@ class CanvasSurface implements Surface {
   setCursor(c: string): void { this.cursorStyle = c; }
   setScale(scale: number, px: number, py: number): void {
     this.scaleK = scale; this.pivotX = px; this.pivotY = py; this.compositor.invalidate();
+  }
+  setRotation(deg: number, px: number, py: number): void {
+    this.rotationDeg = deg; this.pivotX = px; this.pivotY = py; this.compositor.invalidate();
+  }
+
+  /** Invert this surface's paint transform (scale, then rotation, about the
+   *  shared pivot) — the hit walk's transform term, so a transformed view
+   *  stays clickable where it is DRAWN. The same inverse interaction.ts
+   *  toChildLocal applies in the model walk (the ONE-WALK rule). */
+  invertTransform(lx: number, ly: number): [number, number] {
+    if (this.scaleK === 1 && this.rotationDeg === 0) return [lx, ly];
+    let dx = lx - this.pivotX;
+    let dy = ly - this.pivotY;
+    if (this.scaleK !== 1 && this.scaleK !== 0) {
+      dx /= this.scaleK;
+      dy /= this.scaleK;
+    }
+    if (this.rotationDeg !== 0) {
+      const a = (-this.rotationDeg * Math.PI) / 180;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const rx = dx * ca - dy * sa;
+      const ry = dx * sa + dy * ca;
+      dx = rx;
+      dy = ry;
+    }
+    return [dx + this.pivotX, dy + this.pivotY];
   }
 
   setFill(f: Fill): void {
@@ -863,11 +898,14 @@ class CanvasSurface implements Surface {
    *  under it and its ancestors — a claim covers its subtree, mirroring the
    *  DOM, where an element's effective touch-action intersects along its
    *  ancestor chain. Read once at gesture start (the compositor's touchstart). */
-  claimAt(px: number, py: number): { touch: boolean; drag: false | "both" | "x" | "y" } {
-    const c: { touch: boolean; drag: false | "both" | "x" | "y" } = { touch: false, drag: false };
+  claimAt(px: number, py: number): { touch: boolean; pinch: boolean; drag: false | "both" | "x" | "y" } {
+    const c: { touch: boolean; pinch: boolean; drag: false | "both" | "x" | "y" } = { touch: false, pinch: false, drag: false };
     const t = this.hit(px, py);
     for (let s = t !== null ? (t.key as CanvasSurface) : null; s !== null; s = s.parent) {
       if (s.wants?.wantsTouch === true) c.touch = true;
+      // the pinch claim covers its subtree: two fingers over it are the
+      // app's, single-finger pan stays the enclosing regime's
+      if (s.wants?.wantsPinch === true) c.pinch = true;
       // a hold-gated drag view (onHold + the drag pair) claims nothing at
       // touchdown — its claim engages at the hold (holdCaptureActive).
       // The INNERMOST drag view's declared axis is the claim's scope
@@ -891,10 +929,7 @@ class CanvasSurface implements Surface {
     if (!this.visible) return null;
     let lx = px - this.x;
     let ly = py - this.y;
-    if (this.scaleK !== 1) {
-      lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-      ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-    }
+    [lx, ly] = this.invertTransform(lx, ly);
     const cp = this.clipPathObj();
     if (cp !== null && !hitCtx().isPointInPath(cp, lx, ly)) return null;
     const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
@@ -1081,12 +1116,10 @@ class CanvasSurface implements Surface {
     if (this.pe === "none") return null;
     let lx = px - this.x;
     let ly = py - this.y;
-    if (this.scaleK !== 1) {
-      // Invert the paint transform so the point lands in the subtree's own
-      // (unscaled) coordinates — a scaled view stays clickable where drawn.
-      lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-      ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-    }
+    // Invert the paint transform so the point lands in the subtree's own
+    // (untransformed) coordinates — a scaled or rotated view stays clickable
+    // where drawn.
+    [lx, ly] = this.invertTransform(lx, ly);
     const cpHit = this.clipPathObj();
     if (cpHit !== null && !hitCtx().isPointInPath(cpHit, lx, ly)) {
       // outside this surface's clip only its ignoreClip children remain live
@@ -1121,7 +1154,13 @@ class CanvasSurface implements Surface {
       if (t !== null) return t;
     }
     if (this.sink !== null && inBox) {
-      return { key: this, sink: this.sink, ...this.wants, x: lx, y: ly, cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
+      // the nearest PINCH OWNER up the chain (self included) — the claim
+      // covers a subtree, so the gesture belongs to the declaring ancestor
+      let pinch: { key: object; sink: InputSink } | undefined;
+      for (let s: CanvasSurface | null = this; s !== null; s = s.parent) {
+        if (s.wants?.wantsPinch === true && s.sink !== null) { pinch = { key: s, sink: s.sink }; break; }
+      }
+      return { key: this, sink: this.sink, ...this.wants, pinch, x: lx, y: ly, cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
     }
     return null;
   }
@@ -1317,9 +1356,12 @@ class CanvasSurface implements Surface {
     if (!this.visible || this.opacity <= 0) return;
     ctx.save();
     ctx.translate(this.x, this.y);
-    if (this.scaleK !== 1) {
+    if (this.scaleK !== 1 || this.rotationDeg !== 0) {
+      // scale, then rotate, about the shared pivot (the documented order —
+      // commutative for uniform scale)
       ctx.translate(this.pivotX, this.pivotY);
-      ctx.scale(this.scaleK, this.scaleK);
+      if (this.scaleK !== 1) ctx.scale(this.scaleK, this.scaleK);
+      if (this.rotationDeg !== 0) ctx.rotate((this.rotationDeg * Math.PI) / 180);
       ctx.translate(-this.pivotX, -this.pivotY);
     }
     // A blending view lands with its operator from here on — set BEFORE the
@@ -1411,12 +1453,18 @@ class CanvasSurface implements Surface {
     const b = this.backdrop!;
     if (this.width <= 0 || this.height <= 0) return;
     const m = ctx.getTransform();
-    // the walk is translate+scale only, so m.a/m.d are the axis scales
+    // the device-space bounding box of the padded local box — corner-mapped,
+    // so a rotated ancestor (rotation landed with Part II) still samples the
+    // right region; the blur scale is the transform's magnitude, which is
+    // m.a when the walk is translate+scale only
+    const scaleMag = Math.hypot(m.a, m.b);
     const pad = b.blur;
-    const dx0 = Math.max(0, Math.floor(-pad * m.a + m.e));
-    const dy0 = Math.max(0, Math.floor(-pad * m.d + m.f));
-    const dx1 = Math.min(ctx.canvas.width, Math.ceil((this.width + pad) * m.a + m.e));
-    const dy1 = Math.min(ctx.canvas.height, Math.ceil((this.height + pad) * m.d + m.f));
+    const cs = [[-pad, -pad], [this.width + pad, -pad], [-pad, this.height + pad], [this.width + pad, this.height + pad]]
+      .map(([x, y]) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]);
+    const dx0 = Math.max(0, Math.floor(Math.min(...cs.map((c) => c[0]))));
+    const dy0 = Math.max(0, Math.floor(Math.min(...cs.map((c) => c[1]))));
+    const dx1 = Math.min(ctx.canvas.width, Math.ceil(Math.max(...cs.map((c) => c[0]))));
+    const dy1 = Math.min(ctx.canvas.height, Math.ceil(Math.max(...cs.map((c) => c[1]))));
     const dw = dx1 - dx0, dh = dy1 - dy0;
     if (dw <= 0 || dh <= 0) return;
     const snap = document.createElement("canvas");
@@ -1429,7 +1477,7 @@ class CanvasSurface implements Surface {
     this.box ??= boxShape(this.width, this.height, this.cornerRadius);
     ctx.clip(this.box);
     // blur is stated in view px; the filter runs in device space
-    ctx.filter = `blur(${b.blur * m.a}px) saturate(${b.saturate})`;
+    ctx.filter = `blur(${b.blur * scaleMag}px) saturate(${b.saturate})`;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(snap, dx0, dy0);
     ctx.restore();

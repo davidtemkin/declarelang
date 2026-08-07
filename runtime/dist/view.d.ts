@@ -85,6 +85,11 @@ export declare class View extends Node {
     scale: number;
     pivotX: number;
     pivotY: number;
+    /** Rotation in DEGREES, clockwise, about (pivotX, pivotY) — paint-only,
+     *  like `scale`, whose pivot it shares (scale-then-rotate, one documented
+     *  order). Layout never rotates; hit-testing follows the visible result
+     *  through the inverse transform. */
+    rotation: number;
     /** The compositing operator this view LANDS with against what has already
      *  painted beneath it within the nearest isolating ancestor (compositing.md
      *  §4.1 — the App root, a group-opacity subtree, a scroller's content

@@ -7,6 +7,9 @@ export interface InteractionView {
     scale: number;
     pivotX: number;
     pivotY: number;
+    /** Painted rotation in degrees, clockwise, about the same pivot — the
+     *  fourth transform term (Part II); the walk inverts it like scale. */
+    rotation: number;
     clip: string | boolean | null;
     visible: boolean;
     pointerEvents: string;

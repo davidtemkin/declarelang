@@ -241,6 +241,31 @@ await go("/tools/internal/sim/touchlab-page.declare");
   check("unclaimed page: the user's pinch survives", sc2 > 1.15, "scale " + sc2);
 }
 
+// ── PinchLab: the recognized two-finger family (compositing.md §II.2) ───────
+if (section("pinch")) {
+console.log("pinchlab (the onPinch family)");
+await go("/tools/internal/sim/pinchlab.declare");
+  // two fingers spread INSIDE the pinch view (page y 100..520 → native +OFF)
+  await act(
+    finger([{ type: "pointerMove", duration: 0, x: 150, y: 350 }, { type: "pointerDown", button: 0 },
+      { type: "pointerMove", duration: 400, x: 110, y: 350 }, { type: "pause", duration: 150 }, { type: "pointerUp", button: 0 }], "f1"),
+    finger([{ type: "pointerMove", duration: 0, x: 230, y: 350 }, { type: "pointerDown", button: 0 },
+      { type: "pointerMove", duration: 400, x: 300, y: 350 }, { type: "pause", duration: 150 }, { type: "pointerUp", button: 0 }], "f2"));
+  await sleep(800);
+  let a = await app("({S:a.pS,M:a.pM,E:a.pE,x:a.pX})");
+  const psc = await js("return visualViewport.scale;");
+  check("pinch claim: two fingers recognized, cumulative scale, browser kept out",
+    a.S === 1 && a.M > 3 && a.E === 1 && a.x > 1.5 && psc === 1, JSON.stringify(a) + " scale " + psc);
+  // one finger over the same view: pan stays the enclosing regime's
+  const py0 = await pageY();
+  await act(finger(seqDrag(200, 400, 200, 250)));
+  await sleep(800);
+  a = await app("({S:a.pS})");
+  const py1 = await pageY();
+  check("pinch claim narrows: one finger over the pinch view still pans the page",
+    py1 !== py0 && a.S === 1, "y " + py0 + "→" + py1 + " " + JSON.stringify(a));
+}
+
 // ── Homepage: the regression pack ───────────────────────────────────────────
 if (section("homepage")) {
 console.log("homepage");

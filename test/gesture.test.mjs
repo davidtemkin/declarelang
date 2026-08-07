@@ -71,6 +71,30 @@ const CLAIMS_RAW = `App [ width = 640, height = 400, fill = #202830,
             tall: View [ x = 0, y = 0, width = 160, height = 400, fill = #46586A ],
             ],
         ],
+
+    // the RECOGNIZED two-finger family (compositing.md §II.2): declaring it
+    // claims the two-finger gesture, pan stays the page's — and the claim
+    // covers the SUBTREE, so fingers landing on the interactive chip still
+    // pinch this ancestor
+    pincher: View [ x = 20, y = 260, width = 160, height = 100, fill = #2F4858,
+        pstarts: number = 0,
+        pends: number = 0,
+        pscale: number = 0,
+        pcx: number = 0,
+        onPinchStart(e: PinchEvent) { this.pstarts = this.pstarts + 1 },
+        onPinch(e: PinchEvent) { this.pscale = e.scale; this.pcx = e.center.x },
+        onPinchEnd(e: PinchEvent) { this.pends = this.pends + 1 },
+        chip: View [ x = 20, y = 20, width = 120, height = 60, fill = #3A5868,
+            onClick() { },
+            ],
+        ],
+
+    // drag + pinch composed: the drag keeps its pan claim, the pinch retires
+    // pinch-zoom — nothing is left for the browser
+    dragpinch: View [ x = 200, y = 260, width = 160, height = 100, fill = #354A58,
+        onPointerMove(e: PointerEvent) { },
+        onPinch(e: PinchEvent) { },
+        ],
     ]`;
 
 // An app with FULL GESTURE CONTROL (the raw touch family on the App) holding
@@ -456,6 +480,39 @@ await test("dom: the raw touch family claims every finger — `none`", async () 
   assert.equal((await styleAt(280, 70)).touchAction, "none");
 });
 
+await test("dom: the onPinch family claims the two-finger gesture, pan stays — `pan-x pan-y` (compositing.md §II.2)", async () => {
+  // (30, 310) is the pincher itself, beside its chip — touch-action rides the
+  // declaring element and covers the subtree by CSS's own chain rule.
+  assert.equal((await styleAt(30, 310)).touchAction, "pan-x pan-y");
+});
+
+await test("dom: drag + pinch composed leaves the browser nothing — `none`", async () => {
+  assert.equal((await styleAt(280, 310)).touchAction, "none");
+});
+
+await test("dom: two fingers over the pinch subtree deliver a recognized pinch — cumulative scale, root-space center", async () => {
+  // The fingers land on the interactive CHIP (its own sink), and the gesture
+  // still belongs to the declaring ancestor — resolution's pinch-owner walk.
+  const r = await page.evaluate(() => {
+    const chip = document.elementFromPoint(90, 310); // inside pincher.chip
+    const fire = (type, id, x, y) => chip.dispatchEvent(new PointerEvent(type, {
+      pointerId: id, pointerType: "touch", clientX: x, clientY: y, bubbles: true, cancelable: true,
+    }));
+    fire("pointerdown", 71, 60, 300);
+    fire("pointerdown", 72, 120, 300);   // second finger: pinchStart (spread 60)
+    fire("pointermove", 71, 40, 300);
+    fire("pointermove", 72, 140, 300);   // spread 100 → cumulative scale 5/3
+    fire("pointerup", 71, 40, 300);      // either finger lifting ends it
+    fire("pointerup", 72, 140, 300);
+    const p = window.__app.children.find((c) => c.pstarts !== undefined);
+    return { starts: p.pstarts, ends: p.pends, scale: p.pscale, cx: p.pcx };
+  });
+  assert.equal(r.starts, 1, "one pinchStart per pair of fingers");
+  assert.equal(r.ends, 1, "one pinchEnd when a finger lifts");
+  assert.ok(Math.abs(r.scale - 5 / 3) < 0.01, `cumulative scale ≈ 1.667, got ${r.scale}`);
+  assert.equal(r.cx, 90, "center is the fingers' midpoint in root space");
+});
+
 await test("dom: onWheel is not a touch claim — no touch-action of its own", async () => {
   // The zoomer inherits the root's effective policy; its own computed value is
   // the CSS initial `auto` (touch suppression rides the ancestor chain).
@@ -591,6 +648,26 @@ await test("canvas: a touch landing on the raw-touch view is claimed at touchsta
     return p;
   });
   assert.equal(prevented, true);
+});
+
+await test("canvas: the pinch claim engages at the SECOND finger — one finger pans, two are the app's", async () => {
+  const r = await page.evaluate(() => {
+    const canvas = document.querySelector("canvas");
+    const mk = (id, x, y) => new Touch({ identifier: id, target: canvas, clientX: x, clientY: y });
+    const fire = (type, touches) => !canvas.dispatchEvent(new TouchEvent(type, {
+      touches, changedTouches: touches, bubbles: true, cancelable: true,
+    }));
+    // one finger over the pinch view: start unclaimed, move unclaimed (pan is the page's)
+    const a = mk(21, 90, 310);
+    const one = { start: fire("touchstart", [a]), move: fire("touchmove", [mk(21, 94, 314)]) };
+    // the second finger lands: the pair is the app's
+    const b = mk(22, 130, 310);
+    const two = { start: fire("touchstart", [a, b]), move: fire("touchmove", [mk(21, 80, 310), mk(22, 140, 310)]) };
+    canvas.dispatchEvent(new TouchEvent("touchend", { touches: [], changedTouches: [a, b], bubbles: true }));
+    return { one, two };
+  });
+  assert.deepEqual(r.one, { start: false, move: false }, "single finger stays the enclosing regime's");
+  assert.deepEqual(r.two, { start: true, move: true }, "two fingers over the pinch subtree are claimed");
 });
 
 await test("canvas: a single-finger move over the drag claimant is suppressed; a landing elsewhere is not", async () => {

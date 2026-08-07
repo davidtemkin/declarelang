@@ -1,0 +1,25 @@
+// PinchLab — the recognized two-finger family (compositing.md §II.2): a
+// pinch-declaring view on an ordinary scrolling page. What the rig verifies:
+// two fingers over the subtree deliver pinchStart/onPinch/onPinchEnd with a
+// CUMULATIVE scale while the browser's own zoom stays out (the claim), and a
+// single finger over the same view still pans the page (pan-x pan-y — the
+// claim narrows to exactly the pinch, the drag family's `claim = x` lesson).
+
+App [ fill = #101418,
+    pS: number = 0,
+    pM: number = 0,
+    pE: number = 0,
+    pX: number = 1,
+
+    hud: Text [ ignoreScroll = true, x = 12, y = 8, textColor = #9AE6B4, fontSize = 13,
+        text = { "pinch S" + app.pS + " M" + app.pM + " E" + app.pE + " x" + Math.round(app.pX * 100) } ],
+
+    tall: View [ x = 0, y = 0, width = { app.width }, height = 2400, fill = #182430 ],
+
+    z: View [ x = 10, y = 100, width = { app.width - 20 }, height = 420, fill = #24384A,
+        onPinchStart(e: PinchEvent) { app.pS = app.pS + 1 },
+        onPinch(e: PinchEvent) { app.pM = app.pM + 1; app.pX = e.scale },
+        onPinchEnd(e: PinchEvent) { app.pE = app.pE + 1 },
+        label: Text [ x = 16, y = 16, textColor = #C8D2DC, text = "pinch here" ]
+        ]
+    ]

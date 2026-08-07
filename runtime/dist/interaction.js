@@ -68,7 +68,13 @@ const ORPHANS = new WeakMap();
  *       frame, unshifted (the DOM realizes it by reparenting into a sticky
  *       frame; here it is a term that doesn't apply);
  *    2. the child's translate (`x`, `y`);
- *    3. the child's scale about its pivot.
+ *    3. the child's scale about its pivot;
+ *    4. the child's rotation about the same pivot (Part II) — inverted
+ *       after the scale, matching the paint order scale-then-rotate (the
+ *       two commute for uniform scale, so this order is a statement, not a
+ *       load-bearing choice). CSS-only approaches fake rotated hit-testing;
+ *       this walk must not — `hovered`/`pressed`/claims/`Inspect.at` and
+ *       `explainHit` all ride it.
  *
  *  Frame space is the invariant that makes every level uniform: the pointer
  *  enters at the root in VIEWPORT coordinates — which ARE the root's frame
@@ -86,9 +92,26 @@ function toChildLocal(v, c, lx, ly) {
     let cx = lx - c.x;
     let cy = ly - c.y;
     const s = c.scale;
-    if (s !== 1 && s !== 0) {
-        cx = (cx - c.pivotX) / s + c.pivotX;
-        cy = (cy - c.pivotY) / s + c.pivotY;
+    const rot = c.rotation;
+    if ((s !== 1 && s !== 0) || rot !== 0) {
+        let dx = cx - c.pivotX;
+        let dy = cy - c.pivotY;
+        if (s !== 1 && s !== 0) {
+            dx /= s;
+            dy /= s;
+        }
+        if (rot !== 0) {
+            // model degrees are clockwise in y-down coordinates; invert
+            const a = (-rot * Math.PI) / 180;
+            const ca = Math.cos(a);
+            const sa = Math.sin(a);
+            const rx = dx * ca - dy * sa;
+            const ry = dx * sa + dy * ca;
+            dx = rx;
+            dy = ry;
+        }
+        cx = dx + c.pivotX;
+        cy = dy + c.pivotY;
     }
     return [cx, cy];
 }

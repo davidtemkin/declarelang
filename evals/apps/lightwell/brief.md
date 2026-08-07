@@ -33,7 +33,12 @@ becomes the texture, and two adjacent frames never fight.
 ## 3. Looking at one
 
 A tap opens the photograph as large as the screen honestly allows — whole, its
-own shape, nothing cut. Beside or beneath it, its title and a short written
+own shape, nothing cut. **And it is the same photograph**: the print you tapped
+leaves its place on the wall, travels, and grows into the room — one object,
+one continuous motion, interruptible mid-flight — and going back returns it to
+its own hook. Nothing crossfades; nothing is torn down and rebuilt in a new
+place. The wall and the room are one space seen at two distances, and moving
+between them should feel like walking, not like switching. Beside or beneath it, its title and a short written
 reflection (the service supplies one per photo): **set like a book page, not a
 terminal** — measurably: body text line spacing at least 1.5× its size, a
 comfortable measure, ragged right. Next and previous continue the walk;
@@ -56,7 +61,9 @@ care: real leading, real hierarchy, no default-looking text anywhere. If a
 surface wants warmth, think of prints pinned to a wall or laid on a table —
 and if something sits slightly askew, it sits so *deliberately*, like a print
 placed by hand, never as decoration for its own sake. Restraint throughout:
-every motion does a job — arriving, leaving, marking. Nothing loops.
+every motion does a job — arriving, leaving, marking. Nothing loops. The one
+motion that is not optional is the travel in §3: continuity between the wall
+and the room is the heart of the thing, not a flourish on it.
 
 ## 6. On a phone, and at a desk
 

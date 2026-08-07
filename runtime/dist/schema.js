@@ -86,6 +86,15 @@ const ViewSchema = {
         scale: { kind: "number" },
         pivotX: { kind: "number" },
         pivotY: { kind: "number" },
+        // Rotation in DEGREES, clockwise, about the same pivot scale uses —
+        // painted only, like scale and opacity: the box the tree reasons about
+        // never rotates, layout is untouched, and hit-testing follows the
+        // VISIBLE geometry through the inverse transform (interaction.ts), so a
+        // rotated control stays honestly clickable. Composes with scale in one
+        // documented order: scale, then rotate, about the shared pivot (for
+        // uniform scale the two commute; the order is stated so nobody has to
+        // prove that). 0 = unrotated.
+        rotation: { kind: "number" },
         // How this view COMPOSITES against what has already painted beneath it
         // within the nearest isolating ancestor (compositing.md §4.1: the App
         // root, a group-opacity subtree, a scroller's content group, an island
@@ -281,6 +290,7 @@ const ViewSchema = {
     // to fire, nothing more.
     events: ["click", "dblClick", "hold", "pointerDown", "pointerUp", "pointerMove", "pointerOver", "pointerOut",
         "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel",
+        "pinchStart", "pinch", "pinchEnd",
         "init", "retire", "contextMenu", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
 };
 // App is the root View plus the app's reactive environment. `hostWidth`/
@@ -988,6 +998,7 @@ export const EVENT_PAYLOAD = {
     pointerUp: "PointerUpEvent", // …plus `canceled`
     touchStart: "TouchEvent", touchMove: "TouchEvent",
     touchEnd: "TouchEvent", touchCancel: "TouchEvent",
+    pinchStart: "PinchEvent", pinch: "PinchEvent", pinchEnd: "PinchEvent",
     wheel: "WheelEvent",
     // the keyboard — the same normalized payload on a View and on `Keys`
     keyDown: "KeyEvent", keyUp: "KeyEvent",

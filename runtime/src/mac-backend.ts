@@ -40,6 +40,7 @@ export const OP = {
   RICH: 26, RICHSCROLL: 27, EMBED: 28, IGNORECLIP: 29,
   SCROLLX: 30, SCROLLXPOS: 31, PAGEFILL: 32,
   IGNORESCROLL: 33, RICHWIDTH: 34, BLEND: 35, BACKDROP: 36, TINT: 37,
+  ROTATE: 38,
 } as const;
 
 /** The host side of the bridge — provided by the Swift shell before boot. */
@@ -111,6 +112,7 @@ class MacSurface implements Surface {
   scaleK = 1;
   pivotX = 0;
   pivotY = 0;
+  rotationDeg = 0;
   scrolls = false;
   scrollOffset = 0;
   private onScrollCb: ((y: number) => void) | null = null;
@@ -188,6 +190,36 @@ class MacSurface implements Surface {
   pe = "";
   setPointerEvents(mode: string): void { this.pe = mode; }
 
+  /** Rotation rides its own op; the pivot arrives via SCALE (the runtime
+   *  always pushes both — view.ts pushTransform), and the Swift side folds
+   *  both into one CATransform3D (applyScale). */
+  setRotation(deg: number, _px: number, _py: number): void {
+    this.rotationDeg = deg;
+    emit(OP.ROTATE, this.id, deg);
+  }
+
+  /** Invert the paint transform (scale, then rotation, about the shared
+   *  pivot) — the hit/cursor/wheel walks' transform term, the same inverse
+   *  interaction.ts toChildLocal applies (the ONE-WALK rule). */
+  invertTransform(lx: number, ly: number): [number, number] {
+    if (this.scaleK === 1 && this.rotationDeg === 0) return [lx, ly];
+    let dx = lx - this.pivotX;
+    let dy = ly - this.pivotY;
+    if (this.scaleK !== 1 && this.scaleK !== 0) {
+      dx /= this.scaleK;
+      dy /= this.scaleK;
+    }
+    if (this.rotationDeg !== 0) {
+      const a = (-this.rotationDeg * Math.PI) / 180;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const rx = dx * ca - dy * sa;
+      const ry = dx * sa + dy * ca;
+      dx = rx;
+      dy = ry;
+    }
+    return [dx + this.pivotX, dy + this.pivotY];
+  }
   setScale(scale: number, px: number, py: number): void {
     this.scaleK = scale; this.pivotX = px; this.pivotY = py;
     emit(OP.SCALE, this.id, scale, px, py);
@@ -551,10 +583,7 @@ class MacSurface implements Surface {
     if (!this.visible || this.pe === "none") return null;
     let lx = px - this.x;
     let ly = py - this.y;
-    if (this.scaleK !== 1) {
-      lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-      ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-    }
+    [lx, ly] = this.invertTransform(lx, ly);
     const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
     const clipped = this.clipData !== null || this.boxClip;
     if (clipped && !this.insideClip(lx, ly)) {
@@ -597,10 +626,7 @@ class MacSurface implements Surface {
     if (!this.visible || this.opacity <= 0) return "";
     let lx = px - this.x;
     let ly = py - this.y;
-    if (this.scaleK !== 1) {
-      lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-      ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-    }
+    [lx, ly] = this.invertTransform(lx, ly);
     const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
     const clipped = this.clipData !== null || this.boxClip;
     if (clipped && !this.insideClip(lx, ly)) {
@@ -627,10 +653,7 @@ class MacSurface implements Surface {
     const pad = "  ".repeat(depth);
     const lx0 = px - this.x, ly0 = py - this.y;
     let lx = lx0, ly = ly0;
-    if (this.scaleK !== 1) {
-      lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-      ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-    }
+    [lx, ly] = this.invertTransform(lx, ly);
     const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
     const clipped = this.clipData !== null || this.boxClip;
     console.log(`${pad}#${this.id} box=${this.x},${this.y} ${this.width}x${this.height} local=${lx.toFixed(0)},${ly.toFixed(0)}`
@@ -662,10 +685,7 @@ class MacSurface implements Surface {
     if (!this.visible || this.opacity <= 0) return false;
     let lx = px - this.x;
     let ly = py - this.y;
-    if (this.scaleK !== 1) {
-      lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-      ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-    }
+    [lx, ly] = this.invertTransform(lx, ly);
     if (this.clipData !== null || this.boxClip) return this.insideClip(lx, ly);
     return lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
   }
@@ -678,10 +698,7 @@ class MacSurface implements Surface {
     if (!this.visible || this.opacity <= 0) return false;
     let lx = px - this.x;
     let ly = py - this.y;
-    if (this.scaleK !== 1) {
-      lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-      ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-    }
+    [lx, ly] = this.invertTransform(lx, ly);
     const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
     if ((this.scrolls || this.scrollsX) && !inBox) return false;
     const cy = this.scrolls ? ly + this.scrollOffset : ly;
@@ -711,10 +728,7 @@ class MacSurface implements Surface {
     if (!this.visible || this.opacity <= 0) return false;
     let lx = px - this.x;
     let ly = py - this.y;
-    if (this.scaleK !== 1) {
-      lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-      ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-    }
+    [lx, ly] = this.invertTransform(lx, ly);
     const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
     if ((this.scrolls || this.scrollsX) && !inBox) return false;
     const cy = this.scrolls ? ly + this.scrollOffset : ly;

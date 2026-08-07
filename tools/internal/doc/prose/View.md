@@ -329,6 +329,25 @@ it **claims the wheel** over this view and its subtree — the browser stops scr
 zooming the page with it — except over a nested `scrolls` pane, which keeps its own
 wheel. ⌘ +/− dispatches no event and stays out of reach.
 
+## onPinchStart
+Two fingers landed over this view's subtree — the **recognized** two-finger gesture,
+so you never do the finger arithmetic (that is what the raw `onTouch*` family is for).
+Declaring any of the pinch family **claims the two-finger gesture** from the browser
+over this subtree; single-finger pan stays the enclosing regime's — the same
+narrowing `claim = x` performs for drags. The event carries `scale` (`1` at the
+start) and `center`, the midpoint of the two fingers in root space. A pinch nearly
+always drives `scale`/`rotation` of a sub-surface, which is why they ship together.
+
+## onPinch
+The fingers moved: `e.scale` is **cumulative** — the spread now over the spread at
+`pinchStart` — and `e.center` tracks the midpoint in root space. Typical use:
+`onPinch(e) { zoom = anchor * e.scale }`, anchoring on the value at `pinchStart`
+rather than integrating deltas.
+
+## onPinchEnd
+Either finger lifted (or the browser reclaimed the gesture); `e.scale` is the final
+cumulative scale. Latch your anchor here for the next pinch.
+
 ## onFocus
 The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a
 focus ring off it.
@@ -372,6 +391,15 @@ both `pivotX`/`pivotY` to scale about the middle rather than the top-left.
 
 ## pivotY
 The vertical pivot — the twin of `pivotX`.
+
+## rotation
+Rotation in **degrees**, clockwise, about the same (`pivotX`, `pivotY`) pivot `scale`
+uses — and like `scale` it is **paint-only**: the box the tree reasons about never
+rotates, layout is untouched, and hit-testing follows the *visible* geometry through
+the inverse transform, so a rotated control stays honestly clickable (`hovered`,
+`pressed`, and `viewAt` all agree with what you see). Composes with `scale` in one
+documented order — scale, then rotate, about the shared pivot. `0` (the default) is
+unrotated; spring it for turn effects.
 
 ## backdrop
 The **frost** — `frost(radius)` or `frost(radius, saturation)`; `null` (the default) =

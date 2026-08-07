@@ -1273,18 +1273,17 @@ const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
   margin: "there is no margin — position with x/y, a layout's spacing, or a wrapping View",
   padding: "there is no padding — inset children with x/y or an inner View",
   onChange: "the edit event is 'onInput()'",
-  // CSS names for capabilities Declare HAS, reached through the wrong door: the
-  // answer is a draw() member, not a view attribute. These earn their place by
-  // the table's own rule — one true equivalent each — and they matter because
-  // "no such attribute" ends the search at exactly the wrong moment. A cold
-  // reader concluded rotation was impossible, and only found draw() later by
-  // reading the desktop's wallpaper source.
-  rotate: "a view does not rotate, but drawn content does — take a 'draw(d: Draw)' member and d.rotate(rad); it is reactive, so a Spring on the angle works",
-  rotation: "a view does not rotate, but drawn content does — take a 'draw(d: Draw)' member and d.rotate(rad); it is reactive, so a Spring on the angle works",
-  transform: "there is no transform: position is x/y, size is width/height, 'scale' scales about a pivot, and arbitrary geometry is a 'draw(d: Draw)' member",
-  filter: "blur and friends are drawing ops — take a 'draw(d: Draw)' member and set d.filter",
-  blur: "blur is a drawing op — take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'",
-  mixBlendMode: "compositing is a drawing op — take a 'draw(d: Draw)' member and set d.globalCompositeOperation",
+  // CSS names for capabilities Declare HAS, reached through the wrong door:
+  // These earn their place by the table's own rule — one true equivalent each
+  // — and they matter because "no such attribute" ends the search at exactly
+  // the wrong moment. (`rotation` graduated from this table 2026-08-06: it IS
+  // a View attribute now — compositing.md Part II.)
+  rotate: "rotation is the attribute — 'rotation = 45' (degrees, clockwise, about pivotX/pivotY); inside a drawing, d.rotate(rad)",
+  transform: "there is no transform: position is x/y, size is width/height, 'scale' and 'rotation' transform about a pivot, and arbitrary geometry is a 'draw(d: Draw)' member",
+  filter: "blur and friends are drawing ops — take a 'draw(d: Draw)' member and set d.filter; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
+  blur: "blur is a drawing op — take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
+  mixBlendMode: "compositing is the 'blend' attribute — 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
+  backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' — samples and blurs what lies beneath the view's own shape",
   mask: "masking is 'clip' — true for the box, or a path for an arbitrary shape",
 };
 

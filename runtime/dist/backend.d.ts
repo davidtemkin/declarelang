@@ -52,12 +52,17 @@ export type Stretch = "none" | "width" | "height" | "both" | "cover" | "contain"
  *  `onClick`). A click is not a platform event here — the shared router
  *  (input.ts) synthesizes it as "press and release resolved to the same
  *  view", so both backends decide it identically by construction. */
-export type PointerType = "pointerDown" | "pointerUp" | "click" | "dblClick" | "pointerMove" | "pointerOver" | "pointerOut" | "hold" | "contextMenu" | "touchStart" | "touchMove" | "touchEnd" | "touchCancel" | "wheel";
+export type PointerType = "pointerDown" | "pointerUp" | "click" | "dblClick" | "pointerMove" | "pointerOver" | "pointerOut" | "hold" | "contextMenu" | "touchStart" | "touchMove" | "touchEnd" | "touchCancel" | "pinchStart" | "pinch" | "pinchEnd" | "wheel";
 export declare const POINTER_TYPES: readonly PointerType[];
 /** The raw-touch member of the family: declaring one of these is a view's
  *  statement that it owns multi-finger gestures in its subtree (the backend
  *  then stops the browser from claiming them — dom-backend setGestureOwner). */
 export declare const TOUCH_TYPES: readonly PointerType[];
+/** The recognized two-finger family (compositing.md §II.2): declaring any of
+ *  these IS the claim of the two-finger gesture over that subtree — realized
+ *  as `touch-action: pan-x pan-y` (single-finger pan stays the page's; only
+ *  pinch retires — the same narrowing `claim = x` performs for drags). */
+export declare const PINCH_TYPES: readonly PointerType[];
 /** A view's input route across the seam — one call per delivered event,
  *  with the point in the receiving view's own coordinates. Having a sink is
  *  also the surface's *hit-test presence* (see Surface.setInput): route and
@@ -92,6 +97,12 @@ export interface InputWants {
      *  view (right-click, two-finger tap). The router suppresses the browser's
      *  own menu exactly where the handler is declared, nowhere else. */
     wantsContext: boolean;
+    /** Declares the onPinch family — claims the TWO-FINGER gesture over this
+     *  view's subtree (`touch-action: pan-x pan-y`: single-finger pan stays
+     *  the enclosing regime's; only the browser's pinch retires). The router
+     *  recognizes two fingers and delivers pinchStart/pinch/pinchEnd with
+     *  cumulative `scale` and the root-space `center`. */
+    wantsPinch: boolean;
     /** Declares `onWheel` — claims the wheel stream over this view, trackpad
      *  pinch included (it arrives as wheel deltas). ⌘+/− dispatches no event
      *  and stays out of everyone's reach. */
@@ -170,6 +181,12 @@ export interface Surface {
      *  Canvas walk applies ctx.scale about the pivot (and its inverse on the hit
      *  walk, so a scaled view stays clickable). */
     setScale(scale: number, pivotX: number, pivotY: number): void;
+    /** Rotation in degrees, clockwise, about the SAME pivot setScale uses
+     *  (paint-only, never layout; scale-then-rotate is the documented order —
+     *  they commute for uniform scale). The runtime always pushes setScale
+     *  alongside this call, so a backend may keep one composed transform.
+     *  Optional — a backend adopts independently; the seam table says which. */
+    setRotation?(deg: number, pivotX: number, pivotY: number): void;
     /** The compositing OPERATOR this surface lands with against what has
      *  already painted beneath it within the nearest isolating ancestor
      *  (compositing.md §4.1 — the App root, a group-opacity subtree, a

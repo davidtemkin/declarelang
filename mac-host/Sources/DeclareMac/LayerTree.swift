@@ -67,6 +67,9 @@ final class Node {
     /// i.e. behind the frost, and the material contract is wash OVER blur.
     var frostFill: CALayer?
     var scaleK: CGFloat = 1
+    /// Rotation in model degrees (clockwise on screen); folded with scale
+    /// into one layer transform by applyScale.
+    var rotation: CGFloat = 0
     /// This node is the mounted program's ROOT. The App keeps to its frame —
     /// definitional containment (the DOM realizes the same rule as
     /// `overflow: clip` on the root element) — and root-ness lives on the node
@@ -310,7 +313,7 @@ final class LayerTree {
             layoutContent(n)
             if n.rich != nil { refreshBand(n) }
             if n.frostLayer != nil { sizeFrost(n) }
-            if n.scaleK != 1 { applyScale(n) }    // the pivot mirrors against the new height
+            if n.scaleK != 1 || n.rotation != 0 { applyScale(n) }    // the pivot mirrors against the new height
             // NOT re-rasterized here. A recording is in the view's own
             // coordinates and does not depend on the box, so moving or
             // resizing a view can never invalidate it — the rendering model's
@@ -378,6 +381,11 @@ final class LayerTree {
         case 13: // SCALE
             guard let n = nodes[id] else { return }
             n.scaleK = num(a(0)); n.pivot = CGPoint(x: num(a(1)), y: num(a(2)))
+            applyScale(n)
+        case 38: // ROTATE — degrees, clockwise on screen; pivot rides SCALE
+            // (the runtime pushes both together)
+            guard let n = nodes[id] else { return }
+            n.rotation = num(a(0))
             applyScale(n)
         case 14: // CLIP (shape)
             guard let n = nodes[id] else { return }
@@ -984,11 +992,15 @@ final class LayerTree {
     /// against the CURRENT box height — a scaled-down icon whose art is drawn
     /// at a larger reference size lands far from its box otherwise.
     private func applyScale(_ n: Node) {
-        if n.scaleK == 1 { n.layer.transform = CATransform3DIdentity; return }
+        if n.scaleK == 1 && n.rotation == 0 { n.layer.transform = CATransform3DIdentity; return }
         let px = n.pivot.x
         let py = n.box.height - n.pivot.y
         var t = CATransform3DMakeTranslation(px, py, 0)
-        t = CATransform3DScale(t, n.scaleK, n.scaleK, 1)
+        if n.scaleK != 1 { t = CATransform3DScale(t, n.scaleK, n.scaleK, 1) }
+        // Model degrees are CLOCKWISE on screen — the y-down convention the
+        // other renderers share. This layer space is y-UP (see the SHADOW
+        // negation note), so the sign flips.
+        if n.rotation != 0 { t = CATransform3DRotate(t, -n.rotation * .pi / 180, 0, 0, 1) }
         n.layer.transform = CATransform3DTranslate(t, -px, -py, 0)
     }
 

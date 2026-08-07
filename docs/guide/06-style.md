@@ -30,8 +30,8 @@ App [ width = 300, height = 160, fill = whitesmoke,
 `fill` paints the box, `cornerRadius` rounds it, `opacity` fades it; `stroke` and
 `shadow` take small constructor calls — `stroke(width, color)`,
 `shadow(dx, dy, blur, color)`. There is no CSS `border` and no `box-shadow` string:
-a border *is* a stroke. (`scale` with `pivotX`/`pivotY`, and `visible`, round out the
-set.) Because `stroke`/`shadow` values are `{ }` bodies, their colors are `0x…` — the
+a border *is* a stroke. (`scale` and `rotation` — degrees, clockwise — share
+`pivotX`/`pivotY` and, with `visible`, round out the set.) Because `stroke`/`shadow` values are `{ }` bodies, their colors are `0x…` — the
 seam rule from [chapter 2](declare-docs:guide:two-brackets), holding steady.
 
 One more compositing dial: `blend = multiply` (or `screen`, `colorDodge`, … — the

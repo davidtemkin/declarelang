@@ -435,6 +435,18 @@ const TINT_SOURCE = `App [ width=240, height=160, fill=#20242C,
   Image [ x=20, y=20, tint=#3FA34D, source="${TINT_MASK}" ],
   Image [ x=120, y=20, source="${TINT_MASK}" ] ]`;
 
+// The rotation scene (compositing.md Part II): a square rotated 30° about
+// its center, and a scaled+rotated parent with a child — the subtree turns
+// as a unit, scale-then-rotate about the shared pivot. Rotated EDGES
+// anti-alias differently per rasterizer (the ruled tolerance policy: edge
+// bands are soft; the mac gate absorbs its own via per-program baseline),
+// so the probes sit at centers and at points provably inside/outside the
+// rotated geometry, where AA cannot reach.
+const ROT_SOURCE = `App [ width=240, height=160, fill=#20242C,
+  View [ x=30, y=40, width=60, height=60, fill=#E9C46A, rotation=30, pivotX=30, pivotY=30 ],
+  View [ x=130, y=40, width=60, height=60, fill=#3FA34D, rotation=45, scale=0.8, pivotX=30, pivotY=30,
+    View [ x=15, y=15, width=30, height=30, fill=#264653 ] ] ]`;
+
 // One page template per backend and program; the only differences are which
 // backend class renders and which source. The canvas backend's first paint is
 // its scheduled rAF, so readiness is flagged one frame after that (double-rAF
@@ -803,6 +815,8 @@ function serveDist() {
     "/canvas-frost": pageHtml("CanvasBackend", FROST_SOURCE),
     "/dom-tint": pageHtml("DomBackend", TINT_SOURCE),
     "/canvas-tint": pageHtml("CanvasBackend", TINT_SOURCE),
+    "/dom-rot": pageHtml("DomBackend", ROT_SOURCE),
+    "/canvas-rot": pageHtml("CanvasBackend", ROT_SOURCE),
     // The box-clip CONTAINMENT test: an App declaring `clip = true` (the
     // calendar's fixed-window design) with a panel parked BEYOND the frame —
     // the browser must gain no scroll extent and focus must not shift the frame.
@@ -2597,6 +2611,44 @@ try {
     });
     assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
     assert.equal(diff.over, 0, `strict channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+  });
+
+  // ── the transform tier: `rotation` (compositing.md Part II) ──────────────
+
+  const ROT_BG = [0x20, 0x24, 0x2c];
+  const ROT_PROBES = [
+    // rotation about the center leaves the center where it was
+    { at: [60, 70], color: [0xe9, 0xc4, 0x6a], label: "rotated square, center" },
+    // the un-rotated corner region is provably outside the rotated square
+    // (inverse-rotate (32,42) → local |x| ≈ 38 > 30)
+    { at: [32, 42], color: ROT_BG, label: "old corner, now empty (the square really turned)" },
+    // the child rides the parent's transform as a unit — its center IS the pivot
+    { at: [160, 70], color: [0x26, 0x46, 0x53], label: "child riding the scaled+rotated parent" },
+    { at: [133, 43], color: ROT_BG, label: "outside the scaled+rotated diamond" },
+  ];
+
+  const domRot = await renderShot("/dom-rot", 1, "rot-dom.png");
+  const canvasRot = await renderShot("/canvas-rot", 1, "rot-canvas.png");
+
+  for (const [name, shot] of [["DOM", domRot], ["Canvas", canvasRot]]) {
+    await test(`${name}: rotation — painted turn about the shared pivot, subtree as a unit`, async () => {
+      const actual = await samplePixels(shot.page, shot.png, ROT_PROBES.map((p) => p.at));
+      ROT_PROBES.forEach((p, i) => assertColorNear(actual[i], p.color, `${name} ${p.label}`));
+    });
+  }
+
+  await test("cross-backend: the rotation scene agrees (rotated edges soft — the ruled AA policy)", async () => {
+    const diff = await diffShots(canvasRot.page, domRot.png, canvasRot.png, {
+      soft: [
+        { x: 12, y: 22, w: 96, h: 96, label: "rotated square + its AA edges" },
+        { x: 112, y: 22, w: 96, h: 96, label: "scaled+rotated square + its AA edges" },
+      ],
+    });
+    assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
+    assert.equal(diff.over, 0, `strict channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+    for (const s of diff.soft) {
+      assert.ok(s.mean <= 4, `${s.label}: mean blurred delta ${s.mean} > 4 (rotation diverges between backends?)`);
+    }
   });
 
   await test("DOM: `clip = true` is CONTAINMENT — off-box children add no document scroll; focus cannot shift the frame", async () => {

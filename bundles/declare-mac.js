@@ -2435,6 +2435,15 @@ var DeclareMac = (() => {
           scale: { kind: "number" },
           pivotX: { kind: "number" },
           pivotY: { kind: "number" },
+          // Rotation in DEGREES, clockwise, about the same pivot scale uses —
+          // painted only, like scale and opacity: the box the tree reasons about
+          // never rotates, layout is untouched, and hit-testing follows the
+          // VISIBLE geometry through the inverse transform (interaction.ts), so a
+          // rotated control stays honestly clickable. Composes with scale in one
+          // documented order: scale, then rotate, about the shared pivot (for
+          // uniform scale the two commute; the order is stated so nobody has to
+          // prove that). 0 = unrotated.
+          rotation: { kind: "number" },
           // How this view COMPOSITES against what has already painted beneath it
           // within the nearest isolating ancestor (compositing.md §4.1: the App
           // root, a group-opacity subtree, a scroller's content group, an island
@@ -2642,6 +2651,9 @@ var DeclareMac = (() => {
           "touchEnd",
           "touchCancel",
           "wheel",
+          "pinchStart",
+          "pinch",
+          "pinchEnd",
           "init",
           "retire",
           "contextMenu",
@@ -3162,6 +3174,9 @@ var DeclareMac = (() => {
         touchMove: "TouchEvent",
         touchEnd: "TouchEvent",
         touchCancel: "TouchEvent",
+        pinchStart: "PinchEvent",
+        pinch: "PinchEvent",
+        pinchEnd: "PinchEvent",
         wheel: "WheelEvent",
         // the keyboard — the same normalized payload on a View and on `Keys`
         keyDown: "KeyEvent",
@@ -5093,18 +5108,17 @@ var DeclareMac = (() => {
         margin: "there is no margin \u2014 position with x/y, a layout's spacing, or a wrapping View",
         padding: "there is no padding \u2014 inset children with x/y or an inner View",
         onChange: "the edit event is 'onInput()'",
-        // CSS names for capabilities Declare HAS, reached through the wrong door: the
-        // answer is a draw() member, not a view attribute. These earn their place by
-        // the table's own rule — one true equivalent each — and they matter because
-        // "no such attribute" ends the search at exactly the wrong moment. A cold
-        // reader concluded rotation was impossible, and only found draw() later by
-        // reading the desktop's wallpaper source.
-        rotate: "a view does not rotate, but drawn content does \u2014 take a 'draw(d: Draw)' member and d.rotate(rad); it is reactive, so a Spring on the angle works",
-        rotation: "a view does not rotate, but drawn content does \u2014 take a 'draw(d: Draw)' member and d.rotate(rad); it is reactive, so a Spring on the angle works",
-        transform: "there is no transform: position is x/y, size is width/height, 'scale' scales about a pivot, and arbitrary geometry is a 'draw(d: Draw)' member",
-        filter: "blur and friends are drawing ops \u2014 take a 'draw(d: Draw)' member and set d.filter",
-        blur: "blur is a drawing op \u2014 take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'",
-        mixBlendMode: "compositing is a drawing op \u2014 take a 'draw(d: Draw)' member and set d.globalCompositeOperation",
+        // CSS names for capabilities Declare HAS, reached through the wrong door:
+        // These earn their place by the table's own rule — one true equivalent each
+        // — and they matter because "no such attribute" ends the search at exactly
+        // the wrong moment. (`rotation` graduated from this table 2026-08-06: it IS
+        // a View attribute now — compositing.md Part II.)
+        rotate: "rotation is the attribute \u2014 'rotation = 45' (degrees, clockwise, about pivotX/pivotY); inside a drawing, d.rotate(rad)",
+        transform: "there is no transform: position is x/y, size is width/height, 'scale' and 'rotation' transform about a pivot, and arbitrary geometry is a 'draw(d: Draw)' member",
+        filter: "blur and friends are drawing ops \u2014 take a 'draw(d: Draw)' member and set d.filter; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
+        blur: "blur is a drawing op \u2014 take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
+        mixBlendMode: "compositing is the 'blend' attribute \u2014 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
+        backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' \u2014 samples and blurs what lies beneath the view's own shape",
         mask: "masking is 'clip' \u2014 true for the box, or a path for an arbitrary shape"
       };
     }
@@ -5887,12 +5901,13 @@ var DeclareMac = (() => {
     const scheme = m[1].toLowerCase();
     return scheme === "http" || scheme === "https" || scheme === "mailto";
   }
-  var POINTER_TYPES, TOUCH_TYPES;
+  var POINTER_TYPES, TOUCH_TYPES, PINCH_TYPES;
   var init_backend = __esm({
     "runtime/dist/backend.js"() {
       "use strict";
-      POINTER_TYPES = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "contextMenu", "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel"];
+      POINTER_TYPES = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "contextMenu", "touchStart", "touchMove", "touchEnd", "touchCancel", "pinchStart", "pinch", "pinchEnd", "wheel"];
       TOUCH_TYPES = ["touchStart", "touchMove", "touchEnd", "touchCancel"];
+      PINCH_TYPES = ["pinchStart", "pinch", "pinchEnd"];
     }
   });
 
@@ -5914,9 +5929,25 @@ var DeclareMac = (() => {
     let cx = lx - c.x;
     let cy = ly - c.y;
     const s = c.scale;
-    if (s !== 1 && s !== 0) {
-      cx = (cx - c.pivotX) / s + c.pivotX;
-      cy = (cy - c.pivotY) / s + c.pivotY;
+    const rot = c.rotation;
+    if (s !== 1 && s !== 0 || rot !== 0) {
+      let dx = cx - c.pivotX;
+      let dy = cy - c.pivotY;
+      if (s !== 1 && s !== 0) {
+        dx /= s;
+        dy /= s;
+      }
+      if (rot !== 0) {
+        const a = -rot * Math.PI / 180;
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        const rx = dx * ca - dy * sa;
+        const ry = dx * sa + dy * ca;
+        dx = rx;
+        dy = ry;
+      }
+      cx = dx + c.pivotX;
+      cy = dy + c.pivotY;
     }
     return [cx, cy];
   }
@@ -6796,7 +6827,7 @@ var DeclareMac = (() => {
     }
     return null;
   }
-  var viewCreator, INSTALLED, WINDOWED_BLOCKS, WINDOWED_CELLS, windowedCell, EVICTING, RETIRED, EXTENT, AXIS_OF, View, pushScrolls, focusDiscardHook, App, EMPTY_ENV2, DOMIsland;
+  var viewCreator, INSTALLED, WINDOWED_BLOCKS, WINDOWED_CELLS, windowedCell, EVICTING, RETIRED, EXTENT, AXIS_OF, View, pushTransform, pushScrolls, focusDiscardHook, App, EMPTY_ENV2, DOMIsland;
   var init_view = __esm({
     "runtime/dist/view.js"() {
       "use strict";
@@ -7114,6 +7145,8 @@ var DeclareMac = (() => {
             s.setPointerEvents(this.pointerEvents);
           if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
             s.setScale(this.scale, this.pivotX, this.pivotY);
+          if (this.rotation !== 0)
+            s.setRotation?.(this.rotation, this.pivotX, this.pivotY);
           if (this.blend !== "normal")
             s.setBlend?.(this.blend);
           if (this.backdrop !== null)
@@ -7301,6 +7334,7 @@ var DeclareMac = (() => {
             wantsDbl: has("dblClick"),
             wantsHold: has("hold"),
             wantsTouch: TOUCH_TYPES.some(has),
+            wantsPinch: PINCH_TYPES.some(has),
             wantsDrag: has("pointerMove"),
             wantsWheel: has("wheel"),
             claimAxis: this.claim,
@@ -7351,6 +7385,10 @@ var DeclareMac = (() => {
           this.surface.setClip(typeof clip === "string" ? clip : null);
         }
       };
+      pushTransform = (v) => {
+        v.surface?.setScale(v.scale, v.pivotX, v.pivotY);
+        v.surface?.setRotation?.(v.rotation, v.pivotX, v.pivotY);
+      };
       pushScrolls = (v, ax) => {
         v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => {
           v.scrollY = y;
@@ -7383,11 +7421,14 @@ var DeclareMac = (() => {
         opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
         cursor: { def: "", push: (v, c) => v.surface?.setCursor(c) },
         pointerEvents: { def: "", push: (v, c) => v.surface?.setPointerEvents(c) },
-        // Scale + pivot ride one transform at the seam: any of the three re-pushes
-        // the combined value (transform + transform-origin on the DOM).
-        scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
-        pivotX: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
-        pivotY: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
+        // Scale + rotation + pivot ride one transform at the seam: any of the four
+        // re-pushes the combined value (transform + transform-origin on the DOM).
+        // setScale always accompanies setRotation so a backend can keep ONE
+        // composed transform without ordering questions.
+        scale: { def: 1, push: pushTransform },
+        pivotX: { def: 0, push: pushTransform },
+        pivotY: { def: 0, push: pushTransform },
+        rotation: { def: 0, push: pushTransform },
         // optional-chained (the ignoreScroll pattern): backends adopt independently,
         // and the seam table (test/seam.test.mjs) says which have.
         blend: { def: "normal", push: (v, b) => v.surface?.setBlend?.(b) },
@@ -15928,6 +15969,19 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     const fingers = /* @__PURE__ */ new Map();
     const touchList = () => [...fingers.values()];
     let touchSink = null;
+    const pinchPts = /* @__PURE__ */ new Map();
+    let pinchGesture = null;
+    const endPinch = () => {
+      const g = pinchGesture;
+      if (g === null)
+        return;
+      pinchGesture = null;
+      const fa = pinchPts.get(g.a);
+      const fb = pinchPts.get(g.b);
+      const cx = fa !== void 0 && fb !== void 0 ? (fa.x + fb.x) / 2 : (fa ?? fb)?.x ?? 0;
+      const cy = fa !== void 0 && fb !== void 0 ? (fa.y + fb.y) / 2 : (fa ?? fb)?.y ?? 0;
+      g.owner.sink("pinchEnd", cx, cy, { scale: g.scale, center: { x: cx, y: cy } });
+    };
     let pressId = null;
     let pressFinger = false;
     let pressEl = null;
@@ -15993,6 +16047,24 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
           touchSink = t;
           t.sink("touchStart", p0.x, p0.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p0.x, y: p0.y }] });
         }
+        if (t.pinch !== void 0 && e.pointerType === "touch") {
+          pinchPts.set(e.pointerId, { x: p0.x, y: p0.y, owner: t.pinch });
+          if (pinchGesture === null && pinchPts.size >= 2) {
+            const pair = [...pinchPts.entries()].slice(-2);
+            const [[ida, fa], [idb, fb]] = pair;
+            if (fa.owner.key === fb.owner.key) {
+              const d = Math.hypot(fb.x - fa.x, fb.y - fa.y);
+              if (d > 0) {
+                pinchGesture = { owner: fa.owner, a: ida, b: idb, startDist: d, scale: 1 };
+                const cx = (fa.x + fb.x) / 2;
+                const cy = (fa.y + fb.y) / 2;
+                fa.owner.sink("pinchStart", cx, cy, { scale: 1, center: { x: cx, y: cy } });
+                disarmHold();
+                wandered = true;
+              }
+            }
+          }
+        }
         t.sink("pointerDown", t.x, t.y);
         if (t.wantsHold === true) {
           const target = t;
@@ -16031,6 +16103,25 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         if (t !== null)
           t.sink("pointerOver", t.x, t.y);
       }
+      if (rootPoint !== void 0 && pinchPts.has(e.pointerId)) {
+        const pp = rootPoint(e);
+        const rec = pinchPts.get(e.pointerId);
+        rec.x = pp.x;
+        rec.y = pp.y;
+        const g = pinchGesture;
+        if (g !== null && (e.pointerId === g.a || e.pointerId === g.b)) {
+          const fa = pinchPts.get(g.a);
+          const fb = pinchPts.get(g.b);
+          if (fa !== void 0 && fb !== void 0) {
+            const d = Math.hypot(fb.x - fa.x, fb.y - fa.y);
+            if (d > 0)
+              g.scale = d / g.startDist;
+            const cx = (fa.x + fb.x) / 2;
+            const cy = (fa.y + fb.y) / 2;
+            g.owner.sink("pinch", cx, cy, { scale: g.scale, center: { x: cx, y: cy } });
+          }
+        }
+      }
       if (held === null || rootPoint === void 0)
         return;
       const p = rootPoint(e);
@@ -16060,6 +16151,9 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       suppressSelection(false);
       disarmHold();
       holdCapture = false;
+      if (pinchGesture !== null && (e.pointerId === pinchGesture.a || e.pointerId === pinchGesture.b))
+        endPinch();
+      pinchPts.delete(e.pointerId);
       const t = resolve(e);
       const captor = held;
       held = null;
@@ -16120,6 +16214,9 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       suppressSelection(false);
       disarmHold();
       holdCapture = false;
+      if (pinchGesture !== null && (e.pointerId === pinchGesture.a || e.pointerId === pinchGesture.b))
+        endPinch();
+      pinchPts.delete(e.pointerId);
       const captor = held;
       held = null;
       const gone = fingers.get(e.pointerId);
@@ -16271,7 +16368,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     RICHWIDTH: 34,
     BLEND: 35,
     BACKDROP: 36,
-    TINT: 37
+    TINT: 37,
+    ROTATE: 38
   };
   function host() {
     const h = globalThis.__declareMacHost;
@@ -16319,6 +16417,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     scaleK = 1;
     pivotX = 0;
     pivotY = 0;
+    rotationDeg = 0;
     scrolls = false;
     scrollOffset = 0;
     onScrollCb = null;
@@ -16422,6 +16521,36 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     pe = "";
     setPointerEvents(mode) {
       this.pe = mode;
+    }
+    /** Rotation rides its own op; the pivot arrives via SCALE (the runtime
+     *  always pushes both — view.ts pushTransform), and the Swift side folds
+     *  both into one CATransform3D (applyScale). */
+    setRotation(deg, _px, _py) {
+      this.rotationDeg = deg;
+      emit(OP.ROTATE, this.id, deg);
+    }
+    /** Invert the paint transform (scale, then rotation, about the shared
+     *  pivot) — the hit/cursor/wheel walks' transform term, the same inverse
+     *  interaction.ts toChildLocal applies (the ONE-WALK rule). */
+    invertTransform(lx, ly) {
+      if (this.scaleK === 1 && this.rotationDeg === 0)
+        return [lx, ly];
+      let dx = lx - this.pivotX;
+      let dy = ly - this.pivotY;
+      if (this.scaleK !== 1 && this.scaleK !== 0) {
+        dx /= this.scaleK;
+        dy /= this.scaleK;
+      }
+      if (this.rotationDeg !== 0) {
+        const a = -this.rotationDeg * Math.PI / 180;
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        const rx = dx * ca - dy * sa;
+        const ry = dx * sa + dy * ca;
+        dx = rx;
+        dy = ry;
+      }
+      return [dx + this.pivotX, dy + this.pivotY];
     }
     setScale(scale, px, py) {
       this.scaleK = scale;
@@ -16790,10 +16919,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         return null;
       let lx = px - this.x;
       let ly = py - this.y;
-      if (this.scaleK !== 1) {
-        lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-        ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-      }
+      [lx, ly] = this.invertTransform(lx, ly);
       const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
       const clipped = this.clipData !== null || this.boxClip;
       if (clipped && !this.insideClip(lx, ly)) {
@@ -16846,10 +16972,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         return "";
       let lx = px - this.x;
       let ly = py - this.y;
-      if (this.scaleK !== 1) {
-        lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-        ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-      }
+      [lx, ly] = this.invertTransform(lx, ly);
       const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
       const clipped = this.clipData !== null || this.boxClip;
       if (clipped && !this.insideClip(lx, ly)) {
@@ -16879,10 +17002,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       const pad = "  ".repeat(depth);
       const lx0 = px - this.x, ly0 = py - this.y;
       let lx = lx0, ly = ly0;
-      if (this.scaleK !== 1) {
-        lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-        ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-      }
+      [lx, ly] = this.invertTransform(lx, ly);
       const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
       const clipped = this.clipData !== null || this.boxClip;
       console.log(`${pad}#${this.id} box=${this.x},${this.y} ${this.width}x${this.height} local=${lx.toFixed(0)},${ly.toFixed(0)} vis=${this.visible} inBox=${inBox} clip=${clipped} ignoreclip=${this.ignoresClip} scrollsX=${this.scrollsX} sink=${this.sink !== null} kids=${this.children.length}`);
@@ -16920,10 +17040,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         return false;
       let lx = px - this.x;
       let ly = py - this.y;
-      if (this.scaleK !== 1) {
-        lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-        ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-      }
+      [lx, ly] = this.invertTransform(lx, ly);
       if (this.clipData !== null || this.boxClip)
         return this.insideClip(lx, ly);
       return lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
@@ -16937,10 +17054,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         return false;
       let lx = px - this.x;
       let ly = py - this.y;
-      if (this.scaleK !== 1) {
-        lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-        ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-      }
+      [lx, ly] = this.invertTransform(lx, ly);
       const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
       if ((this.scrolls || this.scrollsX) && !inBox)
         return false;
@@ -16973,10 +17087,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         return false;
       let lx = px - this.x;
       let ly = py - this.y;
-      if (this.scaleK !== 1) {
-        lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
-        ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
-      }
+      [lx, ly] = this.invertTransform(lx, ly);
       const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
       if ((this.scrolls || this.scrollsX) && !inBox)
         return false;

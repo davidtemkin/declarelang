@@ -37,6 +37,16 @@ export interface HitTarget {
      *  gesture is delivered and the browser's own menu suppressed, exactly
      *  there (D8's ContextMenu brief). */
     wantsContext?: boolean;
+    /** The nearest PINCH OWNER over this point — the closest view (self
+     *  included) up the hit chain declaring the onPinch family — resolved by
+     *  the backend because the claim covers a SUBTREE: two fingers may land on
+     *  different interactive children of one pinching view, and the gesture
+     *  belongs to the ancestor that declared it. Absent = nothing over this
+     *  point pinches. */
+    pinch?: {
+        key: object;
+        sink: InputSink;
+    };
 }
 /** One finger, as the raw touch family reports it. `id` is stable for the
  *  life of that finger's contact, so an engine can track it across events. */

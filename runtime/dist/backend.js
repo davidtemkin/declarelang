@@ -22,9 +22,14 @@ export function allowedRef(ref) {
     const scheme = m[1].toLowerCase();
     return scheme === "http" || scheme === "https" || scheme === "mailto";
 }
-export const POINTER_TYPES = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "contextMenu", "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel"];
+export const POINTER_TYPES = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "contextMenu", "touchStart", "touchMove", "touchEnd", "touchCancel", "pinchStart", "pinch", "pinchEnd", "wheel"];
 /** The raw-touch member of the family: declaring one of these is a view's
  *  statement that it owns multi-finger gestures in its subtree (the backend
  *  then stops the browser from claiming them — dom-backend setGestureOwner). */
 export const TOUCH_TYPES = ["touchStart", "touchMove", "touchEnd", "touchCancel"];
+/** The recognized two-finger family (compositing.md §II.2): declaring any of
+ *  these IS the claim of the two-finger gesture over that subtree — realized
+ *  as `touch-action: pan-x pan-y` (single-finger pan stays the page's; only
+ *  pinch retires — the same narrowing `claim = x` performs for drags). */
+export const PINCH_TYPES = ["pinchStart", "pinch", "pinchEnd"];
 //# sourceMappingURL=backend.js.map

@@ -46,6 +46,7 @@ const CORPUS = [
   "test/probe/ignorescroll.declare",
   "test/probe/blendview.declare",
   "test/probe/frost.declare",
+  "test/probe/rotation.declare",
   "test/probe/richtext.declare",
   "test/probe/editable.declare",
   "apps/calendar/calendar.declare",

@@ -1,0 +1,26 @@
+// Painted rotation (`rotation`), probed where its absence — or a wrong
+// pivot, order, or sign — shows. Three squares:
+//
+//   turn — 30° about the CENTER: a backend that ignores setRotation paints
+//          an axis-aligned square (corners land wrong, a large diff); a
+//          wrong SIGN mirrors the diagonal.
+//   unit — a scaled+rotated parent with a child: the subtree turns as one
+//          (scale-then-rotate about the shared pivot).
+//   text — a rotated label: glyphs must ride the transform (the draw()-tier
+//          and text-tier interplay: everything the view paints rotates
+//          with it), and rotated-glyph AA is exactly what the per-program
+//          baseline absorbs (compositing.md Part II's ruled AA policy).
+
+App [ width = 400, height = 250, fill = #101418,
+
+    turn: View [ x = 40, y = 60, width = 100, height = 100, fill = #E9C46A,
+        rotation = 30, pivotX = 50, pivotY = 50 ],
+
+    unit: View [ x = 180, y = 60, width = 100, height = 100, fill = #3FA34D,
+        rotation = 45, scale = 0.8, pivotX = 50, pivotY = 50,
+        View [ x = 25, y = 25, width = 50, height = 50, fill = #264653 ]
+        ],
+
+    text: Text [ x = 300, y = 40, rotation = 20, pivotX = 0, pivotY = 0,
+        text = "turned", textColor = #E8EDF2, fontSize = 24 ]
+    ]

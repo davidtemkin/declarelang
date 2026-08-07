@@ -116,6 +116,13 @@ export interface HitTarget {
    *  gesture is delivered and the browser's own menu suppressed, exactly
    *  there (D8's ContextMenu brief). */
   wantsContext?: boolean;
+  /** The nearest PINCH OWNER over this point — the closest view (self
+   *  included) up the hit chain declaring the onPinch family — resolved by
+   *  the backend because the claim covers a SUBTREE: two fingers may land on
+   *  different interactive children of one pinching view, and the gesture
+   *  belongs to the ancestor that declared it. Absent = nothing over this
+   *  point pinches. */
+  pinch?: { key: object; sink: InputSink };
 }
 
 /** One finger, as the raw touch family reports it. `id` is stable for the
@@ -194,6 +201,25 @@ export function routeInput(
    *  next one-finger tap read as two: every pinch poisoned the next tap until
    *  reload. */
   let touchSink: HitTarget | null = null;
+  // The live PINCH (compositing.md §II.2): fingers over pinch-declaring
+  // subtrees, tracked by pointerId with the OWNER each landed in. The
+  // gesture starts when two fingers share an owner, delivers cumulative
+  // scale (distance now / distance at start) and the root-space center, and
+  // ends when either finger lifts. Separate from `fingers` (the raw touch
+  // family's payload) for the same reason touchSink is separate from held:
+  // the two facts have different lifetimes and different owners.
+  const pinchPts = new Map<number, { x: number; y: number; owner: { key: object; sink: InputSink } }>();
+  let pinchGesture: { owner: { key: object; sink: InputSink }; a: number; b: number; startDist: number; scale: number } | null = null;
+  const endPinch = (): void => {
+    const g = pinchGesture;
+    if (g === null) return;
+    pinchGesture = null;
+    const fa = pinchPts.get(g.a);
+    const fb = pinchPts.get(g.b);
+    const cx = fa !== undefined && fb !== undefined ? (fa.x + fb.x) / 2 : (fa ?? fb)?.x ?? 0;
+    const cy = fa !== undefined && fb !== undefined ? (fa.y + fb.y) / 2 : (fa ?? fb)?.y ?? 0;
+    g.owner.sink("pinchEnd", cx, cy, { scale: g.scale, center: { x: cx, y: cy } });
+  };
   // The live press's identity beyond `held`: its pointerId, whether it is a
   // finger (pen included — both pan), the DOM element it landed on, and its
   // last root-space point. These exist for the scroll-takeover detector below:
@@ -310,6 +336,29 @@ export function routeInput(
         touchSink = t;
         t.sink("touchStart", p0.x, p0.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p0.x, y: p0.y }] });
       }
+      // The pinch recognizer (compositing.md §II.2): a touch finger landing
+      // under a pinch owner is tracked; the SECOND finger sharing that owner
+      // starts the gesture. Cumulative scale anchors on the starting spread.
+      if (t.pinch !== undefined && e.pointerType === "touch") {
+        pinchPts.set(e.pointerId, { x: p0.x, y: p0.y, owner: t.pinch });
+        if (pinchGesture === null && pinchPts.size >= 2) {
+          const pair = [...pinchPts.entries()].slice(-2);
+          const [[ida, fa], [idb, fb]] = pair;
+          if (fa.owner.key === fb.owner.key) {
+            const d = Math.hypot(fb.x - fa.x, fb.y - fa.y);
+            if (d > 0) {
+              pinchGesture = { owner: fa.owner, a: ida, b: idb, startDist: d, scale: 1 };
+              const cx = (fa.x + fb.x) / 2;
+              const cy = (fa.y + fb.y) / 2;
+              fa.owner.sink("pinchStart", cx, cy, { scale: 1, center: { x: cx, y: cy } });
+              // two fingers in one gesture: this press is no longer a
+              // candidate click/hold, and the pointer capture must not drag
+              disarmHold();
+              wandered = true;
+            }
+          }
+        }
+      }
       t.sink("pointerDown", t.x, t.y);
       if (t.wantsHold === true) {
         const target = t;
@@ -355,6 +404,27 @@ export function routeInput(
       hoveredSink = t !== null ? t.sink : null;
       if (t !== null) t.sink("pointerOver", t.x, t.y);
     }
+    // Pinch moves ride EVERY tracked finger, captured or not — the second
+    // finger never holds the capture (`held` is the first press's), so this
+    // runs before the capture gate below.
+    if (rootPoint !== undefined && pinchPts.has(e.pointerId)) {
+      const pp = rootPoint(e);
+      const rec = pinchPts.get(e.pointerId)!;
+      rec.x = pp.x;
+      rec.y = pp.y;
+      const g = pinchGesture;
+      if (g !== null && (e.pointerId === g.a || e.pointerId === g.b)) {
+        const fa = pinchPts.get(g.a);
+        const fb = pinchPts.get(g.b);
+        if (fa !== undefined && fb !== undefined) {
+          const d = Math.hypot(fb.x - fa.x, fb.y - fa.y);
+          if (d > 0) g.scale = d / g.startDist;
+          const cx = (fa.x + fb.x) / 2;
+          const cy = (fa.y + fb.y) / 2;
+          g.owner.sink("pinch", cx, cy, { scale: g.scale, center: { x: cx, y: cy } });
+        }
+      }
+    }
     if (held === null || rootPoint === undefined) return;
     const p = rootPoint(e);
     lastX = p.x;
@@ -387,6 +457,9 @@ export function routeInput(
     suppressSelection(false);
     disarmHold();
     holdCapture = false; // a hold-gated drag ends with its finger
+    // a pinch ends when EITHER of its fingers lifts (the gesture is the pair)
+    if (pinchGesture !== null && (e.pointerId === pinchGesture.a || e.pointerId === pinchGesture.b)) endPinch();
+    pinchPts.delete(e.pointerId);
     const t = resolve(e);
     const captor = held;
     held = null;
@@ -458,6 +531,9 @@ export function routeInput(
     suppressSelection(false);
     disarmHold();
     holdCapture = false;
+    // a canceled finger ends its pinch exactly as a lifted one does
+    if (pinchGesture !== null && (e.pointerId === pinchGesture.a || e.pointerId === pinchGesture.b)) endPinch();
+    pinchPts.delete(e.pointerId);
     // The browser reclaimed the gesture (a touch turned into a scroll). End the
     // capture WITHOUT a click — the interaction was interrupted, not completed —
     // so a drag handler still gets its release, and can tell that it WAS an

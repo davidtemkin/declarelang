@@ -60,5 +60,9 @@
   "frost": {
     "differing": 2.34,
     "structural": 0
+  },
+  "rotation": {
+    "differing": 0.09,
+    "structural": 0.06
   }
 }

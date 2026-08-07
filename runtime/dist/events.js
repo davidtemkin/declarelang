@@ -47,6 +47,15 @@ export class PointerUpEvent extends PointerEvent {
  *  only those this event is about. */
 export class TouchEvent extends PointerEvent {
 }
+/** The onPinch family (compositing.md §II.2) — the RECOGNIZED two-finger
+ *  gesture over a pinch-declaring subtree. `scale` is CUMULATIVE (distance
+ *  now / distance at pinchStart — 1 at the start, monotone with the spread);
+ *  `center` is the midpoint of the two fingers in ROOT space (`x`/`y` carry
+ *  the same point, so the single-point idiom still reads). Declaring any of
+ *  the three handlers claims the two-finger gesture from the browser;
+ *  single-finger pan stays the enclosing regime's. */
+export class PinchEvent extends PointerEvent {
+}
 /** `onWheel` — the wheel stream over a view. A desktop trackpad PINCH arrives
  *  here too, as a wheel with `pinch` true (the platform reports it that way and
  *  there is no other signal); ⌘ +/− dispatches nothing at all and cannot be

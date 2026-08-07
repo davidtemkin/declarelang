@@ -65,8 +65,19 @@ takes exactly what the handler needs in order to fire, and not one gesture more:
 | `onHold` + the drag handlers | the drag, **from the hold** — a quick swipe still pans | nothing new — the mouse drag was already yours |
 | `onDblClick` | the double tap | nothing — a double click was always yours |
 | `onWheel` | — | the wheel over this view, trackpad pinch included |
+| the `onPinch*` family | the **two-finger** gesture — one finger still pans the page | — |
 | the `onTouch*` family | **every finger** | — |
 | `claim = x` (or `y`, `both`) | *narrows* a claim to one axis — the page keeps the other | — |
+
+**`onPinchStart` / `onPinch` / `onPinchEnd` is the recognized two-finger gesture** —
+declare any of them and two fingers over that subtree are yours, delivered as a
+cumulative `e.scale` (the spread now over the spread at start) with the fingers'
+midpoint in `e.center`, while a single finger keeps panning the page. You never do
+the finger arithmetic; "roll your own math over a subtree touch claim" was always
+possible and was never the answer. A pinch nearly always drives `scale` or
+`rotation` of a sub-surface — `onPinch(e) { zoom = anchor * e.scale }`, latching
+`anchor` at `onPinchEnd`. On the desktop the same intent arrives on the wheel
+stream as `e.pinch` (trackpad); handle both and every device zooms.
 
 **`claim` is the knob for "drag horizontally on a page that scrolls vertically."** It
 scopes a claim you already have rather than making one: declare the drag handler, then

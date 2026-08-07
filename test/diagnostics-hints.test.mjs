@@ -86,10 +86,15 @@ await test("hint-routing does not fire on a short string", async () => {
 // a surface that should read as one current design. `materialize` now reports
 // plainly that View has no such attribute.
 
-await test("rotation/blur/transform point at draw(), not into a wall", async () => {
-  says(`App [ View [ rotation = 45 ] ]`, "draw(d: Draw)");
+await test("rotate/blur/transform point at the real doors, not into a wall", async () => {
+  // `rotation` itself GRADUATED (2026-08-06, compositing.md Part II): it is a
+  // View attribute now, so `rotation = 45` compiles instead of hinting — the
+  // CSS-prior spellings around it still route to their true equivalents.
+  says(`App [ View [ rotate = 45 ] ]`, "rotation = 45");
   says(`App [ View [ blur = 4 ] ]`, "d.filter");
   says(`App [ View [ transform = 1 ] ]`, "draw(d: Draw)");
+  says(`App [ View [ mixBlendMode = 1 ] ]`, "blend = multiply");
+  says(`App [ View [ backdropFilter = 1 ] ]`, "frost(radius, saturation)");
 });
 
 // ── a CSS percentage inside { } ──────────────────────────────────────────────

@@ -412,6 +412,40 @@ gets its `claimAt` twin. "Roll your own math over a subtree touch claim"
 works today and is not the answer. Pinch nearly always DRIVES scale/rotation
 of a sub-surface — which is why it lives in this part.
 
+## II.3 As built (2026-08-06)
+
+**Rotation** landed exactly on scale's bones: `rotation` (degrees, clockwise,
+painted-only) shares the pivot, pushes through one composed-transform pusher
+(view.ts `pushTransform` — setScale always accompanies the optional
+`setRotation`, so a backend keeps ONE transform), and is realized as CSS
+`transform` / `ctx.rotate` / `CATransform3D` (sign flipped for the layer
+tree's y-up space, the SHADOW-negation precedent). **The hard part is done
+honestly**: the inverse joined `toChildLocal` as the walk's fourth term, and
+the canvas/mac reverse walks share an `invertTransform` helper — probes,
+`hovered`/`pressed`, `viewAt`, and the conformance oracle all ride it. The
+two open policies RULED in-build: (1) rotated-edge AA tolerance = soft bands
+in the DOM/canvas suite (mean ≤ 4 blurred), per-program baseline on the mac
+gate (the text-metrics policy, applied); (2) draw()-tier interplay = a
+recording replays under the transform on all three renderers (the rotation
+probe's text case pins it — nothing special was needed, which is the point).
+`paintFrost` was hardened to corner-mapped device bounds so frost composes
+under rotation.
+
+**The onPinch family** is the recognized layer over the raw one: declaring
+`onPinchStart/onPinch/onPinchEnd` claims the two-finger gesture
+(`touch-action: pan-x pan-y` on DOM; second-finger `preventDefault` in the
+canvas arbitration — claim-surface.md carries both rows), the shared router
+recognizes the pair (resolution attaches the nearest pinch OWNER up the hit
+chain, so fingers landing on interactive children still pinch the declaring
+ancestor), and delivers cumulative `e.scale` + root-space `e.center`.
+Composition with an unheld drag claim retires pinch-zoom and keeps the
+drag's pan axis (`none` / `pan-y` / `pan-x`). iOS rule satisfied:
+`tools/internal/sim/pinchlab.declare` + two regress cases, full suite 26/26
+green on the simulator (2026-08-06), stamp written. The Mac host has no
+touch path at all (no `magnify(with:)`; trackpad pinch routes to
+`__declareScroll`) — recorded here as the standing gap a future host closes;
+`wantsPinch` rides the wire for symmetry exactly as `wantsTouch` does.
+
 # Part III · The text piece — author-facing font metrics
 
 **Status: scoped; the measurement machinery already exists** (measure.ts —

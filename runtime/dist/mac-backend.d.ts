@@ -41,6 +41,7 @@ export declare const OP: {
     readonly BLEND: 35;
     readonly BACKDROP: 36;
     readonly TINT: 37;
+    readonly ROTATE: 38;
 };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
@@ -75,6 +76,7 @@ declare class MacSurface implements Surface {
     scaleK: number;
     pivotX: number;
     pivotY: number;
+    rotationDeg: number;
     scrolls: boolean;
     scrollOffset: number;
     private onScrollCb;
@@ -133,6 +135,14 @@ declare class MacSurface implements Surface {
     /** Consulted by hit() below — the walk decides, so the walk must know. */
     pe: string;
     setPointerEvents(mode: string): void;
+    /** Rotation rides its own op; the pivot arrives via SCALE (the runtime
+     *  always pushes both — view.ts pushTransform), and the Swift side folds
+     *  both into one CATransform3D (applyScale). */
+    setRotation(deg: number, _px: number, _py: number): void;
+    /** Invert the paint transform (scale, then rotation, about the shared
+     *  pivot) — the hit/cursor/wheel walks' transform term, the same inverse
+     *  interaction.ts toChildLocal applies (the ONE-WALK rule). */
+    invertTransform(lx: number, ly: number): [number, number];
     setScale(scale: number, px: number, py: number): void;
     setClip(pathData: string | null): void;
     setBoxClip(on: boolean): void;

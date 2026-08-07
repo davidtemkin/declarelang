@@ -14,7 +14,7 @@ import { Node, runRetire } from "./node.js";
 import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
-import { POINTER_TYPES, TOUCH_TYPES, allowedRef, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
+import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
 import { Tip } from "./tip.js";
 
 // Imperative creation's injection seam (instantiate.ts provides; the cycle
@@ -197,6 +197,11 @@ export class View extends Node {
   declare scale: number;
   declare pivotX: number;
   declare pivotY: number;
+  /** Rotation in DEGREES, clockwise, about (pivotX, pivotY) — paint-only,
+   *  like `scale`, whose pivot it shares (scale-then-rotate, one documented
+   *  order). Layout never rotates; hit-testing follows the visible result
+   *  through the inverse transform. */
+  declare rotation: number;
   /** The compositing operator this view LANDS with against what has already
    *  painted beneath it within the nearest isolating ancestor (compositing.md
    *  §4.1 — the App root, a group-opacity subtree, a scroller's content
@@ -630,6 +635,7 @@ export class View extends Node {
     if (this.pointerEvents !== "") s.setPointerEvents(this.pointerEvents);
     if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
       s.setScale(this.scale, this.pivotX, this.pivotY);
+    if (this.rotation !== 0) s.setRotation?.(this.rotation, this.pivotX, this.pivotY);
     if (this.blend !== "normal") s.setBlend?.(this.blend);
     if (this.backdrop !== null) s.setBackdrop?.(this.backdrop);
     this.applyClip(this.clip);
@@ -816,6 +822,7 @@ export class View extends Node {
       wantsDbl: has("dblClick"),
       wantsHold: has("hold"),
       wantsTouch: TOUCH_TYPES.some(has),
+      wantsPinch: PINCH_TYPES.some(has),
       wantsDrag: has("pointerMove"),
       wantsWheel: has("wheel"),
       claimAxis: this.claim,
@@ -867,6 +874,14 @@ export class View extends Node {
   }
 }
 
+/** The one composed-transform pusher (scale + rotation about a shared
+ *  pivot): any of the four attributes re-pushes both seam calls, so a
+ *  backend keeps a single transform and never sees a half-updated pivot. */
+const pushTransform = (v: View): void => {
+  v.surface?.setScale(v.scale, v.pivotX, v.pivotY);
+  v.surface?.setRotation?.(v.rotation, v.pivotX, v.pivotY);
+};
+
 /** The `scrolls` axis-enum pusher, shared by View and the App's own default
  *  (`"y"` — the App's scroller is the page; the backend realizes the root's
  *  regime as the browser's own scroll). */
@@ -902,11 +917,14 @@ defineAttributes(View, {
   opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
   cursor: { def: "", push: (v, c: string) => v.surface?.setCursor(c) },
   pointerEvents: { def: "", push: (v, c: string) => v.surface?.setPointerEvents(c) },
-  // Scale + pivot ride one transform at the seam: any of the three re-pushes
-  // the combined value (transform + transform-origin on the DOM).
-  scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
-  pivotX: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
-  pivotY: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
+  // Scale + rotation + pivot ride one transform at the seam: any of the four
+  // re-pushes the combined value (transform + transform-origin on the DOM).
+  // setScale always accompanies setRotation so a backend can keep ONE
+  // composed transform without ordering questions.
+  scale: { def: 1, push: pushTransform },
+  pivotX: { def: 0, push: pushTransform },
+  pivotY: { def: 0, push: pushTransform },
+  rotation: { def: 0, push: pushTransform },
   // optional-chained (the ignoreScroll pattern): backends adopt independently,
   // and the seam table (test/seam.test.mjs) says which have.
   blend: { def: "normal", push: (v, b: string) => v.surface?.setBlend?.(b) },

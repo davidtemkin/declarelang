@@ -83,6 +83,13 @@ const TABLE = {
     headless: NOT_APPLICABLE,
   },
 
+  // ── the transform seam (compositing.md Part II, 2026-08-06) ──────────────
+
+  setRotation: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
+
   setPageExtent: {
     dom: true, canvas: true,
     mac: "GAP (found 2026-07-31, not yet fixed) — same family as setIgnoreScroll: the App-is-the-page scroll realization. Without it the host cannot publish the document extent, so an app taller than its window has no scroll range to give the platform",
@@ -258,9 +265,14 @@ for (const member of members) {
 // asset idiom (Image.tint, compositing.md §3.4), a compositing operation at
 // the bitmap: color from the slot, shape from the bitmap's alpha, on all
 // three painting backends from day one.
+// 18 → 19 (2026-08-06, Part II): setRotation — the painted rotation, riding
+// scale's pivot (the runtime pushes setScale alongside it, so a backend
+// keeps one composed transform). Optional so backends adopt independently;
+// the rotated probe scene is the pixel half, and the hit walk's inverse is
+// interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 18,
+  assert.equal(members.length, 19,
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);
