@@ -44,8 +44,19 @@ function walk(dir) {
 }
 for (const d of CORPUS_DIRS) walk(join(ROOT, d));
 const corpus = sources
-  .filter((p) => !p.endsWith("declare-model.json")) // the surface must not attest itself
+  // Neither the surface nor the REPORT may attest itself: the model carries
+  // every name by definition, and evals/README.md §Coverage quotes the dark
+  // list — counting it would launder each finding into "covered" one run
+  // after it was reported.
+  .filter((p) => !p.endsWith("declare-model.json") && !p.endsWith("evals/README.md"))
   .map((p) => ({ p, text: readFileSync(p, "utf8") }));
+
+// The JS tier, reported separately: a unit test poking `app.a.paused` from
+// .mjs proves the RUNTIME behavior without giving any Declare author a
+// single example — dark-for-authors, tested-for-the-runtime. Scanning it
+// keeps the headline honest ("nothing" must mean nothing).
+const jsTier = readdirSync(join(ROOT, "test")).filter((e) => e.endsWith(".mjs"))
+  .map((e) => readFileSync(join(ROOT, "test", e), "utf8")).join("\n");
 
 // ── the join ────────────────────────────────────────────────────────────────
 // An attribute counts as exercised when its name appears in USE position:
@@ -62,7 +73,8 @@ for (const [cls, sch] of Object.entries(schemas)) {
     for (const { p, text } of corpus) {
       if (use.test(text)) { hits.push(relative(ROOT, p)); if (hits.length >= 3) break; }
     }
-    (hits.length === 0 ? dark : covered).push({ id: `${cls}.${attr}`, hits });
+    const jsOnly = hits.length === 0 && new RegExp(`(\\.${attr}\\b|\\b${attr} =)`).test(jsTier);
+    (hits.length === 0 ? dark : covered).push({ id: `${cls}.${attr}`, hits, jsOnly });
   }
 }
 
@@ -70,7 +82,9 @@ if (asJson) {
   console.log(JSON.stringify({ dark: dark.map((d) => d.id), total: dark.length + covered.length }, null, 1));
 } else {
   console.log(`coverage-sweep: ${covered.length + dark.length} schema attributes, ${dark.length} exercised by NOTHING in the corpus`);
-  for (const d of dark.sort((a, b) => a.id.localeCompare(b.id))) console.log(`  dark  ${d.id}`);
+  for (const d of dark.sort((a, b) => a.id.localeCompare(b.id))) {
+    console.log(`  dark${d.jsOnly ? " (runtime-tested from .mjs; zero author-facing use)" : "                "}  ${d.id}`.replace(/ +  /, "  "));
+  }
   if (dark.length === 0) console.log("  (no dark surface — every attribute has at least one example)");
   console.log(`\nAim the next brief here — a dark attribute is a gap no eval can find (evals/README.md §coverage).`);
 }
