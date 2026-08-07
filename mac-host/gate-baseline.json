@@ -52,5 +52,9 @@
   "lzx-weather": {
     "differing": 0.05,
     "structural": 0.03
+  },
+  "blendview": {
+    "differing": 0.56,
+    "structural": 0.55
   }
 }

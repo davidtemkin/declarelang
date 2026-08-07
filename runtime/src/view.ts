@@ -197,6 +197,16 @@ export class View extends Node {
   declare scale: number;
   declare pivotX: number;
   declare pivotY: number;
+  /** The compositing operator this view LANDS with against what has already
+   *  painted beneath it within the nearest isolating ancestor (compositing.md
+   *  §4.1 — the App root, a group-opacity subtree, a scroller's content
+   *  group, an island boundary; plain containers are transparent to
+   *  blending). `normal` = plain painting. A blending view blends as a unit,
+   *  children included; paint only — hit testing and focus never change. */
+  declare blend: "normal" | "multiply" | "screen" | "overlay" | "darken"
+    | "lighten" | "colorDodge" | "colorBurn" | "hardLight" | "softLight"
+    | "difference" | "exclusion" | "hue" | "saturation" | "color"
+    | "luminosity" | "plusLighter";
   /** Which axes of interior overflow this view scrolls — `"none"` (the View
    *  default), `"y"`, `"x"`, or `"both"`. Overflow along a declared axis
    *  becomes scroll range; along any other axis it is out of frame. */
@@ -615,6 +625,7 @@ export class View extends Node {
     if (this.pointerEvents !== "") s.setPointerEvents(this.pointerEvents);
     if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
       s.setScale(this.scale, this.pivotX, this.pivotY);
+    if (this.blend !== "normal") s.setBlend?.(this.blend);
     this.applyClip(this.clip);
     if (this.scrolls === "y" || this.scrolls === "both") s.setScroll?.(true, (y) => { this.scrollY = y; });
     if (this.scrolls === "x" || this.scrolls === "both") s.setScrollX?.(true, (x) => { this.scrollX = x; });
@@ -890,6 +901,9 @@ defineAttributes(View, {
   scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
   pivotX: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
   pivotY: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
+  // optional-chained (the ignoreScroll pattern): backends adopt independently,
+  // and the seam table (test/seam.test.mjs) says which have.
+  blend: { def: "normal", push: (v, b: string) => v.surface?.setBlend?.(b) },
   focusable: { def: false },
   focusTrap: { def: false },
   // `anchor` — the view's name in the reveal namespace (location.md §6). A stored

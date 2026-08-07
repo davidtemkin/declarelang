@@ -34,6 +34,13 @@ a border *is* a stroke. (`scale` with `pivotX`/`pivotY`, and `visible`, round ou
 set.) Because `stroke`/`shadow` values are `{ }` bodies, their colors are `0x…` — the
 seam rule from [chapter 2](declare-docs:guide:two-brackets), holding steady.
 
+One more compositing dial: `blend = multiply` (or `screen`, `colorDodge`, … — the
+usual blend modes, camelCased) changes the *operator* a view lands with, so it mixes
+with whatever has already painted beneath it instead of covering it. The view blends
+as a unit, children included, and every renderer realizes the same operator natively.
+Blending stops at the nearest isolating boundary — the app root, a faded
+(`opacity < 1`) group, a scroller's content; a plain container is transparent to it.
+
 ## Drawing what attributes cannot say
 
 Boxes, rounding, strokes and shadows cover most of an interface. For the rest — a gauge

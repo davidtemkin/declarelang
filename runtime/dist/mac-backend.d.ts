@@ -38,6 +38,7 @@ export declare const OP: {
     readonly PAGEFILL: 32;
     readonly IGNORESCROLL: 33;
     readonly RICHWIDTH: 34;
+    readonly BLEND: 35;
 };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
@@ -108,6 +109,11 @@ declare class MacSurface implements Surface {
     setShadow(sh: Shadow | null): void;
     setVisible(v: boolean): void;
     setOpacity(o: number): void;
+    /** The schema token rides the wire verbatim; the Swift side maps it to a
+     *  CIFilter for `layer.compositingFilter` (public on macOS — LayerTree
+     *  case 35). A compositing filter rides the layer, not the order, so the
+     *  restack/clipHost machinery is untouched. */
+    setBlend(mode: string): void;
     setCursor(c: string): void;
     /** No CSS pointer-events natively: the hit walk is ours, so an inert
      *  surface simply drops its sink (setInput(null)) — this is a no-op kept

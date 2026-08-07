@@ -1,0 +1,32 @@
+// View-tier blending (`blend`), probed where its ABSENCE shows — a likeness
+// test is blind to a missing feature unless the scene makes it visible
+// (the ignorescroll lesson). Three cases, each a distinct failure mode:
+//
+//   chip — a `multiply` view over a gradient SIBLING (not its own drawing):
+//          a backend that ignores `setBlend` paints it flat opaque red, a
+//          large localized diff against the graded mix.
+//   unit — a blending view WITH a child: the subtree must composite
+//          internally first and land as one group (§4.1's unit clause), so
+//          leaf-only blending — which would pass the chip case — renders the
+//          child unblended and fails here.
+//   deep — a blending chip under two plain containers: containers are
+//          TRANSPARENT to blending, so it must still read the gradient
+//          beneath; a backend that isolates every subtree paints it flat.
+
+App [ width = 400, height = 250, fill = #202020,
+
+    ground: View [ x = 0, y = 0, width = 400, height = 250,
+        fill = { gradient("90deg", 0xFFD24A, 0x2244AA) } ],
+
+    chip: View [ x = 30, y = 30, width = 150, height = 80, blend = multiply, fill = #CC3344 ],
+
+    unit: View [ x = 220, y = 30, width = 150, height = 80, blend = multiply, fill = #66CCEE,
+        inner: View [ x = 30, y = 20, width = 90, height = 40, fill = #EEEEEE ]
+        ],
+
+    outer: View [ x = 30, y = 140, width = 340, height = 80,
+        mid: View [ x = 10, y = 10, width = 320, height = 60,
+            deep: View [ x = 10, y = 10, width = 140, height = 40, blend = screen, fill = #703090 ]
+            ]
+        ]
+    ]

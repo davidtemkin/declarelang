@@ -302,7 +302,7 @@ var DeclareCompilerMac = (() => {
     else break;
     return { classes: p, stylesheets: T, styles: A, fonts: P, includes: B, includeSpans: U, uses: le, scripts: _e };
   }
-  function hv(y) {
+  function gv(y) {
     let p = new yee(XBe(y)), T = Mbe(p), A = p.parseElement(), P = Mbe(p), B = [...T.classes, ...P.classes], U = [...T.stylesheets, ...P.stylesheets], le = [...T.styles, ...P.styles], _e = [...T.fonts, ...P.fonts], Oe = [...T.includes, ...P.includes], Ee = [...T.includeSpans, ...P.includeSpans], qe = [...T.uses, ...P.uses], ae = [...T.scripts, ...P.scripts];
     if (p.expect("eof", "end of input"), p.errors.length > 0) throw new Kb(p.errors);
     return { classes: B, stylesheets: U, styles: le, fonts: _e, includes: Oe, includeSpans: Ee, uses: qe, scripts: ae, root: A };
@@ -835,13 +835,13 @@ var DeclareCompilerMac = (() => {
   function Tk(y) {
     return typeof y == "object" && y !== null && "percent" in y;
   }
-  function gv(y, ...p) {
+  function d0(y, ...p) {
     return { kind: "enum", name: y, tokens: p };
   }
   function Zb(y) {
     return Object.hasOwn(qbe, y) ? qbe[y] : null;
   }
-  function d0(y, p) {
+  function m0(y, p) {
     switch (y.kind) {
       case "length":
         return p.kind === "number" ? p.hex && p.hexLen === 8 ? Tc("a Length", `${Qb(p)} (an 8-digit 0x is an alpha color, not a number \u2014 write a number in decimal)`) : Gl(p.value) : p.kind === "percent" ? Gl({ percent: p.value }) : p.kind === "ident" && (p.name === "center" || p.name === "end") ? Gl({ align: p.name }) : Tc("a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y)");
@@ -1047,7 +1047,7 @@ var DeclareCompilerMac = (() => {
     $be = 4294967296;
     Gbe = (y, p) => Object.freeze({ offset: y, color: p }), OJ = (y, p) => Object.freeze({ width: y, color: p }), Ybe = (y, p, T, A) => Object.freeze({ dx: y, dy: p, blur: T, color: A });
     Xbe = Wbe;
-    qbe = { number: { kind: "number" }, string: { kind: "string" }, boolean: { kind: "boolean" }, Color: { kind: "color" }, Length: { kind: "length" }, Shape: { kind: "shape" }, array: { kind: "array" }, object: { kind: "object" }, View: { kind: "view" }, Axis: gv("Axis", "x", "y"), WrapAlign: gv("WrapAlign", "start", "center") };
+    qbe = { number: { kind: "number" }, string: { kind: "string" }, boolean: { kind: "boolean" }, Color: { kind: "color" }, Length: { kind: "length" }, Shape: { kind: "shape" }, array: { kind: "array" }, object: { kind: "object" }, View: { kind: "view" }, Axis: d0("Axis", "x", "y"), WrapAlign: d0("WrapAlign", "start", "center") };
     FJ = Object.keys(qbe), Gl = (y) => ({ ok: true, value: y }), Tc = (y, p) => ({ ok: false, expected: y, found: p });
     IJ = "a Color (a name like navy, #RGB, #RRGGBB, #RGBA, #RRGGBBAA, 0xRRGGBB, or null)";
     DJ = "a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, \u2026stops), or null)", tJe = "a Stroke (stroke(width, color) \u2014 drawn inside the box \u2014 or null)", Vbe = "a Shadow (shadow(dx, dy, blur, color), or null)";
@@ -1109,7 +1109,7 @@ var DeclareCompilerMac = (() => {
   var rA = xo(() => {
     "use strict";
     py();
-    aJe = gv("FontWeight", "thin", "extralight", "light", "regular", "normal", "medium", "semibold", "bold", "extrabold", "black"), jT = { name: "Node", base: null, attrs: {} }, YI = { name: "View", base: jT, attrs: { x: { kind: "length" }, y: { kind: "length" }, width: { kind: "length" }, height: { kind: "length" }, fill: { kind: "fill" }, cornerRadius: { kind: "number" }, hovered: { kind: "boolean" }, pressed: { kind: "boolean" }, stroke: { kind: "stroke" }, shadow: { kind: "shadow" }, visible: { kind: "boolean" }, ignoreLayout: { kind: "boolean" }, ignoreClip: { kind: "boolean" }, ignoreScroll: { kind: "boolean" }, opacity: { kind: "number" }, scale: { kind: "number" }, pivotX: { kind: "number" }, pivotY: { kind: "number" }, clip: { kind: "shape" }, scrolls: gv("Scrolls", "none", "y", "x", "both"), claim: gv("Claim", "both", "x", "y"), tip: { kind: "string" }, scrollY: { kind: "number" }, scrollX: { kind: "number" }, textColor: { kind: "color" }, fontSize: { kind: "number" }, fontFamily: { kind: "font" }, fontWeight: aJe, letterSpacing: { kind: "number" }, iconSize: { kind: "number" }, headingColor: { kind: "color" }, headingWeight: aJe, linkColor: { kind: "color" }, codeColor: { kind: "color" }, codeSize: { kind: "number" }, codeFamily: { kind: "font" }, codeBackground: { kind: "color" }, codeRule: { kind: "color" }, richTextLayout: { kind: "record", name: "RichTextLayout" }, theme: { kind: "record", name: "Theme" }, selectable: { kind: "boolean" }, cursor: { kind: "string" }, pointerEvents: { kind: "string" }, styles: { kind: "styles" }, stylesheet: { kind: "stylesheet" }, layout: { kind: "component", of: "Layout" }, datapath: { kind: "cursor" }, focusable: { kind: "boolean" }, focusTrap: { kind: "boolean" }, anchor: { kind: "string" }, link: { kind: "string" }, replace: { kind: "boolean" }, shows: { kind: "string" }, contentWidth: { kind: "length" }, childViews: { kind: "array" }, virtualized: { kind: "boolean" }, virtualize: { kind: "boolean" }, contentHeight: { kind: "length" } }, prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable", "iconSize"], readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed"], events: ["click", "dblClick", "hold", "pointerDown", "pointerUp", "pointerMove", "pointerOver", "pointerOut", "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel", "init", "retire", "contextMenu", "focus", "blur", "escapeFocus", "keyDown", "keyUp"] }, n2t = { name: "App", base: YI, attrs: { hostWidth: { kind: "number" }, hostHeight: { kind: "number" }, scrollY: { kind: "number" }, pointerX: { kind: "number" }, pointerY: { kind: "number" }, pointerDown: { kind: "boolean" }, hovering: { kind: "boolean" }, pointerOverText: { kind: "boolean" }, dark: { kind: "boolean" }, touchDevice: { kind: "boolean" }, hasTouch: { kind: "boolean" }, hasPointer: { kind: "boolean" }, lastPointerType: { kind: "string" }, env: { kind: "object" }, location: { kind: "string" }, minWidth: { kind: "number" }, minHeight: { kind: "number" }, appName: { kind: "string" }, revealInset: { kind: "number" }, crawlSeeds: { kind: "array" } }, readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType"], events: ["follow"] }, r2t = { name: "Text", base: YI, attrs: { text: { kind: "string" }, textShadow: { kind: "shadow" }, wrap: { kind: "boolean" }, textAlign: gv("TextAlign", "left", "center", "right"), italic: { kind: "boolean" }, textFill: { kind: "fill" }, lineHeight: { kind: "number" } } }, i2t = { name: "Image", base: YI, attrs: { source: { kind: "string" }, stretches: gv("Stretch", "none", "width", "height", "both", "cover", "contain"), loaded: { kind: "boolean" }, failed: { kind: "boolean" }, naturalWidth: { kind: "number" }, naturalHeight: { kind: "number" } }, readOnly: ["loaded", "failed", "naturalWidth", "naturalHeight"] }, a2t = { name: "Video", base: YI, attrs: { source: { kind: "string" }, stretches: gv("Stretch", "none", "width", "height", "both", "cover", "contain"), playing: { kind: "boolean" }, loop: { kind: "boolean" }, muted: { kind: "boolean" }, position: { kind: "number" }, volume: { kind: "number" }, playbackRate: { kind: "number" }, ended: { kind: "boolean" }, duration: { kind: "number" }, buffering: { kind: "boolean" }, loaded: { kind: "boolean" }, failed: { kind: "boolean" } }, readOnly: ["ended", "duration", "buffering", "loaded", "failed"], events: ["ended"] }, s2t = { name: "DOMIsland", base: YI, attrs: { slot: { kind: "string" }, childName: { kind: "string" } } }, sJe = { name: "Editor", base: YI, attrs: { commitOn: { kind: "string" }, error: { kind: "string" }, valid: { kind: "boolean" }, dirty: { kind: "boolean" }, focused: { kind: "boolean" } } }, o2t = { name: "TextInput", base: sJe, attrs: { text: { kind: "string" }, placeholder: { kind: "string" }, multiline: { kind: "boolean" }, spellcheck: { kind: "boolean" }, wrap: { kind: "boolean" }, padding: { kind: "number" }, initial: { kind: "string" } }, events: ["input", "enter"] }, oJe = { name: "RichText", base: YI, attrs: { lineHeight: { kind: "number" }, bodyColor: { kind: "color" }, scale: { kind: "number" }, dark: { kind: "boolean" } }, events: ["link"] }, c2t = { name: "Markdown", base: oJe, attrs: { text: { kind: "string" } } }, l2t = { name: "HTMLText", base: oJe, attrs: { html: { kind: "string" }, unsupported: gv("Unsupported", "strip", "error"), accents: { kind: "record", name: "Accents" } } }, cJe = { name: "Layout", base: jT, attrs: {} }, u2t = { name: "TweenLayout", base: cJe, attrs: { t: { kind: "number" }, duration: { kind: "number" } } }, lJe = { name: "Dataset", base: jT, attrs: { contents: { kind: "object" }, schema: { kind: "dataschema" }, value: { kind: "object" } }, readOnly: ["value"] }, f2t = { name: "DataSource", base: lJe, attrs: { url: { kind: "string" }, format: { kind: "string" }, method: { kind: "string" }, body: { kind: "object" }, auto: { kind: "boolean" }, status: gv("DataStatus", "idle", "loading", "loaded", "failed"), idle: { kind: "boolean" }, loading: { kind: "boolean" }, loaded: { kind: "boolean" }, failed: { kind: "boolean" }, error: { kind: "string" }, statusCode: { kind: "number" }, errorBody: { kind: "object" } }, readOnly: ["status", "idle", "loading", "loaded", "failed", "error", "statusCode", "errorBody"], events: ["load"] }, uJe = { name: "Animator", base: jT, attrs: { attribute: { kind: "slotref" }, to: { kind: "number" }, from: { kind: "number" }, duration: { kind: "number" }, repeat: { kind: "number" }, motion: { kind: "motion" }, relative: { kind: "boolean" }, started: { kind: "boolean" }, paused: { kind: "boolean" }, settled: { kind: "boolean" } }, events: ["start", "stop", "repeat"] }, _2t = { name: "AnimatorGroup", base: jT, attrs: { attribute: { kind: "slotref" }, to: { kind: "number" }, from: { kind: "number" }, duration: { kind: "number" }, repeat: { kind: "number" }, motion: { kind: "motion" }, process: gv("Process", "sequential", "simultaneous"), relative: { kind: "boolean" }, started: { kind: "boolean" }, paused: { kind: "boolean" } }, events: ["start", "stop", "repeat"] }, p2t = { name: "Spring", base: uJe, attrs: { stiffness: { kind: "number" }, damping: { kind: "number" }, mass: { kind: "number" }, epsilon: { kind: "number" } } }, d2t = { name: "Heartbeat", base: jT, attrs: { running: { kind: "boolean" } }, events: ["frame"] }, m2t = { name: "Keys", base: jT, attrs: {}, events: ["keyDown", "keyUp", "navClaim"] }, h2t = { name: "Focus", base: jT, attrs: {}, events: ["focusChange", "geometry"] }, g2t = { name: "Tip", base: jT, attrs: {}, events: ["tip"] }, Zbe = { name: "Stream", base: jT, attrs: { url: { kind: "string" }, active: { kind: "boolean" }, retry: { kind: "number" }, status: gv("StreamStatus", "closed", "connecting", "open", "retrying", "failed"), error: { kind: "string" }, last: { kind: "string" }, open: { kind: "boolean" } }, readOnly: ["status", "error", "last", "open"], events: ["message", "open", "close", "error"] }, y2t = { name: "EventStream", base: Zbe, attrs: { listenTo: { kind: "array", of: "string" } } }, v2t = { name: "Socket", base: Zbe, attrs: {} }, b2t = { name: "State", base: jT, attrs: { applied: { kind: "boolean" } }, events: ["apply", "remove"] }, H6 = { View: YI, App: n2t, Text: r2t, Image: i2t, Video: a2t, DOMIsland: s2t, TextInput: o2t, Markdown: c2t, HTMLText: l2t, Layout: cJe, Editor: sJe, TweenLayout: u2t, Dataset: lJe, DataSource: f2t, Animator: uJe, AnimatorGroup: _2t, Spring: p2t, Heartbeat: d2t, Keys: m2t, Focus: h2t, Tip: g2t, Stream: Zbe, EventStream: y2t, Socket: v2t, State: b2t, Node: jT };
+    aJe = d0("FontWeight", "thin", "extralight", "light", "regular", "normal", "medium", "semibold", "bold", "extrabold", "black"), jT = { name: "Node", base: null, attrs: {} }, YI = { name: "View", base: jT, attrs: { x: { kind: "length" }, y: { kind: "length" }, width: { kind: "length" }, height: { kind: "length" }, fill: { kind: "fill" }, cornerRadius: { kind: "number" }, hovered: { kind: "boolean" }, pressed: { kind: "boolean" }, stroke: { kind: "stroke" }, shadow: { kind: "shadow" }, visible: { kind: "boolean" }, ignoreLayout: { kind: "boolean" }, ignoreClip: { kind: "boolean" }, ignoreScroll: { kind: "boolean" }, opacity: { kind: "number" }, scale: { kind: "number" }, pivotX: { kind: "number" }, pivotY: { kind: "number" }, blend: d0("Blend", "normal", "multiply", "screen", "overlay", "darken", "lighten", "colorDodge", "colorBurn", "hardLight", "softLight", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "plusLighter"), clip: { kind: "shape" }, scrolls: d0("Scrolls", "none", "y", "x", "both"), claim: d0("Claim", "both", "x", "y"), tip: { kind: "string" }, scrollY: { kind: "number" }, scrollX: { kind: "number" }, textColor: { kind: "color" }, fontSize: { kind: "number" }, fontFamily: { kind: "font" }, fontWeight: aJe, letterSpacing: { kind: "number" }, iconSize: { kind: "number" }, headingColor: { kind: "color" }, headingWeight: aJe, linkColor: { kind: "color" }, codeColor: { kind: "color" }, codeSize: { kind: "number" }, codeFamily: { kind: "font" }, codeBackground: { kind: "color" }, codeRule: { kind: "color" }, richTextLayout: { kind: "record", name: "RichTextLayout" }, theme: { kind: "record", name: "Theme" }, selectable: { kind: "boolean" }, cursor: { kind: "string" }, pointerEvents: { kind: "string" }, styles: { kind: "styles" }, stylesheet: { kind: "stylesheet" }, layout: { kind: "component", of: "Layout" }, datapath: { kind: "cursor" }, focusable: { kind: "boolean" }, focusTrap: { kind: "boolean" }, anchor: { kind: "string" }, link: { kind: "string" }, replace: { kind: "boolean" }, shows: { kind: "string" }, contentWidth: { kind: "length" }, childViews: { kind: "array" }, virtualized: { kind: "boolean" }, virtualize: { kind: "boolean" }, contentHeight: { kind: "length" } }, prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable", "iconSize"], readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed"], events: ["click", "dblClick", "hold", "pointerDown", "pointerUp", "pointerMove", "pointerOver", "pointerOut", "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel", "init", "retire", "contextMenu", "focus", "blur", "escapeFocus", "keyDown", "keyUp"] }, n2t = { name: "App", base: YI, attrs: { hostWidth: { kind: "number" }, hostHeight: { kind: "number" }, scrollY: { kind: "number" }, pointerX: { kind: "number" }, pointerY: { kind: "number" }, pointerDown: { kind: "boolean" }, hovering: { kind: "boolean" }, pointerOverText: { kind: "boolean" }, dark: { kind: "boolean" }, touchDevice: { kind: "boolean" }, hasTouch: { kind: "boolean" }, hasPointer: { kind: "boolean" }, lastPointerType: { kind: "string" }, env: { kind: "object" }, location: { kind: "string" }, minWidth: { kind: "number" }, minHeight: { kind: "number" }, appName: { kind: "string" }, revealInset: { kind: "number" }, crawlSeeds: { kind: "array" } }, readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType"], events: ["follow"] }, r2t = { name: "Text", base: YI, attrs: { text: { kind: "string" }, textShadow: { kind: "shadow" }, wrap: { kind: "boolean" }, textAlign: d0("TextAlign", "left", "center", "right"), italic: { kind: "boolean" }, textFill: { kind: "fill" }, lineHeight: { kind: "number" } } }, i2t = { name: "Image", base: YI, attrs: { source: { kind: "string" }, stretches: d0("Stretch", "none", "width", "height", "both", "cover", "contain"), loaded: { kind: "boolean" }, failed: { kind: "boolean" }, naturalWidth: { kind: "number" }, naturalHeight: { kind: "number" } }, readOnly: ["loaded", "failed", "naturalWidth", "naturalHeight"] }, a2t = { name: "Video", base: YI, attrs: { source: { kind: "string" }, stretches: d0("Stretch", "none", "width", "height", "both", "cover", "contain"), playing: { kind: "boolean" }, loop: { kind: "boolean" }, muted: { kind: "boolean" }, position: { kind: "number" }, volume: { kind: "number" }, playbackRate: { kind: "number" }, ended: { kind: "boolean" }, duration: { kind: "number" }, buffering: { kind: "boolean" }, loaded: { kind: "boolean" }, failed: { kind: "boolean" } }, readOnly: ["ended", "duration", "buffering", "loaded", "failed"], events: ["ended"] }, s2t = { name: "DOMIsland", base: YI, attrs: { slot: { kind: "string" }, childName: { kind: "string" } } }, sJe = { name: "Editor", base: YI, attrs: { commitOn: { kind: "string" }, error: { kind: "string" }, valid: { kind: "boolean" }, dirty: { kind: "boolean" }, focused: { kind: "boolean" } } }, o2t = { name: "TextInput", base: sJe, attrs: { text: { kind: "string" }, placeholder: { kind: "string" }, multiline: { kind: "boolean" }, spellcheck: { kind: "boolean" }, wrap: { kind: "boolean" }, padding: { kind: "number" }, initial: { kind: "string" } }, events: ["input", "enter"] }, oJe = { name: "RichText", base: YI, attrs: { lineHeight: { kind: "number" }, bodyColor: { kind: "color" }, scale: { kind: "number" }, dark: { kind: "boolean" } }, events: ["link"] }, c2t = { name: "Markdown", base: oJe, attrs: { text: { kind: "string" } } }, l2t = { name: "HTMLText", base: oJe, attrs: { html: { kind: "string" }, unsupported: d0("Unsupported", "strip", "error"), accents: { kind: "record", name: "Accents" } } }, cJe = { name: "Layout", base: jT, attrs: {} }, u2t = { name: "TweenLayout", base: cJe, attrs: { t: { kind: "number" }, duration: { kind: "number" } } }, lJe = { name: "Dataset", base: jT, attrs: { contents: { kind: "object" }, schema: { kind: "dataschema" }, value: { kind: "object" } }, readOnly: ["value"] }, f2t = { name: "DataSource", base: lJe, attrs: { url: { kind: "string" }, format: { kind: "string" }, method: { kind: "string" }, body: { kind: "object" }, auto: { kind: "boolean" }, status: d0("DataStatus", "idle", "loading", "loaded", "failed"), idle: { kind: "boolean" }, loading: { kind: "boolean" }, loaded: { kind: "boolean" }, failed: { kind: "boolean" }, error: { kind: "string" }, statusCode: { kind: "number" }, errorBody: { kind: "object" } }, readOnly: ["status", "idle", "loading", "loaded", "failed", "error", "statusCode", "errorBody"], events: ["load"] }, uJe = { name: "Animator", base: jT, attrs: { attribute: { kind: "slotref" }, to: { kind: "number" }, from: { kind: "number" }, duration: { kind: "number" }, repeat: { kind: "number" }, motion: { kind: "motion" }, relative: { kind: "boolean" }, started: { kind: "boolean" }, paused: { kind: "boolean" }, settled: { kind: "boolean" } }, events: ["start", "stop", "repeat"] }, _2t = { name: "AnimatorGroup", base: jT, attrs: { attribute: { kind: "slotref" }, to: { kind: "number" }, from: { kind: "number" }, duration: { kind: "number" }, repeat: { kind: "number" }, motion: { kind: "motion" }, process: d0("Process", "sequential", "simultaneous"), relative: { kind: "boolean" }, started: { kind: "boolean" }, paused: { kind: "boolean" } }, events: ["start", "stop", "repeat"] }, p2t = { name: "Spring", base: uJe, attrs: { stiffness: { kind: "number" }, damping: { kind: "number" }, mass: { kind: "number" }, epsilon: { kind: "number" } } }, d2t = { name: "Heartbeat", base: jT, attrs: { running: { kind: "boolean" } }, events: ["frame"] }, m2t = { name: "Keys", base: jT, attrs: {}, events: ["keyDown", "keyUp", "navClaim"] }, h2t = { name: "Focus", base: jT, attrs: {}, events: ["focusChange", "geometry"] }, g2t = { name: "Tip", base: jT, attrs: {}, events: ["tip"] }, Zbe = { name: "Stream", base: jT, attrs: { url: { kind: "string" }, active: { kind: "boolean" }, retry: { kind: "number" }, status: d0("StreamStatus", "closed", "connecting", "open", "retrying", "failed"), error: { kind: "string" }, last: { kind: "string" }, open: { kind: "boolean" } }, readOnly: ["status", "error", "last", "open"], events: ["message", "open", "close", "error"] }, y2t = { name: "EventStream", base: Zbe, attrs: { listenTo: { kind: "array", of: "string" } } }, v2t = { name: "Socket", base: Zbe, attrs: {} }, b2t = { name: "State", base: jT, attrs: { applied: { kind: "boolean" } }, events: ["apply", "remove"] }, H6 = { View: YI, App: n2t, Text: r2t, Image: i2t, Video: a2t, DOMIsland: s2t, TextInput: o2t, Markdown: c2t, HTMLText: l2t, Layout: cJe, Editor: sJe, TweenLayout: u2t, Dataset: lJe, DataSource: f2t, Animator: uJe, AnimatorGroup: _2t, Spring: p2t, Heartbeat: d2t, Keys: m2t, Focus: h2t, Tip: g2t, Stream: Zbe, EventStream: y2t, Socket: v2t, State: b2t, Node: jT };
     hx = (y) => "on" + y[0].toUpperCase() + y.slice(1), wF = { click: "PointerEvent", dblClick: "PointerEvent", hold: "PointerEvent", contextMenu: "PointerEvent", pointerDown: "PointerEvent", pointerMove: "PointerEvent", pointerOver: "PointerEvent", pointerOut: "PointerEvent", pointerUp: "PointerUpEvent", touchStart: "TouchEvent", touchMove: "TouchEvent", touchEnd: "TouchEvent", touchCancel: "TouchEvent", wheel: "WheelEvent", keyDown: "KeyEvent", keyUp: "KeyEvent", input: "string", navClaim: "boolean", link: "string", follow: "string", frame: "number", focusChange: "View", geometry: "FocusGeometry", tip: "TipEvent", message: "StreamMessage" }, fJe = /* @__PURE__ */ new Set([...Object.values(wF), "Touch", "Draw", "DrawGradient"]);
   });
   function Aee(y, p) {
@@ -1673,22 +1673,22 @@ var DeclareCompilerMac = (() => {
       case "string":
         return y.value;
       case "hexColor": {
-        let p = d0({ kind: "color" }, y);
+        let p = m0({ kind: "color" }, y);
         return p.ok ? p.value : void 0;
       }
       case "ident": {
         if (y.name === "true") return true;
         if (y.name === "false") return false;
         if (y.name === "null") return null;
-        let p = d0({ kind: "color" }, y);
+        let p = m0({ kind: "color" }, y);
         return p.ok ? p.value : void 0;
       }
       case "call": {
-        let p = d0({ kind: "fill" }, y);
+        let p = m0({ kind: "fill" }, y);
         if (p.ok) return p.value;
-        let T = d0({ kind: "stroke" }, y);
+        let T = m0({ kind: "stroke" }, y);
         if (T.ok) return T.value;
-        let A = d0({ kind: "shadow" }, y);
+        let A = m0({ kind: "shadow" }, y);
         return A.ok ? A.value : void 0;
       }
       default:
@@ -1720,7 +1720,7 @@ var DeclareCompilerMac = (() => {
           continue;
         }
         if (Oe.kind === "hexColor" || Oe.kind === "ident" && Oe.name !== "null" && Oe.name !== "true" && Oe.name !== "false") {
-          let Ee = d0({ kind: "color" }, Oe);
+          let Ee = m0({ kind: "color" }, Oe);
           if (!Ee.ok) return P(`${T}.${p.name}: a bare list holds plain values \u2014 numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`, Oe.pos);
           _e.push(Ee.value);
           continue;
@@ -1733,7 +1733,7 @@ var DeclareCompilerMac = (() => {
       }
       return { ok: true, type: U, value: Object.freeze(_e) };
     }
-    let le = d0(U, p.def);
+    let le = m0(U, p.def);
     if (!le.ok) {
       let _e = p.def.kind === "path" ? ` \u2014 to seed from data, write a { } default: ${p.name}: ${p.type} = { :${p.def.path} }` : "";
       return P(`${T}.${p.name}'s default expects ${le.expected}, got ${le.found ?? Qb(p.def)}${_e}`, p.def.pos);
@@ -2318,7 +2318,7 @@ var DeclareCompilerMac = (() => {
       }
       return { ok: true, datapath: { path: p.value.path, many: p.value.many, pos: p.value.pos, plan: p.value.plan } };
     }
-    let A = d0(T, p.value);
+    let A = m0(T, p.value);
     if (A.ok && typeof A.value == "object" && A.value !== null && "align" in A.value && p.name !== "x" && p.name !== "y") return { ok: false, error: new Bt(`${y.name}.${p.name} = ${A.value.align}: the position literals center | end are legal on x and y only \u2014 a size wants a number or a percent (width = 100%)`, p.value.pos) };
     if (!A.ok) {
       let B = T.kind === "enum" && T.name === "Scrolls" && p.value.kind === "ident" && (p.value.name === "true" || p.value.name === "false") ? ` \u2014 scrolls is an axis now: ${p.value.kind === "ident" && p.value.name === "true" ? "'scrolls = y' is the old 'scrolls = true'" : "'scrolls = none' is the old 'scrolls = false'"}` : p.value.kind === "ident" && T.kind !== "enum" ? ` \u2014 write { ${p.value.name} } to bind the attribute${T.kind === "string" ? `, or "${p.value.name}" for the literal text` : ""}` : "";
@@ -2425,7 +2425,7 @@ var DeclareCompilerMac = (() => {
         if (t && typeof t == "object" || typeof t == "function") for (let a of A(t)) !P.call(e, a) && a !== r && p(e, a, { get: () => t[a], enumerable: !(i = T(t, a)) || i.enumerable });
         return e;
       }, le = (e) => e, _e = {};
-      B(_e, { ANONYMOUS: () => IY, AccessFlags: () => Ine, AssertionLevel: () => Bte, AssignmentDeclarationKind: () => jne, AssignmentKind: () => uae, Associativity: () => yae, BreakpointResolver: () => AX, BuilderFileEmit: () => pue, BuilderProgramKind: () => Tue, BuilderState: () => Nm, CallHierarchy: () => tw, CharacterCodes: () => Yne, CheckFlags: () => Cne, CheckMode: () => Qq, ClassificationType: () => JG, ClassificationTypeNames: () => xfe, CommentDirectiveType: () => une, Comparison: () => qe, CompletionInfoFlags: () => hfe, CompletionTriggerKind: () => jG, Completions: () => sw, ContainerFlags: () => Hce, ContextFlags: () => gne, Debug: () => D, DiagnosticCategory: () => f5, Diagnostics: () => d, DocumentHighlights: () => aj, ElementFlags: () => Ene, EmitFlags: () => RW, EmitHint: () => Zne, EmitOnly: () => _ne, EndOfLineState: () => vfe, ExitStatus: () => pne, ExportKind: () => p_e, Extension: () => Xne, ExternalEmitHelpers: () => Qne, FileIncludeKind: () => CW, FilePreprocessingDiagnosticsKind: () => fne, FileSystemEntryKind: () => cre, FileWatcherEventKind: () => are, FindAllReferences: () => Zo, FlattenLevel: () => mle, FlowFlags: () => u5, ForegroundColorEscapeSequences: () => rue, FunctionFlags: () => hae, GeneratedIdentifierFlags: () => kW, GetLiteralTextFlags: () => Aie, GoToDefinition: () => nI, HighlightSpanKind: () => dfe, IdentifierNameMap: () => PE, ImportKind: () => __e, ImportsNotUsedAsValues: () => Vne, IndentStyle: () => mfe, IndexFlags: () => Dne, IndexKind: () => One, InferenceFlags: () => Lne, InferencePriority: () => Rne, InlayHintKind: () => pfe, InlayHints: () => yK, InternalEmitFlags: () => Kne, InternalNodeBuilderFlags: () => vne, InternalSymbolName: () => wne, IntersectionFlags: () => hne, InvalidatedProjectKind: () => Vue, JSDocParsingMode: () => ire, JsDoc: () => G1, JsTyping: () => mb, JsxEmit: () => zne, JsxFlags: () => sne, JsxReferenceKind: () => Nne, LanguageFeatureMinimumTarget: () => ou, LanguageServiceMode: () => ffe, LanguageVariant: () => Hne, LexicalEnvironmentFlags: () => tre, ListFormat: () => nre, LogLevel: () => Yte, MapCode: () => vK, MemberOverrideStatus: () => dne, ModifierFlags: () => SW, ModuleDetectionKind: () => Bne, ModuleInstanceState: () => $ce, ModuleKind: () => vA, ModuleResolutionKind: () => yA, ModuleSpecifierEnding: () => dse, NavigateTo: () => M_e, NavigationBar: () => B_e, NewLineKind: () => $ne, NodeBuilderFlags: () => yne, NodeCheckFlags: () => EW, NodeFactoryFlags: () => $se, NodeFlags: () => TW, NodeResolutionFeatures: () => Rce, ObjectFlags: () => DW, OperationCanceledException: () => hD, OperatorPrecedence: () => vae, OrganizeImports: () => Y1, OrganizeImportsMode: () => MG, OuterExpressionKinds: () => ere, OutliningElementsCollector: () => TK, OutliningSpanKind: () => gfe, OutputFileType: () => yfe, PackageJsonAutoImportPreference: () => ufe, PackageJsonDependencyGroup: () => lfe, PatternMatchKind: () => GY, PollingInterval: () => LW, PollingWatchKind: () => Wne, PragmaKindFlags: () => rre, PredicateSemantics: () => one, PreparePasteEdits: () => LK, PrivateIdentifierKind: () => toe, ProcessLevel: () => vle, ProgramUpdateLevel: () => Qle, QuotePreference: () => $fe, RegularExpressionFlags: () => cne, RelationComparisonResult: () => xW, Rename: () => Wj, ScriptElementKind: () => Tfe, ScriptElementKindModifier: () => Sfe, ScriptKind: () => PW, ScriptSnapshot: () => gM, ScriptTarget: () => qne, SemanticClassificationFormat: () => _fe, SemanticMeaning: () => kfe, SemicolonPreference: () => BG, SignatureCheckMode: () => Zq, SignatureFlags: () => NW, SignatureHelp: () => i7, SignatureInfo: () => _ue, SignatureKind: () => Pne, SmartSelectionRange: () => kK, SnippetKind: () => FW, StatisticType: () => Zue, StructureIsReused: () => wW, SymbolAccessibility: () => Sne, SymbolDisplay: () => J0, SymbolDisplayPartKind: () => vM, SymbolFlags: () => AW, SymbolFormatFlags: () => Tne, SyntaxKind: () => bW, Ternary: () => Mne, ThrottledCancellationToken: () => Hpe, TokenClass: () => bfe, TokenFlags: () => lne, TransformFlags: () => OW, TypeFacts: () => Kq, TypeFlags: () => IW, TypeFormatFlags: () => bne, TypeMapKind: () => Fne, TypePredicateKind: () => xne, TypeReferenceSerializationKind: () => kne, UnionReduction: () => mne, UpToDateStatusType: () => Mue, VarianceFlags: () => Ane, Version: () => ym, VersionRange: () => l5, WatchDirectoryFlags: () => Gne, WatchDirectoryKind: () => Une, WatchFileKind: () => Jne, WatchLogLevel: () => eue, WatchType: () => du, accessPrivateIdentifier: () => dle, addEmitFlags: () => _h, addEmitHelper: () => SC, addEmitHelpers: () => Ug, addInternalEmitFlags: () => Yx, addNodeFactoryPatcher: () => g2e, addObjectAllocatorPatcher: () => t2e, addRange: () => ni, addRelatedInfo: () => ds, addSyntheticLeadingComment: () => rb, addSyntheticTrailingComment: () => PN, addToSeen: () => Dd, advancedAsyncSuperHelper: () => EL, affectsDeclarationPathOptionDeclarations: () => sce, affectsEmitOptionDeclarations: () => ace, allKeysStartWithDot: () => S9, altDirectorySeparator: () => m5, and: () => s5, append: () => Hn, appendIfUnique: () => vy, arrayFrom: () => Aa, arrayIsEqualTo: () => fp, arrayIsHomogeneous: () => Sse, arrayOf: () => Rte, arrayReverseIterator: () => ZU, arrayToMap: () => dA, arrayToMultiMap: () => m4, arrayToNumericMap: () => Mte, assertType: () => NSe, assign: () => Tx, asyncSuperHelper: () => AL, attachFileToDiagnostics: () => pC, base64decode: () => Jae, base64encode: () => Bae, binarySearch: () => Av, binarySearchKey: () => Pk, bindSourceFile: () => Gce, breakIntoCharacterSpans: () => I_e, breakIntoWordSpans: () => D_e, buildLinkParts: () => Zfe, buildOpts: () => NO, buildOverload: () => rFe, bundlerModuleNameResolver: () => Lce, canBeConvertedToAsync: () => eX, canHaveDecorators: () => CS, canHaveExportModifier: () => tO, canHaveFlowNode: () => zA, canHaveIllegalDecorators: () => oq, canHaveIllegalModifiers: () => Joe, canHaveIllegalType: () => z2e, canHaveIllegalTypeParameters: () => Boe, canHaveJSDoc: () => S3, canHaveLocals: () => Vh, canHaveModifiers: () => Fd, canHaveModuleSpecifier: () => oae, canHaveSymbol: () => Tm, canIncludeBindAndCheckDiagnostics: () => SN, canJsonReportNoInputFiles: () => MO, canProduceDiagnostics: () => HO, canUsePropertyAccess: () => f$, canWatchAffectingLocation: () => Iue, canWatchAtTypes: () => Eue, canWatchDirectoryOrFile: () => eG, canWatchDirectoryOrFilePath: () => c8, cartesianProduct: () => Hte, cast: () => hs, chainBundle: () => Dm, chainDiagnosticMessages: () => $a, changeAnyExtension: () => S4, changeCompilerHostLikeToUseCache: () => dP, changeExtension: () => A0, changeFullExtension: () => y5, changesAffectModuleResolution: () => $5, changesAffectingProgramStructure: () => vie, characterCodeToRegularExpressionFlag: () => HW, childIsDecorated: () => VD, classElementOrClassElementParameterIsDecorated: () => qz, classHasClassThisAssignment: () => dH, classHasDeclaredOrExplicitlyAssignedName: () => mH, classHasExplicitlyAssignedName: () => R9, classOrConstructorParameterIsDecorated: () => S0, classicNameResolver: () => zce, classifier: () => Kpe, cleanExtendedConfigCache: () => U9, clear: () => is, clearMap: () => k_, clearSharedExtendedConfigFileWatcher: () => IH, climbPastPropertyAccess: () => SM, clone: () => jte, cloneCompilerOptions: () => aY, closeFileWatcher: () => Qd, closeFileWatcherOf: () => sd, codefix: () => yf, collapseTextChangeRangesAcrossMultipleVersions: () => Nre, collectExternalModuleInfo: () => uH, combine: () => Nk, combinePaths: () => ri, commandLineOptionOfCustomType: () => lce, commentPragmas: () => _5, commonOptionsWithBuild: () => t9, compact: () => p4, compareBooleans: () => s1, compareDataObjects: () => BV, compareDiagnostics: () => mN, compareEmitHelpers: () => roe, compareNumberOfDirectorySeparators: () => K3, comparePaths: () => Ty, comparePathsCaseInsensitive: () => txe, comparePathsCaseSensitive: () => exe, comparePatternKeys: () => Vq, compareProperties: () => zte, compareStringsCaseInsensitive: () => g4, compareStringsCaseInsensitiveEslintCompatible: () => Jte, compareStringsCaseSensitive: () => Hu, compareStringsCaseSensitiveUI: () => y4, compareTextSpans: () => i5, compareValues: () => qo, compilerOptionsAffectDeclarationPath: () => cse, compilerOptionsAffectEmit: () => ose, compilerOptionsAffectSemanticDiagnostics: () => sse, compilerOptionsDidYouMeanDiagnostics: () => a9, compilerOptionsIndicateEsModules: () => fY, computeCommonSourceDirectoryOfFilenames: () => tue, computeLineAndCharacterOfPosition: () => SA, computeLineOfPosition: () => TD, computeLineStarts: () => Uk, computePositionOfLineAndCharacter: () => S5, computeSignatureWithDiagnostics: () => GH, computeSuggestionDiagnostics: () => KY, computedOptions: () => hN, concatenate: () => la, concatenateDiagnosticMessageChains: () => Zae, consumesNodeCoreModules: () => XM, contains: () => Yn, containsIgnoredPath: () => CN, containsObjectRestOrSpread: () => AO, containsParseError: () => Xk, containsPath: () => Hp, convertCompilerOptionsForTelemetry: () => kce, convertCompilerOptionsFromJson: () => Qke, convertJsonOption: () => u2, convertToBase64: () => jae, convertToJson: () => FO, convertToObject: () => yce, convertToOptionsWithAbsolutePaths: () => l9, convertToRelativePath: () => vD, convertToTSConfig: () => Aq, convertTypeAcquisitionFromJson: () => Zke, copyComments: () => v2, copyEntries: () => q5, copyLeadingComments: () => GE, copyProperties: () => sW, copyTrailingAsLeadingComments: () => I8, copyTrailingComments: () => DP, couldStartTrivia: () => gre, countWhere: () => Ya, createAbstractBuilder: () => aAe, createAccessorPropertyBackingField: () => uq, createAccessorPropertyGetRedirector: () => Goe, createAccessorPropertySetRedirector: () => Yoe, createBaseNodeFactory: () => Jse, createBinaryExpressionTrampoline: () => XL, createBuilderProgram: () => YH, createBuilderProgramUsingIncrementalBuildInfo: () => Cue, createBuilderStatusReporter: () => lM, createCacheableExportInfoMap: () => JY, createCachedDirectoryStructureHost: () => B9, createClassifier: () => REe, createCommentDirectivesMap: () => Cie, createCompilerDiagnostic: () => Ic, createCompilerDiagnosticForInvalidCustomType: () => uce, createCompilerDiagnosticFromMessageChain: () => YR, createCompilerHost: () => nue, createCompilerHostFromProgramHost: () => mG, createCompilerHostWorker: () => W9, createDetachedDiagnostic: () => _C, createDiagnosticCollection: () => aN, createDiagnosticForFileFromMessageChain: () => Uz, createDiagnosticForNode: () => Ar, createDiagnosticForNodeArray: () => RA, createDiagnosticForNodeArrayFromMessageChain: () => e3, createDiagnosticForNodeFromMessageChain: () => Pg, createDiagnosticForNodeInSourceFile: () => Yp, createDiagnosticForRange: () => Bie, createDiagnosticMessageChainFromDiagnostic: () => jie, createDiagnosticReporter: () => HC, createDocumentPositionMapper: () => lle, createDocumentRegistry: () => y_e, createDocumentRegistryInternal: () => $Y, createEmitAndSemanticDiagnosticsBuilderProgram: () => ZH, createEmitHelperFactory: () => noe, createEmptyExports: () => vO, createEvaluator: () => Pse, createExpressionForJsxElement: () => Ooe, createExpressionForJsxFragment: () => Foe, createExpressionForObjectLiteralElementLike: () => Roe, createExpressionForPropertyName: () => tq, createExpressionFromEntityName: () => bO, createExternalHelpersImportDeclarationIfNeeded: () => iq, createFileDiagnostic: () => Wl, createFileDiagnosticFromMessageChain: () => nR, createFlowNode: () => eg, createForOfBindingStatement: () => eq, createFutureSourceFile: () => nj, createGetCanonicalFileName: () => Ou, createGetIsolatedDeclarationErrors: () => Wle, createGetSourceFile: () => FH, createGetSymbolAccessibilityDiagnosticForNode: () => j1, createGetSymbolAccessibilityDiagnosticForNodeName: () => Ule, createGetSymbolWalker: () => Yce, createIncrementalCompilerHost: () => cM, createIncrementalProgram: () => Lue, createJsxFactoryExpression: () => Z$, createLanguageService: () => Gpe, createLanguageServiceSourceFile: () => Tj, createMemberAccessForPropertyName: () => c2, createModeAwareCache: () => AE, createModeAwareCacheKey: () => ZN, createModeMismatchDetails: () => Cz, createModuleNotFoundChain: () => G5, createModuleResolutionCache: () => EE, createModuleResolutionLoader: () => JH, createModuleResolutionLoaderUsingGlobalCache: () => Oue, createModuleSpecifierResolutionHost: () => W1, createMultiMap: () => xd, createNameResolver: () => h$, createNodeConverters: () => zse, createNodeFactory: () => sO, createOptionNameMap: () => r9, createOverload: () => jK, createPackageJsonImportFilter: () => YE, createPackageJsonInfo: () => PY, createParenthesizerRules: () => Use, createPatternMatcher: () => x_e, createPrinter: () => pb, createPrinterWithDefaults: () => Xle, createPrinterWithRemoveComments: () => IS, createPrinterWithRemoveCommentsNeverAsciiEscape: () => Kle, createPrinterWithRemoveCommentsOmitTrailingSemicolon: () => EH, createProgram: () => a8, createProgramDiagnostics: () => uue, createProgramHost: () => hG, createPropertyNameNodeForIdentifierOrLiteral: () => eO, createQueue: () => h4, createRange: () => Qp, createRedirectedBuilderProgram: () => QH, createResolutionCache: () => nG, createRuntimeTypeSerializer: () => kle, createScanner: () => wg, createSemanticDiagnosticsBuilderProgram: () => iAe, createSet: () => oW, createSolutionBuilder: () => Uue, createSolutionBuilderHost: () => Bue, createSolutionBuilderWithWatch: () => Wue, createSolutionBuilderWithWatchHost: () => Jue, createSortedArray: () => QU, createSourceFile: () => jC, createSourceMapGenerator: () => ile, createSourceMapSource: () => T2e, createSuperAccessVariableStatement: () => M9, createSymbolTable: () => _s, createSymlinkCache: () => YV, createSyntacticTypeNodeBuilder: () => sfe, createSystemWatchFunctions: () => lre, createTextChange: () => S8, createTextChangeFromStartLength: () => RM, createTextChangeRange: () => P4, createTextRangeFromNode: () => cY, createTextRangeFromSpan: () => FM, createTextSpan: () => Fu, createTextSpanFromBounds: () => ll, createTextSpanFromNode: () => Gf, createTextSpanFromRange: () => M0, createTextSpanFromStringLiteralLikeContent: () => oY, createTextWriter: () => O3, createTokenRange: () => FV, createTypeChecker: () => nle, createTypeReferenceDirectiveResolutionCache: () => v9, createTypeReferenceResolutionLoader: () => $9, createWatchCompilerHost: () => mAe, createWatchCompilerHostOfConfigFile: () => gG, createWatchCompilerHostOfFilesAndCompilerOptions: () => yG, createWatchFactory: () => dG, createWatchHost: () => pG, createWatchProgram: () => vG, createWatchStatusReporter: () => rG, createWriteFileMeasuringIO: () => RH, declarationNameToString: () => Bo, decodeMappings: () => oH, decodedTextSpanIntersectsWith: () => N4, deduplicate: () => WT, defaultHoverMaximumTruncationLength: () => gie, defaultInitCompilerOptions: () => yke, defaultMaximumTruncationLength: () => MD, diagnosticCategoryName: () => xx, diagnosticToString: () => FS, diagnosticsEqualityComparer: () => XR, directoryProbablyExists: () => km, directorySeparator: () => Xo, displayPart: () => A_, displayPartsToString: () => W8, disposeEmitNodes: () => A$, documentSpansEqual: () => yY, dumpTracingLegend: () => ane, elementAt: () => wv, elideNodes: () => Hoe, emitDetachedComments: () => Eae, emitFiles: () => wH, emitFilesAndReportErrors: () => iM, emitFilesAndReportErrorsAndGetExitStatus: () => _G, emitModuleKindIsNonNodeESM: () => H3, emitNewLineBeforeLeadingCommentOfPosition: () => Aae, emitResolverSkipsTypeChecking: () => CH, emitSkippedWithNoDiagnostics: () => zH, emptyArray: () => ae, emptyFileSystemEntries: () => r$, emptyMap: () => At, emptyOptions: () => Rd, endsWith: () => rc, ensurePathIsNonModuleName: () => kx, ensureScriptKind: () => sL, ensureTrailingDirectorySeparator: () => Kl, entityNameToString: () => W_, enumerateInsertsAndDeletes: () => c5, equalOwnProperties: () => Lte, equateStringsCaseInsensitive: () => Nv, equateStringsCaseSensitive: () => $T, equateValues: () => Dv, escapeJsxAttributeString: () => hV, escapeLeadingUnderscores: () => Oc, escapeNonAsciiString: () => IR, escapeSnippetText: () => mS, escapeString: () => Xh, escapeTemplateSubstitution: () => dV, evaluatorResult: () => Zl, every: () => jn, exclusivelyPrefixedNodeCoreModules: () => TL, executeCommandLine: () => GAe, expandPreOrPostfixIncrementOrDecrementExpression: () => $L, explainFiles: () => oG, explainIfFileIsRedirectAndImpliedFormat: () => cG, exportAssignmentIsAlias: () => w3, expressionResultIsUnused: () => kse, extend: () => aW, extensionFromPath: () => bN, extensionIsTS: () => fL, extensionsNotSupportingExtensionlessResolution: () => uL, externalHelpersModuleNameText: () => zv, factory: () => R, fileExtensionIs: () => Ac, fileExtensionIsOneOf: () => nl, fileIncludeReasonToDiagnostics: () => fG, fileShouldUseJavaScriptRequire: () => BY, filter: () => Nn, filterMutate: () => tc, filterSemanticDiagnostics: () => Y9, find: () => $t, findAncestor: () => On, findBestPatternMatch: () => pW, findChildOfKind: () => Eo, findComputedPropertyNameCacheAssignment: () => KL, findConfigFile: () => PH, findConstructorDeclaration: () => iO, findContainingList: () => AM, findDiagnosticForNode: () => l_e, findFirstNonJsxWhitespaceToken: () => Pfe, findIndex: () => Hr, findLast: () => si, findLastIndex: () => br, findListItemInfo: () => Nfe, findModifier: () => $E, findNextToken: () => OS, findPackageJson: () => c_e, findPackageJsons: () => NY, findPrecedingMatchingToken: () => PM, findPrecedingToken: () => ql, findSuperStatementIndexPath: () => N9, findTokenOnLeftOfPosition: () => xP, findUseStrictPrologue: () => rq, first: () => Qs, firstDefined: () => an, firstDefinedIterator: () => ir, firstIterator: () => tW, firstOrOnly: () => RY, firstOrUndefined: () => Il, firstOrUndefinedIterator: () => r5, fixupCompilerOptions: () => tX, flatMap: () => oa, flatMapIterator: () => Km, flatMapToMutable: () => L_, flatten: () => Is, flattenCommaList: () => Xoe, flattenDestructuringAssignment: () => d2, flattenDestructuringBinding: () => ES, flattenDiagnosticMessageText: () => Th, forEach: () => Ne, forEachAncestor: () => bie, forEachAncestorDirectory: () => bD, forEachAncestorDirectoryStoppingAtGlobalCache: () => Zh, forEachChild: () => qa, forEachChildRecursively: () => MC, forEachDynamicImportOrRequireCall: () => SL, forEachEmittedFile: () => TH, forEachEnclosingBlockScopeContainer: () => Rie, forEachEntry: () => Ql, forEachExternalModuleToImportFrom: () => WY, forEachImportClauseDeclaration: () => cae, forEachKey: () => Dg, forEachLeadingCommentRange: () => C4, forEachNameInAccessChainWalkingLeft: () => Gae, forEachNameOfDefaultExport: () => ij, forEachOptionsSyntaxByName: () => S$, forEachProjectReference: () => DN, forEachPropertyAssignment: () => jA, forEachResolvedProjectReference: () => b$, forEachReturnStatement: () => Hv, forEachRight: () => En, forEachTrailingCommentRange: () => w4, forEachTsConfigPropArray: () => a3, forEachUnique: () => bY, forEachYieldExpression: () => zie, formatColorAndReset: () => DS, formatDiagnostic: () => LH, formatDiagnostics: () => Pwe, formatDiagnosticsWithColorAndContext: () => sue, formatGeneratedName: () => O1, formatGeneratedNamePart: () => xE, formatLocation: () => MH, formatMessage: () => dC, formatStringFromArgs: () => Mg, formatting: () => Rl, generateDjb2Hash: () => gD, generateTSConfig: () => vce, getAdjustedReferenceLocation: () => ZG, getAdjustedRenameLocation: () => IM, getAliasDeclarationFromName: () => iV, getAllAccessorDeclarations: () => uS, getAllDecoratorsOfClass: () => _H, getAllDecoratorsOfClassElement: () => O9, getAllJSDocTags: () => I5, getAllJSDocTagsOfKind: () => kxe, getAllKeys: () => ASe, getAllProjectOutputs: () => j9, getAllSuperTypeNodes: () => ZD, getAllowImportingTsExtensions: () => tse, getAllowJSCompilerOption: () => eb, getAllowSyntheticDefaultImports: () => mC, getAncestor: () => y1, getAnyExtensionFromPath: () => jk, getAreDeclarationMapsEnabled: () => KR, getAssignedExpandoInitializer: () => Zk, getAssignedName: () => w5, getAssignmentDeclarationKind: () => ul, getAssignmentDeclarationPropertyAccessKind: () => g3, getAssignmentTargetKind: () => Gv, getAutomaticTypeDirectiveNames: () => g9, getBaseFileName: () => Dl, getBinaryOperatorPrecedence: () => D3, getBuildInfo: () => AH, getBuildInfoFileVersionMap: () => KH, getBuildInfoText: () => Gle, getBuildOrderFromAnyBuildOrder: () => u8, getBuilderCreationParameters: () => Z9, getBuilderFileEmit: () => db, getCanonicalDiagnostic: () => Jie, getCheckFlags: () => Uc, getClassExtendsHeritageElement: () => sS, getClassLikeDeclarationOfSymbol: () => Ny, getCombinedLocalAndExportSymbolFlags: () => QA, getCombinedModifierFlags: () => c1, getCombinedNodeFlags: () => xy, getCombinedNodeFlagsAlwaysIncludeJSDoc: () => ZW, getCommentRange: () => ph, getCommonSourceDirectory: () => pP, getCommonSourceDirectoryOfConfig: () => m2, getCompilerOptionValue: () => eL, getConditions: () => ub, getConfigFileParsingDiagnostics: () => NS, getConstantValue: () => Gse, getContainerFlags: () => qq, getContainerNode: () => y2, getContainingClass: () => ku, getContainingClassExcludingClassDecorators: () => uR, getContainingClassStaticBlock: () => Kie, getContainingFunction: () => Tp, getContainingFunctionDeclaration: () => Xie, getContainingFunctionOrClassStaticBlock: () => lR, getContainingNodeArray: () => Cse, getContainingObjectLiteralElement: () => z8, getContextualTypeFromParent: () => VM, getContextualTypeFromParentOrAncestorTypeNode: () => EM, getDeclarationDiagnostics: () => zle, getDeclarationEmitExtensionForPath: () => PR, getDeclarationEmitOutputFilePath: () => xae, getDeclarationEmitOutputFilePathWorker: () => NR, getDeclarationFileExtension: () => ZL, getDeclarationFromName: () => QD, getDeclarationModifierFlagsFromSymbol: () => ed, getDeclarationOfKind: () => lc, getDeclarationsOfKind: () => yie, getDeclaredExpandoInitializer: () => GD, getDecorators: () => Lv, getDefaultCompilerOptions: () => bj, getDefaultFormatCodeSettings: () => yM, getDefaultLibFileName: () => E4, getDefaultLibFilePath: () => Ype, getDefaultLikeExportInfo: () => rj, getDefaultLikeExportNameFromDeclaration: () => LY, getDefaultResolutionModeForFileWorker: () => G9, getDiagnosticText: () => __, getDiagnosticsWithinSpan: () => u_e, getDirectoryPath: () => hi, getDirectoryToWatchFailedLookupLocation: () => tG, getDirectoryToWatchFailedLookupLocationFromTypeRoot: () => Nue, getDocumentPositionMapper: () => XY, getDocumentSpansEqualityComparer: () => vY, getESModuleInterop: () => fh, getEditsForFileRename: () => b_e, getEffectiveBaseTypeNode: () => xm, getEffectiveConstraintOfTypeParameter: () => wA, getEffectiveContainerForJSDocTemplateTag: () => SR, getEffectiveImplementsTypeNodes: () => $A, getEffectiveInitializer: () => d3, getEffectiveJSDocHost: () => g1, getEffectiveModifierFlags: () => Yu, getEffectiveModifierFlagsAlwaysIncludeJSDoc: () => Pae, getEffectiveModifierFlagsNoCache: () => Oae, getEffectiveReturnTypeNode: () => $_, getEffectiveSetAccessorTypeAnnotationNode: () => kV, getEffectiveTypeAnnotationNode: () => Nl, getEffectiveTypeParameterDeclarations: () => Mv, getEffectiveTypeRoots: () => QN, getElementOrPropertyAccessArgumentExpressionOrName: () => TR, getElementOrPropertyAccessName: () => wy, getElementsOfBindingOrAssignmentPattern: () => SE, getEmitDeclarations: () => C_, getEmitFlags: () => Zs, getEmitHelpers: () => E$, getEmitModuleDetectionKind: () => nse, getEmitModuleFormatOfFileWorker: () => gP, getEmitModuleKind: () => Df, getEmitModuleResolutionKind: () => pf, getEmitScriptTarget: () => zs, getEmitStandardClassFields: () => HV, getEnclosingBlockScopeContainer: () => Sm, getEnclosingContainer: () => tR, getEncodedSemanticClassifications: () => zY, getEncodedSyntacticClassifications: () => VY, getEndLinePosition: () => Y4, getEntityNameFromTypeNode: () => c3, getEntrypointsFromPackageJsonInfo: () => Uq, getErrorCountForSummary: () => nM, getErrorSpanForNode: () => Rx, getErrorSummaryText: () => aG, getEscapedTextOfIdentifierOrLiteral: () => nN, getEscapedTextOfJsxAttributeName: () => EN, getEscapedTextOfJsxNamespacedName: () => vC, getExpandoInitializer: () => m1, getExportAssignmentExpression: () => aV, getExportInfoMap: () => R8, getExportNeedsImportStarHelper: () => ule, getExpressionAssociativity: () => _V, getExpressionPrecedence: () => iN, getExternalHelpersModuleName: () => SO, getExternalModuleImportEqualsDeclarationExpression: () => $D, getExternalModuleName: () => tC, getExternalModuleNameFromDeclaration: () => Tae, getExternalModuleNameFromPath: () => vV, getExternalModuleNameLiteral: () => LC, getExternalModuleRequireArgument: () => Gz, getFallbackOptions: () => n8, getFileEmitOutput: () => fue, getFileMatcherPatterns: () => aL, getFileNamesFromConfigSpecs: () => XN, getFileWatcherEventKind: () => BW, getFilesInErrorForSummary: () => rM, getFirstConstructorWithBody: () => Rg, getFirstIdentifier: () => Wf, getFirstNonSpaceCharacterPosition: () => n_e, getFirstProjectOutput: () => kH, getFixableErrorSpanExpression: () => OY, getFormatCodeSettingsForWriting: () => ej, getFullWidth: () => H4, getFunctionFlags: () => ml, getHeritageClause: () => A3, getHostSignatureFromJSDoc: () => h1, getIdentifierAutoGenerate: () => k2e, getIdentifierGeneratedImportReference: () => eoe, getIdentifierTypeArguments: () => Xx, getImmediatelyInvokedFunctionExpression: () => p1, getImpliedNodeFormatForEmitWorker: () => h2, getImpliedNodeFormatForFile: () => i8, getImpliedNodeFormatForFileWorker: () => H9, getImportNeedsImportDefaultHelper: () => lH, getImportNeedsImportStarHelper: () => I9, getIndentString: () => DR, getInferredLibraryNameResolveFrom: () => q9, getInitializedVariables: () => _N, getInitializerOfBinaryExpression: () => Qz, getInitializerOfBindingOrAssignmentElement: () => kO, getInterfaceBaseTypeNodes: () => eN, getInternalEmitFlags: () => Xd, getInvokedExpression: () => pR, getIsFileExcluded: () => m_e, getIsolatedModules: () => Nd, getJSDocAugmentsTag: () => Ure, getJSDocClassTag: () => nz, getJSDocCommentRanges: () => zz, getJSDocCommentsAndTags: () => Zz, getJSDocDeprecatedTag: () => rz, getJSDocDeprecatedTagNoCache: () => Gre, getJSDocEnumTag: () => iz, getJSDocHost: () => iS, getJSDocImplementsTags: () => Wre, getJSDocOverloadTags: () => tV, getJSDocOverrideTagNoCache: () => Hre, getJSDocParameterTags: () => CA, getJSDocParameterTagsNoCache: () => Mre, getJSDocPrivateTag: () => bxe, getJSDocPrivateTagNoCache: () => Vre, getJSDocProtectedTag: () => Txe, getJSDocProtectedTagNoCache: () => $re, getJSDocPublicTag: () => vxe, getJSDocPublicTagNoCache: () => zre, getJSDocReadonlyTag: () => Sxe, getJSDocReadonlyTagNoCache: () => qre, getJSDocReturnTag: () => Yre, getJSDocReturnType: () => F4, getJSDocRoot: () => VA, getJSDocSatisfiesExpressionType: () => p$, getJSDocSatisfiesTag: () => az, getJSDocTags: () => u1, getJSDocTemplateTag: () => xxe, getJSDocThisTag: () => A5, getJSDocType: () => y0, getJSDocTypeAliasName: () => sq, getJSDocTypeAssertionType: () => bE, getJSDocTypeParameterDeclarations: () => MR, getJSDocTypeParameterTags: () => jre, getJSDocTypeParameterTagsNoCache: () => Bre, getJSDocTypeTag: () => l1, getJSXImplicitImportBase: () => G3, getJSXRuntimeImport: () => nL, getJSXTransformEnabled: () => tL, getKeyForCompilerOptions: () => Lq, getLanguageVariant: () => W3, getLastChild: () => JV, getLeadingCommentRanges: () => Cg, getLeadingCommentRangesOfNode: () => Wz, getLeftmostAccessExpression: () => ZA, getLeftmostExpression: () => eE, getLibFileNameFromLibReference: () => v$, getLibNameFromLibReference: () => y$, getLibraryNameFromLibFileName: () => UH, getLineAndCharacterOfPosition: () => fs, getLineInfo: () => sH, getLineOfLocalPosition: () => sN, getLineStartPositionForPosition: () => Ld, getLineStarts: () => xg, getLinesBetweenPositionAndNextNonWhitespaceCharacter: () => $ae, getLinesBetweenPositionAndPrecedingNonWhitespaceCharacter: () => Vae, getLinesBetweenPositions: () => SD, getLinesBetweenRangeEndAndRangeStart: () => RV, getLinesBetweenRangeEndPositions: () => Zxe, getLiteralText: () => Eie, getLocalNameForExternalImport: () => TE, getLocalSymbolForExportDefault: () => uN, getLocaleSpecificMessage: () => Va, getLocaleTimeString: () => l8, getMappedContextSpan: () => TY, getMappedDocumentSpan: () => UM, getMappedLocation: () => AP, getMatchedFileSpec: () => lG, getMatchedIncludeSpec: () => uG, getMeaningFromDeclaration: () => bM, getMeaningFromLocation: () => g2, getMembersOfDeclaration: () => Vie, getModeForFileReference: () => oue, getModeForResolutionAtIndex: () => jwe, getModeForUsageLocation: () => BH, getModifiedTime: () => Mk, getModifiers: () => HT, getModuleInstanceState: () => Ly, getModuleNameStringLiteralAt: () => s8, getModuleSpecifierEndingPreference: () => mse, getModuleSpecifierResolverHost: () => _Y, getNameForExportedSymbol: () => KM, getNameFromImportAttribute: () => yL, getNameFromIndexInfo: () => Lie, getNameFromPropertyName: () => k8, getNameOfAccessExpression: () => WV, getNameOfCompilerOptionValue: () => c9, getNameOfDeclaration: () => Ra, getNameOfExpando: () => Yz, getNameOfJSDocTypedef: () => Lre, getNameOfScriptTarget: () => ZR, getNameOrArgument: () => h3, getNameTable: () => wX, getNamespaceDeclarationNode: () => WA, getNewLineCharacter: () => C0, getNewLineKind: () => F8, getNewLineOrDefaultFromHost: () => jy, getNewTargetContainer: () => Zie, getNextJSDocCommentLocation: () => eV, getNodeChildren: () => K$, getNodeForGeneratedName: () => wO, getNodeId: () => lo, getNodeKind: () => PS, getNodeModifiers: () => kP, getNodeModulePathParts: () => mL, getNonAssignedNameOfDeclaration: () => C5, getNonAssignmentOperatorForCompoundAssignment: () => sP, getNonAugmentationDeclaration: () => Rz, getNonDecoratorTokenPosOfNode: () => Iz, getNonIncrementalBuildInfoRoots: () => wue, getNonModifierTokenPosOfNode: () => wie, getNormalizedAbsolutePath: () => va, getNormalizedAbsolutePathWithoutRoot: () => zW, getNormalizedPathComponents: () => g5, getObjectFlags: () => Kr, getOperatorAssociativity: () => pV, getOperatorPrecedence: () => I3, getOptionFromName: () => Sq, getOptionsForLibraryResolution: () => Mq, getOptionsNameMap: () => CE, getOptionsSyntaxByArrayElementValue: () => T$, getOptionsSyntaxByValue: () => Mse, getOrCreateEmitNode: () => Ku, getOrUpdate: () => Dk, getOriginalNode: () => Sc, getOriginalNodeId: () => Hf, getOutputDeclarationFileName: () => _P, getOutputDeclarationFileNameWorker: () => SH, getOutputExtension: () => ZO, getOutputFileNames: () => Dwe, getOutputJSFileNameWorker: () => xH, getOutputPathsFor: () => fP, getOwnEmitOutputFilePath: () => Sae, getOwnKeys: () => Qm, getOwnValues: () => Ok, getPackageJsonTypesVersionsPaths: () => h9, getPackageNameFromTypesPackageName: () => nP, getPackageScopeForPath: () => tP, getParameterSymbolFromJSDoc: () => x3, getParentNodeInSpan: () => w8, getParseTreeNode: () => za, getParsedCommandLineOfConfigFile: () => PO, getPathComponents: () => Gu, getPathFromPathComponents: () => o1, getPathUpdater: () => HY, getPathsBasePath: () => OR, getPatternFromSpec: () => QV, getPendingEmitKindWithSeen: () => Q9, getPositionOfLineAndCharacter: () => x4, getPossibleGenericSignatures: () => tY, getPossibleOriginalInputExtensionForExtension: () => bV, getPossibleOriginalInputPathWithoutChangingExt: () => TV, getPossibleTypeArgumentsInfo: () => nY, getPreEmitDiagnostics: () => Nwe, getPrecedingNonSpaceCharacterPosition: () => WM, getPrivateIdentifier: () => pH, getProperties: () => fH, getProperty: () => d4, getPropertyAssignmentAliasLikeExpression: () => mae, getPropertyNameForPropertyNameNode: () => zx, getPropertyNameFromType: () => nd, getPropertyNameOfBindingOrAssignmentElement: () => aq, getPropertySymbolFromBindingElement: () => JM, getPropertySymbolsFromContextualType: () => Sj, getQuoteFromPreference: () => dY, getQuotePreference: () => Q_, getRangesWhere: () => KU, getRefactorContextSpan: () => KC, getReferencedFileLocation: () => hP, getRegexFromPattern: () => w0, getRegularExpressionForWildcard: () => gN, getRegularExpressionsForWildcards: () => rL, getRelativePathFromDirectory: () => bp, getRelativePathFromFile: () => TA, getRelativePathToDirectoryOrUrl: () => Jk, getRenameLocation: () => E8, getReplacementSpanForContextToken: () => sY, getResolutionDiagnostic: () => $H, getResolutionModeOverride: () => FE, getResolveJsonModule: () => _S, getResolvePackageJsonExports: () => V3, getResolvePackageJsonImports: () => $3, getResolvedExternalModuleName: () => yV, getResolvedModuleFromResolution: () => Yk, getResolvedTypeReferenceDirectiveFromResolution: () => H5, getRestIndicatorOfBindingOrAssignmentElement: () => GL, getRestParameterElementType: () => Vz, getRightMostAssignedExpression: () => m3, getRootDeclaration: () => oh, getRootDirectoryOfResolutionCache: () => Pue, getRootLength: () => vm, getScriptKind: () => CY, getScriptKindFromFileName: () => oL, getScriptTargetFeatures: () => Dz, getSelectedEffectiveModifierFlags: () => oC, getSelectedSyntacticModifierFlags: () => Dae, getSemanticClassifications: () => h_e, getSemanticJsxChildren: () => HA, getSetAccessorTypeAnnotationNode: () => Cae, getSetAccessorValueParameter: () => oN, getSetExternalModuleIndicator: () => z3, getShebang: () => x5, getSingleVariableOfVariableStatement: () => iC, getSnapshotText: () => XC, getSnippetElement: () => I$, getSourceFileOfModule: () => G4, getSourceFileOfNode: () => zn, getSourceFilePathInNewDir: () => RR, getSourceFileVersionAsHashFromText: () => aM, getSourceFilesToEmit: () => FR, getSourceMapRange: () => I0, getSourceMapper: () => P_e, getSourceTextOfNodeFromSourceFile: () => QT, getSpanOfTokenAtPosition: () => rh, getSpellingSuggestion: () => qT, getStartPositionOfLine: () => Vv, getStartPositionOfRange: () => fN, getStartsOnNewLine: () => NN, getStaticPropertiesAndClassStaticBlock: () => P9, getStrictOptionValue: () => Xu, getStringComparer: () => hA, getSubPatternFromSpec: () => iL, getSuperCallFromStatement: () => D9, getSuperContainer: () => s3, getSupportedCodeFixes: () => kX, getSupportedExtensions: () => yN, getSupportedExtensionsWithJsonIfResolveJsonModule: () => X3, getSwitchedType: () => EY, getSymbolId: () => Ss, getSymbolNameForPrivateIdentifier: () => E3, getSymbolTarget: () => wY, getSyntacticClassifications: () => g_e, getSyntacticModifierFlags: () => x0, getSyntacticModifierFlagsNoCache: () => AV, getSynthesizedDeepClone: () => bo, getSynthesizedDeepCloneWithReplacements: () => aO, getSynthesizedDeepClones: () => hS, getSynthesizedDeepClonesWithReplacements: () => x$, getSyntheticLeadingComments: () => sE, getSyntheticTrailingComments: () => uO, getTargetLabel: () => xM, getTargetOfBindingOrAssignmentElement: () => cb, getTemporaryModuleResolutionState: () => eP, getTextOfConstantValue: () => Iie, getTextOfIdentifierOrLiteral: () => Kp, getTextOfJSDocComment: () => R4, getTextOfJsxAttributeName: () => rO, getTextOfJsxNamespacedName: () => IN, getTextOfNode: () => Ec, getTextOfNodeFromSourceText: () => BD, getTextOfPropertyName: () => Qk, getThisContainer: () => If, getThisParameter: () => cS, getTokenAtPosition: () => Wi, getTokenPosOfNode: () => $v, getTokenSourceMapRange: () => S2e, getTouchingPropertyName: () => p_, getTouchingToken: () => zE, getTrailingCommentRanges: () => Rv, getTrailingSemicolonDeferringWriter: () => gV, getTransformers: () => $le, getTsBuildInfoEmitOutputFilePath: () => B1, getTsConfigObjectLiteralExpression: () => zD, getTsConfigPropArrayElementValue: () => cR, getTypeAnnotationNode: () => wae, getTypeArgumentOrTypeParameterList: () => Bfe, getTypeKeywordOfTypeOnlyImport: () => gY, getTypeNode: () => Qse, getTypeNodeIfAccessible: () => PP, getTypeParameterFromJsDoc: () => lae, getTypeParameterOwner: () => mxe, getTypesPackageName: () => x9, getUILocale: () => Ute, getUniqueName: () => b2, getUniqueSymbolId: () => t_e, getUseDefineForClassFields: () => q3, getWatchErrorSummaryDiagnosticMessage: () => iG, getWatchFactory: () => NH, group: () => mA, groupBy: () => iW, guessIndentation: () => mie, handleNoEmitOptions: () => VH, handleWatchOptionsConfigDirTemplateSubstitution: () => u9, hasAbstractModifier: () => fS, hasAccessorModifier: () => ch, hasAmbientModifier: () => wV, hasChangesInResolutions: () => wz, hasContextSensitiveParameters: () => dL, hasDecorators: () => xp, hasDocComment: () => Mfe, hasDynamicName: () => Ay, hasEffectiveModifier: () => q_, hasEffectiveModifiers: () => CV, hasEffectiveReadonlyModifier: () => $x, hasExtension: () => bA, hasImplementationTSFileExtension: () => pse, hasIndexSignature: () => AY, hasInferredType: () => bL, hasInitializer: () => b0, hasInvalidEscape: () => mV, hasJSDocNodes: () => pp, hasJSDocParameterTags: () => Jre, hasJSFileExtension: () => jg, hasJsonModuleEmitEnabled: () => QR, hasOnlyExpressionInitializer: () => Ox, hasOverrideModifier: () => jR, hasPossibleExternalModuleReference: () => Fie, hasProperty: () => No, hasPropertyAccessExpressionWithName: () => h8, hasQuestionToken: () => nC, hasRecordedExternalHelpers: () => joe, hasResolutionModeOverride: () => Dse, hasRestParameter: () => Tz, hasScopeMarker: () => sie, hasStaticModifier: () => Ul, hasSyntacticModifier: () => gi, hasSyntacticModifiers: () => Iae, hasTSFileExtension: () => Hx, hasTabstop: () => Ase, hasTrailingDirectorySeparator: () => Ov, hasType: () => W5, hasTypeArguments: () => zxe, hasZeroOrOneAsteriskCharacter: () => GV, hostGetCanonicalFileName: () => Ey, hostUsesCaseSensitiveFileNames: () => Vx, idText: () => Xr, identifierIsThisKeyword: () => xV, identifierToKeywordKind: () => Ax, identity: () => $o, identitySourceMapConsumer: () => cH, ignoreSourceNewlines: () => N$, ignoredPaths: () => d5, importFromModuleSpecifier: () => XD, importSyntaxAffectsModuleResolution: () => qV, indexOfAnyCharCode: () => vo, indexOfNode: () => OA, indicesOf: () => n5, inferredTypesContainingFile: () => mP, injectClassNamedEvaluationHelperBlockIfMissing: () => L9, injectClassThisAssignmentIfMissing: () => yle, insertImports: () => hY, insertSorted: () => Cv, insertStatementAfterCustomPrologue: () => Fx, insertStatementAfterStandardPrologue: () => Lxe, insertStatementsAfterCustomPrologue: () => Az, insertStatementsAfterStandardPrologue: () => Ng, intersperse: () => us, intrinsicTagNameToString: () => d$, introducesArgumentsExoticObject: () => Hie, inverseJsxOptionMap: () => DO, isAbstractConstructorSymbol: () => qae, isAbstractModifier: () => uoe, isAccessExpression: () => Ko, isAccessibilityModifier: () => iY, isAccessor: () => Uv, isAccessorModifier: () => M$, isAliasableExpression: () => xR, isAmbientModule: () => Ef, isAmbientPropertyDeclaration: () => Mz, isAnyDirectorySeparator: () => JW, isAnyImportOrBareOrAccessedRequire: () => Pie, isAnyImportOrReExport: () => Q4, isAnyImportOrRequireStatement: () => Oie, isAnyImportSyntax: () => Kk, isAnySupportedFileExtension: () => p2e, isApplicableVersionedTypesKey: () => JO, isArgumentExpressionOfElementAccess: () => HG, isArray: () => Da, isArrayBindingElement: () => L5, isArrayBindingOrAssignmentElement: () => U4, isArrayBindingOrAssignmentPattern: () => mz, isArrayBindingPattern: () => O0, isArrayLiteralExpression: () => ju, isArrayLiteralOrObjectLiteralDestructuringPattern: () => L0, isArrayTypeNode: () => dO, isArrowFunction: () => Qo, isAsExpression: () => fE, isAssertClause: () => yoe, isAssertEntry: () => O2e, isAssertionExpression: () => KT, isAssertsKeyword: () => coe, isAssignmentDeclaration: () => HD, isAssignmentExpression: () => fu, isAssignmentOperator: () => Iy, isAssignmentPattern: () => RD, isAssignmentTarget: () => Yv, isAsteriskToken: () => _O, isAsyncFunction: () => tN, isAsyncModifier: () => FN, isAutoAccessorPropertyDeclaration: () => a_, isAwaitExpression: () => sb, isAwaitKeyword: () => L$, isBigIntLiteral: () => oE, isBinaryExpression: () => Or, isBinaryLogicalOperator: () => F3, isBinaryOperatorToken: () => qoe, isBindableObjectDefinePropertyCall: () => Bx, isBindableStaticAccessExpression: () => rS, isBindableStaticElementAccessExpression: () => bR, isBindableStaticNameExpression: () => Jx, isBindingElement: () => Hs, isBindingElementOfBareOrAccessedRequire: () => nae, isBindingName: () => Nx, isBindingOrAssignmentElement: () => nie, isBindingOrAssignmentPattern: () => B4, isBindingPattern: () => Qa, isBlock: () => es, isBlockLike: () => QC, isBlockOrCatchScoped: () => Nz, isBlockScope: () => jz, isBlockScopedContainerTopLevel: () => Nie, isBooleanLiteral: () => FD, isBreakOrContinueStatement: () => DD, isBreakStatement: () => D2e, isBuildCommand: () => efe, isBuildInfoFile: () => qle, isBuilderProgram: () => sG, isBundle: () => Soe, isCallChain: () => Ex, isCallExpression: () => Za, isCallExpressionTarget: () => UG, isCallLikeExpression: () => XT, isCallLikeOrFunctionLikeExpression: () => hz, isCallOrNewExpression: () => th, isCallOrNewExpressionTarget: () => WG, isCallSignatureDeclaration: () => AC, isCallToHelper: () => ON, isCaseBlock: () => UN, isCaseClause: () => mE, isCaseKeyword: () => _oe, isCaseOrDefaultClause: () => J5, isCatchClause: () => xS, isCatchClauseVariableDeclaration: () => wse, isCatchClauseVariableDeclarationOrBindingElement: () => Pz, isCheckJsEnabledForFile: () => TN, isCircularBuildOrder: () => GC, isClassDeclaration: () => Ol, isClassElement: () => Cl, isClassExpression: () => hl, isClassInstanceProperty: () => eie, isClassLike: () => vi, isClassMemberModifier: () => _z, isClassNamedEvaluationHelperBlock: () => $C, isClassOrTypeElement: () => R5, isClassStaticBlockDeclaration: () => rl, isClassThisAssignmentBlock: () => cP, isColonToken: () => soe, isCommaExpression: () => TO, isCommaListExpression: () => BN, isCommaSequence: () => qN, isCommaToken: () => aoe, isComment: () => OM, isCommonJsExportPropertyAssignment: () => sR, isCommonJsExportedExpression: () => $ie, isCompoundAssignment: () => aP, isComputedNonLiteralName: () => Z4, isComputedPropertyName: () => bs, isConciseBody: () => j5, isConditionalExpression: () => t2, isConditionalTypeNode: () => yS, isConstAssertion: () => m$, isConstTypeReference: () => Gd, isConstructSignatureDeclaration: () => MN, isConstructorDeclaration: () => Rc, isConstructorTypeNode: () => cE, isContextualKeyword: () => CR, isContinueStatement: () => I2e, isCustomPrologue: () => i3, isDebuggerStatement: () => N2e, isDeclaration: () => uu, isDeclarationBindingElement: () => j4, isDeclarationFileName: () => pu, isDeclarationName: () => Yh, isDeclarationNameOfEnumOrNamespace: () => MV, isDeclarationReadonly: () => t3, isDeclarationStatement: () => uie, isDeclarationWithTypeParameterChildren: () => Jz, isDeclarationWithTypeParameters: () => Bz, isDecorator: () => zl, isDecoratorTarget: () => wfe, isDefaultClause: () => WN, isDefaultImport: () => Ux, isDefaultModifier: () => PL, isDefaultedExpandoInitializer: () => rae, isDeleteExpression: () => doe, isDeleteTarget: () => rV, isDeprecatedDeclaration: () => QM, isDestructuringAssignment: () => k0, isDiskPathRoot: () => UW, isDoStatement: () => E2e, isDocumentRegistryEntry: () => L8, isDotDotDotToken: () => DL, isDottedName: () => L3, isDynamicName: () => AR, isEffectiveExternalModule: () => FA, isEffectiveStrictModeSourceFile: () => Lz, isElementAccessChain: () => sz, isElementAccessExpression: () => Uo, isEmittedFileOfProgram: () => Zle, isEmptyArrayLiteral: () => Mae, isEmptyBindingElement: () => Ore, isEmptyBindingPattern: () => Pre, isEmptyObjectLiteral: () => PV, isEmptyStatement: () => J$, isEmptyStringLiteral: () => Hz, isEntityName: () => Jf, isEntityNameExpression: () => Po, isEnumConst: () => _1, isEnumDeclaration: () => I1, isEnumMember: () => Fy, isEqualityOperatorKind: () => $M, isEqualsGreaterThanToken: () => ooe, isExclamationToken: () => pO, isExcludedFile: () => Tce, isExclusivelyTypeOnlyImportOrExport: () => jH, isExpandoPropertyDeclaration: () => bC, isExportAssignment: () => fc, isExportDeclaration: () => yl, isExportModifier: () => CC, isExportName: () => qL, isExportNamespaceAsDefaultDeclaration: () => Q5, isExportOrDefaultModifier: () => CO, isExportSpecifier: () => df, isExportsIdentifier: () => jx, isExportsOrModuleExportsOrAlias: () => wS, isExpression: () => kt, isExpressionNode: () => Gh, isExpressionOfExternalModuleImportEqualsDeclaration: () => Ife, isExpressionOfOptionalChainRoot: () => N5, isExpressionStatement: () => _u, isExpressionWithTypeArguments: () => Py, isExpressionWithTypeArgumentsInClassExtendsClause: () => JR, isExternalModule: () => $l, isExternalModuleAugmentation: () => eS, isExternalModuleImportEqualsDeclaration: () => d1, isExternalModuleIndicator: () => z4, isExternalModuleNameRelative: () => cu, isExternalModuleReference: () => Oy, isExternalModuleSymbol: () => Hk, isExternalOrCommonJsModule: () => z_, isFileLevelReservedGeneratedIdentifier: () => M4, isFileLevelUniqueName: () => X5, isFileProbablyExternalModule: () => EO, isFirstDeclarationOfSymbolParameter: () => SY, isFixablePromiseHandler: () => ZY, isForInOrOfStatement: () => Px, isForInStatement: () => ML, isForInitializer: () => Gp, isForOfStatement: () => hO, isForStatement: () => E1, isFullSourceFile: () => Og, isFunctionBlock: () => tS, isFunctionBody: () => yz, isFunctionDeclaration: () => il, isFunctionExpression: () => Ho, isFunctionExpressionOrArrowFunction: () => tb, isFunctionLike: () => Xa, isFunctionLikeDeclaration: () => Ro, isFunctionLikeKind: () => zk, isFunctionLikeOrClassStaticBlockDeclaration: () => IA, isFunctionOrConstructorTypeNode: () => tie, isFunctionOrModuleBlock: () => pz, isFunctionSymbol: () => sae, isFunctionTypeNode: () => Kh, isGeneratedIdentifier: () => hc, isGeneratedPrivateIdentifier: () => Dx, isGetAccessor: () => Eg, isGetAccessorDeclaration: () => rd, isGetOrSetAccessorDeclaration: () => L4, isGlobalScopeAugmentation: () => Hh, isGlobalSourceFile: () => T0, isGrammarError: () => kie, isHeritageClause: () => Y_, isHoistedFunction: () => iR, isHoistedVariableStatement: () => aR, isIdentifier: () => Xe, isIdentifierANonContextualKeyword: () => cV, isIdentifierName: () => dae, isIdentifierOrThisTypeNode: () => Woe, isIdentifierPart: () => Sy, isIdentifierStart: () => zh, isIdentifierText: () => S_, isIdentifierTypePredicate: () => Gie, isIdentifierTypeReference: () => Tse, isIfStatement: () => A1, isIgnoredFileFromWildCardWatching: () => t8, isImplicitGlob: () => KV, isImportAttribute: () => voe, isImportAttributeName: () => Zre, isImportAttributes: () => i2, isImportCall: () => o_, isImportClause: () => em, isImportDeclaration: () => xc, isImportEqualsDeclaration: () => Vl, isImportKeyword: () => LN, isImportMeta: () => MA, isImportOrExportSpecifier: () => Bv, isImportOrExportSpecifierName: () => e_e, isImportSpecifier: () => Of, isImportTypeAssertionContainer: () => P2e, isImportTypeNode: () => dh, isImportable: () => UY, isInComment: () => R0, isInCompoundLikeAssignment: () => nV, isInExpressionContext: () => dR, isInJSDoc: () => qD, isInJSFile: () => Er, isInJSXText: () => Lfe, isInJsonFile: () => hR, isInNonReferenceComment: () => Wfe, isInReferenceComment: () => Ufe, isInRightSideOfInternalImportEqualsDeclaration: () => TM, isInString: () => YC, isInTemplateString: () => eY, isInTopLevelContext: () => fR, isInTypeQuery: () => sC, isIncrementalBuildInfo: () => o8, isIncrementalBundleEmitBuildInfo: () => bue, isIncrementalCompilation: () => pS, isIndexSignatureDeclaration: () => ab, isIndexedAccessTypeNode: () => vS, isInferTypeNode: () => Qx, isInfinityOrNaNString: () => wN, isInitializedProperty: () => $O, isInitializedVariable: () => U3, isInsideJsxElement: () => NM, isInsideJsxElementOrAttribute: () => Rfe, isInsideNodeModules: () => N8, isInsideTemplateLiteral: () => T8, isInstanceOfExpression: () => UR, isInstantiatedModule: () => tH, isInterfaceDeclaration: () => wu, isInternalDeclaration: () => hie, isInternalModuleImportEqualsDeclaration: () => Mx, isInternalName: () => nq, isIntersectionTypeNode: () => DC, isIntrinsicJsxName: () => GA, isIterationStatement: () => Wv, isJSDoc: () => Im, isJSDocAllType: () => Coe, isJSDocAugmentsTag: () => RC, isJSDocAuthorTag: () => M2e, isJSDocCallbackTag: () => V$, isJSDocClassTag: () => Aoe, isJSDocCommentContainingNode: () => U5, isJSDocConstructSignature: () => rC, isJSDocDeprecatedTag: () => Y$, isJSDocEnumTag: () => yO, isJSDocFunctionType: () => gE, isJSDocImplementsTag: () => zL, isJSDocImportTag: () => vh, isJSDocIndexSignature: () => yR, isJSDocLikeText: () => fq, isJSDocLink: () => xoe, isJSDocLinkCode: () => koe, isJSDocLinkLike: () => qk, isJSDocLinkPlain: () => R2e, isJSDocMemberName: () => P1, isJSDocNameReference: () => zN, isJSDocNamepathType: () => L2e, isJSDocNamespaceBody: () => Ixe, isJSDocNode: () => DA, isJSDocNonNullableType: () => BL, isJSDocNullableType: () => hE, isJSDocOptionalParameter: () => hL, isJSDocOptionalType: () => z$, isJSDocOverloadTag: () => yE, isJSDocOverrideTag: () => UL, isJSDocParameterTag: () => Cp, isJSDocPrivateTag: () => q$, isJSDocPropertyLikeTag: () => ND, isJSDocPropertyTag: () => Eoe, isJSDocProtectedTag: () => H$, isJSDocPublicTag: () => $$, isJSDocReadonlyTag: () => G$, isJSDocReturnTag: () => WL, isJSDocSatisfiesExpression: () => _$, isJSDocSatisfiesTag: () => VL, isJSDocSeeTag: () => j2e, isJSDocSignature: () => F0, isJSDocTag: () => NA, isJSDocTemplateTag: () => Od, isJSDocThisTag: () => X$, isJSDocThrowsTag: () => J2e, isJSDocTypeAlias: () => Ed, isJSDocTypeAssertion: () => kS, isJSDocTypeExpression: () => N1, isJSDocTypeLiteral: () => s2, isJSDocTypeTag: () => VN, isJSDocTypedefTag: () => o2, isJSDocUnknownTag: () => B2e, isJSDocUnknownType: () => woe, isJSDocVariadicType: () => JL, isJSXTagName: () => JA, isJsonEqual: () => _L, isJsonSourceFile: () => Xp, isJsxAttribute: () => yh, isJsxAttributeLike: () => B5, isJsxAttributeName: () => Ise, isJsxAttributes: () => SS, isJsxCallLike: () => die, isJsxChild: () => q4, isJsxClosingElement: () => TS, isJsxClosingFragment: () => Toe, isJsxElement: () => gh, isJsxExpression: () => dE, isJsxFragment: () => D1, isJsxNamespacedName: () => Em, isJsxOpeningElement: () => Am, isJsxOpeningFragment: () => tm, isJsxOpeningLikeElement: () => _f, isJsxOpeningLikeElementTagName: () => Afe, isJsxSelfClosingElement: () => a2, isJsxSpreadAttribute: () => FC, isJsxTagNameExpression: () => LD, isJsxText: () => xC, isJumpStatementTarget: () => g8, isKeyword: () => l_, isKeywordOrPunctuation: () => kR, isKnownSymbol: () => rN, isLabelName: () => $G, isLabelOfLabeledStatement: () => VG, isLabeledStatement: () => ob, isLateVisibilityPaintedStatement: () => eR, isLeftHandSideExpression: () => s_, isLet: () => rR, isLineBreak: () => lf, isLiteralComputedPropertyDeclarationName: () => C3, isLiteralExpression: () => Ix, isLiteralExpressionOfObject: () => uz, isLiteralImportTypeNode: () => Cy, isLiteralKind: () => PD, isLiteralNameOfPropertyDeclarationOrIndexAccess: () => kM, isLiteralTypeLiteral: () => aie, isLiteralTypeNode: () => P0, isLocalName: () => Ry, isLogicalOperator: () => Fae, isLogicalOrCoalescingAssignmentExpression: () => EV, isLogicalOrCoalescingAssignmentOperator: () => cN, isLogicalOrCoalescingBinaryExpression: () => R3, isLogicalOrCoalescingBinaryOperator: () => BR, isMappedTypeNode: () => e2, isMemberName: () => Ag, isMetaProperty: () => n2, isMethodDeclaration: () => Fc, isMethodOrAccessor: () => Vk, isMethodSignature: () => Zd, isMinusToken: () => R$, isMissingDeclaration: () => F2e, isMissingPackageJsonInfo: () => Pce, isModifier: () => ws, isModifierKind: () => Jv, isModifierLike: () => gc, isModuleAugmentationExternal: () => Fz, isModuleBlock: () => mh, isModuleBody: () => oie, isModuleDeclaration: () => gl, isModuleExportName: () => jL, isModuleExportsAccessExpression: () => Fg, isModuleIdentifier: () => Xz, isModuleName: () => $oe, isModuleOrEnumDeclaration: () => V4, isModuleReference: () => _ie, isModuleSpecifierLike: () => BM, isModuleWithStringLiteralName: () => Z5, isNameOfFunctionDeclaration: () => YG, isNameOfModuleDeclaration: () => GG, isNamedDeclaration: () => lu, isNamedEvaluation: () => V_, isNamedEvaluationSource: () => lV, isNamedExportBindings: () => cz, isNamedExports: () => ad, isNamedImportBindings: () => vz, isNamedImports: () => hh, isNamedImportsOrExports: () => HR, isNamedTupleMember: () => lE, isNamespaceBody: () => Exe, isNamespaceExport: () => Qh, isNamespaceExportDeclaration: () => gO, isNamespaceImport: () => Wg, isNamespaceReexportDeclaration: () => tae, isNewExpression: () => bS, isNewExpressionTarget: () => TP, isNewScopeNode: () => Lse, isNoSubstitutionTemplateLiteral: () => Kx, isNodeArray: () => GT, isNodeArrayMultiLine: () => zae, isNodeDescendantOf: () => aS, isNodeKind: () => O5, isNodeLikeSystem: () => hW, isNodeModulesDirectory: () => v5, isNodeWithPossibleHoistedDeclaration: () => _ae, isNonContextualKeyword: () => oV, isNonGlobalAmbientModule: () => Oz, isNonNullAccess: () => Ese, isNonNullChain: () => P5, isNonNullExpression: () => PC, isNonStaticMethodOrAccessorWithPrivateName: () => fle, isNotEmittedStatement: () => boe, isNullishCoalesce: () => oz, isNumber: () => Ev, isNumericLiteral: () => f_, isNumericLiteralName: () => Jg, isObjectBindingElementWithoutPropertyName: () => C8, isObjectBindingOrAssignmentElement: () => J4, isObjectBindingOrAssignmentPattern: () => dz, isObjectBindingPattern: () => kp, isObjectLiteralElement: () => bz, isObjectLiteralElementLike: () => ky, isObjectLiteralExpression: () => Bs, isObjectLiteralMethod: () => Ad, isObjectLiteralOrClassExpressionMethodOrAccessor: () => oR, isObjectTypeDeclaration: () => fC, isOmittedExpression: () => eu, isOptionalChain: () => uf, isOptionalChainRoot: () => ED, isOptionalDeclaration: () => yC, isOptionalJSDocPropertyLikeTag: () => nO, isOptionalTypeNode: () => OL, isOuterExpression: () => HL, isOutermostOptionalChain: () => ID, isOverrideModifier: () => foe, isPackageJsonInfo: () => y9, isPackedArrayLiteral: () => u$, isParameter: () => ra, isParameterPropertyDeclaration: () => U_, isParameterPropertyModifier: () => OD, isParenthesizedExpression: () => $f, isParenthesizedTypeNode: () => Zx, isParseTreeNode: () => AD, isPartOfParameterDeclaration: () => v1, isPartOfTypeNode: () => ah, isPartOfTypeOnlyImportOrExportDeclaration: () => Qre, isPartOfTypeQuery: () => mR, isPartiallyEmittedExpression: () => moe, isPatternMatch: () => a5, isPinnedComment: () => K5, isPlainJsFile: () => jD, isPlusToken: () => F$, isPossiblyTypeArgumentPosition: () => b8, isPostfixUnaryExpression: () => B$, isPrefixUnaryExpression: () => w1, isPrimitiveLiteralValue: () => vL, isPrivateIdentifier: () => na, isPrivateIdentifierClassElementDeclaration: () => ff, isPrivateIdentifierPropertyAccessExpression: () => EA, isPrivateIdentifierSymbol: () => gae, isProgramUptoDate: () => WH, isPrologueDirective: () => ih, isPropertyAccessChain: () => D5, isPropertyAccessEntityNameExpression: () => M3, isPropertyAccessExpression: () => Qr, isPropertyAccessOrQualifiedName: () => W4, isPropertyAccessOrQualifiedNameOrImportTypeNode: () => rie, isPropertyAssignment: () => Fl, isPropertyDeclaration: () => Na, isPropertyName: () => kl, isPropertyNameLiteral: () => sh, isPropertySignature: () => Pf, isPrototypeAccess: () => Qv, isPrototypePropertyAssignment: () => y3, isPunctuation: () => sV, isPushOrUnshiftIdentifier: () => uV, isQualifiedName: () => zf, isQuestionDotToken: () => NL, isQuestionOrExclamationToken: () => Uoe, isQuestionOrPlusOrMinusToken: () => Voe, isQuestionToken: () => ib, isReadonlyKeyword: () => loe, isReadonlyKeywordOrPlusOrMinusToken: () => zoe, isRecognizedTripleSlashComment: () => Ez, isReferenceFileLocation: () => RE, isReferencedFile: () => J1, isRegularExpressionLiteral: () => P$, isRequireCall: () => c_, isRequireVariableStatement: () => _3, isRestParameter: () => $h, isRestTypeNode: () => FL, isReturnStatement: () => dp, isReturnStatementWithFixablePromiseHandler: () => sj, isRightSideOfAccessExpression: () => NV, isRightSideOfInstanceofExpression: () => Lae, isRightSideOfPropertyAccess: () => JE, isRightSideOfQualifiedName: () => Efe, isRightSideOfQualifiedNameOrPropertyAccess: () => lN, isRightSideOfQualifiedNameOrPropertyAccessOrJSDocMemberName: () => Rae, isRootedDiskPath: () => J_, isSameEntityName: () => UA, isSatisfiesExpression: () => _E, isSemicolonClassElement: () => hoe, isSetAccessor: () => nh, isSetAccessorDeclaration: () => w_, isShiftOperatorOrHigher: () => cq, isShorthandAmbientModuleSymbol: () => K4, isShorthandPropertyAssignment: () => Qu, isSideEffectImport: () => g$, isSignedNumericLiteral: () => wR, isSimpleCopiableExpression: () => AS, isSimpleInlineableExpression: () => bh, isSimpleParameterList: () => qO, isSingleOrDoubleQuote: () => p3, isSolutionConfig: () => Nq, isSourceElement: () => Nse, isSourceFile: () => Zi, isSourceFileFromLibrary: () => XE, isSourceFileJS: () => Uf, isSourceFileNotJson: () => gR, isSourceMapping: () => cle, isSpecialPropertyDeclaration: () => aae, isSpreadAssignment: () => zg, isSpreadElement: () => id, isStatement: () => qi, isStatementButNotDeclaration: () => $4, isStatementOrBlock: () => fie, isStatementWithLocals: () => xie, isStatic: () => ps, isStaticModifier: () => wC, isString: () => Ja, isStringANonContextualKeyword: () => aC, isStringAndEmptyAnonymousObjectIntersection: () => Jfe, isStringDoubleQuoted: () => vR, isStringLiteral: () => Ls, isStringLiteralLike: () => fo, isStringLiteralOrJsxExpression: () => pie, isStringLiteralOrTemplate: () => i_e, isStringOrNumericLiteralLike: () => Sp, isStringOrRegularExpressionOrTemplateLiteral: () => rY, isStringTextContainingNode: () => fz, isSuperCall: () => Lx, isSuperKeyword: () => RN, isSuperProperty: () => x_, isSupportedSourceFileName: () => n$, isSwitchStatement: () => JN, isSyntaxList: () => vE, isSyntheticExpression: () => A2e, isSyntheticReference: () => OC, isTagName: () => qG, isTaggedTemplateExpression: () => C1, isTaggedTemplateTag: () => Cfe, isTemplateExpression: () => LL, isTemplateHead: () => kC, isTemplateLiteral: () => $k, isTemplateLiteralKind: () => jv, isTemplateLiteralToken: () => Xre, isTemplateLiteralTypeNode: () => poe, isTemplateLiteralTypeSpan: () => j$, isTemplateMiddle: () => O$, isTemplateMiddleOrTemplateTail: () => F5, isTemplateSpan: () => pE, isTemplateTail: () => IL, isTextWhiteSpaceLike: () => qfe, isThis: () => UE, isThisContainerOrFunctionBlock: () => Qie, isThisIdentifier: () => Kv, isThisInTypeQuery: () => lS, isThisInitializedDeclaration: () => _R, isThisInitializedObjectBindingExpression: () => eae, isThisProperty: () => o3, isThisTypeNode: () => jN, isThisTypeParameter: () => AN, isThisTypePredicate: () => Yie, isThrowStatement: () => W$, isToken: () => Wk, isTokenKind: () => lz, isTraceEnabled: () => lb, isTransientSymbol: () => Ig, isTrivia: () => qA, isTryStatement: () => r2, isTupleTypeNode: () => IC, isTypeAlias: () => T3, isTypeAliasDeclaration: () => Pd, isTypeAssertionExpression: () => RL, isTypeDeclaration: () => gC, isTypeElement: () => YT, isTypeKeyword: () => CP, isTypeKeywordTokenOrIdentifier: () => LM, isTypeLiteralNode: () => Vf, isTypeNode: () => Fi, isTypeNodeKind: () => UV, isTypeOfExpression: () => uE, isTypeOnlyExportDeclaration: () => Kre, isTypeOnlyImportDeclaration: () => AA, isTypeOnlyImportOrExportDeclaration: () => v0, isTypeOperatorNode: () => k1, isTypeParameterDeclaration: () => uc, isTypePredicateNode: () => EC, isTypeQueryNode: () => gS, isTypeReferenceNode: () => G_, isTypeReferenceType: () => z5, isTypeUsableAsPropertyName: () => td, isUMDExportSymbol: () => qR, isUnaryExpression: () => gz, isUnaryExpressionWithWrite: () => iie, isUnicodeIdentifierStart: () => T5, isUnionTypeNode: () => N0, isUrl: () => fre, isValidBigIntString: () => pL, isValidESSymbolDeclaration: () => qie, isValidTypeOnlyAliasUseSite: () => T1, isValueSignatureDeclaration: () => Wx, isVarAwaitUsing: () => n3, isVarConst: () => LA, isVarConstLike: () => Wie, isVarUsing: () => r3, isVariableDeclaration: () => Ci, isVariableDeclarationInVariableStatement: () => WD, isVariableDeclarationInitializedToBareOrAccessedRequire: () => nS, isVariableDeclarationInitializedToRequire: () => f3, isVariableDeclarationList: () => Cu, isVariableLike: () => UD, isVariableStatement: () => fl, isVoidExpression: () => NC, isWatchSet: () => jV, isWhileStatement: () => U$, isWhiteSpaceLike: () => kg, isWhiteSpaceSingleLine: () => eh, isWithStatement: () => goe, isWriteAccess: () => uC, isWriteOnlyAccess: () => $R, isYieldExpression: () => mO, jsxModeNeedsExplicitImport: () => jY, keywordPart: () => Z_, last: () => Ws, lastOrUndefined: () => nc, length: () => Ve, libMap: () => hq, libs: () => e9, lineBreakPart: () => HE, loadModuleFromGlobalCache: () => Vce, loadWithModeAwareCache: () => r8, makeIdentifierFromModuleName: () => Die, makeImport: () => hb, makeStringLiteral: () => wP, mangleScopedPackageName: () => DE, map: () => vn, mapAllOrFail: () => oD, mapDefined: () => Hi, mapDefinedIterator: () => yy, mapEntries: () => Pte, mapIterator: () => Jl, mapOneOrMany: () => FY, mapToDisplayParts: () => gb, matchFiles: () => ZV, matchPatternOrExact: () => i$, matchedText: () => qte, matchesExclude: () => p9, matchesExcludeWorker: () => d9, maxBy: () => cW, maybeBind: () => as, maybeSetLocalizedDiagnosticMessages: () => Qae, memoize: () => Af, memoizeOne: () => Zm, min: () => lW, minAndMax: () => yse, missingFileModifiedTime: () => B_, modifierToFlag: () => cC, modifiersToFlags: () => lh, moduleExportNameIsDefault: () => qh, moduleExportNameTextEscaped: () => ZT, moduleExportNameTextUnescaped: () => qv, moduleOptionDeclaration: () => rce, moduleResolutionIsEqualTo: () => Tie, moduleResolutionNameAndModeGetter: () => V9, moduleResolutionOptionDeclarations: () => yq, moduleResolutionSupportsPackageJsonExportsAndImports: () => tE, moduleResolutionUsesNodeModules: () => MM, moduleSpecifierToValidIdentifier: () => O8, moduleSpecifiers: () => My, moduleSupportsImportAttributes: () => ase, moduleSymbolToValidIdentifier: () => P8, moveEmitHelpers: () => Xse, moveRangeEnd: () => zR, moveRangePastDecorators: () => Dy, moveRangePastModifiers: () => uh, moveRangePos: () => b1, moveSyntheticComments: () => Hse, mutateMap: () => dN, mutateMapSkippingNewValues: () => Lg, needsParentheses: () => zM, needsScopeMarker: () => M5, newCaseClauseTracker: () => tj, newPrivateEnvironment: () => ple, noEmitNotification: () => XO, noEmitSubstitution: () => uP, noTransformers: () => Vle, noTruncationMaximumTruncationLength: () => xz, nodeCanBeDecorated: () => l3, nodeCoreModules: () => aE, nodeHasName: () => O4, nodeIsDecorated: () => BA, nodeIsMissing: () => Jc, nodeIsPresent: () => wd, nodeIsSynthesized: () => Jo, nodeModuleNameResolver: () => Mce, nodeModulesPathPart: () => Vg, nodeNextJsonConfigResolver: () => jce, nodeOrChildIsDecorated: () => u3, nodeOverlapsWithStartEnd: () => CM, nodePosToString: () => Pxe, nodeSeenTracker: () => VE, nodeStartsNewLexicalEnvironment: () => fV, noop: () => To, noopFileWatcher: () => jE, normalizePath: () => vs, normalizeSlashes: () => xu, normalizeSpans: () => QW, not: () => o5, notImplemented: () => gs, notImplementedResolver: () => Yle, nullNodeConverters: () => Vse, nullParenthesizerRules: () => Wse, nullTransformationContext: () => QO, objectAllocator: () => Lu, operatorPart: () => EP, optionDeclarations: () => nm, optionMapToObject: () => o9, optionsAffectingProgramStructure: () => oce, optionsForBuild: () => bq, optionsForWatch: () => JC, optionsHaveChanges: () => Gk, or: () => j_, orderedRemoveItem: () => lD, orderedRemoveItemAt: () => Pv, packageIdToPackageName: () => Y5, packageIdToString: () => f1, parameterIsThisKeyword: () => Xv, parameterNamePart: () => Gfe, parseBaseNodeFactory: () => Koe, parseBigInt: () => bse, parseBuildCommand: () => mce, parseCommandLine: () => pce, parseCommandLineWorker: () => Tq, parseConfigFileTextToJson: () => xq, parseConfigFileWithSystem: () => Fue, parseConfigHostFromCompilerHostLike: () => X9, parseCustomTypeOption: () => i9, parseIsolatedEntityName: () => BC, parseIsolatedJSDocComment: () => Zoe, parseJSDocTypeExpressionForTests: () => uke, parseJsonConfigFileContent: () => Jke, parseJsonSourceFileConfigFileContent: () => RO, parseJsonText: () => IO, parseListTypeOption: () => fce, parseNodeFactory: () => F1, parseNodeModuleFromPath: () => BO, parsePackageName: () => T9, parsePseudoBigInt: () => xN, parseValidBigInt: () => c$, pasteEdits: () => MK, patchWriteFileEnsuringDirectory: () => ure, pathContainsNodeModules: () => fb, pathIsAbsolute: () => yD, pathIsBareSpecifier: () => WW, pathIsRelative: () => _p, patternText: () => $te, performIncrementalCompilation: () => Rue, performance: () => ene, positionBelongsToNode: () => XG, positionIsASICandidate: () => qM, positionIsSynthesized: () => Cm, positionsAreOnSameLine: () => Zp, preProcessFile: () => YEe, probablyUsesSemicolons: () => D8, processCommentPragmas: () => dq, processPragmasIntoFields: () => mq, processTaggedTemplateExpression: () => hH, programContainsEsModules: () => Vfe, programContainsModules: () => zfe, projectReferenceIsEqualTo: () => kz, propertyNamePart: () => Yfe, pseudoBigIntToString: () => dS, punctuationPart: () => gf, pushIfUnique: () => $p, quote: () => NP, quotePreferenceFromString: () => pY, rangeContainsPosition: () => WE, rangeContainsPositionExclusive: () => y8, rangeContainsRange: () => u_, rangeContainsRangeExclusive: () => Dfe, rangeContainsStartEnd: () => v8, rangeEndIsOnSameLineAsRangeStart: () => J3, rangeEndPositionsAreOnSameLine: () => Uae, rangeEquals: () => eW, rangeIsOnSingleLine: () => qx, rangeOfNode: () => s$, rangeOfTypeParameters: () => o$, rangeOverlapsWithStartEnd: () => SP, rangeStartIsOnSameLineAsRangeEnd: () => Wae, rangeStartPositionsAreOnSameLine: () => VR, readBuilderProgram: () => oM, readConfigFile: () => OO, readJson: () => KA, readJsonConfigFile: () => hce, readJsonOrUndefined: () => OV, reduceEachLeadingCommentRange: () => vre, reduceEachTrailingCommentRange: () => bre, reduceLeft: () => wf, reduceLeftIterator: () => ti, reducePathComponents: () => Bk, refactor: () => ew, regExpEscape: () => o2e, regularExpressionFlagToCharacterCode: () => sxe, relativeComplement: () => Ote, removeAllComments: () => cO, removeEmitHelper: () => x2e, removeExtension: () => Q3, removeFileExtension: () => Nf, removeIgnoredPath: () => eM, removeMinAndVersionNumbers: () => _W, removePrefix: () => uD, removeSuffix: () => gA, removeTrailingDirectorySeparator: () => g0, repeatString: () => x8, replaceElement: () => rW, replaceFirstStar: () => Gx, resolutionExtensionIsTSOrJson: () => vN, resolveConfigFileProjectName: () => bG, resolveJSModule: () => Fce, resolveLibrary: () => b9, resolveModuleName: () => f2, resolveModuleNameFromCache: () => hCe, resolvePackageNameToPackageJson: () => Rq, resolvePath: () => Fv, resolveProjectReferencePath: () => qC, resolveTripleslashReference: () => OH, resolveTypeReferenceDirective: () => Dce, resolvingEmptyArray: () => Sz, returnFalse: () => by, returnNoopFileWatcher: () => yP, returnTrue: () => zT, returnUndefined: () => VT, returnsPromise: () => QY, rewriteModuleSpecifier: () => zC, sameFlatMap: () => YU, sameMap: () => po, sameMapping: () => swe, scanTokenAtPosition: () => Uie, scanner: () => Au, semanticDiagnosticsOptionDeclarations: () => ice, serializeCompilerOptions: () => Eq, server: () => KFe, servicesVersion: () => jDe, setCommentRange: () => Pl, setConfigFileInOptions: () => Iq, setConstantValue: () => Yse, setEmitFlags: () => Pr, setGetSourceFileAsHashVersioned: () => sM, setIdentifierAutoGenerate: () => fO, setIdentifierGeneratedImportReference: () => Zse, setIdentifierTypeArguments: () => D0, setInternalEmitFlags: () => lO, setLocalizedDiagnosticMessages: () => Kae, setNodeChildren: () => Ioe, setNodeFlags: () => xse, setObjectAllocator: () => Xae, setOriginalNode: () => Gr, setParent: () => mo, setParentRecursive: () => S1, setPrivateIdentifier: () => p2, setSnippetElement: () => D$, setSourceMapRange: () => qs, setStackTraceLimit: () => zSe, setStartsOnNewLine: () => CL, setSyntheticLeadingComments: () => x1, setSyntheticTrailingComments: () => TC, setSys: () => YSe, setSysLog: () => ore, setTextRange: () => St, setTextRangeEnd: () => iE, setTextRangePos: () => kN, setTextRangePosEnd: () => wm, setTextRangePosWidth: () => l$, setTokenSourceMapRange: () => qse, setTypeNode: () => Kse, setUILocale: () => Wte, setValueDeclaration: () => YD, shouldAllowImportingTsExtension: () => NE, shouldPreserveConstEnums: () => Zv, shouldRewriteModuleSpecifier: () => b3, shouldUseUriStyleNodeCoreModules: () => ZM, showModuleSpecifier: () => Hae, signatureHasRestParameter: () => hf, signatureToDisplayParts: () => kY, single: () => nW, singleElementArray: () => Lk, singleIterator: () => Nte, singleOrMany: () => Uh, singleOrUndefined: () => Sg, skipAlias: () => Ru, skipConstraint: () => uY, skipOuterExpressions: () => Gc, skipParentheses: () => _o, skipPartiallyEmittedExpressions: () => Yd, skipTrivia: () => Rs, skipTypeChecking: () => rE, skipTypeCheckingIgnoringNoCheck: () => vse, skipTypeParentheses: () => KD, skipWhile: () => Gte, sliceAfter: () => a$, some: () => bt, sortAndDeduplicate: () => cD, sortAndDeduplicateDiagnostics: () => kA, sourceFileAffectingCompilerOptions: () => vq, sourceFileMayBeEmitted: () => oS, sourceMapCommentRegExp: () => iH, sourceMapCommentRegExpDontCareLineStart: () => ale, spacePart: () => zc, spanMap: () => XU, startEndContainsRange: () => LV, startEndOverlapsWithStartEnd: () => wM, startOnNewLine: () => mf, startTracing: () => ine, startsWith: () => _a, startsWithDirectory: () => $W, startsWithUnderscore: () => MY, startsWithUseStrict: () => Loe, stringContainsAt: () => f_e, stringToToken: () => Cx, stripQuotes: () => Id, supportedDeclarationExtensions: () => lL, supportedJSExtensionsFlat: () => nE, supportedLocaleDirectories: () => Rre, supportedTSExtensionsFlat: () => e$, supportedTSImplementationExtensions: () => Y3, suppressLeadingAndTrailingTrivia: () => H_, suppressLeadingTrivia: () => k$, suppressTrailingTrivia: () => jse, symbolEscapedNameNoDefault: () => jM, symbolName: () => Bc, symbolNameNoDefault: () => mY, symbolToDisplayParts: () => IP, sys: () => Xl, sysLog: () => T4, tagNamesAreEquivalent: () => L1, takeWhile: () => mW, targetOptionDeclaration: () => gq, targetToLibMap: () => Tre, testFormatSettings: () => gEe, textChangeRangeIsUnchanged: () => Dre, textChangeRangeNewSpan: () => wD, textChanges: () => Dr, textOrKeywordPart: () => xY, textPart: () => Ip, textRangeContainsPositionInclusive: () => I4, textRangeContainsTextSpan: () => kre, textRangeIntersectsWithTextSpan: () => Ere, textSpanContainsPosition: () => XW, textSpanContainsTextRange: () => KW, textSpanContainsTextSpan: () => xre, textSpanEnd: () => Pc, textSpanIntersection: () => Ire, textSpanIntersectsWith: () => D4, textSpanIntersectsWithPosition: () => Are, textSpanIntersectsWithTextSpan: () => wre, textSpanIsEmpty: () => Sre, textSpanOverlap: () => Cre, textSpanOverlapsWith: () => dxe, textSpansEqual: () => qE, textToKeywordObj: () => b5, timestamp: () => Mo, toArray: () => Fk, toBuilderFileEmit: () => xue, toBuilderStateFileInfoForMultiEmit: () => Sue, toEditorSettings: () => U8, toFileNameLowerCase: () => Iv, toPath: () => jo, toProgramEmitPending: () => kue, toSorted: () => M_, tokenIsIdentifierOrKeyword: () => i_, tokenIsIdentifierOrKeywordOrGreaterThan: () => pre, tokenToString: () => ys, trace: () => Sa, tracing: () => Ir, tracingEnabled: () => b4, transferSourceFileChildren: () => Doe, transform: () => GDe, transformClassFields: () => xle, transformDeclarations: () => bH, transformECMAScriptModule: () => vH, transformES2015: () => Mle, transformES2016: () => Lle, transformES2017: () => Ale, transformES2018: () => Ele, transformES2019: () => Ile, transformES2020: () => Dle, transformES2021: () => Nle, transformESDecorators: () => wle, transformESNext: () => Ple, transformGenerators: () => jle, transformImpliedNodeFormatDependentModule: () => Jle, transformJsx: () => Rle, transformLegacyDecorators: () => Cle, transformModule: () => yH, transformNamedEvaluation: () => X_, transformNodes: () => KO, transformSystemModule: () => Ble, transformTypeScript: () => Sle, transpile: () => iIe, transpileDeclaration: () => nIe, transpileModule: () => F_e, transpileOptionValueCompilerOptions: () => cce, tryAddToSet: () => h0, tryAndIgnoreErrors: () => YM, tryCast: () => li, tryDirectoryExists: () => GM, tryExtractTSExtension: () => WR, tryFileExists: () => OP, tryGetClassExtendingExpressionWithTypeArguments: () => IV, tryGetClassImplementingOrExtendingExpressionWithTypeArguments: () => DV, tryGetDirectories: () => HM, tryGetExtensionFromPath: () => Bg, tryGetImportFromModuleSpecifier: () => v3, tryGetJSDocSatisfiesTypeNode: () => gL, tryGetModuleNameFromFile: () => xO, tryGetModuleSpecifierFromDeclaration: () => eC, tryGetNativePerformanceHooks: () => Zte, tryGetPropertyAccessOrIdentifierToString: () => j3, tryGetPropertyNameOfBindingOrAssignmentElement: () => YL, tryGetSourceMappingURL: () => sle, tryGetTextOfPropertyName: () => JD, tryParseJson: () => B3, tryParsePattern: () => hC, tryParsePatterns: () => Z3, tryParseRawSourceMap: () => ole, tryReadDirectory: () => DY, tryReadFile: () => YN, tryRemoveDirectoryPrefix: () => XV, tryRemoveExtension: () => gse, tryRemovePrefix: () => dW, tryRemoveSuffix: () => Vte, tscBuildOption: () => l2, typeAcquisitionDeclarations: () => n9, typeAliasNamePart: () => Xfe, typeDirectiveIsEqualTo: () => Sie, typeKeywords: () => lY, typeParameterNamePart: () => Kfe, typeToDisplayParts: () => A8, unchangedPollThresholds: () => p5, unchangedTextChangeRange: () => k5, unescapeLeadingUnderscores: () => $i, unmangleScopedPackageName: () => UO, unorderedRemoveItem: () => Rk, unprefixedNodeCoreModules: () => Rse, unreachableCodeIsError: () => rse, unsetNodeChildren: () => Q$, unusedLabelIsError: () => ise, unwrapInnermostStatementOfLabel: () => $z, unwrapParenthesizedExpression: () => Ose, updateErrorForNoInputFiles: () => _9, updateLanguageServiceSourceFile: () => CX, updateMissingFilePathsWatch: () => DH, updateResolutionField: () => wE, updateSharedExtendedConfigFileWatcher: () => J9, updateSourceFile: () => _q, updateWatchingWildcardDirectories: () => e8, usingSingleLineStringWriter: () => PA, utf16EncodeAsString: () => CD, validateLocaleAndSetLanguage: () => ez, version: () => Ee, versionMajorMinor: () => Oe, visitArray: () => rP, visitCommaListElements: () => VO, visitEachChild: () => Jn, visitFunctionBody: () => Ep, visitIterationBody: () => qf, visitLexicalEnvironment: () => rH, visitNode: () => ut, visitNodes: () => Qn, visitParameterList: () => Wc, walkUpBindingElementsAndPatterns: () => wx, walkUpOuterExpressions: () => Moe, walkUpParenthesizedExpressions: () => Kd, walkUpParenthesizedTypes: () => k3, walkUpParenthesizedTypesAndGetParentAndChild: () => pae, whitespaceOrMapCommentRegExp: () => aH, writeCommentRange: () => XA, writeFile: () => LR, writeFileEnsuringDirectories: () => SV, zipWith: () => yi }), y.exports = le(_e);
+      B(_e, { ANONYMOUS: () => IY, AccessFlags: () => Ine, AssertionLevel: () => Bte, AssignmentDeclarationKind: () => jne, AssignmentKind: () => uae, Associativity: () => yae, BreakpointResolver: () => AX, BuilderFileEmit: () => pue, BuilderProgramKind: () => Tue, BuilderState: () => Nm, CallHierarchy: () => tw, CharacterCodes: () => Yne, CheckFlags: () => Cne, CheckMode: () => Qq, ClassificationType: () => JG, ClassificationTypeNames: () => xfe, CommentDirectiveType: () => une, Comparison: () => qe, CompletionInfoFlags: () => hfe, CompletionTriggerKind: () => jG, Completions: () => sw, ContainerFlags: () => Hce, ContextFlags: () => gne, Debug: () => D, DiagnosticCategory: () => f5, Diagnostics: () => d, DocumentHighlights: () => aj, ElementFlags: () => Ene, EmitFlags: () => RW, EmitHint: () => Zne, EmitOnly: () => _ne, EndOfLineState: () => vfe, ExitStatus: () => pne, ExportKind: () => p_e, Extension: () => Xne, ExternalEmitHelpers: () => Qne, FileIncludeKind: () => CW, FilePreprocessingDiagnosticsKind: () => fne, FileSystemEntryKind: () => cre, FileWatcherEventKind: () => are, FindAllReferences: () => Zo, FlattenLevel: () => mle, FlowFlags: () => u5, ForegroundColorEscapeSequences: () => rue, FunctionFlags: () => hae, GeneratedIdentifierFlags: () => kW, GetLiteralTextFlags: () => Aie, GoToDefinition: () => nI, HighlightSpanKind: () => dfe, IdentifierNameMap: () => PE, ImportKind: () => __e, ImportsNotUsedAsValues: () => Vne, IndentStyle: () => mfe, IndexFlags: () => Dne, IndexKind: () => One, InferenceFlags: () => Lne, InferencePriority: () => Rne, InlayHintKind: () => pfe, InlayHints: () => yK, InternalEmitFlags: () => Kne, InternalNodeBuilderFlags: () => vne, InternalSymbolName: () => wne, IntersectionFlags: () => hne, InvalidatedProjectKind: () => Vue, JSDocParsingMode: () => ire, JsDoc: () => G1, JsTyping: () => mb, JsxEmit: () => zne, JsxFlags: () => sne, JsxReferenceKind: () => Nne, LanguageFeatureMinimumTarget: () => ou, LanguageServiceMode: () => ffe, LanguageVariant: () => Hne, LexicalEnvironmentFlags: () => tre, ListFormat: () => nre, LogLevel: () => Yte, MapCode: () => vK, MemberOverrideStatus: () => dne, ModifierFlags: () => SW, ModuleDetectionKind: () => Bne, ModuleInstanceState: () => $ce, ModuleKind: () => vA, ModuleResolutionKind: () => yA, ModuleSpecifierEnding: () => dse, NavigateTo: () => M_e, NavigationBar: () => B_e, NewLineKind: () => $ne, NodeBuilderFlags: () => yne, NodeCheckFlags: () => EW, NodeFactoryFlags: () => $se, NodeFlags: () => TW, NodeResolutionFeatures: () => Rce, ObjectFlags: () => DW, OperationCanceledException: () => hD, OperatorPrecedence: () => vae, OrganizeImports: () => Y1, OrganizeImportsMode: () => MG, OuterExpressionKinds: () => ere, OutliningElementsCollector: () => TK, OutliningSpanKind: () => gfe, OutputFileType: () => yfe, PackageJsonAutoImportPreference: () => ufe, PackageJsonDependencyGroup: () => lfe, PatternMatchKind: () => GY, PollingInterval: () => LW, PollingWatchKind: () => Wne, PragmaKindFlags: () => rre, PredicateSemantics: () => one, PreparePasteEdits: () => LK, PrivateIdentifierKind: () => toe, ProcessLevel: () => vle, ProgramUpdateLevel: () => Qle, QuotePreference: () => $fe, RegularExpressionFlags: () => cne, RelationComparisonResult: () => xW, Rename: () => Wj, ScriptElementKind: () => Tfe, ScriptElementKindModifier: () => Sfe, ScriptKind: () => PW, ScriptSnapshot: () => gM, ScriptTarget: () => qne, SemanticClassificationFormat: () => _fe, SemanticMeaning: () => kfe, SemicolonPreference: () => BG, SignatureCheckMode: () => Zq, SignatureFlags: () => NW, SignatureHelp: () => i7, SignatureInfo: () => _ue, SignatureKind: () => Pne, SmartSelectionRange: () => kK, SnippetKind: () => FW, StatisticType: () => Zue, StructureIsReused: () => wW, SymbolAccessibility: () => Sne, SymbolDisplay: () => U0, SymbolDisplayPartKind: () => vM, SymbolFlags: () => AW, SymbolFormatFlags: () => Tne, SyntaxKind: () => bW, Ternary: () => Mne, ThrottledCancellationToken: () => Hpe, TokenClass: () => bfe, TokenFlags: () => lne, TransformFlags: () => OW, TypeFacts: () => Kq, TypeFlags: () => IW, TypeFormatFlags: () => bne, TypeMapKind: () => Fne, TypePredicateKind: () => xne, TypeReferenceSerializationKind: () => kne, UnionReduction: () => mne, UpToDateStatusType: () => Mue, VarianceFlags: () => Ane, Version: () => ym, VersionRange: () => l5, WatchDirectoryFlags: () => Gne, WatchDirectoryKind: () => Une, WatchFileKind: () => Jne, WatchLogLevel: () => eue, WatchType: () => du, accessPrivateIdentifier: () => dle, addEmitFlags: () => _h, addEmitHelper: () => SC, addEmitHelpers: () => Ug, addInternalEmitFlags: () => Yx, addNodeFactoryPatcher: () => g2e, addObjectAllocatorPatcher: () => t2e, addRange: () => ni, addRelatedInfo: () => ds, addSyntheticLeadingComment: () => rb, addSyntheticTrailingComment: () => PN, addToSeen: () => Dd, advancedAsyncSuperHelper: () => EL, affectsDeclarationPathOptionDeclarations: () => sce, affectsEmitOptionDeclarations: () => ace, allKeysStartWithDot: () => S9, altDirectorySeparator: () => m5, and: () => s5, append: () => Hn, appendIfUnique: () => vy, arrayFrom: () => Aa, arrayIsEqualTo: () => fp, arrayIsHomogeneous: () => Sse, arrayOf: () => Rte, arrayReverseIterator: () => ZU, arrayToMap: () => dA, arrayToMultiMap: () => m4, arrayToNumericMap: () => Mte, assertType: () => NSe, assign: () => Tx, asyncSuperHelper: () => AL, attachFileToDiagnostics: () => pC, base64decode: () => Jae, base64encode: () => Bae, binarySearch: () => Av, binarySearchKey: () => Pk, bindSourceFile: () => Gce, breakIntoCharacterSpans: () => I_e, breakIntoWordSpans: () => D_e, buildLinkParts: () => Zfe, buildOpts: () => NO, buildOverload: () => rFe, bundlerModuleNameResolver: () => Lce, canBeConvertedToAsync: () => eX, canHaveDecorators: () => CS, canHaveExportModifier: () => tO, canHaveFlowNode: () => zA, canHaveIllegalDecorators: () => oq, canHaveIllegalModifiers: () => Joe, canHaveIllegalType: () => z2e, canHaveIllegalTypeParameters: () => Boe, canHaveJSDoc: () => S3, canHaveLocals: () => Vh, canHaveModifiers: () => Fd, canHaveModuleSpecifier: () => oae, canHaveSymbol: () => Tm, canIncludeBindAndCheckDiagnostics: () => SN, canJsonReportNoInputFiles: () => MO, canProduceDiagnostics: () => HO, canUsePropertyAccess: () => f$, canWatchAffectingLocation: () => Iue, canWatchAtTypes: () => Eue, canWatchDirectoryOrFile: () => eG, canWatchDirectoryOrFilePath: () => c8, cartesianProduct: () => Hte, cast: () => hs, chainBundle: () => Dm, chainDiagnosticMessages: () => $a, changeAnyExtension: () => S4, changeCompilerHostLikeToUseCache: () => dP, changeExtension: () => E0, changeFullExtension: () => y5, changesAffectModuleResolution: () => $5, changesAffectingProgramStructure: () => vie, characterCodeToRegularExpressionFlag: () => HW, childIsDecorated: () => VD, classElementOrClassElementParameterIsDecorated: () => qz, classHasClassThisAssignment: () => dH, classHasDeclaredOrExplicitlyAssignedName: () => mH, classHasExplicitlyAssignedName: () => R9, classOrConstructorParameterIsDecorated: () => x0, classicNameResolver: () => zce, classifier: () => Kpe, cleanExtendedConfigCache: () => U9, clear: () => is, clearMap: () => k_, clearSharedExtendedConfigFileWatcher: () => IH, climbPastPropertyAccess: () => SM, clone: () => jte, cloneCompilerOptions: () => aY, closeFileWatcher: () => Qd, closeFileWatcherOf: () => sd, codefix: () => yf, collapseTextChangeRangesAcrossMultipleVersions: () => Nre, collectExternalModuleInfo: () => uH, combine: () => Nk, combinePaths: () => ri, commandLineOptionOfCustomType: () => lce, commentPragmas: () => _5, commonOptionsWithBuild: () => t9, compact: () => p4, compareBooleans: () => s1, compareDataObjects: () => BV, compareDiagnostics: () => mN, compareEmitHelpers: () => roe, compareNumberOfDirectorySeparators: () => K3, comparePaths: () => Ty, comparePathsCaseInsensitive: () => txe, comparePathsCaseSensitive: () => exe, comparePatternKeys: () => Vq, compareProperties: () => zte, compareStringsCaseInsensitive: () => g4, compareStringsCaseInsensitiveEslintCompatible: () => Jte, compareStringsCaseSensitive: () => Hu, compareStringsCaseSensitiveUI: () => y4, compareTextSpans: () => i5, compareValues: () => qo, compilerOptionsAffectDeclarationPath: () => cse, compilerOptionsAffectEmit: () => ose, compilerOptionsAffectSemanticDiagnostics: () => sse, compilerOptionsDidYouMeanDiagnostics: () => a9, compilerOptionsIndicateEsModules: () => fY, computeCommonSourceDirectoryOfFilenames: () => tue, computeLineAndCharacterOfPosition: () => SA, computeLineOfPosition: () => TD, computeLineStarts: () => Uk, computePositionOfLineAndCharacter: () => S5, computeSignatureWithDiagnostics: () => GH, computeSuggestionDiagnostics: () => KY, computedOptions: () => hN, concatenate: () => la, concatenateDiagnosticMessageChains: () => Zae, consumesNodeCoreModules: () => XM, contains: () => Yn, containsIgnoredPath: () => CN, containsObjectRestOrSpread: () => AO, containsParseError: () => Xk, containsPath: () => Hp, convertCompilerOptionsForTelemetry: () => kce, convertCompilerOptionsFromJson: () => Qke, convertJsonOption: () => u2, convertToBase64: () => jae, convertToJson: () => FO, convertToObject: () => yce, convertToOptionsWithAbsolutePaths: () => l9, convertToRelativePath: () => vD, convertToTSConfig: () => Aq, convertTypeAcquisitionFromJson: () => Zke, copyComments: () => v2, copyEntries: () => q5, copyLeadingComments: () => GE, copyProperties: () => sW, copyTrailingAsLeadingComments: () => I8, copyTrailingComments: () => DP, couldStartTrivia: () => gre, countWhere: () => Ya, createAbstractBuilder: () => aAe, createAccessorPropertyBackingField: () => uq, createAccessorPropertyGetRedirector: () => Goe, createAccessorPropertySetRedirector: () => Yoe, createBaseNodeFactory: () => Jse, createBinaryExpressionTrampoline: () => XL, createBuilderProgram: () => YH, createBuilderProgramUsingIncrementalBuildInfo: () => Cue, createBuilderStatusReporter: () => lM, createCacheableExportInfoMap: () => JY, createCachedDirectoryStructureHost: () => B9, createClassifier: () => REe, createCommentDirectivesMap: () => Cie, createCompilerDiagnostic: () => Ic, createCompilerDiagnosticForInvalidCustomType: () => uce, createCompilerDiagnosticFromMessageChain: () => YR, createCompilerHost: () => nue, createCompilerHostFromProgramHost: () => mG, createCompilerHostWorker: () => W9, createDetachedDiagnostic: () => _C, createDiagnosticCollection: () => aN, createDiagnosticForFileFromMessageChain: () => Uz, createDiagnosticForNode: () => Ar, createDiagnosticForNodeArray: () => RA, createDiagnosticForNodeArrayFromMessageChain: () => e3, createDiagnosticForNodeFromMessageChain: () => Pg, createDiagnosticForNodeInSourceFile: () => Yp, createDiagnosticForRange: () => Bie, createDiagnosticMessageChainFromDiagnostic: () => jie, createDiagnosticReporter: () => HC, createDocumentPositionMapper: () => lle, createDocumentRegistry: () => y_e, createDocumentRegistryInternal: () => $Y, createEmitAndSemanticDiagnosticsBuilderProgram: () => ZH, createEmitHelperFactory: () => noe, createEmptyExports: () => vO, createEvaluator: () => Pse, createExpressionForJsxElement: () => Ooe, createExpressionForJsxFragment: () => Foe, createExpressionForObjectLiteralElementLike: () => Roe, createExpressionForPropertyName: () => tq, createExpressionFromEntityName: () => bO, createExternalHelpersImportDeclarationIfNeeded: () => iq, createFileDiagnostic: () => Wl, createFileDiagnosticFromMessageChain: () => nR, createFlowNode: () => eg, createForOfBindingStatement: () => eq, createFutureSourceFile: () => nj, createGetCanonicalFileName: () => Ou, createGetIsolatedDeclarationErrors: () => Wle, createGetSourceFile: () => FH, createGetSymbolAccessibilityDiagnosticForNode: () => j1, createGetSymbolAccessibilityDiagnosticForNodeName: () => Ule, createGetSymbolWalker: () => Yce, createIncrementalCompilerHost: () => cM, createIncrementalProgram: () => Lue, createJsxFactoryExpression: () => Z$, createLanguageService: () => Gpe, createLanguageServiceSourceFile: () => Tj, createMemberAccessForPropertyName: () => c2, createModeAwareCache: () => AE, createModeAwareCacheKey: () => ZN, createModeMismatchDetails: () => Cz, createModuleNotFoundChain: () => G5, createModuleResolutionCache: () => EE, createModuleResolutionLoader: () => JH, createModuleResolutionLoaderUsingGlobalCache: () => Oue, createModuleSpecifierResolutionHost: () => W1, createMultiMap: () => xd, createNameResolver: () => h$, createNodeConverters: () => zse, createNodeFactory: () => sO, createOptionNameMap: () => r9, createOverload: () => jK, createPackageJsonImportFilter: () => YE, createPackageJsonInfo: () => PY, createParenthesizerRules: () => Use, createPatternMatcher: () => x_e, createPrinter: () => pb, createPrinterWithDefaults: () => Xle, createPrinterWithRemoveComments: () => IS, createPrinterWithRemoveCommentsNeverAsciiEscape: () => Kle, createPrinterWithRemoveCommentsOmitTrailingSemicolon: () => EH, createProgram: () => a8, createProgramDiagnostics: () => uue, createProgramHost: () => hG, createPropertyNameNodeForIdentifierOrLiteral: () => eO, createQueue: () => h4, createRange: () => Qp, createRedirectedBuilderProgram: () => QH, createResolutionCache: () => nG, createRuntimeTypeSerializer: () => kle, createScanner: () => wg, createSemanticDiagnosticsBuilderProgram: () => iAe, createSet: () => oW, createSolutionBuilder: () => Uue, createSolutionBuilderHost: () => Bue, createSolutionBuilderWithWatch: () => Wue, createSolutionBuilderWithWatchHost: () => Jue, createSortedArray: () => QU, createSourceFile: () => jC, createSourceMapGenerator: () => ile, createSourceMapSource: () => T2e, createSuperAccessVariableStatement: () => M9, createSymbolTable: () => _s, createSymlinkCache: () => YV, createSyntacticTypeNodeBuilder: () => sfe, createSystemWatchFunctions: () => lre, createTextChange: () => S8, createTextChangeFromStartLength: () => RM, createTextChangeRange: () => P4, createTextRangeFromNode: () => cY, createTextRangeFromSpan: () => FM, createTextSpan: () => Fu, createTextSpanFromBounds: () => ll, createTextSpanFromNode: () => Gf, createTextSpanFromRange: () => j0, createTextSpanFromStringLiteralLikeContent: () => oY, createTextWriter: () => O3, createTokenRange: () => FV, createTypeChecker: () => nle, createTypeReferenceDirectiveResolutionCache: () => v9, createTypeReferenceResolutionLoader: () => $9, createWatchCompilerHost: () => mAe, createWatchCompilerHostOfConfigFile: () => gG, createWatchCompilerHostOfFilesAndCompilerOptions: () => yG, createWatchFactory: () => dG, createWatchHost: () => pG, createWatchProgram: () => vG, createWatchStatusReporter: () => rG, createWriteFileMeasuringIO: () => RH, declarationNameToString: () => Bo, decodeMappings: () => oH, decodedTextSpanIntersectsWith: () => N4, deduplicate: () => WT, defaultHoverMaximumTruncationLength: () => gie, defaultInitCompilerOptions: () => yke, defaultMaximumTruncationLength: () => MD, diagnosticCategoryName: () => xx, diagnosticToString: () => FS, diagnosticsEqualityComparer: () => XR, directoryProbablyExists: () => km, directorySeparator: () => Xo, displayPart: () => A_, displayPartsToString: () => W8, disposeEmitNodes: () => A$, documentSpansEqual: () => yY, dumpTracingLegend: () => ane, elementAt: () => wv, elideNodes: () => Hoe, emitDetachedComments: () => Eae, emitFiles: () => wH, emitFilesAndReportErrors: () => iM, emitFilesAndReportErrorsAndGetExitStatus: () => _G, emitModuleKindIsNonNodeESM: () => H3, emitNewLineBeforeLeadingCommentOfPosition: () => Aae, emitResolverSkipsTypeChecking: () => CH, emitSkippedWithNoDiagnostics: () => zH, emptyArray: () => ae, emptyFileSystemEntries: () => r$, emptyMap: () => At, emptyOptions: () => Rd, endsWith: () => rc, ensurePathIsNonModuleName: () => kx, ensureScriptKind: () => sL, ensureTrailingDirectorySeparator: () => Kl, entityNameToString: () => W_, enumerateInsertsAndDeletes: () => c5, equalOwnProperties: () => Lte, equateStringsCaseInsensitive: () => Nv, equateStringsCaseSensitive: () => $T, equateValues: () => Dv, escapeJsxAttributeString: () => hV, escapeLeadingUnderscores: () => Oc, escapeNonAsciiString: () => IR, escapeSnippetText: () => mS, escapeString: () => Xh, escapeTemplateSubstitution: () => dV, evaluatorResult: () => Zl, every: () => jn, exclusivelyPrefixedNodeCoreModules: () => TL, executeCommandLine: () => GAe, expandPreOrPostfixIncrementOrDecrementExpression: () => $L, explainFiles: () => oG, explainIfFileIsRedirectAndImpliedFormat: () => cG, exportAssignmentIsAlias: () => w3, expressionResultIsUnused: () => kse, extend: () => aW, extensionFromPath: () => bN, extensionIsTS: () => fL, extensionsNotSupportingExtensionlessResolution: () => uL, externalHelpersModuleNameText: () => zv, factory: () => R, fileExtensionIs: () => Ac, fileExtensionIsOneOf: () => nl, fileIncludeReasonToDiagnostics: () => fG, fileShouldUseJavaScriptRequire: () => BY, filter: () => Nn, filterMutate: () => tc, filterSemanticDiagnostics: () => Y9, find: () => $t, findAncestor: () => On, findBestPatternMatch: () => pW, findChildOfKind: () => Eo, findComputedPropertyNameCacheAssignment: () => KL, findConfigFile: () => PH, findConstructorDeclaration: () => iO, findContainingList: () => AM, findDiagnosticForNode: () => l_e, findFirstNonJsxWhitespaceToken: () => Pfe, findIndex: () => Hr, findLast: () => si, findLastIndex: () => br, findListItemInfo: () => Nfe, findModifier: () => $E, findNextToken: () => OS, findPackageJson: () => c_e, findPackageJsons: () => NY, findPrecedingMatchingToken: () => PM, findPrecedingToken: () => ql, findSuperStatementIndexPath: () => N9, findTokenOnLeftOfPosition: () => xP, findUseStrictPrologue: () => rq, first: () => Qs, firstDefined: () => an, firstDefinedIterator: () => ir, firstIterator: () => tW, firstOrOnly: () => RY, firstOrUndefined: () => Il, firstOrUndefinedIterator: () => r5, fixupCompilerOptions: () => tX, flatMap: () => oa, flatMapIterator: () => Km, flatMapToMutable: () => L_, flatten: () => Is, flattenCommaList: () => Xoe, flattenDestructuringAssignment: () => d2, flattenDestructuringBinding: () => ES, flattenDiagnosticMessageText: () => Th, forEach: () => Ne, forEachAncestor: () => bie, forEachAncestorDirectory: () => bD, forEachAncestorDirectoryStoppingAtGlobalCache: () => Zh, forEachChild: () => qa, forEachChildRecursively: () => MC, forEachDynamicImportOrRequireCall: () => SL, forEachEmittedFile: () => TH, forEachEnclosingBlockScopeContainer: () => Rie, forEachEntry: () => Ql, forEachExternalModuleToImportFrom: () => WY, forEachImportClauseDeclaration: () => cae, forEachKey: () => Dg, forEachLeadingCommentRange: () => C4, forEachNameInAccessChainWalkingLeft: () => Gae, forEachNameOfDefaultExport: () => ij, forEachOptionsSyntaxByName: () => S$, forEachProjectReference: () => DN, forEachPropertyAssignment: () => jA, forEachResolvedProjectReference: () => b$, forEachReturnStatement: () => Hv, forEachRight: () => En, forEachTrailingCommentRange: () => w4, forEachTsConfigPropArray: () => a3, forEachUnique: () => bY, forEachYieldExpression: () => zie, formatColorAndReset: () => DS, formatDiagnostic: () => LH, formatDiagnostics: () => Pwe, formatDiagnosticsWithColorAndContext: () => sue, formatGeneratedName: () => O1, formatGeneratedNamePart: () => xE, formatLocation: () => MH, formatMessage: () => dC, formatStringFromArgs: () => Mg, formatting: () => Rl, generateDjb2Hash: () => gD, generateTSConfig: () => vce, getAdjustedReferenceLocation: () => ZG, getAdjustedRenameLocation: () => IM, getAliasDeclarationFromName: () => iV, getAllAccessorDeclarations: () => uS, getAllDecoratorsOfClass: () => _H, getAllDecoratorsOfClassElement: () => O9, getAllJSDocTags: () => I5, getAllJSDocTagsOfKind: () => kxe, getAllKeys: () => ASe, getAllProjectOutputs: () => j9, getAllSuperTypeNodes: () => ZD, getAllowImportingTsExtensions: () => tse, getAllowJSCompilerOption: () => eb, getAllowSyntheticDefaultImports: () => mC, getAncestor: () => y1, getAnyExtensionFromPath: () => jk, getAreDeclarationMapsEnabled: () => KR, getAssignedExpandoInitializer: () => Zk, getAssignedName: () => w5, getAssignmentDeclarationKind: () => ul, getAssignmentDeclarationPropertyAccessKind: () => g3, getAssignmentTargetKind: () => Gv, getAutomaticTypeDirectiveNames: () => g9, getBaseFileName: () => Dl, getBinaryOperatorPrecedence: () => D3, getBuildInfo: () => AH, getBuildInfoFileVersionMap: () => KH, getBuildInfoText: () => Gle, getBuildOrderFromAnyBuildOrder: () => u8, getBuilderCreationParameters: () => Z9, getBuilderFileEmit: () => db, getCanonicalDiagnostic: () => Jie, getCheckFlags: () => Uc, getClassExtendsHeritageElement: () => sS, getClassLikeDeclarationOfSymbol: () => Ny, getCombinedLocalAndExportSymbolFlags: () => QA, getCombinedModifierFlags: () => c1, getCombinedNodeFlags: () => xy, getCombinedNodeFlagsAlwaysIncludeJSDoc: () => ZW, getCommentRange: () => ph, getCommonSourceDirectory: () => pP, getCommonSourceDirectoryOfConfig: () => m2, getCompilerOptionValue: () => eL, getConditions: () => ub, getConfigFileParsingDiagnostics: () => NS, getConstantValue: () => Gse, getContainerFlags: () => qq, getContainerNode: () => y2, getContainingClass: () => ku, getContainingClassExcludingClassDecorators: () => uR, getContainingClassStaticBlock: () => Kie, getContainingFunction: () => Tp, getContainingFunctionDeclaration: () => Xie, getContainingFunctionOrClassStaticBlock: () => lR, getContainingNodeArray: () => Cse, getContainingObjectLiteralElement: () => z8, getContextualTypeFromParent: () => VM, getContextualTypeFromParentOrAncestorTypeNode: () => EM, getDeclarationDiagnostics: () => zle, getDeclarationEmitExtensionForPath: () => PR, getDeclarationEmitOutputFilePath: () => xae, getDeclarationEmitOutputFilePathWorker: () => NR, getDeclarationFileExtension: () => ZL, getDeclarationFromName: () => QD, getDeclarationModifierFlagsFromSymbol: () => ed, getDeclarationOfKind: () => lc, getDeclarationsOfKind: () => yie, getDeclaredExpandoInitializer: () => GD, getDecorators: () => Lv, getDefaultCompilerOptions: () => bj, getDefaultFormatCodeSettings: () => yM, getDefaultLibFileName: () => E4, getDefaultLibFilePath: () => Ype, getDefaultLikeExportInfo: () => rj, getDefaultLikeExportNameFromDeclaration: () => LY, getDefaultResolutionModeForFileWorker: () => G9, getDiagnosticText: () => __, getDiagnosticsWithinSpan: () => u_e, getDirectoryPath: () => hi, getDirectoryToWatchFailedLookupLocation: () => tG, getDirectoryToWatchFailedLookupLocationFromTypeRoot: () => Nue, getDocumentPositionMapper: () => XY, getDocumentSpansEqualityComparer: () => vY, getESModuleInterop: () => fh, getEditsForFileRename: () => b_e, getEffectiveBaseTypeNode: () => xm, getEffectiveConstraintOfTypeParameter: () => wA, getEffectiveContainerForJSDocTemplateTag: () => SR, getEffectiveImplementsTypeNodes: () => $A, getEffectiveInitializer: () => d3, getEffectiveJSDocHost: () => g1, getEffectiveModifierFlags: () => Yu, getEffectiveModifierFlagsAlwaysIncludeJSDoc: () => Pae, getEffectiveModifierFlagsNoCache: () => Oae, getEffectiveReturnTypeNode: () => $_, getEffectiveSetAccessorTypeAnnotationNode: () => kV, getEffectiveTypeAnnotationNode: () => Nl, getEffectiveTypeParameterDeclarations: () => Mv, getEffectiveTypeRoots: () => QN, getElementOrPropertyAccessArgumentExpressionOrName: () => TR, getElementOrPropertyAccessName: () => wy, getElementsOfBindingOrAssignmentPattern: () => SE, getEmitDeclarations: () => C_, getEmitFlags: () => Zs, getEmitHelpers: () => E$, getEmitModuleDetectionKind: () => nse, getEmitModuleFormatOfFileWorker: () => gP, getEmitModuleKind: () => Df, getEmitModuleResolutionKind: () => pf, getEmitScriptTarget: () => zs, getEmitStandardClassFields: () => HV, getEnclosingBlockScopeContainer: () => Sm, getEnclosingContainer: () => tR, getEncodedSemanticClassifications: () => zY, getEncodedSyntacticClassifications: () => VY, getEndLinePosition: () => Y4, getEntityNameFromTypeNode: () => c3, getEntrypointsFromPackageJsonInfo: () => Uq, getErrorCountForSummary: () => nM, getErrorSpanForNode: () => Rx, getErrorSummaryText: () => aG, getEscapedTextOfIdentifierOrLiteral: () => nN, getEscapedTextOfJsxAttributeName: () => EN, getEscapedTextOfJsxNamespacedName: () => vC, getExpandoInitializer: () => m1, getExportAssignmentExpression: () => aV, getExportInfoMap: () => R8, getExportNeedsImportStarHelper: () => ule, getExpressionAssociativity: () => _V, getExpressionPrecedence: () => iN, getExternalHelpersModuleName: () => SO, getExternalModuleImportEqualsDeclarationExpression: () => $D, getExternalModuleName: () => tC, getExternalModuleNameFromDeclaration: () => Tae, getExternalModuleNameFromPath: () => vV, getExternalModuleNameLiteral: () => LC, getExternalModuleRequireArgument: () => Gz, getFallbackOptions: () => n8, getFileEmitOutput: () => fue, getFileMatcherPatterns: () => aL, getFileNamesFromConfigSpecs: () => XN, getFileWatcherEventKind: () => BW, getFilesInErrorForSummary: () => rM, getFirstConstructorWithBody: () => Rg, getFirstIdentifier: () => Wf, getFirstNonSpaceCharacterPosition: () => n_e, getFirstProjectOutput: () => kH, getFixableErrorSpanExpression: () => OY, getFormatCodeSettingsForWriting: () => ej, getFullWidth: () => H4, getFunctionFlags: () => ml, getHeritageClause: () => A3, getHostSignatureFromJSDoc: () => h1, getIdentifierAutoGenerate: () => k2e, getIdentifierGeneratedImportReference: () => eoe, getIdentifierTypeArguments: () => Xx, getImmediatelyInvokedFunctionExpression: () => p1, getImpliedNodeFormatForEmitWorker: () => h2, getImpliedNodeFormatForFile: () => i8, getImpliedNodeFormatForFileWorker: () => H9, getImportNeedsImportDefaultHelper: () => lH, getImportNeedsImportStarHelper: () => I9, getIndentString: () => DR, getInferredLibraryNameResolveFrom: () => q9, getInitializedVariables: () => _N, getInitializerOfBinaryExpression: () => Qz, getInitializerOfBindingOrAssignmentElement: () => kO, getInterfaceBaseTypeNodes: () => eN, getInternalEmitFlags: () => Xd, getInvokedExpression: () => pR, getIsFileExcluded: () => m_e, getIsolatedModules: () => Nd, getJSDocAugmentsTag: () => Ure, getJSDocClassTag: () => nz, getJSDocCommentRanges: () => zz, getJSDocCommentsAndTags: () => Zz, getJSDocDeprecatedTag: () => rz, getJSDocDeprecatedTagNoCache: () => Gre, getJSDocEnumTag: () => iz, getJSDocHost: () => iS, getJSDocImplementsTags: () => Wre, getJSDocOverloadTags: () => tV, getJSDocOverrideTagNoCache: () => Hre, getJSDocParameterTags: () => CA, getJSDocParameterTagsNoCache: () => Mre, getJSDocPrivateTag: () => bxe, getJSDocPrivateTagNoCache: () => Vre, getJSDocProtectedTag: () => Txe, getJSDocProtectedTagNoCache: () => $re, getJSDocPublicTag: () => vxe, getJSDocPublicTagNoCache: () => zre, getJSDocReadonlyTag: () => Sxe, getJSDocReadonlyTagNoCache: () => qre, getJSDocReturnTag: () => Yre, getJSDocReturnType: () => F4, getJSDocRoot: () => VA, getJSDocSatisfiesExpressionType: () => p$, getJSDocSatisfiesTag: () => az, getJSDocTags: () => u1, getJSDocTemplateTag: () => xxe, getJSDocThisTag: () => A5, getJSDocType: () => v0, getJSDocTypeAliasName: () => sq, getJSDocTypeAssertionType: () => bE, getJSDocTypeParameterDeclarations: () => MR, getJSDocTypeParameterTags: () => jre, getJSDocTypeParameterTagsNoCache: () => Bre, getJSDocTypeTag: () => l1, getJSXImplicitImportBase: () => G3, getJSXRuntimeImport: () => nL, getJSXTransformEnabled: () => tL, getKeyForCompilerOptions: () => Lq, getLanguageVariant: () => W3, getLastChild: () => JV, getLeadingCommentRanges: () => Cg, getLeadingCommentRangesOfNode: () => Wz, getLeftmostAccessExpression: () => ZA, getLeftmostExpression: () => eE, getLibFileNameFromLibReference: () => v$, getLibNameFromLibReference: () => y$, getLibraryNameFromLibFileName: () => UH, getLineAndCharacterOfPosition: () => fs, getLineInfo: () => sH, getLineOfLocalPosition: () => sN, getLineStartPositionForPosition: () => Ld, getLineStarts: () => xg, getLinesBetweenPositionAndNextNonWhitespaceCharacter: () => $ae, getLinesBetweenPositionAndPrecedingNonWhitespaceCharacter: () => Vae, getLinesBetweenPositions: () => SD, getLinesBetweenRangeEndAndRangeStart: () => RV, getLinesBetweenRangeEndPositions: () => Zxe, getLiteralText: () => Eie, getLocalNameForExternalImport: () => TE, getLocalSymbolForExportDefault: () => uN, getLocaleSpecificMessage: () => Va, getLocaleTimeString: () => l8, getMappedContextSpan: () => TY, getMappedDocumentSpan: () => UM, getMappedLocation: () => AP, getMatchedFileSpec: () => lG, getMatchedIncludeSpec: () => uG, getMeaningFromDeclaration: () => bM, getMeaningFromLocation: () => g2, getMembersOfDeclaration: () => Vie, getModeForFileReference: () => oue, getModeForResolutionAtIndex: () => jwe, getModeForUsageLocation: () => BH, getModifiedTime: () => Mk, getModifiers: () => HT, getModuleInstanceState: () => Ly, getModuleNameStringLiteralAt: () => s8, getModuleSpecifierEndingPreference: () => mse, getModuleSpecifierResolverHost: () => _Y, getNameForExportedSymbol: () => KM, getNameFromImportAttribute: () => yL, getNameFromIndexInfo: () => Lie, getNameFromPropertyName: () => k8, getNameOfAccessExpression: () => WV, getNameOfCompilerOptionValue: () => c9, getNameOfDeclaration: () => Ra, getNameOfExpando: () => Yz, getNameOfJSDocTypedef: () => Lre, getNameOfScriptTarget: () => ZR, getNameOrArgument: () => h3, getNameTable: () => wX, getNamespaceDeclarationNode: () => WA, getNewLineCharacter: () => w0, getNewLineKind: () => F8, getNewLineOrDefaultFromHost: () => jy, getNewTargetContainer: () => Zie, getNextJSDocCommentLocation: () => eV, getNodeChildren: () => K$, getNodeForGeneratedName: () => wO, getNodeId: () => lo, getNodeKind: () => PS, getNodeModifiers: () => kP, getNodeModulePathParts: () => mL, getNonAssignedNameOfDeclaration: () => C5, getNonAssignmentOperatorForCompoundAssignment: () => sP, getNonAugmentationDeclaration: () => Rz, getNonDecoratorTokenPosOfNode: () => Iz, getNonIncrementalBuildInfoRoots: () => wue, getNonModifierTokenPosOfNode: () => wie, getNormalizedAbsolutePath: () => va, getNormalizedAbsolutePathWithoutRoot: () => zW, getNormalizedPathComponents: () => g5, getObjectFlags: () => Kr, getOperatorAssociativity: () => pV, getOperatorPrecedence: () => I3, getOptionFromName: () => Sq, getOptionsForLibraryResolution: () => Mq, getOptionsNameMap: () => CE, getOptionsSyntaxByArrayElementValue: () => T$, getOptionsSyntaxByValue: () => Mse, getOrCreateEmitNode: () => Ku, getOrUpdate: () => Dk, getOriginalNode: () => Sc, getOriginalNodeId: () => Hf, getOutputDeclarationFileName: () => _P, getOutputDeclarationFileNameWorker: () => SH, getOutputExtension: () => ZO, getOutputFileNames: () => Dwe, getOutputJSFileNameWorker: () => xH, getOutputPathsFor: () => fP, getOwnEmitOutputFilePath: () => Sae, getOwnKeys: () => Qm, getOwnValues: () => Ok, getPackageJsonTypesVersionsPaths: () => h9, getPackageNameFromTypesPackageName: () => nP, getPackageScopeForPath: () => tP, getParameterSymbolFromJSDoc: () => x3, getParentNodeInSpan: () => w8, getParseTreeNode: () => za, getParsedCommandLineOfConfigFile: () => PO, getPathComponents: () => Gu, getPathFromPathComponents: () => o1, getPathUpdater: () => HY, getPathsBasePath: () => OR, getPatternFromSpec: () => QV, getPendingEmitKindWithSeen: () => Q9, getPositionOfLineAndCharacter: () => x4, getPossibleGenericSignatures: () => tY, getPossibleOriginalInputExtensionForExtension: () => bV, getPossibleOriginalInputPathWithoutChangingExt: () => TV, getPossibleTypeArgumentsInfo: () => nY, getPreEmitDiagnostics: () => Nwe, getPrecedingNonSpaceCharacterPosition: () => WM, getPrivateIdentifier: () => pH, getProperties: () => fH, getProperty: () => d4, getPropertyAssignmentAliasLikeExpression: () => mae, getPropertyNameForPropertyNameNode: () => zx, getPropertyNameFromType: () => nd, getPropertyNameOfBindingOrAssignmentElement: () => aq, getPropertySymbolFromBindingElement: () => JM, getPropertySymbolsFromContextualType: () => Sj, getQuoteFromPreference: () => dY, getQuotePreference: () => Q_, getRangesWhere: () => KU, getRefactorContextSpan: () => KC, getReferencedFileLocation: () => hP, getRegexFromPattern: () => A0, getRegularExpressionForWildcard: () => gN, getRegularExpressionsForWildcards: () => rL, getRelativePathFromDirectory: () => bp, getRelativePathFromFile: () => TA, getRelativePathToDirectoryOrUrl: () => Jk, getRenameLocation: () => E8, getReplacementSpanForContextToken: () => sY, getResolutionDiagnostic: () => $H, getResolutionModeOverride: () => FE, getResolveJsonModule: () => _S, getResolvePackageJsonExports: () => V3, getResolvePackageJsonImports: () => $3, getResolvedExternalModuleName: () => yV, getResolvedModuleFromResolution: () => Yk, getResolvedTypeReferenceDirectiveFromResolution: () => H5, getRestIndicatorOfBindingOrAssignmentElement: () => GL, getRestParameterElementType: () => Vz, getRightMostAssignedExpression: () => m3, getRootDeclaration: () => oh, getRootDirectoryOfResolutionCache: () => Pue, getRootLength: () => vm, getScriptKind: () => CY, getScriptKindFromFileName: () => oL, getScriptTargetFeatures: () => Dz, getSelectedEffectiveModifierFlags: () => oC, getSelectedSyntacticModifierFlags: () => Dae, getSemanticClassifications: () => h_e, getSemanticJsxChildren: () => HA, getSetAccessorTypeAnnotationNode: () => Cae, getSetAccessorValueParameter: () => oN, getSetExternalModuleIndicator: () => z3, getShebang: () => x5, getSingleVariableOfVariableStatement: () => iC, getSnapshotText: () => XC, getSnippetElement: () => I$, getSourceFileOfModule: () => G4, getSourceFileOfNode: () => zn, getSourceFilePathInNewDir: () => RR, getSourceFileVersionAsHashFromText: () => aM, getSourceFilesToEmit: () => FR, getSourceMapRange: () => D0, getSourceMapper: () => P_e, getSourceTextOfNodeFromSourceFile: () => QT, getSpanOfTokenAtPosition: () => rh, getSpellingSuggestion: () => qT, getStartPositionOfLine: () => Vv, getStartPositionOfRange: () => fN, getStartsOnNewLine: () => NN, getStaticPropertiesAndClassStaticBlock: () => P9, getStrictOptionValue: () => Xu, getStringComparer: () => hA, getSubPatternFromSpec: () => iL, getSuperCallFromStatement: () => D9, getSuperContainer: () => s3, getSupportedCodeFixes: () => kX, getSupportedExtensions: () => yN, getSupportedExtensionsWithJsonIfResolveJsonModule: () => X3, getSwitchedType: () => EY, getSymbolId: () => Ss, getSymbolNameForPrivateIdentifier: () => E3, getSymbolTarget: () => wY, getSyntacticClassifications: () => g_e, getSyntacticModifierFlags: () => k0, getSyntacticModifierFlagsNoCache: () => AV, getSynthesizedDeepClone: () => bo, getSynthesizedDeepCloneWithReplacements: () => aO, getSynthesizedDeepClones: () => hS, getSynthesizedDeepClonesWithReplacements: () => x$, getSyntheticLeadingComments: () => sE, getSyntheticTrailingComments: () => uO, getTargetLabel: () => xM, getTargetOfBindingOrAssignmentElement: () => cb, getTemporaryModuleResolutionState: () => eP, getTextOfConstantValue: () => Iie, getTextOfIdentifierOrLiteral: () => Kp, getTextOfJSDocComment: () => R4, getTextOfJsxAttributeName: () => rO, getTextOfJsxNamespacedName: () => IN, getTextOfNode: () => Ec, getTextOfNodeFromSourceText: () => BD, getTextOfPropertyName: () => Qk, getThisContainer: () => If, getThisParameter: () => cS, getTokenAtPosition: () => Wi, getTokenPosOfNode: () => $v, getTokenSourceMapRange: () => S2e, getTouchingPropertyName: () => p_, getTouchingToken: () => zE, getTrailingCommentRanges: () => Rv, getTrailingSemicolonDeferringWriter: () => gV, getTransformers: () => $le, getTsBuildInfoEmitOutputFilePath: () => B1, getTsConfigObjectLiteralExpression: () => zD, getTsConfigPropArrayElementValue: () => cR, getTypeAnnotationNode: () => wae, getTypeArgumentOrTypeParameterList: () => Bfe, getTypeKeywordOfTypeOnlyImport: () => gY, getTypeNode: () => Qse, getTypeNodeIfAccessible: () => PP, getTypeParameterFromJsDoc: () => lae, getTypeParameterOwner: () => mxe, getTypesPackageName: () => x9, getUILocale: () => Ute, getUniqueName: () => b2, getUniqueSymbolId: () => t_e, getUseDefineForClassFields: () => q3, getWatchErrorSummaryDiagnosticMessage: () => iG, getWatchFactory: () => NH, group: () => mA, groupBy: () => iW, guessIndentation: () => mie, handleNoEmitOptions: () => VH, handleWatchOptionsConfigDirTemplateSubstitution: () => u9, hasAbstractModifier: () => fS, hasAccessorModifier: () => ch, hasAmbientModifier: () => wV, hasChangesInResolutions: () => wz, hasContextSensitiveParameters: () => dL, hasDecorators: () => xp, hasDocComment: () => Mfe, hasDynamicName: () => Ay, hasEffectiveModifier: () => q_, hasEffectiveModifiers: () => CV, hasEffectiveReadonlyModifier: () => $x, hasExtension: () => bA, hasImplementationTSFileExtension: () => pse, hasIndexSignature: () => AY, hasInferredType: () => bL, hasInitializer: () => T0, hasInvalidEscape: () => mV, hasJSDocNodes: () => pp, hasJSDocParameterTags: () => Jre, hasJSFileExtension: () => jg, hasJsonModuleEmitEnabled: () => QR, hasOnlyExpressionInitializer: () => Ox, hasOverrideModifier: () => jR, hasPossibleExternalModuleReference: () => Fie, hasProperty: () => No, hasPropertyAccessExpressionWithName: () => h8, hasQuestionToken: () => nC, hasRecordedExternalHelpers: () => joe, hasResolutionModeOverride: () => Dse, hasRestParameter: () => Tz, hasScopeMarker: () => sie, hasStaticModifier: () => Ul, hasSyntacticModifier: () => gi, hasSyntacticModifiers: () => Iae, hasTSFileExtension: () => Hx, hasTabstop: () => Ase, hasTrailingDirectorySeparator: () => Ov, hasType: () => W5, hasTypeArguments: () => zxe, hasZeroOrOneAsteriskCharacter: () => GV, hostGetCanonicalFileName: () => Ey, hostUsesCaseSensitiveFileNames: () => Vx, idText: () => Xr, identifierIsThisKeyword: () => xV, identifierToKeywordKind: () => Ax, identity: () => $o, identitySourceMapConsumer: () => cH, ignoreSourceNewlines: () => N$, ignoredPaths: () => d5, importFromModuleSpecifier: () => XD, importSyntaxAffectsModuleResolution: () => qV, indexOfAnyCharCode: () => vo, indexOfNode: () => OA, indicesOf: () => n5, inferredTypesContainingFile: () => mP, injectClassNamedEvaluationHelperBlockIfMissing: () => L9, injectClassThisAssignmentIfMissing: () => yle, insertImports: () => hY, insertSorted: () => Cv, insertStatementAfterCustomPrologue: () => Fx, insertStatementAfterStandardPrologue: () => Lxe, insertStatementsAfterCustomPrologue: () => Az, insertStatementsAfterStandardPrologue: () => Ng, intersperse: () => us, intrinsicTagNameToString: () => d$, introducesArgumentsExoticObject: () => Hie, inverseJsxOptionMap: () => DO, isAbstractConstructorSymbol: () => qae, isAbstractModifier: () => uoe, isAccessExpression: () => Ko, isAccessibilityModifier: () => iY, isAccessor: () => Uv, isAccessorModifier: () => M$, isAliasableExpression: () => xR, isAmbientModule: () => Ef, isAmbientPropertyDeclaration: () => Mz, isAnyDirectorySeparator: () => JW, isAnyImportOrBareOrAccessedRequire: () => Pie, isAnyImportOrReExport: () => Q4, isAnyImportOrRequireStatement: () => Oie, isAnyImportSyntax: () => Kk, isAnySupportedFileExtension: () => p2e, isApplicableVersionedTypesKey: () => JO, isArgumentExpressionOfElementAccess: () => HG, isArray: () => Da, isArrayBindingElement: () => L5, isArrayBindingOrAssignmentElement: () => U4, isArrayBindingOrAssignmentPattern: () => mz, isArrayBindingPattern: () => F0, isArrayLiteralExpression: () => ju, isArrayLiteralOrObjectLiteralDestructuringPattern: () => M0, isArrayTypeNode: () => dO, isArrowFunction: () => Qo, isAsExpression: () => fE, isAssertClause: () => yoe, isAssertEntry: () => O2e, isAssertionExpression: () => KT, isAssertsKeyword: () => coe, isAssignmentDeclaration: () => HD, isAssignmentExpression: () => fu, isAssignmentOperator: () => Iy, isAssignmentPattern: () => RD, isAssignmentTarget: () => Yv, isAsteriskToken: () => _O, isAsyncFunction: () => tN, isAsyncModifier: () => FN, isAutoAccessorPropertyDeclaration: () => a_, isAwaitExpression: () => sb, isAwaitKeyword: () => L$, isBigIntLiteral: () => oE, isBinaryExpression: () => Or, isBinaryLogicalOperator: () => F3, isBinaryOperatorToken: () => qoe, isBindableObjectDefinePropertyCall: () => Bx, isBindableStaticAccessExpression: () => rS, isBindableStaticElementAccessExpression: () => bR, isBindableStaticNameExpression: () => Jx, isBindingElement: () => Hs, isBindingElementOfBareOrAccessedRequire: () => nae, isBindingName: () => Nx, isBindingOrAssignmentElement: () => nie, isBindingOrAssignmentPattern: () => B4, isBindingPattern: () => Qa, isBlock: () => es, isBlockLike: () => QC, isBlockOrCatchScoped: () => Nz, isBlockScope: () => jz, isBlockScopedContainerTopLevel: () => Nie, isBooleanLiteral: () => FD, isBreakOrContinueStatement: () => DD, isBreakStatement: () => D2e, isBuildCommand: () => efe, isBuildInfoFile: () => qle, isBuilderProgram: () => sG, isBundle: () => Soe, isCallChain: () => Ex, isCallExpression: () => Za, isCallExpressionTarget: () => UG, isCallLikeExpression: () => XT, isCallLikeOrFunctionLikeExpression: () => hz, isCallOrNewExpression: () => th, isCallOrNewExpressionTarget: () => WG, isCallSignatureDeclaration: () => AC, isCallToHelper: () => ON, isCaseBlock: () => UN, isCaseClause: () => mE, isCaseKeyword: () => _oe, isCaseOrDefaultClause: () => J5, isCatchClause: () => xS, isCatchClauseVariableDeclaration: () => wse, isCatchClauseVariableDeclarationOrBindingElement: () => Pz, isCheckJsEnabledForFile: () => TN, isCircularBuildOrder: () => GC, isClassDeclaration: () => Ol, isClassElement: () => Cl, isClassExpression: () => hl, isClassInstanceProperty: () => eie, isClassLike: () => vi, isClassMemberModifier: () => _z, isClassNamedEvaluationHelperBlock: () => $C, isClassOrTypeElement: () => R5, isClassStaticBlockDeclaration: () => rl, isClassThisAssignmentBlock: () => cP, isColonToken: () => soe, isCommaExpression: () => TO, isCommaListExpression: () => BN, isCommaSequence: () => qN, isCommaToken: () => aoe, isComment: () => OM, isCommonJsExportPropertyAssignment: () => sR, isCommonJsExportedExpression: () => $ie, isCompoundAssignment: () => aP, isComputedNonLiteralName: () => Z4, isComputedPropertyName: () => bs, isConciseBody: () => j5, isConditionalExpression: () => t2, isConditionalTypeNode: () => yS, isConstAssertion: () => m$, isConstTypeReference: () => Gd, isConstructSignatureDeclaration: () => MN, isConstructorDeclaration: () => Rc, isConstructorTypeNode: () => cE, isContextualKeyword: () => CR, isContinueStatement: () => I2e, isCustomPrologue: () => i3, isDebuggerStatement: () => N2e, isDeclaration: () => uu, isDeclarationBindingElement: () => j4, isDeclarationFileName: () => pu, isDeclarationName: () => Yh, isDeclarationNameOfEnumOrNamespace: () => MV, isDeclarationReadonly: () => t3, isDeclarationStatement: () => uie, isDeclarationWithTypeParameterChildren: () => Jz, isDeclarationWithTypeParameters: () => Bz, isDecorator: () => zl, isDecoratorTarget: () => wfe, isDefaultClause: () => WN, isDefaultImport: () => Ux, isDefaultModifier: () => PL, isDefaultedExpandoInitializer: () => rae, isDeleteExpression: () => doe, isDeleteTarget: () => rV, isDeprecatedDeclaration: () => QM, isDestructuringAssignment: () => C0, isDiskPathRoot: () => UW, isDoStatement: () => E2e, isDocumentRegistryEntry: () => L8, isDotDotDotToken: () => DL, isDottedName: () => L3, isDynamicName: () => AR, isEffectiveExternalModule: () => FA, isEffectiveStrictModeSourceFile: () => Lz, isElementAccessChain: () => sz, isElementAccessExpression: () => Uo, isEmittedFileOfProgram: () => Zle, isEmptyArrayLiteral: () => Mae, isEmptyBindingElement: () => Ore, isEmptyBindingPattern: () => Pre, isEmptyObjectLiteral: () => PV, isEmptyStatement: () => J$, isEmptyStringLiteral: () => Hz, isEntityName: () => Jf, isEntityNameExpression: () => Po, isEnumConst: () => _1, isEnumDeclaration: () => I1, isEnumMember: () => Fy, isEqualityOperatorKind: () => $M, isEqualsGreaterThanToken: () => ooe, isExclamationToken: () => pO, isExcludedFile: () => Tce, isExclusivelyTypeOnlyImportOrExport: () => jH, isExpandoPropertyDeclaration: () => bC, isExportAssignment: () => fc, isExportDeclaration: () => yl, isExportModifier: () => CC, isExportName: () => qL, isExportNamespaceAsDefaultDeclaration: () => Q5, isExportOrDefaultModifier: () => CO, isExportSpecifier: () => df, isExportsIdentifier: () => jx, isExportsOrModuleExportsOrAlias: () => wS, isExpression: () => kt, isExpressionNode: () => Gh, isExpressionOfExternalModuleImportEqualsDeclaration: () => Ife, isExpressionOfOptionalChainRoot: () => N5, isExpressionStatement: () => _u, isExpressionWithTypeArguments: () => Py, isExpressionWithTypeArgumentsInClassExtendsClause: () => JR, isExternalModule: () => $l, isExternalModuleAugmentation: () => eS, isExternalModuleImportEqualsDeclaration: () => d1, isExternalModuleIndicator: () => z4, isExternalModuleNameRelative: () => cu, isExternalModuleReference: () => Oy, isExternalModuleSymbol: () => Hk, isExternalOrCommonJsModule: () => z_, isFileLevelReservedGeneratedIdentifier: () => M4, isFileLevelUniqueName: () => X5, isFileProbablyExternalModule: () => EO, isFirstDeclarationOfSymbolParameter: () => SY, isFixablePromiseHandler: () => ZY, isForInOrOfStatement: () => Px, isForInStatement: () => ML, isForInitializer: () => Gp, isForOfStatement: () => hO, isForStatement: () => E1, isFullSourceFile: () => Og, isFunctionBlock: () => tS, isFunctionBody: () => yz, isFunctionDeclaration: () => il, isFunctionExpression: () => Ho, isFunctionExpressionOrArrowFunction: () => tb, isFunctionLike: () => Xa, isFunctionLikeDeclaration: () => Ro, isFunctionLikeKind: () => zk, isFunctionLikeOrClassStaticBlockDeclaration: () => IA, isFunctionOrConstructorTypeNode: () => tie, isFunctionOrModuleBlock: () => pz, isFunctionSymbol: () => sae, isFunctionTypeNode: () => Kh, isGeneratedIdentifier: () => hc, isGeneratedPrivateIdentifier: () => Dx, isGetAccessor: () => Eg, isGetAccessorDeclaration: () => rd, isGetOrSetAccessorDeclaration: () => L4, isGlobalScopeAugmentation: () => Hh, isGlobalSourceFile: () => S0, isGrammarError: () => kie, isHeritageClause: () => Y_, isHoistedFunction: () => iR, isHoistedVariableStatement: () => aR, isIdentifier: () => Xe, isIdentifierANonContextualKeyword: () => cV, isIdentifierName: () => dae, isIdentifierOrThisTypeNode: () => Woe, isIdentifierPart: () => Sy, isIdentifierStart: () => zh, isIdentifierText: () => S_, isIdentifierTypePredicate: () => Gie, isIdentifierTypeReference: () => Tse, isIfStatement: () => A1, isIgnoredFileFromWildCardWatching: () => t8, isImplicitGlob: () => KV, isImportAttribute: () => voe, isImportAttributeName: () => Zre, isImportAttributes: () => i2, isImportCall: () => o_, isImportClause: () => em, isImportDeclaration: () => xc, isImportEqualsDeclaration: () => Vl, isImportKeyword: () => LN, isImportMeta: () => MA, isImportOrExportSpecifier: () => Bv, isImportOrExportSpecifierName: () => e_e, isImportSpecifier: () => Of, isImportTypeAssertionContainer: () => P2e, isImportTypeNode: () => dh, isImportable: () => UY, isInComment: () => L0, isInCompoundLikeAssignment: () => nV, isInExpressionContext: () => dR, isInJSDoc: () => qD, isInJSFile: () => Er, isInJSXText: () => Lfe, isInJsonFile: () => hR, isInNonReferenceComment: () => Wfe, isInReferenceComment: () => Ufe, isInRightSideOfInternalImportEqualsDeclaration: () => TM, isInString: () => YC, isInTemplateString: () => eY, isInTopLevelContext: () => fR, isInTypeQuery: () => sC, isIncrementalBuildInfo: () => o8, isIncrementalBundleEmitBuildInfo: () => bue, isIncrementalCompilation: () => pS, isIndexSignatureDeclaration: () => ab, isIndexedAccessTypeNode: () => vS, isInferTypeNode: () => Qx, isInfinityOrNaNString: () => wN, isInitializedProperty: () => $O, isInitializedVariable: () => U3, isInsideJsxElement: () => NM, isInsideJsxElementOrAttribute: () => Rfe, isInsideNodeModules: () => N8, isInsideTemplateLiteral: () => T8, isInstanceOfExpression: () => UR, isInstantiatedModule: () => tH, isInterfaceDeclaration: () => wu, isInternalDeclaration: () => hie, isInternalModuleImportEqualsDeclaration: () => Mx, isInternalName: () => nq, isIntersectionTypeNode: () => DC, isIntrinsicJsxName: () => GA, isIterationStatement: () => Wv, isJSDoc: () => Im, isJSDocAllType: () => Coe, isJSDocAugmentsTag: () => RC, isJSDocAuthorTag: () => M2e, isJSDocCallbackTag: () => V$, isJSDocClassTag: () => Aoe, isJSDocCommentContainingNode: () => U5, isJSDocConstructSignature: () => rC, isJSDocDeprecatedTag: () => Y$, isJSDocEnumTag: () => yO, isJSDocFunctionType: () => gE, isJSDocImplementsTag: () => zL, isJSDocImportTag: () => vh, isJSDocIndexSignature: () => yR, isJSDocLikeText: () => fq, isJSDocLink: () => xoe, isJSDocLinkCode: () => koe, isJSDocLinkLike: () => qk, isJSDocLinkPlain: () => R2e, isJSDocMemberName: () => P1, isJSDocNameReference: () => zN, isJSDocNamepathType: () => L2e, isJSDocNamespaceBody: () => Ixe, isJSDocNode: () => DA, isJSDocNonNullableType: () => BL, isJSDocNullableType: () => hE, isJSDocOptionalParameter: () => hL, isJSDocOptionalType: () => z$, isJSDocOverloadTag: () => yE, isJSDocOverrideTag: () => UL, isJSDocParameterTag: () => Cp, isJSDocPrivateTag: () => q$, isJSDocPropertyLikeTag: () => ND, isJSDocPropertyTag: () => Eoe, isJSDocProtectedTag: () => H$, isJSDocPublicTag: () => $$, isJSDocReadonlyTag: () => G$, isJSDocReturnTag: () => WL, isJSDocSatisfiesExpression: () => _$, isJSDocSatisfiesTag: () => VL, isJSDocSeeTag: () => j2e, isJSDocSignature: () => R0, isJSDocTag: () => NA, isJSDocTemplateTag: () => Od, isJSDocThisTag: () => X$, isJSDocThrowsTag: () => J2e, isJSDocTypeAlias: () => Ed, isJSDocTypeAssertion: () => kS, isJSDocTypeExpression: () => N1, isJSDocTypeLiteral: () => s2, isJSDocTypeTag: () => VN, isJSDocTypedefTag: () => o2, isJSDocUnknownTag: () => B2e, isJSDocUnknownType: () => woe, isJSDocVariadicType: () => JL, isJSXTagName: () => JA, isJsonEqual: () => _L, isJsonSourceFile: () => Xp, isJsxAttribute: () => yh, isJsxAttributeLike: () => B5, isJsxAttributeName: () => Ise, isJsxAttributes: () => SS, isJsxCallLike: () => die, isJsxChild: () => q4, isJsxClosingElement: () => TS, isJsxClosingFragment: () => Toe, isJsxElement: () => gh, isJsxExpression: () => dE, isJsxFragment: () => D1, isJsxNamespacedName: () => Em, isJsxOpeningElement: () => Am, isJsxOpeningFragment: () => tm, isJsxOpeningLikeElement: () => _f, isJsxOpeningLikeElementTagName: () => Afe, isJsxSelfClosingElement: () => a2, isJsxSpreadAttribute: () => FC, isJsxTagNameExpression: () => LD, isJsxText: () => xC, isJumpStatementTarget: () => g8, isKeyword: () => l_, isKeywordOrPunctuation: () => kR, isKnownSymbol: () => rN, isLabelName: () => $G, isLabelOfLabeledStatement: () => VG, isLabeledStatement: () => ob, isLateVisibilityPaintedStatement: () => eR, isLeftHandSideExpression: () => s_, isLet: () => rR, isLineBreak: () => lf, isLiteralComputedPropertyDeclarationName: () => C3, isLiteralExpression: () => Ix, isLiteralExpressionOfObject: () => uz, isLiteralImportTypeNode: () => Cy, isLiteralKind: () => PD, isLiteralNameOfPropertyDeclarationOrIndexAccess: () => kM, isLiteralTypeLiteral: () => aie, isLiteralTypeNode: () => O0, isLocalName: () => Ry, isLogicalOperator: () => Fae, isLogicalOrCoalescingAssignmentExpression: () => EV, isLogicalOrCoalescingAssignmentOperator: () => cN, isLogicalOrCoalescingBinaryExpression: () => R3, isLogicalOrCoalescingBinaryOperator: () => BR, isMappedTypeNode: () => e2, isMemberName: () => Ag, isMetaProperty: () => n2, isMethodDeclaration: () => Fc, isMethodOrAccessor: () => Vk, isMethodSignature: () => Zd, isMinusToken: () => R$, isMissingDeclaration: () => F2e, isMissingPackageJsonInfo: () => Pce, isModifier: () => ws, isModifierKind: () => Jv, isModifierLike: () => gc, isModuleAugmentationExternal: () => Fz, isModuleBlock: () => mh, isModuleBody: () => oie, isModuleDeclaration: () => gl, isModuleExportName: () => jL, isModuleExportsAccessExpression: () => Fg, isModuleIdentifier: () => Xz, isModuleName: () => $oe, isModuleOrEnumDeclaration: () => V4, isModuleReference: () => _ie, isModuleSpecifierLike: () => BM, isModuleWithStringLiteralName: () => Z5, isNameOfFunctionDeclaration: () => YG, isNameOfModuleDeclaration: () => GG, isNamedDeclaration: () => lu, isNamedEvaluation: () => V_, isNamedEvaluationSource: () => lV, isNamedExportBindings: () => cz, isNamedExports: () => ad, isNamedImportBindings: () => vz, isNamedImports: () => hh, isNamedImportsOrExports: () => HR, isNamedTupleMember: () => lE, isNamespaceBody: () => Exe, isNamespaceExport: () => Qh, isNamespaceExportDeclaration: () => gO, isNamespaceImport: () => Wg, isNamespaceReexportDeclaration: () => tae, isNewExpression: () => bS, isNewExpressionTarget: () => TP, isNewScopeNode: () => Lse, isNoSubstitutionTemplateLiteral: () => Kx, isNodeArray: () => GT, isNodeArrayMultiLine: () => zae, isNodeDescendantOf: () => aS, isNodeKind: () => O5, isNodeLikeSystem: () => hW, isNodeModulesDirectory: () => v5, isNodeWithPossibleHoistedDeclaration: () => _ae, isNonContextualKeyword: () => oV, isNonGlobalAmbientModule: () => Oz, isNonNullAccess: () => Ese, isNonNullChain: () => P5, isNonNullExpression: () => PC, isNonStaticMethodOrAccessorWithPrivateName: () => fle, isNotEmittedStatement: () => boe, isNullishCoalesce: () => oz, isNumber: () => Ev, isNumericLiteral: () => f_, isNumericLiteralName: () => Jg, isObjectBindingElementWithoutPropertyName: () => C8, isObjectBindingOrAssignmentElement: () => J4, isObjectBindingOrAssignmentPattern: () => dz, isObjectBindingPattern: () => kp, isObjectLiteralElement: () => bz, isObjectLiteralElementLike: () => ky, isObjectLiteralExpression: () => Bs, isObjectLiteralMethod: () => Ad, isObjectLiteralOrClassExpressionMethodOrAccessor: () => oR, isObjectTypeDeclaration: () => fC, isOmittedExpression: () => eu, isOptionalChain: () => uf, isOptionalChainRoot: () => ED, isOptionalDeclaration: () => yC, isOptionalJSDocPropertyLikeTag: () => nO, isOptionalTypeNode: () => OL, isOuterExpression: () => HL, isOutermostOptionalChain: () => ID, isOverrideModifier: () => foe, isPackageJsonInfo: () => y9, isPackedArrayLiteral: () => u$, isParameter: () => ra, isParameterPropertyDeclaration: () => U_, isParameterPropertyModifier: () => OD, isParenthesizedExpression: () => $f, isParenthesizedTypeNode: () => Zx, isParseTreeNode: () => AD, isPartOfParameterDeclaration: () => v1, isPartOfTypeNode: () => ah, isPartOfTypeOnlyImportOrExportDeclaration: () => Qre, isPartOfTypeQuery: () => mR, isPartiallyEmittedExpression: () => moe, isPatternMatch: () => a5, isPinnedComment: () => K5, isPlainJsFile: () => jD, isPlusToken: () => F$, isPossiblyTypeArgumentPosition: () => b8, isPostfixUnaryExpression: () => B$, isPrefixUnaryExpression: () => w1, isPrimitiveLiteralValue: () => vL, isPrivateIdentifier: () => na, isPrivateIdentifierClassElementDeclaration: () => ff, isPrivateIdentifierPropertyAccessExpression: () => EA, isPrivateIdentifierSymbol: () => gae, isProgramUptoDate: () => WH, isPrologueDirective: () => ih, isPropertyAccessChain: () => D5, isPropertyAccessEntityNameExpression: () => M3, isPropertyAccessExpression: () => Qr, isPropertyAccessOrQualifiedName: () => W4, isPropertyAccessOrQualifiedNameOrImportTypeNode: () => rie, isPropertyAssignment: () => Fl, isPropertyDeclaration: () => Na, isPropertyName: () => kl, isPropertyNameLiteral: () => sh, isPropertySignature: () => Pf, isPrototypeAccess: () => Qv, isPrototypePropertyAssignment: () => y3, isPunctuation: () => sV, isPushOrUnshiftIdentifier: () => uV, isQualifiedName: () => zf, isQuestionDotToken: () => NL, isQuestionOrExclamationToken: () => Uoe, isQuestionOrPlusOrMinusToken: () => Voe, isQuestionToken: () => ib, isReadonlyKeyword: () => loe, isReadonlyKeywordOrPlusOrMinusToken: () => zoe, isRecognizedTripleSlashComment: () => Ez, isReferenceFileLocation: () => RE, isReferencedFile: () => J1, isRegularExpressionLiteral: () => P$, isRequireCall: () => c_, isRequireVariableStatement: () => _3, isRestParameter: () => $h, isRestTypeNode: () => FL, isReturnStatement: () => dp, isReturnStatementWithFixablePromiseHandler: () => sj, isRightSideOfAccessExpression: () => NV, isRightSideOfInstanceofExpression: () => Lae, isRightSideOfPropertyAccess: () => JE, isRightSideOfQualifiedName: () => Efe, isRightSideOfQualifiedNameOrPropertyAccess: () => lN, isRightSideOfQualifiedNameOrPropertyAccessOrJSDocMemberName: () => Rae, isRootedDiskPath: () => J_, isSameEntityName: () => UA, isSatisfiesExpression: () => _E, isSemicolonClassElement: () => hoe, isSetAccessor: () => nh, isSetAccessorDeclaration: () => w_, isShiftOperatorOrHigher: () => cq, isShorthandAmbientModuleSymbol: () => K4, isShorthandPropertyAssignment: () => Qu, isSideEffectImport: () => g$, isSignedNumericLiteral: () => wR, isSimpleCopiableExpression: () => AS, isSimpleInlineableExpression: () => bh, isSimpleParameterList: () => qO, isSingleOrDoubleQuote: () => p3, isSolutionConfig: () => Nq, isSourceElement: () => Nse, isSourceFile: () => Zi, isSourceFileFromLibrary: () => XE, isSourceFileJS: () => Uf, isSourceFileNotJson: () => gR, isSourceMapping: () => cle, isSpecialPropertyDeclaration: () => aae, isSpreadAssignment: () => zg, isSpreadElement: () => id, isStatement: () => qi, isStatementButNotDeclaration: () => $4, isStatementOrBlock: () => fie, isStatementWithLocals: () => xie, isStatic: () => ps, isStaticModifier: () => wC, isString: () => Ja, isStringANonContextualKeyword: () => aC, isStringAndEmptyAnonymousObjectIntersection: () => Jfe, isStringDoubleQuoted: () => vR, isStringLiteral: () => Ls, isStringLiteralLike: () => fo, isStringLiteralOrJsxExpression: () => pie, isStringLiteralOrTemplate: () => i_e, isStringOrNumericLiteralLike: () => Sp, isStringOrRegularExpressionOrTemplateLiteral: () => rY, isStringTextContainingNode: () => fz, isSuperCall: () => Lx, isSuperKeyword: () => RN, isSuperProperty: () => x_, isSupportedSourceFileName: () => n$, isSwitchStatement: () => JN, isSyntaxList: () => vE, isSyntheticExpression: () => A2e, isSyntheticReference: () => OC, isTagName: () => qG, isTaggedTemplateExpression: () => C1, isTaggedTemplateTag: () => Cfe, isTemplateExpression: () => LL, isTemplateHead: () => kC, isTemplateLiteral: () => $k, isTemplateLiteralKind: () => jv, isTemplateLiteralToken: () => Xre, isTemplateLiteralTypeNode: () => poe, isTemplateLiteralTypeSpan: () => j$, isTemplateMiddle: () => O$, isTemplateMiddleOrTemplateTail: () => F5, isTemplateSpan: () => pE, isTemplateTail: () => IL, isTextWhiteSpaceLike: () => qfe, isThis: () => UE, isThisContainerOrFunctionBlock: () => Qie, isThisIdentifier: () => Kv, isThisInTypeQuery: () => lS, isThisInitializedDeclaration: () => _R, isThisInitializedObjectBindingExpression: () => eae, isThisProperty: () => o3, isThisTypeNode: () => jN, isThisTypeParameter: () => AN, isThisTypePredicate: () => Yie, isThrowStatement: () => W$, isToken: () => Wk, isTokenKind: () => lz, isTraceEnabled: () => lb, isTransientSymbol: () => Ig, isTrivia: () => qA, isTryStatement: () => r2, isTupleTypeNode: () => IC, isTypeAlias: () => T3, isTypeAliasDeclaration: () => Pd, isTypeAssertionExpression: () => RL, isTypeDeclaration: () => gC, isTypeElement: () => YT, isTypeKeyword: () => CP, isTypeKeywordTokenOrIdentifier: () => LM, isTypeLiteralNode: () => Vf, isTypeNode: () => Fi, isTypeNodeKind: () => UV, isTypeOfExpression: () => uE, isTypeOnlyExportDeclaration: () => Kre, isTypeOnlyImportDeclaration: () => AA, isTypeOnlyImportOrExportDeclaration: () => b0, isTypeOperatorNode: () => k1, isTypeParameterDeclaration: () => uc, isTypePredicateNode: () => EC, isTypeQueryNode: () => gS, isTypeReferenceNode: () => G_, isTypeReferenceType: () => z5, isTypeUsableAsPropertyName: () => td, isUMDExportSymbol: () => qR, isUnaryExpression: () => gz, isUnaryExpressionWithWrite: () => iie, isUnicodeIdentifierStart: () => T5, isUnionTypeNode: () => P0, isUrl: () => fre, isValidBigIntString: () => pL, isValidESSymbolDeclaration: () => qie, isValidTypeOnlyAliasUseSite: () => T1, isValueSignatureDeclaration: () => Wx, isVarAwaitUsing: () => n3, isVarConst: () => LA, isVarConstLike: () => Wie, isVarUsing: () => r3, isVariableDeclaration: () => Ci, isVariableDeclarationInVariableStatement: () => WD, isVariableDeclarationInitializedToBareOrAccessedRequire: () => nS, isVariableDeclarationInitializedToRequire: () => f3, isVariableDeclarationList: () => Cu, isVariableLike: () => UD, isVariableStatement: () => fl, isVoidExpression: () => NC, isWatchSet: () => jV, isWhileStatement: () => U$, isWhiteSpaceLike: () => kg, isWhiteSpaceSingleLine: () => eh, isWithStatement: () => goe, isWriteAccess: () => uC, isWriteOnlyAccess: () => $R, isYieldExpression: () => mO, jsxModeNeedsExplicitImport: () => jY, keywordPart: () => Z_, last: () => Ws, lastOrUndefined: () => nc, length: () => Ve, libMap: () => hq, libs: () => e9, lineBreakPart: () => HE, loadModuleFromGlobalCache: () => Vce, loadWithModeAwareCache: () => r8, makeIdentifierFromModuleName: () => Die, makeImport: () => hb, makeStringLiteral: () => wP, mangleScopedPackageName: () => DE, map: () => vn, mapAllOrFail: () => oD, mapDefined: () => Hi, mapDefinedIterator: () => yy, mapEntries: () => Pte, mapIterator: () => Jl, mapOneOrMany: () => FY, mapToDisplayParts: () => gb, matchFiles: () => ZV, matchPatternOrExact: () => i$, matchedText: () => qte, matchesExclude: () => p9, matchesExcludeWorker: () => d9, maxBy: () => cW, maybeBind: () => as, maybeSetLocalizedDiagnosticMessages: () => Qae, memoize: () => Af, memoizeOne: () => Zm, min: () => lW, minAndMax: () => yse, missingFileModifiedTime: () => B_, modifierToFlag: () => cC, modifiersToFlags: () => lh, moduleExportNameIsDefault: () => qh, moduleExportNameTextEscaped: () => ZT, moduleExportNameTextUnescaped: () => qv, moduleOptionDeclaration: () => rce, moduleResolutionIsEqualTo: () => Tie, moduleResolutionNameAndModeGetter: () => V9, moduleResolutionOptionDeclarations: () => yq, moduleResolutionSupportsPackageJsonExportsAndImports: () => tE, moduleResolutionUsesNodeModules: () => MM, moduleSpecifierToValidIdentifier: () => O8, moduleSpecifiers: () => My, moduleSupportsImportAttributes: () => ase, moduleSymbolToValidIdentifier: () => P8, moveEmitHelpers: () => Xse, moveRangeEnd: () => zR, moveRangePastDecorators: () => Dy, moveRangePastModifiers: () => uh, moveRangePos: () => b1, moveSyntheticComments: () => Hse, mutateMap: () => dN, mutateMapSkippingNewValues: () => Lg, needsParentheses: () => zM, needsScopeMarker: () => M5, newCaseClauseTracker: () => tj, newPrivateEnvironment: () => ple, noEmitNotification: () => XO, noEmitSubstitution: () => uP, noTransformers: () => Vle, noTruncationMaximumTruncationLength: () => xz, nodeCanBeDecorated: () => l3, nodeCoreModules: () => aE, nodeHasName: () => O4, nodeIsDecorated: () => BA, nodeIsMissing: () => Jc, nodeIsPresent: () => wd, nodeIsSynthesized: () => Jo, nodeModuleNameResolver: () => Mce, nodeModulesPathPart: () => Vg, nodeNextJsonConfigResolver: () => jce, nodeOrChildIsDecorated: () => u3, nodeOverlapsWithStartEnd: () => CM, nodePosToString: () => Pxe, nodeSeenTracker: () => VE, nodeStartsNewLexicalEnvironment: () => fV, noop: () => To, noopFileWatcher: () => jE, normalizePath: () => vs, normalizeSlashes: () => xu, normalizeSpans: () => QW, not: () => o5, notImplemented: () => gs, notImplementedResolver: () => Yle, nullNodeConverters: () => Vse, nullParenthesizerRules: () => Wse, nullTransformationContext: () => QO, objectAllocator: () => Lu, operatorPart: () => EP, optionDeclarations: () => nm, optionMapToObject: () => o9, optionsAffectingProgramStructure: () => oce, optionsForBuild: () => bq, optionsForWatch: () => JC, optionsHaveChanges: () => Gk, or: () => j_, orderedRemoveItem: () => lD, orderedRemoveItemAt: () => Pv, packageIdToPackageName: () => Y5, packageIdToString: () => f1, parameterIsThisKeyword: () => Xv, parameterNamePart: () => Gfe, parseBaseNodeFactory: () => Koe, parseBigInt: () => bse, parseBuildCommand: () => mce, parseCommandLine: () => pce, parseCommandLineWorker: () => Tq, parseConfigFileTextToJson: () => xq, parseConfigFileWithSystem: () => Fue, parseConfigHostFromCompilerHostLike: () => X9, parseCustomTypeOption: () => i9, parseIsolatedEntityName: () => BC, parseIsolatedJSDocComment: () => Zoe, parseJSDocTypeExpressionForTests: () => uke, parseJsonConfigFileContent: () => Jke, parseJsonSourceFileConfigFileContent: () => RO, parseJsonText: () => IO, parseListTypeOption: () => fce, parseNodeFactory: () => F1, parseNodeModuleFromPath: () => BO, parsePackageName: () => T9, parsePseudoBigInt: () => xN, parseValidBigInt: () => c$, pasteEdits: () => MK, patchWriteFileEnsuringDirectory: () => ure, pathContainsNodeModules: () => fb, pathIsAbsolute: () => yD, pathIsBareSpecifier: () => WW, pathIsRelative: () => _p, patternText: () => $te, performIncrementalCompilation: () => Rue, performance: () => ene, positionBelongsToNode: () => XG, positionIsASICandidate: () => qM, positionIsSynthesized: () => Cm, positionsAreOnSameLine: () => Zp, preProcessFile: () => YEe, probablyUsesSemicolons: () => D8, processCommentPragmas: () => dq, processPragmasIntoFields: () => mq, processTaggedTemplateExpression: () => hH, programContainsEsModules: () => Vfe, programContainsModules: () => zfe, projectReferenceIsEqualTo: () => kz, propertyNamePart: () => Yfe, pseudoBigIntToString: () => dS, punctuationPart: () => gf, pushIfUnique: () => $p, quote: () => NP, quotePreferenceFromString: () => pY, rangeContainsPosition: () => WE, rangeContainsPositionExclusive: () => y8, rangeContainsRange: () => u_, rangeContainsRangeExclusive: () => Dfe, rangeContainsStartEnd: () => v8, rangeEndIsOnSameLineAsRangeStart: () => J3, rangeEndPositionsAreOnSameLine: () => Uae, rangeEquals: () => eW, rangeIsOnSingleLine: () => qx, rangeOfNode: () => s$, rangeOfTypeParameters: () => o$, rangeOverlapsWithStartEnd: () => SP, rangeStartIsOnSameLineAsRangeEnd: () => Wae, rangeStartPositionsAreOnSameLine: () => VR, readBuilderProgram: () => oM, readConfigFile: () => OO, readJson: () => KA, readJsonConfigFile: () => hce, readJsonOrUndefined: () => OV, reduceEachLeadingCommentRange: () => vre, reduceEachTrailingCommentRange: () => bre, reduceLeft: () => wf, reduceLeftIterator: () => ti, reducePathComponents: () => Bk, refactor: () => ew, regExpEscape: () => o2e, regularExpressionFlagToCharacterCode: () => sxe, relativeComplement: () => Ote, removeAllComments: () => cO, removeEmitHelper: () => x2e, removeExtension: () => Q3, removeFileExtension: () => Nf, removeIgnoredPath: () => eM, removeMinAndVersionNumbers: () => _W, removePrefix: () => uD, removeSuffix: () => gA, removeTrailingDirectorySeparator: () => y0, repeatString: () => x8, replaceElement: () => rW, replaceFirstStar: () => Gx, resolutionExtensionIsTSOrJson: () => vN, resolveConfigFileProjectName: () => bG, resolveJSModule: () => Fce, resolveLibrary: () => b9, resolveModuleName: () => f2, resolveModuleNameFromCache: () => hCe, resolvePackageNameToPackageJson: () => Rq, resolvePath: () => Fv, resolveProjectReferencePath: () => qC, resolveTripleslashReference: () => OH, resolveTypeReferenceDirective: () => Dce, resolvingEmptyArray: () => Sz, returnFalse: () => by, returnNoopFileWatcher: () => yP, returnTrue: () => zT, returnUndefined: () => VT, returnsPromise: () => QY, rewriteModuleSpecifier: () => zC, sameFlatMap: () => YU, sameMap: () => po, sameMapping: () => swe, scanTokenAtPosition: () => Uie, scanner: () => Au, semanticDiagnosticsOptionDeclarations: () => ice, serializeCompilerOptions: () => Eq, server: () => KFe, servicesVersion: () => jDe, setCommentRange: () => Pl, setConfigFileInOptions: () => Iq, setConstantValue: () => Yse, setEmitFlags: () => Pr, setGetSourceFileAsHashVersioned: () => sM, setIdentifierAutoGenerate: () => fO, setIdentifierGeneratedImportReference: () => Zse, setIdentifierTypeArguments: () => N0, setInternalEmitFlags: () => lO, setLocalizedDiagnosticMessages: () => Kae, setNodeChildren: () => Ioe, setNodeFlags: () => xse, setObjectAllocator: () => Xae, setOriginalNode: () => Gr, setParent: () => mo, setParentRecursive: () => S1, setPrivateIdentifier: () => p2, setSnippetElement: () => D$, setSourceMapRange: () => qs, setStackTraceLimit: () => zSe, setStartsOnNewLine: () => CL, setSyntheticLeadingComments: () => x1, setSyntheticTrailingComments: () => TC, setSys: () => YSe, setSysLog: () => ore, setTextRange: () => St, setTextRangeEnd: () => iE, setTextRangePos: () => kN, setTextRangePosEnd: () => wm, setTextRangePosWidth: () => l$, setTokenSourceMapRange: () => qse, setTypeNode: () => Kse, setUILocale: () => Wte, setValueDeclaration: () => YD, shouldAllowImportingTsExtension: () => NE, shouldPreserveConstEnums: () => Zv, shouldRewriteModuleSpecifier: () => b3, shouldUseUriStyleNodeCoreModules: () => ZM, showModuleSpecifier: () => Hae, signatureHasRestParameter: () => hf, signatureToDisplayParts: () => kY, single: () => nW, singleElementArray: () => Lk, singleIterator: () => Nte, singleOrMany: () => Uh, singleOrUndefined: () => Sg, skipAlias: () => Ru, skipConstraint: () => uY, skipOuterExpressions: () => Gc, skipParentheses: () => _o, skipPartiallyEmittedExpressions: () => Yd, skipTrivia: () => Rs, skipTypeChecking: () => rE, skipTypeCheckingIgnoringNoCheck: () => vse, skipTypeParentheses: () => KD, skipWhile: () => Gte, sliceAfter: () => a$, some: () => bt, sortAndDeduplicate: () => cD, sortAndDeduplicateDiagnostics: () => kA, sourceFileAffectingCompilerOptions: () => vq, sourceFileMayBeEmitted: () => oS, sourceMapCommentRegExp: () => iH, sourceMapCommentRegExpDontCareLineStart: () => ale, spacePart: () => zc, spanMap: () => XU, startEndContainsRange: () => LV, startEndOverlapsWithStartEnd: () => wM, startOnNewLine: () => mf, startTracing: () => ine, startsWith: () => _a, startsWithDirectory: () => $W, startsWithUnderscore: () => MY, startsWithUseStrict: () => Loe, stringContainsAt: () => f_e, stringToToken: () => Cx, stripQuotes: () => Id, supportedDeclarationExtensions: () => lL, supportedJSExtensionsFlat: () => nE, supportedLocaleDirectories: () => Rre, supportedTSExtensionsFlat: () => e$, supportedTSImplementationExtensions: () => Y3, suppressLeadingAndTrailingTrivia: () => H_, suppressLeadingTrivia: () => k$, suppressTrailingTrivia: () => jse, symbolEscapedNameNoDefault: () => jM, symbolName: () => Bc, symbolNameNoDefault: () => mY, symbolToDisplayParts: () => IP, sys: () => Xl, sysLog: () => T4, tagNamesAreEquivalent: () => L1, takeWhile: () => mW, targetOptionDeclaration: () => gq, targetToLibMap: () => Tre, testFormatSettings: () => gEe, textChangeRangeIsUnchanged: () => Dre, textChangeRangeNewSpan: () => wD, textChanges: () => Dr, textOrKeywordPart: () => xY, textPart: () => Ip, textRangeContainsPositionInclusive: () => I4, textRangeContainsTextSpan: () => kre, textRangeIntersectsWithTextSpan: () => Ere, textSpanContainsPosition: () => XW, textSpanContainsTextRange: () => KW, textSpanContainsTextSpan: () => xre, textSpanEnd: () => Pc, textSpanIntersection: () => Ire, textSpanIntersectsWith: () => D4, textSpanIntersectsWithPosition: () => Are, textSpanIntersectsWithTextSpan: () => wre, textSpanIsEmpty: () => Sre, textSpanOverlap: () => Cre, textSpanOverlapsWith: () => dxe, textSpansEqual: () => qE, textToKeywordObj: () => b5, timestamp: () => Mo, toArray: () => Fk, toBuilderFileEmit: () => xue, toBuilderStateFileInfoForMultiEmit: () => Sue, toEditorSettings: () => U8, toFileNameLowerCase: () => Iv, toPath: () => jo, toProgramEmitPending: () => kue, toSorted: () => M_, tokenIsIdentifierOrKeyword: () => i_, tokenIsIdentifierOrKeywordOrGreaterThan: () => pre, tokenToString: () => ys, trace: () => Sa, tracing: () => Ir, tracingEnabled: () => b4, transferSourceFileChildren: () => Doe, transform: () => GDe, transformClassFields: () => xle, transformDeclarations: () => bH, transformECMAScriptModule: () => vH, transformES2015: () => Mle, transformES2016: () => Lle, transformES2017: () => Ale, transformES2018: () => Ele, transformES2019: () => Ile, transformES2020: () => Dle, transformES2021: () => Nle, transformESDecorators: () => wle, transformESNext: () => Ple, transformGenerators: () => jle, transformImpliedNodeFormatDependentModule: () => Jle, transformJsx: () => Rle, transformLegacyDecorators: () => Cle, transformModule: () => yH, transformNamedEvaluation: () => X_, transformNodes: () => KO, transformSystemModule: () => Ble, transformTypeScript: () => Sle, transpile: () => iIe, transpileDeclaration: () => nIe, transpileModule: () => F_e, transpileOptionValueCompilerOptions: () => cce, tryAddToSet: () => g0, tryAndIgnoreErrors: () => YM, tryCast: () => li, tryDirectoryExists: () => GM, tryExtractTSExtension: () => WR, tryFileExists: () => OP, tryGetClassExtendingExpressionWithTypeArguments: () => IV, tryGetClassImplementingOrExtendingExpressionWithTypeArguments: () => DV, tryGetDirectories: () => HM, tryGetExtensionFromPath: () => Bg, tryGetImportFromModuleSpecifier: () => v3, tryGetJSDocSatisfiesTypeNode: () => gL, tryGetModuleNameFromFile: () => xO, tryGetModuleSpecifierFromDeclaration: () => eC, tryGetNativePerformanceHooks: () => Zte, tryGetPropertyAccessOrIdentifierToString: () => j3, tryGetPropertyNameOfBindingOrAssignmentElement: () => YL, tryGetSourceMappingURL: () => sle, tryGetTextOfPropertyName: () => JD, tryParseJson: () => B3, tryParsePattern: () => hC, tryParsePatterns: () => Z3, tryParseRawSourceMap: () => ole, tryReadDirectory: () => DY, tryReadFile: () => YN, tryRemoveDirectoryPrefix: () => XV, tryRemoveExtension: () => gse, tryRemovePrefix: () => dW, tryRemoveSuffix: () => Vte, tscBuildOption: () => l2, typeAcquisitionDeclarations: () => n9, typeAliasNamePart: () => Xfe, typeDirectiveIsEqualTo: () => Sie, typeKeywords: () => lY, typeParameterNamePart: () => Kfe, typeToDisplayParts: () => A8, unchangedPollThresholds: () => p5, unchangedTextChangeRange: () => k5, unescapeLeadingUnderscores: () => $i, unmangleScopedPackageName: () => UO, unorderedRemoveItem: () => Rk, unprefixedNodeCoreModules: () => Rse, unreachableCodeIsError: () => rse, unsetNodeChildren: () => Q$, unusedLabelIsError: () => ise, unwrapInnermostStatementOfLabel: () => $z, unwrapParenthesizedExpression: () => Ose, updateErrorForNoInputFiles: () => _9, updateLanguageServiceSourceFile: () => CX, updateMissingFilePathsWatch: () => DH, updateResolutionField: () => wE, updateSharedExtendedConfigFileWatcher: () => J9, updateSourceFile: () => _q, updateWatchingWildcardDirectories: () => e8, usingSingleLineStringWriter: () => PA, utf16EncodeAsString: () => CD, validateLocaleAndSetLanguage: () => ez, version: () => Ee, versionMajorMinor: () => Oe, visitArray: () => rP, visitCommaListElements: () => VO, visitEachChild: () => Jn, visitFunctionBody: () => Ep, visitIterationBody: () => qf, visitLexicalEnvironment: () => rH, visitNode: () => ut, visitNodes: () => Qn, visitParameterList: () => Wc, walkUpBindingElementsAndPatterns: () => wx, walkUpOuterExpressions: () => Moe, walkUpParenthesizedExpressions: () => Kd, walkUpParenthesizedTypes: () => k3, walkUpParenthesizedTypesAndGetParentAndChild: () => pae, whitespaceOrMapCommentRegExp: () => aH, writeCommentRange: () => XA, writeFile: () => LR, writeFileEnsuringDirectories: () => SV, zipWith: () => yi }), y.exports = le(_e);
       var Oe = "5.9", Ee = "5.9.3", qe = ((e) => (e[e.LessThan = -1] = "LessThan", e[e.EqualTo = 0] = "EqualTo", e[e.GreaterThan = 1] = "GreaterThan", e))(qe || {}), ae = [], At = /* @__PURE__ */ new Map();
       function Ve(e) {
         return e !== void 0 ? e.length : 0;
@@ -2631,7 +2631,7 @@ var DeclareCompilerMac = (() => {
         let i = r();
         return e.set(t, i), i;
       }
-      function h0(e, t) {
+      function g0(e, t) {
         return e.has(t) ? false : (e.add(t), true);
       }
       function* Nte(e) {
@@ -3626,7 +3626,7 @@ Verbose Debug Information: ` + (typeof yn == "string" ? yn : yn())), m(Et, mr ||
           } } });
           let yn = [Lu.getNodeConstructor(), Lu.getIdentifierConstructor(), Lu.getTokenConstructor(), Lu.getSourceFileConstructor()];
           for (let mr of yn) No(mr.prototype, "__debugKind") || Object.defineProperties(mr.prototype, { __tsDebuggerDisplay: { value() {
-            return `${hc(this) ? "GeneratedIdentifier" : Xe(this) ? `Identifier '${Xr(this)}'` : na(this) ? `PrivateIdentifier '${Xr(this)}'` : Ls(this) ? `StringLiteral ${JSON.stringify(this.text.length < 10 ? this.text : this.text.slice(10) + "...")}` : f_(this) ? `NumericLiteral ${this.text}` : oE(this) ? `BigIntLiteral ${this.text}n` : uc(this) ? "TypeParameterDeclaration" : ra(this) ? "ParameterDeclaration" : Rc(this) ? "ConstructorDeclaration" : rd(this) ? "GetAccessorDeclaration" : w_(this) ? "SetAccessorDeclaration" : AC(this) ? "CallSignatureDeclaration" : MN(this) ? "ConstructSignatureDeclaration" : ab(this) ? "IndexSignatureDeclaration" : EC(this) ? "TypePredicateNode" : G_(this) ? "TypeReferenceNode" : Kh(this) ? "FunctionTypeNode" : cE(this) ? "ConstructorTypeNode" : gS(this) ? "TypeQueryNode" : Vf(this) ? "TypeLiteralNode" : dO(this) ? "ArrayTypeNode" : IC(this) ? "TupleTypeNode" : OL(this) ? "OptionalTypeNode" : FL(this) ? "RestTypeNode" : N0(this) ? "UnionTypeNode" : DC(this) ? "IntersectionTypeNode" : yS(this) ? "ConditionalTypeNode" : Qx(this) ? "InferTypeNode" : Zx(this) ? "ParenthesizedTypeNode" : jN(this) ? "ThisTypeNode" : k1(this) ? "TypeOperatorNode" : vS(this) ? "IndexedAccessTypeNode" : e2(this) ? "MappedTypeNode" : P0(this) ? "LiteralTypeNode" : lE(this) ? "NamedTupleMember" : dh(this) ? "ImportTypeNode" : Ie(this.kind)}${this.flags ? ` (${se(this.flags)})` : ""}`;
+            return `${hc(this) ? "GeneratedIdentifier" : Xe(this) ? `Identifier '${Xr(this)}'` : na(this) ? `PrivateIdentifier '${Xr(this)}'` : Ls(this) ? `StringLiteral ${JSON.stringify(this.text.length < 10 ? this.text : this.text.slice(10) + "...")}` : f_(this) ? `NumericLiteral ${this.text}` : oE(this) ? `BigIntLiteral ${this.text}n` : uc(this) ? "TypeParameterDeclaration" : ra(this) ? "ParameterDeclaration" : Rc(this) ? "ConstructorDeclaration" : rd(this) ? "GetAccessorDeclaration" : w_(this) ? "SetAccessorDeclaration" : AC(this) ? "CallSignatureDeclaration" : MN(this) ? "ConstructSignatureDeclaration" : ab(this) ? "IndexSignatureDeclaration" : EC(this) ? "TypePredicateNode" : G_(this) ? "TypeReferenceNode" : Kh(this) ? "FunctionTypeNode" : cE(this) ? "ConstructorTypeNode" : gS(this) ? "TypeQueryNode" : Vf(this) ? "TypeLiteralNode" : dO(this) ? "ArrayTypeNode" : IC(this) ? "TupleTypeNode" : OL(this) ? "OptionalTypeNode" : FL(this) ? "RestTypeNode" : P0(this) ? "UnionTypeNode" : DC(this) ? "IntersectionTypeNode" : yS(this) ? "ConditionalTypeNode" : Qx(this) ? "InferTypeNode" : Zx(this) ? "ParenthesizedTypeNode" : jN(this) ? "ThisTypeNode" : k1(this) ? "TypeOperatorNode" : vS(this) ? "IndexedAccessTypeNode" : e2(this) ? "MappedTypeNode" : O0(this) ? "LiteralTypeNode" : lE(this) ? "NamedTupleMember" : dh(this) ? "ImportTypeNode" : Ie(this.kind)}${this.flags ? ` (${se(this.flags)})` : ""}`;
           } }, __debugKind: { get() {
             return Ie(this.kind);
           } }, __debugNodeFlags: { get() {
@@ -5010,11 +5010,11 @@ ${Ht.join(`
       function hi(e) {
         e = xu(e);
         let t = vm(e);
-        return t === e.length ? e : (e = g0(e), e.slice(0, Math.max(t, e.lastIndexOf(Xo))));
+        return t === e.length ? e : (e = y0(e), e.slice(0, Math.max(t, e.lastIndexOf(Xo))));
       }
       function Dl(e, t, r) {
         if (e = xu(e), vm(e) === e.length) return "";
-        e = g0(e);
+        e = y0(e);
         let a = e.slice(Math.max(vm(e), e.lastIndexOf(Xo) + 1)), o = t !== void 0 && r !== void 0 ? jk(a, t, r) : void 0;
         return o ? a.slice(0, a.length - o.length) : a;
       }
@@ -5033,7 +5033,7 @@ ${Ht.join(`
         return "";
       }
       function jk(e, t, r) {
-        if (t) return a$e(g0(e), t, r ? Nv : $T);
+        if (t) return a$e(y0(e), t, r ? Nv : $T);
         let i = Dl(e), a = i.lastIndexOf(".");
         return a >= 0 ? i.substring(a) : "";
       }
@@ -5084,7 +5084,7 @@ ${Ht.join(`
         let r = vm(e);
         r === 0 && t ? (e = ri(t, e), r = vm(e)) : e = xu(e);
         let i = ZSe(e);
-        if (i !== void 0) return i.length > r ? g0(i) : i;
+        if (i !== void 0) return i.length > r ? y0(i) : i;
         let a = e.length, o = e.substring(0, r), c, f = r, u = f, g = f, m = r !== 0;
         for (; f < a; ) {
           u = f;
@@ -5104,7 +5104,7 @@ ${Ht.join(`
           else c !== void 0 ? (c.length !== r && (c += Xo), m = true, c += e.substring(u, k)) : (m = true, g = k);
           f = k + 1;
         }
-        return c ?? (a > r ? g0(e) : e);
+        return c ?? (a > r ? y0(e) : e);
       }
       function vs(e) {
         e = xu(e);
@@ -5126,7 +5126,7 @@ ${Ht.join(`
         let i = J_(e) ? vs(e) : va(e, t);
         return r(i);
       }
-      function g0(e) {
+      function y0(e) {
         return Ov(e) ? e.substr(0, e.length - 1) : e;
       }
       function Kl(e) {
@@ -7226,7 +7226,7 @@ ${Ht.join(`
         let t = Cd(e, VN);
         if (t && t.typeExpression && t.typeExpression.type) return t;
       }
-      function y0(e) {
+      function v0(e) {
         let t = Cd(e, VN);
         return !t && ra(e) && (t = $t(CA(e), (r) => !!r.typeExpression)), t && t.typeExpression && t.typeExpression.type;
       }
@@ -7273,7 +7273,7 @@ ${Ht.join(`
         return `{@${t} ${r}${i}${e.text}}`;
       }
       function Mv(e) {
-        if (F0(e)) {
+        if (R0(e)) {
           if (yE(e.parent)) {
             let t = VA(e.parent);
             if (t && Ve(t.tags)) return oa(t.tags, (r) => Od(r) ? r.typeParameters : void 0);
@@ -7285,7 +7285,7 @@ ${Ht.join(`
         if (Er(e)) {
           let t = MR(e);
           if (t.length) return t;
-          let r = y0(e);
+          let r = v0(e);
           if (r && Kh(r) && r.typeParameters) return r.typeParameters;
         }
         return ae;
@@ -7408,11 +7408,11 @@ ${Ht.join(`
         }
         return false;
       }
-      function v0(e) {
+      function b0(e) {
         return AA(e) || Kre(e);
       }
       function Qre(e) {
-        return On(e, v0) !== void 0;
+        return On(e, b0) !== void 0;
       }
       function fz(e) {
         return e.kind === 11 || jv(e.kind);
@@ -8011,7 +8011,7 @@ ${Ht.join(`
         return e.kind >= 310 && e.kind <= 352;
       }
       function U5(e) {
-        return e.kind === 321 || e.kind === 320 || e.kind === 322 || qk(e) || NA(e) || s2(e) || F0(e);
+        return e.kind === 321 || e.kind === 320 || e.kind === 322 || qk(e) || NA(e) || s2(e) || R0(e);
       }
       function NA(e) {
         return e.kind >= 328 && e.kind <= 352;
@@ -8030,7 +8030,7 @@ ${Ht.join(`
       function W5(e) {
         return !!e.type;
       }
-      function b0(e) {
+      function T0(e) {
         return !!e.initializer;
       }
       function Ox(e) {
@@ -8761,7 +8761,7 @@ ${Ht.join(`
         let i = Jc(r), a = i || xC(t) ? r.pos : Rs(e.text, r.pos);
         return i ? (D.assert(a === r.pos, "This failure could trigger https://github.com/Microsoft/TypeScript/issues/20809"), D.assert(a === r.end, "This failure could trigger https://github.com/Microsoft/TypeScript/issues/20809")) : (D.assert(a >= r.pos, "This failure could trigger https://github.com/Microsoft/TypeScript/issues/20809"), D.assert(a <= r.end, "This failure could trigger https://github.com/Microsoft/TypeScript/issues/20809")), ll(a, r.end);
       }
-      function T0(e) {
+      function S0(e) {
         return e.kind === 308 && !z_(e);
       }
       function z_(e) {
@@ -8804,7 +8804,7 @@ ${Ht.join(`
         return n2(e) && e.keywordToken === 102 && e.name.escapedText === "meta";
       }
       function Cy(e) {
-        return dh(e) && P0(e.argument) && Ls(e.argument.literal);
+        return dh(e) && O0(e.argument) && Ls(e.argument.literal);
       }
       function ih(e) {
         return e.kind === 245 && e.expression.kind === 11;
@@ -9239,7 +9239,7 @@ ${Ht.join(`
             return false;
         }
       }
-      function S0(e, t) {
+      function x0(e, t) {
         if (BA(e, t)) return true;
         let r = Rg(t);
         return !!r && VD(e, r, t);
@@ -9844,7 +9844,7 @@ ${Ht.join(`
       }
       function Zz(e, t) {
         let r;
-        UD(e) && b0(e) && pp(e.initializer) && (r = ni(r, Wxe(e, e.initializer.jsDoc)));
+        UD(e) && T0(e) && pp(e.initializer) && (r = ni(r, Wxe(e, e.initializer.jsDoc)));
         let i = e;
         for (; i && i.parent; ) {
           if (pp(i) && (r = ni(r, Wxe(e, i.jsDoc))), i.kind === 170) {
@@ -10812,7 +10812,7 @@ ${Ht.join(`
         return t && t.type;
       }
       function cS(e) {
-        if (e.parameters.length && !F0(e)) {
+        if (e.parameters.length && !R0(e)) {
           let t = e.parameters[0];
           if (Xv(t)) return t;
         }
@@ -10846,13 +10846,13 @@ ${Ht.join(`
       function Nl(e) {
         if (!Er(e) && il(e) || Pd(e)) return;
         let t = e.type;
-        return t || !Er(e) ? t : ND(e) ? e.typeExpression && e.typeExpression.type : y0(e);
+        return t || !Er(e) ? t : ND(e) ? e.typeExpression && e.typeExpression.type : v0(e);
       }
       function wae(e) {
         return e.type;
       }
       function $_(e) {
-        return F0(e) ? e.type && e.type.typeExpression && e.type.typeExpression.type : e.type || (Er(e) ? F4(e) : void 0);
+        return R0(e) ? e.type && e.type.typeExpression && e.type.typeExpression.type : e.type || (Er(e) ? F4(e) : void 0);
       }
       function MR(e) {
         return oa(u1(e), (t) => _qe(t) ? t.typeParameters : void 0);
@@ -10932,7 +10932,7 @@ ${Ht.join(`
         return Yu(e) !== 0;
       }
       function Iae(e) {
-        return x0(e) !== 0;
+        return k0(e) !== 0;
       }
       function q_(e, t) {
         return !!oC(e, t);
@@ -10968,7 +10968,7 @@ ${Ht.join(`
         return Yu(e) & t;
       }
       function Dae(e, t) {
-        return x0(e) & t;
+        return k0(e) & t;
       }
       function Nae(e, t, r) {
         return e.kind >= 0 && e.kind <= 166 ? 0 : (e.modifierFlagsCache & 536870912 || (e.modifierFlagsCache = AV(e) | 536870912), r || t && Er(e) ? (!(e.modifierFlagsCache & 268435456) && e.parent && (e.modifierFlagsCache |= Kxe(e) | 268435456), Qxe(e.modifierFlagsCache)) : gqe(e.modifierFlagsCache));
@@ -10979,7 +10979,7 @@ ${Ht.join(`
       function Pae(e) {
         return Nae(e, true, true);
       }
-      function x0(e) {
+      function k0(e) {
         return Nae(e, false);
       }
       function Kxe(e) {
@@ -11081,7 +11081,7 @@ ${Ht.join(`
       function fu(e, t) {
         return Or(e) && (t ? e.operatorToken.kind === 64 : Iy(e.operatorToken.kind)) && s_(e.left);
       }
-      function k0(e) {
+      function C0(e) {
         if (fu(e, true)) {
           let t = e.left.kind;
           return t === 211 || t === 210;
@@ -11230,7 +11230,7 @@ ${Ht.join(`
       var Sqe = `\r
 `, xqe = `
 `;
-      function C0(e) {
+      function w0(e) {
         switch (e.newLine) {
           case 0:
             return Sqe;
@@ -11892,7 +11892,7 @@ ${Ht.join(`
       function iL(e, t, r, { singleAsteriskRegexFragment: i, doubleAsteriskRegexFragment: a, replaceWildcardCharacter: o } = fse[r]) {
         let c = "", f = false, u = g5(e, t), g = Ws(u);
         if (r !== "exclude" && g === "**") return;
-        u[0] = g0(u[0]), KV(g) && u.push("**", "*");
+        u[0] = y0(u[0]), KV(g) && u.push("**", "*");
         let m = 0;
         for (let v of u) {
           if (v === "**") c += a;
@@ -11913,12 +11913,12 @@ ${Ht.join(`
         let o = ri(a, e);
         return { includeFilePatterns: vn(rL(r, o, "files"), (c) => `^${c}$`), includeFilePattern: gN(r, o, "files"), includeDirectoryPattern: gN(r, o, "directories"), excludePattern: gN(t, o, "exclude"), basePaths: Vqe(e, r, i) };
       }
-      function w0(e, t) {
+      function A0(e, t) {
         return new RegExp(e, t ? "" : "i");
       }
       function ZV(e, t, r, i, a, o, c, f, u) {
         e = vs(e), o = vs(o);
-        let g = aL(e, r, i, a, o), m = g.includeFilePatterns && g.includeFilePatterns.map((L) => w0(L, a)), v = g.includeDirectoryPattern && w0(g.includeDirectoryPattern, a), k = g.excludePattern && w0(g.excludePattern, a), C = m ? m.map(() => []) : [[]], E = /* @__PURE__ */ new Map(), N = Ou(a);
+        let g = aL(e, r, i, a, o), m = g.includeFilePatterns && g.includeFilePatterns.map((L) => A0(L, a)), v = g.includeDirectoryPattern && A0(g.includeDirectoryPattern, a), k = g.excludePattern && A0(g.excludePattern, a), C = m ? m.map(() => []) : [[]], E = /* @__PURE__ */ new Map(), N = Ou(a);
         for (let L of g.basePaths) F(L, ri(o, L), c);
         return Is(C);
         function F(L, W, J) {
@@ -11955,7 +11955,7 @@ ${Ht.join(`
       }
       function $qe(e) {
         let t = vo(e, Wqe);
-        return t < 0 ? bA(e) ? g0(hi(e)) : e : e.substring(0, e.lastIndexOf(Xo, t));
+        return t < 0 ? bA(e) ? y0(hi(e)) : e : e.substring(0, e.lastIndexOf(Xo, t));
       }
       function sL(e, t) {
         return t || oL(e) || 3;
@@ -12058,7 +12058,7 @@ ${Ht.join(`
       function Q3(e, t) {
         return e.substring(0, e.length - t.length);
       }
-      function A0(e, t) {
+      function E0(e, t) {
         return S4(e, t, hse, false);
       }
       function hC(e) {
@@ -12717,7 +12717,7 @@ ${Ht.join(`
           let me = $, ge, Se, we, ee, Ie, Qe = false, Ce, se = Ja(H) ? H : H.escapedText;
           e: for (; $; ) {
             if (se === "const" && m$($)) return;
-            if (V4($) && Se && $.name === Se && (Se = $, $ = $.parent), Vh($) && $.locals && !T0($) && (ge = c($.locals, se, Z))) {
+            if (V4($) && Se && $.name === Se && (Se = $, $ = $.parent), Vh($) && $.locals && !S0($) && (ge = c($.locals, se, Z))) {
               let xe = true;
               if (Xa($) && Se && Se !== $.body ? (Z & ge.flags & 788968 && Se.kind !== 321 && (xe = ge.flags & 262144 ? !!(Se.flags & 16) || Se === $.type || Se.kind === 170 || Se.kind === 342 || Se.kind === 343 || Se.kind === 169 : false), Z & ge.flags & 3 && (F(ge, $, Se) ? xe = false : ge.flags & 1 && (xe = Se.kind === 170 || !!(Se.flags & 16) || Se === $.type && !!On(ge.valueDeclaration, ra)))) : $.kind === 195 && (xe = Se === $.trueType), xe) break e;
               ge = void 0;
@@ -12978,7 +12978,7 @@ ${Ht.join(`
         }
       }
       function Lse(e) {
-        return Xa(e) || F0(e) || e2(e);
+        return Xa(e) || R0(e) || e2(e);
       }
       function y$(e) {
         return Iv(e.fileName);
@@ -13263,7 +13263,7 @@ ${Ht.join(`
           return Qe(ze) ? e.createParenthesizedType(ze) : ze;
         }
         function Qe(ze) {
-          return hE(ze) ? ze.postfix : lE(ze) || Kh(ze) || cE(ze) || k1(ze) ? Qe(ze.type) : yS(ze) ? Qe(ze.falseType) : N0(ze) || DC(ze) ? Qe(Ws(ze.types)) : Qx(ze) ? !!ze.typeParameter.constraint && Qe(ze.typeParameter.constraint) : false;
+          return hE(ze) ? ze.postfix : lE(ze) || Kh(ze) || cE(ze) || k1(ze) ? Qe(ze.type) : yS(ze) ? Qe(ze.falseType) : P0(ze) || DC(ze) ? Qe(Ws(ze.types)) : Qx(ze) ? !!ze.typeParameter.constraint && Qe(ze.typeParameter.constraint) : false;
         }
         function Ce(ze) {
           return Qe(ze) ? e.createParenthesizedType(ze) : we(ze);
@@ -13332,7 +13332,7 @@ ${Ht.join(`
           return kp(m) ? Gr(St(e.createObjectLiteralExpression(vn(m.elements, o)), m), m) : hs(m, Bs);
         }
         function u(m) {
-          return O0(m) ? Gr(St(e.createArrayLiteralExpression(vn(m.elements, a)), m), m) : hs(m, ju);
+          return F0(m) ? Gr(St(e.createArrayLiteralExpression(vn(m.elements, a)), m), m) : hs(m, ju);
         }
         function g(m) {
           return Qa(m) ? c(m) : hs(m, kt);
@@ -13347,7 +13347,7 @@ ${Ht.join(`
           return i();
         }, get converters() {
           return a();
-        }, baseFactory: t, flags: e, createNodeArray: W, createNumericLiteral: Z, createBigIntLiteral: ne, createStringLiteral: Te, createStringLiteralFromNode: ce, createRegularExpressionLiteral: K, createLiteralLikeNode: he, createIdentifier: Se, createTempVariable: we, createLoopVariable: ee, createUniqueName: Ie, getGeneratedNameForNode: Qe, createPrivateIdentifier: se, createUniquePrivateName: De, getGeneratedPrivateNameForNode: ze, createToken: de, createSuper: Ze, createThis: oe, createNull: Ue, createTrue: Le, createFalse: Pe, createModifier: it, createModifiersFromModifierFlags: It, createQualifiedName: Xt, updateQualifiedName: kn, createComputedPropertyName: Vn, updateComputedPropertyName: vt, createTypeParameterDeclaration: nn, updateTypeParameterDeclaration: or, createParameterDeclaration: Ri, updateParameterDeclaration: xa, createDecorator: jt, updateDecorator: ii, createPropertySignature: ma, updatePropertySignature: ei, createPropertyDeclaration: Ii, updatePropertyDeclaration: tt, createMethodSignature: Et, updateMethodSignature: yn, createMethodDeclaration: mr, updateMethodDeclaration: _i, createConstructorDeclaration: Bn, updateConstructorDeclaration: Ua, createGetAccessorDeclaration: Wt, updateGetAccessorDeclaration: pe, createSetAccessorDeclaration: ie, updateSetAccessorDeclaration: Je, createCallSignature: pt, updateCallSignature: Mt, createConstructSignature: Ge, updateConstructSignature: Nt, createIndexSignature: Dt, updateIndexSignature: zt, createClassStaticBlockDeclaration: Yi, updateClassStaticBlockDeclaration: Ka, createTemplateLiteralTypeSpan: st, updateTemplateLiteralTypeSpan: Qt, createKeywordTypeNode: xr, createTypePredicateNode: Be, updateTypePredicateNode: Ft, createTypeReferenceNode: be, updateTypeReferenceNode: z, createFunctionTypeNode: He, updateFunctionTypeNode: Q, createConstructorTypeNode: Ht, updateConstructorTypeNode: on, createTypeQueryNode: tr, updateTypeQueryNode: mt, createTypeLiteralNode: Rt, updateTypeLiteralNode: Vt, createArrayTypeNode: sn, updateArrayTypeNode: Dn, createTupleTypeNode: Sn, updateTupleTypeNode: Ut, createNamedTupleMember: An, updateNamedTupleMember: Ln, createOptionalTypeNode: Mn, updateOptionalTypeNode: dn, createRestTypeNode: Di, updateRestTypeNode: os, createUnionTypeNode: Vc, updateUnionTypeNode: Lc, createIntersectionTypeNode: Lo, updateIntersectionTypeNode: ua, createConditionalTypeNode: Ba, updateConditionalTypeNode: wl, createInferTypeNode: ec, updateInferTypeNode: Ds, createImportTypeNode: Pa, updateImportTypeNode: ms, createParenthesizedType: so, updateParenthesizedType: eo, createThisTypeNode: rn, createTypeOperatorNode: Io, updateTypeOperatorNode: Yc, createIndexedAccessTypeNode: vl, updateIndexedAccessTypeNode: mu, createMappedTypeNode: _c, updateMappedTypeNode: Xc, createLiteralTypeNode: M, updateLiteralTypeNode: Ye, createTemplateLiteralType: al, updateTemplateLiteralType: Np, createObjectBindingPattern: Tt, updateObjectBindingPattern: en, createArrayBindingPattern: Kn, updateArrayBindingPattern: pi, createBindingElement: Nr, updateBindingElement: $n, createArrayLiteralExpression: zi, updateArrayLiteralExpression: Xi, createObjectLiteralExpression: ko, updateObjectLiteralExpression: As, createPropertyAccessExpression: e & 4 ? (S, O) => Pr(Al(S, O), 262144) : Al, updatePropertyAccessExpression: _l, createPropertyAccessChain: e & 4 ? (S, O, q) => Pr(Go(S, O, q), 262144) : Go, updatePropertyAccessChain: sl, createElementAccessExpression: Uu, updateElementAccessExpression: mp, createElementAccessChain: d_, updateElementAccessChain: We, createCallExpression: rr, updateCallExpression: ha, createCallChain: to, updateCallChain: no, createNewExpression: Vs, updateNewExpression: Ll, createTaggedTemplateExpression: ic, updateTaggedTemplateExpression: Mc, createTypeAssertion: Kc, updateTypeAssertion: hp, createParenthesizedExpression: Eu, updateParenthesizedExpression: hu, createFunctionExpression: tp, updateFunctionExpression: Ff, createArrowFunction: od, updateArrowFunction: ng, createDeleteExpression: qg, updateDeleteExpression: Hg, createTypeOfExpression: m_, updateTypeOfExpression: nu, createVoidExpression: Fm, updateVoidExpression: Pp, createAwaitExpression: Ah, updateAwaitExpression: ue, createPrefixUnaryExpression: dt, updatePrefixUnaryExpression: cn, createPostfixUnaryExpression: _n, updatePostfixUnaryExpression: Un, createBinaryExpression: cr, updateBinaryExpression: Ei, createConditionalExpression: ea, updateConditionalExpression: V, createTemplateExpression: $e, updateTemplateExpression: Jt, createTemplateHead: yc, createTemplateMiddle: Ns, createTemplateTail: gu, createNoSubstitutionTemplateLiteral: np, createTemplateLiteralLikeNode: Wa, createYieldExpression: Op, updateYieldExpression: cd, createSpreadElement: zy, updateSpreadElement: W0, createClassExpression: Yf, updateClassExpression: rg, createOmittedExpression: Rm, createExpressionWithTypeArguments: jd, updateExpressionWithTypeArguments: vb, createAsExpression: et, updateAsExpression: ht, createNonNullExpression: Zt, updateNonNullExpression: Pn, createSatisfiesExpression: nr, updateSatisfiesExpression: Lr, createNonNullChain: Zn, updateNonNullChain: dr, createMetaProperty: Ji, updateMetaProperty: ka, createTemplateSpan: xi, updateTemplateSpan: Ca, createSemicolonClassElement: ta, createBlock: vc, updateBlock: h_, createVariableStatement: Bd, updateVariableStatement: Iu, createEmptyStatement: Jd, createExpressionStatement: rp, updateExpressionStatement: X1, createIfStatement: Eh, updateIfStatement: ig, createDoStatement: K1, updateDoStatement: ag, createWhileStatement: uI, updateWhileStatement: KP, createForStatement: fI, updateForStatement: Gg, createForInStatement: Q1, updateForInStatement: w2, createForOfStatement: z0, updateForOfStatement: A2, createContinueStatement: fw, updateContinueStatement: QP, createBreakStatement: E2, updateBreakStatement: _w, createReturnStatement: Z1, updateReturnStatement: _I, createWithStatement: I2, updateWithStatement: pw, createSwitchStatement: US, updateSwitchStatement: bb, createLabeledStatement: dw, updateLabeledStatement: mw, createThrowStatement: WS, updateThrowStatement: Tb, createTryStatement: V0, updateTryStatement: Vy, createDebuggerStatement: $y, createVariableDeclaration: qy, updateVariableDeclaration: Sb, createVariableDeclarationList: eT, updateVariableDeclarationList: D2, createFunctionDeclaration: tT, updateFunctionDeclaration: io, createClassDeclaration: pI, updateClassDeclaration: Hy, createInterfaceDeclaration: Gy, updateInterfaceDeclaration: sg, createTypeAliasDeclaration: dc, updateTypeAliasDeclaration: ef, createEnumDeclaration: g_, updateEnumDeclaration: tf, createModuleDeclaration: nT, updateModuleDeclaration: Rf, createModuleBlock: og, updateModuleBlock: Xf, createCaseBlock: Ud, updateCaseBlock: im, createNamespaceExportDeclaration: rT, updateNamespaceExportDeclaration: iT, createImportEqualsDeclaration: dI, updateImportEqualsDeclaration: $0, createImportDeclaration: zS, updateImportDeclaration: nt, createImportClause: P2, updateImportClause: Yg, createAssertClause: am, updateAssertClause: q0, createAssertEntry: xb, updateAssertEntry: Lf, createImportTypeAssertionContainer: Lm, updateImportTypeAssertionContainer: Wd, createImportAttributes: aT, updateImportAttributes: $s, createImportAttribute: Fp, updateImportAttribute: H0, createNamespaceImport: O2, updateNamespaceImport: Yy, createNamespaceExport: VS, updateNamespaceExport: ld, createNamedImports: Xg, updateNamedImports: sT, createImportSpecifier: G0, updateImportSpecifier: Ih, createExportAssignment: $S, updateExportAssignment: oT, createExportDeclaration: Zr, updateExportDeclaration: qr, createNamedExports: F2, updateNamedExports: Xy, createExportSpecifier: qS, updateExportSpecifier: mI, createMissingDeclaration: e6, createExternalModuleReference: zr, updateExternalModuleReference: Mf, get createJSDocAllType() {
+        }, baseFactory: t, flags: e, createNodeArray: W, createNumericLiteral: Z, createBigIntLiteral: ne, createStringLiteral: Te, createStringLiteralFromNode: ce, createRegularExpressionLiteral: K, createLiteralLikeNode: he, createIdentifier: Se, createTempVariable: we, createLoopVariable: ee, createUniqueName: Ie, getGeneratedNameForNode: Qe, createPrivateIdentifier: se, createUniquePrivateName: De, getGeneratedPrivateNameForNode: ze, createToken: de, createSuper: Ze, createThis: oe, createNull: Ue, createTrue: Le, createFalse: Pe, createModifier: it, createModifiersFromModifierFlags: It, createQualifiedName: Xt, updateQualifiedName: kn, createComputedPropertyName: Vn, updateComputedPropertyName: vt, createTypeParameterDeclaration: nn, updateTypeParameterDeclaration: or, createParameterDeclaration: Ri, updateParameterDeclaration: xa, createDecorator: jt, updateDecorator: ii, createPropertySignature: ma, updatePropertySignature: ei, createPropertyDeclaration: Ii, updatePropertyDeclaration: tt, createMethodSignature: Et, updateMethodSignature: yn, createMethodDeclaration: mr, updateMethodDeclaration: _i, createConstructorDeclaration: Bn, updateConstructorDeclaration: Ua, createGetAccessorDeclaration: Wt, updateGetAccessorDeclaration: pe, createSetAccessorDeclaration: ie, updateSetAccessorDeclaration: Je, createCallSignature: pt, updateCallSignature: Mt, createConstructSignature: Ge, updateConstructSignature: Nt, createIndexSignature: Dt, updateIndexSignature: zt, createClassStaticBlockDeclaration: Yi, updateClassStaticBlockDeclaration: Ka, createTemplateLiteralTypeSpan: st, updateTemplateLiteralTypeSpan: Qt, createKeywordTypeNode: xr, createTypePredicateNode: Be, updateTypePredicateNode: Ft, createTypeReferenceNode: be, updateTypeReferenceNode: z, createFunctionTypeNode: He, updateFunctionTypeNode: Q, createConstructorTypeNode: Ht, updateConstructorTypeNode: on, createTypeQueryNode: tr, updateTypeQueryNode: mt, createTypeLiteralNode: Rt, updateTypeLiteralNode: Vt, createArrayTypeNode: sn, updateArrayTypeNode: Dn, createTupleTypeNode: Sn, updateTupleTypeNode: Ut, createNamedTupleMember: An, updateNamedTupleMember: Ln, createOptionalTypeNode: Mn, updateOptionalTypeNode: dn, createRestTypeNode: Di, updateRestTypeNode: os, createUnionTypeNode: Vc, updateUnionTypeNode: Lc, createIntersectionTypeNode: Lo, updateIntersectionTypeNode: ua, createConditionalTypeNode: Ba, updateConditionalTypeNode: wl, createInferTypeNode: ec, updateInferTypeNode: Ds, createImportTypeNode: Pa, updateImportTypeNode: ms, createParenthesizedType: so, updateParenthesizedType: eo, createThisTypeNode: rn, createTypeOperatorNode: Io, updateTypeOperatorNode: Yc, createIndexedAccessTypeNode: vl, updateIndexedAccessTypeNode: mu, createMappedTypeNode: _c, updateMappedTypeNode: Xc, createLiteralTypeNode: M, updateLiteralTypeNode: Ye, createTemplateLiteralType: al, updateTemplateLiteralType: Np, createObjectBindingPattern: Tt, updateObjectBindingPattern: en, createArrayBindingPattern: Kn, updateArrayBindingPattern: pi, createBindingElement: Nr, updateBindingElement: $n, createArrayLiteralExpression: zi, updateArrayLiteralExpression: Xi, createObjectLiteralExpression: ko, updateObjectLiteralExpression: As, createPropertyAccessExpression: e & 4 ? (S, O) => Pr(Al(S, O), 262144) : Al, updatePropertyAccessExpression: _l, createPropertyAccessChain: e & 4 ? (S, O, q) => Pr(Go(S, O, q), 262144) : Go, updatePropertyAccessChain: sl, createElementAccessExpression: Uu, updateElementAccessExpression: mp, createElementAccessChain: d_, updateElementAccessChain: We, createCallExpression: rr, updateCallExpression: ha, createCallChain: to, updateCallChain: no, createNewExpression: Vs, updateNewExpression: Ll, createTaggedTemplateExpression: ic, updateTaggedTemplateExpression: Mc, createTypeAssertion: Kc, updateTypeAssertion: hp, createParenthesizedExpression: Eu, updateParenthesizedExpression: hu, createFunctionExpression: tp, updateFunctionExpression: Ff, createArrowFunction: od, updateArrowFunction: ng, createDeleteExpression: qg, updateDeleteExpression: Hg, createTypeOfExpression: m_, updateTypeOfExpression: nu, createVoidExpression: Fm, updateVoidExpression: Pp, createAwaitExpression: Ah, updateAwaitExpression: ue, createPrefixUnaryExpression: dt, updatePrefixUnaryExpression: cn, createPostfixUnaryExpression: _n, updatePostfixUnaryExpression: Un, createBinaryExpression: cr, updateBinaryExpression: Ei, createConditionalExpression: ea, updateConditionalExpression: V, createTemplateExpression: $e, updateTemplateExpression: Jt, createTemplateHead: yc, createTemplateMiddle: Ns, createTemplateTail: gu, createNoSubstitutionTemplateLiteral: np, createTemplateLiteralLikeNode: Wa, createYieldExpression: Op, updateYieldExpression: cd, createSpreadElement: zy, updateSpreadElement: z0, createClassExpression: Yf, updateClassExpression: rg, createOmittedExpression: Rm, createExpressionWithTypeArguments: jd, updateExpressionWithTypeArguments: vb, createAsExpression: et, updateAsExpression: ht, createNonNullExpression: Zt, updateNonNullExpression: Pn, createSatisfiesExpression: nr, updateSatisfiesExpression: Lr, createNonNullChain: Zn, updateNonNullChain: dr, createMetaProperty: Ji, updateMetaProperty: ka, createTemplateSpan: xi, updateTemplateSpan: Ca, createSemicolonClassElement: ta, createBlock: vc, updateBlock: h_, createVariableStatement: Bd, updateVariableStatement: Iu, createEmptyStatement: Jd, createExpressionStatement: rp, updateExpressionStatement: X1, createIfStatement: Eh, updateIfStatement: ig, createDoStatement: K1, updateDoStatement: ag, createWhileStatement: uI, updateWhileStatement: KP, createForStatement: fI, updateForStatement: Gg, createForInStatement: Q1, updateForInStatement: w2, createForOfStatement: V0, updateForOfStatement: A2, createContinueStatement: fw, updateContinueStatement: QP, createBreakStatement: E2, updateBreakStatement: _w, createReturnStatement: Z1, updateReturnStatement: _I, createWithStatement: I2, updateWithStatement: pw, createSwitchStatement: US, updateSwitchStatement: bb, createLabeledStatement: dw, updateLabeledStatement: mw, createThrowStatement: WS, updateThrowStatement: Tb, createTryStatement: $0, updateTryStatement: Vy, createDebuggerStatement: $y, createVariableDeclaration: qy, updateVariableDeclaration: Sb, createVariableDeclarationList: eT, updateVariableDeclarationList: D2, createFunctionDeclaration: tT, updateFunctionDeclaration: io, createClassDeclaration: pI, updateClassDeclaration: Hy, createInterfaceDeclaration: Gy, updateInterfaceDeclaration: sg, createTypeAliasDeclaration: dc, updateTypeAliasDeclaration: ef, createEnumDeclaration: g_, updateEnumDeclaration: tf, createModuleDeclaration: nT, updateModuleDeclaration: Rf, createModuleBlock: og, updateModuleBlock: Xf, createCaseBlock: Ud, updateCaseBlock: im, createNamespaceExportDeclaration: rT, updateNamespaceExportDeclaration: iT, createImportEqualsDeclaration: dI, updateImportEqualsDeclaration: q0, createImportDeclaration: zS, updateImportDeclaration: nt, createImportClause: P2, updateImportClause: Yg, createAssertClause: am, updateAssertClause: H0, createAssertEntry: xb, updateAssertEntry: Lf, createImportTypeAssertionContainer: Lm, updateImportTypeAssertionContainer: Wd, createImportAttributes: aT, updateImportAttributes: $s, createImportAttribute: Fp, updateImportAttribute: G0, createNamespaceImport: O2, updateNamespaceImport: Yy, createNamespaceExport: VS, updateNamespaceExport: ld, createNamedImports: Xg, updateNamedImports: sT, createImportSpecifier: Y0, updateImportSpecifier: Ih, createExportAssignment: $S, updateExportAssignment: oT, createExportDeclaration: Zr, updateExportDeclaration: qr, createNamedExports: F2, updateNamedExports: Xy, createExportSpecifier: qS, updateExportSpecifier: mI, createMissingDeclaration: e6, createExternalModuleReference: zr, updateExternalModuleReference: Mf, get createJSDocAllType() {
           return u(313);
         }, get createJSDocUnknownType() {
           return u(314);
@@ -13371,7 +13371,7 @@ ${Ht.join(`
           return g(320);
         }, get updateJSDocNamepathType() {
           return m(320);
-        }, createJSDocFunctionType: hI, updateJSDocFunctionType: hw, createJSDocTypeLiteral: vf, updateJSDocTypeLiteral: cg, createJSDocTypeExpression: Mm, updateJSDocTypeExpression: Cb, createJSDocSignature: L2, updateJSDocSignature: wb, createJSDocTemplateTag: y_, updateJSDocTemplateTag: Y0, createJSDocTypedefTag: cT, updateJSDocTypedefTag: gw, createJSDocParameterTag: lT, updateJSDocParameterTag: Ab, createJSDocPropertyTag: yw, updateJSDocPropertyTag: Ky, createJSDocCallbackTag: Dh, updateJSDocCallbackTag: Eb, createJSDocOverloadTag: uT, updateJSDocOverloadTag: X0, createJSDocAugmentsTag: Ib, updateJSDocAugmentsTag: om, createJSDocImplementsTag: Qy, updateJSDocImplementsTag: Tw, createJSDocSeeTag: Kg, updateJSDocSeeTag: Db, createJSDocImportTag: v_, updateJSDocImportTag: fd, createJSDocNameReference: yu, updateJSDocNameReference: HS, createJSDocMemberName: Qg, updateJSDocMemberName: fT, createJSDocLink: M2, updateJSDocLink: Zg, createJSDocLinkCode: gI, updateJSDocLinkCode: vw, createJSDocLinkPlain: bw, updateJSDocLinkPlain: t6, get createJSDocTypeTag() {
+        }, createJSDocFunctionType: hI, updateJSDocFunctionType: hw, createJSDocTypeLiteral: vf, updateJSDocTypeLiteral: cg, createJSDocTypeExpression: Mm, updateJSDocTypeExpression: Cb, createJSDocSignature: L2, updateJSDocSignature: wb, createJSDocTemplateTag: y_, updateJSDocTemplateTag: X0, createJSDocTypedefTag: cT, updateJSDocTypedefTag: gw, createJSDocParameterTag: lT, updateJSDocParameterTag: Ab, createJSDocPropertyTag: yw, updateJSDocPropertyTag: Ky, createJSDocCallbackTag: Dh, updateJSDocCallbackTag: Eb, createJSDocOverloadTag: uT, updateJSDocOverloadTag: K0, createJSDocAugmentsTag: Ib, updateJSDocAugmentsTag: om, createJSDocImplementsTag: Qy, updateJSDocImplementsTag: Tw, createJSDocSeeTag: Kg, updateJSDocSeeTag: Db, createJSDocImportTag: v_, updateJSDocImportTag: fd, createJSDocNameReference: yu, updateJSDocNameReference: HS, createJSDocMemberName: Qg, updateJSDocMemberName: fT, createJSDocLink: M2, updateJSDocLink: Zg, createJSDocLinkCode: gI, updateJSDocLinkCode: vw, createJSDocLinkPlain: bw, updateJSDocLinkPlain: t6, get createJSDocTypeTag() {
           return N(345);
         }, get updateJSDocTypeTag() {
           return F(345);
@@ -13423,7 +13423,7 @@ ${Ht.join(`
           return N(351);
         }, get updateJSDocSatisfiesTag() {
           return F(351);
-        }, createJSDocEnumTag: vu, updateJSDocEnumTag: Sw, createJSDocUnknownTag: j2, updateJSDocUnknownTag: bl, createJSDocText: GS, updateJSDocText: jm, createJSDocComment: Nb, updateJSDocComment: K0, createJsxElement: xw, updateJsxElement: n6, createJsxSelfClosingElement: $c, updateJsxSelfClosingElement: vI, createJsxOpeningElement: B2, updateJsxOpeningElement: YS, createJsxClosingElement: kw, updateJsxClosingElement: bf, createJsxFragment: I_, createJsxText: dT, updateJsxText: D_, createJsxOpeningFragment: U2, createJsxJsxClosingFragment: ey, updateJsxFragment: J2, createJsxAttribute: Cw, updateJsxAttribute: W2, createJsxAttributes: cm, updateJsxAttributes: ww, createJsxSpreadAttribute: bI, updateJsxSpreadAttribute: Aw, createJsxExpression: z2, updateJsxExpression: Ew, createJsxNamespacedName: Q0, updateJsxNamespacedName: ip, createCaseClause: Nh, updateCaseClause: V2, createDefaultClause: $2, updateDefaultClause: oo, createHeritageClause: Jr, updateHeritageClause: Lp, createCatchClause: ru, updateCatchClause: mT, createPropertyAssignment: q2, updatePropertyAssignment: XS, createShorthandPropertyAssignment: H2, updateShorthandPropertyAssignment: I, createSpreadAssignment: Ct, updateSpreadAssignment: In, createEnumMember: wi, updateEnumMember: Bi, createSourceFile: Ta, updateSourceFile: gT, createRedirectedSourceFile: ji, createBundle: Qf, updateBundle: Pb, createSyntheticExpression: Iw, createSyntaxList: zd, createNotEmittedStatement: kc, createNotEmittedTypeElement: lm, createPartiallyEmittedExpression: G2, updatePartiallyEmittedExpression: Z0, createCommaListExpression: KS, updateCommaListExpression: Qj, createSyntheticReferenceExpression: r6, updateSyntheticReferenceExpression: Dw, cloneNode: Y2, get createComma() {
+        }, createJSDocEnumTag: vu, updateJSDocEnumTag: Sw, createJSDocUnknownTag: j2, updateJSDocUnknownTag: bl, createJSDocText: GS, updateJSDocText: jm, createJSDocComment: Nb, updateJSDocComment: Q0, createJsxElement: xw, updateJsxElement: n6, createJsxSelfClosingElement: $c, updateJsxSelfClosingElement: vI, createJsxOpeningElement: B2, updateJsxOpeningElement: YS, createJsxClosingElement: kw, updateJsxClosingElement: bf, createJsxFragment: I_, createJsxText: dT, updateJsxText: D_, createJsxOpeningFragment: U2, createJsxJsxClosingFragment: ey, updateJsxFragment: J2, createJsxAttribute: Cw, updateJsxAttribute: W2, createJsxAttributes: cm, updateJsxAttributes: ww, createJsxSpreadAttribute: bI, updateJsxSpreadAttribute: Aw, createJsxExpression: z2, updateJsxExpression: Ew, createJsxNamespacedName: Z0, updateJsxNamespacedName: ip, createCaseClause: Nh, updateCaseClause: V2, createDefaultClause: $2, updateDefaultClause: oo, createHeritageClause: Jr, updateHeritageClause: Lp, createCatchClause: ru, updateCatchClause: mT, createPropertyAssignment: q2, updatePropertyAssignment: XS, createShorthandPropertyAssignment: H2, updateShorthandPropertyAssignment: I, createSpreadAssignment: Ct, updateSpreadAssignment: In, createEnumMember: wi, updateEnumMember: Bi, createSourceFile: Ta, updateSourceFile: gT, createRedirectedSourceFile: ji, createBundle: Qf, updateBundle: Pb, createSyntheticExpression: Iw, createSyntaxList: zd, createNotEmittedStatement: kc, createNotEmittedTypeElement: lm, createPartiallyEmittedExpression: G2, updatePartiallyEmittedExpression: ev, createCommaListExpression: KS, updateCommaListExpression: Qj, createSyntheticReferenceExpression: r6, updateSyntheticReferenceExpression: Dw, cloneNode: Y2, get createComma() {
           return o(28);
         }, get createAssignment() {
           return o(64);
@@ -13487,7 +13487,7 @@ ${Ht.join(`
           return f(46);
         }, get createPostfixDecrement() {
           return f(47);
-        }, createImmediatelyInvokedFunctionExpression: Zj, createImmediatelyInvokedArrowFunction: QS, createVoidZero: X2, createExportDefault: a6, createExternalModuleExport: Pw, createTypeCheck: fa, createIsNotTypeCheck: Fb, createMethodCall: fr, createGlobalMethodCall: ZS, createFunctionBindCall: s6, createFunctionCallCall: TI, createFunctionApplyCall: SI, createArraySliceCall: T7, createArrayConcatCall: K2, createObjectDefinePropertyCall: eB, createObjectGetOwnPropertyDescriptorCall: xI, createReflectGetCall: lg, createReflectSetCall: S7, createPropertyDescriptor: tB, createCallBinding: kI, createAssignmentTargetWrapper: Ph, inlineExpressions: re, getInternalName: ot, getLocalName: Lt, getExportName: ln, getDeclarationName: Tn, getNamespaceMemberName: oi, getExternalModuleOrNamespaceExportName: jr, restoreOuterExpressions: c6, restoreEnclosingLabel: vT, createUseStrictPrologue: ca, copyPrologue: hr, copyStandardPrologue: Wo, copyCustomPrologue: Do, ensureUseStrict: co, liftToBlock: _d, mergeLexicalEnvironment: tv, replaceModifiers: nv, replaceDecoratorsAndModifiers: ty, replacePropertyName: Rb };
+        }, createImmediatelyInvokedFunctionExpression: Zj, createImmediatelyInvokedArrowFunction: QS, createVoidZero: X2, createExportDefault: a6, createExternalModuleExport: Pw, createTypeCheck: fa, createIsNotTypeCheck: Fb, createMethodCall: fr, createGlobalMethodCall: ZS, createFunctionBindCall: s6, createFunctionCallCall: TI, createFunctionApplyCall: SI, createArraySliceCall: T7, createArrayConcatCall: K2, createObjectDefinePropertyCall: eB, createObjectGetOwnPropertyDescriptorCall: xI, createReflectGetCall: lg, createReflectSetCall: S7, createPropertyDescriptor: tB, createCallBinding: kI, createAssignmentTargetWrapper: Ph, inlineExpressions: re, getInternalName: ot, getLocalName: Lt, getExportName: ln, getDeclarationName: Tn, getNamespaceMemberName: oi, getExternalModuleOrNamespaceExportName: jr, restoreOuterExpressions: c6, restoreEnclosingLabel: vT, createUseStrictPrologue: ca, copyPrologue: hr, copyStandardPrologue: Wo, copyCustomPrologue: Do, ensureUseStrict: co, liftToBlock: _d, mergeLexicalEnvironment: nv, replaceModifiers: rv, replaceDecoratorsAndModifiers: ty, replacePropertyName: Rb };
         return Ne(h2e, (S) => S(L)), L;
         function W(S, O) {
           if (S === void 0 || S === ae) S = [];
@@ -14062,14 +14062,14 @@ ${Ht.join(`
           return ye.expression = S, ye.questionDotToken = O, ye.argumentExpression = q, ye.transformFlags |= Wr(ye.expression) | Wr(ye.questionDotToken) | Wr(ye.argumentExpression), ye.jsDoc = void 0, ye.flowNode = void 0, ye;
         }
         function Uu(S, O) {
-          let q = ep(i().parenthesizeLeftSideOfAccess(S, false), void 0, rv(O));
+          let q = ep(i().parenthesizeLeftSideOfAccess(S, false), void 0, iv(O));
           return RN(S) && (q.transformFlags |= 384), q;
         }
         function mp(S, O, q) {
           return sz(S) ? We(S, O, S.questionDotToken, q) : S.expression !== O || S.argumentExpression !== q ? kr(Uu(O, q), S) : S;
         }
         function d_(S, O, q) {
-          let ye = ep(i().parenthesizeLeftSideOfAccess(S, true), O, rv(q));
+          let ye = ep(i().parenthesizeLeftSideOfAccess(S, true), O, iv(q));
           return ye.flags |= 64, ye.transformFlags |= 32, ye;
         }
         function We(S, O, q, ye) {
@@ -14254,7 +14254,7 @@ ${Ht.join(`
           let O = J(231);
           return O.expression = i().parenthesizeExpressionForDisallowedComma(S), O.transformFlags |= Wr(O.expression) | 1024 | 32768, O;
         }
-        function W0(S, O) {
+        function z0(S, O) {
           return S.expression !== O ? kr(zy(O), S) : S;
         }
         function Yf(S, O, q, ye, at) {
@@ -14390,12 +14390,12 @@ ${Ht.join(`
         function w2(S, O, q, ye) {
           return S.initializer !== O || S.expression !== q || S.statement !== ye ? kr(Q1(O, q, ye), S) : S;
         }
-        function z0(S, O, q, ye) {
+        function V0(S, O, q, ye) {
           let at = J(251);
           return at.awaitModifier = S, at.initializer = O, at.expression = i().parenthesizeExpressionForDisallowedComma(q), at.statement = ny(ye), at.transformFlags |= Wr(at.awaitModifier) | Wr(at.initializer) | Wr(at.expression) | Wr(at.statement) | 1024, S && (at.transformFlags |= 128), at.jsDoc = void 0, at.locals = void 0, at.nextContainer = void 0, at.flowNode = void 0, at;
         }
         function A2(S, O, q, ye, at) {
-          return S.awaitModifier !== O || S.initializer !== q || S.expression !== ye || S.statement !== at ? kr(z0(O, q, ye, at), S) : S;
+          return S.awaitModifier !== O || S.initializer !== q || S.expression !== ye || S.statement !== at ? kr(V0(O, q, ye, at), S) : S;
         }
         function fw(S) {
           let O = J(252);
@@ -14446,12 +14446,12 @@ ${Ht.join(`
         function Tb(S, O) {
           return S.expression !== O ? kr(WS(O), S) : S;
         }
-        function V0(S, O, q) {
+        function $0(S, O, q) {
           let ye = J(259);
           return ye.tryBlock = S, ye.catchClause = O, ye.finallyBlock = q, ye.transformFlags |= Wr(ye.tryBlock) | Wr(ye.catchClause) | Wr(ye.finallyBlock), ye.jsDoc = void 0, ye.flowNode = void 0, ye;
         }
         function Vy(S, O, q, ye) {
-          return S.tryBlock !== O || S.catchClause !== q || S.finallyBlock !== ye ? kr(V0(O, q, ye), S) : S;
+          return S.tryBlock !== O || S.catchClause !== q || S.finallyBlock !== ye ? kr($0(O, q, ye), S) : S;
         }
         function $y() {
           let S = J(260);
@@ -14549,7 +14549,7 @@ ${Ht.join(`
           let at = $(272);
           return at.modifiers = uo(S), at.name = Hl(q), at.isTypeOnly = O, at.moduleReference = ye, at.transformFlags |= ao(at.modifiers) | oO(at.name) | Wr(at.moduleReference), Oy(at.moduleReference) || (at.transformFlags |= 1), at.transformFlags &= -67108865, at.jsDoc = void 0, at;
         }
-        function $0(S, O, q, ye, at) {
+        function q0(S, O, q, ye, at) {
           return S.modifiers !== O || S.isTypeOnly !== q || S.name !== ye || S.moduleReference !== at ? kr(dI(O, q, ye, at), S) : S;
         }
         function zS(S, O, q, ye) {
@@ -14570,7 +14570,7 @@ ${Ht.join(`
           let q = J(301);
           return q.elements = W(S), q.multiLine = O, q.token = 132, q.transformFlags |= 4, q;
         }
-        function q0(S, O, q) {
+        function H0(S, O, q) {
           return S.elements !== O || S.multiLine !== q ? kr(am(O, q), S) : S;
         }
         function xb(S, O) {
@@ -14598,7 +14598,7 @@ ${Ht.join(`
           let q = J(302);
           return q.name = S, q.value = O, q.transformFlags |= 4, q;
         }
-        function H0(S, O, q) {
+        function G0(S, O, q) {
           return S.name !== O || S.value !== q ? kr(Fp(O, q), S) : S;
         }
         function O2(S) {
@@ -14622,12 +14622,12 @@ ${Ht.join(`
         function sT(S, O) {
           return S.elements !== O ? kr(Xg(O), S) : S;
         }
-        function G0(S, O, q) {
+        function Y0(S, O, q) {
           let ye = $(277);
           return ye.isTypeOnly = S, ye.propertyName = O, ye.name = q, ye.transformFlags |= Wr(ye.propertyName) | Wr(ye.name), ye.transformFlags &= -67108865, ye;
         }
         function Ih(S, O, q, ye) {
-          return S.isTypeOnly !== O || S.propertyName !== q || S.name !== ye ? kr(G0(O, q, ye), S) : S;
+          return S.isTypeOnly !== O || S.propertyName !== q || S.name !== ye ? kr(Y0(O, q, ye), S) : S;
         }
         function $S(S, O, q) {
           let ye = $(278);
@@ -14732,7 +14732,7 @@ ${Ht.join(`
           let at = sm(346, S ?? Se("template"), ye);
           return at.constraint = O, at.typeParameters = W(q), at;
         }
-        function Y0(S, O = Rp(S), q, ye, at) {
+        function X0(S, O = Rp(S), q, ye, at) {
           return S.tagName !== O || S.constraint !== q || S.typeParameters !== ye || S.comment !== at ? kr(y_(O, q, ye, at), S) : S;
         }
         function cT(S, O, q, ye) {
@@ -14767,7 +14767,7 @@ ${Ht.join(`
           let ye = sm(340, S ?? Se("overload"), q);
           return ye.typeExpression = O, ye;
         }
-        function X0(S, O = Rp(S), q, ye) {
+        function K0(S, O = Rp(S), q, ye) {
           return S.tagName !== O || S.typeExpression !== q || S.comment !== ye ? kr(uT(O, q, ye), S) : S;
         }
         function Ib(S, O, q) {
@@ -14870,7 +14870,7 @@ ${Ht.join(`
           let q = J(321);
           return q.comment = S, q.tags = uo(O), q;
         }
-        function K0(S, O, q) {
+        function Q0(S, O, q) {
           return S.comment !== O || S.tags !== q ? kr(Nb(O, q), S) : S;
         }
         function xw(S, O, q) {
@@ -14951,12 +14951,12 @@ ${Ht.join(`
         function Ew(S, O) {
           return S.expression !== O ? kr(z2(S.dotDotDotToken, O), S) : S;
         }
-        function Q0(S, O) {
+        function Z0(S, O) {
           let q = J(296);
           return q.namespace = S, q.name = O, q.transformFlags |= Wr(q.namespace) | Wr(q.name) | 2, q;
         }
         function ip(S, O, q) {
-          return S.namespace !== O || S.name !== q ? kr(Q0(O, q), S) : S;
+          return S.namespace !== O || S.name !== q ? kr(Z0(O, q), S) : S;
         }
         function Nh(S, O) {
           let q = J(297);
@@ -15096,13 +15096,13 @@ ${Ht.join(`
           let q = J(356);
           return q.expression = S, q.original = O, q.transformFlags |= Wr(q.expression) | 1, St(q, O), q;
         }
-        function Z0(S, O) {
+        function ev(S, O) {
           return S.expression !== O ? kr(G2(O, S.original), S) : S;
         }
         function lm() {
           return J(355);
         }
-        function ev(S) {
+        function tv(S) {
           if (Jo(S) && !AD(S) && !S.original && !S.emitNode && !S.id) {
             if (BN(S)) return S.elements;
             if (Or(S) && aoe(S.operatorToken)) return [S.left, S.right];
@@ -15111,7 +15111,7 @@ ${Ht.join(`
         }
         function KS(S) {
           let O = J(357);
-          return O.elements = W(YU(S, ev)), O.transformFlags |= ao(O.elements), O;
+          return O.elements = W(YU(S, tv)), O.transformFlags |= ao(O.elements), O;
         }
         function Qj(S, O) {
           return S.elements !== O ? kr(KS(O), S) : S;
@@ -15131,7 +15131,7 @@ ${Ht.join(`
           let O = me(S.escapedText);
           O.flags |= S.flags & -17, O.jsDoc = S.jsDoc, O.flowNode = S.flowNode, O.symbol = S.symbol, O.transformFlags = S.transformFlags, r(O, S);
           let q = Xx(S);
-          return q && D0(O, q), O;
+          return q && N0(O, q), O;
         }
         function Ob(S) {
           let O = Ce(S.escapedText);
@@ -15190,16 +15190,16 @@ ${Ht.join(`
           return fr(Se(S), O, q);
         }
         function T7(S, O) {
-          return fr(S, "slice", O === void 0 ? [] : [rv(O)]);
+          return fr(S, "slice", O === void 0 ? [] : [iv(O)]);
         }
         function K2(S, O) {
           return fr(S, "concat", O);
         }
         function eB(S, O, q) {
-          return ZS("Object", "defineProperty", [S, rv(O), q]);
+          return ZS("Object", "defineProperty", [S, iv(O), q]);
         }
         function xI(S, O) {
-          return ZS("Object", "getOwnPropertyDescriptor", [S, rv(O)]);
+          return ZS("Object", "getOwnPropertyDescriptor", [S, iv(O)]);
         }
         function lg(S, O, q) {
           return ZS("Reflect", "get", q ? [S, O, q] : [S, O]);
@@ -15212,8 +15212,8 @@ ${Ht.join(`
         }
         function tB(S, O) {
           let q = [];
-          yT(q, "enumerable", rv(S.enumerable)), yT(q, "configurable", rv(S.configurable));
-          let ye = yT(q, "writable", rv(S.writable));
+          yT(q, "enumerable", iv(S.enumerable)), yT(q, "configurable", iv(S.configurable));
+          let ye = yT(q, "writable", iv(S.writable));
           ye = yT(q, "value", S.value) || ye;
           let at = yT(q, "get", S.get);
           return at = yT(q, "set", S.set) || at, D.assert(!(ye && at), "A PropertyDescriptor may not be both an accessor descriptor and a data descriptor."), ko(q, !O);
@@ -15233,11 +15233,11 @@ ${Ht.join(`
             case 234:
               return vb(S, O, S.typeArguments);
             case 356:
-              return Z0(S, O);
+              return ev(S, O);
           }
         }
         function x7(S) {
-          return $f(S) && Jo(S) && Jo(I0(S)) && Jo(ph(S)) && !bt(sE(S)) && !bt(uO(S));
+          return $f(S) && Jo(S) && Jo(D0(S)) && Jo(ph(S)) && !bt(sE(S)) && !bt(uO(S));
         }
         function c6(S, O, q = 63) {
           return S && HL(S, q) && !x7(S) ? o6(S, c6(S.expression, O)) : O;
@@ -15346,7 +15346,7 @@ ${Ht.join(`
           for (; ye < S.length && O(S[ye]); ) ye++;
           return ye;
         }
-        function tv(S, O) {
+        function nv(S, O) {
           if (!bt(O)) return S;
           let q = Mp(S, ih, 0), ye = Mp(S, iR, q), at = Mp(S, aR, ye), un = Mp(O, ih, 0), Br = Mp(O, iR, un), Oa = Mp(O, aR, Br), ac = Mp(O, i3, Oa);
           D.assert(ac === O.length, "Expected declarations to be valid standard or custom prologues");
@@ -15365,9 +15365,9 @@ ${Ht.join(`
           }
           return GT(S) ? St(W(gp, S.hasTrailingComma), S) : S;
         }
-        function nv(S, O) {
+        function rv(S, O) {
           let q;
-          return typeof O == "number" ? q = It(O) : q = O, uc(S) ? or(S, q, S.name, S.constraint, S.default) : ra(S) ? xa(S, q, S.dotDotDotToken, S.name, S.questionToken, S.type, S.initializer) : cE(S) ? pr(S, q, S.typeParameters, S.parameters, S.type) : Pf(S) ? ei(S, q, S.name, S.questionToken, S.type) : Na(S) ? tt(S, q, S.name, S.questionToken ?? S.exclamationToken, S.type, S.initializer) : Zd(S) ? yn(S, q, S.name, S.questionToken, S.typeParameters, S.parameters, S.type) : Fc(S) ? _i(S, q, S.asteriskToken, S.name, S.questionToken, S.typeParameters, S.parameters, S.type, S.body) : Rc(S) ? Ua(S, q, S.parameters, S.body) : rd(S) ? pe(S, q, S.name, S.parameters, S.type, S.body) : w_(S) ? Je(S, q, S.name, S.parameters, S.body) : ab(S) ? zt(S, q, S.parameters, S.type) : Ho(S) ? Ff(S, q, S.asteriskToken, S.name, S.typeParameters, S.parameters, S.type, S.body) : Qo(S) ? ng(S, q, S.typeParameters, S.parameters, S.type, S.equalsGreaterThanToken, S.body) : hl(S) ? rg(S, q, S.name, S.typeParameters, S.heritageClauses, S.members) : fl(S) ? Iu(S, q, S.declarationList) : il(S) ? io(S, q, S.asteriskToken, S.name, S.typeParameters, S.parameters, S.type, S.body) : Ol(S) ? Hy(S, q, S.name, S.typeParameters, S.heritageClauses, S.members) : wu(S) ? sg(S, q, S.name, S.typeParameters, S.heritageClauses, S.members) : Pd(S) ? ef(S, q, S.name, S.typeParameters, S.type) : I1(S) ? tf(S, q, S.name, S.members) : gl(S) ? Rf(S, q, S.name, S.body) : Vl(S) ? $0(S, q, S.isTypeOnly, S.name, S.moduleReference) : xc(S) ? nt(S, q, S.importClause, S.moduleSpecifier, S.attributes) : fc(S) ? oT(S, q, S.expression) : yl(S) ? qr(S, q, S.isTypeOnly, S.exportClause, S.moduleSpecifier, S.attributes) : D.assertNever(S);
+          return typeof O == "number" ? q = It(O) : q = O, uc(S) ? or(S, q, S.name, S.constraint, S.default) : ra(S) ? xa(S, q, S.dotDotDotToken, S.name, S.questionToken, S.type, S.initializer) : cE(S) ? pr(S, q, S.typeParameters, S.parameters, S.type) : Pf(S) ? ei(S, q, S.name, S.questionToken, S.type) : Na(S) ? tt(S, q, S.name, S.questionToken ?? S.exclamationToken, S.type, S.initializer) : Zd(S) ? yn(S, q, S.name, S.questionToken, S.typeParameters, S.parameters, S.type) : Fc(S) ? _i(S, q, S.asteriskToken, S.name, S.questionToken, S.typeParameters, S.parameters, S.type, S.body) : Rc(S) ? Ua(S, q, S.parameters, S.body) : rd(S) ? pe(S, q, S.name, S.parameters, S.type, S.body) : w_(S) ? Je(S, q, S.name, S.parameters, S.body) : ab(S) ? zt(S, q, S.parameters, S.type) : Ho(S) ? Ff(S, q, S.asteriskToken, S.name, S.typeParameters, S.parameters, S.type, S.body) : Qo(S) ? ng(S, q, S.typeParameters, S.parameters, S.type, S.equalsGreaterThanToken, S.body) : hl(S) ? rg(S, q, S.name, S.typeParameters, S.heritageClauses, S.members) : fl(S) ? Iu(S, q, S.declarationList) : il(S) ? io(S, q, S.asteriskToken, S.name, S.typeParameters, S.parameters, S.type, S.body) : Ol(S) ? Hy(S, q, S.name, S.typeParameters, S.heritageClauses, S.members) : wu(S) ? sg(S, q, S.name, S.typeParameters, S.heritageClauses, S.members) : Pd(S) ? ef(S, q, S.name, S.typeParameters, S.type) : I1(S) ? tf(S, q, S.name, S.members) : gl(S) ? Rf(S, q, S.name, S.body) : Vl(S) ? q0(S, q, S.isTypeOnly, S.name, S.moduleReference) : xc(S) ? nt(S, q, S.importClause, S.moduleSpecifier, S.attributes) : fc(S) ? oT(S, q, S.expression) : yl(S) ? qr(S, q, S.isTypeOnly, S.exportClause, S.moduleSpecifier, S.attributes) : D.assertNever(S);
         }
         function ty(S, O) {
           return ra(S) ? xa(S, O, S.dotDotDotToken, S.name, S.questionToken, S.type, S.initializer) : Na(S) ? tt(S, O, S.name, S.questionToken ?? S.exclamationToken, S.type, S.initializer) : Fc(S) ? _i(S, O, S.asteriskToken, S.name, S.questionToken, S.typeParameters, S.parameters, S.type, S.body) : rd(S) ? pe(S, O, S.name, S.parameters, S.type, S.body) : w_(S) ? Je(S, O, S.name, S.parameters, S.body) : hl(S) ? rg(S, O, S.name, S.typeParameters, S.heritageClauses, S.members) : Ol(S) ? Hy(S, O, S.name, S.typeParameters, S.heritageClauses, S.members) : D.assertNever(S);
@@ -15396,7 +15396,7 @@ ${Ht.join(`
         function Hl(S) {
           return typeof S == "string" ? Se(S) : S;
         }
-        function rv(S) {
+        function iv(S) {
           return typeof S == "string" ? Te(S) : typeof S == "number" ? Z(S) : typeof S == "boolean" ? S ? Le() : Pe() : S;
         }
         function Tf(S) {
@@ -15461,34 +15461,34 @@ ${Ht.join(`
             return D.fail(`Unsupported kind: ${D.formatSyntaxKind(e)}`);
         }
       }
-      var E0, y2e = {};
+      var I0, y2e = {};
       function oHe(e, t) {
-        switch (E0 || (E0 = wg(99, false, 0)), e) {
+        switch (I0 || (I0 = wg(99, false, 0)), e) {
           case 15:
-            E0.setText("`" + t + "`");
+            I0.setText("`" + t + "`");
             break;
           case 16:
-            E0.setText("`" + t + "${");
+            I0.setText("`" + t + "${");
             break;
           case 17:
-            E0.setText("}" + t + "${");
+            I0.setText("}" + t + "${");
             break;
           case 18:
-            E0.setText("}" + t + "`");
+            I0.setText("}" + t + "`");
             break;
         }
-        let r = E0.scan();
-        if (r === 20 && (r = E0.reScanTemplateToken(false)), E0.isUnterminated()) return E0.setText(void 0), y2e;
+        let r = I0.scan();
+        if (r === 20 && (r = I0.reScanTemplateToken(false)), I0.isUnterminated()) return I0.setText(void 0), y2e;
         let i;
         switch (r) {
           case 15:
           case 16:
           case 17:
           case 18:
-            i = E0.getTokenValue();
+            i = I0.getTokenValue();
             break;
         }
-        return i === void 0 || E0.scan() !== 1 ? (E0.setText(void 0), y2e) : (E0.setText(void 0), i);
+        return i === void 0 || I0.scan() !== 1 ? (I0.setText(void 0), y2e) : (I0.setText(void 0), i);
       }
       function nb(e) {
         return e && Xe(e) ? oO(e) : Wr(e);
@@ -15640,7 +15640,7 @@ ${Ht.join(`
         let r = Ku(e);
         return r.internalFlags = r.internalFlags | t, e;
       }
-      function I0(e) {
+      function D0(e) {
         var t;
         return ((t = e.emitNode) == null ? void 0 : t.sourceMapRange) ?? e;
       }
@@ -15751,7 +15751,7 @@ ${Ht.join(`
         var t;
         return (t = e.emitNode) == null ? void 0 : t.typeNode;
       }
-      function D0(e, t) {
+      function N0(e, t) {
         return Ku(e).identifierTypeArguments = t, e;
       }
       function Xx(e) {
@@ -16423,7 +16423,7 @@ ${Ht.join(`
       function FL(e) {
         return e.kind === 192;
       }
-      function N0(e) {
+      function P0(e) {
         return e.kind === 193;
       }
       function DC(e) {
@@ -16450,7 +16450,7 @@ ${Ht.join(`
       function e2(e) {
         return e.kind === 201;
       }
-      function P0(e) {
+      function O0(e) {
         return e.kind === 202;
       }
       function dh(e) {
@@ -16465,7 +16465,7 @@ ${Ht.join(`
       function kp(e) {
         return e.kind === 207;
       }
-      function O0(e) {
+      function F0(e) {
         return e.kind === 208;
       }
       function Hs(e) {
@@ -16840,7 +16840,7 @@ ${Ht.join(`
       function s2(e) {
         return e.kind === 323;
       }
-      function F0(e) {
+      function R0(e) {
         return e.kind === 324;
       }
       function RC(e) {
@@ -17061,7 +17061,7 @@ ${Ht.join(`
         return $f(e) && Er(e) && !!l1(e);
       }
       function bE(e) {
-        let t = y0(e);
+        let t = v0(e);
         return D.assertIsDefined(t), t;
       }
       function HL(e, t = 63) {
@@ -17953,7 +17953,7 @@ ${Ht.join(`
                   co = al();
                   break;
                 case 41:
-                  Ut(() => Fe() === 9 && Fe() !== 59) ? co = H0() : co = X0();
+                  Ut(() => Fe() === 9 && Fe() !== 59) ? co = G0() : co = K0();
                   break;
                 case 9:
                 case 11:
@@ -17962,7 +17962,7 @@ ${Ht.join(`
                     break;
                   }
                 default:
-                  co = X0();
+                  co = K0();
                   break;
               }
               ca && Da(ca) ? ca.push(co) : ca ? ca = [ca, co] : (ca = co, Q() !== 1 && Qt(d.Unexpected_token));
@@ -18025,11 +18025,11 @@ ${Ht.join(`
             co >= 0 && ni(Ze, ln, co, _d >= 0 ? _d : void 0), Sn(() => {
               let Mp = Vn;
               for (Vn |= 65536, t.resetTokenState(Do.pos), Fe(); Q() !== 1; ) {
-                let tv = t.getTokenFullStart(), nv = Ll(0, I_);
-                if (Lt.push(nv), tv === t.getTokenFullStart() && Fe(), Tn >= 0) {
+                let nv = t.getTokenFullStart(), rv = Ll(0, I_);
+                if (Lt.push(rv), nv === t.getTokenFullStart() && Fe(), Tn >= 0) {
                   let ty = re.statements[Tn];
-                  if (nv.end === ty.pos) break;
-                  nv.end > ty.pos && (Tn = Ni(re.statements, Tn + 1));
+                  if (rv.end === ty.pos) break;
+                  rv.end > ty.pos && (Tn = Ni(re.statements, Tn + 1));
                 }
               }
               Vn = Mp;
@@ -18462,7 +18462,7 @@ ${Ht.join(`
             case 0:
             case 1:
             case 3:
-              return !(Q() === 27 && Me) && K0();
+              return !(Q() === 27 && Me) && Q0();
             case 2:
               return Q() === 84 || Q() === 90;
             case 4:
@@ -18952,7 +18952,7 @@ ${Ht.join(`
           let re = z();
           return Fe(), rn(m.createJSDocNonNullableType(US(), false), re);
         }
-        function W0() {
+        function z0() {
           let re = z();
           return Fe(), Q() === 28 || Q() === 20 || Q() === 22 || Q() === 32 || Q() === 64 || Q() === 52 ? rn(m.createJSDocUnknownType(), re) : rn(m.createJSDocNullableType(dc(), false), re);
         }
@@ -19006,7 +19006,7 @@ ${Ht.join(`
           return Q() === 26 || Ew() || Jv(Q()) || Q() === 60 || bb(!re);
         }
         function Zt(re) {
-          let Me = Q0(d.Private_identifiers_cannot_be_used_as_parameters);
+          let Me = Z0(d.Private_identifiers_cannot_be_used_as_parameters);
           return H4(Me) === 0 && !bt(re) && Jv(Q()) && Fe(), Me;
         }
         function Pn() {
@@ -19161,7 +19161,7 @@ ${Ht.join(`
         function w2() {
           return Q() === 26 ? i_(Fe()) && Q1() : i_(Q()) && Q1();
         }
-        function z0() {
+        function V0() {
           if (Ut(w2)) {
             let re = z(), Me = He(), ot = Ba(26), Lt = Xc(), ln = Ba(58);
             dn(59);
@@ -19172,7 +19172,7 @@ ${Ht.join(`
         }
         function A2() {
           let re = z();
-          return rn(m.createTupleTypeNode(ue(21, z0, 23, 24)), re);
+          return rn(m.createTupleTypeNode(ue(21, V0, 23, 24)), re);
         }
         function fw() {
           let re = z();
@@ -19250,7 +19250,7 @@ ${Ht.join(`
             case 61:
               t.reScanQuestionToken();
             case 58:
-              return W0();
+              return z0();
             case 100:
               return Yf();
             case 54:
@@ -19372,13 +19372,13 @@ ${Ht.join(`
             if (Dt() || Q() !== 58) return re;
           }
         }
-        function V0() {
+        function $0() {
           let re = z(), Me = _c(), ot = An(Tb), Lt = m.createTypeParameterDeclaration(void 0, Me, ot);
           return rn(Lt, re);
         }
         function Vy() {
           let re = z();
-          return dn(140), rn(m.createInferTypeNode(V0()), re);
+          return dn(140), rn(m.createInferTypeNode($0()), re);
         }
         function $y() {
           let re = Q();
@@ -19423,7 +19423,7 @@ ${Ht.join(`
           if (Jv(Q()) && Bi(false), Mn() || Q() === 110) return Fe(), true;
           if (Q() === 23 || Q() === 19) {
             let re = Ze.length;
-            return Q0(), re === Ze.length;
+            return Z0(), re === Ze.length;
           }
           return false;
         }
@@ -19527,7 +19527,7 @@ ${Ht.join(`
           let Me = ZP(re) || nt(re);
           if (Me) return Me;
           let ot = z(), Lt = He(), ln = xb(0);
-          return ln.kind === 80 && Q() === 39 ? iT(ot, ln, re, Lt, void 0) : s_(ln) && Iy(pr()) ? $s(ln, al(), Xf(re), ot) : q0(ln, ot, re);
+          return ln.kind === 80 && Q() === 39 ? iT(ot, ln, re, Lt, void 0) : s_(ln) && Iy(pr()) ? $s(ln, al(), Xf(re), ot) : H0(ln, ot, re);
         }
         function Ud() {
           return Q() === 127 ? Ge() ? true : Ut(GS) : false;
@@ -19551,9 +19551,9 @@ ${Ht.join(`
           if (Me !== 0) return Me === 1 ? Yg(true, true) : An(() => zS(re));
         }
         function dI() {
-          return Q() === 21 || Q() === 30 || Q() === 134 ? Ut($0) : Q() === 39 ? 1 : 0;
+          return Q() === 21 || Q() === 30 || Q() === 134 ? Ut(q0) : Q() === 39 ? 1 : 0;
         }
-        function $0() {
+        function q0() {
           if (Q() === 134 && (Fe(), t.hasPrecedingLineBreak() || Q() !== 21 && Q() !== 30)) return 0;
           let re = Q(), Me = Fe();
           if (re === 21) {
@@ -19620,9 +19620,9 @@ ${Ht.join(`
           if (dn(21)) {
             if (re) jr = ka(Tn, re);
             else {
-              let tv = ka(Tn, re);
-              if (!tv) return;
-              jr = tv;
+              let nv = ka(Tn, re);
+              if (!nv) return;
+              jr = nv;
             }
             if (!dn(22) && !re) return;
           } else {
@@ -19642,7 +19642,7 @@ ${Ht.join(`
         }
         function am(re, Me) {
           if (Q() === 19) return Db(re ? 2 : 0);
-          if (Q() !== 27 && Q() !== 100 && Q() !== 86 && K0() && !nT()) return Db(16 | (re ? 2 : 0));
+          if (Q() !== 27 && Q() !== 100 && Q() !== 86 && Q0() && !nT()) return Db(16 | (re ? 2 : 0));
           let ot = Ge();
           _i(false);
           let Lt = vt;
@@ -19650,7 +19650,7 @@ ${Ht.join(`
           let ln = re ? ie(() => Xf(Me)) : Je(() => Xf(Me));
           return vt = Lt, _i(ot), ln;
         }
-        function q0(re, Me, ot) {
+        function H0(re, Me, ot) {
           let Lt = Ba(58);
           if (!Lt) return re;
           let ln;
@@ -19690,48 +19690,48 @@ ${Ht.join(`
         function Fp(re, Me) {
           return rn(m.createAsExpression(re, Me), re.pos);
         }
-        function H0() {
+        function G0() {
           let re = z();
-          return rn(m.createPrefixUnaryExpression(Q(), Ht(G0)), re);
+          return rn(m.createPrefixUnaryExpression(Q(), Ht(Y0)), re);
         }
         function O2() {
           let re = z();
-          return rn(m.createDeleteExpression(Ht(G0)), re);
+          return rn(m.createDeleteExpression(Ht(Y0)), re);
         }
         function Yy() {
           let re = z();
-          return rn(m.createTypeOfExpression(Ht(G0)), re);
+          return rn(m.createTypeOfExpression(Ht(Y0)), re);
         }
         function VS() {
           let re = z();
-          return rn(m.createVoidExpression(Ht(G0)), re);
+          return rn(m.createVoidExpression(Ht(Y0)), re);
         }
         function ld() {
           return Q() === 135 ? st() ? true : Ut(GS) : false;
         }
         function Xg() {
           let re = z();
-          return rn(m.createAwaitExpression(Ht(G0)), re);
+          return rn(m.createAwaitExpression(Ht(Y0)), re);
         }
         function sT() {
           if (Ih()) {
             let ot = z(), Lt = $S();
             return Q() === 43 ? Lm(D3(Q()), Lt, ot) : Lt;
           }
-          let re = Q(), Me = G0();
+          let re = Q(), Me = Y0();
           if (Q() === 43) {
             let ot = Rs(De, Me.pos), { end: Lt } = Me;
             Me.kind === 217 ? Be(ot, Lt, d.A_type_assertion_expression_is_not_allowed_in_the_left_hand_side_of_an_exponentiation_expression_Consider_enclosing_the_expression_in_parentheses) : (D.assert(kR(re)), Be(ot, Lt, d.An_unary_expression_with_the_0_operator_is_not_allowed_in_the_left_hand_side_of_an_exponentiation_expression_Consider_enclosing_the_expression_in_parentheses, ys(re)));
           }
           return Me;
         }
-        function G0() {
+        function Y0() {
           switch (Q()) {
             case 40:
             case 41:
             case 55:
             case 54:
-              return H0();
+              return G0();
             case 91:
               return O2();
             case 114:
@@ -19915,7 +19915,7 @@ ${Ht.join(`
           dn(30);
           let Me = dc();
           dn(32);
-          let ot = G0();
+          let ot = Y0();
           return rn(m.createTypeAssertion(Me, ot), re);
         }
         function cg() {
@@ -20001,7 +20001,7 @@ ${Ht.join(`
             }
             if (ot || Q() === 21) {
               !Lt && Me.kind === 234 && (ot = Me.typeArguments, Me = Me.expression);
-              let ln = Y0(), Tn = Lt || Cb(Me) ? Te(Me, Lt, ot, ln) : X(Me, ot, ln);
+              let ln = X0(), Tn = Lt || Cb(Me) ? Te(Me, Lt, ot, ln) : X(Me, ot, ln);
               Me = rn(Tn, re);
               continue;
             }
@@ -20013,7 +20013,7 @@ ${Ht.join(`
           }
           return Me;
         }
-        function Y0() {
+        function X0() {
           dn(21);
           let re = nu(11, Dh);
           return dn(22), re;
@@ -20057,7 +20057,7 @@ ${Ht.join(`
             case 23:
               return Eb();
             case 19:
-              return X0();
+              return K0();
             case 134:
               if (!Ut(fd)) break;
               return Ib();
@@ -20124,7 +20124,7 @@ ${Ht.join(`
           }
           return hr.modifiers = ot, hr.questionToken = oi, hr.exclamationToken = jr, Rr(rn(hr, re), Me);
         }
-        function X0() {
+        function K0() {
           let re = z(), Me = t.getTokenStart(), ot = dn(19), Lt = t.hasPrecedingLineBreak(), ln = nu(12, uT, true);
           return Lo(19, 20, ot, Me), rn(J(ln, Lt), re);
         }
@@ -20149,7 +20149,7 @@ ${Ht.join(`
           }
           let Me = z(), ot = Rp(Me, lT(), false), Lt;
           ot.kind === 234 && (Lt = ot.typeArguments, ot = ot.expression), Q() === 29 && Qt(d.Invalid_optional_chain_from_new_expression_Did_you_mean_to_call_0, BD(De, ot));
-          let ln = Q() === 21 ? Y0() : void 0;
+          let ln = Q() === 21 ? X0() : void 0;
           return rn(ce(ot, Lt, ln), re);
         }
         function Kg(re, Me) {
@@ -20370,7 +20370,7 @@ ${Ht.join(`
         function Nb() {
           return Ut(jm);
         }
-        function K0() {
+        function Q0() {
           switch (Q()) {
             case 60:
             case 27:
@@ -20550,7 +20550,7 @@ ${Ht.join(`
             case 120:
               return lm(re, Me, ot);
             case 156:
-              return ev(re, Me, ot);
+              return tv(re, Me, ot);
             case 94:
               return Qj(re, Me, ot);
             case 162:
@@ -20602,12 +20602,12 @@ ${Ht.join(`
         function ww() {
           let re = z();
           if (Q() === 28) return rn(m.createOmittedExpression(), re);
-          let Me = Ba(26), ot = Q0(), Lt = og();
+          let Me = Ba(26), ot = Z0(), Lt = og();
           return rn(m.createBindingElement(Me, void 0, ot, Lt), re);
         }
         function bI() {
           let re = z(), Me = Ba(26), ot = Ln(), Lt = Kn(), ln;
-          ot && Q() !== 59 ? (ln = Lt, Lt = void 0) : (dn(59), ln = Q0());
+          ot && Q() !== 59 ? (ln = Lt, Lt = void 0) : (dn(59), ln = Z0());
           let Tn = og();
           return rn(m.createBindingElement(Me, Lt, ln, Tn), re);
         }
@@ -20626,14 +20626,14 @@ ${Ht.join(`
         function Ew() {
           return Q() === 19 || Q() === 23 || Q() === 81 || Ln();
         }
-        function Q0(re) {
+        function Z0(re) {
           return Q() === 23 ? z2() : Q() === 19 ? Aw() : mu(re);
         }
         function ip() {
           return Nh(true);
         }
         function Nh(re) {
-          let Me = z(), ot = He(), Lt = Q0(d.Private_identifiers_are_not_allowed_in_variable_declarations), ln;
+          let Me = z(), ot = He(), Lt = Z0(d.Private_identifiers_are_not_allowed_in_variable_declarations), ln;
           re && Lt.kind === 80 && Q() === 54 && !t.hasPrecedingLineBreak() && (ln = al());
           let Tn = ef(), oi = Lf(Q()) ? void 0 : og(), jr = Qe(Lt, ln, Tn, oi);
           return Rr(rn(jr, Me), ot);
@@ -20838,7 +20838,7 @@ ${Ht.join(`
           let Tn = gT(), oi = et();
           bt(ot, CC) && Yi(true);
           let jr = Pb(), hr;
-          dn(19) ? (hr = Z0(), dn(20)) : hr = Pp(), Yi(ln);
+          dn(19) ? (hr = ev(), dn(20)) : hr = Pp(), Yi(ln);
           let Ni = Lt === 264 ? m.createClassDeclaration(ot, Tn, oi, jr, hr) : m.createClassExpression(ot, Tn, oi, jr, hr);
           return Rr(rn(Ni, re), Me);
         }
@@ -20869,7 +20869,7 @@ ${Ht.join(`
         function G2() {
           return Q() === 96 || Q() === 119;
         }
-        function Z0() {
+        function ev() {
           return Vs(5, ji);
         }
         function lm(re, Me, ot) {
@@ -20877,7 +20877,7 @@ ${Ht.join(`
           let Lt = _c(), ln = et(), Tn = Pb(), oi = ag(), jr = m.createInterfaceDeclaration(ot, Lt, ln, Tn, oi);
           return Rr(rn(jr, re), Me);
         }
-        function ev(re, Me, ot) {
+        function tv(re, Me, ot) {
           dn(156), t.hasPrecedingLineBreak() && Qt(d.Line_break_not_permitted_here);
           let Lt = _c(), ln = et();
           dn(64);
@@ -21127,11 +21127,11 @@ ${Ht.join(`
           function hr(Ni = 0, ca) {
             let Wo = De, Do = ca === void 0 ? Wo.length : Ni + ca;
             if (ca = Do - Ni, D.assert(Ni >= 0), D.assert(Ni <= Do), D.assert(Do <= Wo.length), !fq(Wo, Ni)) return;
-            let co, _d, Mp, tv, nv, ty = [], Rb = [], uo = Xt;
+            let co, _d, Mp, nv, rv, ty = [], Rb = [], uo = Xt;
             Xt |= 1 << 25;
-            let Hl = t.scanRange(Ni + 3, ca - 5, rv);
+            let Hl = t.scanRange(Ni + 3, ca - 5, iv);
             return Xt = uo, Hl;
-            function rv() {
+            function iv() {
               let qn = 1, Yr, ai = Ni - (Wo.lastIndexOf(`
 `, Ni) + 1) + 4;
               function Li(zo) {
@@ -21142,7 +21142,7 @@ ${Ht.join(`
               e: for (; ; ) {
                 switch (Q()) {
                   case 60:
-                    Ow(ty), nv || (nv = z()), ac(S(ai)), qn = 0, Yr = void 0;
+                    Ow(ty), rv || (rv = z()), ac(S(ai)), qn = 0, Yr = void 0;
                     break;
                   case 4:
                     ty.push(t.getTokenText()), qn = 0, ai = 0;
@@ -21165,7 +21165,7 @@ ${Ht.join(`
                     qn = 2;
                     let Um = t.getTokenFullStart(), Vd = t.getTokenEnd() - 1, um = ye(Vd);
                     if (um) {
-                      tv || Tf(ty), Rb.push(rn(m.createJSDocText(ty.join("")), tv ?? Ni, Um)), Rb.push(um), ty = [], tv = t.getTokenEnd();
+                      nv || Tf(ty), Rb.push(rn(m.createJSDocText(ty.join("")), nv ?? Ni, Um)), Rb.push(um), ty = [], nv = t.getTokenEnd();
                       break;
                     }
                   default:
@@ -21175,9 +21175,9 @@ ${Ht.join(`
                 qn === 2 ? on(false) : gt();
               }
               let Ui = ty.join("").trimEnd();
-              Rb.length && Ui.length && Rb.push(rn(m.createJSDocText(Ui), tv ?? Ni, nv)), Rb.length && co && D.assertIsDefined(nv, "having parsed tags implies that the end of the comment span should be set");
+              Rb.length && Ui.length && Rb.push(rn(m.createJSDocText(Ui), nv ?? Ni, rv)), Rb.length && co && D.assertIsDefined(rv, "having parsed tags implies that the end of the comment span should be set");
               let Ps = co && eo(co, _d, Mp);
-              return rn(m.createJSDocComment(Rb.length ? eo(Rb, Ni, nv) : Ui.length ? Ui : void 0, Ps), Ni, Do);
+              return rn(m.createJSDocComment(Rb.length ? eo(Rb, Ni, rv) : Ui.length ? Ui : void 0, Ps), Ni, Do);
             }
             function Tf(qn) {
               for (; qn.length && (qn[0] === `
@@ -21632,7 +21632,7 @@ ${Ht.join(`
               let ai = Bi(false, true), Li = ap(d.Unexpected_token_A_type_parameter_name_was_expected_without_curly_braces), Ui;
               if (Yr && (fg(), dn(64), Ui = ks(16777216, Rm), dn(24)), !Jc(Li)) return rn(m.createTypeParameterDeclaration(ai, Li, void 0, Ui), qn);
             }
-            function iv() {
+            function av() {
               let qn = z(), Yr = [];
               do {
                 fg();
@@ -21642,7 +21642,7 @@ ${Ht.join(`
               return eo(Yr, qn);
             }
             function vr(qn, Yr, ai, Li) {
-              let Ui = Q() === 19 ? ot() : void 0, Ps = iv();
+              let Ui = Q() === 19 ? ot() : void 0, Ps = av();
               return rn(m.createJSDocTemplateTag(Yr, Ui, Ps, O(qn, z(), ai, Li)), qn);
             }
             function Jm(qn) {
@@ -22292,7 +22292,7 @@ ${Ht.join(`
       }
       function UGe(e, t, r, i) {
         if (!t) return zT;
-        let a = aL(e, r, t, i.useCaseSensitiveFileNames, i.getCurrentDirectory()), o = a.excludePattern && w0(a.excludePattern, i.useCaseSensitiveFileNames), c = a.includeFilePattern && w0(a.includeFilePattern, i.useCaseSensitiveFileNames);
+        let a = aL(e, r, t, i.useCaseSensitiveFileNames, i.getCurrentDirectory()), o = a.excludePattern && A0(a.excludePattern, i.useCaseSensitiveFileNames), c = a.includeFilePattern && A0(a.includeFilePattern, i.useCaseSensitiveFileNames);
         return c ? o ? (f) => !(c.test(f) && !o.test(f)) : (f) => !c.test(f) : o ? (f) => o.test(f) : zT;
       }
       function jke(e) {
@@ -22690,7 +22690,7 @@ ${Ht.join(`
           if (Ac(L, ".json")) {
             if (!E) {
               let $ = m.filter((Z) => rc(Z, ".json")), H = vn(rL($, t, "files"), (Z) => `^${Z}$`);
-              E = H ? H.map((Z) => w0(Z, i.useCaseSensitiveFileNames)) : ae;
+              E = H ? H.map((Z) => A0(Z, i.useCaseSensitiveFileNames)) : ae;
             }
             if (Hr(E, ($) => $.test(L)) !== -1) {
               let $ = o(L);
@@ -22724,7 +22724,7 @@ ${Ht.join(`
         return d9(e, Nn(t, (a) => !aCe(a)), r, i);
       }
       function d9(e, t, r, i, a) {
-        let o = gN(t, ri(vs(i), a), "exclude"), c = o && w0(o, r);
+        let o = gN(t, ri(vs(i), a), "exclude"), c = o && A0(o, r);
         return c ? c.test(e) ? true : !bA(e) && c.test(Kl(e)) : false;
       }
       function sCe(e, t, r, i, a) {
@@ -22772,7 +22772,7 @@ ${Ht.join(`
           return { key: xce(r[0], t), path: r[0], flags: i !== -1 && i < o || a !== -1 && a < o ? 1 : 0 };
         }
         if (KV(e.substring(e.lastIndexOf(Xo) + 1))) {
-          let i = g0(e);
+          let i = y0(e);
           return { key: xce(i, t), path: i, flags: 1 };
         }
       }
@@ -22781,7 +22781,7 @@ ${Ht.join(`
         if (!o) return false;
         for (let c of o) {
           if (Ac(e, c) && (c !== ".ts" || !Ac(e, ".d.ts"))) return false;
-          let f = a(A0(e, c));
+          let f = a(E0(e, c));
           if (t.has(f) || r.has(f)) {
             if (c === ".d.ts" && (Ac(e, ".js") || Ac(e, ".jsx"))) continue;
             return true;
@@ -22794,7 +22794,7 @@ ${Ht.join(`
         if (a) for (let o = a.length - 1; o >= 0; o--) {
           let c = a[o];
           if (Ac(e, c)) return;
-          let f = i(A0(e, c));
+          let f = i(E0(e, c));
           t.delete(f);
         }
       }
@@ -24160,8 +24160,8 @@ ${Ht.join(`
                   let Rm = Ra(Yf) || Yf, jd = np ? we(Rm, gu, xe(Yf)) : we(Rm, gu);
                   e.bindDiagnostics.push(Op ? ds(jd, we(zy, rg === 0 ? d.Another_export_default_is_here : d.and_here)) : jd), Op && cd.push(we(Rm, d.The_first_export_default_is_here));
                 });
-                let W0 = np ? we(zy, gu, xe(Jt)) : we(zy, gu);
-                e.bindDiagnostics.push(ds(W0, ...cd)), Ns = Qe(0, yc);
+                let z0 = np ? we(zy, gu, xe(Jt)) : we(zy, gu);
+                e.bindDiagnostics.push(ds(z0, ...cd)), Ns = Qe(0, yc);
               }
             }
           }
@@ -24255,7 +24255,7 @@ ${Ht.join(`
               Ft(V);
               break;
             case 227:
-              if (k0(V)) {
+              if (C0(V)) {
                 Te = $e, be(V);
                 return;
               }
@@ -24627,7 +24627,7 @@ ${Ht.join(`
             yc !== void 0 && (X = yc), Ns !== void 0 && (i = Ns), Wa.skip = false, Wa.stackIndex--;
           }
           function ts(ba) {
-            if (ba && Or(ba) && !k0(ba)) return ba;
+            if (ba && Or(ba) && !C0(ba)) return ba;
             $n(ba);
           }
         }
@@ -25997,7 +25997,7 @@ ${Ht.join(`
             if (Ja(Se) && !(ce && i$(Z3(ge.paths), Se))) {
               let we = jo(Se, ne, r), ee = r(Te);
               if (Nf(we) === Nf(ee)) return { packageRootPath: ne, moduleFileToTry: Te };
-              if (he?.type !== "module" && !nl(ee, uL) && _a(ee, we) && hi(ee) === g0(we) && Nf(Dl(ee)) === "index") return { packageRootPath: ne, moduleFileToTry: Te };
+              if (he?.type !== "module" && !nl(ee, uL) && _a(ee, we) && hi(ee) === y0(we) && Nf(Dl(ee)) === "index") return { packageRootPath: ne, moduleFileToTry: Te };
             }
           } else {
             let he = r(Te.substring(m.packageRootIndex + 1));
@@ -26127,7 +26127,7 @@ ${Ht.join(`
           if (!_) return;
           let h = Oc(s), b = GB(h, _);
           return b ? NZ(n, b) : void 0;
-        }, getTypeOfPropertyOfType: (n, s) => Tn(n, Oc(s)), getIndexInfoOfType: (n, s) => ay(n, s === 0 ? gt : on), getIndexInfosOfType: rf, getIndexInfosOfIndexSymbol: CQ, getSignaturesOfType: ns, getIndexTypeOfType: (n, s) => ST(n, s === 0 ? gt : on), getIndexType: (n) => Rh(n), getBaseTypes: fm, getBaseTypeOfLiteralType: o0, getWidenedType: lp, getWidenedLiteralType: IT, fillMissingTypeArguments: ov, getTypeFromTypeNode: (n) => {
+        }, getTypeOfPropertyOfType: (n, s) => Tn(n, Oc(s)), getIndexInfoOfType: (n, s) => ay(n, s === 0 ? gt : on), getIndexInfosOfType: rf, getIndexInfosOfIndexSymbol: CQ, getSignaturesOfType: ns, getIndexTypeOfType: (n, s) => ST(n, s === 0 ? gt : on), getIndexType: (n) => Rh(n), getBaseTypes: fm, getBaseTypeOfLiteralType: o0, getWidenedType: lp, getWidenedLiteralType: IT, fillMissingTypeArguments: cv, getTypeFromTypeNode: (n) => {
           let s = za(n, Fi);
           return s ? Ki(s) : st;
         }, getParameterType: Hm, getParameterIdentifierInfoAtPosition: tvt, getPromisedTypeOfPromise: _F, getAwaitedType: (n) => Yw(n), getReturnTypeOfSignature: ho, isNullableType: HB, getNullableType: DB, getNonNullableType: c0, getNonOptionalType: ZQ, getTypeArguments: sc, typeToTypeNode: xe.typeToTypeNode, typePredicateToTypePredicateNode: xe.typePredicateToTypePredicateNode, indexInfoToIndexSignatureDeclaration: xe.indexInfoToIndexSignatureDeclaration, signatureToSignatureDeclaration: xe.signatureToSignatureDeclaration, symbolToEntityName: xe.symbolToEntityName, symbolToExpression: xe.symbolToExpression, symbolToNode: xe.symbolToNode, symbolToTypeParameterDeclarations: xe.symbolToTypeParameterDeclarations, symbolToParameterDeclaration: xe.symbolToParameterDeclaration, typeParameterToDeclaration: xe.typeParameterToDeclaration, getSymbolsInScope: (n, s) => {
@@ -26168,7 +26168,7 @@ ${Ht.join(`
         }, getContextualTypeForJsxAttribute: (n) => {
           let s = za(n, B5);
           return s && N9e(s, void 0);
-        }, isContextSensitive: Jp, getTypeOfPropertyOfContextualType: NT, getFullyQualifiedName: K0, getResolvedSignature: (n, s, l) => ma(n, s, l, 0), getCandidateSignaturesForStringLiteralCompletions: xa, getResolvedSignatureForSignatureHelp: (n, s, l) => jt(n, () => ma(n, s, l, 16)), getExpandedParameters: d5e, hasEffectiveRestParameter: gg, containsArgumentsReference: Sye, getConstantValue: (n) => {
+        }, isContextSensitive: Jp, getTypeOfPropertyOfContextualType: NT, getFullyQualifiedName: Q0, getResolvedSignature: (n, s, l) => ma(n, s, l, 0), getCandidateSignaturesForStringLiteralCompletions: xa, getResolvedSignatureForSignatureHelp: (n, s, l) => jt(n, () => ma(n, s, l, 16)), getExpandedParameters: d5e, hasEffectiveRestParameter: gg, containsArgumentsReference: Sye, getConstantValue: (n) => {
           let s = za(n, SBe);
           return s ? uee(s) : void 0;
         }, isValidPropertyAccess: (n, s) => {
@@ -26189,12 +26189,12 @@ ${Ht.join(`
         }, tryGetMemberInModuleExports: (n, s) => z2(Oc(n), s), tryGetMemberInModuleExportsAndProperties: (n, s) => Ew(Oc(n), s), tryFindAmbientModule: (n) => F5e(n, true), getApparentType: jf, getUnionType: bi, isTypeAssignableTo: ls, createAnonymousType: kc, createSignature: Oh, createSymbol: $s, createIndexInfo: sy, getAnyType: () => Ge, getStringType: () => gt, getStringLiteralType: N_, getNumberType: () => on, getNumberLiteralType: zm, getBigIntType: () => pr, getBigIntLiteralType: yB, getUnknownType: () => Ft, createPromiseType: rJ, createArrayType: af, getElementTypeOfArrayType: IB, getBooleanType: () => Vt, getFalseType: (n) => n ? Gn : tr, getTrueType: (n) => n ? mt : Rt, getVoidType: () => Dn, getUndefinedType: () => be, getNullType: () => Ht, getESSymbolType: () => sn, getNeverType: () => Sn, getNonPrimitiveType: () => Mn, getOptionalType: () => wt, getPromiseType: () => _B(false), getPromiseLikeType: () => iRe(false), getAnyAsyncIterableType: () => {
           let n = pB(false);
           if (n !== rn) return t0(n, [Ge, Ge, Ge]);
-        }, isSymbolAccessible: Ob, isArrayType: hd, isTupleType: Ys, isArrayLikeType: uv, isEmptyAnonymousObjectType: hg, isTypeInvalidDueToUnionDiscriminant: gpt, getExactOptionalProperties: qmt, getAllPossiblePropertiesOfTypes: ypt, getSuggestedSymbolForNonexistentProperty: vve, getSuggestedSymbolForNonexistentJSXAttribute: iMe, getSuggestedSymbolForNonexistentSymbol: (n, s, l) => sMe(n, Oc(s), l), getSuggestedSymbolForNonexistentModule: bve, getSuggestedSymbolForNonexistentClassMember: rMe, getBaseConstraintOfType: Wu, getDefaultFromTypeParameter: (n) => n && n.flags & 262144 ? nx(n) : void 0, resolveName(n, s, l, _) {
+        }, isSymbolAccessible: Ob, isArrayType: hd, isTupleType: Ys, isArrayLikeType: fv, isEmptyAnonymousObjectType: hg, isTypeInvalidDueToUnionDiscriminant: gpt, getExactOptionalProperties: qmt, getAllPossiblePropertiesOfTypes: ypt, getSuggestedSymbolForNonexistentProperty: vve, getSuggestedSymbolForNonexistentJSXAttribute: iMe, getSuggestedSymbolForNonexistentSymbol: (n, s, l) => sMe(n, Oc(s), l), getSuggestedSymbolForNonexistentModule: bve, getSuggestedSymbolForNonexistentClassMember: rMe, getBaseConstraintOfType: Wu, getDefaultFromTypeParameter: (n) => n && n.flags & 262144 ? nx(n) : void 0, resolveName(n, s, l, _) {
           return vt(s, Oc(n), l, void 0, false, _);
         }, getJsxNamespace: (n) => $i(im(n)), getJsxFragmentFactory: (n) => {
           let s = kbe(n);
           return s && $i(Wf(s).escapedText);
-        }, getAccessibleSymbolChain: ev, getTypePredicateOfSignature: dd, resolveExternalModuleName: (n) => {
+        }, getAccessibleSymbolChain: tv, getTypePredicateOfSignature: dd, resolveExternalModuleName: (n) => {
           let s = za(n, kt);
           return s && bf(s, s, true);
         }, resolveExternalModuleSymbol: D_, tryGetThisTypeAt: (n, s, l) => {
@@ -26296,7 +26296,7 @@ ${Ht.join(`
           return D.fail("Not supported");
         }, get nextType() {
           return D.fail("Not supported");
-        } }, pc = qb(Ge, Ge, Ge), Al = qb(Ut, Ut, Ut), _l = { iterableCacheKey: "iterationTypesOfAsyncIterable", iteratorCacheKey: "iterationTypesOfAsyncIterator", iteratorSymbolName: "asyncIterator", getGlobalIteratorType: Kpt, getGlobalIterableType: pB, getGlobalIterableIteratorType: aRe, getGlobalIteratorObjectType: Zpt, getGlobalGeneratorType: edt, getGlobalBuiltinIteratorTypes: Qpt, resolveIterationType: (n, s) => Yw(n, s, d.Type_of_await_operand_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member), mustHaveANextMethodDiagnostic: d.An_async_iterator_must_have_a_next_method, mustBeAMethodDiagnostic: d.The_0_property_of_an_async_iterator_must_be_a_method, mustHaveAValueDiagnostic: d.The_type_returned_by_the_0_method_of_an_async_iterator_must_be_a_promise_for_a_type_with_a_value_property }, Go = { iterableCacheKey: "iterationTypesOfIterable", iteratorCacheKey: "iterationTypesOfIterator", iteratorSymbolName: "iterator", getGlobalIteratorType: tdt, getGlobalIterableType: OQ, getGlobalIterableIteratorType: sRe, getGlobalIteratorObjectType: rdt, getGlobalGeneratorType: idt, getGlobalBuiltinIteratorTypes: ndt, resolveIterationType: (n, s) => n, mustHaveANextMethodDiagnostic: d.An_iterator_must_have_a_next_method, mustBeAMethodDiagnostic: d.The_0_property_of_an_iterator_must_be_a_method, mustHaveAValueDiagnostic: d.The_type_returned_by_the_0_method_of_an_iterator_must_have_a_value_property }, sl, ep = /* @__PURE__ */ new Map(), Uu = /* @__PURE__ */ new Map(), mp, d_, We, Kt, rr, ha, to, no, Vs, Ll, ic, Mc, Kc, hp, Eu, hu, tp, Ff, od, ng, qg, Hg, m_, nu, Fm, Pp, Ah, ue, dt, cn, _n, Un, cr, ci, Ei, ea, V, $e, Jt, Wn, ga, ts, ba, Wa, yc, Ns, gu, np, Op, cd, zy, W0, Yf, rg, Rm, jd, vb, et, ht, Zt, Pn, nr = /* @__PURE__ */ new Map(), Lr = 0, Zn = 0, dr = 0, Ji = false, ka = 0, xi, Ca, ta, vc = [], h_ = [], Bd = [], Iu = 0, Jd = [], rp = [], X1 = [], Eh = 0, ig = [], K1 = [], ag = 0, uI = N_(""), KP = zm(0), fI = yB({ negative: false, base10Value: "0" }), Gg = [], Q1 = [], w2 = [], z0 = 0, A2 = false, fw = 0, QP = 10, E2 = [], _w = [], Z1 = [], _I = [], I2 = [], pw = [], US = [], bb = [], dw = [], mw = [], WS = [], Tb = [], V0 = [], Vy = [], $y = [], qy = [], Sb = [], eT = [], D2 = [], tT = 0, io = aN(), N2 = aN(), pI = nf(), Hy, Gy, sg = /* @__PURE__ */ new Map(), dc = /* @__PURE__ */ new Map(), ef = /* @__PURE__ */ new Map(), g_ = /* @__PURE__ */ new Map(), tf = /* @__PURE__ */ new Map(), nT = /* @__PURE__ */ new Map(), Rf = [[".mts", ".mjs"], [".ts", ".js"], [".cts", ".cjs"], [".mjs", ".mjs"], [".js", ".js"], [".cjs", ".cjs"], [".tsx", J.jsx === 1 ? ".jsx" : ".js"], [".jsx", ".jsx"], [".json", ".json"]];
+        } }, pc = qb(Ge, Ge, Ge), Al = qb(Ut, Ut, Ut), _l = { iterableCacheKey: "iterationTypesOfAsyncIterable", iteratorCacheKey: "iterationTypesOfAsyncIterator", iteratorSymbolName: "asyncIterator", getGlobalIteratorType: Kpt, getGlobalIterableType: pB, getGlobalIterableIteratorType: aRe, getGlobalIteratorObjectType: Zpt, getGlobalGeneratorType: edt, getGlobalBuiltinIteratorTypes: Qpt, resolveIterationType: (n, s) => Yw(n, s, d.Type_of_await_operand_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member), mustHaveANextMethodDiagnostic: d.An_async_iterator_must_have_a_next_method, mustBeAMethodDiagnostic: d.The_0_property_of_an_async_iterator_must_be_a_method, mustHaveAValueDiagnostic: d.The_type_returned_by_the_0_method_of_an_async_iterator_must_be_a_promise_for_a_type_with_a_value_property }, Go = { iterableCacheKey: "iterationTypesOfIterable", iteratorCacheKey: "iterationTypesOfIterator", iteratorSymbolName: "iterator", getGlobalIteratorType: tdt, getGlobalIterableType: OQ, getGlobalIterableIteratorType: sRe, getGlobalIteratorObjectType: rdt, getGlobalGeneratorType: idt, getGlobalBuiltinIteratorTypes: ndt, resolveIterationType: (n, s) => n, mustHaveANextMethodDiagnostic: d.An_iterator_must_have_a_next_method, mustBeAMethodDiagnostic: d.The_0_property_of_an_iterator_must_be_a_method, mustHaveAValueDiagnostic: d.The_type_returned_by_the_0_method_of_an_iterator_must_have_a_value_property }, sl, ep = /* @__PURE__ */ new Map(), Uu = /* @__PURE__ */ new Map(), mp, d_, We, Kt, rr, ha, to, no, Vs, Ll, ic, Mc, Kc, hp, Eu, hu, tp, Ff, od, ng, qg, Hg, m_, nu, Fm, Pp, Ah, ue, dt, cn, _n, Un, cr, ci, Ei, ea, V, $e, Jt, Wn, ga, ts, ba, Wa, yc, Ns, gu, np, Op, cd, zy, z0, Yf, rg, Rm, jd, vb, et, ht, Zt, Pn, nr = /* @__PURE__ */ new Map(), Lr = 0, Zn = 0, dr = 0, Ji = false, ka = 0, xi, Ca, ta, vc = [], h_ = [], Bd = [], Iu = 0, Jd = [], rp = [], X1 = [], Eh = 0, ig = [], K1 = [], ag = 0, uI = N_(""), KP = zm(0), fI = yB({ negative: false, base10Value: "0" }), Gg = [], Q1 = [], w2 = [], V0 = 0, A2 = false, fw = 0, QP = 10, E2 = [], _w = [], Z1 = [], _I = [], I2 = [], pw = [], US = [], bb = [], dw = [], mw = [], WS = [], Tb = [], $0 = [], Vy = [], $y = [], qy = [], Sb = [], eT = [], D2 = [], tT = 0, io = aN(), N2 = aN(), pI = nf(), Hy, Gy, sg = /* @__PURE__ */ new Map(), dc = /* @__PURE__ */ new Map(), ef = /* @__PURE__ */ new Map(), g_ = /* @__PURE__ */ new Map(), tf = /* @__PURE__ */ new Map(), nT = /* @__PURE__ */ new Map(), Rf = [[".mts", ".mjs"], [".ts", ".js"], [".cts", ".cjs"], [".mjs", ".mjs"], [".js", ".js"], [".cjs", ".cjs"], [".tsx", J.jsx === 1 ? ".jsx" : ".js"], [".jsx", ".jsx"], [".json", ".json"]];
         return CSt(), or;
         function og(n) {
           return !Qr(n) || !Xe(n.name) || !Qr(n.expression) && !Xe(n.expression) ? false : Xe(n.expression) ? Xr(n.expression) === "Symbol" && Sf(n.expression) === (OI("Symbol", 1160127, void 0) || ie) : Xe(n.expression.expression) ? Xr(n.expression.name) === "Symbol" && Xr(n.expression.expression) === "globalThis" && Sf(n.expression.expression) === Ze : false;
@@ -26344,7 +26344,7 @@ ${Ht.join(`
           let _ = n ? Ar(n, s, ...l) : Ic(s, ...l), h = io.lookup(_);
           return h || (io.add(_), _);
         }
-        function $0(n, s, l, ..._) {
+        function q0(n, s, l, ..._) {
           let h = nt(s, l, ..._);
           return h.skippedOn = n, h;
         }
@@ -26371,7 +26371,7 @@ ${Ht.join(`
           }
           Yg(n, "message" in l ? Ar(s, l, ..._) : Pg(zn(s), s, l));
         }
-        function q0(n, s, l, ..._) {
+        function H0(n, s, l, ..._) {
           let h = nt(n, l, ..._);
           if (s) {
             let b = Ar(n, d.Did_you_forget_to_use_await);
@@ -26407,7 +26407,7 @@ ${Ht.join(`
           let l = $s(1, n);
           return l.links.type = s, l;
         }
-        function H0(n, s) {
+        function G0(n, s) {
           let l = $s(4, n);
           return l.links.type = s, l;
         }
@@ -26460,7 +26460,7 @@ ${Ht.join(`
             Ve(b.relatedInformation) >= 5 || bt(b.relatedInformation, (te) => mN(te, Y) === 0 || mN(te, G) === 0) || ds(b, Ve(b.relatedInformation) ? Y : G);
           }
         }
-        function G0(n, s) {
+        function Y0(n, s) {
           if (!n?.size) return s;
           if (!s?.size) return n;
           let l = _s();
@@ -26804,9 +26804,9 @@ ${Ht.join(`
           }
         }
         function y_(n) {
-          return n.declarations && si(n.declarations, Y0);
+          return n.declarations && si(n.declarations, X0);
         }
-        function Y0(n) {
+        function X0(n) {
           return n.kind === 272 || n.kind === 271 || n.kind === 274 && !!n.name || n.kind === 275 || n.kind === 281 || n.kind === 277 || n.kind === 282 || n.kind === 278 && w3(n) || Or(n) && ul(n) === 2 && w3(n) || Ko(n) && Or(n.parent) && n.parent.left === n && n.parent.operatorToken.kind === 64 && cT(n.parent.right) || n.kind === 305 || n.kind === 304 && cT(n.initializer) || n.kind === 261 && nS(n) || n.kind === 209 && nS(n.parent.parent);
         }
         function cT(n) {
@@ -26870,7 +26870,7 @@ ${Ht.join(`
           }
           return Uf(n) ? typeof n.externalModuleIndicator != "object" && !Ab(s, Oc("__esModule"), void 0, l) : cm(s);
         }
-        function X0(n, s) {
+        function K0(n, s) {
           let l = bf(n, n.parent.moduleSpecifier);
           if (l) return Ib(l, n, s);
         }
@@ -26974,7 +26974,7 @@ ${Ht.join(`
         }
         function M2(n, s, l, _) {
           var h;
-          let b = K0(n, l), w = Bo(_), j = Xe(_) ? bve(_, s) : void 0;
+          let b = Q0(n, l), w = Bo(_), j = Xe(_) ? bve(_, s) : void 0;
           if (j !== void 0) {
             let G = fa(j), Y = nt(_, d._0_has_no_exported_member_named_1_Did_you_mean_2, b, w, G);
             j.valueDeclaration && ds(Y, Ar(j.valueDeclaration, d._0_is_declared_here, G));
@@ -27049,7 +27049,7 @@ ${Ht.join(`
             case 261:
               return gw(n, s);
             case 274:
-              return X0(n, s);
+              return K0(n, s);
             case 275:
               return Kg(n, s);
             case 281:
@@ -27111,7 +27111,7 @@ ${Ht.join(`
         function fd(n, s, l, _, h, b) {
           if (!n || Qr(n)) return false;
           let w = Jr(n);
-          if (v0(n)) {
+          if (b0(n)) {
             let G = Zr(w);
             return G.typeOnlyDeclaration = n, true;
           }
@@ -27125,7 +27125,7 @@ ${Ht.join(`
         function GS(n, s, l) {
           var _;
           if (s && (n.typeOnlyDeclaration === void 0 || l && n.typeOnlyDeclaration === false)) {
-            let h = ((_ = s.exports) == null ? void 0 : _.get("export=")) ?? s, b = h.declarations && $t(h.declarations, v0);
+            let h = ((_ = s.exports) == null ? void 0 : _.get("export=")) ?? s, b = h.declarations && $t(h.declarations, b0);
             n.typeOnlyDeclaration = b ?? Zr(h).typeOnlyDeclaration ?? false;
           }
           return !!n.typeOnlyDeclaration;
@@ -27148,8 +27148,8 @@ ${Ht.join(`
         function Nb(n, s) {
           return n.kind === 80 && lN(n) && (n = n.parent), n.kind === 80 || n.parent.kind === 167 ? $c(n, 1920, false, s) : (D.assert(n.parent.kind === 272), $c(n, 901119, false, s));
         }
-        function K0(n, s) {
-          return n.parent ? K0(n.parent, s) + "." + fa(n) : fa(n, s, void 0, 36);
+        function Q0(n, s) {
+          return n.parent ? Q0(n.parent, s) + "." + fa(n) : fa(n, s, void 0, 36);
         }
         function xw(n) {
           for (; zf(n.parent); ) n = n.parent;
@@ -27185,7 +27185,7 @@ ${Ht.join(`
             }
             if (w = oo(Du(ip(Y), G.escapedText, s)), !w && Y.flags & 2097152 && (w = oo(Du(ip(vu(Y)), G.escapedText, s))), !w) {
               if (!l) {
-                let te = K0(Y), Ae = Bo(G), ke = bve(G, Y);
+                let te = Q0(Y), Ae = Bo(G), ke = bve(G, Y);
                 if (ke) {
                   nt(G, d._0_has_no_exported_member_named_1_Did_you_mean_2, te, Ae, fa(ke));
                   return;
@@ -27411,7 +27411,7 @@ ${Ht.join(`
           let s = ww(n), l = D_(n);
           if (l !== n) {
             let _ = vr(l);
-            Q0(_) && ni(s, Co(_));
+            Z0(_) && ni(s, Co(_));
           }
           return s;
         }
@@ -27422,7 +27422,7 @@ ${Ht.join(`
           let _ = D_(n);
           if (_ !== n) {
             let h = vr(_);
-            Q0(h) && hpt(h, (b, w) => {
+            Z0(h) && hpt(h, (b, w) => {
               s(b, w);
             });
           }
@@ -27437,9 +27437,9 @@ ${Ht.join(`
           let _ = D_(s);
           if (_ === s) return;
           let h = vr(_);
-          return Q0(h) ? Cs(h, n) : void 0;
+          return Z0(h) ? Cs(h, n) : void 0;
         }
-        function Q0(n) {
+        function Z0(n) {
           return !(n.flags & 402784252 || Kr(n) & 1 || hd(n) || Ys(n));
         }
         function ip(n) {
@@ -27541,8 +27541,8 @@ ${Ht.join(`
           return la(w, j);
           function G(te) {
             let Ae = Hi(te.declarations, Y), ke = s && q2(n, s), rt = hT(te, l);
-            if (s && te.flags & lm(l) && ev(te, s, 1920, false)) return Hn(la(la([te], Ae), ke), rt);
-            let xt = !(te.flags & lm(l)) && te.flags & 788968 && Yo(te).flags & 524288 && l === 111551 ? Z0(s, (tn) => Ql(tn, (Cn) => {
+            if (s && te.flags & lm(l) && tv(te, s, 1920, false)) return Hn(la(la([te], Ae), ke), rt);
+            let xt = !(te.flags & lm(l)) && te.flags & 788968 && Yo(te).flags & 524288 && l === 111551 ? ev(s, (tn) => Ql(tn, (Cn) => {
               if (Cn.flags & lm(l) && vr(Cn) === Yo(te)) return Cn;
             })) : void 0, Pt = xt ? [xt, ...Ae, te] : [...Ae, te];
             return Pt = Hn(Pt, rt), Pt = ni(Pt, ke), Pt;
@@ -27639,10 +27639,10 @@ ${Ht.join(`
           let l = kc(n.symbol, n.members, n.callSignatures, bt(s) ? s : ae, n.indexInfos);
           return n.objectTypeWithoutAbstractConstructSignatures = l, l.objectTypeWithoutAbstractConstructSignatures = l, l;
         }
-        function Z0(n, s) {
+        function ev(n, s) {
           let l;
           for (let _ = n; _; _ = _.parent) {
-            if (Vh(_) && _.locals && !T0(_) && (l = s(_.locals, void 0, true, _))) return l;
+            if (Vh(_) && _.locals && !S0(_) && (l = s(_.locals, void 0, true, _))) return l;
             switch (_.kind) {
               case 308:
                 if (!z_(_)) break;
@@ -27665,13 +27665,13 @@ ${Ht.join(`
         function lm(n) {
           return n === 111551 ? 111551 : 1920;
         }
-        function ev(n, s, l, _, h = /* @__PURE__ */ new Map()) {
+        function tv(n, s, l, _, h = /* @__PURE__ */ new Map()) {
           if (!(n && !Qj(n))) return;
-          let b = Zr(n), w = b.accessibleChainCache || (b.accessibleChainCache = /* @__PURE__ */ new Map()), j = Z0(s, (Cn, sr, Tr, wn) => wn), G = `${_ ? 0 : 1}|${j ? lo(j) : 0}|${l}`;
+          let b = Zr(n), w = b.accessibleChainCache || (b.accessibleChainCache = /* @__PURE__ */ new Map()), j = ev(s, (Cn, sr, Tr, wn) => wn), G = `${_ ? 0 : 1}|${j ? lo(j) : 0}|${l}`;
           if (w.has(G)) return w.get(G);
           let Y = Ss(n), te = h.get(Y);
           te || h.set(Y, te = []);
-          let Ae = Z0(s, ke);
+          let Ae = ev(s, ke);
           return w.set(G, Ae), Ae;
           function ke(Cn, sr, Tr) {
             if (!$p(te, Cn)) return;
@@ -27679,7 +27679,7 @@ ${Ht.join(`
             return te.pop(), wn;
           }
           function rt(Cn, sr) {
-            return !KS(Cn, s, sr) || !!ev(Cn.parent, s, lm(sr), _, h);
+            return !KS(Cn, s, sr) || !!tv(Cn.parent, s, lm(sr), _, h);
           }
           function xt(Cn, sr, Tr) {
             return (n === (sr || Cn) || oo(n) === oo(sr || Cn)) && !bt(Cn.declarations, QS) && (Tr || rt(oo(Cn), l));
@@ -27701,7 +27701,7 @@ ${Ht.join(`
         }
         function KS(n, s, l) {
           let _ = false;
-          return Z0(s, (h) => {
+          return ev(s, (h) => {
             let b = oo(h.get(n.escapedName));
             if (!b) return false;
             if (b === n) return true;
@@ -27737,7 +27737,7 @@ ${Ht.join(`
           if (!Ve(n)) return;
           let w, j = false;
           for (let G of n) {
-            let Y = ev(G, s, _, false);
+            let Y = tv(G, s, _, false);
             if (Y) {
               w = G;
               let ke = X2(Y[0], h);
@@ -27903,7 +27903,7 @@ ${Ht.join(`
             let Re = je;
             fn ?? (fn = Jr(fe));
             let Ke = (gn = Re.enclosingSymbolTypes) == null ? void 0 : gn.get(Ss(fn));
-            return Ke === void 0 && (Ke = fn.flags & 98304 && fe.kind === 179 ? aa(iv(fn), Re.mapper) : fn && !(fn.flags & 133120) ? aa(IT(vr(fn)), Re.mapper) : st), fe && (ra(fe) || Cp(fe)) && bJ(fe, Re.enclosingDeclaration) && (Ke = zb(Ke)), yr(fn, Re, Ke);
+            return Ke === void 0 && (Ke = fn.flags & 98304 && fe.kind === 179 ? aa(av(fn), Re.mapper) : fn && !(fn.flags & 133120) ? aa(IT(vr(fn)), Re.mapper) : st), fe && (ra(fe) || Cp(fe)) && bJ(fe, Re.enclosingDeclaration) && (Ke = zb(Ke)), yr(fn, Re, Ke);
           }, serializeNameOfParameter(je, fe) {
             return Gi(Jr(fe), fe, je);
           }, serializeEntityName(je, fe) {
@@ -27915,7 +27915,7 @@ ${Ht.join(`
             let gn = je, Re = Xe(fn.name) ? fn.name : fn.name.right, Ke = Tn(s(gn, fe), Re.escapedText);
             return Ke && fn.typeExpression && s(gn, fn.typeExpression.type) !== Ke ? tn(Ke, gn) : void 0;
           }, enterNewScope(je, fe) {
-            if (Xa(fe) || F0(fe)) {
+            if (Xa(fe) || R0(fe)) {
               let fn = Bp(fe);
               return Ha(je, fe, fn.parameters, fn.typeParameters);
             } else {
@@ -27947,7 +27947,7 @@ ${Ht.join(`
             if (_t.enclosingDeclaration === void 0) return false;
             gn ?? (gn = Jr(fe));
             let qt = (Ke = _t.enclosingSymbolTypes) == null ? void 0 : Ke.get(Ss(gn));
-            qt === void 0 && (gn.flags & 98304 ? qt = fe.kind === 179 ? iv(gn) : f6(gn) : Wx(fe) ? qt = ho(Bp(fe)) : qt = vr(gn));
+            qt === void 0 && (gn.flags & 98304 ? qt = fe.kind === 179 ? av(gn) : f6(gn) : Wx(fe) ? qt = ho(Bp(fe)) : qt = vr(gn));
             let pn = K2(fn);
             return hr(pn) ? true : (Re && pn && (pn = Tf(pn, !ra(fe))), !!pn && ki(fe, qt, pn) && Rn(fn, qt));
           } }, typeToTypeNode: (je, fe, fn, gn, Re, Ke, _t, qt) => Y(fe, fn, gn, Re, Ke, _t, (pn) => tn(je, pn), qt), typePredicateToTypePredicateNode: (je, fe, fn, gn, Re) => Y(fe, fn, gn, Re, void 0, void 0, (Ke) => xf(je, Ke)), serializeTypeForDeclaration: (je, fe, fn, gn, Re, Ke) => Y(fn, gn, Re, Ke, void 0, void 0, (_t) => De.serializeTypeOfDeclaration(je, fe, _t)), serializeReturnTypeForSignature: (je, fe, fn, gn, Re) => Y(fe, fn, gn, Re, void 0, void 0, (Ke) => De.serializeReturnTypeForSignature(je, Jr(je), Ke)), serializeTypeForExpression: (je, fe, fn, gn, Re) => Y(fe, fn, gn, Re, void 0, void 0, (Ke) => De.serializeTypeOfExpression(je, Ke)), indexInfoToIndexSignatureDeclaration: (je, fe, fn, gn, Re) => Y(fe, fn, gn, Re, void 0, void 0, (Ke) => sa(je, Ke, void 0)), signatureToSignatureDeclaration: (je, fe, fn, gn, Re, Ke, _t, qt, pn) => Y(fn, gn, Re, Ke, _t, qt, (Gt) => ui(je, fe, Gt), pn), symbolToEntityName: (je, fe, fn, gn, Re, Ke) => Y(fn, gn, Re, Ke, void 0, void 0, (_t) => cl(je, _t, fe, false)), symbolToExpression: (je, fe, fn, gn, Re, Ke) => Y(fn, gn, Re, Ke, void 0, void 0, (_t) => bd(je, _t, fe)), symbolToTypeParameterDeclarations: (je, fe, fn, gn, Re) => Y(fe, fn, gn, Re, void 0, void 0, (Ke) => oc(je, Ke)), symbolToParameterDeclaration: (je, fe, fn, gn, Re) => Y(fe, fn, gn, Re, void 0, void 0, (Ke) => lr(je, Ke)), typeParameterToDeclaration: (je, fe, fn, gn, Re, Ke, _t, qt) => Y(fe, fn, gn, Re, Ke, _t, (pn) => Zc(je, pn), qt), symbolTableToDeclarationStatements: (je, fe, fn, gn, Re) => Y(fe, fn, gn, Re, void 0, void 0, (Ke) => FT(je, Ke)), symbolToNode: (je, fe, fn, gn, Re, Ke) => Y(fn, gn, Re, Ke, void 0, void 0, (_t) => _(je, _t, fe)), symbolToDeclarations: h };
@@ -28206,7 +28206,7 @@ ${Ht.join(`
                 let Gb = Kf($s(262144, "T")), eA = wc(Gb, fe);
                 yo = R.createTypeReferenceNode(eA), Ks = yo;
               } else Ks = tn(jp(bn), fe);
-              let $u = pa(Ml, fe, Ks), Cf = Ha(fe, bn.declaration, void 0, [bT(Jr(bn.declaration.typeParameter))]), t_ = bn.declaration.nameType ? tn(av(bn), fe) : void 0, p0 = tn(l0(Ea, !!(pg(bn) & 4)), fe);
+              let $u = pa(Ml, fe, Ks), Cf = Ha(fe, bn.declaration, void 0, [bT(Jr(bn.declaration.typeParameter))]), t_ = bn.declaration.nameType ? tn(sv(bn), fe) : void 0, p0 = tn(l0(Ea, !!(pg(bn) & 4)), fe);
               Cf();
               let LT = R.createMappedTypeNode(Ma, $u, t_, ya, p0, void 0);
               fe.approximateLength += 10;
@@ -28306,7 +28306,7 @@ ${Ht.join(`
                 return bn.target === no ? ya : R.createTypeOperatorNode(148, ya);
               } else if (bn.target.objectFlags & 8) {
                 if ($r = po($r, (Ma, ya) => l0(Ma, !!(bn.target.elementFlags[ya] & 2))), $r.length > 0) {
-                  let Ma = cv(bn), ya = Cr($r.slice(0, Ma), fe);
+                  let Ma = lv(bn), ya = Cr($r.slice(0, Ma), fe);
                   if (ya) {
                     let { labeledElementDeclarations: Ks } = bn.target;
                     for (let Ea = 0; Ea < ya.length; Ea++) {
@@ -28362,13 +28362,13 @@ ${Ht.join(`
             function ur(bn, $r) {
               if (dh(bn)) {
                 let Ma = bn.typeArguments, ya = bn.qualifier;
-                ya && (Xe(ya) ? Ma !== Xx(ya) && (ya = D0(R.cloneNode(ya), Ma)) : Ma !== Xx(ya.right) && (ya = R.updateQualifiedName(ya, ya.left, D0(R.cloneNode(ya.right), Ma)))), Ma = $r.typeArguments;
+                ya && (Xe(ya) ? Ma !== Xx(ya) && (ya = N0(R.cloneNode(ya), Ma)) : Ma !== Xx(ya.right) && (ya = R.updateQualifiedName(ya, ya.left, N0(R.cloneNode(ya.right), Ma)))), Ma = $r.typeArguments;
                 let Ks = Pi($r);
                 for (let yo of Ks) ya = ya ? R.createQualifiedName(ya, yo) : yo;
                 return R.updateImportTypeNode(bn, bn.argument, bn.attributes, ya, Ma, bn.isTypeOf);
               } else {
                 let Ma = bn.typeArguments, ya = bn.typeName;
-                Xe(ya) ? Ma !== Xx(ya) && (ya = D0(R.cloneNode(ya), Ma)) : Ma !== Xx(ya.right) && (ya = R.updateQualifiedName(ya, ya.left, D0(R.cloneNode(ya.right), Ma))), Ma = $r.typeArguments;
+                Xe(ya) ? Ma !== Xx(ya) && (ya = N0(R.cloneNode(ya), Ma)) : Ma !== Xx(ya.right) && (ya = R.updateQualifiedName(ya, ya.left, N0(R.cloneNode(ya.right), Ma))), Ma = $r.typeArguments;
                 let Ks = Pi($r);
                 for (let yo of Ks) ya = R.createQualifiedName(ya, yo);
                 return R.updateTypeReferenceNode(bn, ya, Ma);
@@ -28443,7 +28443,7 @@ ${Ht.join(`
             fe.enclosingDeclaration = je.valueDeclaration || ((gn = je.declarations) == null ? void 0 : gn[0]) || _t;
             let qt = J6(je, fe);
             if (fe.enclosingDeclaration = _t, fe.approximateLength += Bc(je).length + 1, je.flags & 98304) {
-              let Ur = iv(je);
+              let Ur = av(je);
               if (!hr(Ke) && !hr(Ur)) {
                 let Si = Zr(je).mapper, di = lc(je, 173);
                 if (Ke !== Ur || je.parent.flags & 32 && !di) {
@@ -28471,7 +28471,7 @@ ${Ht.join(`
               }
             }
             let pn = je.flags & 16777216 ? R.createToken(58) : void 0;
-            if (je.flags & 8208 && !sv(Ke).length && !Ym(je)) {
+            if (je.flags & 8208 && !ov(Ke).length && !Ym(je)) {
               let Ur = ns(El(Ke, (Si) => !(Si.flags & 32768)), 0);
               for (let Si of Ur) {
                 let di = ui(Si, 174, fe, { name: qt, questionToken: pn });
@@ -28707,7 +28707,7 @@ ${Ht.join(`
             let Re;
             return !(je.flags & 262144) && (fe.enclosingDeclaration || fe.flags & 64) && !(fe.internalFlags & 4) ? (Re = D.checkDefined(_t(je, fn, true)), D.assert(Re && Re.length > 0)) : Re = [je], Re;
             function _t(qt, pn, Gt) {
-              let hn = ev(qt, fe.enclosingDeclaration, pn, !!(fe.flags & 128)), ar;
+              let hn = tv(qt, fe.enclosingDeclaration, pn, !!(fe.flags & 128)), ar;
               if (!hn || KS(hn[0], fe.enclosingDeclaration, hn.length === 1 ? pn : lm(pn))) {
                 let Ur = XS(hn ? hn[0] : qt, fe.enclosingDeclaration, pn);
                 if (Ve(Ur)) {
@@ -28755,7 +28755,7 @@ ${Ht.join(`
               let qt = Re, pn = je[fe + 1];
               if (Uc(pn) & 1) {
                 let Gt = zo(qt.flags & 2097152 ? vu(qt) : qt);
-                _t = Cr(vn(Gt, (hn) => lv(hn, pn.links.mapper)), fn);
+                _t = Cr(vn(Gt, (hn) => uv(hn, pn.links.mapper)), fn);
               } else _t = oc(Re, fn);
             }
             return _t;
@@ -28799,7 +28799,7 @@ ${Ht.join(`
               if (fe.approximateLength += wr.length + 10, !pn || Jf(pn)) {
                 if (pn) {
                   let di = Xe(pn) ? pn : pn.right;
-                  D0(di, void 0);
+                  N0(di, void 0);
                 }
                 return R.createImportTypeNode(Si, Ur, pn, Gt, Ke);
               } else {
@@ -28812,7 +28812,7 @@ ${Ht.join(`
             if (Ke) return R.createTypeQueryNode(_t);
             {
               let pn = Xe(_t) ? _t : _t.right, Gt = Xx(pn);
-              return D0(pn, void 0), R.createTypeReferenceNode(_t, Gt);
+              return N0(pn, void 0), R.createTypeReferenceNode(_t, Gt);
             }
             function qt(pn, Gt, hn) {
               let ar = Gt === pn.length - 1 ? gn : Su(pn, Gt, fe), wr = pn[Gt], Ur = pn[Gt - 1], Si;
@@ -28836,7 +28836,7 @@ ${Ht.join(`
                 return vS(ur) ? R.createIndexedAccessTypeNode(ur, R.createLiteralTypeNode(R.createStringLiteral(Si))) : R.createIndexedAccessTypeNode(R.createTypeReferenceNode(ur, ar), R.createLiteralTypeNode(R.createStringLiteral(Si)));
               }
               let di = Pr(R.createIdentifier(Si), 16777216);
-              if (ar && D0(di, R.createNodeArray(ar)), di.symbol = wr, Gt > hn) {
+              if (ar && N0(di, R.createNodeArray(ar)), di.symbol = wr, Gt > hn) {
                 let ur = qt(pn, Gt - 1, hn);
                 return Jf(ur) ? R.createQualifiedName(ur, di) : D.fail("Impossible construct - an export of an indexed access cannot be reachable");
               }
@@ -28861,7 +28861,7 @@ ${Ht.join(`
               for (; (Ke = fe.typeParameterNamesByText) != null && Ke.has(hn) || Up(hn, fe, je); ) Gt++, hn = `${pn}_${Gt}`;
               if (hn !== pn) {
                 let ar = Xx(_t);
-                _t = R.createIdentifier(hn), D0(_t, ar);
+                _t = R.createIdentifier(hn), N0(_t, ar);
               }
               fe.mustCreateTypeParametersNamesLookups && (fe.mustCreateTypeParametersNamesLookups = false, fe.typeParameterNames = new Map(fe.typeParameterNames), fe.typeParameterNamesByTextNextNameCount = new Map(fe.typeParameterNamesByTextNextNameCount), fe.typeParameterNamesByText = new Set(fe.typeParameterNamesByText)), fe.typeParameterNamesByTextNextNameCount.set(pn, Gt), fe.typeParameterNames.set(bu(je), _t), fe.typeParameterNamesByText.add(hn);
             }
@@ -28876,7 +28876,7 @@ ${Ht.join(`
               let hn = vT(Gt, fe);
               qt === 0 && (fe.flags ^= 16777216);
               let ar = Pr(R.createIdentifier(hn), 16777216);
-              return pn && D0(ar, R.createNodeArray(pn)), ar.symbol = Gt, qt > 0 ? R.createQualifiedName(Ke(_t, qt - 1), ar) : ar;
+              return pn && N0(ar, R.createNodeArray(pn)), ar.symbol = Gt, qt > 0 ? R.createQualifiedName(Ke(_t, qt - 1), ar) : ar;
             }
           }
           function bd(je, fe, fn) {
@@ -28894,7 +28894,7 @@ ${Ht.join(`
               }
               if (_t === 0 || f$(Gt, $)) {
                 let ar = Pr(R.createIdentifier(Gt), 16777216);
-                return qt && D0(ar, R.createNodeArray(qt)), ar.symbol = pn, fe.approximateLength += 1 + Gt.length, _t > 0 ? R.createPropertyAccessExpression(Re(Ke, _t - 1), ar) : ar;
+                return qt && N0(ar, R.createNodeArray(qt)), ar.symbol = pn, fe.approximateLength += 1 + Gt.length, _t > 0 ? R.createPropertyAccessExpression(Re(Ke, _t - 1), ar) : ar;
               } else {
                 hn === 91 && (Gt = Gt.substring(1, Gt.length - 1), hn = Gt.charCodeAt(0));
                 let ar;
@@ -28904,7 +28904,7 @@ ${Ht.join(`
                 } else "" + +Gt === Gt && (fe.approximateLength += Gt.length, ar = R.createNumericLiteral(+Gt));
                 if (!ar) {
                   let wr = Pr(R.createIdentifier(Gt), 16777216);
-                  qt && D0(wr, R.createNodeArray(qt)), wr.symbol = pn, fe.approximateLength += Gt.length, ar = wr;
+                  qt && N0(wr, R.createNodeArray(qt)), wr.symbol = pn, fe.approximateLength += Gt.length, ar = wr;
                 }
                 return fe.approximateLength += 2, R.createElementAccessExpression(Re(Ke, _t - 1), ar);
               }
@@ -29036,7 +29036,7 @@ ${Ht.join(`
               if (!gn) return false;
               if (gn.flags & 262144) {
                 let Re = Yo(gn);
-                return !(je.mapper && lv(Re, je.mapper) !== Re);
+                return !(je.mapper && uv(Re, je.mapper) !== Re);
               }
               if (qD(fe)) return Rn(fe, fn) && !Y5e(fe) && !!(gn.flags & 788968);
             }
@@ -29173,14 +29173,14 @@ ${Ht.join(`
                 if (xl.symbol && xl.symbol !== Ot && xl.symbol.flags & 16 && bt(xl.symbol.declarations, tb) && ((Mr = xl.symbol.members) != null && Mr.size || (Es = xl.symbol.exports) != null && Es.size)) fe.remappedSymbolReferences || (fe.remappedSymbolReferences = /* @__PURE__ */ new Map()), fe.remappedSymbolReferences.set(Ss(xl.symbol), Ot), ya(xl.symbol, gr, Ai, Oi), fe.remappedSymbolReferences.delete(Ss(xl.symbol));
                 else if (!(Ot.flags & 16) && Obe(xl, Ot)) Gb(xl, Ot, n_, jc);
                 else {
-                  let dv = Ot.flags & 2 ? $w(Ot) ? 2 : 1 : (Js = Ot.parent) != null && Js.valueDeclaration && Zi((Ga = Ot.parent) == null ? void 0 : Ga.valueDeclaration) ? 2 : void 0, zp = el || !(Ot.flags & 4) ? n_ : wJ(n_, Ot), _y = Ot.declarations && $t(Ot.declarations, (Xb) => Ci(Xb));
+                  let mv = Ot.flags & 2 ? $w(Ot) ? 2 : 1 : (Js = Ot.parent) != null && Js.valueDeclaration && Zi((Ga = Ot.parent) == null ? void 0 : Ga.valueDeclaration) ? 2 : void 0, zp = el || !(Ot.flags & 4) ? n_ : wJ(n_, Ot), _y = Ot.declarations && $t(Ot.declarations, (Xb) => Ci(Xb));
                   _y && Cu(_y.parent) && _y.parent.declarations.length === 1 && (_y = _y.parent.parent);
                   let Yb = (Mi = Ot.declarations) == null ? void 0 : Mi.find(Qr);
                   if (Yb && Or(Yb.parent) && Xe(Yb.parent.right) && ((Ts = xl.symbol) != null && Ts.valueDeclaration) && Zi(xl.symbol.valueDeclaration)) {
                     let Xb = n_ === Yb.parent.right.escapedText ? void 0 : Yb.parent.right;
                     fe.approximateLength += 12 + (((Bl = Xb?.escapedText) == null ? void 0 : Bl.length) ?? 0), Ea(R.createExportDeclaration(void 0, false, R.createNamedExports([R.createExportSpecifier(false, Xb, n_)])), 0), fe.tracker.trackSymbol(xl.symbol, fe.enclosingDeclaration, 111551);
                   } else {
-                    let Xb = l(fe, R.createVariableStatement(void 0, R.createVariableDeclarationList([R.createVariableDeclaration(zp, void 0, Vr(fe, void 0, xl, Ot))], dv)), _y);
+                    let Xb = l(fe, R.createVariableStatement(void 0, R.createVariableDeclarationList([R.createVariableDeclaration(zp, void 0, Vr(fe, void 0, xl, Ot))], mv)), _y);
                     fe.approximateLength += 7 + zp.length, Ea(Xb, zp !== n_ ? jc & -33 : jc), zp !== n_ && !gr && (fe.approximateLength += 16 + zp.length + n_.length, Ea(R.createExportDeclaration(void 0, false, R.createNamedExports([R.createExportSpecifier(false, zp, n_)])), 0), cc = false, el = false);
                   }
                 }
@@ -29188,8 +29188,8 @@ ${Ht.join(`
               if (Ot.flags & 384 && mx(Ot, bc, jc), Ot.flags & 32 && (Ot.flags & 4 && Ot.valueDeclaration && Or(Ot.valueDeclaration.parent) && hl(Ot.valueDeclaration.parent.right) ? jBe(Ot, vg(Ot, bc), jc) : Nbe(Ot, vg(Ot, bc), jc)), (Ot.flags & 1536 && (!Hc || p0(Ot)) || Wp) && LT(Ot, bc, jc), Ot.flags & 64 && !(Ot.flags & 32) && jl(Ot, bc, jc), Ot.flags & 2097152 && jBe(Ot, vg(Ot, bc), jc), Ot.flags & 4 && Ot.escapedName === "export=" && kJ(Ot), Ot.flags & 8388608 && Ot.declarations) for (let xl of Ot.declarations) {
                 let n_ = bf(xl, xl.moduleSpecifier);
                 if (!n_) continue;
-                let dv = xl.isTypeOnly, zp = pl(n_, fe);
-                fe.approximateLength += 17 + zp.length, Ea(R.createExportDeclaration(void 0, dv, void 0, R.createStringLiteral(zp)), 0);
+                let mv = xl.isTypeOnly, zp = pl(n_, fe);
+                fe.approximateLength += 17 + zp.length, Ea(R.createExportDeclaration(void 0, mv, void 0, R.createStringLiteral(zp)), 0);
               }
               if (el) {
                 let xl = vg(Ot, bc);
@@ -29383,16 +29383,16 @@ ${Ht.join(`
               fe.approximateLength += 9 + gr.length;
               let Es = (Oi = Ot.declarations) == null ? void 0 : Oi.find(vi), Js = fe.enclosingDeclaration;
               fe.enclosingDeclaration = Es || Js;
-              let Ga = Ps(Ot), Mi = vn(Ga, (mv) => Zc(mv, fe));
-              Ne(Ga, (mv) => fe.approximateLength += Bc(mv.symbol).length);
+              let Ga = Ps(Ot), Mi = vn(Ga, (hv) => Zc(hv, fe));
+              Ne(Ga, (hv) => fe.approximateLength += Bc(hv.symbol).length);
               let Ts = sp(pd(Ot)), Bl = fm(Ts), bc = Es && $A(Es), of = bc && xJ(bc) || Hi(CI(Ts), xxt), el = vr(Ot), cc = !!((Mr = el.symbol) != null && Mr.valueDeclaration) && vi(el.symbol.valueDeclaration), jc = cc ? e0(el) : Ge;
               fe.approximateLength += (Ve(Bl) ? 8 : 0) + (Ve(of) ? 11 : 0);
-              let Hc = [...Ve(Bl) ? [R.createHeritageClause(96, vn(Bl, (mv) => Sxt(mv, jc, gr)))] : [], ...Ve(of) ? [R.createHeritageClause(119, of)] : []], Wp = sTt(Ts, Bl, Co(Ts)), xl = Nn(Wp, (mv) => !SJ(mv)), n_ = bt(Wp, SJ), dv = n_ ? RT(fe) ? $u(Nn(Wp, SJ), true, Bl[0], false) : [R.createPropertyDeclaration(void 0, R.createPrivateIdentifier("#private"), void 0, void 0, void 0)] : ae;
+              let Hc = [...Ve(Bl) ? [R.createHeritageClause(96, vn(Bl, (hv) => Sxt(hv, jc, gr)))] : [], ...Ve(of) ? [R.createHeritageClause(119, of)] : []], Wp = sTt(Ts, Bl, Co(Ts)), xl = Nn(Wp, (hv) => !SJ(hv)), n_ = bt(Wp, SJ), mv = n_ ? RT(fe) ? $u(Nn(Wp, SJ), true, Bl[0], false) : [R.createPropertyDeclaration(void 0, R.createPrivateIdentifier("#private"), void 0, void 0, void 0)] : ae;
               n_ && !RT(fe) && (fe.approximateLength += 9);
-              let zp = $u(xl, true, Bl[0], false), _y = $u(Nn(Co(el), (mv) => !(mv.flags & 4194304) && mv.escapedName !== "prototype" && !qI(mv)), true, jc, true), Yb = !cc && !!Ot.valueDeclaration && Er(Ot.valueDeclaration) && !bt(ns(el, 1));
+              let zp = $u(xl, true, Bl[0], false), _y = $u(Nn(Co(el), (hv) => !(hv.flags & 4194304) && hv.escapedName !== "prototype" && !qI(hv)), true, jc, true), Yb = !cc && !!Ot.valueDeclaration && Er(Ot.valueDeclaration) && !bt(ns(el, 1));
               Yb && (fe.approximateLength += 21);
               let Xb = Yb ? [R.createConstructorDeclaration(R.createModifiersFromModifierFlags(2), [], void 0)] : Fbe(1, el, jc, 177), kxt = UBe(Ts, Bl[0]);
-              fe.enclosingDeclaration = Js, Ea(l(fe, R.createClassDeclaration(void 0, gr, Mi, Hc, [...kxt, ..._y, ...Xb, ...zp, ...dv]), Ot.declarations && Nn(Ot.declarations, (mv) => Ol(mv) || hl(mv))[0]), Ai);
+              fe.enclosingDeclaration = Js, Ea(l(fe, R.createClassDeclaration(void 0, gr, Mi, Hc, [...kxt, ..._y, ...Xb, ...zp, ...mv]), Ot.declarations && Nn(Ot.declarations, (hv) => Ol(hv) || hl(hv))[0]), Ai);
             }
             function Pbe(Ot) {
               return an(Ot, (gr) => {
@@ -29401,7 +29401,7 @@ ${Ht.join(`
                   let Ai = fc(gr) ? gr.expression : gr.right;
                   if (Qr(Ai)) return Xr(Ai.name);
                 }
-                if (Y0(gr)) {
+                if (X0(gr)) {
                   let Ai = Ra(gr);
                   if (Ai && Xe(Ai)) return Xr(Ai);
                 }
@@ -29517,7 +29517,7 @@ ${Ht.join(`
             function Obe(Ot, gr) {
               var Ai;
               let Oi = zn(fe.enclosingDeclaration);
-              return Kr(Ot) & 48 && !bt((Ai = Ot.symbol) == null ? void 0 : Ai.declarations, Fi) && !Ve(rf(Ot)) && !T7(Ot) && !!(Ve(Nn(Co(Ot), qI)) || Ve(ns(Ot, 0))) && !Ve(ns(Ot, 1)) && !Yt(gr, Ke) && !(Ot.symbol && bt(Ot.symbol.declarations, (Mr) => zn(Mr) !== Oi)) && !bt(Co(Ot), (Mr) => w7(Mr.escapedName)) && !bt(Co(Ot), (Mr) => bt(Mr.declarations, (Es) => zn(Es) !== Oi)) && jn(Co(Ot), (Mr) => S_(Bc(Mr), $) ? Mr.flags & 98304 ? Jm(Mr) === iv(Mr) : true : false);
+              return Kr(Ot) & 48 && !bt((Ai = Ot.symbol) == null ? void 0 : Ai.declarations, Fi) && !Ve(rf(Ot)) && !T7(Ot) && !!(Ve(Nn(Co(Ot), qI)) || Ve(ns(Ot, 0))) && !Ve(ns(Ot, 1)) && !Yt(gr, Ke) && !(Ot.symbol && bt(Ot.symbol.declarations, (Mr) => zn(Mr) !== Oi)) && !bt(Co(Ot), (Mr) => w7(Mr.escapedName)) && !bt(Co(Ot), (Mr) => bt(Mr.declarations, (Es) => zn(Es) !== Oi)) && jn(Co(Ot), (Mr) => S_(Bc(Mr), $) ? Mr.flags & 98304 ? Jm(Mr) === av(Mr) : true : false);
             }
             function BBe(Ot, gr, Ai) {
               return function(Mr, Es, Js) {
@@ -29537,8 +29537,8 @@ ${Ht.join(`
                       });
                     });
                     D.assert(!!n_);
-                    let dv = Ro(n_) ? Bp(n_).parameters[0] : void 0, zp = (Mi = Mr.declarations) == null ? void 0 : Mi.find(nh);
-                    fe.approximateLength += CJ(jc) + 7 + (dv ? Bc(dv).length : 5) + (cc ? 0 : 2), xl.push(l(fe, R.createSetAccessorDeclaration(R.createModifiersFromModifierFlags(jc), Hc, [R.createParameterDeclaration(void 0, void 0, dv ? Gi(dv, Xn(dv), fe) : "value", void 0, cc ? void 0 : Vr(fe, zp, iv(Mr), Mr))], void 0), zp ?? Wp));
+                    let mv = Ro(n_) ? Bp(n_).parameters[0] : void 0, zp = (Mi = Mr.declarations) == null ? void 0 : Mi.find(nh);
+                    fe.approximateLength += CJ(jc) + 7 + (mv ? Bc(mv).length : 5) + (cc ? 0 : 2), xl.push(l(fe, R.createSetAccessorDeclaration(R.createModifiersFromModifierFlags(jc), Hc, [R.createParameterDeclaration(void 0, void 0, mv ? Gi(mv, Xn(mv), fe) : "value", void 0, cc ? void 0 : Vr(fe, zp, av(Mr), Mr))], void 0), zp ?? Wp));
                   }
                   if (Mr.flags & 32768) {
                     let n_ = (Ts = Mr.declarations) == null ? void 0 : Ts.find(Eg);
@@ -29547,7 +29547,7 @@ ${Ht.join(`
                   return xl;
                 } else if (Mr.flags & 98311) {
                   let xl = (Ym(Mr) ? 8 : 0) | jc;
-                  return fe.approximateLength += 2 + (cc ? 0 : 2) + CJ(xl), l(fe, Ot(R.createModifiersFromModifierFlags(xl), Hc, Mr.flags & 16777216 ? R.createToken(58) : void 0, cc ? void 0 : Vr(fe, (Bl = Mr.declarations) == null ? void 0 : Bl.find(w_), iv(Mr), Mr), void 0), ((bc = Mr.declarations) == null ? void 0 : bc.find(j_(Na, Ci))) || Wp);
+                  return fe.approximateLength += 2 + (cc ? 0 : 2) + CJ(xl), l(fe, Ot(R.createModifiersFromModifierFlags(xl), Hc, Mr.flags & 16777216 ? R.createToken(58) : void 0, cc ? void 0 : Vr(fe, (Bl = Mr.declarations) == null ? void 0 : Bl.find(w_), av(Mr), Mr), void 0), ((bc = Mr.declarations) == null ? void 0 : bc.find(j_(Na, Ci))) || Wp);
                 }
                 if (Mr.flags & 8208) {
                   let xl = vr(Mr), n_ = ns(xl, 0);
@@ -29555,13 +29555,13 @@ ${Ht.join(`
                     let zp = (Ym(Mr) ? 8 : 0) | jc;
                     return fe.approximateLength += 1 + CJ(zp), l(fe, Ot(R.createModifiersFromModifierFlags(zp), Hc, Mr.flags & 16777216 ? R.createToken(58) : void 0, void 0, void 0), ((of = Mr.declarations) == null ? void 0 : of.find(Ro)) || n_[0] && n_[0].declaration || Mr.declarations && Mr.declarations[0]);
                   }
-                  let dv = [];
+                  let mv = [];
                   for (let zp of n_) {
                     fe.approximateLength += 1;
                     let _y = ui(zp, gr, fe, { name: Hc, questionToken: Mr.flags & 16777216 ? R.createToken(58) : void 0, modifiers: jc ? R.createModifiersFromModifierFlags(jc) : void 0 }), Yb = zp.declaration && y3(zp.declaration.parent) ? zp.declaration.parent : zp.declaration;
-                    dv.push(l(fe, _y, Yb));
+                    mv.push(l(fe, _y, Yb));
                   }
-                  return dv;
+                  return mv;
                 }
                 return D.fail(`Unhandled class member kind! ${Mr.__debugFlags || Mr.flags}`);
               };
@@ -29769,7 +29769,7 @@ ${Ht.join(`
               case 272:
                 if (eS(n)) return true;
                 let l = Lt(n);
-                return !(mee(n) & 32) && !(n.kind !== 272 && l.kind !== 308 && l.flags & 33554432) ? T0(l) : ug(l);
+                return !(mee(n) & 32) && !(n.kind !== 272 && l.kind !== 308 && l.flags & 33554432) ? S0(l) : ug(l);
               case 173:
               case 172:
               case 178:
@@ -29819,7 +29819,7 @@ ${Ht.join(`
               let G = ud(j) || j;
               if (s ? qr(j).isVisible = true : (_ = _ || [], $p(_, G)), Mx(j)) {
                 let Y = j.moduleReference, te = Wf(Y), Ae = vt(j, te.escapedText, 901119, void 0, false);
-                Ae && h && h0(h, Ss(Ae)) && b(Ae.declarations);
+                Ae && h && g0(h, Ss(Ae)) && b(Ae.declarations);
               }
             });
           }
@@ -29834,7 +29834,7 @@ ${Ht.join(`
           return Gg.push(n), Q1.push(true), w2.push(s), true;
         }
         function re(n, s) {
-          for (let l = Gg.length - 1; l >= z0; l--) {
+          for (let l = Gg.length - 1; l >= V0; l--) {
             if (Me(Gg[l], w2[l])) return -1;
             if (Gg[l] === n && w2[l] === s) return l;
           }
@@ -29937,7 +29937,7 @@ ${Ht.join(`
         function _d(n) {
           let s = Mp(n);
           if (s && zA(s) && s.flowNode) {
-            let l = tv(n);
+            let l = nv(n);
             if (l) {
               let _ = St(F1.createStringLiteral(l), n), h = s_(s) ? s : F1.createParenthesizedExpression(s), b = St(F1.createElementAccessExpression(h, _), n);
               return mo(_, b), mo(b, n), h !== s && mo(h, b), b.flowNode = s.flowNode, b;
@@ -29958,11 +29958,11 @@ ${Ht.join(`
               return s.right;
           }
         }
-        function tv(n) {
-          let s = n.parent;
-          return n.kind === 209 && s.kind === 207 ? nv(n.propertyName || n.name) : n.kind === 304 || n.kind === 305 ? nv(n.name) : "" + s.elements.indexOf(n);
-        }
         function nv(n) {
+          let s = n.parent;
+          return n.kind === 209 && s.kind === 207 ? rv(n.propertyName || n.name) : n.kind === 304 || n.kind === 305 ? rv(n.name) : "" + s.elements.indexOf(n);
+        }
+        function rv(n) {
           let s = n0(n);
           return s.flags & 384 ? "" + s.value : void 0;
         }
@@ -29985,11 +29985,11 @@ ${Ht.join(`
             b = co(n, G);
           }
           else {
-            let w = _v(65 | (n.dotDotDotToken ? 0 : 128), s, be, _), j = _.elements.indexOf(n);
+            let w = pv(65 | (n.dotDotDotToken ? 0 : 128), s, be, _), j = _.elements.indexOf(n);
             if (n.dotDotDotToken) {
               let G = Cc(s, (Y) => Y.flags & 58982400 ? Fh(Y) : Y);
               b = P_(G, Ys) ? Cc(G, (Y) => T6(Y, j)) : af(w);
-            } else if (uv(s)) {
+            } else if (fv(s)) {
               let G = zm(j), Y = Bb(s, G, h, n.name) || st;
               b = co(n, Y);
             } else b = w;
@@ -29997,14 +29997,14 @@ ${Ht.join(`
           return n.initializer ? Nl(wx(n)) ? ce && !$m(N6(n, 0), 16777216) ? Do(b) : b : Hve(n, bi([Do(b), N6(n, 0)], 2)) : b;
         }
         function uo(n) {
-          let s = y0(n);
+          let s = v0(n);
           if (s) return Ki(s);
         }
         function Hl(n) {
           let s = _o(n, true);
           return s.kind === 106 || s.kind === 80 && Sf(s) === de;
         }
-        function rv(n) {
+        function iv(n) {
           let s = _o(n, true);
           return s.kind === 210 && s.elements.length === 0;
         }
@@ -30026,7 +30026,7 @@ ${Ht.join(`
           if (b) return Tf(b, _, h);
           if ((Se || Er(n)) && Ci(n) && !Qa(n.name) && !(mee(n) & 32) && !(n.flags & 33554432)) {
             if (!(dx(n) & 6) && (!n.initializer || Hl(n.initializer))) return Nt;
-            if (n.initializer && rv(n.initializer)) return hu;
+            if (n.initializer && iv(n.initializer)) return hu;
           }
           if (ra(n)) {
             if (!n.symbol) return;
@@ -30428,7 +30428,7 @@ ${Ht.join(`
         }
         function rye(n) {
           let s = Zr(n);
-          return s.writeType || (s.writeType = aa(iv(s.target), s.mapper));
+          return s.writeType || (s.writeType = aa(av(s.target), s.mapper));
         }
         function Q2(n) {
           let s = n.valueDeclaration;
@@ -30449,7 +30449,7 @@ ${Ht.join(`
           let s = Zr(n);
           return !s.writeType && s.deferralWriteConstituents && (D.assertIsDefined(s.deferralParent), D.assertIsDefined(s.deferralConstituents), s.writeType = s.deferralParent.flags & 1048576 ? bi(s.deferralWriteConstituents) : Os(s.deferralWriteConstituents)), s.writeType;
         }
-        function iv(n) {
+        function av(n) {
           let s = Uc(n);
           return s & 2 ? s & 65536 ? iye(n) || mQ(n) : n.links.writeType || n.links.type : n.flags & 4 ? l0(vr(n), !!(n.flags & 16777216)) : n.flags & 98304 ? s & 1 ? rye(n) : _Q(n) : vr(n);
         }
@@ -30796,7 +30796,7 @@ ${Ht.join(`
         }
         function r5e(n) {
           let s = Nl(n);
-          return s ? rB(s) : !b0(n);
+          return s ? rB(s) : !T0(n);
         }
         function q_t(n) {
           let s = $_(n), l = Mv(n);
@@ -30920,7 +30920,7 @@ ${Ht.join(`
                 _ === !Ae && wI(Y) && f5e(n, h, b, Y);
               }
             }
-            let j = G0(h, b);
+            let j = Y0(h, b);
             if (n.flags & 33554432 && l.cjsExportMerged && n.declarations) for (let G of n.declarations) {
               let Y = Zr(G.symbol)[s];
               if (!j) {
@@ -31034,12 +31034,12 @@ ${Ht.join(`
               let j = [], G = /* @__PURE__ */ new Set();
               for (let te = 0; te < w.length; te++) {
                 let Ae = w[te];
-                h0(G, Ae) || j.push(te);
+                g0(G, Ae) || j.push(te);
               }
               let Y = /* @__PURE__ */ new Map();
               for (let te of j) {
                 let Ae = Y.get(w[te]) ?? 1, ke;
-                for (; !h0(G, ke = `${w[te]}_${Ae}`); ) Ae++;
+                for (; !g0(G, ke = `${w[te]}_${Ae}`); ) Ae++;
                 w[te] = ke, Y.set(w[te], Ae + 1);
               }
             }
@@ -31053,7 +31053,7 @@ ${Ht.join(`
           for (let te of l) {
             let Ae = dg(te.typeParameters), ke = Ve(te.typeParameters);
             if (w || G >= Ae && G <= ke) {
-              let rt = ke ? SQ(te, ov(j, te.typeParameters, Ae, w)) : A7(te);
+              let rt = ke ? SQ(te, cv(j, te.typeParameters, Ae, w)) : A7(te);
               rt.typeParameters = n.localTypeParameters, rt.resolvedReturnType = n, rt.flags = h ? rt.flags | 4 : rt.flags & -5, Y.push(rt);
             }
           }
@@ -31207,7 +31207,7 @@ ${Ht.join(`
         function lpt(n) {
           if (n.target) {
             zd(n, L, ae, ae, ae);
-            let w = i5e(sv(n.target), n.mapper, false), j = BQ(ns(n.target, 0), n.mapper), G = BQ(ns(n.target, 1), n.mapper), Y = zRe(rf(n.target), n.mapper);
+            let w = i5e(ov(n.target), n.mapper, false), j = BQ(ns(n.target, 0), n.mapper), G = BQ(ns(n.target, 1), n.mapper), Y = zRe(rf(n.target), n.mapper);
             zd(n, w, j, G, Y);
             return;
           }
@@ -31294,7 +31294,7 @@ ${Ht.join(`
         function ppt(n) {
           let s = _s(), l;
           zd(n, L, ae, ae, ae);
-          let _ = _m(n), h = jp(n), b = n.target || n, w = av(b), j = E7(b) !== 2, G = iy(b), Y = jf(TT(n)), te = pg(n);
+          let _ = _m(n), h = jp(n), b = n.target || n, w = sv(b), j = E7(b) !== 2, G = iy(b), Y = jf(TT(n)), te = pg(n);
           EI(n) ? uye(Y, 8576, false, ke) : dk(aB(h), ke), zd(n, s, ae, ae, l || ae);
           function ke(xt) {
             let Pt = w ? aa(w, M7(n.mapper, _, xt)) : xt;
@@ -31330,7 +31330,7 @@ ${Ht.join(`
         function jp(n) {
           return n.constraintType || (n.constraintType = Zf(_m(n)) || st);
         }
-        function av(n) {
+        function sv(n) {
           return n.declaration.nameType ? n.nameType || (n.nameType = aa(Ki(n.declaration.nameType), n.mapper)) : void 0;
         }
         function iy(n) {
@@ -31374,19 +31374,19 @@ ${Ht.join(`
           if (Kr(n) & 32) {
             let s = jp(n);
             if (sk(s)) return true;
-            let l = av(n);
+            let l = sv(n);
             if (l && sk(aa(l, ox(_m(n), s)))) return true;
           }
           return false;
         }
         function E7(n) {
-          let s = av(n);
+          let s = sv(n);
           return s ? ls(s, _m(n)) ? 1 : 2 : 0;
         }
         function Wm(n) {
           return n.members || (n.flags & 524288 ? n.objectFlags & 4 ? Q_t(n) : n.objectFlags & 3 ? K_t(n) : n.objectFlags & 1024 ? _pt(n) : n.objectFlags & 16 ? lpt(n) : n.objectFlags & 32 ? ppt(n) : D.fail("Unhandled object type " + D.formatObjectFlags(n.objectFlags)) : n.flags & 1048576 ? spt(n) : n.flags & 2097152 ? cpt(n) : D.fail("Unhandled type " + D.formatTypeFlags(n.flags))), n;
         }
-        function sv(n) {
+        function ov(n) {
           return n.flags & 524288 ? Wm(n).properties : ae;
         }
         function tx(n, s) {
@@ -31410,7 +31410,7 @@ ${Ht.join(`
           return n.resolvedProperties;
         }
         function Co(n) {
-          return n = m6(n), n.flags & 3145728 ? sB(n) : sv(n);
+          return n = m6(n), n.flags & 3145728 ? sB(n) : ov(n);
         }
         function hpt(n, s) {
           n = m6(n), n.flags & 3670016 && Wm(n).members.forEach((l, _) => {
@@ -31654,21 +31654,21 @@ ${Ht.join(`
                 te && Ym(Vi) ? rt |= 8 : !te && !Ym(Vi) && (rt &= -9), rt |= (Ha & 6 ? 0 : 256) | (Ha & 4 ? 512 : 0) | (Ha & 2 ? 1024 : 0) | (Ha & 256 ? 2048 : 0), _ve(Vi) || (ke = 2);
               } else if (te) {
                 let go = !w7(s) && jw(ui, s);
-                go ? (w = w & -98305 | 4, rt |= 32 | (go.isReadonly ? 8 : 0), Y = Hn(Y, Ys(ui) ? QQ(ui) || be : go.type)) : fv(ui) && !(Kr(ui) & 2097152) ? (rt |= 32, Y = Hn(Y, be)) : rt |= 16;
+                go ? (w = w & -98305 | 4, rt |= 32 | (go.isReadonly ? 8 : 0), Y = Hn(Y, Ys(ui) ? QQ(ui) || be : go.type)) : _v(ui) && !(Kr(ui) & 2097152) ? (rt |= 32, Y = Hn(Y, be)) : rt |= 16;
               }
             }
           }
           if (!j || te && (G || rt & 48) && rt & 1536 && !(G && wpt(G.values()))) return;
           if (!G && !(rt & 16) && !Y) if (xt) {
             let sa = (_ = li(j, Ig)) == null ? void 0 : _.links, ui = uk(j, sa?.type);
-            return ui.parent = (b = (h = j.valueDeclaration) == null ? void 0 : h.symbol) == null ? void 0 : b.parent, ui.links.containingType = n, ui.links.mapper = sa?.mapper, ui.links.writeType = iv(j), ui;
+            return ui.parent = (b = (h = j.valueDeclaration) == null ? void 0 : h.symbol) == null ? void 0 : b.parent, ui.links.containingType = n, ui.links.mapper = sa?.mapper, ui.links.writeType = av(j), ui;
           } else return j;
           let Pt = G ? Aa(G.values()) : [j], tn, Cn, sr, Tr = [], wn, xn, Cr = false;
           for (let sa of Pt) {
             xn ? sa.valueDeclaration && sa.valueDeclaration !== xn && (Cr = true) : xn = sa.valueDeclaration, tn = ni(tn, sa.declarations);
             let ui = vr(sa);
             Cn || (Cn = ui, sr = Zr(sa).nameType);
-            let Vi = iv(sa);
+            let Vi = av(sa);
             (wn || Vi !== ui) && (wn = Hn(wn || Tr.slice(), Vi)), ui !== Cn && (rt |= 64), (z7(ui) || ik(ui)) && (rt |= 128), ui.flags & 131072 && ui !== Lo && (rt |= 131072), Tr.push(ui);
           }
           ni(Tr, Y);
@@ -31768,7 +31768,7 @@ ${Ht.join(`
               var b;
               return !!((b = h.symbol) != null && b.parent) && Dpt(h.symbol.parent) && (_ ? _ === h.symbol.escapedName : (_ = h.symbol.escapedName, true));
             })) {
-              let h = Cc(n, (w) => lv((P5e(w.symbol.parent) ? Vs : no).typeParameters[0], w.mapper)), b = af(h, yd(n, (w) => P5e(w.symbol.parent)));
+              let h = Cc(n, (w) => uv((P5e(w.symbol.parent) ? Vs : no).typeParameters[0], w.mapper)), b = af(h, yd(n, (w) => P5e(w.symbol.parent)));
               return n.arrayFallbackSignatures = ns(Tn(b, _), s);
             }
             n.arrayFallbackSignatures = l;
@@ -31855,7 +31855,7 @@ ${Ht.join(`
           if (n) for (let l = 0; l < n.length; l++) C5e(n[l]) || (s = l + 1);
           return s;
         }
-        function ov(n, s, l, _) {
+        function cv(n, s, l, _) {
           let h = Ve(s);
           if (!h) return [];
           let b = Ve(n);
@@ -31875,7 +31875,7 @@ ${Ht.join(`
           let s = qr(n);
           if (!s.resolvedSignature) {
             let l = [], _ = 0, h = 0, b, w = Er(n) ? A5(n) : void 0, j = false, G = p1(n), Y = rC(n);
-            !G && Er(n) && Wx(n) && !Jre(n) && !bt(n.parameters, (xt) => !!y0(xt)) && !y0(n) && !xZ(n) && (_ |= 32);
+            !G && Er(n) && Wx(n) && !Jre(n) && !bt(n.parameters, (xt) => !!v0(xt)) && !v0(n) && !xZ(n) && (_ |= 32);
             for (let xt = Y ? 1 : 0; xt < n.parameters.length; xt++) {
               let Pt = n.parameters[xt];
               if (Er(Pt) && X$(Pt)) {
@@ -31890,13 +31890,13 @@ ${Ht.join(`
               Pt && (b = Lw(Pt));
             }
             w && w.typeExpression && (b = uk($s(1, "this"), Ki(w.typeExpression)));
-            let Ae = F0(n) ? g1(n) : n, ke = Ae && Rc(Ae) ? pd(oo(Ae.parent.symbol)) : void 0, rt = ke ? ke.localTypeParameters : O5e(n);
+            let Ae = R0(n) ? g1(n) : n, ke = Ae && Rc(Ae) ? pd(oo(Ae.parent.symbol)) : void 0, rt = ke ? ke.localTypeParameters : O5e(n);
             (Tz(n) || Er(n) && Ppt(n, l)) && (_ |= 1), (cE(n) && gi(n, 64) || Rc(n) && gi(n.parent, 64)) && (_ |= 4), s.resolvedSignature = Oh(n, rt, b, l, void 0, void 0, h, _);
           }
           return s.resolvedSignature;
         }
         function Ppt(n, s) {
-          if (F0(n) || !Sye(n)) return false;
+          if (R0(n) || !Sye(n)) return false;
           let l = nc(n.parameters), _ = l ? CA(l) : u1(n).filter(Cp), h = an(_, (w) => w.typeExpression && JL(w.typeExpression.type) ? w.typeExpression.type : void 0), b = $s(3, "args", 32768);
           return h ? b.links.type = af(Ki(h.type)) : (b.links.checkFlags |= 65536, b.links.deferralParent = Sn, b.links.deferralConstituents = [Eu], b.links.deferralWriteConstituents = [Eu]), h && s.pop(), s.push(b), true;
         }
@@ -32025,7 +32025,7 @@ ${Ht.join(`
         function II(n) {
           if (n.kind === 177) return pd(oo(n.parent.symbol));
           let s = $_(n);
-          if (F0(n)) {
+          if (R0(n)) {
             let l = VA(n);
             if (l && Rc(l.parent) && !s) return pd(oo(l.parent.parent.symbol));
           }
@@ -32052,7 +32052,7 @@ ${Ht.join(`
           }
         }
         function P7(n, s, l, _) {
-          let h = xye(n, ov(s, n.typeParameters, dg(n.typeParameters), l));
+          let h = xye(n, cv(s, n.typeParameters, dg(n.typeParameters), l));
           if (_) {
             let b = pMe(ho(h));
             if (b) {
@@ -32244,7 +32244,7 @@ ${Ht.join(`
           }
           return n.resolvedTypeArguments;
         }
-        function cv(n) {
+        function lv(n) {
           return Ve(n.target.typeParameters);
         }
         function z5e(n, s) {
@@ -32256,7 +32256,7 @@ ${Ht.join(`
               if (nt(n, te, Ae, b, _.length), !w) return st;
             }
             if (n.kind === 184 && _Re(n, Ve(n.typeArguments) !== _.length)) return kye(l, n, void 0);
-            let G = la(l.outerTypeParameters, ov(fB(n), _, b, w));
+            let G = la(l.outerTypeParameters, cv(fB(n), _, b, w));
             return t0(l, G);
           }
           return kT(n, s) ? l : st;
@@ -32268,7 +32268,7 @@ ${Ht.join(`
             if (Y !== void 0 && s && s.length === 1) return Y === 4 ? Cye(s[0]) : Jw(n, s[0]);
           }
           let b = Zr(n), w = b.typeParameters, j = qd(s) + nk(l, _), G = b.instantiations.get(j);
-          return G || b.instantiations.set(j, G = XRe(h, cp(w, ov(s, w, dg(w), Er(n.valueDeclaration))), l, _)), G;
+          return G || b.instantiations.set(j, G = XRe(h, cp(w, cv(s, w, dg(w), Er(n.valueDeclaration))), l, _)), G;
         }
         function Wpt(n, s) {
           if (Uc(s) & 1048576) {
@@ -32640,7 +32640,7 @@ ${Ht.join(`
           return Pn ?? (Pn = Qc("ClassFieldDecoratorContext", 2, n)) ?? rn;
         }
         function vdt() {
-          return W0 || (W0 = Iye("NaN", false));
+          return z0 || (z0 = Iye("NaN", false));
         }
         function bdt() {
           return Yf || (Yf = PQ("Record", 2, true) || ie), Yf === ie ? void 0 : Yf;
@@ -32801,7 +32801,7 @@ ${Ht.join(`
                 var wn;
                 return rt(sr, Pt.target.elementFlags[Tr], (wn = Pt.target.labeledElementDeclarations) == null ? void 0 : wn[Tr]);
               });
-            } else rt(uv(Pt) && ST(Pt, on) || st, 4, (h = n.labeledElementDeclarations) == null ? void 0 : h[xt]);
+            } else rt(fv(Pt) && ST(Pt, on) || st, 4, (h = n.labeledElementDeclarations) == null ? void 0 : h[xt]);
             else rt(Pt, tn, (b = n.labeledElementDeclarations) == null ? void 0 : b[xt]);
           }
           for (let xt = 0; xt < Y; xt++) j[xt] & 2 && (j[xt] = 1);
@@ -32813,7 +32813,7 @@ ${Ht.join(`
           }
         }
         function T6(n, s, l = 0) {
-          let _ = n.target, h = cv(n) - l;
+          let _ = n.target, h = lv(n) - l;
           return s > _.fixedLength ? _ht(n) || mg(ae) : mg(sc(n).slice(s, h), _.elementFlags.slice(s, h), false, _.labeledElementDeclarations && _.labeledElementDeclarations.slice(s, h));
         }
         function dRe(n) {
@@ -32830,7 +32830,7 @@ ${Ht.join(`
           return n.fixedLength + F7(n, 3);
         }
         function ix(n) {
-          let s = sc(n), l = cv(n);
+          let s = sc(n), l = lv(n);
           return s.length === l ? s : s.slice(0, l);
         }
         function Adt(n) {
@@ -33170,7 +33170,7 @@ ${Ht.join(`
           return s & 1 ? n.resolvedStringIndexType || (n.resolvedStringIndexType = SRe(n, 1)) : n.resolvedIndexType || (n.resolvedIndexType = SRe(n, 0));
         }
         function kRe(n, s) {
-          let l = _m(n), _ = jp(n), h = av(n.target || n);
+          let l = _m(n), _ = jp(n), h = sv(n.target || n);
           if (!h && !(s & 2)) return _;
           let b = [];
           if (sk(_)) {
@@ -33190,7 +33190,7 @@ ${Ht.join(`
         }
         function qdt(n) {
           let s = _m(n);
-          return l(av(n) || s);
+          return l(sv(n) || s);
           function l(_) {
             return _.flags & 470810623 ? true : _.flags & 16777216 ? _.root.isDistributive && _.checkType === s : _.flags & 137363456 ? jn(_.types, l) : _.flags & 8388608 ? l(_.objectType) && l(_.indexType) : _.flags & 33554432 ? l(_.baseType) && l(_.constraint) : _.flags & 268435456 ? l(_.type) : false;
           }
@@ -33367,7 +33367,7 @@ ${Ht.join(`
                 }
                 if (b & 8 && (qr(h).resolvedSymbol = Y), Z9e(w, Y)) return Nt;
               }
-              let te = b & 4 ? iv(Y) : vr(Y);
+              let te = b & 4 ? av(Y) : vr(Y);
               return w && Gv(w) !== 1 ? u0(w, te) : h && vS(h) && $7(te) ? bi([te, be]) : te;
             }
             if (P_(s, Ys) && Jg(j)) {
@@ -33376,7 +33376,7 @@ ${Ht.join(`
                 let Ae = qye(h);
                 if (Ys(s)) {
                   if (te < 0) return nt(Ae, d.A_tuple_type_cannot_be_indexed_with_a_negative_value), be;
-                  nt(Ae, d.Tuple_type_0_of_length_1_has_no_element_at_index_2, fr(s), cv(s), $i(j));
+                  nt(Ae, d.Tuple_type_0_of_length_1_has_no_element_at_index_2, fr(s), lv(s), $i(j));
                 } else nt(Ae, d.Property_0_does_not_exist_on_type_1, $i(j), fr(s));
               }
               if (te >= 0) return G(ay(s, on)), vLe(s, te, b & 1 ? He : void 0);
@@ -33399,7 +33399,7 @@ ${Ht.join(`
             if (l.flags & 131072) return Sn;
             if (R7(s)) return Ge;
             if (w && !WZ(s)) {
-              if (fv(s)) {
+              if (_v(s)) {
                 if (Se && l.flags & 384) return io.add(Ar(w, d.Property_0_does_not_exist_on_type_1, l.value, fr(s))), be;
                 if (l.flags & 12) {
                   let te = vn(s.properties, (Ae) => vr(Ae));
@@ -33421,7 +33421,7 @@ ${Ht.join(`
                     let ke;
                     if (l.flags & 1024) ke = $a(void 0, d.Property_0_does_not_exist_on_type_1, "[" + fr(l) + "]", fr(s));
                     else if (l.flags & 8192) {
-                      let rt = K0(l.symbol, w);
+                      let rt = Q0(l.symbol, w);
                       ke = $a(void 0, d.Property_0_does_not_exist_on_type_1, "[" + rt + "]", fr(s));
                     } else l.flags & 128 || l.flags & 256 ? ke = $a(void 0, d.Property_0_does_not_exist_on_type_1, l.value, fr(s)) : l.flags & 12 && (ke = $a(void 0, d.No_index_signature_with_a_parameter_of_type_0_was_found_on_type_1, fr(l), fr(s)));
                     ke = $a(ke, d.Element_implicitly_has_an_any_type_because_expression_of_type_0_can_t_be_used_to_index_type_1, fr(_), fr(s)), io.add(Pg(zn(w), w, ke));
@@ -33431,7 +33431,7 @@ ${Ht.join(`
               return;
             }
           }
-          if (b & 16 && fv(s)) return be;
+          if (b & 16 && _v(s)) return be;
           if (R7(s)) return Ge;
           if (h) {
             let Y = qye(h);
@@ -33634,7 +33634,7 @@ ${Ht.join(`
             if (Y.flags & 16777216 && te) {
               let Ae = Y.root;
               if (Ae.outerTypeParameters) {
-                let ke = wT(Y.mapper, te), rt = vn(Ae.outerTypeParameters, (tn) => lv(tn, ke)), xt = cp(Ae.outerTypeParameters, rt), Pt = Ae.isDistributive ? lv(Ae.checkType, xt) : void 0;
+                let ke = wT(Y.mapper, te), rt = vn(Ae.outerTypeParameters, (tn) => uv(tn, ke)), xt = cp(Ae.outerTypeParameters, rt), Pt = Ae.isDistributive ? uv(Ae.checkType, xt) : void 0;
                 if (!Pt || Pt === Ae.checkType || !(Pt.flags & 1179648)) return n = Ae, s = xt, _ = void 0, h = void 0, Ae.aliasSymbol && j++, true;
               }
             }
@@ -33691,7 +33691,7 @@ ${Ht.join(`
               let j = MRe(n.qualifier), G = w, Y;
               for (; Y = j.shift(); ) {
                 let te = j.length ? 1920 : _, Ae = oo(bl(G)), ke = n.isTypeOf || Er(n) && b ? Cs(vr(Ae), Y.escapedText, false, true) : void 0, xt = (n.isTypeOf ? void 0 : Du(ip(Ae), Y.escapedText, te)) ?? ke;
-                if (!xt) return nt(Y, d.Namespace_0_has_no_exported_member_1, K0(G), Bo(Y)), l.resolvedType = st;
+                if (!xt) return nt(Y, d.Namespace_0_has_no_exported_member_1, Q0(G), Bo(Y)), l.resolvedType = st;
                 qr(Y).resolvedSymbol = xt, qr(Y.parent).resolvedSymbol = xt, G = xt;
               }
               l.resolvedType = BRe(n, l, G, _);
@@ -33998,7 +33998,7 @@ ${Ht.join(`
         function cp(n, s) {
           return n.length === 1 ? ox(n[0], s ? s[0] : Ge) : VRe(n, s);
         }
-        function lv(n, s) {
+        function uv(n, s) {
           switch (s.kind) {
             case 0:
               return n === s.source ? s.target : n;
@@ -34016,8 +34016,8 @@ ${Ht.join(`
               return s.func(n);
             case 4:
             case 5:
-              let l = lv(n, s.mapper1);
-              return l !== n && s.kind === 4 ? aa(l, s.mapper2) : lv(l, s.mapper2);
+              let l = uv(n, s.mapper1);
+              return l !== n && s.kind === 4 ? aa(l, s.mapper2) : uv(l, s.mapper2);
           }
         }
         function ox(n, s) {
@@ -34096,7 +34096,7 @@ ${Ht.join(`
             j = (w.objectFlags & 8388612 || w.symbol.flags & 8192 || w.symbol.flags & 2048) && !w.aliasTypeArguments ? Nn(j, (te) => bt(Y, (Ae) => TB(te, Ae))) : j, b.outerTypeParameters = j;
           }
           if (j.length) {
-            let G = wT(n.mapper, s), Y = vn(j, (xt) => lv(xt, G)), te = l || n.aliasSymbol, Ae = l ? _ : a0(n.aliasTypeArguments, s), ke = qd(Y) + nk(te, Ae);
+            let G = wT(n.mapper, s), Y = vn(j, (xt) => uv(xt, G)), te = l || n.aliasSymbol, Ae = l ? _ : a0(n.aliasTypeArguments, s), ke = qd(Y) + nk(te, Ae);
             w.instantiations || (w.instantiations = /* @__PURE__ */ new Map(), w.instantiations.set(qd(j) + nk(w.aliasSymbol, w.aliasTypeArguments), w));
             let rt = w.instantiations.get(ke);
             if (!rt) {
@@ -34200,9 +34200,9 @@ ${Ht.join(`
         function a0e(n, s, l, _, h) {
           let b = n.root;
           if (b.outerTypeParameters) {
-            let w = vn(b.outerTypeParameters, (Y) => lv(Y, s)), j = (l ? "C" : "") + qd(w) + nk(_, h), G = b.instantiations.get(j);
+            let w = vn(b.outerTypeParameters, (Y) => uv(Y, s)), j = (l ? "C" : "") + qd(w) + nk(_, h), G = b.instantiations.get(j);
             if (!G) {
-              let Y = cp(b.outerTypeParameters, w), te = b.checkType, Ae = b.isDistributive ? $d(lv(te, Y)) : void 0;
+              let Y = cp(b.outerTypeParameters, w), te = b.checkType, Ae = b.isDistributive ? $d(uv(te, Y)) : void 0;
               G = Ae && te !== Ae && Ae.flags & 1179648 ? XLe(Ae, (ke) => Gye(b, ok(te, ke, Y), l), _, h) : Gye(b, Y, l, _, h), b.instantiations.set(j, G);
             }
             return G;
@@ -34226,7 +34226,7 @@ ${Ht.join(`
         }
         function kmt(n, s, l, _) {
           let h = n.flags;
-          if (h & 262144) return lv(n, s);
+          if (h & 262144) return uv(n, s);
           if (h & 524288) {
             let b = n.objectFlags;
             if (b & 52) {
@@ -34911,7 +34911,7 @@ ${Ht.join(`
             }
             if (l === g_ && !(ar.flags & 131072) && W7(ar, hn, l) || W7(hn, ar, l, qt ? pa : void 0)) return -1;
             if (hn.flags & 469499904 || ar.flags & 469499904) {
-              if (!(Gt & 2) && fv(hn) && Kr(hn) & 8192 && Su(hn, ar, qt)) return qt && xf(pn, hn, Ke.aliasSymbol ? Ke : ar), 0;
+              if (!(Gt & 2) && _v(hn) && Kr(hn) & 8192 && Su(hn, ar, qt)) return qt && xf(pn, hn, Ke.aliasSymbol ? Ke : ar), 0;
               let Ur = (l !== g_ || Vm(hn)) && !(Gt & 2) && hn.flags & 405405692 && hn !== Kt && ar.flags & 2621440 && p0e(ar) && (Co(hn).length > 0 || cee(hn)), Si = !!(Kr(hn) & 2048);
               if (Ur && !Hmt(hn, ar, Si)) {
                 if (qt) {
@@ -35157,7 +35157,7 @@ ${Ht.join(`
                 let hn = Spt(Re.flags & 2097152 ? Re.types : [Re], !!(Ke.flags & 1048576));
                 hn && P_(hn, (ar) => ar !== Re) && (Gt = Sr(hn, Ke, 1, false, void 0, qt));
               }
-              Gt && !(qt & 2) && Ke.flags & 2097152 && !ak(Ke) && Re.flags & 2621440 ? (Gt &= Fs(Re, Ke, _t, void 0, false, 0), Gt && fv(Re) && Kr(Re) & 8192 && (Gt &= je(Re, Ke, false, _t, 0))) : Gt && LQ(Ke) && !ET(Ke) && Re.flags & 2097152 && jf(Re).flags & 3670016 && !bt(Re.types, (hn) => hn === Ke || !!(Kr(hn) & 262144)) && (Gt &= Fs(Re, Ke, _t, void 0, true, qt));
+              Gt && !(qt & 2) && Ke.flags & 2097152 && !ak(Ke) && Re.flags & 2621440 ? (Gt &= Fs(Re, Ke, _t, void 0, false, 0), Gt && _v(Re) && Kr(Re) & 8192 && (Gt &= je(Re, Ke, false, _t, 0))) : Gt && LQ(Ke) && !ET(Ke) && Re.flags & 2097152 && jf(Re).flags & 3670016 && !bt(Re.types, (hn) => hn === Ke || !!(Kr(hn) & 262144)) && (Gt &= Fs(Re, Ke, _t, void 0, true, qt));
             }
             return Gt && ui(pn), Gt;
           }
@@ -35191,7 +35191,7 @@ ${Ht.join(`
             if (wr & 17301504 && Re.aliasSymbol && Re.aliasTypeArguments && Re.aliasSymbol === Ke.aliasSymbol && !($Q(Re) || $Q(Ke))) {
               let ur = lLe(Re.aliasSymbol);
               if (ur === ae) return 1;
-              let Pi = Zr(Re.aliasSymbol).typeParameters, wa = dg(Pi), ro = ov(Re.aliasTypeArguments, Pi, wa, Er(Re.aliasSymbol.valueDeclaration)), bn = ov(Ke.aliasTypeArguments, Pi, wa, Er(Re.aliasSymbol.valueDeclaration)), $r = di(ro, bn, ur, qt);
+              let Pi = Zr(Re.aliasSymbol).typeParameters, wa = dg(Pi), ro = cv(Re.aliasTypeArguments, Pi, wa, Er(Re.aliasSymbol.valueDeclaration)), bn = cv(Ke.aliasTypeArguments, Pi, wa, Er(Re.aliasSymbol.valueDeclaration)), $r = di(ro, bn, ur, qt);
               if ($r !== void 0) return $r;
             }
             if (yLe(Re) && !Re.target.readonly && (Gt = Sr(sc(Re)[0], Ke, 1)) || yLe(Ke) && (Ke.target.readonly || EB(Wu(Re) || Re)) && (Gt = Sr(Re, sc(Ke)[0], 2))) return Gt;
@@ -35218,7 +35218,7 @@ ${Ht.join(`
                 if (Pi) {
                   if (Sr(Re, Rh(Pi, Ke.indexFlags | 4), 2, _t) === -1) return -1;
                 } else if (b_(ur)) {
-                  let wa = av(ur), ro = jp(ur), bn;
+                  let wa = sv(ur), ro = jp(ur), bn;
                   if (wa && EI(ur)) {
                     let $r = yp(wa, ur);
                     bn = bi([$r, wa]);
@@ -35247,7 +35247,7 @@ ${Ht.join(`
               if (!(wa & 8)) {
                 if (!ur && Pi.flags & 8388608 && Pi.objectType === Re && Pi.indexType === _m(Ke)) return -1;
                 if (!b_(Re)) {
-                  let ro = ur ? av(Ke) : jp(Ke), bn = Rh(Re, 2), $r = wa & 4, Ma = $r ? iB(ro, bn) : void 0;
+                  let ro = ur ? sv(Ke) : jp(Ke), bn = Rh(Re, 2), $r = wa & 4, Ma = $r ? iB(ro, bn) : void 0;
                   if ($r ? !(Ma.flags & 131072) : Sr(ro, bn, 3)) {
                     let ya = iy(Ke), Ks = _m(Ke), yo = E6(ya, -98305);
                     if (!ur && yo.flags & 8388608 && yo.indexType === Ks) {
@@ -35288,7 +35288,7 @@ ${Ht.join(`
               let ur = Vye(Re.type, Re.indexFlags) && Kr(Re.type) & 32;
               if (Gt = Sr(Di, Ke, 1, _t && !ur)) return Gt;
               if (ur) {
-                let Pi = Re.type, wa = av(Pi), ro = wa && EI(Pi) ? yp(wa, Pi) : wa || jp(Pi);
+                let Pi = Re.type, wa = sv(Pi), ro = wa && EI(Pi) ? yp(wa, Pi) : wa || jp(Pi);
                 if (Gt = Sr(ro, Ke, 1, _t)) return Gt;
               }
             } else if (wr & 134217728 && !(Ur & 524288)) {
@@ -35371,7 +35371,7 @@ ${Ht.join(`
               let pn, Gt = jp(Ke), hn = aa(jp(Re), d6(Re) < 0 ? ec : wl);
               if (pn = Sr(Gt, hn, 3, _t)) {
                 let ar = cp([_m(Re)], [_m(Ke)]);
-                if (aa(av(Re), ar) === aa(av(Ke), ar)) return pn & Sr(aa(iy(Re), ar), iy(Ke), 3, _t);
+                if (aa(sv(Re), ar) === aa(sv(Ke), ar)) return pn & Sr(aa(iy(Re), ar), iy(Ke), 3, _t);
               }
             }
             return 0;
@@ -35450,7 +35450,7 @@ ${Ht.join(`
             if (Ys(Ke)) {
               if (ET(Re)) {
                 if (!Ke.target.readonly && (x6(Re) || Ys(Re) && Re.target.readonly)) return 0;
-                let di = cv(Re), ur = cv(Ke), Pi = Ys(Re) ? Re.target.combinedFlags & 4 : 4, wa = !!(Ke.target.combinedFlags & 12), ro = Ys(Re) ? Re.target.minLength : 0, bn = Ke.target.minLength;
+                let di = lv(Re), ur = lv(Ke), Pi = Ys(Re) ? Re.target.combinedFlags & 4 : 4, wa = !!(Ke.target.combinedFlags & 12), ro = Ys(Re) ? Re.target.minLength : 0, bn = Ke.target.minLength;
                 if (!Pi && di < bn) return _t && pa(d.Source_has_0_element_s_but_target_requires_1, di, bn), 0;
                 if (!wa && ur < ro) return _t && pa(d.Source_has_0_element_s_but_target_allows_only_1, ro, ur), 0;
                 if (!wa && (Pi || ur < di)) return _t && (ro < bn ? pa(d.Target_requires_0_element_s_but_source_may_have_fewer, bn) : pa(d.Target_allows_only_0_element_s_but_source_may_have_more, ur)), 0;
@@ -35469,9 +35469,9 @@ ${Ht.join(`
               }
               if (Ke.target.combinedFlags & 12) return 0;
             }
-            let ar = (l === sg || l === dc) && !fv(Re) && !XQ(Re) && !Ys(Re), wr = N0e(Re, Ke, ar, false);
+            let ar = (l === sg || l === dc) && !_v(Re) && !XQ(Re) && !Ys(Re), wr = N0e(Re, Ke, ar, false);
             if (wr) return _t && au(Re, Ke) && ki(Re, Ke, wr, ar), 0;
-            if (fv(Ke)) {
+            if (_v(Ke)) {
               for (let di of er(Co(Re), qt)) if (!tx(Ke, di.escapedName) && !(vr(di).flags & 32768)) return _t && pa(d.Property_0_does_not_exist_on_type_1, fa(di), fr(Ke)), 0;
             }
             let Ur = Co(Ke), Si = Ys(Re) && Ys(Ke);
@@ -35490,7 +35490,7 @@ ${Ht.join(`
           }
           function js(Re, Ke, _t) {
             if (!(Re.flags & 524288 && Ke.flags & 524288)) return 0;
-            let qt = er(sv(Re), _t), pn = er(sv(Ke), _t);
+            let qt = er(ov(Re), _t), pn = er(ov(Ke), _t);
             if (qt.length !== pn.length) return 0;
             let Gt = -1;
             for (let hn of qt) {
@@ -35541,7 +35541,7 @@ ${Ht.join(`
             return di;
           }
           function au(Re, Ke) {
-            let _t = lB(Re, 0), qt = lB(Re, 1), pn = sv(Re);
+            let _t = lB(Re, 0), qt = lB(Re, 1), pn = ov(Re);
             return (_t.length || qt.length) && !pn.length ? !!(ns(Ke, 0).length && _t.length || ns(Ke, 1).length && qt.length) : true;
           }
           function kf(Re, Ke) {
@@ -35569,7 +35569,7 @@ ${Ht.join(`
             return Gt;
           }
           function SJ(Re, Ke, _t, qt) {
-            let pn = -1, Gt = Ke.keyType, hn = Re.flags & 2097152 ? sB(Re) : sv(Re);
+            let pn = -1, Gt = Ke.keyType, hn = Re.flags & 2097152 ? sB(Re) : ov(Re);
             for (let ar of hn) if (!sLe(Re, ar) && Mw(Bw(ar, 8576), Gt)) {
               let wr = Jm(ar), Ur = Ie || wr.flags & 32768 || Gt === on || !(ar.flags & 16777216) ? wr : gd(wr, 524288), Si = Sr(Ur, Ke.type, 3, _t, void 0, qt);
               if (!Si) return _t && pa(d.Property_0_is_incompatible_with_index_signature, fa(ar)), 0;
@@ -35671,8 +35671,8 @@ ${Ht.join(`
           let h = Zr(n);
           if (!h.variances) {
             (l = Ir) == null || l.push(Ir.Phase.CheckTypes, "getVariancesWorker", { arity: s.length, id: bu(Yo(n)) });
-            let b = A2, w = z0;
-            A2 || (A2 = true, z0 = Gg.length), h.variances = ae;
+            let b = A2, w = V0;
+            A2 || (A2 = true, V0 = Gg.length), h.variances = ae;
             let j = [];
             for (let G of s) {
               let Y = m0e(G), te = Y & 16384 ? Y & 8192 ? 0 : 1 : Y & 8192 ? 2 : void 0;
@@ -35684,7 +35684,7 @@ ${Ht.join(`
               }
               j.push(te);
             }
-            b || (A2 = false, z0 = w), h.variances = j, (_ = Ir) == null || _.pop({ variances: j.map(D.formatVariance) });
+            b || (A2 = false, V0 = w), h.variances = j, (_ = Ir) == null || _.pop({ variances: j.map(D.formatVariance) });
           }
           return h.variances;
         }
@@ -35902,7 +35902,7 @@ ${Ht.join(`
         function IB(n) {
           return hd(n) ? sc(n)[0] : void 0;
         }
-        function uv(n) {
+        function fv(n) {
           return hd(n) || !(n.flags & 98304) && ls(n, tp);
         }
         function g0e(n) {
@@ -35931,10 +35931,10 @@ ${Ht.join(`
         }
         function k6(n) {
           let s;
-          return Ys(n) || !!Cs(n, "0") || uv(n) && !!(s = Tn(n, "length")) && P_(s, (l) => !!(l.flags & 256));
+          return Ys(n) || !!Cs(n, "0") || fv(n) && !!(s = Tn(n, "length")) && P_(s, (l) => !!(l.flags & 256));
         }
         function KQ(n) {
-          return uv(n) || k6(n);
+          return fv(n) || k6(n);
         }
         function oht(n, s) {
           let l = Tn(n, "" + s);
@@ -35985,7 +35985,7 @@ ${Ht.join(`
         }
         function T0e(n, s, l, _) {
           if (n && Vm(n)) {
-            let h = s ? pv(l, s, _) : void 0;
+            let h = s ? dv(l, s, _) : void 0;
             n = b0e(n, h);
           }
           return n;
@@ -36013,7 +36013,7 @@ ${Ht.join(`
           return s && af(s);
         }
         function C6(n, s, l = 0, _ = false, h = false) {
-          let b = cv(n) - l;
+          let b = lv(n) - l;
           if (s < b) {
             let w = sc(n), j = [];
             for (let G = s; G < b; G++) {
@@ -36024,7 +36024,7 @@ ${Ht.join(`
           }
         }
         function pht(n, s) {
-          return cv(n) === cv(s) && jn(n.target.elementFlags, (l, _) => (l & 12) === (s.target.elementFlags[_] & 12));
+          return lv(n) === lv(s) && jn(n.target.elementFlags, (l, _) => (l & 12) === (s.target.elementFlags[_] & 12));
         }
         function bLe({ value: n }) {
           return n.base10Value === "0";
@@ -36089,14 +36089,14 @@ ${Ht.join(`
         }
         function yht(n, s) {
           let l = _s();
-          for (let _ of sv(n)) {
+          for (let _ of ov(n)) {
             let h = vr(_), b = s(h);
             l.set(_.escapedName, b === h ? _ : uk(_, b));
           }
           return l;
         }
         function q7(n) {
-          if (!(fv(n) && Kr(n) & 8192)) return n;
+          if (!(_v(n) && Kr(n) & 8192)) return n;
           let s = n.regularType;
           if (s) return s;
           let l = n, _ = yht(n, q7), h = kc(l.symbol, _, l.callSignatures, l.constructSignatures, l.indexInfos);
@@ -36108,7 +36108,7 @@ ${Ht.join(`
         function kLe(n) {
           if (!n.siblings) {
             let s = [];
-            for (let l of kLe(n.parent)) if (fv(l)) {
+            for (let l of kLe(n.parent)) if (_v(l)) {
               let _ = tx(l, n.propertyName);
               _ && dk(vr(_), (h) => {
                 s.push(h);
@@ -36121,7 +36121,7 @@ ${Ht.join(`
         function vht(n) {
           if (!n.resolvedProperties) {
             let s = /* @__PURE__ */ new Map();
-            for (let l of kLe(n)) if (fv(l) && !(Kr(l) & 2097152)) for (let _ of Co(l)) s.set(_.escapedName, _);
+            for (let l of kLe(n)) if (_v(l) && !(Kr(l) & 2097152)) for (let _ of Co(l)) s.set(_.escapedName, _);
             n.resolvedProperties = Aa(s.values());
           }
           return n.resolvedProperties;
@@ -36139,7 +36139,7 @@ ${Ht.join(`
         }
         function Sht(n, s) {
           let l = _s();
-          for (let h of sv(n)) l.set(h.escapedName, bht(h, s));
+          for (let h of ov(n)) l.set(h.escapedName, bht(h, s));
           if (s) for (let h of vht(s)) l.has(h.escapedName) || l.set(h.escapedName, Tht(h));
           let _ = kc(n.symbol, l, ae, ae, po(rf(n), (h) => sy(h.keyType, lp(h.type), h.isReadonly, h.declaration, h.components)));
           return _.objectFlags |= Kr(n) & 266240, _;
@@ -36152,7 +36152,7 @@ ${Ht.join(`
             if (s === void 0 && n.widened) return n.widened;
             let l;
             if (n.flags & 98305) l = Ge;
-            else if (fv(n)) l = Sht(n, s);
+            else if (_v(n)) l = Sht(n, s);
             else if (n.flags & 1048576) {
               let _ = s || xLe(void 0, void 0, n.types), h = po(n.types, (b) => b.flags & 98304 ? b : S0e(b, _));
               l = bi(h, bt(h, s0) ? 2 : 1);
@@ -36168,7 +36168,7 @@ ${Ht.join(`
             if (n.flags & 1048576) if (bt(n.types, s0)) l = true;
             else for (let _ of n.types) l || (l = rZ(_));
             else if (ET(n)) for (let _ of sc(n)) l || (l = rZ(_));
-            else if (fv(n)) for (let _ of sv(n)) {
+            else if (_v(n)) for (let _ of ov(n)) {
               let h = vr(_);
               if (Kr(h) & 65536 && (l = rZ(h), !l)) {
                 let b = (s = _.declarations) == null ? void 0 : s.find((w) => {
@@ -36239,12 +36239,12 @@ ${Ht.join(`
           let _ = ho(l), h = ml(n);
           switch (s) {
             case 1:
-              return h & 1 ? _ = pv(1, _, !!(h & 2)) ?? _ : h & 2 && (_ = f0(_) ?? _), CT(_);
+              return h & 1 ? _ = dv(1, _, !!(h & 2)) ?? _ : h & 2 && (_ = f0(_) ?? _), CT(_);
             case 3:
-              let b = pv(0, _, !!(h & 2));
+              let b = dv(0, _, !!(h & 2));
               return !!b && CT(b);
             case 2:
-              let w = pv(2, _, !!(h & 2));
+              let w = dv(2, _, !!(h & 2));
               return !!w && CT(w);
           }
           return false;
@@ -36356,7 +36356,7 @@ ${Ht.join(`
           return Uu.set(_, h), h;
         }
         function I0e(n) {
-          return !(Kr(n) & 262144) || fv(n) && bt(Co(n), (s) => I0e(vr(s))) || Ys(n) && bt(ix(n), I0e);
+          return !(Kr(n) & 262144) || _v(n) && bt(Co(n), (s) => I0e(vr(s))) || Ys(n) && bt(ix(n), I0e);
         }
         function Dht(n, s, l) {
           if (!(ay(n, gt) || Co(n).length !== 0 && I0e(n))) return;
@@ -36505,7 +36505,7 @@ ${Ht.join(`
               }
               if (Xn.aliasSymbol && Xn.aliasSymbol === lr.aliasSymbol) {
                 if (Xn.aliasTypeArguments) {
-                  let Gi = Zr(Xn.aliasSymbol).typeParameters, Sr = dg(Gi), Fa = ov(Xn.aliasTypeArguments, Gi, Sr, Er(Xn.aliasSymbol.valueDeclaration)), So = ov(lr.aliasTypeArguments, Gi, Sr, Er(Xn.aliasSymbol.valueDeclaration));
+                  let Gi = Zr(Xn.aliasSymbol).typeParameters, Sr = dg(Gi), Fa = cv(Xn.aliasTypeArguments, Gi, Sr, Er(Xn.aliasSymbol.valueDeclaration)), So = cv(lr.aliasTypeArguments, Gi, Sr, Er(Xn.aliasSymbol.valueDeclaration));
                   sr(Fa, So, lLe(Xn.aliasSymbol));
                 }
                 return;
@@ -36709,7 +36709,7 @@ ${Ht.join(`
           }
           function Ha(Xn, lr) {
             ke(jp(Xn), jp(lr)), ke(iy(Xn), iy(lr));
-            let Gi = av(Xn), Sr = av(lr);
+            let Gi = sv(Xn), Sr = sv(lr);
             Gi && Sr && ke(Gi, Sr);
           }
           function go(Xn, lr) {
@@ -36725,7 +36725,7 @@ ${Ht.join(`
             if (!Fht(Xn, lr)) {
               if (ET(Xn)) {
                 if (Ys(lr)) {
-                  let Fa = cv(Xn), So = cv(lr), oc = sc(lr), Su = lr.target.elementFlags;
+                  let Fa = lv(Xn), So = lv(lr), oc = sc(lr), Su = lr.target.elementFlags;
                   if (Ys(Xn) && pht(Xn, lr)) {
                     for (let Sl = 0; Sl < So; Sl++) ke(sc(Xn)[Sl], oc[Sl]);
                     return;
@@ -36774,7 +36774,7 @@ ${Ht.join(`
             }
           }
           function pa(Xn, lr) {
-            let Gi = sv(lr);
+            let Gi = ov(lr);
             for (let Sr of Gi) {
               let Fa = Cs(Xn, Sr.escapedName);
               Fa && !bt(Fa.declarations, P0e) && ke(l0(vr(Fa), !!(Fa.flags & 16777216)), l0(vr(Sr), !!(Sr.flags & 16777216)));
@@ -36824,7 +36824,7 @@ ${Ht.join(`
           let s = Zf(n);
           return !!s && ol(s.flags & 16777216 ? _ye(s) : s, 406978556);
         }
-        function fv(n) {
+        function _v(n) {
           return !!(Kr(n) & 128);
         }
         function O0e(n) {
@@ -37015,7 +37015,7 @@ ${Ht.join(`
           if (Qr(n)) return n.name.escapedText;
           if (Uo(n)) return Vht(n);
           if (Hs(n)) {
-            let s = tv(n);
+            let s = nv(n);
             return s ? Oc(s) : void 0;
           }
           if (ra(n)) return "" + n.parent.parameters.indexOf(n);
@@ -37211,13 +37211,13 @@ ${Ht.join(`
           return Tn(n, h) || Y7((l = jw(n, h)) == null ? void 0 : l.type) || st;
         }
         function zLe(n, s) {
-          return P_(n, k6) && oht(n, s) || Y7(_v(65, n, be, void 0)) || st;
+          return P_(n, k6) && oht(n, s) || Y7(pv(65, n, be, void 0)) || st;
         }
         function Y7(n) {
           return n && (J.noUncheckedIndexedAccess ? bi([n, He]) : n);
         }
         function VLe(n) {
-          return af(_v(65, n, be, void 0) || st);
+          return af(pv(65, n, be, void 0) || st);
         }
         function Qht(n) {
           return n.parent.kind === 210 && V0e(n.parent) || n.parent.kind === 304 && V0e(n.parent.parent) ? z0e(FB(n), n.right) : Vu(n.right);
@@ -37273,7 +37273,7 @@ ${Ht.join(`
           return n.kind === 261 ? rgt(n) : ngt(n);
         }
         function igt(n) {
-          return n.kind === 261 && n.initializer && rv(n.initializer) || n.kind !== 209 && n.parent.kind === 227 && rv(n.parent.right);
+          return n.kind === 261 && n.initializer && iv(n.initializer) || n.kind !== 209 && n.parent.kind === 227 && iv(n.parent.right);
         }
         function ux(n) {
           switch (n.kind) {
@@ -37427,7 +37427,7 @@ ${Ht.join(`
           return _ || h;
         }
         function mgt(n) {
-          return (Ci(n) || Na(n) || Pf(n) || ra(n)) && !!(Nl(n) || Er(n) && b0(n) && n.initializer && tb(n.initializer) && $_(n.initializer));
+          return (Ci(n) || Na(n) || Pf(n) || ra(n)) && !!(Nl(n) || Er(n) && T0(n) && n.initializer && tb(n.initializer) && $_(n.initializer));
         }
         function fZ(n, s) {
           if (n = bl(n), n.flags & 8752) return vr(n);
@@ -37443,7 +37443,7 @@ ${Ht.join(`
                 let _ = l.parent.parent, h = LB(_.expression, void 0);
                 if (h) {
                   let b = _.awaitModifier ? 15 : 13;
-                  return _v(b, h, be, void 0);
+                  return pv(b, h, be, void 0);
                 }
               }
               s && ds(s, Ar(l, d._0_needs_an_explicit_type_annotation, fa(n)));
@@ -38167,7 +38167,7 @@ ${Ht.join(`
             let l = ZQ(uC(s) && s.kind === 212 ? IZ(s, void 0, true) : Vu(s));
             if (Ct(qr(s).resolvedSymbol) === n) return l;
           }
-          return Yh(s) && nh(s.parent) && ex(s.parent) ? _Q(s.parent.symbol) : NV(s) && uC(s.parent) ? iv(n) : Jm(n);
+          return Yh(s) && nh(s.parent) && ex(s.parent) ? _Q(s.parent.symbol) : NV(s) && uC(s.parent) ? av(n) : Jm(n);
         }
         function I6(n) {
           return On(n.parent, (s) => Xa(s) && !p1(s) || s.kind === 269 || s.kind === 308 || s.kind === 173);
@@ -38258,7 +38258,7 @@ ${Ht.join(`
           return !!s && (ra(s) || Ci(s) && (xS(s.parent) || i9e(s)));
         }
         function i9e(n) {
-          return !!(n.parent.flags & 1) && !(c1(n) & 32 || n.parent.parent.kind === 244 && T0(n.parent.parent.parent));
+          return !!(n.parent.flags & 1) && !(c1(n) & 32 || n.parent.parent.kind === 244 && S0(n.parent.parent.parent));
         }
         function Sgt(n) {
           let s = qr(n);
@@ -38391,7 +38391,7 @@ ${Ht.join(`
             let s = n.propertyName || n.name;
             if (s.kind === 11) return;
             let l = vt(s, s.escapedText, 2998271, void 0, true);
-            if (!(l && (l === de || l === Ze || l.declarations && T0(Lt(l.declarations[0]))))) {
+            if (!(l && (l === de || l === Ze || l.declarations && S0(Lt(l.declarations[0]))))) {
               let _ = l && (l.flags & 2097152 ? vu(l) : l);
               (!_ || v_(_) & 111551) && (d9e(n), mZ(s));
             }
@@ -38456,8 +38456,8 @@ ${Ht.join(`
           let l = Wf(n), _ = (n.kind === 80 ? 788968 : 1920) | 2097152, h = vt(l, l.escapedText, _, void 0, true);
           if (h && h.flags & 2097152) {
             if (Pe && In(h) && !yF(vu(h)) && !jm(h)) hZ(h);
-            else if (s && Nd(J) && Df(J) >= 5 && !In(h) && !bt(h.declarations, v0)) {
-              let b = nt(n, d.A_type_referenced_in_a_decorated_signature_must_be_imported_with_import_type_or_a_namespace_import_when_isolatedModules_and_emitDecoratorMetadata_are_enabled), w = $t(h.declarations || ae, Y0);
+            else if (s && Nd(J) && Df(J) >= 5 && !In(h) && !bt(h.declarations, b0)) {
+              let b = nt(n, d.A_type_referenced_in_a_decorated_signature_must_be_imported_with_import_type_or_a_namespace_import_when_isolatedModules_and_emitDecoratorMetadata_are_enabled), w = $t(h.declarations || ae, X0);
               w && ds(b, Ar(w, d._0_was_imported_here, Xr(l)));
             }
           }
@@ -38851,7 +38851,7 @@ ${Ht.join(`
         }
         function zgt(n, s) {
           let l = n.parent;
-          if (b0(l) && n === l.initializer) {
+          if (T0(l) && n === l.initializer) {
             let _ = tve(l, s);
             if (_) return _;
             if (!(s & 8) && Qa(l.name) && l.name.elements.length > 0) return l6(l.name, true, false);
@@ -38865,8 +38865,8 @@ ${Ht.join(`
               let h = ml(l);
               if (h & 1) {
                 let b = (h & 2) !== 0;
-                _.flags & 1048576 && (_ = El(_, (j) => !!pv(1, j, b)));
-                let w = pv(1, _, (h & 2) !== 0);
+                _.flags & 1048576 && (_ = El(_, (j) => !!dv(1, j, b)));
+                let w = dv(1, _, (h & 2) !== 0);
                 if (!w) return;
                 _ = w;
               }
@@ -38891,7 +38891,7 @@ ${Ht.join(`
             let _ = ml(l), h = yZ(l, s);
             if (h) {
               let b = (_ & 2) !== 0;
-              if (!n.asteriskToken && h.flags & 1048576 && (h = El(h, (w) => !!pv(1, w, b))), n.asteriskToken) {
+              if (!n.asteriskToken && h.flags & 1048576 && (h = El(h, (w) => !!dv(1, w, b))), n.asteriskToken) {
                 let w = _be(h, b), j = w?.yieldType ?? Ut, G = e_(n, s) ?? Ut, Y = w?.nextType ?? Ft, te = JZ(j, G, Y, false);
                 if (b) {
                   let Ae = JZ(j, G, Y, true);
@@ -38899,7 +38899,7 @@ ${Ht.join(`
                 }
                 return te;
               }
-              return pv(0, h, b);
+              return dv(0, h, b);
             }
           }
         }
@@ -38913,7 +38913,7 @@ ${Ht.join(`
         }
         function k9e(n, s) {
           let l = !!(ml(s) & 2), _ = yZ(s, void 0);
-          if (_) return pv(n, _, l) || void 0;
+          if (_) return dv(n, _, l) || void 0;
         }
         function yZ(n, s) {
           let l = II(n);
@@ -39147,7 +39147,7 @@ ${Ht.join(`
             if (Ys(b)) {
               if ((_ === void 0 || s < _) && s < b.target.fixedLength) return l0(sc(b)[s], !!b.target.elementFlags[s]);
               let w = l !== void 0 && (h === void 0 || s > h) ? l - s : 0, j = w > 0 && b.target.combinedFlags & 12 ? F7(b.target, 3) : 0;
-              return w > 0 && w <= j ? sc(b)[cv(b) - w] : C6(b, _ === void 0 ? b.target.fixedLength : Math.min(b.target.fixedLength, _), l === void 0 || h === void 0 ? j : Math.min(j, l - h), false, true);
+              return w > 0 && w <= j ? sc(b)[lv(b) - w] : C6(b, _ === void 0 ? b.target.fixedLength : Math.min(b.target.fixedLength, _), l === void 0 || h === void 0 ? j : Math.min(j, l - h), false, true);
             }
             return (!_ || s < _) && NT(b, "" + s) || obe(1, b, be, void 0, false);
           }, true);
@@ -39160,7 +39160,7 @@ ${Ht.join(`
           let _ = PT(n.openingElement.attributes, l), h = $B(hk(n));
           if (!(_ && !jr(_) && h && h !== "")) return;
           let b = HA(n.children), w = b.indexOf(s), j = NT(_, h);
-          return j && (b.length === 1 ? j : Cc(j, (G) => uv(G) ? op(G, zm(w)) : G, true));
+          return j && (b.length === 1 ? j : Cc(j, (G) => fv(G) ? op(G, zm(w)) : G, true));
         }
         function nyt(n, s) {
           let l = n.parent;
@@ -39402,7 +39402,7 @@ ${Ht.join(`
             if (!hr(w)) {
               let G = Ps(w.symbol), Y = ho(n), te;
               if (G) {
-                let Ae = ov([Y], G, dg(G), Er(s));
+                let Ae = cv([Y], G, dg(G), Er(s));
                 te = aa(w, cp(G, Ae));
               } else te = w;
               b = iB(te, b);
@@ -39500,7 +39500,7 @@ ${Ht.join(`
         function kyt(n, s) {
           $ < ou.SpreadElements && iu(n, J.downlevelIteration ? 1536 : 1024);
           let l = da(n.expression, s);
-          return _v(33, l, be, n.expression);
+          return pv(33, l, be, n.expression);
         }
         function Cyt(n) {
           return n.isSpread ? op(n.type, on) : n.type;
@@ -39521,11 +39521,11 @@ ${Ht.join(`
             if (rt.kind === 231) {
               $ < ou.SpreadElements && iu(rt, J.downlevelIteration ? 1536 : 1024);
               let xt = da(rt.expression, s, l);
-              if (uv(xt)) b.push(xt), w.push(8);
+              if (fv(xt)) b.push(xt), w.push(8);
               else if (j) {
                 let Pt = ST(xt, on) || obe(65, xt, be, void 0, false) || Ft;
                 b.push(Pt), w.push(4);
-              } else b.push(_v(33, xt, be, rt.expression)), w.push(4);
+              } else b.push(pv(33, xt, be, rt.expression)), w.push(4);
             } else if (Ie && rt.kind === 233) Ae = true, b.push(Q), w.push(2);
             else {
               let xt = O6(rt, s, l);
@@ -39902,12 +39902,12 @@ ${Ht.join(`
           if (n.flags & 524288) {
             let h = Zr(n).typeParameters;
             if (Ve(h) >= l.length) {
-              let b = ov(l, h, l.length, s);
+              let b = cv(l, h, l.length, s);
               return Ve(b) === 0 ? _ : NI(n, b);
             }
           }
           if (Ve(_.typeParameters) >= l.length) {
-            let h = ov(l, _.typeParameters, l.length, s);
+            let h = cv(l, _.typeParameters, l.length, s);
             return t0(_, h);
           }
         }
@@ -40150,7 +40150,7 @@ ${Ht.join(`
           if (te) {
             let ke = dbe(te, _);
             if (Lf(ke) && $ye(n, ke) && ke.declarations && Wd(_, ke.declarations, _.escapedText), t0t(te, n, _), XB(te, n, oMe(s, w)), qr(n).resolvedSymbol = te, pve(n, s.kind === 108, uC(n), G, te), YMe(n, te, j)) return nt(_, d.Cannot_assign_to_0_because_it_is_a_read_only_property, Xr(_)), st;
-            Ae = Z9e(n, te) ? Nt : b || $R(n) ? iv(te) : vr(te);
+            Ae = Z9e(n, te) ? Nt : b || $R(n) ? av(te) : vr(te);
           } else {
             let ke = !na(_) && (j === 0 || !ak(l) || AN(l)) ? jw(G, _.escapedText) : void 0;
             if (!(ke && ke.type)) {
@@ -40165,8 +40165,8 @@ ${Ht.join(`
           var _;
           let h = zn(n);
           if (h && J.checkJs === void 0 && h.checkJsDirective === void 0 && (h.scriptKind === 1 || h.scriptKind === 2)) {
-            let b = Ne(s?.declarations, zn), w = !s?.valueDeclaration || !vi(s.valueDeclaration) || ((_ = s.valueDeclaration.heritageClauses) == null ? void 0 : _.length) || S0(false, s.valueDeclaration);
-            return !(h !== b && b && T0(b)) && !(l && s && s.flags & 32 && w) && !(n && l && Qr(n) && n.expression.kind === 110 && w);
+            let b = Ne(s?.declarations, zn), w = !s?.valueDeclaration || !vi(s.valueDeclaration) || ((_ = s.valueDeclaration.heritageClauses) == null ? void 0 : _.length) || x0(false, s.valueDeclaration);
+            return !(h !== b && b && S0(b)) && !(l && s && s.flags & 32 && w) && !(n && l && Qr(n) && n.expression.kind === 110 && w);
           }
           return false;
         }
@@ -40572,7 +40572,7 @@ ${Ht.join(`
             let te = n[l - 1];
             if (PZ(te)) {
               let Ae = te.kind === 238 ? te.type : zI(te.expression, _, h, b);
-              return uv(Ae) ? hMe(Ae) : af(_v(33, Ae, be, te.kind === 231 ? te.expression : te), w);
+              return fv(Ae) ? hMe(Ae) : af(pv(33, Ae, be, te.kind === 231 ? te.expression : te), w);
             }
           }
           let j = [], G = [], Y = [];
@@ -40580,7 +40580,7 @@ ${Ht.join(`
             let Ae = n[te];
             if (PZ(Ae)) {
               let ke = Ae.kind === 238 ? Ae.type : da(Ae.expression);
-              uv(ke) ? (j.push(ke), G.push(8)) : (j.push(_v(33, ke, be, Ae.kind === 231 ? Ae.expression : Ae)), G.push(4));
+              fv(ke) ? (j.push(ke), G.push(8)) : (j.push(pv(33, ke, be, Ae.kind === 231 ? Ae.expression : Ae)), G.push(4));
             } else {
               let ke = Ys(_) ? ove(_, te - s, l - s) || Ft : op(_, zm(te - s), 256), rt = zI(Ae, ke, h, b), xt = w || ol(ke, 406978556);
               j.push(xt ? Bf(rt) : IT(rt)), G.push(1);
@@ -40590,7 +40590,7 @@ ${Ht.join(`
           return mg(j, G, w && !yd(_, g0e), Y);
         }
         function Ave(n, s, l, _) {
-          let h = Er(n.declaration), b = n.typeParameters, w = ov(vn(s, Ki), b, dg(b), h), j;
+          let h = Er(n.declaration), b = n.typeParameters, w = cv(vn(s, Ki), b, dg(b), h), j;
           for (let G = 0; G < s.length; G++) {
             D.assert(b[G] !== void 0, "Should not call checkTypeArguments with too many type arguments");
             let Y = Zf(b[G]);
@@ -41235,10 +41235,10 @@ ${Ht.join(`
         function WI(n, s, l) {
           let _ = qr(n), h = _.resolvedSignature;
           if (h && h !== Nr && !s) return h;
-          let b = z0;
-          h || (z0 = Gg.length), _.resolvedSignature = Nr;
+          let b = V0;
+          h || (V0 = Gg.length), _.resolvedSignature = Nr;
           let w = W0t(n, s, l || 0);
-          return z0 = b, w !== Nr && (_.resolvedSignature = Lr === Zn ? w : h), w;
+          return V0 = b, w !== Nr && (_.resolvedSignature = Lr === Zn ? w : h), w;
         }
         function jh(n) {
           var s;
@@ -41298,7 +41298,7 @@ ${Ht.join(`
           if (jZ(b, n), n.expression.kind === 108) return Dn;
           if (n.kind === 215) {
             let j = b.declaration;
-            if (j && j.kind !== 177 && j.kind !== 181 && j.kind !== 186 && !(F0(j) && ((_ = (l = VA(j)) == null ? void 0 : l.parent) == null ? void 0 : _.kind) === 177) && !rC(j) && !jh(j)) return Se && nt(n, d.new_expression_whose_target_lacks_a_construct_signature_implicitly_has_an_any_type), Ge;
+            if (j && j.kind !== 177 && j.kind !== 181 && j.kind !== 186 && !(R0(j) && ((_ = (l = VA(j)) == null ? void 0 : l.parent) == null ? void 0 : _.kind) === 177) && !rC(j) && !jh(j)) return Se && nt(n, d.new_expression_whose_target_lacks_a_construct_signature_implicitly_has_an_any_type), Ge;
           }
           if (Er(n) && NMe(n)) return R5e(n.arguments[0]);
           let w = ho(b);
@@ -41574,7 +41574,7 @@ ${Ht.join(`
         }
         function eJ(n) {
           let s = n.valueDeclaration;
-          return Tf(vr(n), false, !!s && (b0(s) || yC(s)));
+          return Tf(vr(n), false, !!s && (T0(s) || yC(s)));
         }
         function Rve(n, s, l) {
           switch (n.name.kind) {
@@ -41810,7 +41810,7 @@ ${Ht.join(`
           let _ = `${s ? "p" : "P"}${l ? "s" : "S"}${n.id}`, h = Ua.get(_);
           if (!h) {
             let b = _s();
-            b.set("name", H0("name", n)), b.set("private", H0("private", s ? mt : Gn)), b.set("static", H0("static", l ? mt : Gn)), h = kc(void 0, b, ae, ae, ae), Ua.set(_, h);
+            b.set("name", G0("name", n)), b.set("private", G0("private", s ? mt : Gn)), b.set("static", G0("static", l ? mt : Gn)), h = kc(void 0, b, ae, ae, ae), Ua.set(_, h);
           }
           return h;
         }
@@ -41965,7 +41965,7 @@ ${Ht.join(`
         }
         function VMe(n, s, l, _) {
           if (s === Ut) return Ut;
-          let h = n.expression || n, b = n.asteriskToken ? _v(_ ? 19 : 17, s, l, h) : s;
+          let h = n.expression || n, b = n.asteriskToken ? pv(_ ? 19 : 17, s, l, h) : s;
           return _ ? Yw(b, h, n.asteriskToken ? d.Type_of_iterated_elements_of_a_yield_Asterisk_operand_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member : d.Type_of_yield_operand_in_an_async_generator_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member) : b;
         }
         function $Me(n, s, l) {
@@ -42131,7 +42131,7 @@ ${Ht.join(`
         function UZ(n, s, l, _ = false) {
           if (!ls(s, os)) {
             let h = _ && F6(s);
-            return q0(n, !!h && ls(h, os), l), false;
+            return H0(n, !!h && ls(h, os), l), false;
           }
           return true;
         }
@@ -42375,10 +42375,10 @@ ${Ht.join(`
         function jvt(n, s, l) {
           let _ = n.elements;
           $ < ou.DestructuringAssignment && J.downlevelIteration && iu(n, 512);
-          let h = _v(193, s, be, n) || st, b = J.noUncheckedIndexedAccess ? void 0 : h;
+          let h = pv(193, s, be, n) || st, b = J.noUncheckedIndexedAccess ? void 0 : h;
           for (let w = 0; w < _.length; w++) {
             let j = h;
-            n.elements[w].kind === 231 && (j = b = b ?? (_v(65, s, be, n) || st)), QMe(n, s, w, j, l);
+            n.elements[w].kind === 231 && (j = b = b ?? (pv(65, s, be, n) || st)), QMe(n, s, w, j, l);
           }
           return s;
         }
@@ -42387,7 +42387,7 @@ ${Ht.join(`
           if (w.kind !== 233) {
             if (w.kind !== 231) {
               let j = zm(l);
-              if (uv(s)) {
+              if (fv(s)) {
                 let G = 32 | (Hw(w) ? 16 : 0), Y = Bb(s, j, G, rF(w, j)) || st, te = Hw(w) ? gd(Y, 524288) : Y, Ae = co(w, te);
                 return vk(w, Ae, h);
               }
@@ -42710,7 +42710,7 @@ ${Ht.join(`
             return zu(wn, 2112) && zu(xn, 2112);
           }
           function Y(wn, xn) {
-            if (wn === 2) for (let Cr of sv(xn)) {
+            if (wn === 2) for (let Cr of ov(xn)) {
               let Ti = vr(Cr);
               if (Ti.symbol && Ti.symbol.flags & 32) {
                 let sa = Cr.escapedName, ui = vt(Cr.valueDeclaration, sa, 788968, void 0, false);
@@ -42782,7 +42782,7 @@ ${Ht.join(`
             let Ti = _, sa = h;
             !xn && wn && ([Ti, sa] = qvt(_, h, wn));
             let [ui, Vi] = s6(Ti, sa);
-            Cn(Cr, xn, ui, Vi) || q0(Cr, xn, d.Operator_0_cannot_be_applied_to_types_1_and_2, ys(s.kind), ui, Vi);
+            Cn(Cr, xn, ui, Vi) || H0(Cr, xn, d.Operator_0_cannot_be_applied_to_types_1_and_2, ys(s.kind), ui, Vi);
           }
           function Cn(wn, xn, Cr, Ti) {
             switch (s.kind) {
@@ -42790,7 +42790,7 @@ ${Ht.join(`
               case 35:
               case 38:
               case 36:
-                return q0(wn, xn, d.This_comparison_appears_to_be_unintentional_because_the_types_0_and_1_have_no_overlap, Cr, Ti);
+                return H0(wn, xn, d.This_comparison_appears_to_be_unintentional_because_the_types_0_and_1_have_no_overlap, Cr, Ti);
               default:
                 return;
             }
@@ -42828,7 +42828,7 @@ ${Ht.join(`
           h && h.flags & 1048576 && (h = El(h, (ke) => Xve(ke, l, void 0)));
           let b = h && _be(h, _), w = b && b.yieldType || Ge, j = b && b.nextType || Ge, G = n.expression ? da(n.expression) : z, Y = VMe(n, G, j, _);
           if (h && Y && lx(Y, w, n.expression || n, n.expression), n.asteriskToken) return cbe(_ ? 19 : 17, 1, G, n.expression) || Ge;
-          if (h) return pv(2, h, _) || Ge;
+          if (h) return dv(2, h, _) || Ge;
           let te = k9e(2, s);
           return te || (te = Ge, r(() => {
             if (Se && !kse(n)) {
@@ -42893,7 +42893,7 @@ ${Ht.join(`
           }
           let h = Yve(_) || (l ? zI(_, l, void 0, s || 0) : qc(_, s));
           if (ra(Hs(n) ? wx(n) : n)) {
-            if (n.name.kind === 207 && fv(h)) return Qvt(h, n.name);
+            if (n.name.kind === 207 && _v(h)) return Qvt(h, n.name);
             if (n.name.kind === 208 && Ys(h)) return Zvt(h, n.name);
           }
           return h;
@@ -42906,7 +42906,7 @@ ${Ht.join(`
           }
           if (!l) return n;
           let _ = _s();
-          for (let b of sv(n)) _.set(b.escapedName, b);
+          for (let b of ov(n)) _.set(b.escapedName, b);
           for (let b of l) {
             let w = $s(16777220, nje(b));
             w.links.type = Bm(b, false, false), _.set(w.escapedName, w);
@@ -42919,9 +42919,9 @@ ${Ht.join(`
           return td(s) ? nd(s) : void 0;
         }
         function Zvt(n, s) {
-          if (n.target.combinedFlags & 12 || cv(n) >= s.elements.length) return n;
+          if (n.target.combinedFlags & 12 || lv(n) >= s.elements.length) return n;
           let l = s.elements, _ = ix(n).slice(), h = n.target.elementFlags.slice();
-          for (let b = cv(n); b < l.length; b++) {
+          for (let b = lv(n); b < l.length; b++) {
             let w = l[b];
             (b < l.length - 1 || !(w.kind === 209 && w.dotDotDotToken)) && (_.push(!eu(w) && Hw(w) ? Bm(w, false, false) : Ge), h.push(2), !eu(w) && !Hw(w) && DT(w, Ge));
           }
@@ -43321,7 +43321,7 @@ ${Ht.join(`
           }
         }
         function Xve(n, s, l) {
-          let _ = pv(0, n, (s & 2) !== 0) || Ge, h = pv(1, n, (s & 2) !== 0) || _, b = pv(2, n, (s & 2) !== 0) || Ft, w = JZ(_, h, b, !!(s & 2));
+          let _ = dv(0, n, (s & 2) !== 0) || Ge, h = dv(1, n, (s & 2) !== 0) || _, b = dv(2, n, (s & 2) !== 0) || Ft, w = JZ(_, h, b, !!(s & 2));
           return sf(w, n, l);
         }
         function _bt(n) {
@@ -43491,7 +43491,7 @@ ${Ht.join(`
           return n.typeArguments && l < n.typeArguments.length ? Ki(n.typeArguments[l]) : $Z(n, s)[l];
         }
         function $Z(n, s) {
-          return ov(vn(n.typeArguments, Ki), s, dg(s), Er(n));
+          return cv(vn(n.typeArguments, Ki), s, dg(s), Er(n));
         }
         function hje(n, s) {
           let l, _, h = true;
@@ -43556,7 +43556,7 @@ ${Ht.join(`
             let h = Rye(_);
             if (h & 8) {
               let b = Ki(_.type);
-              if (!uv(b)) {
+              if (!fv(b)) {
                 nt(_, d.A_rest_element_type_must_be_an_array_type);
                 break;
               }
@@ -43602,7 +43602,7 @@ ${Ht.join(`
         }
         function Ibt(n) {
           Dbt(n), Ms(n.typeParameter), Ms(n.nameType), Ms(n.type), n.type || DT(n, Ge);
-          let s = Hye(n), l = av(s);
+          let s = Hye(n), l = sv(s);
           if (l) sf(l, Di, n.nameType);
           else {
             let _ = jp(s);
@@ -43740,7 +43740,7 @@ ${Ht.join(`
           if (Ae && !Ae.body && !gi(Ae, 64) && !Ae.questionToken && Pt(Ae), Y && (rt && (l(rt, te, h, b, w), _(rt, te, j, G)), te)) {
             let wn = rx(n), xn = Bp(te);
             for (let Cr of wn) if (!Jmt(xn, Cr)) {
-              let Ti = Cr.declaration && F0(Cr.declaration) ? Cr.declaration.parent.tagName : Cr.declaration;
+              let Ti = Cr.declaration && R0(Cr.declaration) ? Cr.declaration.parent.tagName : Cr.declaration;
               ds(nt(Ti, d.This_overload_signature_is_not_compatible_with_its_implementation_signature), Ar(te, d.The_implementation_signature_is_declared_here));
               break;
             }
@@ -44253,7 +44253,7 @@ ${Ht.join(`
             if (!rbe(b)) continue;
             let w = Xr(b.name), { parent: j } = b;
             if (j.kind !== 196 && j.typeParameters.every(rbe)) {
-              if (h0(h, j)) {
+              if (g0(h, j)) {
                 let G = zn(j), Y = Od(j) ? s$(j) : o$(G, j.typeParameters), Ae = j.typeParameters.length === 1 ? [d._0_is_declared_but_its_value_is_never_read, w] : [d.All_type_parameters_are_unused];
                 s(b, 1, Wl(G, Y.pos, Y.end - Y.pos, ...Ae));
               }
@@ -44286,7 +44286,7 @@ ${Ht.join(`
                 (j !== 4 && j !== 6 || !G || !dF(G)) && _J(h, w.parent, w, lo);
               } else {
                 let j = b.valueDeclaration && Eje(b.valueDeclaration), G = b.valueDeclaration && Ra(b.valueDeclaration);
-                j && G ? !U_(j, j.parent) && !Xv(j) && !dF(G) && (Hs(w) && O0(w.parent) ? _J(_, w.parent, w, lo) : s(j, 1, Ar(G, d._0_is_declared_but_its_value_is_never_read, Bc(b)))) : Aje(w, Bc(b), s);
+                j && G ? !U_(j, j.parent) && !Xv(j) && !dF(G) && (Hs(w) && F0(w.parent) ? _J(_, w.parent, w, lo) : s(j, 1, Ar(G, d._0_is_declared_but_its_value_is_never_read, Bc(b)))) : Aje(w, Bc(b), s);
               }
             }
           }), l.forEach(([b, w]) => {
@@ -44337,11 +44337,11 @@ ${Ht.join(`
         }
         function u1t(n) {
           $ >= 2 || !Tz(n) || n.flags & 33554432 || Jc(n.body) || Ne(n.parameters, (s) => {
-            s.name && !Qa(s.name) && s.name.escapedText === oe.escapedName && $0("noEmit", s, d.Duplicate_identifier_arguments_Compiler_uses_arguments_to_initialize_rest_parameters);
+            s.name && !Qa(s.name) && s.name.escapedText === oe.escapedName && q0("noEmit", s, d.Duplicate_identifier_arguments_Compiler_uses_arguments_to_initialize_rest_parameters);
           });
         }
         function mF(n, s, l) {
-          if (s?.escapedText !== l || n.kind === 173 || n.kind === 172 || n.kind === 175 || n.kind === 174 || n.kind === 178 || n.kind === 179 || n.kind === 304 || n.flags & 33554432 || (em(n) || Vl(n) || Of(n)) && v0(n)) return false;
+          if (s?.escapedText !== l || n.kind === 173 || n.kind === 172 || n.kind === 175 || n.kind === 174 || n.kind === 178 || n.kind === 179 || n.kind === 304 || n.flags & 33554432 || (em(n) || Vl(n) || Of(n)) && b0(n)) return false;
           let _ = oh(n);
           return !(ra(_) && Jc(_.parent.body));
         }
@@ -44354,19 +44354,19 @@ ${Ht.join(`
         function p1t(n, s) {
           if (e.getEmitModuleFormatOfFile(zn(n)) >= 5 || !s || !mF(n, s, "require") && !mF(n, s, "exports") || gl(n) && Ly(n) !== 1) return;
           let l = Lt(n);
-          l.kind === 308 && z_(l) && $0("noEmit", s, d.Duplicate_identifier_0_Compiler_reserves_name_1_in_top_level_scope_of_a_module, Bo(s), Bo(s));
+          l.kind === 308 && z_(l) && q0("noEmit", s, d.Duplicate_identifier_0_Compiler_reserves_name_1_in_top_level_scope_of_a_module, Bo(s), Bo(s));
         }
         function d1t(n, s) {
           if (!s || $ >= 4 || !mF(n, s, "Promise") || gl(n) && Ly(n) !== 1) return;
           let l = Lt(n);
-          l.kind === 308 && z_(l) && l.flags & 4096 && $0("noEmit", s, d.Duplicate_identifier_0_Compiler_reserves_name_1_in_top_level_scope_of_a_module_containing_async_functions, Bo(s), Bo(s));
+          l.kind === 308 && z_(l) && l.flags & 4096 && q0("noEmit", s, d.Duplicate_identifier_0_Compiler_reserves_name_1_in_top_level_scope_of_a_module_containing_async_functions, Bo(s), Bo(s));
         }
         function m1t(n, s) {
           $ <= 8 && (mF(n, s, "WeakMap") || mF(n, s, "WeakSet")) && Vy.push(n);
         }
         function h1t(n) {
           let s = Sm(n);
-          Qw(s) & 1048576 && (D.assert(lu(n) && Xe(n.name) && typeof n.name.escapedText == "string", "The target of a WeakMap/WeakSet collision check should be an identifier"), $0("noEmit", n, d.Compiler_reserves_name_0_when_emitting_private_identifier_downlevel, n.name.escapedText));
+          Qw(s) & 1048576 && (D.assert(lu(n) && Xe(n.name) && typeof n.name.escapedText == "string", "The target of a WeakMap/WeakSet collision check should be an identifier"), q0("noEmit", n, d.Compiler_reserves_name_0_when_emitting_private_identifier_downlevel, n.name.escapedText));
         }
         function g1t(n, s) {
           s && $ >= 2 && $ <= 8 && mF(n, s, "Reflect") && $y.push(n);
@@ -44383,7 +44383,7 @@ ${Ht.join(`
             let l = Sm(n);
             l && Qw(l) & 2097152 && (s = true);
           }
-          s && (D.assert(lu(n) && Xe(n.name), "The target of a Reflect collision check should be an identifier"), $0("noEmit", n, d.Duplicate_identifier_0_Compiler_reserves_name_1_when_emitting_super_references_in_static_initializers, Bo(n.name), "Reflect"));
+          s && (D.assert(lu(n) && Xe(n.name), "The target of a Reflect collision check should be an identifier"), q0("noEmit", n, d.Duplicate_identifier_0_Compiler_reserves_name_1_when_emitting_super_references_in_static_initializers, Bo(n.name), "Reflect"));
         }
         function L6(n, s) {
           s && (p1t(n, s), d1t(n, s), m1t(n, s), g1t(n, s), vi(n) ? (M6(s, d.Class_name_cannot_be_0), n.flags & 33554432 || G1t(s)) : I1(n) && M6(s, d.Enum_name_cannot_be_0));
@@ -44437,7 +44437,7 @@ ${Ht.join(`
                 let j = qc(n.initializer);
                 ce && b ? K9e(j, n) : lx(j, Rw(n), n, n.initializer);
               }
-              b && (O0(n.name) ? _v(65, w, be, n) : ce && K9e(w, n));
+              b && (F0(n.name) ? pv(65, w, be, n) : ce && K9e(w, n));
             }
             return;
           }
@@ -44531,7 +44531,7 @@ ${Ht.join(`
             if (te.length === 0 && !Ae) return;
             let ke = Xe(j) ? j : Qr(j) ? j.name : void 0, rt = ke && vd(ke);
             if (!rt && !Ae) return;
-            rt && Or(b.parent) && w1t(b.parent, rt) || rt && w && C1t(b, w, ke, rt) || (Ae ? q0(j, true, d.This_condition_will_always_return_true_since_this_0_is_always_defined, TI(G)) : nt(j, d.This_condition_will_always_return_true_since_this_function_is_always_defined_Did_you_mean_to_call_it_instead));
+            rt && Or(b.parent) && w1t(b.parent, rt) || rt && w && C1t(b, w, ke, rt) || (Ae ? H0(j, true, d.This_condition_will_always_return_true_since_this_0_is_always_defined, TI(G)) : nt(j, d.This_condition_will_always_return_true_since_this_function_is_always_defined_Did_you_mean_to_call_it_instead));
           }
         }
         function C1t(n, s, l, _) {
@@ -44642,9 +44642,9 @@ ${Ht.join(`
         }
         function mJ(n) {
           let s = n.awaitModifier ? 15 : 13;
-          return _v(s, JI(n.expression), be, n.expression);
+          return pv(s, JI(n.expression), be, n.expression);
         }
-        function _v(n, s, l, _) {
+        function pv(n, s, l, _) {
           return jr(s) ? s : obe(n, s, l, _, true) || Ge;
         }
         function obe(n, s, l, _, h) {
@@ -44670,10 +44670,10 @@ ${Ht.join(`
             } else Y.flags & 402653316 && (Y = Sn);
             if (te = Y !== s, te && Y.flags & 131072) return G ? Y7(gt) : gt;
           }
-          if (!uv(Y)) {
+          if (!fv(Y)) {
             if (_) {
               let rt = !!(n & 4) && !te, [xt, Pt] = ke(rt, j);
-              q0(_, Pt && !!F6(Y), xt, fr(Y));
+              H0(_, Pt && !!F6(Y), xt, fr(Y));
             }
             return te ? G ? Y7(gt) : gt : void 0;
           }
@@ -44818,7 +44818,7 @@ ${Ht.join(`
         }
         function ube(n, s, l) {
           let _ = l ? d.Type_0_must_have_a_Symbol_asyncIterator_method_that_returns_an_async_iterator : d.Type_0_must_have_a_Symbol_iterator_method_that_returns_an_iterator, h = !!F6(s) || !l && hO(n.parent) && n.parent.expression === n && pB(false) !== rn && ls(s, b6(pB(false), [Ge, Ge, Ge]));
-          return q0(n, h, _, fr(s));
+          return H0(n, h, _, fr(s));
         }
         function O1t(n, s, l, _) {
           return Bje(n, s, l, _, false);
@@ -44884,7 +44884,7 @@ ${Ht.join(`
             let wn = s.getGlobalGeneratorType(false), xn = s.getGlobalIteratorType(false), Cr = ((w = (b = wn.symbol) == null ? void 0 : b.members) == null ? void 0 : w.get(l)) === te.symbol, Ti = !Cr && ((G = (j = xn.symbol) == null ? void 0 : j.members) == null ? void 0 : G.get(l)) === te.symbol;
             if (Cr || Ti) {
               let sa = Cr ? wn : xn, { mapper: ui } = te;
-              return qb(lv(sa.typeParameters[0], ui), lv(sa.typeParameters[1], ui), l === "next" ? lv(sa.typeParameters[2], ui) : void 0);
+              return qb(uv(sa.typeParameters[0], ui), uv(sa.typeParameters[1], ui), l === "next" ? uv(sa.typeParameters[2], ui) : void 0);
             }
           }
           let ke, rt;
@@ -44905,7 +44905,7 @@ ${Ht.join(`
           let b = Oje([fbe(n, s, "next", l, _), fbe(n, s, "return", l, _), fbe(n, s, "throw", l, _)]);
           return h ? b : uy(n, s.iteratorCacheKey, b);
         }
-        function pv(n, s, l) {
+        function dv(n, s, l) {
           if (jr(s)) return;
           let _ = _be(s, l);
           return _ && _[rwe(n)];
@@ -44921,7 +44921,7 @@ ${Ht.join(`
         function hJ(n, s) {
           let l = !!(s & 1), _ = !!(s & 2);
           if (l) {
-            let h = pv(1, n, _);
+            let h = dv(1, n, _);
             return h ? _ ? f0(R6(h)) : h : st;
           }
           return _ ? f0(n) || st : n;
@@ -45020,7 +45020,7 @@ ${Ht.join(`
         function eee(n, s, l) {
           let _ = rf(n);
           if (_.length === 0) return;
-          for (let b of sv(n)) l && b.flags & 4194304 || Wje(n, b, Bw(b, 8576, true), Jm(b));
+          for (let b of ov(n)) l && b.flags & 4194304 || Wje(n, b, Bw(b, 8576, true), Jm(b));
           let h = s.valueDeclaration;
           if (h && vi(h)) {
             for (let b of h.members) if ((!l && !ps(b) || l && ps(b)) && !AI(b)) {
@@ -45136,7 +45136,7 @@ ${Ht.join(`
           return true;
         }
         function $je(n) {
-          let s = !Z && $ < ou.ClassAndClassElementDecorators && S0(false, n), l = $ < ou.PrivateNamesAndClassStaticBlocks || $ < ou.ClassAndClassElementDecorators, _ = !X;
+          let s = !Z && $ < ou.ClassAndClassElementDecorators && x0(false, n), l = $ < ou.PrivateNamesAndClassStaticBlocks || $ < ou.ClassAndClassElementDecorators, _ = !X;
           if (s || l) for (let h of n.members) {
             if (s && qz(false, h, n)) return Il(Lv(n)) ?? n;
             if (l) {
@@ -45150,7 +45150,7 @@ ${Ht.join(`
           let s = Moe(n);
           if (!lV(s)) return;
           let l = !Z && $ < ou.ClassAndClassElementDecorators, _;
-          l && S0(false, n) ? _ = Il(Lv(n)) ?? n : _ = $je(n), _ && (iu(_, 4194304), (Fl(s) || Na(s) || Hs(s)) && bs(s.name) && iu(_, 8388608));
+          l && x0(false, n) ? _ = Il(Lv(n)) ?? n : _ = $je(n), _ && (iu(_, 4194304), (Fl(s) || Na(s) || Hs(s)) && bs(s.name) && iu(_, 8388608));
         }
         function Q1t(n) {
           return qje(n), Xw(n), K1t(n), vr(Jr(n));
@@ -45266,7 +45266,7 @@ ${Ht.join(`
             let _ = l[0].declaration;
             if (_ && q_(_, 2)) {
               let h = Ny(n.symbol);
-              ybe(s, h) || nt(s, d.Cannot_extend_a_class_0_Class_constructor_is_marked_as_private, K0(n.symbol));
+              ybe(s, h) || nt(s, d.Cannot_extend_a_class_0_Class_constructor_is_marked_as_private, Q0(n.symbol));
             }
           }
         }
@@ -45533,7 +45533,7 @@ ${Ht.join(`
         }
         function vTt(n, s) {
           let l = Sm(n), _ = Sm(s);
-          return T0(l) ? T0(_) : T0(_) ? false : l === _;
+          return S0(l) ? S0(_) : S0(_) ? false : l === _;
         }
         function bTt(n) {
           n.body && (Ms(n.body), Hh(n) || $b(n)), r(s);
@@ -45563,7 +45563,7 @@ ${Ht.join(`
             }
             if (w) if (eS(n)) {
               if ((h || Jr(n).flags & 33554432) && n.body) for (let te of n.body.statements) pbe(te, h);
-            } else T0(n.parent) ? h ? nt(n.name, d.Augmentations_for_the_global_scope_can_only_be_directly_nested_in_external_modules_or_ambient_module_declarations) : cu(Kp(n.name)) && nt(n.name, d.Ambient_module_declaration_cannot_specify_relative_module_name) : h ? nt(n.name, d.Augmentations_for_the_global_scope_can_only_be_directly_nested_in_external_modules_or_ambient_module_declarations) : nt(n.name, d.Ambient_modules_cannot_be_nested_in_other_modules_or_namespaces);
+            } else S0(n.parent) ? h ? nt(n.name, d.Augmentations_for_the_global_scope_can_only_be_directly_nested_in_external_modules_or_ambient_module_declarations) : cu(Kp(n.name)) && nt(n.name, d.Ambient_module_declaration_cannot_specify_relative_module_name) : h ? nt(n.name, d.Augmentations_for_the_global_scope_can_only_be_directly_nested_in_external_modules_or_ambient_module_declarations) : nt(n.name, d.Ambient_modules_cannot_be_nested_in_other_modules_or_namespaces);
           }
         }
         function pbe(n, s) {
@@ -45635,7 +45635,7 @@ ${Ht.join(`
           var s, l, _, h, b;
           let w = Jr(n), j = vu(w);
           if (j !== ie) {
-            if (w = oo(w.exportSymbol || w), Er(n) && !(j.flags & 111551) && !v0(n)) {
+            if (w = oo(w.exportSymbol || w), Er(n) && !(j.flags & 111551) && !b0(n)) {
               let te = Bv(n) ? n.propertyName || n.name : lu(n) ? n.name : n;
               if (D.assert(n.kind !== 281), n.kind === 282) {
                 let Ae = nt(te, d.Types_cannot_appear_in_export_declarations_in_JavaScript_files), ke = (l = (s = zn(n).symbol) == null ? void 0 : s.exports) == null ? void 0 : l.get(ZT(n.propertyName || n.name));
@@ -45654,8 +45654,8 @@ ${Ht.join(`
             if (G & Y) {
               let te = n.kind === 282 ? d.Export_declaration_conflicts_with_exported_declaration_of_0 : d.Import_declaration_conflicts_with_local_declaration_of_0;
               nt(n, te, fa(w));
-            } else n.kind !== 282 && J.isolatedModules && !On(n, v0) && w.flags & 1160127 && nt(n, d.Import_0_conflicts_with_local_value_so_must_be_declared_with_a_type_only_import_when_isolatedModules_is_enabled, fa(w), Le);
-            if (Nd(J) && !v0(n) && !(n.flags & 33554432)) {
+            } else n.kind !== 282 && J.isolatedModules && !On(n, b0) && w.flags & 1160127 && nt(n, d.Import_0_conflicts_with_local_value_so_must_be_declared_with_a_type_only_import_when_isolatedModules_is_enabled, fa(w), Le);
+            if (Nd(J) && !b0(n) && !(n.flags & 33554432)) {
               let te = jm(w), Ae = !(G & 111551);
               if (Ae || te) switch (n.kind) {
                 case 274:
@@ -45676,7 +45676,7 @@ ${Ht.join(`
                     break;
                   }
               }
-              if (J.verbatimModuleSyntax && n.kind !== 272 && !Er(n) && e.getEmitModuleFormatOfFile(zn(n)) === 1 ? nt(n, P2(n)) : H === 200 && n.kind !== 272 && n.kind !== 261 && e.getEmitModuleFormatOfFile(zn(n)) === 1 && nt(n, d.ECMAScript_module_syntax_is_not_allowed_in_a_CommonJS_module_when_module_is_set_to_preserve), J.verbatimModuleSyntax && !v0(n) && !(n.flags & 33554432) && G & 128) {
+              if (J.verbatimModuleSyntax && n.kind !== 272 && !Er(n) && e.getEmitModuleFormatOfFile(zn(n)) === 1 ? nt(n, P2(n)) : H === 200 && n.kind !== 272 && n.kind !== 261 && e.getEmitModuleFormatOfFile(zn(n)) === 1 && nt(n, d.ECMAScript_module_syntax_is_not_allowed_in_a_CommonJS_module_when_module_is_set_to_preserve), J.verbatimModuleSyntax && !b0(n) && !(n.flags & 33554432) && G & 128) {
                 let ke = j.valueDeclaration, rt = (b = e.getRedirectFromOutput(zn(ke).resolvedPath)) == null ? void 0 : b.resolvedRef;
                 ke.flags & 33554432 && (!rt || !Zv(rt.commandLine.options)) && nt(n, d.Cannot_access_ambient_const_enums_when_0_is_enabled, Le);
               }
@@ -45785,7 +45785,7 @@ ${Ht.join(`
             let l = n.propertyName || n.name;
             if (l.kind === 11) return;
             let _ = vt(l, l.escapedText, 2998271, void 0, true);
-            _ && (_ === de || _ === Ze || _.declarations && T0(Lt(_.declarations[0]))) ? nt(l, d.Cannot_export_0_Only_local_declarations_can_be_exported_from_a_module, Xr(l)) : qw(n, 7);
+            _ && (_ === de || _ === Ze || _.declarations && S0(Lt(_.declarations[0]))) ? nt(l, d.Cannot_export_0_Only_local_declarations_can_be_exported_from_a_module, Xr(l)) : qw(n, 7);
           }
         }
         function ITt(n) {
@@ -46152,18 +46152,18 @@ ${Ht.join(`
           let s = qr(n);
           if (!(s.flags & 1)) {
             if (rE(n, J, e)) return;
-            FBe(n), is(Tb), is(V0), is(Vy), is($y), is(qy), s.flags & 8388608 && (Tb = s.potentialThisCollisions, V0 = s.potentialNewTargetCollisions, Vy = s.potentialWeakMapSetCollisions, $y = s.potentialReflectCollisions, qy = s.potentialUnusedRenamedBindingElementsInTypes), Ne(n.statements, Ms), Ms(n.endOfFileToken), aBe(n), z_(n) && $b(n), r(() => {
+            FBe(n), is(Tb), is($0), is(Vy), is($y), is(qy), s.flags & 8388608 && (Tb = s.potentialThisCollisions, $0 = s.potentialNewTargetCollisions, Vy = s.potentialWeakMapSetCollisions, $y = s.potentialReflectCollisions, qy = s.potentialUnusedRenamedBindingElementsInTypes), Ne(n.statements, Ms), Ms(n.endOfFileToken), aBe(n), z_(n) && $b(n), r(() => {
               !n.isDeclarationFile && (J.noUnusedLocals || J.noUnusedParameters) && wje(oBe(n), (l, _, h) => {
                 !Xk(l) && sBe(_, !!(l.flags & 33554432)) && io.add(h);
               }), n.isDeclarationFile || c1t();
-            }), z_(n) && nBe(n), Tb.length && (Ne(Tb, f1t), is(Tb)), V0.length && (Ne(V0, _1t), is(V0)), Vy.length && (Ne(Vy, h1t), is(Vy)), $y.length && (Ne($y, y1t), is($y)), s.flags |= 1;
+            }), z_(n) && nBe(n), Tb.length && (Ne(Tb, f1t), is(Tb)), $0.length && (Ne($0, _1t), is($0)), Vy.length && (Ne(Vy, h1t), is(Vy)), $y.length && (Ne($y, y1t), is($y)), s.flags |= 1;
           }
         }
         function MTt(n, s) {
           let l = qr(n);
           if (!(l.flags & 1)) {
             if (rE(n, J, e)) return;
-            FBe(n), is(Tb), is(V0), is(Vy), is($y), is(qy), Ne(s, Ms), aBe(n), (l.potentialThisCollisions || (l.potentialThisCollisions = [])).push(...Tb), (l.potentialNewTargetCollisions || (l.potentialNewTargetCollisions = [])).push(...V0), (l.potentialWeakMapSetCollisions || (l.potentialWeakMapSetCollisions = [])).push(...Vy), (l.potentialReflectCollisions || (l.potentialReflectCollisions = [])).push(...$y), (l.potentialUnusedRenamedBindingElementsInTypes || (l.potentialUnusedRenamedBindingElementsInTypes = [])).push(...qy), l.flags |= 8388608;
+            FBe(n), is(Tb), is($0), is(Vy), is($y), is(qy), Ne(s, Ms), aBe(n), (l.potentialThisCollisions || (l.potentialThisCollisions = [])).push(...Tb), (l.potentialNewTargetCollisions || (l.potentialNewTargetCollisions = [])).push(...$0), (l.potentialWeakMapSetCollisions || (l.potentialWeakMapSetCollisions = [])).push(...Vy), (l.potentialReflectCollisions || (l.potentialReflectCollisions = [])).push(...$y), (l.potentialUnusedRenamedBindingElementsInTypes || (l.potentialUnusedRenamedBindingElementsInTypes = [])).push(...qy), l.flags |= 8388608;
             for (let _ of s) {
               let h = qr(_);
               h.flags |= 8388608;
@@ -46211,7 +46211,7 @@ ${Ht.join(`
           return h(), l.delete("this"), Tye(l);
           function h() {
             for (; n; ) {
-              switch (Vh(n) && n.locals && !T0(n) && w(n.locals, s), n.kind) {
+              switch (Vh(n) && n.locals && !S0(n) && w(n.locals, s), n.kind) {
                 case 308:
                   if (!$l(n)) break;
                 case 268:
@@ -46438,10 +46438,10 @@ ${Ht.join(`
                 return b && b.kind === 177 ? b.parent.symbol : void 0;
               case 11:
               case 15:
-                if (d1(n.parent.parent) && $D(n.parent.parent) === n || (n.parent.kind === 273 || n.parent.kind === 279) && n.parent.moduleSpecifier === n || Er(n) && vh(n.parent) && n.parent.moduleSpecifier === n || Er(n) && c_(n.parent, false) || o_(n.parent) || P0(n.parent) && Cy(n.parent.parent) && n.parent.parent.argument === n.parent) return bf(n, n, s);
+                if (d1(n.parent.parent) && $D(n.parent.parent) === n || (n.parent.kind === 273 || n.parent.kind === 279) && n.parent.moduleSpecifier === n || Er(n) && vh(n.parent) && n.parent.moduleSpecifier === n || Er(n) && c_(n.parent, false) || o_(n.parent) || O0(n.parent) && Cy(n.parent.parent) && n.parent.parent.argument === n.parent) return bf(n, n, s);
                 if (Za(l) && Bx(l) && l.arguments[1] === n) return Jr(l);
               case 9:
-                let w = Uo(l) ? l.argumentExpression === n ? Vu(l.expression) : void 0 : P0(l) && vS(_) ? Ki(_.objectType) : void 0;
+                let w = Uo(l) ? l.argumentExpression === n ? Vu(l.expression) : void 0 : O0(l) && vS(_) ? Ki(_.objectType) : void 0;
                 return w && Cs(w, Oc(n.text));
               case 90:
               case 100:
@@ -46541,7 +46541,7 @@ ${Ht.join(`
             let h = hs(n.parent.parent, Bs), b = oee(h) || st, w = OA(h.properties, n.parent);
             return KMe(h, b, w);
           }
-          let s = hs(n.parent, ju), l = oee(s) || st, _ = _v(65, l, be, n.parent) || st;
+          let s = hs(n.parent, ju), l = oee(s) || st, _ = pv(65, l, be, n.parent) || st;
           return QMe(s, l, s.elements.indexOf(n), _);
         }
         function KTt(n) {
@@ -46705,7 +46705,7 @@ ${Ht.join(`
           return Vve(n) || !!n.constEnumOnlyModule;
         }
         function vBe(n, s) {
-          if (D.assert(Pe), Y0(n)) {
+          if (D.assert(Pe), X0(n)) {
             let l = Jr(n), _ = l && Zr(l);
             if (_?.referenced) return true;
             let h = Zr(l).aliasTarget;
@@ -46864,7 +46864,7 @@ ${Ht.join(`
           let h = false;
           if (zf(_)) {
             let te = $c(Wf(_), 111551, true, true, s);
-            h = !!((l = te?.declarations) != null && l.every(v0));
+            h = !!((l = te?.declarations) != null && l.every(b0));
           }
           let b = $c(_, 111551, true, true, s), w = b && b.flags & 2097152 ? vu(b) : b;
           h || (h = !!(b && jm(b, 111551)));
@@ -47903,7 +47903,7 @@ ${Ht.join(`
         }
         function ixt(n, s, l, ..._) {
           let h = zn(s);
-          return Hb(h) ? false : ($0(n, s, l, ..._), true);
+          return Hb(h) ? false : (q0(n, s, l, ..._), true);
         }
         function Fn(n, s, ...l) {
           let _ = zn(n);
@@ -47965,7 +47965,7 @@ ${Ht.join(`
           s || l || +n.text <= 2 ** 53 - 1 || Yg(false, Ar(n, d.Numeric_literals_with_absolute_values_equal_to_2_53_or_greater_are_too_large_to_be_represented_accurately_as_integers));
         }
         function uxt(n) {
-          return !!(!(P0(n.parent) || w1(n.parent) && P0(n.parent.parent)) && !(n.flags & 33554432) && $ < 7 && Fn(n, d.BigInt_literals_are_not_available_when_targeting_lower_than_ES2020));
+          return !!(!(O0(n.parent) || w1(n.parent) && O0(n.parent.parent)) && !(n.flags & 33554432) && $ < 7 && Fn(n, d.BigInt_literals_are_not_available_when_targeting_lower_than_ES2020));
         }
         function fxt(n, s, ...l) {
           let _ = zn(n);
@@ -48024,7 +48024,7 @@ ${Ht.join(`
           });
         }
         function hxt(n, s) {
-          if (Kr(n) & 128 && yd(s, uv)) return $t(s.types, (l) => !uv(l));
+          if (Kr(n) & 128 && yd(s, fv)) return $t(s.types, (l) => !fv(l));
         }
         function gxt(n, s) {
           let l = 0;
@@ -49135,16 +49135,16 @@ ${Ht.join(`
       }
       function zC(e, t) {
         if (!e || !Ls(e) || !b3(e.text, t)) return e;
-        let r = A0(e.text, ZO(e.text, t));
+        let r = E0(e.text, ZO(e.text, t));
         return r !== e.text ? Gr(St(R.createStringLiteral(r, e.singleQuote), e), e) : e;
       }
       var mle = ((e) => (e[e.All = 0] = "All", e[e.ObjectRest = 1] = "ObjectRest", e))(mle || {});
       function d2(e, t, r, i, a, o) {
         let c = e, f;
-        if (k0(e)) for (f = e.right; Mae(e.left) || PV(e.left); ) if (k0(f)) c = e = f, f = e.right;
+        if (C0(e)) for (f = e.right; Mae(e.left) || PV(e.left); ) if (C0(f)) c = e = f, f = e.right;
         else return D.checkDefined(ut(f, t, kt));
         let u, g = { context: r, level: i, downlevelIteration: !!r.getCompilerOptions().downlevelIteration, hoistTempVariables: true, emitExpression: m, emitBindingOrAssignment: v, createArrayBindingOrAssignmentPattern: (k) => PXe(r.factory, k), createObjectBindingOrAssignmentPattern: (k) => FXe(r.factory, k), createArrayBindingOrAssignmentElement: LXe, visitor: t };
-        if (f && (f = ut(f, t, kt), D.assert(f), Xe(f) && hle(e, f.escapedText) || gle(e) ? f = VC(g, f, false, c) : a ? f = VC(g, f, true, c) : Jo(e) && (c = f)), oP(g, e, f, c, k0(e)), f && a) {
+        if (f && (f = ut(f, t, kt), D.assert(f), Xe(f) && hle(e, f.escapedText) || gle(e) ? f = VC(g, f, false, c) : a ? f = VC(g, f, true, c) : Jo(e) && (c = f)), oP(g, e, f, c, C0(e)), f && a) {
           if (!bt(u)) return f;
           u.push(f);
         }
@@ -49740,7 +49740,7 @@ ${Ht.join(`
           let Ye = 0;
           bt(fH(M, true, true)) && (Ye |= 1);
           let Tt = xm(M);
-          return Tt && Gc(Tt.expression).kind !== 106 && (Ye |= 64), S0(v, M) && (Ye |= 2), VD(v, M) && (Ye |= 4), Mn(M) ? Ye |= 8 : os(M) ? Ye |= 32 : Di(M) && (Ye |= 16), Ye;
+          return Tt && Gc(Tt.expression).kind !== 106 && (Ye |= 64), x0(v, M) && (Ye |= 2), VD(v, M) && (Ye |= 4), Mn(M) ? Ye |= 8 : os(M) ? Ye |= 32 : Di(M) && (Ye |= 16), Ye;
         }
         function Le(M) {
           return !!(M.transformFlags & 8192);
@@ -49750,7 +49750,7 @@ ${Ht.join(`
         }
         function it(M) {
           let Ye = Ue(M), Tt = g <= 1 && !!(Ye & 7);
-          if (!Pe(M) && !S0(v, M) && !Mn(M)) return t.updateClassDeclaration(M, Qn(M.modifiers, ft, ws), M.name, void 0, Qn(M.heritageClauses, K, Y_), Qn(M.members, Qe(M), Cl));
+          if (!Pe(M) && !x0(v, M) && !Mn(M)) return t.updateClassDeclaration(M, Qn(M.modifiers, ft, ws), M.name, void 0, Qn(M.heritageClauses, K, Y_), Qn(M.members, Qe(M), Cl));
           Tt && e.startLexicalEnvironment();
           let en = Tt || Ye & 8, Kn = en ? Qn(M.modifiers, ze, gc) : Qn(M.modifiers, K, gc);
           Ye & 2 && (Kn = kn(Kn, M));
@@ -49778,7 +49778,7 @@ ${Ht.join(`
         }
         function It(M) {
           let Ye = Qn(M.modifiers, ze, gc);
-          return S0(v, M) && (Ye = kn(Ye, M)), t.updateClassExpression(M, Ye, M.name, void 0, Qn(M.heritageClauses, K, Y_), Xt(M));
+          return x0(v, M) && (Ye = kn(Ye, M)), t.updateClassExpression(M, Ye, M.name, void 0, Qn(M.heritageClauses, K, Y_), Xt(M));
         }
         function Xt(M) {
           let Ye = Qn(M.members, Qe(M), Cl), Tt, en = Rg(M), Kn = en && Nn(en.parameters, (pi) => U_(pi, en));
@@ -50496,7 +50496,7 @@ ${Ht.join(`
           return M.classThis ?? M.classConstructor ?? Se?.name;
         }
         function ei(M) {
-          let Ye = ph(M), Tt = I0(M), en = M.name, Kn = en, pi = en;
+          let Ye = ph(M), Tt = D0(M), en = M.name, Kn = en, pi = en;
           if (bs(en) && !bh(en.expression)) {
             let pc = KL(en);
             if (pc) Kn = t.updateComputedPropertyName(en, ut(en.expression, se, kt)), pi = t.updateComputedPropertyName(en, pc.left);
@@ -50689,7 +50689,7 @@ ${Ht.join(`
           return false;
         }
         function ct(M, Ye) {
-          if (k0(M)) {
+          if (C0(M)) {
             let Tt = ce;
             ce = void 0, M = t.updateBinaryExpression(M, ut(M.left, ft, kt), M.operatorToken, ut(M.right, se, kt));
             let en = bt(ce) ? t.inlineExpressions(p4([...ce, M])) : M;
@@ -50754,7 +50754,7 @@ ${Ht.join(`
         function Dt(M) {
           var Ye;
           let Tt = 0, en = Sc(M);
-          vi(en) && S0(k, en) && (Tt |= 1), F && (dH(M) || R9(M)) && (Tt |= 2);
+          vi(en) && x0(k, en) && (Tt |= 1), F && (dH(M) || R9(M)) && (Tt |= 2);
           let Kn = false, pi = false, Nr = false, $n = false;
           for (let Xi of M.members) ps(Xi) ? ((Xi.name && (na(Xi.name) || a_(Xi)) && F || a_(Xi) && L === -1 && !M.name && !((Ye = M.emitNode) != null && Ye.classThis)) && (Tt |= 2), (Na(Xi) || rl(Xi)) && (W && Xi.transformFlags & 16384 && (Tt |= 8, Tt & 1 || (Tt |= 2)), J && Xi.transformFlags & 134217728 && (Tt & 1 || (Tt |= 6)))) : fS(Sc(Xi)) || (a_(Xi) ? ($n = true, Nr || (Nr = ff(Xi))) : ff(Xi) ? (Nr = true, u.hasNodeCheckFlag(Xi, 262144) && (Tt |= 2)) : Na(Xi) && (Kn = true, pi || (pi = !!Xi.initializer)));
           return (E && Kn || C && pi || F && Nr || F && $n && L === -1) && (Tt |= 16), Tt;
@@ -50971,7 +50971,7 @@ ${Ht.join(`
         function Gn(M, Ye) {
           var Tt;
           let en = we, Kn = tr(M, Ye);
-          return Kn && Ul(M) && ((Tt = he?.data) != null && Tt.facts) && (Gr(Kn, M), _h(Kn, 4), qs(Kn, I0(M.name)), me.set(Sc(M), he)), we = en, Kn;
+          return Kn && Ul(M) && ((Tt = he?.data) != null && Tt.facts) && (Gr(Kn, M), _h(Kn, 4), qs(Kn, D0(M.name)), me.set(Sc(M), he)), we = en, Kn;
         }
         function tr(M, Ye) {
           let Tt = !v;
@@ -51392,7 +51392,7 @@ ${Ht.join(`
               continue;
             }
             if (me.kind === 133) return t.createIdentifier("Object");
-            if (!c && (P0(me) && me.literal.kind === 106 || me.kind === 157)) continue;
+            if (!c && (O0(me) && me.literal.kind === 106 || me.kind === 157)) continue;
             let ge = N(me);
             if (Xe(ge) && ge.escapedText === "Object") return ge;
             if (he) {
@@ -51506,8 +51506,8 @@ ${Ht.join(`
           }
         }
         function k(Pe) {
-          if (!(S0(true, Pe) || VD(true, Pe))) return Jn(Pe, v, e);
-          let it = S0(true, Pe) ? W(Pe, Pe.name) : L(Pe, Pe.name);
+          if (!(x0(true, Pe) || VD(true, Pe))) return Jn(Pe, v, e);
+          let it = x0(true, Pe) ? W(Pe, Pe.name) : L(Pe, Pe.name);
           return Uh(it);
         }
         function C(Pe) {
@@ -51866,7 +51866,7 @@ ${Ht.join(`
           return { class: z, classThis: on, metadataReference: He, instanceMethodExtraInitializersName: Q, staticMethodExtraInitializersName: wt, hasStaticInitializers: Ht, hasNonAmbientInstanceFields: Fe, hasStaticPrivateClassElements: gt, pendingStaticInitializers: pr, pendingInstanceInitializers: Gn };
         }
         function ee(z) {
-          i(), !mH(z) && S0(false, z) && (z = L9(e, z, t.createStringLiteral("")));
+          i(), !mH(z) && x0(false, z) && (z = L9(e, z, t.createStringLiteral("")));
           let He = t.getLocalName(z, false, false, true), Q = we(z), wt = [], Ht, Fe, gt, on, pr = false, Gn = ct(_H(z, false));
           Gn && (Q.classDecoratorsName = t.createUniqueName("_classDecorators", 48), Q.classDescriptorName = t.createUniqueName("_classDescriptor", 48), Q.classExtraInitializersName = t.createUniqueName("_classExtraInitializers", 48), D.assertIsDefined(Q.classThis), wt.push(Se(Q.classDecoratorsName, t.createArrayLiteralExpression(Gn)), Se(Q.classDescriptorName), Se(Q.classExtraInitializersName, t.createArrayLiteralExpression()), Se(Q.classThis)), Q.hasStaticPrivateClassElements && (pr = true, k = true));
           let tr = A3(z.heritageClauses, 96), mt = tr && Il(tr.types), Rt = mt && ut(mt.expression, X, kt);
@@ -51918,7 +51918,7 @@ ${Ht.join(`
           if (Ht.push(Ft(Vt, Q.metadataReference)), bt(Q.pendingStaticInitializers)) {
             for (let Ln of Q.pendingStaticInitializers) {
               let Mn = t.createExpressionStatement(Ln);
-              qs(Mn, I0(Ln)), Fe = Hn(Fe, Mn);
+              qs(Mn, D0(Ln)), Fe = Hn(Fe, Mn);
             }
             Q.pendingStaticInitializers = void 0;
           }
@@ -51947,7 +51947,7 @@ ${Ht.join(`
           return Gr(An, z), t.createImmediatelyInvokedArrowFunction(t.mergeLexicalEnvironment(wt, Ut));
         }
         function Ie(z) {
-          return S0(false, z) || VD(false, z);
+          return x0(false, z) || VD(false, z);
         }
         function Qe(z) {
           if (Ie(z)) {
@@ -52098,7 +52098,7 @@ ${Ht.join(`
             let Q = [];
             for (let Fe of u.pendingStaticInitializers) {
               let gt = t.createExpressionStatement(Fe);
-              qs(gt, I0(Fe)), Q.push(gt);
+              qs(gt, D0(Fe)), Q.push(gt);
             }
             let wt = t.createBlock(Q, true);
             He = [t.createClassStaticBlockDeclaration(wt), He], u.pendingStaticInitializers = void 0;
@@ -52113,7 +52113,7 @@ ${Ht.join(`
           wt && (on = r().createRunInitializersHelper(gt ?? t.createThis(), wt, on ?? t.createVoidZero())), ps(z) && u && on && (u.hasStaticInitializers = true);
           let pr = a();
           if (bt(pr) && (on = t.createImmediatelyInvokedArrowFunction([...pr, t.createReturnStatement(on)])), u && (ps(z) ? (on = Je(u, true, on), Ht && (u.pendingStaticInitializers ?? (u.pendingStaticInitializers = []), u.pendingStaticInitializers.push(r().createRunInitializersHelper(u.classThis ?? t.createThis(), Ht)))) : (on = Je(u, false, on), Ht && (u.pendingInstanceInitializers ?? (u.pendingInstanceInitializers = []), u.pendingInstanceInitializers.push(r().createRunInitializersHelper(t.createThis(), Ht))))), W(), ch(z) && Fe) {
-            let Gn = ph(z), tr = I0(z), mt = z.name, Rt = mt, Vt = mt;
+            let Gn = ph(z), tr = D0(z), mt = z.name, Rt = mt, Vt = mt;
             if (bs(mt) && !bh(mt.expression)) {
               let An = KL(mt);
               if (An) Rt = t.updateComputedPropertyName(mt, ut(mt.expression, X, kt)), Vt = t.updateComputedPropertyName(mt, An.left);
@@ -52176,7 +52176,7 @@ ${Ht.join(`
         }
         function nn(z) {
           let He = Gc(z);
-          return hl(He) && !He.name && !S0(false, He);
+          return hl(He) && !He.name && !x0(false, He);
         }
         function or(z) {
           return t.updateForStatement(z, ut(z.initializer, he, Gp), ut(z.condition, X, kt), ut(z.incrementor, he, kt), qf(z.statement, X, e));
@@ -52185,7 +52185,7 @@ ${Ht.join(`
           return Jn(z, he, e);
         }
         function xa(z, He) {
-          if (k0(z)) {
+          if (C0(z)) {
             let Q = Ua(z.left), wt = ut(z.right, X, kt);
             return t.updateBinaryExpression(z, Q, z.operatorToken, wt);
           }
@@ -52942,7 +52942,7 @@ ${Ht.join(`
           return hH(e, ie, K, L, Te, 0);
         }
         function Ze(ie, Je) {
-          return k0(ie) && AO(ie.left) ? d2(ie, K, e, 1, !Je) : ie.operatorToken.kind === 28 ? t.updateBinaryExpression(ie, ut(ie.left, he, kt), ie.operatorToken, ut(ie.right, Je ? he : K, kt)) : Jn(ie, K, e);
+          return C0(ie) && AO(ie.left) ? d2(ie, K, e, 1, !Je) : ie.operatorToken.kind === 28 ? t.updateBinaryExpression(ie, ut(ie.left, he, kt), ie.operatorToken, ut(ie.right, Je ? he : K, kt)) : Jn(ie, K, e);
         }
         function oe(ie, Je) {
           if (Je) return Jn(ie, he, e);
@@ -54390,7 +54390,7 @@ ${Ht.join(`
           return St(t.createEmptyStatement(), ue);
         }
         function Ge(ue, dt, cn) {
-          let _n = ph(dt), Un = I0(dt), cr = xr(dt, dt, void 0, cn), ci = ut(dt.name, X, kl);
+          let _n = ph(dt), Un = D0(dt), cr = xr(dt, dt, void 0, cn), ci = ut(dt.name, X, kl);
           D.assert(ci);
           let Ei;
           if (!na(ci) && q3(e.getCompilerOptions())) {
@@ -54406,7 +54406,7 @@ ${Ht.join(`
         }
         function Nt(ue, dt, cn) {
           let _n = t.createExpressionStatement(Dt(ue, dt, cn, false));
-          return Pr(_n, 3072), qs(_n, I0(dt.firstAccessor)), _n;
+          return Pr(_n, 3072), qs(_n, D0(dt.firstAccessor)), _n;
         }
         function Dt(ue, { firstAccessor: dt, getAccessor: cn, setAccessor: _n }, Un, cr) {
           let ci = mo(St(t.cloneNode(ue), ue), ue.parent);
@@ -54418,13 +54418,13 @@ ${Ht.join(`
           let V = [];
           if (cn) {
             let Jt = xr(cn, void 0, void 0, Un);
-            qs(Jt, I0(cn)), Pr(Jt, 1024);
+            qs(Jt, D0(cn)), Pr(Jt, 1024);
             let Wn = t.createPropertyAssignment("get", Jt);
             Pl(Wn, ph(cn)), V.push(Wn);
           }
           if (_n) {
             let Jt = xr(_n, void 0, void 0, Un);
-            qs(Jt, I0(_n)), Pr(Jt, 1024);
+            qs(Jt, D0(_n)), Pr(Jt, 1024);
             let Wn = t.createPropertyAssignment("set", Jt);
             Pl(Wn, ph(_n)), V.push(Wn);
           }
@@ -54483,7 +54483,7 @@ ${Ht.join(`
           return Jn(ue, dt ? Te : X, e);
         }
         function He(ue, dt) {
-          return k0(ue) ? d2(ue, X, e, 0, !dt) : ue.operatorToken.kind === 28 ? t.updateBinaryExpression(ue, D.checkDefined(ut(ue.left, Te, kt)), ue.operatorToken, D.checkDefined(ut(ue.right, dt ? Te : X, kt))) : Jn(ue, X, e);
+          return C0(ue) ? d2(ue, X, e, 0, !dt) : ue.operatorToken.kind === 28 ? t.updateBinaryExpression(ue, D.checkDefined(ut(ue.left, Te, kt)), ue.operatorToken, D.checkDefined(ut(ue.right, dt ? Te : X, kt))) : Jn(ue, X, e);
         }
         function Q(ue, dt) {
           if (dt) return Jn(ue, Te, e);
@@ -54589,7 +54589,7 @@ ${Ht.join(`
             } else _n.push(St(t.createVariableStatement(void 0, Gr(St(t.createVariableDeclarationList([t.createVariableDeclaration(cr ? cr.name : t.createTempVariable(void 0), void 0, void 0, dt)]), b1(Un, -1)), Un)), zR(Un, -1)));
           } else {
             let cr = t.createAssignment(Un, dt);
-            k0(cr) ? _n.push(t.createExpressionStatement(He(cr, true))) : (iE(cr, Un.end), _n.push(St(t.createExpressionStatement(D.checkDefined(ut(cr, X, kt))), zR(Un, -1))));
+            C0(cr) ? _n.push(t.createExpressionStatement(He(cr, true))) : (iE(cr, Un.end), _n.push(St(t.createExpressionStatement(D.checkDefined(ut(cr, X, kt))), zR(Un, -1))));
           }
           if (cn) return dn(ni(_n, cn));
           {
@@ -56066,7 +56066,7 @@ ${Ht.join(`
               if (He) return or(be);
               break;
             case 227:
-              if (k0(be)) return Qe(be, z);
+              if (C0(be)) return Qe(be, z);
               break;
             case 225:
             case 226:
@@ -56817,7 +56817,7 @@ ${Ht.join(`
             case 356:
               return Bn(Be, Ft);
             case 227:
-              if (k0(Be)) return lt(Be, Ft);
+              if (C0(Be)) return lt(Be, Ft);
               break;
             case 214:
               if (o_(Be)) return Ua(Be);
@@ -58194,7 +58194,7 @@ ${Ht.join(`
         return SH(e, t.options, r, i);
       }
       function SH(e, t, r, i) {
-        return A0(Cwe(e, r, t.declarationDir || t.outDir, i), PR(e));
+        return E0(Cwe(e, r, t.declarationDir || t.outDir, i), PR(e));
       }
       function wwe(e, t, r, i = () => m2(t, r)) {
         if (t.options.emitDeclarationOnly) return;
@@ -58202,7 +58202,7 @@ ${Ht.join(`
         return !a || Ty(e, o, D.checkDefined(t.options.configFilePath), r) !== 0 ? o : void 0;
       }
       function xH(e, t, r, i) {
-        return A0(Cwe(e, r, t.outDir, i), ZO(e, t));
+        return E0(Cwe(e, r, t.outDir, i), ZO(e, t));
       }
       function Awe() {
         let e;
@@ -58266,7 +58266,7 @@ ${Ht.join(`
         return !!t && !!e;
       }
       function wH(e, t, r, { scriptTransformers: i, declarationTransformers: a }, o, c, f, u) {
-        var g = t.getCompilerOptions(), m = g.sourceMap || g.inlineSourceMap || KR(g) ? [] : void 0, v = g.listEmittedFiles ? [] : void 0, k = aN(), C = C0(g), E = O3(C), { enter: N, exit: F } = gW("printTime", "beforePrint", "afterPrint"), L = false;
+        var g = t.getCompilerOptions(), m = g.sourceMap || g.inlineSourceMap || KR(g) ? [] : void 0, v = g.listEmittedFiles ? [] : void 0, k = aN(), C = w0(g), E = O3(C), { enter: N, exit: F } = gW("printTime", "beforePrint", "afterPrint"), L = false;
         return N(), TH(t, W, FR(t, r, f), f, c, !r && !u), F(), { emitSkipped: L, diagnostics: k.getDiagnostics(), emittedFiles: v, sourceMaps: m };
         function W({ jsFilePath: me, sourceMapFilePath: ge, declarationFilePath: Se, declarationMapPath: we, buildInfoPath: ee }, Ie) {
           var Qe, Ce, se, xe, De, ze;
@@ -58325,7 +58325,7 @@ ${Ht.join(`
         }
         function ne(me) {
           Uf(me) || MC(me, (ge) => {
-            if (Vl(ge) && !(x0(ge) & 32) || xc(ge)) return "skip";
+            if (Vl(ge) && !(k0(ge) & 32) || xc(ge)) return "skip";
             e.markLinkedReferences(ge);
           });
         }
@@ -58380,7 +58380,7 @@ ${Ht.join(`
       }
       var Yle = { hasGlobalName: gs, getReferencedExportContainer: gs, getReferencedImportDeclaration: gs, getReferencedDeclarationWithCollidingName: gs, isDeclarationWithCollidingName: gs, isValueAliasDeclaration: gs, isReferencedAliasDeclaration: gs, isTopLevelValueImportEqualsWithEntityName: gs, hasNodeCheckFlag: gs, isDeclarationVisible: gs, isLateBound: (e) => false, collectLinkedAliases: gs, markLinkedReferences: gs, isImplementationOfOverload: gs, requiresAddingImplicitUndefined: gs, isExpandoFunctionDeclaration: gs, getPropertiesOfContainerFunction: gs, createTypeOfDeclaration: gs, createReturnTypeOfSignatureDeclaration: gs, createTypeOfExpression: gs, createLiteralConstValue: gs, isSymbolAccessible: gs, isEntityNameVisible: gs, getConstantValue: gs, getEnumMemberValue: gs, getReferencedValueDeclaration: gs, getReferencedValueDeclarations: gs, getTypeReferenceSerializationKind: gs, isOptionalParameter: gs, isArgumentsLocalBinding: gs, getExternalModuleFileFromDeclaration: gs, isLiteralConstDeclaration: gs, getJsxFactoryEntity: gs, getJsxFragmentFactoryEntity: gs, isBindingCapturedByNode: gs, getDeclarationStatementsForSourceFile: gs, isImportRequiredByAugmentation: gs, isDefinitelyReferenceToGlobalSymbolObject: gs, createLateBoundIndexSignatures: gs, symbolToDeclarations: gs }, Xle = Af(() => pb({})), IS = Af(() => pb({ removeComments: true })), Kle = Af(() => pb({ removeComments: true, neverAsciiEscape: true })), EH = Af(() => pb({ removeComments: true, omitTrailingSemicolon: true }));
       function pb(e = {}, t = {}) {
-        var { hasGlobalName: r, onEmitNode: i = XO, isEmitNotificationEnabled: a, substituteNode: o = uP, onBeforeEmitNode: c, onAfterEmitNode: f, onBeforeEmitNodeArray: u, onAfterEmitNodeArray: g, onBeforeEmitToken: m, onAfterEmitToken: v } = t, k = !!e.extendedDiagnostics, C = !!e.omitBraceSourceMapPositions, E = C0(e), N = Df(e), F = /* @__PURE__ */ new Map(), L, W, J, $, H, Z, ne, X, Te, ce, K, he, me, ge, Se, we = e.preserveSourceNewlines, ee, Ie, Qe, Ce = mI, se, xe = true, De, ze, ft = -1, de, Ze = -1, oe = -1, Ue = -1, Le = -1, Pe, it, It = false, Xt = !!e.removeComments, kn, Vn, { enter: vt, exit: nn } = MSe(k, "commentTime", "beforeComment", "afterComment"), or = R.parenthesizer, Ri = { select: (I) => I === 0 ? or.parenthesizeLeadingTypeArgument : void 0 }, xa = Ll();
+        var { hasGlobalName: r, onEmitNode: i = XO, isEmitNotificationEnabled: a, substituteNode: o = uP, onBeforeEmitNode: c, onAfterEmitNode: f, onBeforeEmitNodeArray: u, onAfterEmitNodeArray: g, onBeforeEmitToken: m, onAfterEmitToken: v } = t, k = !!e.extendedDiagnostics, C = !!e.omitBraceSourceMapPositions, E = w0(e), N = Df(e), F = /* @__PURE__ */ new Map(), L, W, J, $, H, Z, ne, X, Te, ce, K, he, me, ge, Se, we = e.preserveSourceNewlines, ee, Ie, Qe, Ce = mI, se, xe = true, De, ze, ft = -1, de, Ze = -1, oe = -1, Ue = -1, Le = -1, Pe, it, It = false, Xt = !!e.removeComments, kn, Vn, { enter: vt, exit: nn } = MSe(k, "commentTime", "beforeComment", "afterComment"), or = R.parenthesizer, Ri = { select: (I) => I === 0 ? or.parenthesizeLeadingTypeArgument : void 0 }, xa = Ll();
         return Ka(), { printNode: jt, printList: ii, printFile: ei, printBundle: ma, writeNode: Rr, writeList: Ii, writeFile: Et, writeBundle: tt };
         function jt(I, ve, Ct) {
           switch (I) {
@@ -58422,14 +58422,14 @@ ${Ht.join(`
         function tt(I, ve, Ct) {
           se = false;
           let In = Ie;
-          Yi(ve, Ct), q0(I), am(I), Qt(I), ZP(I);
+          Yi(ve, Ct), H0(I), am(I), Qt(I), ZP(I);
           for (let wi of I.sourceFiles) _i(0, wi, wi);
           Ka(), Ie = In;
         }
         function Et(I, ve, Ct) {
           se = true;
           let In = Ie;
-          Yi(ve, Ct), q0(I), am(I), _i(0, I, I), Ka(), Ie = In;
+          Yi(ve, Ct), H0(I), am(I), _i(0, I, I), Ka(), Ie = In;
         }
         function yn() {
           return Qe || (Qe = O3(E));
@@ -58731,7 +58731,7 @@ ${Ht.join(`
               case 297:
                 return Tb(ve);
               case 298:
-                return V0(ve);
+                return $0(ve);
               case 299:
                 return $y(ve);
               case 300:
@@ -58896,7 +58896,7 @@ ${Ht.join(`
             case 283:
               return;
             case 285:
-              return z0(ve);
+              return V0(ve);
             case 286:
               return A2(ve);
             case 289:
@@ -58972,10 +58972,10 @@ ${Ht.join(`
           D.assert(ve.kind === 243, `A tab stop cannot be attached to a node of kind ${D.formatSyntaxKind(ve.kind)}.`), D.assert(I !== 5, "A tab stop cannot be attached to an embedded statement."), hw(`$${Ct.order}`);
         }
         function Q(I) {
-          (I.symbol ? e6 : Ce)(X0(I, false), I.symbol), Zr(I, Xx(I), 53776);
+          (I.symbol ? e6 : Ce)(K0(I, false), I.symbol), Zr(I, Xx(I), 53776);
         }
         function wt(I) {
-          Ce(X0(I, false));
+          Ce(K0(I, false));
         }
         function Ht(I) {
           Fe(I.left), zr("."), Bn(I.right);
@@ -59182,7 +59182,7 @@ ${Ht.join(`
           lt(I.expression, void 0), yw(I.expression, I), y_(Ct), V(22, I.expression ? I.expression.end : ve, zr, I);
         }
         function ep(I) {
-          Qg(I.name), W0(I);
+          Qg(I.name), z0(I);
         }
         function Uu(I) {
           Lm(I, I.modifiers), Yf(I, mp, d_);
@@ -59256,7 +59256,7 @@ ${Ht.join(`
           Bn(I.head), Zr(I, I.templateSpans, 262144);
         }
         function Kc(I) {
-          V(127, I.pos, La, I), Bn(I.asteriskToken), H0(I.expression && Wn(I.expression), ga);
+          V(127, I.pos, La, I), Bn(I.asteriskToken), G0(I.expression && Wn(I.expression), ga);
         }
         function hp(I) {
           V(26, I.pos, zr, I), lt(I.expression, or.parenthesizeExpressionForDisallowedComma);
@@ -59317,7 +59317,7 @@ ${Ht.join(`
           let ve = V(99, I.pos, La, I);
           Fr();
           let Ct = V(21, ve, zr, I);
-          ci(I.initializer), Ct = V(27, I.initializer ? I.initializer.end : Ct, zr, I), H0(I.condition), Ct = V(27, I.condition ? I.condition.end : Ct, zr, I), H0(I.incrementor), V(22, I.incrementor ? I.incrementor.end : Ct, zr, I), Yy(I, I.statement);
+          ci(I.initializer), Ct = V(27, I.initializer ? I.initializer.end : Ct, zr, I), G0(I.condition), Ct = V(27, I.condition ? I.condition.end : Ct, zr, I), G0(I.incrementor), V(22, I.incrementor ? I.incrementor.end : Ct, zr, I), Yy(I, I.statement);
         }
         function Un(I) {
           let ve = V(99, I.pos, La, I);
@@ -59399,7 +59399,7 @@ ${Ht.join(`
           return Wn(or.parenthesizeExpressionForDisallowedComma(I));
         }
         function ts(I) {
-          V(107, I.pos, La, I), H0(I.expression && Wn(I.expression), Wn), Mf();
+          V(107, I.pos, La, I), G0(I.expression && Wn(I.expression), Wn), Mf();
         }
         function ba(I) {
           let ve = V(118, I.pos, La, I);
@@ -59413,7 +59413,7 @@ ${Ht.join(`
           Bn(I.label), V(59, I.label.end, zr, I), Fr(), Bn(I.statement);
         }
         function Ns(I) {
-          V(111, I.pos, La, I), H0(Wn(I.expression), Wn), Mf();
+          V(111, I.pos, La, I), G0(Wn(I.expression), Wn), Mf();
         }
         function gu(I) {
           V(113, I.pos, La, I), Fr(), Bn(I.tryBlock), I.catchClause && (Rp(I, I.tryBlock, I.catchClause), Bn(I.catchClause)), I.finallyBlock && (Rp(I, I.catchClause || I.tryBlock, I.finallyBlock), V(98, (I.catchClause || I.tryBlock).end, La, I), Fr(), Bn(I.finallyBlock));
@@ -59434,9 +59434,9 @@ ${Ht.join(`
           Fr(), Zr(I, I.declarations, 528);
         }
         function zy(I) {
-          W0(I);
+          z0(I);
         }
-        function W0(I) {
+        function z0(I) {
           Lf(I, I.modifiers, false), La("function"), Bn(I.asteriskToken), Fr(), Ua(I.name), Yf(I, jd, rg);
         }
         function Yf(I, ve, Ct) {
@@ -59455,7 +59455,7 @@ ${Ht.join(`
         }
         function vb(I) {
           if (Zs(I) & 1) return true;
-          if (I.multiLine || !Jo(I) && L && !qx(I, L) || Y0(I, Il(I.statements), 2) || gw(I, nc(I.statements), 2, I.statements)) return false;
+          if (I.multiLine || !Jo(I) && L && !qx(I, L) || X0(I, Il(I.statements), 2) || gw(I, nc(I.statements), 2, I.statements)) return false;
           let ve;
           for (let Ct of I.statements) {
             if (cT(ve, Ct, 2) > 0) return false;
@@ -59583,7 +59583,7 @@ ${Ht.join(`
         function w2(I) {
           La("require"), zr("("), lt(I.expression), zr(")");
         }
-        function z0(I) {
+        function V0(I) {
           Bn(I.openingElement), Zr(I, I.children, 262144), Bn(I.closingElement);
         }
         function A2(I) {
@@ -59643,7 +59643,7 @@ ${Ht.join(`
         function Tb(I) {
           V(84, I.pos, La, I), Fr(), lt(I.expression, or.parenthesizeExpressionForDisallowedComma), Vy(I, I.statements, I.expression.end);
         }
-        function V0(I) {
+        function $0(I) {
           let ve = V(90, I.pos, La, I);
           Vy(I, I.statements, ve);
         }
@@ -59745,12 +59745,12 @@ ${Ht.join(`
           zS(I);
         }
         function ZP(I) {
-          $0(!!I.hasNoDefaultLib, I.syntheticFileReferences || [], I.syntheticTypeReferences || [], I.syntheticLibReferences || []);
+          q0(!!I.hasNoDefaultLib, I.syntheticFileReferences || [], I.syntheticTypeReferences || [], I.syntheticLibReferences || []);
         }
         function dI(I) {
-          I.isDeclarationFile && $0(I.hasNoDefaultLib, I.referencedFiles, I.typeReferenceDirectives, I.libReferenceDirectives);
+          I.isDeclarationFile && q0(I.hasNoDefaultLib, I.referencedFiles, I.typeReferenceDirectives, I.libReferenceDirectives);
         }
-        function $0(I, ve, Ct, In) {
+        function q0(I, ve, Ct, In) {
           if (I && (kb('/// <reference no-default-lib="true"/>'), vf()), L && L.moduleName && (kb(`/// <amd-module name="${L.moduleName}" />`), vf()), L && L.amdDependencies) for (let Bi of L.amdDependencies) Bi.name ? kb(`/// <amd-dependency name="${Bi.name}" path="${Bi.path}" />`) : kb(`/// <amd-dependency path="${Bi.path}" />`), vf();
           function wi(Bi, Ta) {
             for (let ji of Ta) {
@@ -59790,11 +59790,11 @@ ${Ht.join(`
             mi(void 0);
           }
         }
-        function q0(I) {
+        function H0(I) {
           if (Zi(I)) {
             let ve = x5(I.text);
             if (ve) return kb(ve), vf(), true;
-          } else for (let ve of I.sourceFiles) if (q0(ve)) return true;
+          } else for (let ve of I.sourceFiles) if (H0(ve)) return true;
         }
         function xb(I, ve) {
           if (!I) return;
@@ -59837,14 +59837,14 @@ ${Ht.join(`
         function Fp(I) {
           I && (Fr(), Bn(I));
         }
-        function H0(I, ve) {
+        function G0(I, ve) {
           I && (Fr(), lt(I, ve));
         }
         function O2(I) {
           I && (Bn(I), Fr());
         }
         function Yy(I, ve) {
-          es(ve) || Zs(I) & 1 || we && !Y0(I, ve, 0) ? (Fr(), Bn(ve)) : (vf(), cg(), J$(ve) ? ie(5, ve) : Bn(ve), Mm());
+          es(ve) || Zs(I) & 1 || we && !X0(I, ve, 0) ? (Fr(), Bn(ve)) : (vf(), cg(), J$(ve) ? ie(5, ve) : Bn(ve), Mm());
         }
         function VS(I, ve) {
           Zr(I, ve, 2146305);
@@ -59861,12 +59861,12 @@ ${Ht.join(`
         function sT(I, ve) {
           Zr(I, ve, 2576);
         }
-        function G0(I, ve) {
+        function Y0(I, ve) {
           let Ct = Sg(ve);
           return Ct && Ct.pos === I.pos && Qo(I) && !I.type && !bt(I.modifiers) && !bt(I.typeParameters) && !bt(Ct.modifiers) && !Ct.dotDotDotToken && !Ct.questionToken && !Ct.type && !Ct.initializer && Xe(Ct.name);
         }
         function Ih(I, ve) {
-          G0(I, ve) ? Zr(I, ve, 528) : sT(I, ve);
+          Y0(I, ve) ? Zr(I, ve, 528) : sT(I, ve);
         }
         function $S(I, ve) {
           Zr(I, ve, 8848);
@@ -59905,28 +59905,28 @@ ${Ht.join(`
           In & 15360 && (zr(hKe(In)), Gs && Ct && cm(Ct.pos, true)), u?.(Ct), Gs ? In & 1 && !(we && (!ve || L && qx(ve, L))) ? vf() : In & 256 && !(In & 524288) && Fr() : F2(I, ve, Ct, In, wi, Bi, Ta, Ct.hasTrailingComma, Ct), g?.(Ct), In & 15360 && (Gs && Ct && ey(Ct.end), zr(gKe(In)));
         }
         function F2(I, ve, Ct, In, wi, Bi, Ta, ji, Gs) {
-          let Tl = (In & 262144) === 0, nf = Tl, Kf = Y0(ve, Ct[Bi], In);
+          let Tl = (In & 262144) === 0, nf = Tl, Kf = X0(ve, Ct[Bi], In);
           Kf ? (vf(Kf), nf = false) : In & 256 && Fr(), In & 128 && cg();
           let gT = TKe(I, wi), Qf, Pb = false;
-          for (let Z0 = 0; Z0 < Ta; Z0++) {
-            let lm = Ct[Bi + Z0];
+          for (let ev = 0; ev < Ta; ev++) {
+            let lm = Ct[Bi + ev];
             if (In & 32) vf(), oT(In);
             else if (Qf) {
               In & 60 && Qf.end !== (ve ? ve.end : -1) && (Zs(Qf) & 2048 || ey(Qf.end)), oT(In);
-              let ev = cT(Qf, lm, In);
-              if (ev > 0) {
+              let tv = cT(Qf, lm, In);
+              if (tv > 0) {
                 if ((In & 131) === 0 && (cg(), Pb = true), nf && In & 60 && !Cm(lm.pos)) {
                   let KS = ph(lm);
                   cm(KS.pos, !!(In & 512), true);
                 }
-                vf(ev), nf = false;
+                vf(tv), nf = false;
               } else Qf && In & 512 && Fr();
             }
             if (nf) {
-              let ev = ph(lm);
-              cm(ev.pos);
+              let tv = ph(lm);
+              cm(tv.pos);
             } else nf = Tl;
-            ee = lm.pos, gT(lm, I, wi, Z0), Pb && (Mm(), Pb = false), Qf = lm;
+            ee = lm.pos, gT(lm, I, wi, ev), Pb && (Mm(), Pb = false), Qf = lm;
           }
           let Iw = Qf ? Zs(Qf) : 0, zd = Xt || !!(Iw & 2048), kc = ji && In & 64 && In & 16;
           kc && (Qf && !zd ? V(28, Qf.end, zr, Qf) : zr(",")), Qf && (ve ? ve.end : -1) !== Qf.end && In & 60 && !zd && ey(kc && Gs?.end ? Gs.end : Qf.end), In & 128 && Mm();
@@ -60011,7 +60011,7 @@ ${Ht.join(`
         function y_(I, ve) {
           I && Mm(), ve && Mm();
         }
-        function Y0(I, ve, Ct) {
+        function X0(I, ve, Ct) {
           if (Ct & 2 || we) {
             if (Ct & 65536) return 1;
             if (ve === void 0) return !I || L && qx(I, L) ? 0 : 1;
@@ -60050,7 +60050,7 @@ ${Ht.join(`
           return ve === 0 ? I(false) : ve;
         }
         function Ab(I, ve) {
-          let Ct = we && Y0(ve, I, 0);
+          let Ct = we && X0(ve, I, 0);
           return Ct && ud(Ct, false), !!Ct;
         }
         function yw(I, ve) {
@@ -60074,9 +60074,9 @@ ${Ht.join(`
           for (; I.kind === 218 && Jo(I); ) I = I.expression;
           return I;
         }
-        function X0(I, ve) {
+        function K0(I, ve) {
           if (hc(I) || Dx(I)) return fT(I);
-          if (Ls(I) && I.textSourceNode) return X0(I.textSourceNode, ve);
+          if (Ls(I) && I.textSourceNode) return K0(I.textSourceNode, ve);
           let Ct = L, In = !!Ct && !!I.parent && !Jo(I);
           if (Ag(I)) {
             if (!In || zn(I) !== Sc(Ct)) return Xr(I);
@@ -60089,7 +60089,7 @@ ${Ht.join(`
           if (I.kind === 11 && I.textSourceNode) {
             let Bi = I.textSourceNode;
             if (Xe(Bi) || na(Bi) || f_(Bi) || Em(Bi)) {
-              let Ta = f_(Bi) ? Bi.text : X0(Bi);
+              let Ta = f_(Bi) ? Bi.text : K0(Bi);
               return In ? `"${hV(Ta)}"` : Ct || Zs(I) & 16777216 ? `"${Xh(Ta)}"` : `"${IR(Ta)}"`;
             } else return Ib(Bi, zn(Bi), Ct, In);
           }
@@ -60285,7 +60285,7 @@ ${Ht.join(`
           return Zy(I, vw, true, false, false, "", "");
         }
         function pT(I) {
-          let ve = X0(I.name);
+          let ve = K0(I.name);
           return bw(ve, li(I, Vh)) ? ve : Zy(ve, Zg, false, false, false, "", "");
         }
         function j2(I) {
@@ -60305,7 +60305,7 @@ ${Ht.join(`
           switch (I.kind) {
             case 80:
             case 81:
-              return Zy(X0(I), Zg, !!(Ct & 16), !!(Ct & 8), ve, In, wi);
+              return Zy(K0(I), Zg, !!(Ct & 16), !!(Ct & 8), ve, In, wi);
             case 268:
             case 267:
               return D.assert(!In && !wi && !ve), pT(I);
@@ -60350,7 +60350,7 @@ ${Ht.join(`
         }
         function jm(I) {
           let ve = Zs(I), Ct = ph(I);
-          K0(I, ve, Ct.pos, Ct.end), ve & 4096 && (Xt = true);
+          Q0(I, ve, Ct.pos, Ct.end), ve & 4096 && (Xt = true);
         }
         function Nb(I, ve, Ct, In) {
           let wi = Zs(I), Bi = ph(I);
@@ -60358,7 +60358,7 @@ ${Ht.join(`
           let Ta = Qse(I);
           Ta && xw(I, wi, Ta.pos, Ta.end, ve, Ct, In);
         }
-        function K0(I, ve, Ct, In) {
+        function Q0(I, ve, Ct, In) {
           vt(), It = false;
           let wi = Ct < 0 || (ve & 1024) !== 0 || I.kind === 12, Bi = In < 0 || (ve & 2048) !== 0 || I.kind === 12;
           (Ct > 0 || In > 0) && Ct !== In && (wi || I_(Ct, I.kind !== 354), (!wi || Ct >= 0 && (ve & 1024) !== 0) && (oe = Ct), (!Bi || In >= 0 && (ve & 2048) !== 0) && (Ue = In, I.kind === 262 && (Le = In))), Ne(sE(I), n6), nn();
@@ -60431,7 +60431,7 @@ ${Ht.join(`
           L && (ru(I), XA(L.text, ks(), Ie, I, ve, E), ru(ve), In ? Ie.writeLine() : Ie.writeSpace(" "));
         }
         function Aw(I, ve) {
-          L && (oe === -1 || I !== oe) && (Ew(I) ? Q0(ve) : C4(L.text, I, ve, I));
+          L && (oe === -1 || I !== oe) && (Ew(I) ? Z0(ve) : C4(L.text, I, ve, I));
         }
         function z2(I, ve) {
           L && (Ue === -1 || I !== Ue && I !== Le) && w4(L.text, I, ve);
@@ -60439,7 +60439,7 @@ ${Ht.join(`
         function Ew(I) {
           return it !== void 0 && Ws(it).nodePos === I;
         }
-        function Q0(I) {
+        function Z0(I) {
           if (!L) return;
           let ve = Ws(it).detachedCommentEndPos;
           it.length - 1 ? it.pop() : it = void 0, C4(L.text, ve, I, ve);
@@ -60459,11 +60459,11 @@ ${Ht.join(`
           oo(ve), Ct(I, ve), Jr(ve);
         }
         function oo(I) {
-          let ve = Zs(I), Ct = I0(I), In = Ct.source || ze;
+          let ve = Zs(I), Ct = D0(I), In = Ct.source || ze;
           I.kind !== 354 && (ve & 32) === 0 && Ct.pos >= 0 && mT(Ct.source || ze, Lp(In, Ct.pos)), ve & 128 && (xe = true);
         }
         function Jr(I) {
-          let ve = Zs(I), Ct = I0(I);
+          let ve = Zs(I), Ct = D0(I);
           ve & 128 && (xe = false), I.kind !== 354 && (ve & 64) === 0 && Ct.end >= 0 && mT(Ct.source || ze, Ct.end);
         }
         function Lp(I, ve) {
@@ -60836,7 +60836,7 @@ ${Ht.join(`
         function c() {
           return hi(vs(r.getExecutingFilePath()));
         }
-        let f = C0(e), u = r.realpath && ((m) => r.realpath(m)), g = { getSourceFile: FH((m) => g.readFile(m), t), getDefaultLibLocation: c, getDefaultLibFileName: (m) => ri(c(), E4(m)), writeFile: RH((m, v, k) => r.writeFile(m, v, k), (m) => (g.createDirectory || r.createDirectory)(m), (m) => o(m)), getCurrentDirectory: Af(() => r.getCurrentDirectory()), useCaseSensitiveFileNames: () => r.useCaseSensitiveFileNames, getCanonicalFileName: a, getNewLine: () => f, fileExists: (m) => r.fileExists(m), readFile: (m) => r.readFile(m), trace: (m) => r.write(m + f), directoryExists: (m) => r.directoryExists(m), getEnvironmentVariable: (m) => r.getEnvironmentVariable ? r.getEnvironmentVariable(m) : "", getDirectories: (m) => r.getDirectories(m), realpath: u, readDirectory: (m, v, k, C, E) => r.readDirectory(m, v, k, C, E), createDirectory: (m) => r.createDirectory(m), createHash: as(r, r.createHash) };
+        let f = w0(e), u = r.realpath && ((m) => r.realpath(m)), g = { getSourceFile: FH((m) => g.readFile(m), t), getDefaultLibLocation: c, getDefaultLibFileName: (m) => ri(c(), E4(m)), writeFile: RH((m, v, k) => r.writeFile(m, v, k), (m) => (g.createDirectory || r.createDirectory)(m), (m) => o(m)), getCurrentDirectory: Af(() => r.getCurrentDirectory()), useCaseSensitiveFileNames: () => r.useCaseSensitiveFileNames, getCanonicalFileName: a, getNewLine: () => f, fileExists: (m) => r.fileExists(m), readFile: (m) => r.readFile(m), trace: (m) => r.write(m + f), directoryExists: (m) => r.directoryExists(m), getEnvironmentVariable: (m) => r.getEnvironmentVariable ? r.getEnvironmentVariable(m) : "", getDirectories: (m) => r.getDirectories(m), realpath: u, readDirectory: (m, v, k, C, E) => r.readDirectory(m, v, k, C, E), createDirectory: (m) => r.createDirectory(m), createHash: as(r, r.createHash) };
         return g;
       }
       function dP(e, t, r) {
@@ -61169,7 +61169,7 @@ ${Ht.join(`
             let Zt = et.commandLine.options.outFile;
             if (pt) {
               if (Zt || Df(et.commandLine.options) === 0) for (let Pn of et.commandLine.fileNames) d_(Pn, { kind: 1, index: ht });
-            } else if (Zt) d_(A0(Zt, ".d.ts"), { kind: 2, index: ht });
+            } else if (Zt) d_(E0(Zt, ".d.ts"), { kind: 2, index: ht });
             else if (Df(et.commandLine.options) === 0) {
               let Pn = Af(() => m2(et.commandLine, !vt.useCaseSensitiveFileNames()));
               for (let nr of et.commandLine.fileNames) !pu(nr) && !Ac(nr, ".json") && d_(_P(nr, et.commandLine, !vt.useCaseSensitiveFileNames(), Pn), { kind: 2, index: ht });
@@ -61202,7 +61202,7 @@ ${Ht.join(`
           let Pn = ht?.commandLine.projectReferences[Zt] || he.getProjectReferences()[Zt], nr = qC(Pn);
           ie?.has(Vt(nr)) || vt.onReleaseParsedCommandLine(nr, et, he.getCompilerOptions());
         }), he = void 0, Ze = void 0, Ue = void 0, Pe = void 0;
-        let Qt = { getRootFileNames: () => Z, getSourceFile: ec, getSourceFileByPath: Ds, getSourceFiles: () => we, getMissingFilePaths: () => Wt, getModuleResolutionCache: () => Et, getFilesByNameMap: () => lt, getCompilerOptions: () => ne, getSyntacticDiagnostics: Np, getOptionsDiagnostics: $n, getGlobalDiagnostics: Xi, getSemanticDiagnostics: Pa, getCachedSemanticDiagnostics: ms, getSuggestionDiagnostics: Ye, getDeclarationDiagnostics: rn, getBindAndCheckDiagnostics: so, getProgramDiagnostics: eo, getTypeChecker: Lo, getClassifiableNames: Dn, getCommonSourceDirectory: sn, emit: ua, getCurrentDirectory: () => ii, getNodeCount: () => Lo().getNodeCount(), getIdentifierCount: () => Lo().getIdentifierCount(), getSymbolCount: () => Lo().getSymbolCount(), getTypeCount: () => Lo().getTypeCount(), getInstantiationCount: () => Lo().getInstantiationCount(), getRelationCacheSizes: () => Lo().getRelationCacheSizes(), getFileProcessingDiagnostics: () => De.getFileProcessingDiagnostics(), getAutomaticTypeDirectiveNames: () => ze, getAutomaticTypeDirectiveResolutions: () => ft, isSourceFileFromExternalLibrary: Vc, isSourceFileDefaultLibrary: Lc, getModeForUsageLocation: cd, getEmitSyntaxForUsageLocation: zy, getModeForResolutionAtIndex: W0, getSourceFileFromReference: ep, getLibFileFromReference: sl, sourceFileToPackageName: ks, redirectTargetsMap: Bn, usesUriStyleNodeCoreModules: Ua, resolvedModules: oe, resolvedTypeReferenceDirectiveNames: Le, resolvedLibReferences: de, getProgramDiagnosticsContainer: () => De, getResolvedModule: xr, getResolvedModuleFromModuleSpecifier: Be, getResolvedTypeReferenceDirective: Ft, getResolvedTypeReferenceDirectiveFromTypeReferenceDirective: be, forEachResolvedModule: z, forEachResolvedTypeReferenceDirective: He, getCurrentPackagesMap: () => it, typesPackageExists: Ht, packageBundlesTypes: Fe, isEmittedFile: gu, getConfigFileParsingDiagnostics: ko, getProjectReferences: ja, getResolvedProjectReferences: cs, getRedirectFromSourceFile: ic, getResolvedProjectReferenceByPath: Eu, forEachResolvedProjectReference: Mc, isSourceOfProjectReferenceRedirect: hp, getRedirectFromOutput: Kc, getCompilerOptionsForFile: Ff, getDefaultResolutionModeForFile: Yf, getEmitModuleFormatOfFile: Rm, getImpliedNodeFormatForEmit: rg, shouldTransformImportCall: jd, emitBuildInfo: os, fileExists: Ge, readFile: Dt, directoryExists: Nt, getSymlinkCache: Op, realpath: (J = vt.realpath) == null ? void 0 : J.bind(vt), useCaseSensitiveFileNames: () => vt.useCaseSensitiveFileNames(), getCanonicalFileName: nu, getFileIncludeReasons: () => De.getFileReasons(), structureIsReused: st, writeFile: Di, getGlobalTypingsCacheLocation: as(vt, vt.getGlobalTypingsCacheLocation) };
+        let Qt = { getRootFileNames: () => Z, getSourceFile: ec, getSourceFileByPath: Ds, getSourceFiles: () => we, getMissingFilePaths: () => Wt, getModuleResolutionCache: () => Et, getFilesByNameMap: () => lt, getCompilerOptions: () => ne, getSyntacticDiagnostics: Np, getOptionsDiagnostics: $n, getGlobalDiagnostics: Xi, getSemanticDiagnostics: Pa, getCachedSemanticDiagnostics: ms, getSuggestionDiagnostics: Ye, getDeclarationDiagnostics: rn, getBindAndCheckDiagnostics: so, getProgramDiagnostics: eo, getTypeChecker: Lo, getClassifiableNames: Dn, getCommonSourceDirectory: sn, emit: ua, getCurrentDirectory: () => ii, getNodeCount: () => Lo().getNodeCount(), getIdentifierCount: () => Lo().getIdentifierCount(), getSymbolCount: () => Lo().getSymbolCount(), getTypeCount: () => Lo().getTypeCount(), getInstantiationCount: () => Lo().getInstantiationCount(), getRelationCacheSizes: () => Lo().getRelationCacheSizes(), getFileProcessingDiagnostics: () => De.getFileProcessingDiagnostics(), getAutomaticTypeDirectiveNames: () => ze, getAutomaticTypeDirectiveResolutions: () => ft, isSourceFileFromExternalLibrary: Vc, isSourceFileDefaultLibrary: Lc, getModeForUsageLocation: cd, getEmitSyntaxForUsageLocation: zy, getModeForResolutionAtIndex: z0, getSourceFileFromReference: ep, getLibFileFromReference: sl, sourceFileToPackageName: ks, redirectTargetsMap: Bn, usesUriStyleNodeCoreModules: Ua, resolvedModules: oe, resolvedTypeReferenceDirectiveNames: Le, resolvedLibReferences: de, getProgramDiagnosticsContainer: () => De, getResolvedModule: xr, getResolvedModuleFromModuleSpecifier: Be, getResolvedTypeReferenceDirective: Ft, getResolvedTypeReferenceDirectiveFromTypeReferenceDirective: be, forEachResolvedModule: z, forEachResolvedTypeReferenceDirective: He, getCurrentPackagesMap: () => it, typesPackageExists: Ht, packageBundlesTypes: Fe, isEmittedFile: gu, getConfigFileParsingDiagnostics: ko, getProjectReferences: ja, getResolvedProjectReferences: cs, getRedirectFromSourceFile: ic, getResolvedProjectReferenceByPath: Eu, forEachResolvedProjectReference: Mc, isSourceOfProjectReferenceRedirect: hp, getRedirectFromOutput: Kc, getCompilerOptionsForFile: Ff, getDefaultResolutionModeForFile: Yf, getEmitModuleFormatOfFile: Rm, getImpliedNodeFormatForEmit: rg, shouldTransformImportCall: jd, emitBuildInfo: os, fileExists: Ge, readFile: Dt, directoryExists: Nt, getSymlinkCache: Op, realpath: (J = vt.realpath) == null ? void 0 : J.bind(vt), useCaseSensitiveFileNames: () => vt.useCaseSensitiveFileNames(), getCanonicalFileName: nu, getFileIncludeReasons: () => De.getFileReasons(), structureIsReused: st, writeFile: Di, getGlobalTypingsCacheLocation: as(vt, vt.getGlobalTypingsCacheLocation) };
         return Mt(), jt || ue(), Nc("afterProgram"), qp("Program", "beforeProgram", "afterProgram"), ($ = Ir) == null || $.pop(), Qt;
         function xr(et, ht, Zt) {
           var Pn;
@@ -61414,7 +61414,7 @@ ${Ht.join(`
           return De.reuseStateFromOldProgram(he.getProgramDiagnosticsContainer(), ka), jt = ka, we = Pn, ze = he.getAutomaticTypeDirectiveNames(), ft = he.getAutomaticTypeDirectiveResolutions(), ks = he.sourceFileToPackageName, Bn = he.redirectTargetsMap, Ua = he.usesUriStyleNodeCoreModules, oe = he.resolvedModules, Le = he.resolvedTypeReferenceDirectiveNames, de = he.resolvedLibReferences, it = he.getCurrentPackagesMap(), 2;
         }
         function dn(et) {
-          return { getCanonicalFileName: nu, getCommonSourceDirectory: Qt.getCommonSourceDirectory, getCompilerOptions: Qt.getCompilerOptions, getCurrentDirectory: () => ii, getSourceFile: Qt.getSourceFile, getSourceFileByPath: Qt.getSourceFileByPath, getSourceFiles: Qt.getSourceFiles, isSourceFileFromExternalLibrary: Vc, getRedirectFromSourceFile: ic, isSourceOfProjectReferenceRedirect: hp, getSymlinkCache: Op, writeFile: et || Di, isEmitBlocked: Ba, shouldTransformImportCall: jd, getEmitModuleFormatOfFile: Rm, getDefaultResolutionModeForFile: Yf, getModeForResolutionAtIndex: W0, readFile: (ht) => vt.readFile(ht), fileExists: (ht) => {
+          return { getCanonicalFileName: nu, getCommonSourceDirectory: Qt.getCommonSourceDirectory, getCompilerOptions: Qt.getCompilerOptions, getCurrentDirectory: () => ii, getSourceFile: Qt.getSourceFile, getSourceFileByPath: Qt.getSourceFileByPath, getSourceFiles: Qt.getSourceFiles, isSourceFileFromExternalLibrary: Vc, getRedirectFromSourceFile: ic, isSourceOfProjectReferenceRedirect: hp, getSymlinkCache: Op, writeFile: et || Di, isEmitBlocked: Ba, shouldTransformImportCall: jd, getEmitModuleFormatOfFile: Rm, getDefaultResolutionModeForFile: Yf, getModeForResolutionAtIndex: z0, readFile: (ht) => vt.readFile(ht), fileExists: (ht) => {
             let Zt = Vt(ht);
             return Ds(Zt) ? true : Wt.has(Zt) ? false : vt.fileExists(ht);
           }, realpath: as(vt, vt.realpath), useCaseSensitiveFileNames: () => vt.useCaseSensitiveFileNames(), getBuildInfo: () => {
@@ -62020,7 +62020,7 @@ ${Ht.join(`
           if (ie.set(Zt, Zn), ne.configFile !== Lr) {
             Je ?? (Je = /* @__PURE__ */ new Map()), ct ?? (ct = /* @__PURE__ */ new Map());
             let dr;
-            nr.options.outFile && (dr = A0(nr.options.outFile, ".d.ts"), ct?.set(Vt(dr), { resolvedRef: Zn }));
+            nr.options.outFile && (dr = E0(nr.options.outFile, ".d.ts"), ct?.set(Vt(dr), { resolvedRef: Zn }));
             let Ji = Af(() => m2(Zn.commandLine, !vt.useCaseSensitiveFileNames()));
             nr.fileNames.forEach((ka) => {
               let xi = Vt(ka), Ca;
@@ -62222,7 +62222,7 @@ ${Ht.join(`
         function zy(et, ht) {
           return Bwe(et, ht, Ff(et));
         }
-        function W0(et, ht) {
+        function z0(et, ht) {
           return cd(et, s8(et, ht));
         }
         function Yf(et) {
@@ -62960,7 +62960,7 @@ ${Ht.join(`
       }
       function Zwe(e, t, r, i, a, o) {
         var c;
-        if (h0(i, t)) {
+        if (g0(i, t)) {
           if (vue(e, t, r, a, o)) return true;
           gue(e, t, r, a, o), (c = e.referencedMap.getKeys(t)) == null || c.forEach((f) => Zwe(e, f, r, i, a, o));
         }
@@ -63032,7 +63032,7 @@ ${Ht.join(`
         let N = ce(), F;
         if ((r = e.affectedFilesPendingEmit) != null && r.size) {
           let ee = db(e.compilerOptions), Ie = /* @__PURE__ */ new Set();
-          for (let Qe of Aa(e.affectedFilesPendingEmit.keys()).sort(Hu)) if (h0(Ie, Qe)) {
+          for (let Qe of Aa(e.affectedFilesPendingEmit.keys()).sort(Hu)) if (g0(Ie, Qe)) {
             let Ce = e.program.getSourceFileByPath(Qe);
             if (!Ce || !oS(Ce, e.program)) continue;
             let se = $(Qe), xe = e.affectedFilesPendingEmit.get(Qe);
@@ -63488,7 +63488,7 @@ ${Ht.join(`
       }
       function Pue(e, t) {
         let r = va(e, t());
-        return UW(r) ? r : g0(r);
+        return UW(r) ? r : y0(r);
       }
       function tM(e) {
         var t;
@@ -63974,7 +63974,7 @@ ${Ht.join(`
         let o = Ac(t, ".json"), c = hi(va(a.fileName, e.getCurrentDirectory())), f = e.useCaseSensitiveFileNames(), u = Hr((i = a?.configFileSpecs) == null ? void 0 : i.validatedIncludeSpecs, (g) => {
           if (o && !rc(g, ".json")) return false;
           let m = QV(g, c, "files");
-          return !!m && w0(`(?:${m})$`, f).test(t);
+          return !!m && A0(`(?:${m})$`, f).test(t);
         });
         return u !== -1 ? a.configFileSpecs.validatedIncludeSpecsBeforeSubstitution[u] : void 0;
       }
@@ -64058,7 +64058,7 @@ ${Ht.join(`
         return a.writeLog = i, a;
       }
       function mG(e, t, r = e) {
-        let i = e.useCaseSensitiveFileNames(), a = { getSourceFile: FH((o, c) => c ? e.readFile(o, c) : a.readFile(o), void 0), getDefaultLibLocation: as(e, e.getDefaultLibLocation), getDefaultLibFileName: (o) => e.getDefaultLibFileName(o), writeFile: RH((o, c, f) => e.writeFile(o, c, f), (o) => e.createDirectory(o), (o) => e.directoryExists(o)), getCurrentDirectory: Af(() => e.getCurrentDirectory()), useCaseSensitiveFileNames: () => i, getCanonicalFileName: Ou(i), getNewLine: () => C0(t()), fileExists: (o) => e.fileExists(o), readFile: (o) => e.readFile(o), trace: as(e, e.trace), directoryExists: as(r, r.directoryExists), getDirectories: as(r, r.getDirectories), realpath: as(e, e.realpath), getEnvironmentVariable: as(e, e.getEnvironmentVariable) || (() => ""), createHash: as(e, e.createHash), readDirectory: as(e, e.readDirectory), storeSignatureInfo: e.storeSignatureInfo, jsDocParsingMode: e.jsDocParsingMode };
+        let i = e.useCaseSensitiveFileNames(), a = { getSourceFile: FH((o, c) => c ? e.readFile(o, c) : a.readFile(o), void 0), getDefaultLibLocation: as(e, e.getDefaultLibLocation), getDefaultLibFileName: (o) => e.getDefaultLibFileName(o), writeFile: RH((o, c, f) => e.writeFile(o, c, f), (o) => e.createDirectory(o), (o) => e.directoryExists(o)), getCurrentDirectory: Af(() => e.getCurrentDirectory()), useCaseSensitiveFileNames: () => i, getCanonicalFileName: Ou(i), getNewLine: () => w0(t()), fileExists: (o) => e.fileExists(o), readFile: (o) => e.readFile(o), trace: as(e, e.trace), directoryExists: as(r, r.directoryExists), getDirectories: as(r, r.getDirectories), realpath: as(e, e.realpath), getEnvironmentVariable: as(e, e.getEnvironmentVariable) || (() => ""), createHash: as(e, e.createHash), readDirectory: as(e, e.readDirectory), storeSignatureInfo: e.storeSignatureInfo, jsDocParsingMode: e.jsDocParsingMode };
         return a;
       }
       function aM(e, t) {
@@ -64102,7 +64102,7 @@ ${Ht.join(`
       function pAe(e = Xl, t, r, i) {
         let a = (c) => e.write(c + e.newLine), o = hG(e, t);
         return sW(o, pG(e, i)), o.afterProgramCreate = (c) => {
-          let f = c.getCompilerOptions(), u = C0(f);
+          let f = c.getCompilerOptions(), u = w0(f);
           iM(c, r, a, (g) => o.onWatchStatusChange(Ic(iG(g), g), u, f, g));
         }, o;
       }
@@ -64147,7 +64147,7 @@ ${Ht.join(`
       }
       function vG(e) {
         let t, r, i, a, o = /* @__PURE__ */ new Map([[void 0, void 0]]), c, f, u, g, m = e.extendedConfigCache, v = false, k = /* @__PURE__ */ new Map(), C, E = false, N = e.useCaseSensitiveFileNames(), F = e.getCurrentDirectory(), { configFileName: L, optionsToExtend: W = {}, watchOptionsToExtend: J, extraFileExtensions: $, createProgram: H } = e, { rootFiles: Z, options: ne, watchOptions: X, projectReferences: Te } = e, ce, K, he = false, me = false, ge = L === void 0 ? void 0 : B9(e, F, N), Se = ge || e, we = X9(e, Se), ee = Vn();
-        L && e.configFileParsingResult && (Bn(e.configFileParsingResult), ee = Vn()), ei(d.Starting_compilation_in_watch_mode), L && !e.configFileParsingResult && (ee = C0(W), D.assert(!Z), ks(), ee = Vn()), D.assert(ne), D.assert(Z);
+        L && e.configFileParsingResult && (Bn(e.configFileParsingResult), ee = Vn()), ei(d.Starting_compilation_in_watch_mode), L && !e.configFileParsingResult && (ee = w0(W), D.assert(!Z), ks(), ee = Vn()), D.assert(ne), D.assert(Z);
         let { watchFile: Ie, watchDirectory: Qe, writeLog: Ce } = dG(e, ne), se = Ou(N);
         Ce(`Current directory: ${F} CaseSensitiveFileNames: ${N}`);
         let xe;
@@ -64204,7 +64204,7 @@ ${Ht.join(`
           D.assert(!L, "Cannot update root file names with config file watch mode"), Z = Dt, yn();
         }
         function Vn() {
-          return C0(ne || W);
+          return w0(ne || W);
         }
         function vt(Dt) {
           return jo(Dt, F, se);
@@ -65590,7 +65590,7 @@ ${Ht.join(`
               let { node: Et, introducesError: yn } = t.trackExistingEntityName(oe, jt.expression);
               if (yn) {
                 let mr = t.serializeTypeOfExpression(oe, jt.expression), _i;
-                if (P0(mr)) _i = mr.literal;
+                if (O0(mr)) _i = mr.literal;
                 else {
                   let mi = t.evaluateEntityNameExpression(jt.expression), Yi = typeof mi.value == "string" ? R.createStringLiteral(mi.value, void 0) : typeof mi.value == "number" ? R.createNumericLiteral(mi.value, 0) : void 0;
                   if (!Yi) return dh(mr) && t.trackComputedName(oe, jt.expression), jt;
@@ -65730,7 +65730,7 @@ ${Ht.join(`
           }
         }
         function C(oe) {
-          if (oe) return oe.kind === 178 ? Er(oe) && y0(oe) || $_(oe) : kV(oe);
+          if (oe) return oe.kind === 178 ? Er(oe) && v0(oe) || $_(oe) : kV(oe);
         }
         function E(oe, Ue) {
           let Le = C(oe);
@@ -65950,7 +65950,7 @@ ${Ht.join(`
         }
         function De(oe, Ue, Le, Pe) {
           let it = Le && Kd(Le).parent, It = it && uu(it) && yC(it);
-          return !r || !(Ue || It) ? oe : (ze(oe) || Pe.tracker.reportInferenceFallback(oe), N0(oe) ? R.createUnionTypeNode([...oe.types, R.createKeywordTypeNode(157)]) : R.createUnionTypeNode([oe, R.createKeywordTypeNode(157)]));
+          return !r || !(Ue || It) ? oe : (ze(oe) || Pe.tracker.reportInferenceFallback(oe), P0(oe) ? R.createUnionTypeNode([...oe.types, R.createKeywordTypeNode(157)]) : R.createUnionTypeNode([oe, R.createKeywordTypeNode(157)]));
         }
         function ze(oe) {
           return !r || l_(oe.kind) || oe.kind === 202 || oe.kind === 185 || oe.kind === 186 || oe.kind === 189 || oe.kind === 190 || oe.kind === 188 || oe.kind === 204 || oe.kind === 198 ? true : oe.kind === 197 ? ze(oe.type) : oe.kind === 193 || oe.kind === 194 ? oe.types.every(ze) : false;
@@ -66206,7 +66206,7 @@ ${Ht.join(`
       function g2(e) {
         e = ZG(e);
         let t = e.parent;
-        return e.kind === 308 ? 1 : fc(t) || df(t) || Oy(t) || Of(t) || em(t) || Vl(t) && e === t.name ? 7 : TM(e) ? CQe(e) : Yh(e) ? bM(t) : Jf(e) && On(e, j_(zN, qk, P1)) ? 7 : IQe(e) ? 2 : wQe(e) ? 4 : uc(t) ? (D.assert(Od(t.parent)), 2) : P0(t) ? 3 : 1;
+        return e.kind === 308 ? 1 : fc(t) || df(t) || Oy(t) || Of(t) || em(t) || Vl(t) && e === t.name ? 7 : TM(e) ? CQe(e) : Yh(e) ? bM(t) : Jf(e) && On(e, j_(zN, qk, P1)) ? 7 : IQe(e) ? 2 : wQe(e) ? 4 : uc(t) ? (D.assert(Od(t.parent)), 2) : O0(t) ? 3 : 1;
       }
       function CQe(e) {
         let t = e.kind === 167 ? e : zf(e.parent) && e.parent.right === e ? e.parent : void 0;
@@ -66977,7 +66977,7 @@ ${Ht.join(`
           r = ql(r.getFullStart(), t);
         }
       }
-      function R0(e, t, r) {
+      function L0(e, t, r) {
         return Rl.getRangeOfEnclosingComment(e, t, void 0, r);
       }
       function Mfe(e, t) {
@@ -67025,8 +67025,8 @@ ${Ht.join(`
         let t = jte(e);
         return Iq(t, e && e.configFile), t;
       }
-      function L0(e) {
-        return !!((e.kind === 210 || e.kind === 211) && (e.parent.kind === 227 && e.parent.left === e && e.parent.operatorToken.kind === 64 || e.parent.kind === 251 && e.parent.initializer === e || L0(e.parent.kind === 304 ? e.parent.parent : e.parent)));
+      function M0(e) {
+        return !!((e.kind === 210 || e.kind === 211) && (e.parent.kind === 227 && e.parent.left === e && e.parent.operatorToken.kind === 64 || e.parent.kind === 251 && e.parent.initializer === e || M0(e.parent.kind === 304 ? e.parent.parent : e.parent)));
       }
       function Ufe(e, t) {
         return CEe(e, t, true);
@@ -67035,7 +67035,7 @@ ${Ht.join(`
         return CEe(e, t, false);
       }
       function CEe(e, t, r) {
-        let i = R0(e, t, void 0);
+        let i = L0(e, t, void 0);
         return !!i && r === OQe.test(e.text.substring(i.pos, i.end));
       }
       function sY(e, t) {
@@ -67061,7 +67061,7 @@ ${Ht.join(`
       function cY(e, t) {
         return Qp(e.getStart(t), e.end);
       }
-      function M0(e) {
+      function j0(e) {
         return ll(e.pos, e.end);
       }
       function FM(e) {
@@ -67247,7 +67247,7 @@ ${Ht.join(`
       }
       function SY(e) {
         let t = e.declarations ? Il(e.declarations) : void 0;
-        return !!On(t, (r) => ra(r) ? true : Hs(r) || kp(r) || O0(r) ? false : "quit");
+        return !!On(t, (r) => ra(r) ? true : Hs(r) || kp(r) || F0(r) ? false : "quit");
       }
       var Hfe = /* @__PURE__ */ new Map();
       function zQe(e) {
@@ -68006,7 +68006,7 @@ ${Ht.join(`
       function NEe(e, t) {
         return Hi(e.autoImportFileExcludePatterns, (r) => {
           let i = iL(r, "", "exclude");
-          return i ? w0(i, t) : void 0;
+          return i ? A0(i, t) : void 0;
         });
       }
       function PEe(e, t, r, i, a) {
@@ -69059,7 +69059,7 @@ ${Ht.join(`
               let F = Hi(C.initializer.elements, (W) => Ls(W) ? W.text : void 0);
               if (F.length === 0) return;
               let L = aL(u, [], F, c, o);
-              w0(D.checkDefined(L.includeFilePattern), c).test(i) && !w0(D.checkDefined(L.includeFilePattern), c).test(a) && t.insertNodeAfter(f, Ws(C.initializer.elements), R.createStringLiteral(k(a)));
+              A0(D.checkDefined(L.includeFilePattern), c).test(i) && !A0(D.checkDefined(L.includeFilePattern), c).test(a) && t.insertNodeAfter(f, Ws(C.initializer.elements), R.createStringLiteral(k(a)));
               return;
             }
             case "compilerOptions":
@@ -69642,7 +69642,7 @@ ${Ht.join(`
           case 80:
           case 212: {
             let i = t.getSymbolAtLocation(e);
-            return i ? t.isUndefinedSymbol(i) || bt(Ru(i, t).declarations, (a) => Xa(a) || b0(a) && !!a.initializer && Xa(a.initializer)) : false;
+            return i ? t.isUndefinedSymbol(i) || bt(Ru(i, t).declarations, (a) => Xa(a) || T0(a) && !!a.initializer && Xa(a.initializer)) : false;
           }
           default:
             return false;
@@ -69704,7 +69704,7 @@ interface Symbol {
         for (let N in o) No(o, N) && a[N] === void 0 && (a[N] = o[N]);
         for (let N of cce) a.verbatimModuleSyntax && UZe.has(N.name) || (a[N.name] = N.transpileOptionValue);
         a.suppressOutputPathCheck = true, a.allowNonTsExtensions = true, r ? (a.declaration = true, a.emitDeclarationOnly = true, a.isolatedDeclarations = true) : (a.declaration = false, a.declarationMap = false);
-        let c = C0(a), f = { getSourceFile: (N) => N === vs(u) ? g : N === vs(oj) ? R_e : void 0, writeFile: (N, F) => {
+        let c = w0(a), f = { getSourceFile: (N) => N === vs(u) ? g : N === vs(oj) ? R_e : void 0, writeFile: (N, F) => {
           Ac(N, ".map") ? (D.assertEqual(v, void 0, "Unexpected multiple source map outputs, file:", N), v = F) : (D.assertEqual(m, void 0, "Unexpected multiple outputs, file:", N), m = F);
         }, getDefaultLibFileName: () => oj, useCaseSensitiveFileNames: () => false, getCanonicalFileName: (N) => N, getCurrentDirectory: () => "", getNewLine: () => c, fileExists: (N) => N === u || !!r && N === oj, readFile: () => "", directoryExists: () => true, getDirectories: () => [] }, u = t.fileName || (t.compilerOptions && t.compilerOptions.jsx ? "module.tsx" : "module.ts"), g = jC(u, e, { languageVersion: zs(a), impliedNodeFormat: i8(jo(u, "", f.getCanonicalFileName), void 0, f, a), setExternalModuleIndicator: z3(a), jsDocParsingMode: t.jsDocParsingMode ?? 0 });
         t.moduleName && (g.moduleName = t.moduleName), t.renamedDependencies && (g.renamedDependencies = new Map(Object.entries(t.renamedDependencies)));
@@ -69792,7 +69792,7 @@ interface Symbol {
       }
       var B_e = {};
       B(B_e, { getNavigationBarItems: () => lIe, getNavigationTree: () => uIe });
-      var YZe = /\s+/g, J_e = 150, nX, M8, cj = [], j0, cIe = [], QE, U_e = [];
+      var YZe = /\s+/g, J_e = 150, nX, M8, cj = [], B0, cIe = [], QE, U_e = [];
       function lIe(e, t) {
         nX = t, M8 = e;
         try {
@@ -69810,7 +69810,7 @@ interface Symbol {
         }
       }
       function fIe() {
-        M8 = void 0, nX = void 0, cj = [], j0 = void 0, U_e = [];
+        M8 = void 0, nX = void 0, cj = [], B0 = void 0, U_e = [];
       }
       function lj(e) {
         return RP(e.getText(M8));
@@ -69824,15 +69824,15 @@ interface Symbol {
       function pIe(e) {
         D.assert(!cj.length);
         let t = { node: e, name: void 0, additionalNodes: void 0, parent: void 0, children: void 0, indent: 0 };
-        j0 = t;
+        B0 = t;
         for (let r of e.statements) ZC(r);
-        return z1(), D.assert(!j0 && !cj.length), t;
+        return z1(), D.assert(!B0 && !cj.length), t;
       }
       function RS(e, t) {
-        _Ie(j0, W_e(e, t));
+        _Ie(B0, W_e(e, t));
       }
       function W_e(e, t) {
-        return { node: e, name: t || (uu(e) || kt(e) ? Ra(e) : void 0), additionalNodes: void 0, parent: j0, children: void 0, indent: j0.indent + 1 };
+        return { node: e, name: t || (uu(e) || kt(e) ? Ra(e) : void 0), additionalNodes: void 0, parent: B0, children: void 0, indent: B0.indent + 1 };
       }
       function dIe(e) {
         QE || (QE = /* @__PURE__ */ new Map()), QE.set(e, true);
@@ -69855,10 +69855,10 @@ interface Symbol {
       }
       function LS(e, t) {
         let r = W_e(e, t);
-        _Ie(j0, r), cj.push(j0), cIe.push(QE), QE = void 0, j0 = r;
+        _Ie(B0, r), cj.push(B0), cIe.push(QE), QE = void 0, B0 = r;
       }
       function z1() {
-        j0.children && (iX(j0.children, j0), $_e(j0.children)), j0 = cj.pop(), QE = cIe.pop();
+        B0.children && (iX(B0.children, B0), $_e(B0.children)), B0 = cj.pop(), QE = cIe.pop();
       }
       function V1(e, t, r) {
         LS(e, r), ZC(t), z1();
@@ -70102,7 +70102,7 @@ interface Symbol {
           case 219:
           case 264:
           case 232:
-            return x0(e) & 2048 ? "default" : wIe(e);
+            return k0(e) & 2048 ? "default" : wIe(e);
           case 177:
             return "constructor";
           case 181:
@@ -70184,7 +70184,7 @@ interface Symbol {
         return !e.name || e.name.kind === 168;
       }
       function Y_e(e) {
-        return e.kind === 308 ? M0(e) : Gf(e, M8);
+        return e.kind === 308 ? j0(e) : Gf(e, M8);
       }
       function CIe(e) {
         return e.parent && e.parent.kind === 261 && (e = e.parent), kP(e);
@@ -70195,7 +70195,7 @@ interface Symbol {
         if (Ci(t)) return RP(Bo(t.name));
         if (Or(t) && t.operatorToken.kind === 64) return lj(t.left).replace(YZe, "");
         if (Fl(t)) return lj(t.name);
-        if (x0(e) & 2048) return "default";
+        if (k0(e) & 2048) return "default";
         if (vi(e)) return "<class>";
         if (Za(t)) {
           let r = AIe(t.expression);
@@ -70258,9 +70258,9 @@ interface Symbol {
         return D.assert(i && !By(i), "Expected applicable refactor info"), { edits: Dr.ChangeTracker.with(t, (o) => set(t.file, t.program, i, o, t.cancellationToken)), renameFilename: void 0, renameLocation: void 0 };
       } });
       function EIe(e, t = true) {
-        let { file: r, program: i } = e, a = KC(e), o = Wi(r, a.start), c = o.parent && x0(o.parent) & 32 && t ? o.parent : w8(o, r, a);
+        let { file: r, program: i } = e, a = KC(e), o = Wi(r, a.start), c = o.parent && k0(o.parent) & 32 && t ? o.parent : w8(o, r, a);
         if (!c || !Zi(c.parent) && !(mh(c.parent) && Ef(c.parent.parent))) return { error: Va(d.Could_not_find_export_statement) };
-        let f = i.getTypeChecker(), u = _et(c.parent, f), g = x0(c) || (fc(c) && !c.isExportEquals ? 2080 : 0), m = !!(g & 2048);
+        let f = i.getTypeChecker(), u = _et(c.parent, f), g = k0(c) || (fc(c) && !c.isExportEquals ? 2080 : 0), m = !!(g & 2048);
         if (!(g & 32) || !m && u.exports.has("default")) return { error: Va(d.This_file_already_has_a_default_export) };
         let v = (k) => Xe(k) && f.getSymbolAtLocation(k) ? void 0 : { error: Va(d.Can_only_convert_named_export) };
         switch (c.kind) {
@@ -70516,7 +70516,7 @@ interface Symbol {
         let m = ket(f, g);
         if (!Fi(m)) return { info: { error: Va(d.Selection_is_not_a_valid_type_node) }, affectedTextRange: void 0 };
         let v = [];
-        (N0(m.parent) || DC(m.parent)) && o.end > f.end && ni(v, m.parent.types.filter((F) => CM(F, r, o.pos, o.end)));
+        (P0(m.parent) || DC(m.parent)) && o.end > f.end && ni(v, m.parent.types.filter((F) => CM(F, r, o.pos, o.end)));
         let k = v.length > 1 ? v : m, { typeParameters: C, affectedTextRange: E } = yet(u, k, g, r);
         if (!C) return { info: { error: Va(d.No_type_could_be_extracted_from_this_type_node) }, affectedTextRange: void 0 };
         let N = fX(u, k);
@@ -70617,13 +70617,13 @@ interface Symbol {
         e.replaceNodeRange(r, u, g, R.createTypeReferenceNode(i, f.map((E) => R.createTypeReferenceNode(E.name, void 0))));
       }
       function tpe(e) {
-        return Da(e.selection) ? { firstTypeNode: e.selection[0], lastTypeNode: e.selection[e.selection.length - 1], newTypeNode: N0(e.selection[0].parent) ? R.createUnionTypeNode(e.selection) : R.createIntersectionTypeNode(e.selection) } : { firstTypeNode: e.selection, lastTypeNode: e.selection, newTypeNode: e.selection };
+        return Da(e.selection) ? { firstTypeNode: e.selection[0], lastTypeNode: e.selection[e.selection.length - 1], newTypeNode: P0(e.selection[0].parent) ? R.createUnionTypeNode(e.selection) : R.createIntersectionTypeNode(e.selection) } : { firstTypeNode: e.selection, lastTypeNode: e.selection, newTypeNode: e.selection };
       }
       function xet(e, t) {
         return On(e, qi) || (t ? On(e, Im) : void 0);
       }
       function ket(e, t) {
-        return On(e, (r) => r === t ? "quit" : !!(N0(r.parent) || DC(r.parent))) ?? e;
+        return On(e, (r) => r === t ? "quit" : !!(P0(r.parent) || DC(r.parent))) ?? e;
       }
       var _X = "Move to file", npe = Va(d.Move_to_file), rpe = { name: "Move to file", description: npe, kind: "refactor.move.file" };
       $g(_X, { kinds: [rpe.kind], getAvailableActions: function(t, r) {
@@ -72182,7 +72182,7 @@ ${N.split(`
         return Qo(e) ? yz(e.body) : Ro(e) || Zi(e) || mh(e) || vi(e);
       }
       function rnt(e) {
-        let t = B0(e.range) ? Qs(e.range) : e.range;
+        let t = J0(e.range) ? Qs(e.range) : e.range;
         if (e.facts & 8 && !(e.facts & 16)) {
           let i = ku(t);
           if (i) {
@@ -72270,7 +72270,7 @@ ${N.split(`
           let se = C ? [] : [R.createModifier(123)];
           c.facts & 32 && se.push(R.createModifier(126)), c.facts & 4 && se.push(R.createModifier(134)), X = R.createMethodDeclaration(se.length ? se : void 0, c.facts & 2 ? R.createToken(42) : void 0, E, void 0, $, F, N, Z);
         } else Te && F.unshift(R.createParameterDeclaration(void 0, void 0, "this", void 0, u.typeToTypeNode(u.getTypeAtLocation(c.thisNode), t, 1, 8), void 0)), X = R.createFunctionDeclaration(c.facts & 4 ? [R.createToken(134)] : void 0, c.facts & 2 ? R.createToken(42) : void 0, E, $, F, N, Z);
-        let ce = Dr.ChangeTracker.fromContext(f), K = (B0(c.range) ? Ws(c.range) : c.range).end, he = Tnt(K, t);
+        let ce = Dr.ChangeTracker.fromContext(f), K = (J0(c.range) ? Ws(c.range) : c.range).end, he = Tnt(K, t);
         he ? ce.insertNodeBefore(f.file, he, X, true) : ce.insertNodeAtEndOfScope(f.file, t, X), m.writeFixes(ce);
         let me = [], ge = gnt(t, c, k);
         Te && L.unshift(R.createIdentifier("this"));
@@ -72296,15 +72296,15 @@ ${N.split(`
           ne && me.push(R.createVariableStatement(void 0, R.createVariableDeclarationList([R.createVariableDeclaration(ne, void 0, Ce(N))], 1)));
           let se = jpe(o, W);
           ne && se.unshift(R.createShorthandPropertyAssignment(ne)), se.length === 1 ? (D.assert(!ne, "Shouldn't have returnValueProperty here"), me.push(R.createExpressionStatement(R.createAssignment(se[0].name, Se))), c.facts & 1 && me.push(R.createReturnStatement())) : (me.push(R.createExpressionStatement(R.createAssignment(R.createObjectLiteralExpression(se), Se))), ne && me.push(R.createReturnStatement(R.createIdentifier(ne))));
-        } else c.facts & 1 ? me.push(R.createReturnStatement(Se)) : B0(c.range) ? me.push(R.createExpressionStatement(Se)) : me.push(Se);
-        B0(c.range) ? ce.replaceNodeRangeWithNodes(f.file, Qs(c.range), Ws(c.range), me) : ce.replaceNodeWithNodes(f.file, c.range, me);
-        let we = ce.getChanges(), Ie = (B0(c.range) ? Qs(c.range) : c.range).getSourceFile().fileName, Qe = E8(we, Ie, k, false);
+        } else c.facts & 1 ? me.push(R.createReturnStatement(Se)) : J0(c.range) ? me.push(R.createExpressionStatement(Se)) : me.push(Se);
+        J0(c.range) ? ce.replaceNodeRangeWithNodes(f.file, Qs(c.range), Ws(c.range), me) : ce.replaceNodeWithNodes(f.file, c.range, me);
+        let we = ce.getChanges(), Ie = (J0(c.range) ? Qs(c.range) : c.range).getSourceFile().fileName, Qe = E8(we, Ie, k, false);
         return { renameFilename: Ie, renameLocation: Qe, edits: we };
         function Ce(se) {
           if (se === void 0) return;
           let xe = bo(se), De = xe;
           for (; Zx(De); ) De = De.type;
-          return N0(De) && $t(De.types, (ze) => ze.kind === 157) ? xe : R.createUnionTypeNode([xe, R.createKeywordTypeNode(157)]);
+          return P0(De) && $t(De.types, (ze) => ze.kind === 157) ? xe : R.createUnionTypeNode([xe, R.createKeywordTypeNode(157)]);
         }
       }
       function pnt(e, t, { substitutions: r }, i, a) {
@@ -72466,14 +72466,14 @@ ${N.split(`
         let r = vn(e, (a) => R.createShorthandPropertyAssignment(a.symbol.name)), i = vn(t, (a) => R.createShorthandPropertyAssignment(a.symbol.name));
         return r === void 0 ? i : i === void 0 ? r : r.concat(i);
       }
-      function B0(e) {
+      function J0(e) {
         return Da(e);
       }
       function knt(e, t) {
-        return B0(e.range) ? { pos: Qs(e.range).getStart(t), end: Ws(e.range).getEnd() } : e.range;
+        return J0(e.range) ? { pos: Qs(e.range).getStart(t), end: Ws(e.range).getEnd() } : e.range;
       }
       function Cnt(e, t, r, i, a, o) {
-        let c = /* @__PURE__ */ new Map(), f = [], u = [], g = [], m = [], v = [], k = /* @__PURE__ */ new Map(), C = [], E, N = B0(e.range) ? e.range.length === 1 && _u(e.range[0]) ? e.range[0].expression : void 0 : e.range, F;
+        let c = /* @__PURE__ */ new Map(), f = [], u = [], g = [], m = [], v = [], k = /* @__PURE__ */ new Map(), C = [], E, N = J0(e.range) ? e.range.length === 1 && _u(e.range[0]) ? e.range[0].expression : void 0 : e.range, F;
         if (N === void 0) {
           let me = e.range, ge = Qs(me).getStart(), Se = Ws(me).end;
           F = Wl(i, ge, Se - ge, Ju.expressionExpected);
@@ -72483,8 +72483,8 @@ ${N.split(`
           let ge = [];
           F && ge.push(F), vi(me) && Er(me) && ge.push(Ar(me, Ju.cannotExtractToJSClass)), Qo(me) && !es(me.body) && ge.push(Ar(me, Ju.cannotExtractToExpressionArrowFunction)), m.push(ge);
         }
-        let L = /* @__PURE__ */ new Map(), W = B0(e.range) ? R.createBlock(e.range) : e.range, J = B0(e.range) ? Qs(e.range) : e.range, $ = H(J);
-        if (ne(W), $ && !B0(e.range) && !yh(e.range)) {
+        let L = /* @__PURE__ */ new Map(), W = J0(e.range) ? R.createBlock(e.range) : e.range, J = J0(e.range) ? Qs(e.range) : e.range, $ = H(J);
+        if (ne(W), $ && !J0(e.range) && !yh(e.range)) {
           let me = a.getContextualType(e.range);
           Z(me);
         }
@@ -72505,14 +72505,14 @@ ${N.split(`
         for (let me = 0; me < t.length; me++) {
           let ge = f[me];
           if (me > 0 && (ge.usages.size > 0 || ge.typeParameterUsages.size > 0)) {
-            let ee = B0(e.range) ? e.range[0] : e.range;
+            let ee = J0(e.range) ? e.range[0] : e.range;
             m[me].push(Ar(ee, Ju.cannotAccessVariablesFromNestedScopes));
           }
           e.facts & 16 && vi(t[me]) && g[me].push(Ar(e.thisNode, Ju.cannotExtractFunctionsContainingThisToMethod));
           let Se = false, we;
           if (f[me].usages.forEach((ee) => {
             ee.usage === 2 && (Se = true, ee.symbol.flags & 106500 && ee.symbol.valueDeclaration && q_(ee.symbol.valueDeclaration, 8) && (we = ee.symbol.valueDeclaration));
-          }), D.assert(B0(e.range) || C.length === 0, "No variable declarations expected if something was extracted"), Se && !B0(e.range)) {
+          }), D.assert(J0(e.range) || C.length === 0, "No variable declarations expected if something was extracted"), Se && !J0(e.range)) {
             let ee = Ar(e.range, Ju.cannotWriteInExpression);
             g[me].push(ee), m[me].push(ee);
           } else if (we && me > 0) {
@@ -72584,7 +72584,7 @@ ${N.split(`
           }
         }
         function ce(me) {
-          if (me === e.range || B0(e.range) && e.range.includes(me)) return;
+          if (me === e.range || J0(e.range) && e.range.includes(me)) return;
           let ge = Xe(me) ? K(me) : a.getSymbolAtLocation(me);
           if (ge) {
             let Se = $t(v, (we) => we.symbol === ge);
@@ -73376,7 +73376,7 @@ ${N.split(`
           }
           let sn = e.getTypeRootsVersion ? e.getTypeRootsVersion() : 0;
           u !== sn && (v("TypeRoots version has changed; provide new program"), c = void 0, u = sn);
-          let Dn = e.getScriptFileNames().slice(), Sn = e.getCompilationSettings() || bj(), Ut = e.hasInvalidatedResolutions || by, An = as(e, e.hasInvalidatedLibResolutions) || by, Ln = as(e, e.hasChangedAutomaticTypeDirectiveNames), Mn = (Rt = e.getProjectReferences) == null ? void 0 : Rt.call(e), dn, Di = { getSourceFile: al, getSourceFileByPath: Np, getCancellationToken: () => g, getCanonicalFileName: C, useCaseSensitiveFileNames: () => k, getNewLine: () => C0(Sn), getDefaultLibFileName: (Pa) => e.getDefaultLibFileName(Pa), writeFile: To, getCurrentDirectory: () => m, fileExists: (Pa) => e.fileExists(Pa), readFile: (Pa) => e.readFile && e.readFile(Pa), getSymlinkCache: as(e, e.getSymlinkCache), realpath: as(e, e.realpath), directoryExists: (Pa) => km(Pa, e), getDirectories: (Pa) => e.getDirectories ? e.getDirectories(Pa) : [], readDirectory: (Pa, ms, so, eo, rn) => (D.checkDefined(e.readDirectory, "'LanguageServiceHost.readDirectory' must be implemented to correctly process 'projectReferences'"), e.readDirectory(Pa, ms, so, eo, rn)), onReleaseOldSourceFile: Ds, onReleaseParsedCommandLine: wl, hasInvalidatedResolutions: Ut, hasInvalidatedLibResolutions: An, hasChangedAutomaticTypeDirectiveNames: Ln, trace: as(e, e.trace), resolveModuleNames: as(e, e.resolveModuleNames), getModuleResolutionCache: as(e, e.getModuleResolutionCache), createHash: as(e, e.createHash), resolveTypeReferenceDirectives: as(e, e.resolveTypeReferenceDirectives), resolveModuleNameLiterals: as(e, e.resolveModuleNameLiterals), resolveTypeReferenceDirectiveReferences: as(e, e.resolveTypeReferenceDirectiveReferences), resolveLibrary: as(e, e.resolveLibrary), useSourceOfProjectReferenceRedirect: as(e, e.useSourceOfProjectReferenceRedirect), getParsedCommandLine: ua, jsDocParsingMode: e.jsDocParsingMode, getGlobalTypingsCacheLocation: as(e, e.getGlobalTypingsCacheLocation) }, os = Di.getSourceFile, { getSourceFileWithCache: cs } = dP(Di, (Pa) => jo(Pa, m, C), (...Pa) => os.call(Di, ...Pa));
+          let Dn = e.getScriptFileNames().slice(), Sn = e.getCompilationSettings() || bj(), Ut = e.hasInvalidatedResolutions || by, An = as(e, e.hasInvalidatedLibResolutions) || by, Ln = as(e, e.hasChangedAutomaticTypeDirectiveNames), Mn = (Rt = e.getProjectReferences) == null ? void 0 : Rt.call(e), dn, Di = { getSourceFile: al, getSourceFileByPath: Np, getCancellationToken: () => g, getCanonicalFileName: C, useCaseSensitiveFileNames: () => k, getNewLine: () => w0(Sn), getDefaultLibFileName: (Pa) => e.getDefaultLibFileName(Pa), writeFile: To, getCurrentDirectory: () => m, fileExists: (Pa) => e.fileExists(Pa), readFile: (Pa) => e.readFile && e.readFile(Pa), getSymlinkCache: as(e, e.getSymlinkCache), realpath: as(e, e.realpath), directoryExists: (Pa) => km(Pa, e), getDirectories: (Pa) => e.getDirectories ? e.getDirectories(Pa) : [], readDirectory: (Pa, ms, so, eo, rn) => (D.checkDefined(e.readDirectory, "'LanguageServiceHost.readDirectory' must be implemented to correctly process 'projectReferences'"), e.readDirectory(Pa, ms, so, eo, rn)), onReleaseOldSourceFile: Ds, onReleaseParsedCommandLine: wl, hasInvalidatedResolutions: Ut, hasInvalidatedLibResolutions: An, hasChangedAutomaticTypeDirectiveNames: Ln, trace: as(e, e.trace), resolveModuleNames: as(e, e.resolveModuleNames), getModuleResolutionCache: as(e, e.getModuleResolutionCache), createHash: as(e, e.createHash), resolveTypeReferenceDirectives: as(e, e.resolveTypeReferenceDirectives), resolveModuleNameLiterals: as(e, e.resolveModuleNameLiterals), resolveTypeReferenceDirectiveReferences: as(e, e.resolveTypeReferenceDirectiveReferences), resolveLibrary: as(e, e.resolveLibrary), useSourceOfProjectReferenceRedirect: as(e, e.useSourceOfProjectReferenceRedirect), getParsedCommandLine: ua, jsDocParsingMode: e.jsDocParsingMode, getGlobalTypingsCacheLocation: as(e, e.getGlobalTypingsCacheLocation) }, os = Di.getSourceFile, { getSourceFileWithCache: cs } = dP(Di, (Pa) => jo(Pa, m, C), (...Pa) => os.call(Di, ...Pa));
           Di.getSourceFile = cs, (Vt = e.setCompilerHost) == null || Vt.call(e, Di);
           let ja = { useCaseSensitiveFileNames: k, fileExists: (Pa) => Di.fileExists(Pa), readFile: (Pa) => Di.readFile(Pa), directoryExists: (Pa) => Di.directoryExists(Pa), getDirectories: (Pa) => Di.getDirectories(Pa), realpath: Di.realpath, readDirectory: (...Pa) => Di.readDirectory(...Pa), trace: Di.trace, getCurrentDirectory: Di.getCurrentDirectory, onUnRecoverableConfigFileDiagnostic: To }, Vc = t.getKeyForCompilationSettings(Sn), Lc = /* @__PURE__ */ new Set();
           if (WH(c, Dn, Sn, (Pa, ms) => e.getScriptVersion(ms), (Pa) => Di.fileExists(Pa), Ut, An, Ln, ua, Mn)) {
@@ -73497,7 +73497,7 @@ ${N.split(`
           return { diagnostics: c.getSemanticDiagnostics(Vt, g, Dn).slice(), spans: Sn };
         }
         function ce(mt, Rt) {
-          let Vt = [], sn = QW(Rt.map((Dn) => M0(Dn)));
+          let Vt = [], sn = QW(Rt.map((Dn) => j0(Dn)));
           for (let Dn of sn) {
             let Sn = K(mt, Dn);
             if (!Sn) return;
@@ -73557,8 +73557,8 @@ ${N.split(`
             let ja = de(Dn, An, Rt) ? Ut.getTypeAtLocation(An) : void 0;
             return ja && { kind: "", kindModifiers: "", textSpan: Gf(An, Dn), displayParts: Ut.runWithCancellationToken(g, (Vc) => A8(Vc, ja, y2(An), void 0, sn)), documentation: ja.symbol ? ja.symbol.getDocumentationComment(Ut) : void 0, tags: ja.symbol ? ja.symbol.getJsDocTags(Ut) : void 0 };
           }
-          let { symbolKind: Mn, displayParts: dn, documentation: Di, tags: os, canIncreaseVerbosityLevel: cs } = Ut.runWithCancellationToken(g, (ja) => J0.getSymbolDisplayPartsDocumentationAndSymbolKind(ja, Ln, Dn, y2(An), An, void 0, void 0, Vt ?? gie, sn));
-          return { kind: Mn, kindModifiers: J0.getSymbolModifiers(Ut, Ln), textSpan: Gf(An, Dn), displayParts: dn, documentation: Di, tags: os, canIncreaseVerbosityLevel: cs };
+          let { symbolKind: Mn, displayParts: dn, documentation: Di, tags: os, canIncreaseVerbosityLevel: cs } = Ut.runWithCancellationToken(g, (ja) => U0.getSymbolDisplayPartsDocumentationAndSymbolKind(ja, Ln, Dn, y2(An), An, void 0, void 0, Vt ?? gie, sn));
+          return { kind: Mn, kindModifiers: U0.getSymbolModifiers(Ut, Ln), textSpan: Gf(An, Dn), displayParts: dn, documentation: Di, tags: os, canIncreaseVerbosityLevel: cs };
         }
         function De(mt, Rt) {
           return F(), LK.preparePasteEdits(N(mt), Rt, c.getTypeChecker());
@@ -73575,7 +73575,7 @@ ${N.split(`
               return Rt.flags & 16777216 && !Er(Rt) && (Rt.parent.kind === 172 && Rt.parent.name === Rt || On(Rt, (sn) => sn.kind === 170)) ? false : !$G(Rt) && !qG(Rt) && !Gd(Rt.parent);
             case 212:
             case 167:
-              return !R0(mt, Vt);
+              return !L0(mt, Vt);
             case 110:
             case 198:
             case 108:
@@ -73723,7 +73723,7 @@ ${N.split(`
         }
         function Ka(mt, Rt, Vt, sn) {
           let Dn = o.getCurrentSourceFile(mt), Sn = Rl.getFormatContext(U8(sn), e);
-          if (!R0(Dn, Rt)) switch (Vt) {
+          if (!L0(Dn, Rt)) switch (Vt) {
             case "{":
               return Rl.formatOnOpeningCurly(Rt, Dn, Sn);
             case "}":
@@ -73778,7 +73778,7 @@ ${N.split(`
             case 39:
             case 34:
             case 96:
-              return !R0(sn, Rt);
+              return !L0(sn, Rt);
           }
           return true;
         }
@@ -73827,7 +73827,7 @@ ${N.split(`
           var Dn;
           let Sn = o.getCurrentSourceFile(mt), Ut = [], { text: An } = Sn, Ln = false, Mn = Vt || false, dn = [], { pos: Di } = Rt, os = sn !== void 0 ? sn : NM(Sn, Di), cs = os ? "{/*" : "/*", ja = os ? "*/}" : "*/", Vc = os ? "\\{\\/\\*" : "\\/\\*", Lc = os ? "\\*\\/\\}" : "\\*\\/";
           for (; Di <= Rt.end; ) {
-            let Lo = An.substr(Di, cs.length) === cs ? cs.length : 0, ua = R0(Sn, Di + Lo);
+            let Lo = An.substr(Di, cs.length) === cs ? cs.length : 0, ua = L0(Sn, Di + Lo);
             if (ua) os && (ua.pos--, ua.end++), dn.push(ua.pos), ua.kind === 3 && dn.push(ua.end), Ln = true, Di = ua.end + 1;
             else {
               let Ba = An.substring(Di, Rt.end).search(`(${Vc})|(${Lc})`);
@@ -73835,7 +73835,7 @@ ${N.split(`
             }
           }
           if (Mn || !Ln) {
-            ((Dn = R0(Sn, Rt.pos)) == null ? void 0 : Dn.kind) !== 2 && Cv(dn, Rt.pos, qo), Cv(dn, Rt.end, qo);
+            ((Dn = L0(Sn, Rt.pos)) == null ? void 0 : Dn.kind) !== 2 && Cv(dn, Rt.pos, qo), Cv(dn, Rt.end, qo);
             let Lo = dn[0];
             An.substr(Lo, cs.length) !== cs && Ut.push({ newText: cs, span: { length: 0, start: Lo } });
             for (let ua = 1; ua < dn.length - 1; ua++) An.substr(dn[ua] - ja.length, ja.length) !== ja && Ut.push({ newText: ja, span: { length: 0, start: dn[ua] } }), An.substr(dn[ua], cs.length) !== cs && Ut.push({ newText: cs, span: { length: 0, start: dn[ua] } });
@@ -73854,7 +73854,7 @@ ${N.split(`
           let Vt = o.getCurrentSourceFile(mt), sn = [], { pos: Dn } = Rt, { end: Sn } = Rt;
           Dn === Sn && (Sn += NM(Vt, Dn) ? 2 : 1);
           for (let Ut = Dn; Ut <= Sn; Ut++) {
-            let An = R0(Vt, Ut);
+            let An = L0(Vt, Ut);
             if (An) {
               switch (An.kind) {
                 case 2:
@@ -73876,7 +73876,7 @@ ${N.split(`
         }
         function Qt(mt, Rt, Vt) {
           let sn = o.getCurrentSourceFile(mt), Dn = Rl.getRangeOfEnclosingComment(sn, Rt);
-          return Dn && (!Vt || Dn.kind === 3) ? M0(Dn) : void 0;
+          return Dn && (!Vt || Dn.kind === 3) ? j0(Dn) : void 0;
         }
         function xr(mt, Rt) {
           F();
@@ -73890,7 +73890,7 @@ ${N.split(`
               let Di = 3;
               D.assert(dn.length === Rt.length + Di);
               let os = dn[1], cs = dn.index + os.length;
-              if (!R0(Vt, cs)) continue;
+              if (!L0(Vt, cs)) continue;
               let ja;
               for (let Lc = 0; Lc < Rt.length; Lc++) dn[Lc + Di] && (ja = Rt[Lc]);
               if (ja === void 0) return D.fail();
@@ -74213,12 +74213,12 @@ ${N.split(`
               case 165:
                 return we(v);
               default:
-                if (L0(v)) return ne(v);
-                if ((v.kind === 80 || v.kind === 231 || v.kind === 304 || v.kind === 305) && L0(ee)) return a(v);
+                if (M0(v)) return ne(v);
+                if ((v.kind === 80 || v.kind === 231 || v.kind === 304 || v.kind === 305) && M0(ee)) return a(v);
                 if (v.kind === 227) {
                   let { left: Ie, operatorToken: Qe } = v;
-                  if (L0(Ie)) return ne(Ie);
-                  if (Qe.kind === 64 && L0(v.parent)) return a(v);
+                  if (M0(Ie)) return ne(Ie);
+                  if (Qe.kind === 64 && M0(v.parent)) return a(v);
                   if (Qe.kind === 28) return m(Ie);
                 }
                 if (Gh(v)) switch (ee.kind) {
@@ -74238,7 +74238,7 @@ ${N.split(`
                 }
                 switch (v.parent.kind) {
                   case 304:
-                    if (v.parent.name === v && !L0(v.parent.parent)) return m(v.parent.initializer);
+                    if (v.parent.name === v && !M0(v.parent.parent)) return m(v.parent.initializer);
                     break;
                   case 217:
                     if (v.parent.type === v) return g(v.parent.type);
@@ -74251,7 +74251,7 @@ ${N.split(`
                   }
                   case 227: {
                     let { left: Ie } = v.parent;
-                    if (L0(Ie) && v !== Ie) return u(v);
+                    if (M0(Ie) && v !== Ie) return u(v);
                     break;
                   }
                   default:
@@ -74356,7 +74356,7 @@ ${N.split(`
                 let Ce = ee.parent;
                 return m(nc(Ce.elements) || Ce);
               default:
-                if (L0(ee.parent)) {
+                if (M0(ee.parent)) {
                   let se = ee.parent;
                   return a(nc(se.properties) || se);
                 }
@@ -74369,7 +74369,7 @@ ${N.split(`
                 let Ie = ee.parent;
                 return a(nc(Ie.elements) || Ie);
               default:
-                if (L0(ee.parent)) {
+                if (M0(ee.parent)) {
                   let Qe = ee.parent;
                   return a(nc(Qe.elements) || Qe);
                 }
@@ -74554,7 +74554,7 @@ ${N.split(`
         return { from: e, fromSpans: t };
       }
       function urt(e, t) {
-        return lrt(Xpe(e, t[0].declaration), vn(t, (r) => M0(r.range)));
+        return lrt(Xpe(e, t[0].declaration), vn(t, (r) => j0(r.range)));
       }
       function frt(e, t, r) {
         if (Zi(t) || gl(t) || rl(t)) return [];
@@ -74676,7 +74676,7 @@ ${N.split(`
         return { to: e, fromSpans: t };
       }
       function brt(e, t) {
-        return vrt(Xpe(e, t[0].declaration), vn(t, (r) => M0(r.range)));
+        return vrt(Xpe(e, t[0].declaration), vn(t, (r) => j0(r.range)));
       }
       function Trt(e, t) {
         return t.flags & 33554432 || Zd(t) ? [] : mA(yrt(e, t), rNe, (r) => brt(e, r));
@@ -74780,7 +74780,7 @@ ${N.split(`
       function wrt(e, t, r, i) {
         if (i && i.has(lo(r))) return;
         i?.add(lo(r));
-        let a = R.replaceModifiers(bo(r, true), R.createNodeArray(R.createModifiersFromModifierFlags(x0(r) | 1024)));
+        let a = R.replaceModifiers(bo(r, true), R.createNodeArray(R.createModifiersFromModifierFlags(k0(r) | 1024)));
         e.replaceNode(t, r, a);
       }
       function _Ne(e, t) {
@@ -74905,7 +74905,7 @@ ${N.split(`
         } else {
           if (o && Ci(a.parent) && Xe(a.parent.name)) {
             let c = i.getSymbolAtLocation(a.parent.name);
-            if (c && !h0(o, Ss(c))) return;
+            if (c && !g0(o, Ss(c))) return;
           }
           e.replaceNode(r, a, R.createAwaitExpression(a));
         }
@@ -74938,7 +74938,7 @@ ${N.split(`
         }
       }
       function IX(e, t, r, i) {
-        (!i || h0(i, t)) && e.insertModifierBefore(r, 87, t);
+        (!i || g0(i, t)) && e.insertModifierBefore(r, 87, t);
       }
       function Prt(e) {
         switch (e.kind) {
@@ -74981,7 +74981,7 @@ ${N.split(`
         let a = Wi(t, r);
         if (!Xe(a)) return;
         let o = a.parent;
-        o.kind === 173 && (!i || h0(i, o)) && e.insertModifierBefore(t, 138, o);
+        o.kind === 173 && (!i || g0(i, o)) && e.insertModifierBefore(t, 138, o);
       }
       var ude = "addMissingInvocationForDecorator", CNe = [d._0_accepts_too_few_arguments_to_be_used_as_a_decorator_here_Did_you_mean_to_call_it_first_and_write_0.code];
       xs({ errorCodes: CNe, getCodeActions: function(t) {
@@ -75023,7 +75023,7 @@ ${N.split(`
       }
       function NNe(e, t) {
         let r = OS(t.name, t.parent, e);
-        if (r && r.kind === 23 && O0(r.parent) && ra(r.parent.parent)) return r.parent.parent;
+        if (r && r.kind === 23 && F0(r.parent) && ra(r.parent.parent)) return r.parent.parent;
       }
       var PNe = "addOptionalPropertyUndefined", Rrt = [d.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_type_of_the_target.code, d.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_types_of_the_target_s_properties.code, d.Argument_of_type_0_is_not_assignable_to_parameter_of_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_types_of_the_target_s_properties.code];
       xs({ errorCodes: Rrt, getCodeActions(e) {
@@ -75089,10 +75089,10 @@ ${N.split(`
         return Brt(e) && MNe(e);
       }
       function MNe(e) {
-        return Ro(e) ? e.parameters.some(MNe) || !e.type && !!F4(e) : !e.type && !!y0(e);
+        return Ro(e) ? e.parameters.some(MNe) || !e.type && !!F4(e) : !e.type && !!v0(e);
       }
       function jNe(e, t, r) {
-        if (Ro(r) && (F4(r) || r.parameters.some((i) => !!y0(i)))) {
+        if (Ro(r) && (F4(r) || r.parameters.some((i) => !!v0(i)))) {
           if (!r.typeParameters) {
             let a = MR(r);
             a.length && e.insertTypeParameters(t, r, a);
@@ -75100,7 +75100,7 @@ ${N.split(`
           let i = Qo(r) && !Eo(r, 21, t);
           i && e.insertNodeBefore(t, Qs(r.parameters), R.createToken(21));
           for (let a of r.parameters) if (!a.type) {
-            let o = y0(a);
+            let o = v0(a);
             o && e.tryInsertTypeAnnotation(t, a, ut(o, jS, Fi));
           }
           if (i && e.insertNodeAfter(t, Ws(r.parameters), R.createToken(22)), !r.type) {
@@ -75108,7 +75108,7 @@ ${N.split(`
             a && e.tryInsertTypeAnnotation(t, r, ut(a, jS, Fi));
           }
         } else {
-          let i = D.checkDefined(y0(r), "A JSDocType for this declaration should exist");
+          let i = D.checkDefined(v0(r), "A JSDocType for this declaration should exist");
           D.assert(!r.type, "The JSDocType decl should have a type"), e.tryInsertTypeAnnotation(t, r, ut(i, jS, Fi));
         }
       }
@@ -76548,7 +76548,7 @@ ${N.split(`
       function Hit(e, t, r) {
         if (GA(t.text)) return true;
         let i = r.resolveName(e, t, 111551, true);
-        return !i || bt(i.declarations, v0) && !(i.flags & 111551);
+        return !i || bt(i.declarations, b0) && !(i.flags & 111551);
       }
       function Git(e, t, r, i, a, o, c, f, u) {
         var g;
@@ -77210,7 +77210,7 @@ ${N.split(`
           }
         }
         if (!Ag(f)) return;
-        if (Xe(f) && b0(u) && u.initializer && Bs(u.initializer)) {
+        if (Xe(f) && T0(u) && u.initializer && Bs(u.initializer)) {
           let E = (o = i.getContextualType(f) || i.getTypeAtLocation(f)) == null ? void 0 : o.getNonNullableType(), N = Aa(i.getUnmatchedProperties(i.getTypeAtLocation(u.initializer), E, false, false));
           return Ve(N) ? { kind: 3, token: f, identifier: f.text, properties: N, parentDeclaration: u.initializer } : void 0;
         }
@@ -77584,7 +77584,7 @@ ${N.split(`
         Tme(e, u, t, r, a, g, (m) => i.insertMemberAtStart(t, e, m)), g.writeFixes(i);
       }
       function Pat(e) {
-        let t = x0(Qs(e.getDeclarations()));
+        let t = k0(Qs(e.getDeclarations()));
         return !(t & 2) && !!(t & 64);
       }
       var Xde = "classSuperMustPrecedeThisAccess", e4e = [d.super_must_be_called_before_accessing_this_in_the_constructor_of_a_derived_class.code];
@@ -77838,7 +77838,7 @@ ${N.split(`
           let v = Dr.ChangeTracker.with(e, (k) => QX(r, f, k, o, c, i, a, false));
           if (v.length) return [ss(Ej, v, [d.Remove_unused_declaration_for_Colon_0, f.getText(r)], KX, d.Delete_all_unused_imports)];
         }
-        if (kp(f.parent) || O0(f.parent)) {
+        if (kp(f.parent) || F0(f.parent)) {
           if (ra(f.parent.parent)) {
             let v = f.parent.elements, k = [v.length > 1 ? d.Remove_unused_declarations_for_Colon_0 : d.Remove_unused_declaration_for_Colon_0, vn(v, (C) => C.getText(r)).join(", ")];
             return [UP(Dr.ChangeTracker.with(e, (C) => Uat(C, r, f.parent)), k)];
@@ -77881,7 +77881,7 @@ ${N.split(`
                 if (u.parent.parent.initializer) break;
                 (!ra(u.parent.parent) || R4e(u.parent.parent, a, o)) && c.delete(t, u.parent.parent);
               } else {
-                if (O0(u.parent.parent) && u.parent.parent.parent.initializer) break;
+                if (F0(u.parent.parent) && u.parent.parent.parent.initializer) break;
                 P4e(t, u) ? O4e(c, t, u.parent) : Xe(u) && il(u.parent) ? M4e(c, t, u.parent) : QX(t, u, c, a, o, r, i, true);
               }
               break;
@@ -78284,7 +78284,7 @@ ${N.split(`
             it = { expression: { kind: 3, identifier: Vn } }, It.push(R.createVariableStatement(void 0, R.createVariableDeclarationList([R.createVariableDeclaration(Vn, void 0, void 0, Le.initializer)], 2)));
           }
           let Xt = [];
-          O0(oe) ? he(oe, Xt, it) : me(oe, Xt, it);
+          F0(oe) ? he(oe, Xt, it) : me(oe, Xt, it);
           let kn = /* @__PURE__ */ new Map();
           for (let Vn of Xt) {
             if (Vn.element.propertyName && bs(Vn.element.propertyName)) {
@@ -78292,7 +78292,7 @@ ${N.split(`
               It.push(jt), kn.set(nn, or);
             }
             let vt = Vn.element.name;
-            if (O0(vt)) he(vt, Xt, Vn);
+            if (F0(vt)) he(vt, Xt, Vn);
             else if (kp(vt)) me(vt, Xt, Vn);
             else {
               let { typeNode: nn } = Se(vt), or = ge(Vn, kn);
@@ -78434,12 +78434,12 @@ ${N.split(`
           return Ue.length > MD ? Ue.substring(0, MD - 3) + "..." : (Pr(oe, 0), Ue);
         }
         function de(oe) {
-          return On(oe, (Ue) => Zat.has(Ue.kind) && (!kp(Ue) && !O0(Ue) || Ci(Ue.parent)));
+          return On(oe, (Ue) => Zat.has(Ue.kind) && (!kp(Ue) && !F0(Ue) || Ci(Ue.parent)));
         }
         function Ze(oe, Ue) {
           for (; oe && oe.end < Ue.start + Ue.length; ) oe = oe.parent;
           for (; oe.parent.pos === oe.pos && oe.parent.end === oe.end; ) oe = oe.parent;
-          return Xe(oe) && b0(oe.parent) && oe.parent.initializer ? oe.parent.initializer : oe;
+          return Xe(oe) && T0(oe.parent) && oe.parent.initializer ? oe.parent.initializer : oe;
         }
       }
       var mme = "fixAwaitInSyncFunction", e3e = [d.await_expressions_are_only_allowed_within_async_functions_and_at_the_top_levels_of_modules.code, d.await_using_statements_are_only_allowed_within_async_functions_and_at_the_top_levels_of_modules.code, d.for_await_loops_are_only_allowed_within_async_functions_and_at_the_top_levels_of_modules.code, d.Cannot_find_name_0_Did_you_mean_to_write_this_in_an_async_function.code];
@@ -78660,7 +78660,7 @@ ${N.split(`
         if (!o) return;
         let c = Hi(r, (f) => {
           let u = f.declaration;
-          if (u.initializer || y0(u) || !Xe(u.name)) return;
+          if (u.initializer || v0(u) || !Xe(u.name)) return;
           let g = f.type && PP(f.type, u, i, a);
           if (g) {
             let m = R.cloneNode(u.name);
@@ -79058,7 +79058,7 @@ ${N.split(`
       } });
       function g3e(e, t, r, i) {
         let { line: a } = fs(t, r);
-        (!i || h0(i, a)) && e.insertCommentBeforeLine(t, a, r, " @ts-ignore");
+        (!i || g0(i, a)) && e.insertCommentBeforeLine(t, a, r, " @ts-ignore");
       }
       function Tme(e, t, r, i, a, o, c) {
         let f = e.symbol.members;
@@ -79453,7 +79453,7 @@ ${N.split(`
         if (Na(e) && r && e.questionToken) {
           let i = t.getTypeChecker(), a = i.getTypeFromTypeNode(r);
           if (!i.isTypeAssignableTo(i.getUndefinedType(), a)) {
-            let o = N0(r) ? r.types : [r];
+            let o = P0(r) ? r.types : [r];
             return R.createUnionTypeNode([...o, R.createKeywordTypeNode(157)]);
           }
         }
@@ -79536,7 +79536,7 @@ ${N.split(`
         return ss(Dme, r, [d.Add_undefined_type_to_property_0, t.prop.name.getText()], Pme, d.Add_undefined_type_to_all_uninitialized_properties);
       }
       function j3e(e, t, r) {
-        let i = R.createKeywordTypeNode(157), a = N0(r.type) ? r.type.types.concat(i) : [r.type, i], o = R.createUnionTypeNode(a);
+        let i = R.createKeywordTypeNode(157), a = P0(r.type) ? r.type.types.concat(i) : [r.type, i], o = R.createUnionTypeNode(a);
         r.isJs ? e.addJSDocTags(t, r.prop, [R.createJSDocTypeTag(void 0, R.createJSDocTypeExpression(o))]) : e.replaceNode(t, r.type, o);
       }
       function Nst(e, t) {
@@ -79809,7 +79809,7 @@ ${N.split(`
         a?.add(u);
         let g = Bst(u.parent.parent);
         if (bt(g)) {
-          let m = g[0], v = !N0(m) && !Zx(m) && Zx(R.createUnionTypeNode([m, R.createKeywordTypeNode(116)]).types[0]);
+          let m = g[0], v = !P0(m) && !Zx(m) && Zx(R.createUnionTypeNode([m, R.createKeywordTypeNode(116)]).types[0]);
           v && e.insertText(t, m.pos, "("), e.insertText(t, m.end, v ? ") | void" : " | void");
         } else {
           let m = c.getResolvedSignature(o.parent), v = m?.parameters[0], k = v && c.getTypeOfSymbolAtLocation(v, u.parent.parent);
@@ -79962,7 +79962,7 @@ ${N.split(`
               let C = { tabstop: 1 }, E = k.name.text, N = K8(E, k.initializer, k.dotDotDotToken, g, false, false, r, i, a), F = m ? K8(E, k.initializer, k.dotDotDotToken, g, false, true, r, i, a, C) : void 0;
               return o && (N = N.slice(1), F && (F = F.slice(1))), { name: N, kind: "parameter", sortText: Zu.LocationPriority, insertText: m ? F : void 0, isSnippet: m };
             } else if (k.parent.parameters.indexOf(k) === v) {
-              let C = `param${v}`, E = DOe(C, k.name, k.initializer, k.dotDotDotToken, g, false, r, i, a), N = m ? DOe(C, k.name, k.initializer, k.dotDotDotToken, g, true, r, i, a) : void 0, F = E.join(C0(i) + "* "), L = N?.join(C0(i) + "* ");
+              let C = `param${v}`, E = DOe(C, k.name, k.initializer, k.dotDotDotToken, g, false, r, i, a), N = m ? DOe(C, k.name, k.initializer, k.dotDotDotToken, g, true, r, i, a) : void 0, F = E.join(w0(i) + "* "), L = N?.join(w0(i) + "* ");
               return o && (F = F.slice(1), L && (L = L.slice(1))), { name: F, kind: "parameter", sortText: Zu.LocationPriority, insertText: m ? L : void 0, isSnippet: m };
             }
           }
@@ -80222,8 +80222,8 @@ ${N.split(`
             de && (de === 135 || oV(de)) && (ce = `${g} as ${g}_`);
           }
         }
-        let De = J0.getSymbolKind(Qe, e, a), ze = De === "warning" || De === "string" ? [] : void 0;
-        return { name: g, kind: De, kindModifiers: J0.getSymbolModifiers(Qe, e), sortText: t, source: Se, hasAction: ee ? true : void 0, isRecommended: pot(e, k, Qe) || void 0, insertText: ce, filterText: K, replacementSpan: he, sourceDisplay: we, labelDetails: Ie, isSnippet: ge, isPackageJsonImport: zst(v) || void 0, isImportStatementCompletion: !!N || void 0, data: me, commitCharacters: ze, ...ne ? { symbol: e } : void 0 };
+        let De = U0.getSymbolKind(Qe, e, a), ze = De === "warning" || De === "string" ? [] : void 0;
+        return { name: g, kind: De, kindModifiers: U0.getSymbolModifiers(Qe, e), sortText: t, source: Se, hasAction: ee ? true : void 0, isRecommended: pot(e, k, Qe) || void 0, insertText: ce, filterText: K, replacementSpan: he, sourceDisplay: we, labelDetails: Ie, isSnippet: ge, isPackageJsonImport: zst(v) || void 0, isImportStatementCompletion: !!N || void 0, data: me, commitCharacters: ze, ...ne ? { symbol: e } : void 0 };
       }
       function aot(e, t) {
         let r = false, i = "", a;
@@ -80316,7 +80316,7 @@ ${N.split(`
         }
       }
       function aK(e) {
-        let t, r = Dr.createWriter(C0(e)), i = pb(e, r), a = { ...r, write: (k) => o(k, () => r.write(k)), nonEscapingWrite: r.write, writeLiteral: (k) => o(k, () => r.writeLiteral(k)), writeStringLiteral: (k) => o(k, () => r.writeStringLiteral(k)), writeSymbol: (k, C) => o(k, () => r.writeSymbol(k, C)), writeParameter: (k) => o(k, () => r.writeParameter(k)), writeComment: (k) => o(k, () => r.writeComment(k)), writeProperty: (k) => o(k, () => r.writeProperty(k)) };
+        let t, r = Dr.createWriter(w0(e)), i = pb(e, r), a = { ...r, write: (k) => o(k, () => r.write(k)), nonEscapingWrite: r.write, writeLiteral: (k) => o(k, () => r.writeLiteral(k)), writeStringLiteral: (k) => o(k, () => r.writeStringLiteral(k)), writeSymbol: (k, C) => o(k, () => r.writeSymbol(k, C)), writeParameter: (k) => o(k, () => r.writeParameter(k)), writeComment: (k) => o(k, () => r.writeComment(k)), writeProperty: (k) => o(k, () => r.writeProperty(k)) };
         return { printSnippetList: c, printAndFormatSnippetList: u, printNode: g, printAndFormatNode: v };
         function o(k, C) {
           let E = mS(k);
@@ -80507,8 +80507,8 @@ ${N.split(`
         return Pj(e, "", t, [A_(e, r)]);
       }
       function Zme(e, t, r, i, a, o, c, f) {
-        let { displayParts: u, documentation: g, symbolKind: m, tags: v } = r.runWithCancellationToken(o, (k) => J0.getSymbolDisplayPartsDocumentationAndSymbolKind(k, e, i, a, a, 7));
-        return Pj(t, J0.getSymbolModifiers(r, e), m, u, g, v, c, f);
+        let { displayParts: u, documentation: g, symbolKind: m, tags: v } = r.runWithCancellationToken(o, (k) => U0.getSymbolDisplayPartsDocumentationAndSymbolKind(k, e, i, a, a, 7));
+        return Pj(t, U0.getSymbolModifiers(r, e), m, u, g, v, c, f);
       }
       function Pj(e, t, r, i, a, o, c, f) {
         return { name: e, kindModifiers: t, kind: r, displayParts: i, documentation: a, tags: o, codeActions: c, source: f, sourceDisplay: f };
@@ -80583,7 +80583,7 @@ ${N.split(`
       function BOe(e, t, r, i, a, o, c, f, u, g) {
         let m = e.getTypeChecker(), v = OOe(r, i), k = Mo(), C = Wi(r, a);
         t("getCompletionData: Get current token: " + (Mo() - k)), k = Mo();
-        let E = R0(r, a, C);
+        let E = L0(r, a, C);
         t("getCompletionData: Is inside comment: " + (Mo() - k));
         let N = false, F = false, L = false;
         if (E) {
@@ -80852,7 +80852,7 @@ ${N.split(`
           }
         }
         function Ii() {
-          return N || F || !!ge && v0(Se.parent) || !tt(H) && (b8(H, r, m) || ah(Se) || Et(H));
+          return N || F || !!ge && b0(Se.parent) || !tt(H) && (b8(H, r, m) || ah(Se) || Et(H));
         }
         function tt(Fe) {
           return Fe && (Fe.kind === 114 && (Fe.parent.kind === 187 || uE(Fe.parent)) || Fe.kind === 131 && Fe.parent.kind === 183);
@@ -81045,7 +81045,7 @@ ${N.split(`
             D.assert(gt.kind === 207), ee = false;
             let Gn = oh(gt.parent);
             if (!UD(Gn)) return D.fail("Root declaration is not variable-like.");
-            let tr = b0(Gn) || !!Nl(Gn) || Gn.parent.parent.kind === 251;
+            let tr = T0(Gn) || !!Nl(Gn) || Gn.parent.parent.kind === 251;
             if (!tr && Gn.kind === 170 && (kt(Gn.parent) ? tr = !!m.getContextualType(Gn.parent) : (Gn.parent.kind === 175 || Gn.parent.kind === 179) && (tr = kt(Gn.parent.parent) && !!m.getContextualType(Gn.parent.parent))), tr) {
               let mt = m.getTypeAtLocation(gt);
               if (!mt) return 2;
@@ -81654,7 +81654,7 @@ ${N.split(`
         if (qx(r, i)) return Gf(r, i);
         D.assert(r.kind !== 102 && r.kind !== 277);
         let a = r.kind === 273 || r.kind === 352 ? XOe((t = r.importClause) == null ? void 0 : t.namedBindings) ?? r.moduleSpecifier : r.moduleReference, o = { pos: r.getFirstToken().getStart(), end: a.pos };
-        if (qx(o, i)) return M0(o);
+        if (qx(o, i)) return j0(o);
       }
       function XOe(e) {
         var t;
@@ -81902,7 +81902,7 @@ ${N.split(`
         }
       }
       function zot(e, t) {
-        return Hi(e.types, (r) => r !== t && P0(r) && Ls(r.literal) ? r.literal.text : void 0);
+        return Hi(e.types, (r) => r !== t && O0(r) && Ls(r.literal) ? r.literal.text : void 0);
       }
       function Vot(e, t, r, i) {
         let a = false, o = /* @__PURE__ */ new Set(), c = _f(e) ? D.checkDefined(On(t.parent, yh)) : t, f = i.getCandidateSignaturesForStringLiteralCompletions(e, c), u = oa(f, (g) => {
@@ -81962,7 +81962,7 @@ ${N.split(`
       function Yot(e, t, r, i) {
         e = e.map((o) => Kl(vs(J_(o) ? o : ri(t, o))));
         let a = an(e, (o) => Hp(o, r, t, i) ? r.substr(o.length) : void 0);
-        return WT([...e.map((o) => ri(o, a)), r].map((o) => g0(o)), $T, Hu);
+        return WT([...e.map((o) => ri(o, a)), r].map((o) => y0(o)), $T, Hu);
       }
       function Xot(e, t, r, i, a, o, c, f) {
         let g = a.getCompilerOptions().project || o.getCurrentDirectory(), m = !(o.useCaseSensitiveFileNames && o.useCaseSensitiveFileNames()), v = Yot(e, g, r, m);
@@ -82008,11 +82008,11 @@ ${N.split(`
         if (i && (o = o.filter((f) => f !== 0 && f !== 1)), o[0] === 3) {
           if (nl(e, Y3)) return { name: e, extension: Bg(e) };
           let f = My.tryGetJSExtensionForFile(e, t.getCompilerOptions());
-          return f ? { name: A0(e, f), extension: f } : { name: e, extension: Bg(e) };
+          return f ? { name: E0(e, f), extension: f } : { name: e, extension: Bg(e) };
         }
         if (!i && (o[0] === 0 || o[0] === 1) && nl(e, [".js", ".jsx", ".ts", ".tsx", ".d.ts"])) return { name: Nf(e), extension: Bg(e) };
         let c = My.tryGetJSExtensionForFile(e, t.getCompilerOptions());
-        return c ? { name: A0(e, c), extension: c } : { name: e, extension: Bg(e) };
+        return c ? { name: E0(e, c), extension: c } : { name: e, extension: Bg(e) };
       }
       function l8e(e, t, r, i, a, o, c, f) {
         let u = (m) => f[m], g = (m, v) => {
@@ -82124,14 +82124,14 @@ ${N.split(`
         });
         return oa(t, (C) => p8e(v, i, C, a, o, c, f, u, g));
         function k(C, E) {
-          return _a(C, r) ? [{ name: g0(C), kind: E, extension: void 0 }] : ae;
+          return _a(C, r) ? [{ name: y0(C), kind: E, extension: void 0 }] : ae;
         }
       }
       function p8e(e, t, r, i, a, o, c, f, u) {
         if (!f.readDirectory) return;
         let g = hC(r);
         if (g === void 0 || Ja(g)) return;
-        let m = Fv(g.prefix), v = Ov(g.prefix) ? m : hi(m), k = Ov(g.prefix) ? "" : Dl(m), C = ohe(e), E = C ? Ov(e) ? e : hi(e) : void 0, N = () => u.getCommonSourceDirectory(), F = !Vx(u), L = c.getCompilerOptions().outDir, W = c.getCompilerOptions().declarationDir, J = C ? ri(v, k + E) : v, $ = vs(ri(t, J)), H = o && L && TV($, F, L, N), Z = o && W && TV($, F, W, N), ne = vs(g.suffix), X = ne && PR("_" + ne), Te = ne ? bV("_" + ne) : void 0, ce = [X && A0(ne, X), ...Te ? Te.map((ee) => A0(ne, ee)) : [], ne].filter(Ja), K = ne ? ce.map((ee) => "**/*" + ee) : ["./*"], he = (a || o) && rc(r, "/*"), me = ge($);
+        let m = Fv(g.prefix), v = Ov(g.prefix) ? m : hi(m), k = Ov(g.prefix) ? "" : Dl(m), C = ohe(e), E = C ? Ov(e) ? e : hi(e) : void 0, N = () => u.getCommonSourceDirectory(), F = !Vx(u), L = c.getCompilerOptions().outDir, W = c.getCompilerOptions().declarationDir, J = C ? ri(v, k + E) : v, $ = vs(ri(t, J)), H = o && L && TV($, F, L, N), Z = o && W && TV($, F, W, N), ne = vs(g.suffix), X = ne && PR("_" + ne), Te = ne ? bV("_" + ne) : void 0, ce = [X && E0(ne, X), ...Te ? Te.map((ee) => E0(ne, ee)) : [], ne].filter(Ja), K = ne ? ce.map((ee) => "**/*" + ee) : ["./*"], he = (a || o) && rc(r, "/*"), me = ge($);
         return H && (me = la(me, ge(H))), Z && (me = la(me, ge(Z))), ne || (me = la(me, Se($)), H && (me = la(me, Se(H))), Z && (me = la(me, Se(Z)))), me;
         function ge(ee) {
           let Ie = C ? ee : Kl(ee) + k;
@@ -82589,7 +82589,7 @@ ${N.split(`
             return { start: e.initializer, end: e.expression };
           case 304:
           case 305:
-            return L0(e.parent) ? x2(On(e.parent, (t) => Or(t) || Px(t))) : e;
+            return M0(e.parent) ? x2(On(e.parent, (t) => Or(t) || Px(t))) : e;
           case 256:
             return { start: $t(e.getChildren(e.getSourceFile()), (t) => t.kind === 109), end: e.caseBlock };
           default:
@@ -82661,7 +82661,7 @@ ${N.split(`
               return { ...Rj(m), name: v, kind: "keyword", displayParts: [{ text: v, kind: "keyword" }] };
             }
             case 3: {
-              let { node: m } = e, v = t.getSymbolAtLocation(m), k = v && J0.getSymbolDisplayPartsDocumentationAndSymbolKind(t, v, m.getSourceFile(), y2(m), m).displayParts || [Ip("this")];
+              let { node: m } = e, v = t.getSymbolAtLocation(m), k = v && U0.getSymbolDisplayPartsDocumentationAndSymbolKind(t, v, m.getSourceFile(), y2(m), m).displayParts || [Ip("this")];
               return { ...Rj(m), name: "this", kind: "var", displayParts: k };
             }
             case 4: {
@@ -82669,7 +82669,7 @@ ${N.split(`
               return { ...Rj(m), name: m.text, kind: "var", displayParts: [A_(Ec(m), 8)] };
             }
             case 5:
-              return { textSpan: M0(e.reference), sourceFile: e.file, name: e.reference.fileName, kind: "string", displayParts: [A_(`"${e.reference.fileName}"`, 8)] };
+              return { textSpan: j0(e.reference), sourceFile: e.file, name: e.reference.fileName, kind: "string", displayParts: [A_(`"${e.reference.fileName}"`, 8)] };
             default:
               return D.assertNever(e);
           }
@@ -82681,7 +82681,7 @@ ${N.split(`
         return { sourceFile: t, textSpan: Lj(bs(e) ? e.expression : e, t) };
       }
       function E8e(e, t, r) {
-        let i = ow.getIntersectingMeaningFromDeclarations(r, e), a = e.declarations && Il(e.declarations) || r, { displayParts: o, symbolKind: c } = J0.getSymbolDisplayPartsDocumentationAndSymbolKind(t, e, a.getSourceFile(), a, a, i);
+        let i = ow.getIntersectingMeaningFromDeclarations(r, e), a = e.declarations && Il(e.declarations) || r, { displayParts: o, symbolKind: c } = U0.getSymbolDisplayPartsDocumentationAndSymbolKind(t, e, a.getSourceFile(), a, a, i);
         return { displayParts: o, kind: c };
       }
       function xct(e, t, r, i, a) {
@@ -82788,7 +82788,7 @@ ${N.split(`
           case 169:
             return true;
           case 304:
-            return !L0(e.parent);
+            return !M0(e.parent);
           case 263:
           case 219:
           case 177:
@@ -82858,7 +82858,7 @@ ${N.split(`
           let yt, ie = Wt.get(lt.path) || ae;
           for (let Je of ie) if (J1(Je)) {
             let ct = pe.getSourceFileByPath(Je.file), pt = hP(pe, Je);
-            RE(pt) && (yt = Hn(yt, { kind: 0, fileName: ct.fileName, textSpan: M0(pt) }));
+            RE(pt) && (yt = Hn(yt, { kind: 0, fileName: ct.fileName, textSpan: j0(pt) }));
           }
           return yt;
         }
@@ -82913,7 +82913,7 @@ ${N.split(`
           let Je = Hi(y8e(lt, yt, Wt), (pt) => {
             if (pt.kind === "import") {
               let Mt = pt.literal.parent;
-              if (P0(Mt)) {
+              if (O0(Mt)) {
                 let Ge = hs(Mt.parent, dh);
                 if (pe && !Ge.qualifier) return;
               }
@@ -82921,7 +82921,7 @@ ${N.split(`
             } else if (pt.kind === "implicit") {
               let Mt = pt.literal.text !== zv && MC(pt.referencingFile, (Ge) => Ge.transformFlags & 2 ? gh(Ge) || a2(Ge) || D1(Ge) ? Ge : void 0 : "skip") || pt.referencingFile.statements[0] || pt.referencingFile;
               return Jy(Mt);
-            } else return { kind: 0, fileName: pt.referencingFile.fileName, textSpan: M0(pt.ref) };
+            } else return { kind: 0, fileName: pt.referencingFile.fileName, textSpan: j0(pt.ref) };
           });
           if (Wt.declarations) for (let pt of Wt.declarations) switch (pt.kind) {
             case 308:
@@ -82989,7 +82989,7 @@ ${N.split(`
               if (lt.flags & 33554432) return;
               D.fail(`Unexpected symbol at ${D.formatSyntaxKind(Wt.kind)}: ${D.formatSymbol(lt)}`);
             }
-            return Vf(Je.parent) && N0(Je.parent.parent) ? pe.getPropertyOfType(pe.getTypeFromTypeNode(Je.parent.parent), lt.name) : void 0;
+            return Vf(Je.parent) && P0(Je.parent.parent) ? pe.getPropertyOfType(pe.getTypeFromTypeNode(Je.parent.parent), lt.name) : void 0;
           });
         }
         let F;
@@ -83024,7 +83024,7 @@ ${N.split(`
           }
           markSearchedSymbols(Wt, pe) {
             let yt = lo(Wt), ie = this.sourceFileToSeenSymbols[yt] || (this.sourceFileToSeenSymbols[yt] = /* @__PURE__ */ new Set()), Je = false;
-            for (let ct of pe) Je = h0(ie, Ss(ct)) || Je;
+            for (let ct of pe) Je = g0(ie, Ss(ct)) || Je;
             return Je;
           }
         }
@@ -83073,7 +83073,7 @@ ${N.split(`
           wX(lt).get(Wt.escapedText) !== void 0 && Ce(lt, Wt, pe);
         }
         function X(lt, Wt) {
-          return L0(lt.parent.parent) ? Wt.getPropertySymbolOfDestructuringAssignment(lt) : void 0;
+          return M0(lt.parent.parent) ? Wt.getPropertySymbolOfDestructuringAssignment(lt) : void 0;
         }
         function Te(lt) {
           let { declarations: Wt, flags: pe, parent: yt, valueDeclaration: ie } = lt;
@@ -83350,7 +83350,7 @@ ${N.split(`
             return;
           }
           let ie = On(lt, (pt) => !zf(pt.parent) && !Fi(pt.parent) && !YT(pt.parent)), Je = ie.parent;
-          if (W5(Je) && Je.type === ie && pe.markSeenContainingTypeReference(Je)) if (b0(Je)) ct(Je.initializer);
+          if (W5(Je) && Je.type === ie && pe.markSeenContainingTypeReference(Je)) if (T0(Je)) ct(Je.initializer);
           else if (Xa(Je) && Je.body) {
             let pt = Je.body;
             pt.kind === 242 ? Hv(pt, (Mt) => {
@@ -83401,7 +83401,7 @@ ${N.split(`
             case 177:
             case 178:
             case 179:
-              pe &= x0(Wt), Wt = Wt.parent;
+              pe &= k0(Wt), Wt = Wt.parent;
               break;
             default:
               return;
@@ -83422,7 +83422,7 @@ ${N.split(`
             case 175:
             case 174:
               if (Ad(yt)) {
-                ie &= x0(yt), yt = yt.parent;
+                ie &= k0(yt), yt = yt.parent;
                 break;
               }
             case 173:
@@ -83430,7 +83430,7 @@ ${N.split(`
             case 177:
             case 178:
             case 179:
-              ie &= x0(yt), yt = yt.parent;
+              ie &= k0(yt), yt = yt.parent;
               break;
             case 308:
               if ($l(yt) || ii(lt)) return;
@@ -83559,7 +83559,7 @@ ${N.split(`
         }
         e.getIntersectingMeaningFromDeclarations = _i;
         function mi(lt) {
-          return lt.flags & 33554432 ? !(wu(lt) || Pd(lt)) : UD(lt) ? b0(lt) : Ro(lt) ? !!lt.body : vi(lt) || V4(lt);
+          return lt.flags & 33554432 ? !(wu(lt) || Pd(lt)) : UD(lt) ? T0(lt) : Ro(lt) ? !!lt.body : vi(lt) || V4(lt);
         }
         function Yi(lt, Wt, pe) {
           let yt = Wt.getSymbolAtLocation(lt), ie = Wt.getShorthandAssignmentValueSymbol(yt.valueDeclaration);
@@ -83758,7 +83758,7 @@ ${N.split(`
         let i = P8e(e, t, r);
         if (!i || i.length === 0) return;
         let a = t7(t.referencedFiles, r) || t7(t.typeReferenceDirectives, r) || t7(t.libReferenceDirectives, r);
-        if (a) return { definitions: i, textSpan: M0(a) };
+        if (a) return { definitions: i, textSpan: j0(a) };
         let o = p_(t, r), c = Fu(o.getStart(), o.getWidth());
         return { definitions: i, textSpan: c };
       }
@@ -83803,7 +83803,7 @@ ${N.split(`
         }
       }
       function e7(e, t, r, i, a, o) {
-        let c = t.symbolToString(r), f = J0.getSymbolKind(t, r, i), u = r.parent ? t.symbolToString(r.parent, i) : "";
+        let c = t.symbolToString(r), f = U0.getSymbolKind(t, r, i), u = r.parent ? t.symbolToString(r.parent, i) : "";
         return dhe(t, e, f, c, u, a, o);
       }
       function dhe(e, t, r, i, a, o, c, f) {
@@ -83821,7 +83821,7 @@ ${N.split(`
       function mhe(e, t) {
         if (e.isDeclarationVisible(t)) return true;
         if (!t.parent) return false;
-        if (b0(t.parent) && t.parent.initializer === t) return mhe(e, t.parent);
+        if (T0(t.parent) && t.parent.initializer === t) return mhe(e, t.parent);
         switch (t.kind) {
           case 173:
           case 178:
@@ -84115,7 +84115,7 @@ ${N.split(`
                 D.assertNode(de, FL), se.push({ text: "..." }), xe(de.type);
                 break;
               case 193:
-                D.assertNode(de, N0), ze(de.types, " | ");
+                D.assertNode(de, P0), ze(de.types, " | ");
                 break;
               case 194:
                 D.assertNode(de, DC), ze(de.types, " & ");
@@ -84139,7 +84139,7 @@ ${N.split(`
                 D.assertNode(de, e2), se.push({ text: "{ " }), de.readonlyToken && (de.readonlyToken.kind === 40 ? se.push({ text: "+" }) : de.readonlyToken.kind === 41 && se.push({ text: "-" }), se.push({ text: "readonly " })), se.push({ text: "[" }), xe(de.typeParameter), de.nameType && (se.push({ text: " as " }), xe(de.nameType)), se.push({ text: "]" }), de.questionToken && (de.questionToken.kind === 40 ? se.push({ text: "+" }) : de.questionToken.kind === 41 && se.push({ text: "-" }), se.push({ text: "?" })), se.push({ text: ": " }), de.type && xe(de.type), se.push({ text: "; }" });
                 break;
               case 202:
-                D.assertNode(de, P0), xe(de.literal);
+                D.assertNode(de, O0), xe(de.literal);
                 break;
               case 185:
                 D.assertNode(de, Kh), De(de), se.push({ text: " => " }), xe(de.type);
@@ -84163,7 +84163,7 @@ ${N.split(`
                 D.assertNode(de, MN), se.push({ text: "new " }), De(de), de.type && (se.push({ text: ": " }), xe(de.type));
                 break;
               case 208:
-                D.assertNode(de, O0), se.push({ text: "[" }), ze(de.elements, ", "), se.push({ text: "]" });
+                D.assertNode(de, F0), se.push({ text: "[" }), ze(de.elements, ", "), se.push({ text: "]" });
                 break;
               case 207:
                 D.assertNode(de, kp), se.push({ text: "{" }), de.elements.length && (se.push({ text: " " }), ze(de.elements, ", "), se.push({ text: " " })), se.push({ text: "}" });
@@ -84883,7 +84883,7 @@ ${t}
         let r = [], i = e.getLineStarts();
         for (let a of i) {
           let o = e.getLineEndOfPosition(a), c = e.text.substring(a, o), f = K8e(c);
-          if (!(!f || R0(e, a))) if (f.isStart) {
+          if (!(!f || L0(e, a))) if (f.isStart) {
             let u = ll(e.text.indexOf("//", a), o);
             r.push(cw(u, "region", u, false, f.name || "#region"));
           } else {
@@ -85032,7 +85032,7 @@ ${t}
           return W && J && SK(W, J, C, t, E, N);
         }
         function v(C) {
-          return C.length ? cw(M0(C), "code") : void 0;
+          return C.length ? cw(j0(C), "code") : void 0;
         }
         function k(C) {
           if (Zp(C.getStart(), C.getEnd(), t)) return;
@@ -85087,8 +85087,8 @@ ${t}
         if (fo(e) && v3(e)) return a.allowRenameOfImportPath ? qlt(e, r, o) : void 0;
         let f = $lt(r, o, t, a);
         if (f) return xK(f);
-        let u = J0.getSymbolKind(t, o, e), g = e_e(e) || Sp(e) && e.parent.kind === 168 ? Id(Kp(e)) : void 0, m = g || t.symbolToString(o), v = g || t.getFullyQualifiedName(o);
-        return Ehe(m, v, u, J0.getSymbolModifiers(t, o), e, r);
+        let u = U0.getSymbolKind(t, o, e), g = e_e(e) || Sp(e) && e.parent.kind === 168 ? Id(Kp(e)) : void 0, m = g || t.symbolToString(o), v = g || t.getFullyQualifiedName(o);
+        return Ehe(m, v, u, U0.getSymbolModifiers(t, o), e, r);
       }
       function Vlt(e, t) {
         let r = t.getSourceFile();
@@ -85152,7 +85152,7 @@ ${t}
         let o = e.getTypeChecker(), c = xP(t, r);
         if (!c) return;
         let f = !!i && i.kind === "characterTyped";
-        if (f && (YC(t, r, c) || R0(t, r))) return;
+        if (f && (YC(t, r, c) || L0(t, r))) return;
         let u = !!i && i.kind === "invoked", g = fut(c, r, t, o, u);
         if (!g) return;
         a.throwIfCancellationRequested();
@@ -85287,7 +85287,7 @@ ${t}
           case 28:
             return e;
           default:
-            return On(e.parent, (t) => ra(t) ? true : Hs(t) || kp(t) || O0(t) ? false : "quit");
+            return On(e.parent, (t) => ra(t) ? true : Hs(t) || kp(t) || F0(t) ? false : "quit");
         }
       }
       function rut(e, t, r, i) {
@@ -85480,7 +85480,7 @@ ${t}
             if ($v(v, t, true) > e) break e;
             let C = Sg(Rv(t.text, v.end));
             if (C && C.kind === 2 && f(C.pos, C.end), Tut(t, e, v)) {
-              if (yz(v) && Ro(o) && !Zp(v.getStart(t), v.getEnd(), t) && c(v.getStart(t), v.getEnd()), es(v) || pE(v) || kC(v) || IL(v) || m && kC(m) || Cu(v) && fl(o) || vE(v) && Cu(o) || Ci(v) && vE(o) && u.length === 1 || N1(v) || F0(v) || s2(v)) {
+              if (yz(v) && Ro(o) && !Zp(v.getStart(t), v.getEnd(), t) && c(v.getStart(t), v.getEnd()), es(v) || pE(v) || kC(v) || IL(v) || m && kC(m) || Cu(v) && fl(o) || vE(v) && Cu(o) || Ci(v) && vE(o) && u.length === 1 || N1(v) || R0(v) || s2(v)) {
                 o = v;
                 break;
               }
@@ -85571,8 +85571,8 @@ ${t}
             return t.getEnd();
         }
       }
-      var J0 = {};
-      B(J0, { getSymbolDisplayPartsDocumentationAndSymbolKind: () => Eut, getSymbolKind: () => _7e, getSymbolModifiers: () => Aut });
+      var U0 = {};
+      B(U0, { getSymbolDisplayPartsDocumentationAndSymbolKind: () => Eut, getSymbolKind: () => _7e, getSymbolModifiers: () => Aut });
       var f7e = 70246400;
       function _7e(e, t, r) {
         let i = p7e(e, t, r);
@@ -86343,7 +86343,7 @@ ${i.prefix}` : `
             let k = v[0].sourceFile, C = M_(v, (N, F) => N.range.pos - F.range.pos || N.range.end - F.range.end);
             for (let N = 0; N < C.length - 1; N++) D.assert(C[N].range.end <= C[N + 1].range.pos, "Changes overlap", () => `${JSON.stringify(C[N].range)} and ${JSON.stringify(C[N + 1].range)}`);
             let E = Hi(C, (N) => {
-              let F = M0(N.range), L = N.kind === 1 ? zn(Sc(N.node)) ?? N.sourceFile : N.kind === 2 ? zn(Sc(N.nodes[0])) ?? N.sourceFile : N.sourceFile, W = a(N, L, k, u, g, m);
+              let F = j0(N.range), L = N.kind === 1 ? zn(Sc(N.node)) ?? N.sourceFile : N.kind === 2 ? zn(Sc(N.nodes[0])) ?? N.sourceFile : N.sourceFile, W = a(N, L, k, u, g, m);
               if (!(F.length === W.length && f_e(L.text, W, F.start))) return S8(F, W);
             });
             return E.length > 0 ? { fileName: k.fileName, textChanges: E } : void 0;
@@ -86540,7 +86540,7 @@ ${i.prefix}` : `
         }
       }
       function x7e(e, t) {
-        return !R0(e, t) && !YC(e, t) && !eY(e, t) && !Lfe(e, t);
+        return !L0(e, t) && !YC(e, t) && !eY(e, t) && !Lfe(e, t);
       }
       function Jut(e, t) {
         return (Pf(e) || Na(e)) && R5(t) && t.name.kind === 168 || $4(e) && $4(t);
@@ -88185,7 +88185,7 @@ ${i.prefix}` : `
         return { pos: Xe(a) && r <= a.getStart(e) ? a.getFullStart() : r, end: Xe(o) && i === o.getEnd() ? Dr.getAdjustedEndPosition(e, o, {}) : i };
       }
       var eFe = {};
-      B(eFe, { ANONYMOUS: () => IY, AccessFlags: () => Ine, AssertionLevel: () => Bte, AssignmentDeclarationKind: () => jne, AssignmentKind: () => uae, Associativity: () => yae, BreakpointResolver: () => AX, BuilderFileEmit: () => pue, BuilderProgramKind: () => Tue, BuilderState: () => Nm, CallHierarchy: () => tw, CharacterCodes: () => Yne, CheckFlags: () => Cne, CheckMode: () => Qq, ClassificationType: () => JG, ClassificationTypeNames: () => xfe, CommentDirectiveType: () => une, Comparison: () => qe, CompletionInfoFlags: () => hfe, CompletionTriggerKind: () => jG, Completions: () => sw, ContainerFlags: () => Hce, ContextFlags: () => gne, Debug: () => D, DiagnosticCategory: () => f5, Diagnostics: () => d, DocumentHighlights: () => aj, ElementFlags: () => Ene, EmitFlags: () => RW, EmitHint: () => Zne, EmitOnly: () => _ne, EndOfLineState: () => vfe, ExitStatus: () => pne, ExportKind: () => p_e, Extension: () => Xne, ExternalEmitHelpers: () => Qne, FileIncludeKind: () => CW, FilePreprocessingDiagnosticsKind: () => fne, FileSystemEntryKind: () => cre, FileWatcherEventKind: () => are, FindAllReferences: () => Zo, FlattenLevel: () => mle, FlowFlags: () => u5, ForegroundColorEscapeSequences: () => rue, FunctionFlags: () => hae, GeneratedIdentifierFlags: () => kW, GetLiteralTextFlags: () => Aie, GoToDefinition: () => nI, HighlightSpanKind: () => dfe, IdentifierNameMap: () => PE, ImportKind: () => __e, ImportsNotUsedAsValues: () => Vne, IndentStyle: () => mfe, IndexFlags: () => Dne, IndexKind: () => One, InferenceFlags: () => Lne, InferencePriority: () => Rne, InlayHintKind: () => pfe, InlayHints: () => yK, InternalEmitFlags: () => Kne, InternalNodeBuilderFlags: () => vne, InternalSymbolName: () => wne, IntersectionFlags: () => hne, InvalidatedProjectKind: () => Vue, JSDocParsingMode: () => ire, JsDoc: () => G1, JsTyping: () => mb, JsxEmit: () => zne, JsxFlags: () => sne, JsxReferenceKind: () => Nne, LanguageFeatureMinimumTarget: () => ou, LanguageServiceMode: () => ffe, LanguageVariant: () => Hne, LexicalEnvironmentFlags: () => tre, ListFormat: () => nre, LogLevel: () => Yte, MapCode: () => vK, MemberOverrideStatus: () => dne, ModifierFlags: () => SW, ModuleDetectionKind: () => Bne, ModuleInstanceState: () => $ce, ModuleKind: () => vA, ModuleResolutionKind: () => yA, ModuleSpecifierEnding: () => dse, NavigateTo: () => M_e, NavigationBar: () => B_e, NewLineKind: () => $ne, NodeBuilderFlags: () => yne, NodeCheckFlags: () => EW, NodeFactoryFlags: () => $se, NodeFlags: () => TW, NodeResolutionFeatures: () => Rce, ObjectFlags: () => DW, OperationCanceledException: () => hD, OperatorPrecedence: () => vae, OrganizeImports: () => Y1, OrganizeImportsMode: () => MG, OuterExpressionKinds: () => ere, OutliningElementsCollector: () => TK, OutliningSpanKind: () => gfe, OutputFileType: () => yfe, PackageJsonAutoImportPreference: () => ufe, PackageJsonDependencyGroup: () => lfe, PatternMatchKind: () => GY, PollingInterval: () => LW, PollingWatchKind: () => Wne, PragmaKindFlags: () => rre, PredicateSemantics: () => one, PreparePasteEdits: () => LK, PrivateIdentifierKind: () => toe, ProcessLevel: () => vle, ProgramUpdateLevel: () => Qle, QuotePreference: () => $fe, RegularExpressionFlags: () => cne, RelationComparisonResult: () => xW, Rename: () => Wj, ScriptElementKind: () => Tfe, ScriptElementKindModifier: () => Sfe, ScriptKind: () => PW, ScriptSnapshot: () => gM, ScriptTarget: () => qne, SemanticClassificationFormat: () => _fe, SemanticMeaning: () => kfe, SemicolonPreference: () => BG, SignatureCheckMode: () => Zq, SignatureFlags: () => NW, SignatureHelp: () => i7, SignatureInfo: () => _ue, SignatureKind: () => Pne, SmartSelectionRange: () => kK, SnippetKind: () => FW, StatisticType: () => Zue, StructureIsReused: () => wW, SymbolAccessibility: () => Sne, SymbolDisplay: () => J0, SymbolDisplayPartKind: () => vM, SymbolFlags: () => AW, SymbolFormatFlags: () => Tne, SyntaxKind: () => bW, Ternary: () => Mne, ThrottledCancellationToken: () => Hpe, TokenClass: () => bfe, TokenFlags: () => lne, TransformFlags: () => OW, TypeFacts: () => Kq, TypeFlags: () => IW, TypeFormatFlags: () => bne, TypeMapKind: () => Fne, TypePredicateKind: () => xne, TypeReferenceSerializationKind: () => kne, UnionReduction: () => mne, UpToDateStatusType: () => Mue, VarianceFlags: () => Ane, Version: () => ym, VersionRange: () => l5, WatchDirectoryFlags: () => Gne, WatchDirectoryKind: () => Une, WatchFileKind: () => Jne, WatchLogLevel: () => eue, WatchType: () => du, accessPrivateIdentifier: () => dle, addEmitFlags: () => _h, addEmitHelper: () => SC, addEmitHelpers: () => Ug, addInternalEmitFlags: () => Yx, addNodeFactoryPatcher: () => g2e, addObjectAllocatorPatcher: () => t2e, addRange: () => ni, addRelatedInfo: () => ds, addSyntheticLeadingComment: () => rb, addSyntheticTrailingComment: () => PN, addToSeen: () => Dd, advancedAsyncSuperHelper: () => EL, affectsDeclarationPathOptionDeclarations: () => sce, affectsEmitOptionDeclarations: () => ace, allKeysStartWithDot: () => S9, altDirectorySeparator: () => m5, and: () => s5, append: () => Hn, appendIfUnique: () => vy, arrayFrom: () => Aa, arrayIsEqualTo: () => fp, arrayIsHomogeneous: () => Sse, arrayOf: () => Rte, arrayReverseIterator: () => ZU, arrayToMap: () => dA, arrayToMultiMap: () => m4, arrayToNumericMap: () => Mte, assertType: () => NSe, assign: () => Tx, asyncSuperHelper: () => AL, attachFileToDiagnostics: () => pC, base64decode: () => Jae, base64encode: () => Bae, binarySearch: () => Av, binarySearchKey: () => Pk, bindSourceFile: () => Gce, breakIntoCharacterSpans: () => I_e, breakIntoWordSpans: () => D_e, buildLinkParts: () => Zfe, buildOpts: () => NO, buildOverload: () => rFe, bundlerModuleNameResolver: () => Lce, canBeConvertedToAsync: () => eX, canHaveDecorators: () => CS, canHaveExportModifier: () => tO, canHaveFlowNode: () => zA, canHaveIllegalDecorators: () => oq, canHaveIllegalModifiers: () => Joe, canHaveIllegalType: () => z2e, canHaveIllegalTypeParameters: () => Boe, canHaveJSDoc: () => S3, canHaveLocals: () => Vh, canHaveModifiers: () => Fd, canHaveModuleSpecifier: () => oae, canHaveSymbol: () => Tm, canIncludeBindAndCheckDiagnostics: () => SN, canJsonReportNoInputFiles: () => MO, canProduceDiagnostics: () => HO, canUsePropertyAccess: () => f$, canWatchAffectingLocation: () => Iue, canWatchAtTypes: () => Eue, canWatchDirectoryOrFile: () => eG, canWatchDirectoryOrFilePath: () => c8, cartesianProduct: () => Hte, cast: () => hs, chainBundle: () => Dm, chainDiagnosticMessages: () => $a, changeAnyExtension: () => S4, changeCompilerHostLikeToUseCache: () => dP, changeExtension: () => A0, changeFullExtension: () => y5, changesAffectModuleResolution: () => $5, changesAffectingProgramStructure: () => vie, characterCodeToRegularExpressionFlag: () => HW, childIsDecorated: () => VD, classElementOrClassElementParameterIsDecorated: () => qz, classHasClassThisAssignment: () => dH, classHasDeclaredOrExplicitlyAssignedName: () => mH, classHasExplicitlyAssignedName: () => R9, classOrConstructorParameterIsDecorated: () => S0, classicNameResolver: () => zce, classifier: () => Kpe, cleanExtendedConfigCache: () => U9, clear: () => is, clearMap: () => k_, clearSharedExtendedConfigFileWatcher: () => IH, climbPastPropertyAccess: () => SM, clone: () => jte, cloneCompilerOptions: () => aY, closeFileWatcher: () => Qd, closeFileWatcherOf: () => sd, codefix: () => yf, collapseTextChangeRangesAcrossMultipleVersions: () => Nre, collectExternalModuleInfo: () => uH, combine: () => Nk, combinePaths: () => ri, commandLineOptionOfCustomType: () => lce, commentPragmas: () => _5, commonOptionsWithBuild: () => t9, compact: () => p4, compareBooleans: () => s1, compareDataObjects: () => BV, compareDiagnostics: () => mN, compareEmitHelpers: () => roe, compareNumberOfDirectorySeparators: () => K3, comparePaths: () => Ty, comparePathsCaseInsensitive: () => txe, comparePathsCaseSensitive: () => exe, comparePatternKeys: () => Vq, compareProperties: () => zte, compareStringsCaseInsensitive: () => g4, compareStringsCaseInsensitiveEslintCompatible: () => Jte, compareStringsCaseSensitive: () => Hu, compareStringsCaseSensitiveUI: () => y4, compareTextSpans: () => i5, compareValues: () => qo, compilerOptionsAffectDeclarationPath: () => cse, compilerOptionsAffectEmit: () => ose, compilerOptionsAffectSemanticDiagnostics: () => sse, compilerOptionsDidYouMeanDiagnostics: () => a9, compilerOptionsIndicateEsModules: () => fY, computeCommonSourceDirectoryOfFilenames: () => tue, computeLineAndCharacterOfPosition: () => SA, computeLineOfPosition: () => TD, computeLineStarts: () => Uk, computePositionOfLineAndCharacter: () => S5, computeSignatureWithDiagnostics: () => GH, computeSuggestionDiagnostics: () => KY, computedOptions: () => hN, concatenate: () => la, concatenateDiagnosticMessageChains: () => Zae, consumesNodeCoreModules: () => XM, contains: () => Yn, containsIgnoredPath: () => CN, containsObjectRestOrSpread: () => AO, containsParseError: () => Xk, containsPath: () => Hp, convertCompilerOptionsForTelemetry: () => kce, convertCompilerOptionsFromJson: () => Qke, convertJsonOption: () => u2, convertToBase64: () => jae, convertToJson: () => FO, convertToObject: () => yce, convertToOptionsWithAbsolutePaths: () => l9, convertToRelativePath: () => vD, convertToTSConfig: () => Aq, convertTypeAcquisitionFromJson: () => Zke, copyComments: () => v2, copyEntries: () => q5, copyLeadingComments: () => GE, copyProperties: () => sW, copyTrailingAsLeadingComments: () => I8, copyTrailingComments: () => DP, couldStartTrivia: () => gre, countWhere: () => Ya, createAbstractBuilder: () => aAe, createAccessorPropertyBackingField: () => uq, createAccessorPropertyGetRedirector: () => Goe, createAccessorPropertySetRedirector: () => Yoe, createBaseNodeFactory: () => Jse, createBinaryExpressionTrampoline: () => XL, createBuilderProgram: () => YH, createBuilderProgramUsingIncrementalBuildInfo: () => Cue, createBuilderStatusReporter: () => lM, createCacheableExportInfoMap: () => JY, createCachedDirectoryStructureHost: () => B9, createClassifier: () => REe, createCommentDirectivesMap: () => Cie, createCompilerDiagnostic: () => Ic, createCompilerDiagnosticForInvalidCustomType: () => uce, createCompilerDiagnosticFromMessageChain: () => YR, createCompilerHost: () => nue, createCompilerHostFromProgramHost: () => mG, createCompilerHostWorker: () => W9, createDetachedDiagnostic: () => _C, createDiagnosticCollection: () => aN, createDiagnosticForFileFromMessageChain: () => Uz, createDiagnosticForNode: () => Ar, createDiagnosticForNodeArray: () => RA, createDiagnosticForNodeArrayFromMessageChain: () => e3, createDiagnosticForNodeFromMessageChain: () => Pg, createDiagnosticForNodeInSourceFile: () => Yp, createDiagnosticForRange: () => Bie, createDiagnosticMessageChainFromDiagnostic: () => jie, createDiagnosticReporter: () => HC, createDocumentPositionMapper: () => lle, createDocumentRegistry: () => y_e, createDocumentRegistryInternal: () => $Y, createEmitAndSemanticDiagnosticsBuilderProgram: () => ZH, createEmitHelperFactory: () => noe, createEmptyExports: () => vO, createEvaluator: () => Pse, createExpressionForJsxElement: () => Ooe, createExpressionForJsxFragment: () => Foe, createExpressionForObjectLiteralElementLike: () => Roe, createExpressionForPropertyName: () => tq, createExpressionFromEntityName: () => bO, createExternalHelpersImportDeclarationIfNeeded: () => iq, createFileDiagnostic: () => Wl, createFileDiagnosticFromMessageChain: () => nR, createFlowNode: () => eg, createForOfBindingStatement: () => eq, createFutureSourceFile: () => nj, createGetCanonicalFileName: () => Ou, createGetIsolatedDeclarationErrors: () => Wle, createGetSourceFile: () => FH, createGetSymbolAccessibilityDiagnosticForNode: () => j1, createGetSymbolAccessibilityDiagnosticForNodeName: () => Ule, createGetSymbolWalker: () => Yce, createIncrementalCompilerHost: () => cM, createIncrementalProgram: () => Lue, createJsxFactoryExpression: () => Z$, createLanguageService: () => Gpe, createLanguageServiceSourceFile: () => Tj, createMemberAccessForPropertyName: () => c2, createModeAwareCache: () => AE, createModeAwareCacheKey: () => ZN, createModeMismatchDetails: () => Cz, createModuleNotFoundChain: () => G5, createModuleResolutionCache: () => EE, createModuleResolutionLoader: () => JH, createModuleResolutionLoaderUsingGlobalCache: () => Oue, createModuleSpecifierResolutionHost: () => W1, createMultiMap: () => xd, createNameResolver: () => h$, createNodeConverters: () => zse, createNodeFactory: () => sO, createOptionNameMap: () => r9, createOverload: () => jK, createPackageJsonImportFilter: () => YE, createPackageJsonInfo: () => PY, createParenthesizerRules: () => Use, createPatternMatcher: () => x_e, createPrinter: () => pb, createPrinterWithDefaults: () => Xle, createPrinterWithRemoveComments: () => IS, createPrinterWithRemoveCommentsNeverAsciiEscape: () => Kle, createPrinterWithRemoveCommentsOmitTrailingSemicolon: () => EH, createProgram: () => a8, createProgramDiagnostics: () => uue, createProgramHost: () => hG, createPropertyNameNodeForIdentifierOrLiteral: () => eO, createQueue: () => h4, createRange: () => Qp, createRedirectedBuilderProgram: () => QH, createResolutionCache: () => nG, createRuntimeTypeSerializer: () => kle, createScanner: () => wg, createSemanticDiagnosticsBuilderProgram: () => iAe, createSet: () => oW, createSolutionBuilder: () => Uue, createSolutionBuilderHost: () => Bue, createSolutionBuilderWithWatch: () => Wue, createSolutionBuilderWithWatchHost: () => Jue, createSortedArray: () => QU, createSourceFile: () => jC, createSourceMapGenerator: () => ile, createSourceMapSource: () => T2e, createSuperAccessVariableStatement: () => M9, createSymbolTable: () => _s, createSymlinkCache: () => YV, createSyntacticTypeNodeBuilder: () => sfe, createSystemWatchFunctions: () => lre, createTextChange: () => S8, createTextChangeFromStartLength: () => RM, createTextChangeRange: () => P4, createTextRangeFromNode: () => cY, createTextRangeFromSpan: () => FM, createTextSpan: () => Fu, createTextSpanFromBounds: () => ll, createTextSpanFromNode: () => Gf, createTextSpanFromRange: () => M0, createTextSpanFromStringLiteralLikeContent: () => oY, createTextWriter: () => O3, createTokenRange: () => FV, createTypeChecker: () => nle, createTypeReferenceDirectiveResolutionCache: () => v9, createTypeReferenceResolutionLoader: () => $9, createWatchCompilerHost: () => mAe, createWatchCompilerHostOfConfigFile: () => gG, createWatchCompilerHostOfFilesAndCompilerOptions: () => yG, createWatchFactory: () => dG, createWatchHost: () => pG, createWatchProgram: () => vG, createWatchStatusReporter: () => rG, createWriteFileMeasuringIO: () => RH, declarationNameToString: () => Bo, decodeMappings: () => oH, decodedTextSpanIntersectsWith: () => N4, deduplicate: () => WT, defaultHoverMaximumTruncationLength: () => gie, defaultInitCompilerOptions: () => yke, defaultMaximumTruncationLength: () => MD, diagnosticCategoryName: () => xx, diagnosticToString: () => FS, diagnosticsEqualityComparer: () => XR, directoryProbablyExists: () => km, directorySeparator: () => Xo, displayPart: () => A_, displayPartsToString: () => W8, disposeEmitNodes: () => A$, documentSpansEqual: () => yY, dumpTracingLegend: () => ane, elementAt: () => wv, elideNodes: () => Hoe, emitDetachedComments: () => Eae, emitFiles: () => wH, emitFilesAndReportErrors: () => iM, emitFilesAndReportErrorsAndGetExitStatus: () => _G, emitModuleKindIsNonNodeESM: () => H3, emitNewLineBeforeLeadingCommentOfPosition: () => Aae, emitResolverSkipsTypeChecking: () => CH, emitSkippedWithNoDiagnostics: () => zH, emptyArray: () => ae, emptyFileSystemEntries: () => r$, emptyMap: () => At, emptyOptions: () => Rd, endsWith: () => rc, ensurePathIsNonModuleName: () => kx, ensureScriptKind: () => sL, ensureTrailingDirectorySeparator: () => Kl, entityNameToString: () => W_, enumerateInsertsAndDeletes: () => c5, equalOwnProperties: () => Lte, equateStringsCaseInsensitive: () => Nv, equateStringsCaseSensitive: () => $T, equateValues: () => Dv, escapeJsxAttributeString: () => hV, escapeLeadingUnderscores: () => Oc, escapeNonAsciiString: () => IR, escapeSnippetText: () => mS, escapeString: () => Xh, escapeTemplateSubstitution: () => dV, evaluatorResult: () => Zl, every: () => jn, exclusivelyPrefixedNodeCoreModules: () => TL, executeCommandLine: () => GAe, expandPreOrPostfixIncrementOrDecrementExpression: () => $L, explainFiles: () => oG, explainIfFileIsRedirectAndImpliedFormat: () => cG, exportAssignmentIsAlias: () => w3, expressionResultIsUnused: () => kse, extend: () => aW, extensionFromPath: () => bN, extensionIsTS: () => fL, extensionsNotSupportingExtensionlessResolution: () => uL, externalHelpersModuleNameText: () => zv, factory: () => R, fileExtensionIs: () => Ac, fileExtensionIsOneOf: () => nl, fileIncludeReasonToDiagnostics: () => fG, fileShouldUseJavaScriptRequire: () => BY, filter: () => Nn, filterMutate: () => tc, filterSemanticDiagnostics: () => Y9, find: () => $t, findAncestor: () => On, findBestPatternMatch: () => pW, findChildOfKind: () => Eo, findComputedPropertyNameCacheAssignment: () => KL, findConfigFile: () => PH, findConstructorDeclaration: () => iO, findContainingList: () => AM, findDiagnosticForNode: () => l_e, findFirstNonJsxWhitespaceToken: () => Pfe, findIndex: () => Hr, findLast: () => si, findLastIndex: () => br, findListItemInfo: () => Nfe, findModifier: () => $E, findNextToken: () => OS, findPackageJson: () => c_e, findPackageJsons: () => NY, findPrecedingMatchingToken: () => PM, findPrecedingToken: () => ql, findSuperStatementIndexPath: () => N9, findTokenOnLeftOfPosition: () => xP, findUseStrictPrologue: () => rq, first: () => Qs, firstDefined: () => an, firstDefinedIterator: () => ir, firstIterator: () => tW, firstOrOnly: () => RY, firstOrUndefined: () => Il, firstOrUndefinedIterator: () => r5, fixupCompilerOptions: () => tX, flatMap: () => oa, flatMapIterator: () => Km, flatMapToMutable: () => L_, flatten: () => Is, flattenCommaList: () => Xoe, flattenDestructuringAssignment: () => d2, flattenDestructuringBinding: () => ES, flattenDiagnosticMessageText: () => Th, forEach: () => Ne, forEachAncestor: () => bie, forEachAncestorDirectory: () => bD, forEachAncestorDirectoryStoppingAtGlobalCache: () => Zh, forEachChild: () => qa, forEachChildRecursively: () => MC, forEachDynamicImportOrRequireCall: () => SL, forEachEmittedFile: () => TH, forEachEnclosingBlockScopeContainer: () => Rie, forEachEntry: () => Ql, forEachExternalModuleToImportFrom: () => WY, forEachImportClauseDeclaration: () => cae, forEachKey: () => Dg, forEachLeadingCommentRange: () => C4, forEachNameInAccessChainWalkingLeft: () => Gae, forEachNameOfDefaultExport: () => ij, forEachOptionsSyntaxByName: () => S$, forEachProjectReference: () => DN, forEachPropertyAssignment: () => jA, forEachResolvedProjectReference: () => b$, forEachReturnStatement: () => Hv, forEachRight: () => En, forEachTrailingCommentRange: () => w4, forEachTsConfigPropArray: () => a3, forEachUnique: () => bY, forEachYieldExpression: () => zie, formatColorAndReset: () => DS, formatDiagnostic: () => LH, formatDiagnostics: () => Pwe, formatDiagnosticsWithColorAndContext: () => sue, formatGeneratedName: () => O1, formatGeneratedNamePart: () => xE, formatLocation: () => MH, formatMessage: () => dC, formatStringFromArgs: () => Mg, formatting: () => Rl, generateDjb2Hash: () => gD, generateTSConfig: () => vce, getAdjustedReferenceLocation: () => ZG, getAdjustedRenameLocation: () => IM, getAliasDeclarationFromName: () => iV, getAllAccessorDeclarations: () => uS, getAllDecoratorsOfClass: () => _H, getAllDecoratorsOfClassElement: () => O9, getAllJSDocTags: () => I5, getAllJSDocTagsOfKind: () => kxe, getAllKeys: () => ASe, getAllProjectOutputs: () => j9, getAllSuperTypeNodes: () => ZD, getAllowImportingTsExtensions: () => tse, getAllowJSCompilerOption: () => eb, getAllowSyntheticDefaultImports: () => mC, getAncestor: () => y1, getAnyExtensionFromPath: () => jk, getAreDeclarationMapsEnabled: () => KR, getAssignedExpandoInitializer: () => Zk, getAssignedName: () => w5, getAssignmentDeclarationKind: () => ul, getAssignmentDeclarationPropertyAccessKind: () => g3, getAssignmentTargetKind: () => Gv, getAutomaticTypeDirectiveNames: () => g9, getBaseFileName: () => Dl, getBinaryOperatorPrecedence: () => D3, getBuildInfo: () => AH, getBuildInfoFileVersionMap: () => KH, getBuildInfoText: () => Gle, getBuildOrderFromAnyBuildOrder: () => u8, getBuilderCreationParameters: () => Z9, getBuilderFileEmit: () => db, getCanonicalDiagnostic: () => Jie, getCheckFlags: () => Uc, getClassExtendsHeritageElement: () => sS, getClassLikeDeclarationOfSymbol: () => Ny, getCombinedLocalAndExportSymbolFlags: () => QA, getCombinedModifierFlags: () => c1, getCombinedNodeFlags: () => xy, getCombinedNodeFlagsAlwaysIncludeJSDoc: () => ZW, getCommentRange: () => ph, getCommonSourceDirectory: () => pP, getCommonSourceDirectoryOfConfig: () => m2, getCompilerOptionValue: () => eL, getConditions: () => ub, getConfigFileParsingDiagnostics: () => NS, getConstantValue: () => Gse, getContainerFlags: () => qq, getContainerNode: () => y2, getContainingClass: () => ku, getContainingClassExcludingClassDecorators: () => uR, getContainingClassStaticBlock: () => Kie, getContainingFunction: () => Tp, getContainingFunctionDeclaration: () => Xie, getContainingFunctionOrClassStaticBlock: () => lR, getContainingNodeArray: () => Cse, getContainingObjectLiteralElement: () => z8, getContextualTypeFromParent: () => VM, getContextualTypeFromParentOrAncestorTypeNode: () => EM, getDeclarationDiagnostics: () => zle, getDeclarationEmitExtensionForPath: () => PR, getDeclarationEmitOutputFilePath: () => xae, getDeclarationEmitOutputFilePathWorker: () => NR, getDeclarationFileExtension: () => ZL, getDeclarationFromName: () => QD, getDeclarationModifierFlagsFromSymbol: () => ed, getDeclarationOfKind: () => lc, getDeclarationsOfKind: () => yie, getDeclaredExpandoInitializer: () => GD, getDecorators: () => Lv, getDefaultCompilerOptions: () => bj, getDefaultFormatCodeSettings: () => yM, getDefaultLibFileName: () => E4, getDefaultLibFilePath: () => Ype, getDefaultLikeExportInfo: () => rj, getDefaultLikeExportNameFromDeclaration: () => LY, getDefaultResolutionModeForFileWorker: () => G9, getDiagnosticText: () => __, getDiagnosticsWithinSpan: () => u_e, getDirectoryPath: () => hi, getDirectoryToWatchFailedLookupLocation: () => tG, getDirectoryToWatchFailedLookupLocationFromTypeRoot: () => Nue, getDocumentPositionMapper: () => XY, getDocumentSpansEqualityComparer: () => vY, getESModuleInterop: () => fh, getEditsForFileRename: () => b_e, getEffectiveBaseTypeNode: () => xm, getEffectiveConstraintOfTypeParameter: () => wA, getEffectiveContainerForJSDocTemplateTag: () => SR, getEffectiveImplementsTypeNodes: () => $A, getEffectiveInitializer: () => d3, getEffectiveJSDocHost: () => g1, getEffectiveModifierFlags: () => Yu, getEffectiveModifierFlagsAlwaysIncludeJSDoc: () => Pae, getEffectiveModifierFlagsNoCache: () => Oae, getEffectiveReturnTypeNode: () => $_, getEffectiveSetAccessorTypeAnnotationNode: () => kV, getEffectiveTypeAnnotationNode: () => Nl, getEffectiveTypeParameterDeclarations: () => Mv, getEffectiveTypeRoots: () => QN, getElementOrPropertyAccessArgumentExpressionOrName: () => TR, getElementOrPropertyAccessName: () => wy, getElementsOfBindingOrAssignmentPattern: () => SE, getEmitDeclarations: () => C_, getEmitFlags: () => Zs, getEmitHelpers: () => E$, getEmitModuleDetectionKind: () => nse, getEmitModuleFormatOfFileWorker: () => gP, getEmitModuleKind: () => Df, getEmitModuleResolutionKind: () => pf, getEmitScriptTarget: () => zs, getEmitStandardClassFields: () => HV, getEnclosingBlockScopeContainer: () => Sm, getEnclosingContainer: () => tR, getEncodedSemanticClassifications: () => zY, getEncodedSyntacticClassifications: () => VY, getEndLinePosition: () => Y4, getEntityNameFromTypeNode: () => c3, getEntrypointsFromPackageJsonInfo: () => Uq, getErrorCountForSummary: () => nM, getErrorSpanForNode: () => Rx, getErrorSummaryText: () => aG, getEscapedTextOfIdentifierOrLiteral: () => nN, getEscapedTextOfJsxAttributeName: () => EN, getEscapedTextOfJsxNamespacedName: () => vC, getExpandoInitializer: () => m1, getExportAssignmentExpression: () => aV, getExportInfoMap: () => R8, getExportNeedsImportStarHelper: () => ule, getExpressionAssociativity: () => _V, getExpressionPrecedence: () => iN, getExternalHelpersModuleName: () => SO, getExternalModuleImportEqualsDeclarationExpression: () => $D, getExternalModuleName: () => tC, getExternalModuleNameFromDeclaration: () => Tae, getExternalModuleNameFromPath: () => vV, getExternalModuleNameLiteral: () => LC, getExternalModuleRequireArgument: () => Gz, getFallbackOptions: () => n8, getFileEmitOutput: () => fue, getFileMatcherPatterns: () => aL, getFileNamesFromConfigSpecs: () => XN, getFileWatcherEventKind: () => BW, getFilesInErrorForSummary: () => rM, getFirstConstructorWithBody: () => Rg, getFirstIdentifier: () => Wf, getFirstNonSpaceCharacterPosition: () => n_e, getFirstProjectOutput: () => kH, getFixableErrorSpanExpression: () => OY, getFormatCodeSettingsForWriting: () => ej, getFullWidth: () => H4, getFunctionFlags: () => ml, getHeritageClause: () => A3, getHostSignatureFromJSDoc: () => h1, getIdentifierAutoGenerate: () => k2e, getIdentifierGeneratedImportReference: () => eoe, getIdentifierTypeArguments: () => Xx, getImmediatelyInvokedFunctionExpression: () => p1, getImpliedNodeFormatForEmitWorker: () => h2, getImpliedNodeFormatForFile: () => i8, getImpliedNodeFormatForFileWorker: () => H9, getImportNeedsImportDefaultHelper: () => lH, getImportNeedsImportStarHelper: () => I9, getIndentString: () => DR, getInferredLibraryNameResolveFrom: () => q9, getInitializedVariables: () => _N, getInitializerOfBinaryExpression: () => Qz, getInitializerOfBindingOrAssignmentElement: () => kO, getInterfaceBaseTypeNodes: () => eN, getInternalEmitFlags: () => Xd, getInvokedExpression: () => pR, getIsFileExcluded: () => m_e, getIsolatedModules: () => Nd, getJSDocAugmentsTag: () => Ure, getJSDocClassTag: () => nz, getJSDocCommentRanges: () => zz, getJSDocCommentsAndTags: () => Zz, getJSDocDeprecatedTag: () => rz, getJSDocDeprecatedTagNoCache: () => Gre, getJSDocEnumTag: () => iz, getJSDocHost: () => iS, getJSDocImplementsTags: () => Wre, getJSDocOverloadTags: () => tV, getJSDocOverrideTagNoCache: () => Hre, getJSDocParameterTags: () => CA, getJSDocParameterTagsNoCache: () => Mre, getJSDocPrivateTag: () => bxe, getJSDocPrivateTagNoCache: () => Vre, getJSDocProtectedTag: () => Txe, getJSDocProtectedTagNoCache: () => $re, getJSDocPublicTag: () => vxe, getJSDocPublicTagNoCache: () => zre, getJSDocReadonlyTag: () => Sxe, getJSDocReadonlyTagNoCache: () => qre, getJSDocReturnTag: () => Yre, getJSDocReturnType: () => F4, getJSDocRoot: () => VA, getJSDocSatisfiesExpressionType: () => p$, getJSDocSatisfiesTag: () => az, getJSDocTags: () => u1, getJSDocTemplateTag: () => xxe, getJSDocThisTag: () => A5, getJSDocType: () => y0, getJSDocTypeAliasName: () => sq, getJSDocTypeAssertionType: () => bE, getJSDocTypeParameterDeclarations: () => MR, getJSDocTypeParameterTags: () => jre, getJSDocTypeParameterTagsNoCache: () => Bre, getJSDocTypeTag: () => l1, getJSXImplicitImportBase: () => G3, getJSXRuntimeImport: () => nL, getJSXTransformEnabled: () => tL, getKeyForCompilerOptions: () => Lq, getLanguageVariant: () => W3, getLastChild: () => JV, getLeadingCommentRanges: () => Cg, getLeadingCommentRangesOfNode: () => Wz, getLeftmostAccessExpression: () => ZA, getLeftmostExpression: () => eE, getLibFileNameFromLibReference: () => v$, getLibNameFromLibReference: () => y$, getLibraryNameFromLibFileName: () => UH, getLineAndCharacterOfPosition: () => fs, getLineInfo: () => sH, getLineOfLocalPosition: () => sN, getLineStartPositionForPosition: () => Ld, getLineStarts: () => xg, getLinesBetweenPositionAndNextNonWhitespaceCharacter: () => $ae, getLinesBetweenPositionAndPrecedingNonWhitespaceCharacter: () => Vae, getLinesBetweenPositions: () => SD, getLinesBetweenRangeEndAndRangeStart: () => RV, getLinesBetweenRangeEndPositions: () => Zxe, getLiteralText: () => Eie, getLocalNameForExternalImport: () => TE, getLocalSymbolForExportDefault: () => uN, getLocaleSpecificMessage: () => Va, getLocaleTimeString: () => l8, getMappedContextSpan: () => TY, getMappedDocumentSpan: () => UM, getMappedLocation: () => AP, getMatchedFileSpec: () => lG, getMatchedIncludeSpec: () => uG, getMeaningFromDeclaration: () => bM, getMeaningFromLocation: () => g2, getMembersOfDeclaration: () => Vie, getModeForFileReference: () => oue, getModeForResolutionAtIndex: () => jwe, getModeForUsageLocation: () => BH, getModifiedTime: () => Mk, getModifiers: () => HT, getModuleInstanceState: () => Ly, getModuleNameStringLiteralAt: () => s8, getModuleSpecifierEndingPreference: () => mse, getModuleSpecifierResolverHost: () => _Y, getNameForExportedSymbol: () => KM, getNameFromImportAttribute: () => yL, getNameFromIndexInfo: () => Lie, getNameFromPropertyName: () => k8, getNameOfAccessExpression: () => WV, getNameOfCompilerOptionValue: () => c9, getNameOfDeclaration: () => Ra, getNameOfExpando: () => Yz, getNameOfJSDocTypedef: () => Lre, getNameOfScriptTarget: () => ZR, getNameOrArgument: () => h3, getNameTable: () => wX, getNamespaceDeclarationNode: () => WA, getNewLineCharacter: () => C0, getNewLineKind: () => F8, getNewLineOrDefaultFromHost: () => jy, getNewTargetContainer: () => Zie, getNextJSDocCommentLocation: () => eV, getNodeChildren: () => K$, getNodeForGeneratedName: () => wO, getNodeId: () => lo, getNodeKind: () => PS, getNodeModifiers: () => kP, getNodeModulePathParts: () => mL, getNonAssignedNameOfDeclaration: () => C5, getNonAssignmentOperatorForCompoundAssignment: () => sP, getNonAugmentationDeclaration: () => Rz, getNonDecoratorTokenPosOfNode: () => Iz, getNonIncrementalBuildInfoRoots: () => wue, getNonModifierTokenPosOfNode: () => wie, getNormalizedAbsolutePath: () => va, getNormalizedAbsolutePathWithoutRoot: () => zW, getNormalizedPathComponents: () => g5, getObjectFlags: () => Kr, getOperatorAssociativity: () => pV, getOperatorPrecedence: () => I3, getOptionFromName: () => Sq, getOptionsForLibraryResolution: () => Mq, getOptionsNameMap: () => CE, getOptionsSyntaxByArrayElementValue: () => T$, getOptionsSyntaxByValue: () => Mse, getOrCreateEmitNode: () => Ku, getOrUpdate: () => Dk, getOriginalNode: () => Sc, getOriginalNodeId: () => Hf, getOutputDeclarationFileName: () => _P, getOutputDeclarationFileNameWorker: () => SH, getOutputExtension: () => ZO, getOutputFileNames: () => Dwe, getOutputJSFileNameWorker: () => xH, getOutputPathsFor: () => fP, getOwnEmitOutputFilePath: () => Sae, getOwnKeys: () => Qm, getOwnValues: () => Ok, getPackageJsonTypesVersionsPaths: () => h9, getPackageNameFromTypesPackageName: () => nP, getPackageScopeForPath: () => tP, getParameterSymbolFromJSDoc: () => x3, getParentNodeInSpan: () => w8, getParseTreeNode: () => za, getParsedCommandLineOfConfigFile: () => PO, getPathComponents: () => Gu, getPathFromPathComponents: () => o1, getPathUpdater: () => HY, getPathsBasePath: () => OR, getPatternFromSpec: () => QV, getPendingEmitKindWithSeen: () => Q9, getPositionOfLineAndCharacter: () => x4, getPossibleGenericSignatures: () => tY, getPossibleOriginalInputExtensionForExtension: () => bV, getPossibleOriginalInputPathWithoutChangingExt: () => TV, getPossibleTypeArgumentsInfo: () => nY, getPreEmitDiagnostics: () => Nwe, getPrecedingNonSpaceCharacterPosition: () => WM, getPrivateIdentifier: () => pH, getProperties: () => fH, getProperty: () => d4, getPropertyAssignmentAliasLikeExpression: () => mae, getPropertyNameForPropertyNameNode: () => zx, getPropertyNameFromType: () => nd, getPropertyNameOfBindingOrAssignmentElement: () => aq, getPropertySymbolFromBindingElement: () => JM, getPropertySymbolsFromContextualType: () => Sj, getQuoteFromPreference: () => dY, getQuotePreference: () => Q_, getRangesWhere: () => KU, getRefactorContextSpan: () => KC, getReferencedFileLocation: () => hP, getRegexFromPattern: () => w0, getRegularExpressionForWildcard: () => gN, getRegularExpressionsForWildcards: () => rL, getRelativePathFromDirectory: () => bp, getRelativePathFromFile: () => TA, getRelativePathToDirectoryOrUrl: () => Jk, getRenameLocation: () => E8, getReplacementSpanForContextToken: () => sY, getResolutionDiagnostic: () => $H, getResolutionModeOverride: () => FE, getResolveJsonModule: () => _S, getResolvePackageJsonExports: () => V3, getResolvePackageJsonImports: () => $3, getResolvedExternalModuleName: () => yV, getResolvedModuleFromResolution: () => Yk, getResolvedTypeReferenceDirectiveFromResolution: () => H5, getRestIndicatorOfBindingOrAssignmentElement: () => GL, getRestParameterElementType: () => Vz, getRightMostAssignedExpression: () => m3, getRootDeclaration: () => oh, getRootDirectoryOfResolutionCache: () => Pue, getRootLength: () => vm, getScriptKind: () => CY, getScriptKindFromFileName: () => oL, getScriptTargetFeatures: () => Dz, getSelectedEffectiveModifierFlags: () => oC, getSelectedSyntacticModifierFlags: () => Dae, getSemanticClassifications: () => h_e, getSemanticJsxChildren: () => HA, getSetAccessorTypeAnnotationNode: () => Cae, getSetAccessorValueParameter: () => oN, getSetExternalModuleIndicator: () => z3, getShebang: () => x5, getSingleVariableOfVariableStatement: () => iC, getSnapshotText: () => XC, getSnippetElement: () => I$, getSourceFileOfModule: () => G4, getSourceFileOfNode: () => zn, getSourceFilePathInNewDir: () => RR, getSourceFileVersionAsHashFromText: () => aM, getSourceFilesToEmit: () => FR, getSourceMapRange: () => I0, getSourceMapper: () => P_e, getSourceTextOfNodeFromSourceFile: () => QT, getSpanOfTokenAtPosition: () => rh, getSpellingSuggestion: () => qT, getStartPositionOfLine: () => Vv, getStartPositionOfRange: () => fN, getStartsOnNewLine: () => NN, getStaticPropertiesAndClassStaticBlock: () => P9, getStrictOptionValue: () => Xu, getStringComparer: () => hA, getSubPatternFromSpec: () => iL, getSuperCallFromStatement: () => D9, getSuperContainer: () => s3, getSupportedCodeFixes: () => kX, getSupportedExtensions: () => yN, getSupportedExtensionsWithJsonIfResolveJsonModule: () => X3, getSwitchedType: () => EY, getSymbolId: () => Ss, getSymbolNameForPrivateIdentifier: () => E3, getSymbolTarget: () => wY, getSyntacticClassifications: () => g_e, getSyntacticModifierFlags: () => x0, getSyntacticModifierFlagsNoCache: () => AV, getSynthesizedDeepClone: () => bo, getSynthesizedDeepCloneWithReplacements: () => aO, getSynthesizedDeepClones: () => hS, getSynthesizedDeepClonesWithReplacements: () => x$, getSyntheticLeadingComments: () => sE, getSyntheticTrailingComments: () => uO, getTargetLabel: () => xM, getTargetOfBindingOrAssignmentElement: () => cb, getTemporaryModuleResolutionState: () => eP, getTextOfConstantValue: () => Iie, getTextOfIdentifierOrLiteral: () => Kp, getTextOfJSDocComment: () => R4, getTextOfJsxAttributeName: () => rO, getTextOfJsxNamespacedName: () => IN, getTextOfNode: () => Ec, getTextOfNodeFromSourceText: () => BD, getTextOfPropertyName: () => Qk, getThisContainer: () => If, getThisParameter: () => cS, getTokenAtPosition: () => Wi, getTokenPosOfNode: () => $v, getTokenSourceMapRange: () => S2e, getTouchingPropertyName: () => p_, getTouchingToken: () => zE, getTrailingCommentRanges: () => Rv, getTrailingSemicolonDeferringWriter: () => gV, getTransformers: () => $le, getTsBuildInfoEmitOutputFilePath: () => B1, getTsConfigObjectLiteralExpression: () => zD, getTsConfigPropArrayElementValue: () => cR, getTypeAnnotationNode: () => wae, getTypeArgumentOrTypeParameterList: () => Bfe, getTypeKeywordOfTypeOnlyImport: () => gY, getTypeNode: () => Qse, getTypeNodeIfAccessible: () => PP, getTypeParameterFromJsDoc: () => lae, getTypeParameterOwner: () => mxe, getTypesPackageName: () => x9, getUILocale: () => Ute, getUniqueName: () => b2, getUniqueSymbolId: () => t_e, getUseDefineForClassFields: () => q3, getWatchErrorSummaryDiagnosticMessage: () => iG, getWatchFactory: () => NH, group: () => mA, groupBy: () => iW, guessIndentation: () => mie, handleNoEmitOptions: () => VH, handleWatchOptionsConfigDirTemplateSubstitution: () => u9, hasAbstractModifier: () => fS, hasAccessorModifier: () => ch, hasAmbientModifier: () => wV, hasChangesInResolutions: () => wz, hasContextSensitiveParameters: () => dL, hasDecorators: () => xp, hasDocComment: () => Mfe, hasDynamicName: () => Ay, hasEffectiveModifier: () => q_, hasEffectiveModifiers: () => CV, hasEffectiveReadonlyModifier: () => $x, hasExtension: () => bA, hasImplementationTSFileExtension: () => pse, hasIndexSignature: () => AY, hasInferredType: () => bL, hasInitializer: () => b0, hasInvalidEscape: () => mV, hasJSDocNodes: () => pp, hasJSDocParameterTags: () => Jre, hasJSFileExtension: () => jg, hasJsonModuleEmitEnabled: () => QR, hasOnlyExpressionInitializer: () => Ox, hasOverrideModifier: () => jR, hasPossibleExternalModuleReference: () => Fie, hasProperty: () => No, hasPropertyAccessExpressionWithName: () => h8, hasQuestionToken: () => nC, hasRecordedExternalHelpers: () => joe, hasResolutionModeOverride: () => Dse, hasRestParameter: () => Tz, hasScopeMarker: () => sie, hasStaticModifier: () => Ul, hasSyntacticModifier: () => gi, hasSyntacticModifiers: () => Iae, hasTSFileExtension: () => Hx, hasTabstop: () => Ase, hasTrailingDirectorySeparator: () => Ov, hasType: () => W5, hasTypeArguments: () => zxe, hasZeroOrOneAsteriskCharacter: () => GV, hostGetCanonicalFileName: () => Ey, hostUsesCaseSensitiveFileNames: () => Vx, idText: () => Xr, identifierIsThisKeyword: () => xV, identifierToKeywordKind: () => Ax, identity: () => $o, identitySourceMapConsumer: () => cH, ignoreSourceNewlines: () => N$, ignoredPaths: () => d5, importFromModuleSpecifier: () => XD, importSyntaxAffectsModuleResolution: () => qV, indexOfAnyCharCode: () => vo, indexOfNode: () => OA, indicesOf: () => n5, inferredTypesContainingFile: () => mP, injectClassNamedEvaluationHelperBlockIfMissing: () => L9, injectClassThisAssignmentIfMissing: () => yle, insertImports: () => hY, insertSorted: () => Cv, insertStatementAfterCustomPrologue: () => Fx, insertStatementAfterStandardPrologue: () => Lxe, insertStatementsAfterCustomPrologue: () => Az, insertStatementsAfterStandardPrologue: () => Ng, intersperse: () => us, intrinsicTagNameToString: () => d$, introducesArgumentsExoticObject: () => Hie, inverseJsxOptionMap: () => DO, isAbstractConstructorSymbol: () => qae, isAbstractModifier: () => uoe, isAccessExpression: () => Ko, isAccessibilityModifier: () => iY, isAccessor: () => Uv, isAccessorModifier: () => M$, isAliasableExpression: () => xR, isAmbientModule: () => Ef, isAmbientPropertyDeclaration: () => Mz, isAnyDirectorySeparator: () => JW, isAnyImportOrBareOrAccessedRequire: () => Pie, isAnyImportOrReExport: () => Q4, isAnyImportOrRequireStatement: () => Oie, isAnyImportSyntax: () => Kk, isAnySupportedFileExtension: () => p2e, isApplicableVersionedTypesKey: () => JO, isArgumentExpressionOfElementAccess: () => HG, isArray: () => Da, isArrayBindingElement: () => L5, isArrayBindingOrAssignmentElement: () => U4, isArrayBindingOrAssignmentPattern: () => mz, isArrayBindingPattern: () => O0, isArrayLiteralExpression: () => ju, isArrayLiteralOrObjectLiteralDestructuringPattern: () => L0, isArrayTypeNode: () => dO, isArrowFunction: () => Qo, isAsExpression: () => fE, isAssertClause: () => yoe, isAssertEntry: () => O2e, isAssertionExpression: () => KT, isAssertsKeyword: () => coe, isAssignmentDeclaration: () => HD, isAssignmentExpression: () => fu, isAssignmentOperator: () => Iy, isAssignmentPattern: () => RD, isAssignmentTarget: () => Yv, isAsteriskToken: () => _O, isAsyncFunction: () => tN, isAsyncModifier: () => FN, isAutoAccessorPropertyDeclaration: () => a_, isAwaitExpression: () => sb, isAwaitKeyword: () => L$, isBigIntLiteral: () => oE, isBinaryExpression: () => Or, isBinaryLogicalOperator: () => F3, isBinaryOperatorToken: () => qoe, isBindableObjectDefinePropertyCall: () => Bx, isBindableStaticAccessExpression: () => rS, isBindableStaticElementAccessExpression: () => bR, isBindableStaticNameExpression: () => Jx, isBindingElement: () => Hs, isBindingElementOfBareOrAccessedRequire: () => nae, isBindingName: () => Nx, isBindingOrAssignmentElement: () => nie, isBindingOrAssignmentPattern: () => B4, isBindingPattern: () => Qa, isBlock: () => es, isBlockLike: () => QC, isBlockOrCatchScoped: () => Nz, isBlockScope: () => jz, isBlockScopedContainerTopLevel: () => Nie, isBooleanLiteral: () => FD, isBreakOrContinueStatement: () => DD, isBreakStatement: () => D2e, isBuildCommand: () => efe, isBuildInfoFile: () => qle, isBuilderProgram: () => sG, isBundle: () => Soe, isCallChain: () => Ex, isCallExpression: () => Za, isCallExpressionTarget: () => UG, isCallLikeExpression: () => XT, isCallLikeOrFunctionLikeExpression: () => hz, isCallOrNewExpression: () => th, isCallOrNewExpressionTarget: () => WG, isCallSignatureDeclaration: () => AC, isCallToHelper: () => ON, isCaseBlock: () => UN, isCaseClause: () => mE, isCaseKeyword: () => _oe, isCaseOrDefaultClause: () => J5, isCatchClause: () => xS, isCatchClauseVariableDeclaration: () => wse, isCatchClauseVariableDeclarationOrBindingElement: () => Pz, isCheckJsEnabledForFile: () => TN, isCircularBuildOrder: () => GC, isClassDeclaration: () => Ol, isClassElement: () => Cl, isClassExpression: () => hl, isClassInstanceProperty: () => eie, isClassLike: () => vi, isClassMemberModifier: () => _z, isClassNamedEvaluationHelperBlock: () => $C, isClassOrTypeElement: () => R5, isClassStaticBlockDeclaration: () => rl, isClassThisAssignmentBlock: () => cP, isColonToken: () => soe, isCommaExpression: () => TO, isCommaListExpression: () => BN, isCommaSequence: () => qN, isCommaToken: () => aoe, isComment: () => OM, isCommonJsExportPropertyAssignment: () => sR, isCommonJsExportedExpression: () => $ie, isCompoundAssignment: () => aP, isComputedNonLiteralName: () => Z4, isComputedPropertyName: () => bs, isConciseBody: () => j5, isConditionalExpression: () => t2, isConditionalTypeNode: () => yS, isConstAssertion: () => m$, isConstTypeReference: () => Gd, isConstructSignatureDeclaration: () => MN, isConstructorDeclaration: () => Rc, isConstructorTypeNode: () => cE, isContextualKeyword: () => CR, isContinueStatement: () => I2e, isCustomPrologue: () => i3, isDebuggerStatement: () => N2e, isDeclaration: () => uu, isDeclarationBindingElement: () => j4, isDeclarationFileName: () => pu, isDeclarationName: () => Yh, isDeclarationNameOfEnumOrNamespace: () => MV, isDeclarationReadonly: () => t3, isDeclarationStatement: () => uie, isDeclarationWithTypeParameterChildren: () => Jz, isDeclarationWithTypeParameters: () => Bz, isDecorator: () => zl, isDecoratorTarget: () => wfe, isDefaultClause: () => WN, isDefaultImport: () => Ux, isDefaultModifier: () => PL, isDefaultedExpandoInitializer: () => rae, isDeleteExpression: () => doe, isDeleteTarget: () => rV, isDeprecatedDeclaration: () => QM, isDestructuringAssignment: () => k0, isDiskPathRoot: () => UW, isDoStatement: () => E2e, isDocumentRegistryEntry: () => L8, isDotDotDotToken: () => DL, isDottedName: () => L3, isDynamicName: () => AR, isEffectiveExternalModule: () => FA, isEffectiveStrictModeSourceFile: () => Lz, isElementAccessChain: () => sz, isElementAccessExpression: () => Uo, isEmittedFileOfProgram: () => Zle, isEmptyArrayLiteral: () => Mae, isEmptyBindingElement: () => Ore, isEmptyBindingPattern: () => Pre, isEmptyObjectLiteral: () => PV, isEmptyStatement: () => J$, isEmptyStringLiteral: () => Hz, isEntityName: () => Jf, isEntityNameExpression: () => Po, isEnumConst: () => _1, isEnumDeclaration: () => I1, isEnumMember: () => Fy, isEqualityOperatorKind: () => $M, isEqualsGreaterThanToken: () => ooe, isExclamationToken: () => pO, isExcludedFile: () => Tce, isExclusivelyTypeOnlyImportOrExport: () => jH, isExpandoPropertyDeclaration: () => bC, isExportAssignment: () => fc, isExportDeclaration: () => yl, isExportModifier: () => CC, isExportName: () => qL, isExportNamespaceAsDefaultDeclaration: () => Q5, isExportOrDefaultModifier: () => CO, isExportSpecifier: () => df, isExportsIdentifier: () => jx, isExportsOrModuleExportsOrAlias: () => wS, isExpression: () => kt, isExpressionNode: () => Gh, isExpressionOfExternalModuleImportEqualsDeclaration: () => Ife, isExpressionOfOptionalChainRoot: () => N5, isExpressionStatement: () => _u, isExpressionWithTypeArguments: () => Py, isExpressionWithTypeArgumentsInClassExtendsClause: () => JR, isExternalModule: () => $l, isExternalModuleAugmentation: () => eS, isExternalModuleImportEqualsDeclaration: () => d1, isExternalModuleIndicator: () => z4, isExternalModuleNameRelative: () => cu, isExternalModuleReference: () => Oy, isExternalModuleSymbol: () => Hk, isExternalOrCommonJsModule: () => z_, isFileLevelReservedGeneratedIdentifier: () => M4, isFileLevelUniqueName: () => X5, isFileProbablyExternalModule: () => EO, isFirstDeclarationOfSymbolParameter: () => SY, isFixablePromiseHandler: () => ZY, isForInOrOfStatement: () => Px, isForInStatement: () => ML, isForInitializer: () => Gp, isForOfStatement: () => hO, isForStatement: () => E1, isFullSourceFile: () => Og, isFunctionBlock: () => tS, isFunctionBody: () => yz, isFunctionDeclaration: () => il, isFunctionExpression: () => Ho, isFunctionExpressionOrArrowFunction: () => tb, isFunctionLike: () => Xa, isFunctionLikeDeclaration: () => Ro, isFunctionLikeKind: () => zk, isFunctionLikeOrClassStaticBlockDeclaration: () => IA, isFunctionOrConstructorTypeNode: () => tie, isFunctionOrModuleBlock: () => pz, isFunctionSymbol: () => sae, isFunctionTypeNode: () => Kh, isGeneratedIdentifier: () => hc, isGeneratedPrivateIdentifier: () => Dx, isGetAccessor: () => Eg, isGetAccessorDeclaration: () => rd, isGetOrSetAccessorDeclaration: () => L4, isGlobalScopeAugmentation: () => Hh, isGlobalSourceFile: () => T0, isGrammarError: () => kie, isHeritageClause: () => Y_, isHoistedFunction: () => iR, isHoistedVariableStatement: () => aR, isIdentifier: () => Xe, isIdentifierANonContextualKeyword: () => cV, isIdentifierName: () => dae, isIdentifierOrThisTypeNode: () => Woe, isIdentifierPart: () => Sy, isIdentifierStart: () => zh, isIdentifierText: () => S_, isIdentifierTypePredicate: () => Gie, isIdentifierTypeReference: () => Tse, isIfStatement: () => A1, isIgnoredFileFromWildCardWatching: () => t8, isImplicitGlob: () => KV, isImportAttribute: () => voe, isImportAttributeName: () => Zre, isImportAttributes: () => i2, isImportCall: () => o_, isImportClause: () => em, isImportDeclaration: () => xc, isImportEqualsDeclaration: () => Vl, isImportKeyword: () => LN, isImportMeta: () => MA, isImportOrExportSpecifier: () => Bv, isImportOrExportSpecifierName: () => e_e, isImportSpecifier: () => Of, isImportTypeAssertionContainer: () => P2e, isImportTypeNode: () => dh, isImportable: () => UY, isInComment: () => R0, isInCompoundLikeAssignment: () => nV, isInExpressionContext: () => dR, isInJSDoc: () => qD, isInJSFile: () => Er, isInJSXText: () => Lfe, isInJsonFile: () => hR, isInNonReferenceComment: () => Wfe, isInReferenceComment: () => Ufe, isInRightSideOfInternalImportEqualsDeclaration: () => TM, isInString: () => YC, isInTemplateString: () => eY, isInTopLevelContext: () => fR, isInTypeQuery: () => sC, isIncrementalBuildInfo: () => o8, isIncrementalBundleEmitBuildInfo: () => bue, isIncrementalCompilation: () => pS, isIndexSignatureDeclaration: () => ab, isIndexedAccessTypeNode: () => vS, isInferTypeNode: () => Qx, isInfinityOrNaNString: () => wN, isInitializedProperty: () => $O, isInitializedVariable: () => U3, isInsideJsxElement: () => NM, isInsideJsxElementOrAttribute: () => Rfe, isInsideNodeModules: () => N8, isInsideTemplateLiteral: () => T8, isInstanceOfExpression: () => UR, isInstantiatedModule: () => tH, isInterfaceDeclaration: () => wu, isInternalDeclaration: () => hie, isInternalModuleImportEqualsDeclaration: () => Mx, isInternalName: () => nq, isIntersectionTypeNode: () => DC, isIntrinsicJsxName: () => GA, isIterationStatement: () => Wv, isJSDoc: () => Im, isJSDocAllType: () => Coe, isJSDocAugmentsTag: () => RC, isJSDocAuthorTag: () => M2e, isJSDocCallbackTag: () => V$, isJSDocClassTag: () => Aoe, isJSDocCommentContainingNode: () => U5, isJSDocConstructSignature: () => rC, isJSDocDeprecatedTag: () => Y$, isJSDocEnumTag: () => yO, isJSDocFunctionType: () => gE, isJSDocImplementsTag: () => zL, isJSDocImportTag: () => vh, isJSDocIndexSignature: () => yR, isJSDocLikeText: () => fq, isJSDocLink: () => xoe, isJSDocLinkCode: () => koe, isJSDocLinkLike: () => qk, isJSDocLinkPlain: () => R2e, isJSDocMemberName: () => P1, isJSDocNameReference: () => zN, isJSDocNamepathType: () => L2e, isJSDocNamespaceBody: () => Ixe, isJSDocNode: () => DA, isJSDocNonNullableType: () => BL, isJSDocNullableType: () => hE, isJSDocOptionalParameter: () => hL, isJSDocOptionalType: () => z$, isJSDocOverloadTag: () => yE, isJSDocOverrideTag: () => UL, isJSDocParameterTag: () => Cp, isJSDocPrivateTag: () => q$, isJSDocPropertyLikeTag: () => ND, isJSDocPropertyTag: () => Eoe, isJSDocProtectedTag: () => H$, isJSDocPublicTag: () => $$, isJSDocReadonlyTag: () => G$, isJSDocReturnTag: () => WL, isJSDocSatisfiesExpression: () => _$, isJSDocSatisfiesTag: () => VL, isJSDocSeeTag: () => j2e, isJSDocSignature: () => F0, isJSDocTag: () => NA, isJSDocTemplateTag: () => Od, isJSDocThisTag: () => X$, isJSDocThrowsTag: () => J2e, isJSDocTypeAlias: () => Ed, isJSDocTypeAssertion: () => kS, isJSDocTypeExpression: () => N1, isJSDocTypeLiteral: () => s2, isJSDocTypeTag: () => VN, isJSDocTypedefTag: () => o2, isJSDocUnknownTag: () => B2e, isJSDocUnknownType: () => woe, isJSDocVariadicType: () => JL, isJSXTagName: () => JA, isJsonEqual: () => _L, isJsonSourceFile: () => Xp, isJsxAttribute: () => yh, isJsxAttributeLike: () => B5, isJsxAttributeName: () => Ise, isJsxAttributes: () => SS, isJsxCallLike: () => die, isJsxChild: () => q4, isJsxClosingElement: () => TS, isJsxClosingFragment: () => Toe, isJsxElement: () => gh, isJsxExpression: () => dE, isJsxFragment: () => D1, isJsxNamespacedName: () => Em, isJsxOpeningElement: () => Am, isJsxOpeningFragment: () => tm, isJsxOpeningLikeElement: () => _f, isJsxOpeningLikeElementTagName: () => Afe, isJsxSelfClosingElement: () => a2, isJsxSpreadAttribute: () => FC, isJsxTagNameExpression: () => LD, isJsxText: () => xC, isJumpStatementTarget: () => g8, isKeyword: () => l_, isKeywordOrPunctuation: () => kR, isKnownSymbol: () => rN, isLabelName: () => $G, isLabelOfLabeledStatement: () => VG, isLabeledStatement: () => ob, isLateVisibilityPaintedStatement: () => eR, isLeftHandSideExpression: () => s_, isLet: () => rR, isLineBreak: () => lf, isLiteralComputedPropertyDeclarationName: () => C3, isLiteralExpression: () => Ix, isLiteralExpressionOfObject: () => uz, isLiteralImportTypeNode: () => Cy, isLiteralKind: () => PD, isLiteralNameOfPropertyDeclarationOrIndexAccess: () => kM, isLiteralTypeLiteral: () => aie, isLiteralTypeNode: () => P0, isLocalName: () => Ry, isLogicalOperator: () => Fae, isLogicalOrCoalescingAssignmentExpression: () => EV, isLogicalOrCoalescingAssignmentOperator: () => cN, isLogicalOrCoalescingBinaryExpression: () => R3, isLogicalOrCoalescingBinaryOperator: () => BR, isMappedTypeNode: () => e2, isMemberName: () => Ag, isMetaProperty: () => n2, isMethodDeclaration: () => Fc, isMethodOrAccessor: () => Vk, isMethodSignature: () => Zd, isMinusToken: () => R$, isMissingDeclaration: () => F2e, isMissingPackageJsonInfo: () => Pce, isModifier: () => ws, isModifierKind: () => Jv, isModifierLike: () => gc, isModuleAugmentationExternal: () => Fz, isModuleBlock: () => mh, isModuleBody: () => oie, isModuleDeclaration: () => gl, isModuleExportName: () => jL, isModuleExportsAccessExpression: () => Fg, isModuleIdentifier: () => Xz, isModuleName: () => $oe, isModuleOrEnumDeclaration: () => V4, isModuleReference: () => _ie, isModuleSpecifierLike: () => BM, isModuleWithStringLiteralName: () => Z5, isNameOfFunctionDeclaration: () => YG, isNameOfModuleDeclaration: () => GG, isNamedDeclaration: () => lu, isNamedEvaluation: () => V_, isNamedEvaluationSource: () => lV, isNamedExportBindings: () => cz, isNamedExports: () => ad, isNamedImportBindings: () => vz, isNamedImports: () => hh, isNamedImportsOrExports: () => HR, isNamedTupleMember: () => lE, isNamespaceBody: () => Exe, isNamespaceExport: () => Qh, isNamespaceExportDeclaration: () => gO, isNamespaceImport: () => Wg, isNamespaceReexportDeclaration: () => tae, isNewExpression: () => bS, isNewExpressionTarget: () => TP, isNewScopeNode: () => Lse, isNoSubstitutionTemplateLiteral: () => Kx, isNodeArray: () => GT, isNodeArrayMultiLine: () => zae, isNodeDescendantOf: () => aS, isNodeKind: () => O5, isNodeLikeSystem: () => hW, isNodeModulesDirectory: () => v5, isNodeWithPossibleHoistedDeclaration: () => _ae, isNonContextualKeyword: () => oV, isNonGlobalAmbientModule: () => Oz, isNonNullAccess: () => Ese, isNonNullChain: () => P5, isNonNullExpression: () => PC, isNonStaticMethodOrAccessorWithPrivateName: () => fle, isNotEmittedStatement: () => boe, isNullishCoalesce: () => oz, isNumber: () => Ev, isNumericLiteral: () => f_, isNumericLiteralName: () => Jg, isObjectBindingElementWithoutPropertyName: () => C8, isObjectBindingOrAssignmentElement: () => J4, isObjectBindingOrAssignmentPattern: () => dz, isObjectBindingPattern: () => kp, isObjectLiteralElement: () => bz, isObjectLiteralElementLike: () => ky, isObjectLiteralExpression: () => Bs, isObjectLiteralMethod: () => Ad, isObjectLiteralOrClassExpressionMethodOrAccessor: () => oR, isObjectTypeDeclaration: () => fC, isOmittedExpression: () => eu, isOptionalChain: () => uf, isOptionalChainRoot: () => ED, isOptionalDeclaration: () => yC, isOptionalJSDocPropertyLikeTag: () => nO, isOptionalTypeNode: () => OL, isOuterExpression: () => HL, isOutermostOptionalChain: () => ID, isOverrideModifier: () => foe, isPackageJsonInfo: () => y9, isPackedArrayLiteral: () => u$, isParameter: () => ra, isParameterPropertyDeclaration: () => U_, isParameterPropertyModifier: () => OD, isParenthesizedExpression: () => $f, isParenthesizedTypeNode: () => Zx, isParseTreeNode: () => AD, isPartOfParameterDeclaration: () => v1, isPartOfTypeNode: () => ah, isPartOfTypeOnlyImportOrExportDeclaration: () => Qre, isPartOfTypeQuery: () => mR, isPartiallyEmittedExpression: () => moe, isPatternMatch: () => a5, isPinnedComment: () => K5, isPlainJsFile: () => jD, isPlusToken: () => F$, isPossiblyTypeArgumentPosition: () => b8, isPostfixUnaryExpression: () => B$, isPrefixUnaryExpression: () => w1, isPrimitiveLiteralValue: () => vL, isPrivateIdentifier: () => na, isPrivateIdentifierClassElementDeclaration: () => ff, isPrivateIdentifierPropertyAccessExpression: () => EA, isPrivateIdentifierSymbol: () => gae, isProgramUptoDate: () => WH, isPrologueDirective: () => ih, isPropertyAccessChain: () => D5, isPropertyAccessEntityNameExpression: () => M3, isPropertyAccessExpression: () => Qr, isPropertyAccessOrQualifiedName: () => W4, isPropertyAccessOrQualifiedNameOrImportTypeNode: () => rie, isPropertyAssignment: () => Fl, isPropertyDeclaration: () => Na, isPropertyName: () => kl, isPropertyNameLiteral: () => sh, isPropertySignature: () => Pf, isPrototypeAccess: () => Qv, isPrototypePropertyAssignment: () => y3, isPunctuation: () => sV, isPushOrUnshiftIdentifier: () => uV, isQualifiedName: () => zf, isQuestionDotToken: () => NL, isQuestionOrExclamationToken: () => Uoe, isQuestionOrPlusOrMinusToken: () => Voe, isQuestionToken: () => ib, isReadonlyKeyword: () => loe, isReadonlyKeywordOrPlusOrMinusToken: () => zoe, isRecognizedTripleSlashComment: () => Ez, isReferenceFileLocation: () => RE, isReferencedFile: () => J1, isRegularExpressionLiteral: () => P$, isRequireCall: () => c_, isRequireVariableStatement: () => _3, isRestParameter: () => $h, isRestTypeNode: () => FL, isReturnStatement: () => dp, isReturnStatementWithFixablePromiseHandler: () => sj, isRightSideOfAccessExpression: () => NV, isRightSideOfInstanceofExpression: () => Lae, isRightSideOfPropertyAccess: () => JE, isRightSideOfQualifiedName: () => Efe, isRightSideOfQualifiedNameOrPropertyAccess: () => lN, isRightSideOfQualifiedNameOrPropertyAccessOrJSDocMemberName: () => Rae, isRootedDiskPath: () => J_, isSameEntityName: () => UA, isSatisfiesExpression: () => _E, isSemicolonClassElement: () => hoe, isSetAccessor: () => nh, isSetAccessorDeclaration: () => w_, isShiftOperatorOrHigher: () => cq, isShorthandAmbientModuleSymbol: () => K4, isShorthandPropertyAssignment: () => Qu, isSideEffectImport: () => g$, isSignedNumericLiteral: () => wR, isSimpleCopiableExpression: () => AS, isSimpleInlineableExpression: () => bh, isSimpleParameterList: () => qO, isSingleOrDoubleQuote: () => p3, isSolutionConfig: () => Nq, isSourceElement: () => Nse, isSourceFile: () => Zi, isSourceFileFromLibrary: () => XE, isSourceFileJS: () => Uf, isSourceFileNotJson: () => gR, isSourceMapping: () => cle, isSpecialPropertyDeclaration: () => aae, isSpreadAssignment: () => zg, isSpreadElement: () => id, isStatement: () => qi, isStatementButNotDeclaration: () => $4, isStatementOrBlock: () => fie, isStatementWithLocals: () => xie, isStatic: () => ps, isStaticModifier: () => wC, isString: () => Ja, isStringANonContextualKeyword: () => aC, isStringAndEmptyAnonymousObjectIntersection: () => Jfe, isStringDoubleQuoted: () => vR, isStringLiteral: () => Ls, isStringLiteralLike: () => fo, isStringLiteralOrJsxExpression: () => pie, isStringLiteralOrTemplate: () => i_e, isStringOrNumericLiteralLike: () => Sp, isStringOrRegularExpressionOrTemplateLiteral: () => rY, isStringTextContainingNode: () => fz, isSuperCall: () => Lx, isSuperKeyword: () => RN, isSuperProperty: () => x_, isSupportedSourceFileName: () => n$, isSwitchStatement: () => JN, isSyntaxList: () => vE, isSyntheticExpression: () => A2e, isSyntheticReference: () => OC, isTagName: () => qG, isTaggedTemplateExpression: () => C1, isTaggedTemplateTag: () => Cfe, isTemplateExpression: () => LL, isTemplateHead: () => kC, isTemplateLiteral: () => $k, isTemplateLiteralKind: () => jv, isTemplateLiteralToken: () => Xre, isTemplateLiteralTypeNode: () => poe, isTemplateLiteralTypeSpan: () => j$, isTemplateMiddle: () => O$, isTemplateMiddleOrTemplateTail: () => F5, isTemplateSpan: () => pE, isTemplateTail: () => IL, isTextWhiteSpaceLike: () => qfe, isThis: () => UE, isThisContainerOrFunctionBlock: () => Qie, isThisIdentifier: () => Kv, isThisInTypeQuery: () => lS, isThisInitializedDeclaration: () => _R, isThisInitializedObjectBindingExpression: () => eae, isThisProperty: () => o3, isThisTypeNode: () => jN, isThisTypeParameter: () => AN, isThisTypePredicate: () => Yie, isThrowStatement: () => W$, isToken: () => Wk, isTokenKind: () => lz, isTraceEnabled: () => lb, isTransientSymbol: () => Ig, isTrivia: () => qA, isTryStatement: () => r2, isTupleTypeNode: () => IC, isTypeAlias: () => T3, isTypeAliasDeclaration: () => Pd, isTypeAssertionExpression: () => RL, isTypeDeclaration: () => gC, isTypeElement: () => YT, isTypeKeyword: () => CP, isTypeKeywordTokenOrIdentifier: () => LM, isTypeLiteralNode: () => Vf, isTypeNode: () => Fi, isTypeNodeKind: () => UV, isTypeOfExpression: () => uE, isTypeOnlyExportDeclaration: () => Kre, isTypeOnlyImportDeclaration: () => AA, isTypeOnlyImportOrExportDeclaration: () => v0, isTypeOperatorNode: () => k1, isTypeParameterDeclaration: () => uc, isTypePredicateNode: () => EC, isTypeQueryNode: () => gS, isTypeReferenceNode: () => G_, isTypeReferenceType: () => z5, isTypeUsableAsPropertyName: () => td, isUMDExportSymbol: () => qR, isUnaryExpression: () => gz, isUnaryExpressionWithWrite: () => iie, isUnicodeIdentifierStart: () => T5, isUnionTypeNode: () => N0, isUrl: () => fre, isValidBigIntString: () => pL, isValidESSymbolDeclaration: () => qie, isValidTypeOnlyAliasUseSite: () => T1, isValueSignatureDeclaration: () => Wx, isVarAwaitUsing: () => n3, isVarConst: () => LA, isVarConstLike: () => Wie, isVarUsing: () => r3, isVariableDeclaration: () => Ci, isVariableDeclarationInVariableStatement: () => WD, isVariableDeclarationInitializedToBareOrAccessedRequire: () => nS, isVariableDeclarationInitializedToRequire: () => f3, isVariableDeclarationList: () => Cu, isVariableLike: () => UD, isVariableStatement: () => fl, isVoidExpression: () => NC, isWatchSet: () => jV, isWhileStatement: () => U$, isWhiteSpaceLike: () => kg, isWhiteSpaceSingleLine: () => eh, isWithStatement: () => goe, isWriteAccess: () => uC, isWriteOnlyAccess: () => $R, isYieldExpression: () => mO, jsxModeNeedsExplicitImport: () => jY, keywordPart: () => Z_, last: () => Ws, lastOrUndefined: () => nc, length: () => Ve, libMap: () => hq, libs: () => e9, lineBreakPart: () => HE, loadModuleFromGlobalCache: () => Vce, loadWithModeAwareCache: () => r8, makeIdentifierFromModuleName: () => Die, makeImport: () => hb, makeStringLiteral: () => wP, mangleScopedPackageName: () => DE, map: () => vn, mapAllOrFail: () => oD, mapDefined: () => Hi, mapDefinedIterator: () => yy, mapEntries: () => Pte, mapIterator: () => Jl, mapOneOrMany: () => FY, mapToDisplayParts: () => gb, matchFiles: () => ZV, matchPatternOrExact: () => i$, matchedText: () => qte, matchesExclude: () => p9, matchesExcludeWorker: () => d9, maxBy: () => cW, maybeBind: () => as, maybeSetLocalizedDiagnosticMessages: () => Qae, memoize: () => Af, memoizeOne: () => Zm, min: () => lW, minAndMax: () => yse, missingFileModifiedTime: () => B_, modifierToFlag: () => cC, modifiersToFlags: () => lh, moduleExportNameIsDefault: () => qh, moduleExportNameTextEscaped: () => ZT, moduleExportNameTextUnescaped: () => qv, moduleOptionDeclaration: () => rce, moduleResolutionIsEqualTo: () => Tie, moduleResolutionNameAndModeGetter: () => V9, moduleResolutionOptionDeclarations: () => yq, moduleResolutionSupportsPackageJsonExportsAndImports: () => tE, moduleResolutionUsesNodeModules: () => MM, moduleSpecifierToValidIdentifier: () => O8, moduleSpecifiers: () => My, moduleSupportsImportAttributes: () => ase, moduleSymbolToValidIdentifier: () => P8, moveEmitHelpers: () => Xse, moveRangeEnd: () => zR, moveRangePastDecorators: () => Dy, moveRangePastModifiers: () => uh, moveRangePos: () => b1, moveSyntheticComments: () => Hse, mutateMap: () => dN, mutateMapSkippingNewValues: () => Lg, needsParentheses: () => zM, needsScopeMarker: () => M5, newCaseClauseTracker: () => tj, newPrivateEnvironment: () => ple, noEmitNotification: () => XO, noEmitSubstitution: () => uP, noTransformers: () => Vle, noTruncationMaximumTruncationLength: () => xz, nodeCanBeDecorated: () => l3, nodeCoreModules: () => aE, nodeHasName: () => O4, nodeIsDecorated: () => BA, nodeIsMissing: () => Jc, nodeIsPresent: () => wd, nodeIsSynthesized: () => Jo, nodeModuleNameResolver: () => Mce, nodeModulesPathPart: () => Vg, nodeNextJsonConfigResolver: () => jce, nodeOrChildIsDecorated: () => u3, nodeOverlapsWithStartEnd: () => CM, nodePosToString: () => Pxe, nodeSeenTracker: () => VE, nodeStartsNewLexicalEnvironment: () => fV, noop: () => To, noopFileWatcher: () => jE, normalizePath: () => vs, normalizeSlashes: () => xu, normalizeSpans: () => QW, not: () => o5, notImplemented: () => gs, notImplementedResolver: () => Yle, nullNodeConverters: () => Vse, nullParenthesizerRules: () => Wse, nullTransformationContext: () => QO, objectAllocator: () => Lu, operatorPart: () => EP, optionDeclarations: () => nm, optionMapToObject: () => o9, optionsAffectingProgramStructure: () => oce, optionsForBuild: () => bq, optionsForWatch: () => JC, optionsHaveChanges: () => Gk, or: () => j_, orderedRemoveItem: () => lD, orderedRemoveItemAt: () => Pv, packageIdToPackageName: () => Y5, packageIdToString: () => f1, parameterIsThisKeyword: () => Xv, parameterNamePart: () => Gfe, parseBaseNodeFactory: () => Koe, parseBigInt: () => bse, parseBuildCommand: () => mce, parseCommandLine: () => pce, parseCommandLineWorker: () => Tq, parseConfigFileTextToJson: () => xq, parseConfigFileWithSystem: () => Fue, parseConfigHostFromCompilerHostLike: () => X9, parseCustomTypeOption: () => i9, parseIsolatedEntityName: () => BC, parseIsolatedJSDocComment: () => Zoe, parseJSDocTypeExpressionForTests: () => uke, parseJsonConfigFileContent: () => Jke, parseJsonSourceFileConfigFileContent: () => RO, parseJsonText: () => IO, parseListTypeOption: () => fce, parseNodeFactory: () => F1, parseNodeModuleFromPath: () => BO, parsePackageName: () => T9, parsePseudoBigInt: () => xN, parseValidBigInt: () => c$, pasteEdits: () => MK, patchWriteFileEnsuringDirectory: () => ure, pathContainsNodeModules: () => fb, pathIsAbsolute: () => yD, pathIsBareSpecifier: () => WW, pathIsRelative: () => _p, patternText: () => $te, performIncrementalCompilation: () => Rue, performance: () => ene, positionBelongsToNode: () => XG, positionIsASICandidate: () => qM, positionIsSynthesized: () => Cm, positionsAreOnSameLine: () => Zp, preProcessFile: () => YEe, probablyUsesSemicolons: () => D8, processCommentPragmas: () => dq, processPragmasIntoFields: () => mq, processTaggedTemplateExpression: () => hH, programContainsEsModules: () => Vfe, programContainsModules: () => zfe, projectReferenceIsEqualTo: () => kz, propertyNamePart: () => Yfe, pseudoBigIntToString: () => dS, punctuationPart: () => gf, pushIfUnique: () => $p, quote: () => NP, quotePreferenceFromString: () => pY, rangeContainsPosition: () => WE, rangeContainsPositionExclusive: () => y8, rangeContainsRange: () => u_, rangeContainsRangeExclusive: () => Dfe, rangeContainsStartEnd: () => v8, rangeEndIsOnSameLineAsRangeStart: () => J3, rangeEndPositionsAreOnSameLine: () => Uae, rangeEquals: () => eW, rangeIsOnSingleLine: () => qx, rangeOfNode: () => s$, rangeOfTypeParameters: () => o$, rangeOverlapsWithStartEnd: () => SP, rangeStartIsOnSameLineAsRangeEnd: () => Wae, rangeStartPositionsAreOnSameLine: () => VR, readBuilderProgram: () => oM, readConfigFile: () => OO, readJson: () => KA, readJsonConfigFile: () => hce, readJsonOrUndefined: () => OV, reduceEachLeadingCommentRange: () => vre, reduceEachTrailingCommentRange: () => bre, reduceLeft: () => wf, reduceLeftIterator: () => ti, reducePathComponents: () => Bk, refactor: () => ew, regExpEscape: () => o2e, regularExpressionFlagToCharacterCode: () => sxe, relativeComplement: () => Ote, removeAllComments: () => cO, removeEmitHelper: () => x2e, removeExtension: () => Q3, removeFileExtension: () => Nf, removeIgnoredPath: () => eM, removeMinAndVersionNumbers: () => _W, removePrefix: () => uD, removeSuffix: () => gA, removeTrailingDirectorySeparator: () => g0, repeatString: () => x8, replaceElement: () => rW, replaceFirstStar: () => Gx, resolutionExtensionIsTSOrJson: () => vN, resolveConfigFileProjectName: () => bG, resolveJSModule: () => Fce, resolveLibrary: () => b9, resolveModuleName: () => f2, resolveModuleNameFromCache: () => hCe, resolvePackageNameToPackageJson: () => Rq, resolvePath: () => Fv, resolveProjectReferencePath: () => qC, resolveTripleslashReference: () => OH, resolveTypeReferenceDirective: () => Dce, resolvingEmptyArray: () => Sz, returnFalse: () => by, returnNoopFileWatcher: () => yP, returnTrue: () => zT, returnUndefined: () => VT, returnsPromise: () => QY, rewriteModuleSpecifier: () => zC, sameFlatMap: () => YU, sameMap: () => po, sameMapping: () => swe, scanTokenAtPosition: () => Uie, scanner: () => Au, semanticDiagnosticsOptionDeclarations: () => ice, serializeCompilerOptions: () => Eq, server: () => iFe, servicesVersion: () => jDe, setCommentRange: () => Pl, setConfigFileInOptions: () => Iq, setConstantValue: () => Yse, setEmitFlags: () => Pr, setGetSourceFileAsHashVersioned: () => sM, setIdentifierAutoGenerate: () => fO, setIdentifierGeneratedImportReference: () => Zse, setIdentifierTypeArguments: () => D0, setInternalEmitFlags: () => lO, setLocalizedDiagnosticMessages: () => Kae, setNodeChildren: () => Ioe, setNodeFlags: () => xse, setObjectAllocator: () => Xae, setOriginalNode: () => Gr, setParent: () => mo, setParentRecursive: () => S1, setPrivateIdentifier: () => p2, setSnippetElement: () => D$, setSourceMapRange: () => qs, setStackTraceLimit: () => zSe, setStartsOnNewLine: () => CL, setSyntheticLeadingComments: () => x1, setSyntheticTrailingComments: () => TC, setSys: () => YSe, setSysLog: () => ore, setTextRange: () => St, setTextRangeEnd: () => iE, setTextRangePos: () => kN, setTextRangePosEnd: () => wm, setTextRangePosWidth: () => l$, setTokenSourceMapRange: () => qse, setTypeNode: () => Kse, setUILocale: () => Wte, setValueDeclaration: () => YD, shouldAllowImportingTsExtension: () => NE, shouldPreserveConstEnums: () => Zv, shouldRewriteModuleSpecifier: () => b3, shouldUseUriStyleNodeCoreModules: () => ZM, showModuleSpecifier: () => Hae, signatureHasRestParameter: () => hf, signatureToDisplayParts: () => kY, single: () => nW, singleElementArray: () => Lk, singleIterator: () => Nte, singleOrMany: () => Uh, singleOrUndefined: () => Sg, skipAlias: () => Ru, skipConstraint: () => uY, skipOuterExpressions: () => Gc, skipParentheses: () => _o, skipPartiallyEmittedExpressions: () => Yd, skipTrivia: () => Rs, skipTypeChecking: () => rE, skipTypeCheckingIgnoringNoCheck: () => vse, skipTypeParentheses: () => KD, skipWhile: () => Gte, sliceAfter: () => a$, some: () => bt, sortAndDeduplicate: () => cD, sortAndDeduplicateDiagnostics: () => kA, sourceFileAffectingCompilerOptions: () => vq, sourceFileMayBeEmitted: () => oS, sourceMapCommentRegExp: () => iH, sourceMapCommentRegExpDontCareLineStart: () => ale, spacePart: () => zc, spanMap: () => XU, startEndContainsRange: () => LV, startEndOverlapsWithStartEnd: () => wM, startOnNewLine: () => mf, startTracing: () => ine, startsWith: () => _a, startsWithDirectory: () => $W, startsWithUnderscore: () => MY, startsWithUseStrict: () => Loe, stringContainsAt: () => f_e, stringToToken: () => Cx, stripQuotes: () => Id, supportedDeclarationExtensions: () => lL, supportedJSExtensionsFlat: () => nE, supportedLocaleDirectories: () => Rre, supportedTSExtensionsFlat: () => e$, supportedTSImplementationExtensions: () => Y3, suppressLeadingAndTrailingTrivia: () => H_, suppressLeadingTrivia: () => k$, suppressTrailingTrivia: () => jse, symbolEscapedNameNoDefault: () => jM, symbolName: () => Bc, symbolNameNoDefault: () => mY, symbolToDisplayParts: () => IP, sys: () => Xl, sysLog: () => T4, tagNamesAreEquivalent: () => L1, takeWhile: () => mW, targetOptionDeclaration: () => gq, targetToLibMap: () => Tre, testFormatSettings: () => gEe, textChangeRangeIsUnchanged: () => Dre, textChangeRangeNewSpan: () => wD, textChanges: () => Dr, textOrKeywordPart: () => xY, textPart: () => Ip, textRangeContainsPositionInclusive: () => I4, textRangeContainsTextSpan: () => kre, textRangeIntersectsWithTextSpan: () => Ere, textSpanContainsPosition: () => XW, textSpanContainsTextRange: () => KW, textSpanContainsTextSpan: () => xre, textSpanEnd: () => Pc, textSpanIntersection: () => Ire, textSpanIntersectsWith: () => D4, textSpanIntersectsWithPosition: () => Are, textSpanIntersectsWithTextSpan: () => wre, textSpanIsEmpty: () => Sre, textSpanOverlap: () => Cre, textSpanOverlapsWith: () => dxe, textSpansEqual: () => qE, textToKeywordObj: () => b5, timestamp: () => Mo, toArray: () => Fk, toBuilderFileEmit: () => xue, toBuilderStateFileInfoForMultiEmit: () => Sue, toEditorSettings: () => U8, toFileNameLowerCase: () => Iv, toPath: () => jo, toProgramEmitPending: () => kue, toSorted: () => M_, tokenIsIdentifierOrKeyword: () => i_, tokenIsIdentifierOrKeywordOrGreaterThan: () => pre, tokenToString: () => ys, trace: () => Sa, tracing: () => Ir, tracingEnabled: () => b4, transferSourceFileChildren: () => Doe, transform: () => GDe, transformClassFields: () => xle, transformDeclarations: () => bH, transformECMAScriptModule: () => vH, transformES2015: () => Mle, transformES2016: () => Lle, transformES2017: () => Ale, transformES2018: () => Ele, transformES2019: () => Ile, transformES2020: () => Dle, transformES2021: () => Nle, transformESDecorators: () => wle, transformESNext: () => Ple, transformGenerators: () => jle, transformImpliedNodeFormatDependentModule: () => Jle, transformJsx: () => Rle, transformLegacyDecorators: () => Cle, transformModule: () => yH, transformNamedEvaluation: () => X_, transformNodes: () => KO, transformSystemModule: () => Ble, transformTypeScript: () => Sle, transpile: () => iIe, transpileDeclaration: () => nIe, transpileModule: () => F_e, transpileOptionValueCompilerOptions: () => cce, tryAddToSet: () => h0, tryAndIgnoreErrors: () => YM, tryCast: () => li, tryDirectoryExists: () => GM, tryExtractTSExtension: () => WR, tryFileExists: () => OP, tryGetClassExtendingExpressionWithTypeArguments: () => IV, tryGetClassImplementingOrExtendingExpressionWithTypeArguments: () => DV, tryGetDirectories: () => HM, tryGetExtensionFromPath: () => Bg, tryGetImportFromModuleSpecifier: () => v3, tryGetJSDocSatisfiesTypeNode: () => gL, tryGetModuleNameFromFile: () => xO, tryGetModuleSpecifierFromDeclaration: () => eC, tryGetNativePerformanceHooks: () => Zte, tryGetPropertyAccessOrIdentifierToString: () => j3, tryGetPropertyNameOfBindingOrAssignmentElement: () => YL, tryGetSourceMappingURL: () => sle, tryGetTextOfPropertyName: () => JD, tryParseJson: () => B3, tryParsePattern: () => hC, tryParsePatterns: () => Z3, tryParseRawSourceMap: () => ole, tryReadDirectory: () => DY, tryReadFile: () => YN, tryRemoveDirectoryPrefix: () => XV, tryRemoveExtension: () => gse, tryRemovePrefix: () => dW, tryRemoveSuffix: () => Vte, tscBuildOption: () => l2, typeAcquisitionDeclarations: () => n9, typeAliasNamePart: () => Xfe, typeDirectiveIsEqualTo: () => Sie, typeKeywords: () => lY, typeParameterNamePart: () => Kfe, typeToDisplayParts: () => A8, unchangedPollThresholds: () => p5, unchangedTextChangeRange: () => k5, unescapeLeadingUnderscores: () => $i, unmangleScopedPackageName: () => UO, unorderedRemoveItem: () => Rk, unprefixedNodeCoreModules: () => Rse, unreachableCodeIsError: () => rse, unsetNodeChildren: () => Q$, unusedLabelIsError: () => ise, unwrapInnermostStatementOfLabel: () => $z, unwrapParenthesizedExpression: () => Ose, updateErrorForNoInputFiles: () => _9, updateLanguageServiceSourceFile: () => CX, updateMissingFilePathsWatch: () => DH, updateResolutionField: () => wE, updateSharedExtendedConfigFileWatcher: () => J9, updateSourceFile: () => _q, updateWatchingWildcardDirectories: () => e8, usingSingleLineStringWriter: () => PA, utf16EncodeAsString: () => CD, validateLocaleAndSetLanguage: () => ez, version: () => Ee, versionMajorMinor: () => Oe, visitArray: () => rP, visitCommaListElements: () => VO, visitEachChild: () => Jn, visitFunctionBody: () => Ep, visitIterationBody: () => qf, visitLexicalEnvironment: () => rH, visitNode: () => ut, visitNodes: () => Qn, visitParameterList: () => Wc, walkUpBindingElementsAndPatterns: () => wx, walkUpOuterExpressions: () => Moe, walkUpParenthesizedExpressions: () => Kd, walkUpParenthesizedTypes: () => k3, walkUpParenthesizedTypesAndGetParentAndChild: () => pae, whitespaceOrMapCommentRegExp: () => aH, writeCommentRange: () => XA, writeFile: () => LR, writeFileEnsuringDirectories: () => SV, zipWith: () => yi });
+      B(eFe, { ANONYMOUS: () => IY, AccessFlags: () => Ine, AssertionLevel: () => Bte, AssignmentDeclarationKind: () => jne, AssignmentKind: () => uae, Associativity: () => yae, BreakpointResolver: () => AX, BuilderFileEmit: () => pue, BuilderProgramKind: () => Tue, BuilderState: () => Nm, CallHierarchy: () => tw, CharacterCodes: () => Yne, CheckFlags: () => Cne, CheckMode: () => Qq, ClassificationType: () => JG, ClassificationTypeNames: () => xfe, CommentDirectiveType: () => une, Comparison: () => qe, CompletionInfoFlags: () => hfe, CompletionTriggerKind: () => jG, Completions: () => sw, ContainerFlags: () => Hce, ContextFlags: () => gne, Debug: () => D, DiagnosticCategory: () => f5, Diagnostics: () => d, DocumentHighlights: () => aj, ElementFlags: () => Ene, EmitFlags: () => RW, EmitHint: () => Zne, EmitOnly: () => _ne, EndOfLineState: () => vfe, ExitStatus: () => pne, ExportKind: () => p_e, Extension: () => Xne, ExternalEmitHelpers: () => Qne, FileIncludeKind: () => CW, FilePreprocessingDiagnosticsKind: () => fne, FileSystemEntryKind: () => cre, FileWatcherEventKind: () => are, FindAllReferences: () => Zo, FlattenLevel: () => mle, FlowFlags: () => u5, ForegroundColorEscapeSequences: () => rue, FunctionFlags: () => hae, GeneratedIdentifierFlags: () => kW, GetLiteralTextFlags: () => Aie, GoToDefinition: () => nI, HighlightSpanKind: () => dfe, IdentifierNameMap: () => PE, ImportKind: () => __e, ImportsNotUsedAsValues: () => Vne, IndentStyle: () => mfe, IndexFlags: () => Dne, IndexKind: () => One, InferenceFlags: () => Lne, InferencePriority: () => Rne, InlayHintKind: () => pfe, InlayHints: () => yK, InternalEmitFlags: () => Kne, InternalNodeBuilderFlags: () => vne, InternalSymbolName: () => wne, IntersectionFlags: () => hne, InvalidatedProjectKind: () => Vue, JSDocParsingMode: () => ire, JsDoc: () => G1, JsTyping: () => mb, JsxEmit: () => zne, JsxFlags: () => sne, JsxReferenceKind: () => Nne, LanguageFeatureMinimumTarget: () => ou, LanguageServiceMode: () => ffe, LanguageVariant: () => Hne, LexicalEnvironmentFlags: () => tre, ListFormat: () => nre, LogLevel: () => Yte, MapCode: () => vK, MemberOverrideStatus: () => dne, ModifierFlags: () => SW, ModuleDetectionKind: () => Bne, ModuleInstanceState: () => $ce, ModuleKind: () => vA, ModuleResolutionKind: () => yA, ModuleSpecifierEnding: () => dse, NavigateTo: () => M_e, NavigationBar: () => B_e, NewLineKind: () => $ne, NodeBuilderFlags: () => yne, NodeCheckFlags: () => EW, NodeFactoryFlags: () => $se, NodeFlags: () => TW, NodeResolutionFeatures: () => Rce, ObjectFlags: () => DW, OperationCanceledException: () => hD, OperatorPrecedence: () => vae, OrganizeImports: () => Y1, OrganizeImportsMode: () => MG, OuterExpressionKinds: () => ere, OutliningElementsCollector: () => TK, OutliningSpanKind: () => gfe, OutputFileType: () => yfe, PackageJsonAutoImportPreference: () => ufe, PackageJsonDependencyGroup: () => lfe, PatternMatchKind: () => GY, PollingInterval: () => LW, PollingWatchKind: () => Wne, PragmaKindFlags: () => rre, PredicateSemantics: () => one, PreparePasteEdits: () => LK, PrivateIdentifierKind: () => toe, ProcessLevel: () => vle, ProgramUpdateLevel: () => Qle, QuotePreference: () => $fe, RegularExpressionFlags: () => cne, RelationComparisonResult: () => xW, Rename: () => Wj, ScriptElementKind: () => Tfe, ScriptElementKindModifier: () => Sfe, ScriptKind: () => PW, ScriptSnapshot: () => gM, ScriptTarget: () => qne, SemanticClassificationFormat: () => _fe, SemanticMeaning: () => kfe, SemicolonPreference: () => BG, SignatureCheckMode: () => Zq, SignatureFlags: () => NW, SignatureHelp: () => i7, SignatureInfo: () => _ue, SignatureKind: () => Pne, SmartSelectionRange: () => kK, SnippetKind: () => FW, StatisticType: () => Zue, StructureIsReused: () => wW, SymbolAccessibility: () => Sne, SymbolDisplay: () => U0, SymbolDisplayPartKind: () => vM, SymbolFlags: () => AW, SymbolFormatFlags: () => Tne, SyntaxKind: () => bW, Ternary: () => Mne, ThrottledCancellationToken: () => Hpe, TokenClass: () => bfe, TokenFlags: () => lne, TransformFlags: () => OW, TypeFacts: () => Kq, TypeFlags: () => IW, TypeFormatFlags: () => bne, TypeMapKind: () => Fne, TypePredicateKind: () => xne, TypeReferenceSerializationKind: () => kne, UnionReduction: () => mne, UpToDateStatusType: () => Mue, VarianceFlags: () => Ane, Version: () => ym, VersionRange: () => l5, WatchDirectoryFlags: () => Gne, WatchDirectoryKind: () => Une, WatchFileKind: () => Jne, WatchLogLevel: () => eue, WatchType: () => du, accessPrivateIdentifier: () => dle, addEmitFlags: () => _h, addEmitHelper: () => SC, addEmitHelpers: () => Ug, addInternalEmitFlags: () => Yx, addNodeFactoryPatcher: () => g2e, addObjectAllocatorPatcher: () => t2e, addRange: () => ni, addRelatedInfo: () => ds, addSyntheticLeadingComment: () => rb, addSyntheticTrailingComment: () => PN, addToSeen: () => Dd, advancedAsyncSuperHelper: () => EL, affectsDeclarationPathOptionDeclarations: () => sce, affectsEmitOptionDeclarations: () => ace, allKeysStartWithDot: () => S9, altDirectorySeparator: () => m5, and: () => s5, append: () => Hn, appendIfUnique: () => vy, arrayFrom: () => Aa, arrayIsEqualTo: () => fp, arrayIsHomogeneous: () => Sse, arrayOf: () => Rte, arrayReverseIterator: () => ZU, arrayToMap: () => dA, arrayToMultiMap: () => m4, arrayToNumericMap: () => Mte, assertType: () => NSe, assign: () => Tx, asyncSuperHelper: () => AL, attachFileToDiagnostics: () => pC, base64decode: () => Jae, base64encode: () => Bae, binarySearch: () => Av, binarySearchKey: () => Pk, bindSourceFile: () => Gce, breakIntoCharacterSpans: () => I_e, breakIntoWordSpans: () => D_e, buildLinkParts: () => Zfe, buildOpts: () => NO, buildOverload: () => rFe, bundlerModuleNameResolver: () => Lce, canBeConvertedToAsync: () => eX, canHaveDecorators: () => CS, canHaveExportModifier: () => tO, canHaveFlowNode: () => zA, canHaveIllegalDecorators: () => oq, canHaveIllegalModifiers: () => Joe, canHaveIllegalType: () => z2e, canHaveIllegalTypeParameters: () => Boe, canHaveJSDoc: () => S3, canHaveLocals: () => Vh, canHaveModifiers: () => Fd, canHaveModuleSpecifier: () => oae, canHaveSymbol: () => Tm, canIncludeBindAndCheckDiagnostics: () => SN, canJsonReportNoInputFiles: () => MO, canProduceDiagnostics: () => HO, canUsePropertyAccess: () => f$, canWatchAffectingLocation: () => Iue, canWatchAtTypes: () => Eue, canWatchDirectoryOrFile: () => eG, canWatchDirectoryOrFilePath: () => c8, cartesianProduct: () => Hte, cast: () => hs, chainBundle: () => Dm, chainDiagnosticMessages: () => $a, changeAnyExtension: () => S4, changeCompilerHostLikeToUseCache: () => dP, changeExtension: () => E0, changeFullExtension: () => y5, changesAffectModuleResolution: () => $5, changesAffectingProgramStructure: () => vie, characterCodeToRegularExpressionFlag: () => HW, childIsDecorated: () => VD, classElementOrClassElementParameterIsDecorated: () => qz, classHasClassThisAssignment: () => dH, classHasDeclaredOrExplicitlyAssignedName: () => mH, classHasExplicitlyAssignedName: () => R9, classOrConstructorParameterIsDecorated: () => x0, classicNameResolver: () => zce, classifier: () => Kpe, cleanExtendedConfigCache: () => U9, clear: () => is, clearMap: () => k_, clearSharedExtendedConfigFileWatcher: () => IH, climbPastPropertyAccess: () => SM, clone: () => jte, cloneCompilerOptions: () => aY, closeFileWatcher: () => Qd, closeFileWatcherOf: () => sd, codefix: () => yf, collapseTextChangeRangesAcrossMultipleVersions: () => Nre, collectExternalModuleInfo: () => uH, combine: () => Nk, combinePaths: () => ri, commandLineOptionOfCustomType: () => lce, commentPragmas: () => _5, commonOptionsWithBuild: () => t9, compact: () => p4, compareBooleans: () => s1, compareDataObjects: () => BV, compareDiagnostics: () => mN, compareEmitHelpers: () => roe, compareNumberOfDirectorySeparators: () => K3, comparePaths: () => Ty, comparePathsCaseInsensitive: () => txe, comparePathsCaseSensitive: () => exe, comparePatternKeys: () => Vq, compareProperties: () => zte, compareStringsCaseInsensitive: () => g4, compareStringsCaseInsensitiveEslintCompatible: () => Jte, compareStringsCaseSensitive: () => Hu, compareStringsCaseSensitiveUI: () => y4, compareTextSpans: () => i5, compareValues: () => qo, compilerOptionsAffectDeclarationPath: () => cse, compilerOptionsAffectEmit: () => ose, compilerOptionsAffectSemanticDiagnostics: () => sse, compilerOptionsDidYouMeanDiagnostics: () => a9, compilerOptionsIndicateEsModules: () => fY, computeCommonSourceDirectoryOfFilenames: () => tue, computeLineAndCharacterOfPosition: () => SA, computeLineOfPosition: () => TD, computeLineStarts: () => Uk, computePositionOfLineAndCharacter: () => S5, computeSignatureWithDiagnostics: () => GH, computeSuggestionDiagnostics: () => KY, computedOptions: () => hN, concatenate: () => la, concatenateDiagnosticMessageChains: () => Zae, consumesNodeCoreModules: () => XM, contains: () => Yn, containsIgnoredPath: () => CN, containsObjectRestOrSpread: () => AO, containsParseError: () => Xk, containsPath: () => Hp, convertCompilerOptionsForTelemetry: () => kce, convertCompilerOptionsFromJson: () => Qke, convertJsonOption: () => u2, convertToBase64: () => jae, convertToJson: () => FO, convertToObject: () => yce, convertToOptionsWithAbsolutePaths: () => l9, convertToRelativePath: () => vD, convertToTSConfig: () => Aq, convertTypeAcquisitionFromJson: () => Zke, copyComments: () => v2, copyEntries: () => q5, copyLeadingComments: () => GE, copyProperties: () => sW, copyTrailingAsLeadingComments: () => I8, copyTrailingComments: () => DP, couldStartTrivia: () => gre, countWhere: () => Ya, createAbstractBuilder: () => aAe, createAccessorPropertyBackingField: () => uq, createAccessorPropertyGetRedirector: () => Goe, createAccessorPropertySetRedirector: () => Yoe, createBaseNodeFactory: () => Jse, createBinaryExpressionTrampoline: () => XL, createBuilderProgram: () => YH, createBuilderProgramUsingIncrementalBuildInfo: () => Cue, createBuilderStatusReporter: () => lM, createCacheableExportInfoMap: () => JY, createCachedDirectoryStructureHost: () => B9, createClassifier: () => REe, createCommentDirectivesMap: () => Cie, createCompilerDiagnostic: () => Ic, createCompilerDiagnosticForInvalidCustomType: () => uce, createCompilerDiagnosticFromMessageChain: () => YR, createCompilerHost: () => nue, createCompilerHostFromProgramHost: () => mG, createCompilerHostWorker: () => W9, createDetachedDiagnostic: () => _C, createDiagnosticCollection: () => aN, createDiagnosticForFileFromMessageChain: () => Uz, createDiagnosticForNode: () => Ar, createDiagnosticForNodeArray: () => RA, createDiagnosticForNodeArrayFromMessageChain: () => e3, createDiagnosticForNodeFromMessageChain: () => Pg, createDiagnosticForNodeInSourceFile: () => Yp, createDiagnosticForRange: () => Bie, createDiagnosticMessageChainFromDiagnostic: () => jie, createDiagnosticReporter: () => HC, createDocumentPositionMapper: () => lle, createDocumentRegistry: () => y_e, createDocumentRegistryInternal: () => $Y, createEmitAndSemanticDiagnosticsBuilderProgram: () => ZH, createEmitHelperFactory: () => noe, createEmptyExports: () => vO, createEvaluator: () => Pse, createExpressionForJsxElement: () => Ooe, createExpressionForJsxFragment: () => Foe, createExpressionForObjectLiteralElementLike: () => Roe, createExpressionForPropertyName: () => tq, createExpressionFromEntityName: () => bO, createExternalHelpersImportDeclarationIfNeeded: () => iq, createFileDiagnostic: () => Wl, createFileDiagnosticFromMessageChain: () => nR, createFlowNode: () => eg, createForOfBindingStatement: () => eq, createFutureSourceFile: () => nj, createGetCanonicalFileName: () => Ou, createGetIsolatedDeclarationErrors: () => Wle, createGetSourceFile: () => FH, createGetSymbolAccessibilityDiagnosticForNode: () => j1, createGetSymbolAccessibilityDiagnosticForNodeName: () => Ule, createGetSymbolWalker: () => Yce, createIncrementalCompilerHost: () => cM, createIncrementalProgram: () => Lue, createJsxFactoryExpression: () => Z$, createLanguageService: () => Gpe, createLanguageServiceSourceFile: () => Tj, createMemberAccessForPropertyName: () => c2, createModeAwareCache: () => AE, createModeAwareCacheKey: () => ZN, createModeMismatchDetails: () => Cz, createModuleNotFoundChain: () => G5, createModuleResolutionCache: () => EE, createModuleResolutionLoader: () => JH, createModuleResolutionLoaderUsingGlobalCache: () => Oue, createModuleSpecifierResolutionHost: () => W1, createMultiMap: () => xd, createNameResolver: () => h$, createNodeConverters: () => zse, createNodeFactory: () => sO, createOptionNameMap: () => r9, createOverload: () => jK, createPackageJsonImportFilter: () => YE, createPackageJsonInfo: () => PY, createParenthesizerRules: () => Use, createPatternMatcher: () => x_e, createPrinter: () => pb, createPrinterWithDefaults: () => Xle, createPrinterWithRemoveComments: () => IS, createPrinterWithRemoveCommentsNeverAsciiEscape: () => Kle, createPrinterWithRemoveCommentsOmitTrailingSemicolon: () => EH, createProgram: () => a8, createProgramDiagnostics: () => uue, createProgramHost: () => hG, createPropertyNameNodeForIdentifierOrLiteral: () => eO, createQueue: () => h4, createRange: () => Qp, createRedirectedBuilderProgram: () => QH, createResolutionCache: () => nG, createRuntimeTypeSerializer: () => kle, createScanner: () => wg, createSemanticDiagnosticsBuilderProgram: () => iAe, createSet: () => oW, createSolutionBuilder: () => Uue, createSolutionBuilderHost: () => Bue, createSolutionBuilderWithWatch: () => Wue, createSolutionBuilderWithWatchHost: () => Jue, createSortedArray: () => QU, createSourceFile: () => jC, createSourceMapGenerator: () => ile, createSourceMapSource: () => T2e, createSuperAccessVariableStatement: () => M9, createSymbolTable: () => _s, createSymlinkCache: () => YV, createSyntacticTypeNodeBuilder: () => sfe, createSystemWatchFunctions: () => lre, createTextChange: () => S8, createTextChangeFromStartLength: () => RM, createTextChangeRange: () => P4, createTextRangeFromNode: () => cY, createTextRangeFromSpan: () => FM, createTextSpan: () => Fu, createTextSpanFromBounds: () => ll, createTextSpanFromNode: () => Gf, createTextSpanFromRange: () => j0, createTextSpanFromStringLiteralLikeContent: () => oY, createTextWriter: () => O3, createTokenRange: () => FV, createTypeChecker: () => nle, createTypeReferenceDirectiveResolutionCache: () => v9, createTypeReferenceResolutionLoader: () => $9, createWatchCompilerHost: () => mAe, createWatchCompilerHostOfConfigFile: () => gG, createWatchCompilerHostOfFilesAndCompilerOptions: () => yG, createWatchFactory: () => dG, createWatchHost: () => pG, createWatchProgram: () => vG, createWatchStatusReporter: () => rG, createWriteFileMeasuringIO: () => RH, declarationNameToString: () => Bo, decodeMappings: () => oH, decodedTextSpanIntersectsWith: () => N4, deduplicate: () => WT, defaultHoverMaximumTruncationLength: () => gie, defaultInitCompilerOptions: () => yke, defaultMaximumTruncationLength: () => MD, diagnosticCategoryName: () => xx, diagnosticToString: () => FS, diagnosticsEqualityComparer: () => XR, directoryProbablyExists: () => km, directorySeparator: () => Xo, displayPart: () => A_, displayPartsToString: () => W8, disposeEmitNodes: () => A$, documentSpansEqual: () => yY, dumpTracingLegend: () => ane, elementAt: () => wv, elideNodes: () => Hoe, emitDetachedComments: () => Eae, emitFiles: () => wH, emitFilesAndReportErrors: () => iM, emitFilesAndReportErrorsAndGetExitStatus: () => _G, emitModuleKindIsNonNodeESM: () => H3, emitNewLineBeforeLeadingCommentOfPosition: () => Aae, emitResolverSkipsTypeChecking: () => CH, emitSkippedWithNoDiagnostics: () => zH, emptyArray: () => ae, emptyFileSystemEntries: () => r$, emptyMap: () => At, emptyOptions: () => Rd, endsWith: () => rc, ensurePathIsNonModuleName: () => kx, ensureScriptKind: () => sL, ensureTrailingDirectorySeparator: () => Kl, entityNameToString: () => W_, enumerateInsertsAndDeletes: () => c5, equalOwnProperties: () => Lte, equateStringsCaseInsensitive: () => Nv, equateStringsCaseSensitive: () => $T, equateValues: () => Dv, escapeJsxAttributeString: () => hV, escapeLeadingUnderscores: () => Oc, escapeNonAsciiString: () => IR, escapeSnippetText: () => mS, escapeString: () => Xh, escapeTemplateSubstitution: () => dV, evaluatorResult: () => Zl, every: () => jn, exclusivelyPrefixedNodeCoreModules: () => TL, executeCommandLine: () => GAe, expandPreOrPostfixIncrementOrDecrementExpression: () => $L, explainFiles: () => oG, explainIfFileIsRedirectAndImpliedFormat: () => cG, exportAssignmentIsAlias: () => w3, expressionResultIsUnused: () => kse, extend: () => aW, extensionFromPath: () => bN, extensionIsTS: () => fL, extensionsNotSupportingExtensionlessResolution: () => uL, externalHelpersModuleNameText: () => zv, factory: () => R, fileExtensionIs: () => Ac, fileExtensionIsOneOf: () => nl, fileIncludeReasonToDiagnostics: () => fG, fileShouldUseJavaScriptRequire: () => BY, filter: () => Nn, filterMutate: () => tc, filterSemanticDiagnostics: () => Y9, find: () => $t, findAncestor: () => On, findBestPatternMatch: () => pW, findChildOfKind: () => Eo, findComputedPropertyNameCacheAssignment: () => KL, findConfigFile: () => PH, findConstructorDeclaration: () => iO, findContainingList: () => AM, findDiagnosticForNode: () => l_e, findFirstNonJsxWhitespaceToken: () => Pfe, findIndex: () => Hr, findLast: () => si, findLastIndex: () => br, findListItemInfo: () => Nfe, findModifier: () => $E, findNextToken: () => OS, findPackageJson: () => c_e, findPackageJsons: () => NY, findPrecedingMatchingToken: () => PM, findPrecedingToken: () => ql, findSuperStatementIndexPath: () => N9, findTokenOnLeftOfPosition: () => xP, findUseStrictPrologue: () => rq, first: () => Qs, firstDefined: () => an, firstDefinedIterator: () => ir, firstIterator: () => tW, firstOrOnly: () => RY, firstOrUndefined: () => Il, firstOrUndefinedIterator: () => r5, fixupCompilerOptions: () => tX, flatMap: () => oa, flatMapIterator: () => Km, flatMapToMutable: () => L_, flatten: () => Is, flattenCommaList: () => Xoe, flattenDestructuringAssignment: () => d2, flattenDestructuringBinding: () => ES, flattenDiagnosticMessageText: () => Th, forEach: () => Ne, forEachAncestor: () => bie, forEachAncestorDirectory: () => bD, forEachAncestorDirectoryStoppingAtGlobalCache: () => Zh, forEachChild: () => qa, forEachChildRecursively: () => MC, forEachDynamicImportOrRequireCall: () => SL, forEachEmittedFile: () => TH, forEachEnclosingBlockScopeContainer: () => Rie, forEachEntry: () => Ql, forEachExternalModuleToImportFrom: () => WY, forEachImportClauseDeclaration: () => cae, forEachKey: () => Dg, forEachLeadingCommentRange: () => C4, forEachNameInAccessChainWalkingLeft: () => Gae, forEachNameOfDefaultExport: () => ij, forEachOptionsSyntaxByName: () => S$, forEachProjectReference: () => DN, forEachPropertyAssignment: () => jA, forEachResolvedProjectReference: () => b$, forEachReturnStatement: () => Hv, forEachRight: () => En, forEachTrailingCommentRange: () => w4, forEachTsConfigPropArray: () => a3, forEachUnique: () => bY, forEachYieldExpression: () => zie, formatColorAndReset: () => DS, formatDiagnostic: () => LH, formatDiagnostics: () => Pwe, formatDiagnosticsWithColorAndContext: () => sue, formatGeneratedName: () => O1, formatGeneratedNamePart: () => xE, formatLocation: () => MH, formatMessage: () => dC, formatStringFromArgs: () => Mg, formatting: () => Rl, generateDjb2Hash: () => gD, generateTSConfig: () => vce, getAdjustedReferenceLocation: () => ZG, getAdjustedRenameLocation: () => IM, getAliasDeclarationFromName: () => iV, getAllAccessorDeclarations: () => uS, getAllDecoratorsOfClass: () => _H, getAllDecoratorsOfClassElement: () => O9, getAllJSDocTags: () => I5, getAllJSDocTagsOfKind: () => kxe, getAllKeys: () => ASe, getAllProjectOutputs: () => j9, getAllSuperTypeNodes: () => ZD, getAllowImportingTsExtensions: () => tse, getAllowJSCompilerOption: () => eb, getAllowSyntheticDefaultImports: () => mC, getAncestor: () => y1, getAnyExtensionFromPath: () => jk, getAreDeclarationMapsEnabled: () => KR, getAssignedExpandoInitializer: () => Zk, getAssignedName: () => w5, getAssignmentDeclarationKind: () => ul, getAssignmentDeclarationPropertyAccessKind: () => g3, getAssignmentTargetKind: () => Gv, getAutomaticTypeDirectiveNames: () => g9, getBaseFileName: () => Dl, getBinaryOperatorPrecedence: () => D3, getBuildInfo: () => AH, getBuildInfoFileVersionMap: () => KH, getBuildInfoText: () => Gle, getBuildOrderFromAnyBuildOrder: () => u8, getBuilderCreationParameters: () => Z9, getBuilderFileEmit: () => db, getCanonicalDiagnostic: () => Jie, getCheckFlags: () => Uc, getClassExtendsHeritageElement: () => sS, getClassLikeDeclarationOfSymbol: () => Ny, getCombinedLocalAndExportSymbolFlags: () => QA, getCombinedModifierFlags: () => c1, getCombinedNodeFlags: () => xy, getCombinedNodeFlagsAlwaysIncludeJSDoc: () => ZW, getCommentRange: () => ph, getCommonSourceDirectory: () => pP, getCommonSourceDirectoryOfConfig: () => m2, getCompilerOptionValue: () => eL, getConditions: () => ub, getConfigFileParsingDiagnostics: () => NS, getConstantValue: () => Gse, getContainerFlags: () => qq, getContainerNode: () => y2, getContainingClass: () => ku, getContainingClassExcludingClassDecorators: () => uR, getContainingClassStaticBlock: () => Kie, getContainingFunction: () => Tp, getContainingFunctionDeclaration: () => Xie, getContainingFunctionOrClassStaticBlock: () => lR, getContainingNodeArray: () => Cse, getContainingObjectLiteralElement: () => z8, getContextualTypeFromParent: () => VM, getContextualTypeFromParentOrAncestorTypeNode: () => EM, getDeclarationDiagnostics: () => zle, getDeclarationEmitExtensionForPath: () => PR, getDeclarationEmitOutputFilePath: () => xae, getDeclarationEmitOutputFilePathWorker: () => NR, getDeclarationFileExtension: () => ZL, getDeclarationFromName: () => QD, getDeclarationModifierFlagsFromSymbol: () => ed, getDeclarationOfKind: () => lc, getDeclarationsOfKind: () => yie, getDeclaredExpandoInitializer: () => GD, getDecorators: () => Lv, getDefaultCompilerOptions: () => bj, getDefaultFormatCodeSettings: () => yM, getDefaultLibFileName: () => E4, getDefaultLibFilePath: () => Ype, getDefaultLikeExportInfo: () => rj, getDefaultLikeExportNameFromDeclaration: () => LY, getDefaultResolutionModeForFileWorker: () => G9, getDiagnosticText: () => __, getDiagnosticsWithinSpan: () => u_e, getDirectoryPath: () => hi, getDirectoryToWatchFailedLookupLocation: () => tG, getDirectoryToWatchFailedLookupLocationFromTypeRoot: () => Nue, getDocumentPositionMapper: () => XY, getDocumentSpansEqualityComparer: () => vY, getESModuleInterop: () => fh, getEditsForFileRename: () => b_e, getEffectiveBaseTypeNode: () => xm, getEffectiveConstraintOfTypeParameter: () => wA, getEffectiveContainerForJSDocTemplateTag: () => SR, getEffectiveImplementsTypeNodes: () => $A, getEffectiveInitializer: () => d3, getEffectiveJSDocHost: () => g1, getEffectiveModifierFlags: () => Yu, getEffectiveModifierFlagsAlwaysIncludeJSDoc: () => Pae, getEffectiveModifierFlagsNoCache: () => Oae, getEffectiveReturnTypeNode: () => $_, getEffectiveSetAccessorTypeAnnotationNode: () => kV, getEffectiveTypeAnnotationNode: () => Nl, getEffectiveTypeParameterDeclarations: () => Mv, getEffectiveTypeRoots: () => QN, getElementOrPropertyAccessArgumentExpressionOrName: () => TR, getElementOrPropertyAccessName: () => wy, getElementsOfBindingOrAssignmentPattern: () => SE, getEmitDeclarations: () => C_, getEmitFlags: () => Zs, getEmitHelpers: () => E$, getEmitModuleDetectionKind: () => nse, getEmitModuleFormatOfFileWorker: () => gP, getEmitModuleKind: () => Df, getEmitModuleResolutionKind: () => pf, getEmitScriptTarget: () => zs, getEmitStandardClassFields: () => HV, getEnclosingBlockScopeContainer: () => Sm, getEnclosingContainer: () => tR, getEncodedSemanticClassifications: () => zY, getEncodedSyntacticClassifications: () => VY, getEndLinePosition: () => Y4, getEntityNameFromTypeNode: () => c3, getEntrypointsFromPackageJsonInfo: () => Uq, getErrorCountForSummary: () => nM, getErrorSpanForNode: () => Rx, getErrorSummaryText: () => aG, getEscapedTextOfIdentifierOrLiteral: () => nN, getEscapedTextOfJsxAttributeName: () => EN, getEscapedTextOfJsxNamespacedName: () => vC, getExpandoInitializer: () => m1, getExportAssignmentExpression: () => aV, getExportInfoMap: () => R8, getExportNeedsImportStarHelper: () => ule, getExpressionAssociativity: () => _V, getExpressionPrecedence: () => iN, getExternalHelpersModuleName: () => SO, getExternalModuleImportEqualsDeclarationExpression: () => $D, getExternalModuleName: () => tC, getExternalModuleNameFromDeclaration: () => Tae, getExternalModuleNameFromPath: () => vV, getExternalModuleNameLiteral: () => LC, getExternalModuleRequireArgument: () => Gz, getFallbackOptions: () => n8, getFileEmitOutput: () => fue, getFileMatcherPatterns: () => aL, getFileNamesFromConfigSpecs: () => XN, getFileWatcherEventKind: () => BW, getFilesInErrorForSummary: () => rM, getFirstConstructorWithBody: () => Rg, getFirstIdentifier: () => Wf, getFirstNonSpaceCharacterPosition: () => n_e, getFirstProjectOutput: () => kH, getFixableErrorSpanExpression: () => OY, getFormatCodeSettingsForWriting: () => ej, getFullWidth: () => H4, getFunctionFlags: () => ml, getHeritageClause: () => A3, getHostSignatureFromJSDoc: () => h1, getIdentifierAutoGenerate: () => k2e, getIdentifierGeneratedImportReference: () => eoe, getIdentifierTypeArguments: () => Xx, getImmediatelyInvokedFunctionExpression: () => p1, getImpliedNodeFormatForEmitWorker: () => h2, getImpliedNodeFormatForFile: () => i8, getImpliedNodeFormatForFileWorker: () => H9, getImportNeedsImportDefaultHelper: () => lH, getImportNeedsImportStarHelper: () => I9, getIndentString: () => DR, getInferredLibraryNameResolveFrom: () => q9, getInitializedVariables: () => _N, getInitializerOfBinaryExpression: () => Qz, getInitializerOfBindingOrAssignmentElement: () => kO, getInterfaceBaseTypeNodes: () => eN, getInternalEmitFlags: () => Xd, getInvokedExpression: () => pR, getIsFileExcluded: () => m_e, getIsolatedModules: () => Nd, getJSDocAugmentsTag: () => Ure, getJSDocClassTag: () => nz, getJSDocCommentRanges: () => zz, getJSDocCommentsAndTags: () => Zz, getJSDocDeprecatedTag: () => rz, getJSDocDeprecatedTagNoCache: () => Gre, getJSDocEnumTag: () => iz, getJSDocHost: () => iS, getJSDocImplementsTags: () => Wre, getJSDocOverloadTags: () => tV, getJSDocOverrideTagNoCache: () => Hre, getJSDocParameterTags: () => CA, getJSDocParameterTagsNoCache: () => Mre, getJSDocPrivateTag: () => bxe, getJSDocPrivateTagNoCache: () => Vre, getJSDocProtectedTag: () => Txe, getJSDocProtectedTagNoCache: () => $re, getJSDocPublicTag: () => vxe, getJSDocPublicTagNoCache: () => zre, getJSDocReadonlyTag: () => Sxe, getJSDocReadonlyTagNoCache: () => qre, getJSDocReturnTag: () => Yre, getJSDocReturnType: () => F4, getJSDocRoot: () => VA, getJSDocSatisfiesExpressionType: () => p$, getJSDocSatisfiesTag: () => az, getJSDocTags: () => u1, getJSDocTemplateTag: () => xxe, getJSDocThisTag: () => A5, getJSDocType: () => v0, getJSDocTypeAliasName: () => sq, getJSDocTypeAssertionType: () => bE, getJSDocTypeParameterDeclarations: () => MR, getJSDocTypeParameterTags: () => jre, getJSDocTypeParameterTagsNoCache: () => Bre, getJSDocTypeTag: () => l1, getJSXImplicitImportBase: () => G3, getJSXRuntimeImport: () => nL, getJSXTransformEnabled: () => tL, getKeyForCompilerOptions: () => Lq, getLanguageVariant: () => W3, getLastChild: () => JV, getLeadingCommentRanges: () => Cg, getLeadingCommentRangesOfNode: () => Wz, getLeftmostAccessExpression: () => ZA, getLeftmostExpression: () => eE, getLibFileNameFromLibReference: () => v$, getLibNameFromLibReference: () => y$, getLibraryNameFromLibFileName: () => UH, getLineAndCharacterOfPosition: () => fs, getLineInfo: () => sH, getLineOfLocalPosition: () => sN, getLineStartPositionForPosition: () => Ld, getLineStarts: () => xg, getLinesBetweenPositionAndNextNonWhitespaceCharacter: () => $ae, getLinesBetweenPositionAndPrecedingNonWhitespaceCharacter: () => Vae, getLinesBetweenPositions: () => SD, getLinesBetweenRangeEndAndRangeStart: () => RV, getLinesBetweenRangeEndPositions: () => Zxe, getLiteralText: () => Eie, getLocalNameForExternalImport: () => TE, getLocalSymbolForExportDefault: () => uN, getLocaleSpecificMessage: () => Va, getLocaleTimeString: () => l8, getMappedContextSpan: () => TY, getMappedDocumentSpan: () => UM, getMappedLocation: () => AP, getMatchedFileSpec: () => lG, getMatchedIncludeSpec: () => uG, getMeaningFromDeclaration: () => bM, getMeaningFromLocation: () => g2, getMembersOfDeclaration: () => Vie, getModeForFileReference: () => oue, getModeForResolutionAtIndex: () => jwe, getModeForUsageLocation: () => BH, getModifiedTime: () => Mk, getModifiers: () => HT, getModuleInstanceState: () => Ly, getModuleNameStringLiteralAt: () => s8, getModuleSpecifierEndingPreference: () => mse, getModuleSpecifierResolverHost: () => _Y, getNameForExportedSymbol: () => KM, getNameFromImportAttribute: () => yL, getNameFromIndexInfo: () => Lie, getNameFromPropertyName: () => k8, getNameOfAccessExpression: () => WV, getNameOfCompilerOptionValue: () => c9, getNameOfDeclaration: () => Ra, getNameOfExpando: () => Yz, getNameOfJSDocTypedef: () => Lre, getNameOfScriptTarget: () => ZR, getNameOrArgument: () => h3, getNameTable: () => wX, getNamespaceDeclarationNode: () => WA, getNewLineCharacter: () => w0, getNewLineKind: () => F8, getNewLineOrDefaultFromHost: () => jy, getNewTargetContainer: () => Zie, getNextJSDocCommentLocation: () => eV, getNodeChildren: () => K$, getNodeForGeneratedName: () => wO, getNodeId: () => lo, getNodeKind: () => PS, getNodeModifiers: () => kP, getNodeModulePathParts: () => mL, getNonAssignedNameOfDeclaration: () => C5, getNonAssignmentOperatorForCompoundAssignment: () => sP, getNonAugmentationDeclaration: () => Rz, getNonDecoratorTokenPosOfNode: () => Iz, getNonIncrementalBuildInfoRoots: () => wue, getNonModifierTokenPosOfNode: () => wie, getNormalizedAbsolutePath: () => va, getNormalizedAbsolutePathWithoutRoot: () => zW, getNormalizedPathComponents: () => g5, getObjectFlags: () => Kr, getOperatorAssociativity: () => pV, getOperatorPrecedence: () => I3, getOptionFromName: () => Sq, getOptionsForLibraryResolution: () => Mq, getOptionsNameMap: () => CE, getOptionsSyntaxByArrayElementValue: () => T$, getOptionsSyntaxByValue: () => Mse, getOrCreateEmitNode: () => Ku, getOrUpdate: () => Dk, getOriginalNode: () => Sc, getOriginalNodeId: () => Hf, getOutputDeclarationFileName: () => _P, getOutputDeclarationFileNameWorker: () => SH, getOutputExtension: () => ZO, getOutputFileNames: () => Dwe, getOutputJSFileNameWorker: () => xH, getOutputPathsFor: () => fP, getOwnEmitOutputFilePath: () => Sae, getOwnKeys: () => Qm, getOwnValues: () => Ok, getPackageJsonTypesVersionsPaths: () => h9, getPackageNameFromTypesPackageName: () => nP, getPackageScopeForPath: () => tP, getParameterSymbolFromJSDoc: () => x3, getParentNodeInSpan: () => w8, getParseTreeNode: () => za, getParsedCommandLineOfConfigFile: () => PO, getPathComponents: () => Gu, getPathFromPathComponents: () => o1, getPathUpdater: () => HY, getPathsBasePath: () => OR, getPatternFromSpec: () => QV, getPendingEmitKindWithSeen: () => Q9, getPositionOfLineAndCharacter: () => x4, getPossibleGenericSignatures: () => tY, getPossibleOriginalInputExtensionForExtension: () => bV, getPossibleOriginalInputPathWithoutChangingExt: () => TV, getPossibleTypeArgumentsInfo: () => nY, getPreEmitDiagnostics: () => Nwe, getPrecedingNonSpaceCharacterPosition: () => WM, getPrivateIdentifier: () => pH, getProperties: () => fH, getProperty: () => d4, getPropertyAssignmentAliasLikeExpression: () => mae, getPropertyNameForPropertyNameNode: () => zx, getPropertyNameFromType: () => nd, getPropertyNameOfBindingOrAssignmentElement: () => aq, getPropertySymbolFromBindingElement: () => JM, getPropertySymbolsFromContextualType: () => Sj, getQuoteFromPreference: () => dY, getQuotePreference: () => Q_, getRangesWhere: () => KU, getRefactorContextSpan: () => KC, getReferencedFileLocation: () => hP, getRegexFromPattern: () => A0, getRegularExpressionForWildcard: () => gN, getRegularExpressionsForWildcards: () => rL, getRelativePathFromDirectory: () => bp, getRelativePathFromFile: () => TA, getRelativePathToDirectoryOrUrl: () => Jk, getRenameLocation: () => E8, getReplacementSpanForContextToken: () => sY, getResolutionDiagnostic: () => $H, getResolutionModeOverride: () => FE, getResolveJsonModule: () => _S, getResolvePackageJsonExports: () => V3, getResolvePackageJsonImports: () => $3, getResolvedExternalModuleName: () => yV, getResolvedModuleFromResolution: () => Yk, getResolvedTypeReferenceDirectiveFromResolution: () => H5, getRestIndicatorOfBindingOrAssignmentElement: () => GL, getRestParameterElementType: () => Vz, getRightMostAssignedExpression: () => m3, getRootDeclaration: () => oh, getRootDirectoryOfResolutionCache: () => Pue, getRootLength: () => vm, getScriptKind: () => CY, getScriptKindFromFileName: () => oL, getScriptTargetFeatures: () => Dz, getSelectedEffectiveModifierFlags: () => oC, getSelectedSyntacticModifierFlags: () => Dae, getSemanticClassifications: () => h_e, getSemanticJsxChildren: () => HA, getSetAccessorTypeAnnotationNode: () => Cae, getSetAccessorValueParameter: () => oN, getSetExternalModuleIndicator: () => z3, getShebang: () => x5, getSingleVariableOfVariableStatement: () => iC, getSnapshotText: () => XC, getSnippetElement: () => I$, getSourceFileOfModule: () => G4, getSourceFileOfNode: () => zn, getSourceFilePathInNewDir: () => RR, getSourceFileVersionAsHashFromText: () => aM, getSourceFilesToEmit: () => FR, getSourceMapRange: () => D0, getSourceMapper: () => P_e, getSourceTextOfNodeFromSourceFile: () => QT, getSpanOfTokenAtPosition: () => rh, getSpellingSuggestion: () => qT, getStartPositionOfLine: () => Vv, getStartPositionOfRange: () => fN, getStartsOnNewLine: () => NN, getStaticPropertiesAndClassStaticBlock: () => P9, getStrictOptionValue: () => Xu, getStringComparer: () => hA, getSubPatternFromSpec: () => iL, getSuperCallFromStatement: () => D9, getSuperContainer: () => s3, getSupportedCodeFixes: () => kX, getSupportedExtensions: () => yN, getSupportedExtensionsWithJsonIfResolveJsonModule: () => X3, getSwitchedType: () => EY, getSymbolId: () => Ss, getSymbolNameForPrivateIdentifier: () => E3, getSymbolTarget: () => wY, getSyntacticClassifications: () => g_e, getSyntacticModifierFlags: () => k0, getSyntacticModifierFlagsNoCache: () => AV, getSynthesizedDeepClone: () => bo, getSynthesizedDeepCloneWithReplacements: () => aO, getSynthesizedDeepClones: () => hS, getSynthesizedDeepClonesWithReplacements: () => x$, getSyntheticLeadingComments: () => sE, getSyntheticTrailingComments: () => uO, getTargetLabel: () => xM, getTargetOfBindingOrAssignmentElement: () => cb, getTemporaryModuleResolutionState: () => eP, getTextOfConstantValue: () => Iie, getTextOfIdentifierOrLiteral: () => Kp, getTextOfJSDocComment: () => R4, getTextOfJsxAttributeName: () => rO, getTextOfJsxNamespacedName: () => IN, getTextOfNode: () => Ec, getTextOfNodeFromSourceText: () => BD, getTextOfPropertyName: () => Qk, getThisContainer: () => If, getThisParameter: () => cS, getTokenAtPosition: () => Wi, getTokenPosOfNode: () => $v, getTokenSourceMapRange: () => S2e, getTouchingPropertyName: () => p_, getTouchingToken: () => zE, getTrailingCommentRanges: () => Rv, getTrailingSemicolonDeferringWriter: () => gV, getTransformers: () => $le, getTsBuildInfoEmitOutputFilePath: () => B1, getTsConfigObjectLiteralExpression: () => zD, getTsConfigPropArrayElementValue: () => cR, getTypeAnnotationNode: () => wae, getTypeArgumentOrTypeParameterList: () => Bfe, getTypeKeywordOfTypeOnlyImport: () => gY, getTypeNode: () => Qse, getTypeNodeIfAccessible: () => PP, getTypeParameterFromJsDoc: () => lae, getTypeParameterOwner: () => mxe, getTypesPackageName: () => x9, getUILocale: () => Ute, getUniqueName: () => b2, getUniqueSymbolId: () => t_e, getUseDefineForClassFields: () => q3, getWatchErrorSummaryDiagnosticMessage: () => iG, getWatchFactory: () => NH, group: () => mA, groupBy: () => iW, guessIndentation: () => mie, handleNoEmitOptions: () => VH, handleWatchOptionsConfigDirTemplateSubstitution: () => u9, hasAbstractModifier: () => fS, hasAccessorModifier: () => ch, hasAmbientModifier: () => wV, hasChangesInResolutions: () => wz, hasContextSensitiveParameters: () => dL, hasDecorators: () => xp, hasDocComment: () => Mfe, hasDynamicName: () => Ay, hasEffectiveModifier: () => q_, hasEffectiveModifiers: () => CV, hasEffectiveReadonlyModifier: () => $x, hasExtension: () => bA, hasImplementationTSFileExtension: () => pse, hasIndexSignature: () => AY, hasInferredType: () => bL, hasInitializer: () => T0, hasInvalidEscape: () => mV, hasJSDocNodes: () => pp, hasJSDocParameterTags: () => Jre, hasJSFileExtension: () => jg, hasJsonModuleEmitEnabled: () => QR, hasOnlyExpressionInitializer: () => Ox, hasOverrideModifier: () => jR, hasPossibleExternalModuleReference: () => Fie, hasProperty: () => No, hasPropertyAccessExpressionWithName: () => h8, hasQuestionToken: () => nC, hasRecordedExternalHelpers: () => joe, hasResolutionModeOverride: () => Dse, hasRestParameter: () => Tz, hasScopeMarker: () => sie, hasStaticModifier: () => Ul, hasSyntacticModifier: () => gi, hasSyntacticModifiers: () => Iae, hasTSFileExtension: () => Hx, hasTabstop: () => Ase, hasTrailingDirectorySeparator: () => Ov, hasType: () => W5, hasTypeArguments: () => zxe, hasZeroOrOneAsteriskCharacter: () => GV, hostGetCanonicalFileName: () => Ey, hostUsesCaseSensitiveFileNames: () => Vx, idText: () => Xr, identifierIsThisKeyword: () => xV, identifierToKeywordKind: () => Ax, identity: () => $o, identitySourceMapConsumer: () => cH, ignoreSourceNewlines: () => N$, ignoredPaths: () => d5, importFromModuleSpecifier: () => XD, importSyntaxAffectsModuleResolution: () => qV, indexOfAnyCharCode: () => vo, indexOfNode: () => OA, indicesOf: () => n5, inferredTypesContainingFile: () => mP, injectClassNamedEvaluationHelperBlockIfMissing: () => L9, injectClassThisAssignmentIfMissing: () => yle, insertImports: () => hY, insertSorted: () => Cv, insertStatementAfterCustomPrologue: () => Fx, insertStatementAfterStandardPrologue: () => Lxe, insertStatementsAfterCustomPrologue: () => Az, insertStatementsAfterStandardPrologue: () => Ng, intersperse: () => us, intrinsicTagNameToString: () => d$, introducesArgumentsExoticObject: () => Hie, inverseJsxOptionMap: () => DO, isAbstractConstructorSymbol: () => qae, isAbstractModifier: () => uoe, isAccessExpression: () => Ko, isAccessibilityModifier: () => iY, isAccessor: () => Uv, isAccessorModifier: () => M$, isAliasableExpression: () => xR, isAmbientModule: () => Ef, isAmbientPropertyDeclaration: () => Mz, isAnyDirectorySeparator: () => JW, isAnyImportOrBareOrAccessedRequire: () => Pie, isAnyImportOrReExport: () => Q4, isAnyImportOrRequireStatement: () => Oie, isAnyImportSyntax: () => Kk, isAnySupportedFileExtension: () => p2e, isApplicableVersionedTypesKey: () => JO, isArgumentExpressionOfElementAccess: () => HG, isArray: () => Da, isArrayBindingElement: () => L5, isArrayBindingOrAssignmentElement: () => U4, isArrayBindingOrAssignmentPattern: () => mz, isArrayBindingPattern: () => F0, isArrayLiteralExpression: () => ju, isArrayLiteralOrObjectLiteralDestructuringPattern: () => M0, isArrayTypeNode: () => dO, isArrowFunction: () => Qo, isAsExpression: () => fE, isAssertClause: () => yoe, isAssertEntry: () => O2e, isAssertionExpression: () => KT, isAssertsKeyword: () => coe, isAssignmentDeclaration: () => HD, isAssignmentExpression: () => fu, isAssignmentOperator: () => Iy, isAssignmentPattern: () => RD, isAssignmentTarget: () => Yv, isAsteriskToken: () => _O, isAsyncFunction: () => tN, isAsyncModifier: () => FN, isAutoAccessorPropertyDeclaration: () => a_, isAwaitExpression: () => sb, isAwaitKeyword: () => L$, isBigIntLiteral: () => oE, isBinaryExpression: () => Or, isBinaryLogicalOperator: () => F3, isBinaryOperatorToken: () => qoe, isBindableObjectDefinePropertyCall: () => Bx, isBindableStaticAccessExpression: () => rS, isBindableStaticElementAccessExpression: () => bR, isBindableStaticNameExpression: () => Jx, isBindingElement: () => Hs, isBindingElementOfBareOrAccessedRequire: () => nae, isBindingName: () => Nx, isBindingOrAssignmentElement: () => nie, isBindingOrAssignmentPattern: () => B4, isBindingPattern: () => Qa, isBlock: () => es, isBlockLike: () => QC, isBlockOrCatchScoped: () => Nz, isBlockScope: () => jz, isBlockScopedContainerTopLevel: () => Nie, isBooleanLiteral: () => FD, isBreakOrContinueStatement: () => DD, isBreakStatement: () => D2e, isBuildCommand: () => efe, isBuildInfoFile: () => qle, isBuilderProgram: () => sG, isBundle: () => Soe, isCallChain: () => Ex, isCallExpression: () => Za, isCallExpressionTarget: () => UG, isCallLikeExpression: () => XT, isCallLikeOrFunctionLikeExpression: () => hz, isCallOrNewExpression: () => th, isCallOrNewExpressionTarget: () => WG, isCallSignatureDeclaration: () => AC, isCallToHelper: () => ON, isCaseBlock: () => UN, isCaseClause: () => mE, isCaseKeyword: () => _oe, isCaseOrDefaultClause: () => J5, isCatchClause: () => xS, isCatchClauseVariableDeclaration: () => wse, isCatchClauseVariableDeclarationOrBindingElement: () => Pz, isCheckJsEnabledForFile: () => TN, isCircularBuildOrder: () => GC, isClassDeclaration: () => Ol, isClassElement: () => Cl, isClassExpression: () => hl, isClassInstanceProperty: () => eie, isClassLike: () => vi, isClassMemberModifier: () => _z, isClassNamedEvaluationHelperBlock: () => $C, isClassOrTypeElement: () => R5, isClassStaticBlockDeclaration: () => rl, isClassThisAssignmentBlock: () => cP, isColonToken: () => soe, isCommaExpression: () => TO, isCommaListExpression: () => BN, isCommaSequence: () => qN, isCommaToken: () => aoe, isComment: () => OM, isCommonJsExportPropertyAssignment: () => sR, isCommonJsExportedExpression: () => $ie, isCompoundAssignment: () => aP, isComputedNonLiteralName: () => Z4, isComputedPropertyName: () => bs, isConciseBody: () => j5, isConditionalExpression: () => t2, isConditionalTypeNode: () => yS, isConstAssertion: () => m$, isConstTypeReference: () => Gd, isConstructSignatureDeclaration: () => MN, isConstructorDeclaration: () => Rc, isConstructorTypeNode: () => cE, isContextualKeyword: () => CR, isContinueStatement: () => I2e, isCustomPrologue: () => i3, isDebuggerStatement: () => N2e, isDeclaration: () => uu, isDeclarationBindingElement: () => j4, isDeclarationFileName: () => pu, isDeclarationName: () => Yh, isDeclarationNameOfEnumOrNamespace: () => MV, isDeclarationReadonly: () => t3, isDeclarationStatement: () => uie, isDeclarationWithTypeParameterChildren: () => Jz, isDeclarationWithTypeParameters: () => Bz, isDecorator: () => zl, isDecoratorTarget: () => wfe, isDefaultClause: () => WN, isDefaultImport: () => Ux, isDefaultModifier: () => PL, isDefaultedExpandoInitializer: () => rae, isDeleteExpression: () => doe, isDeleteTarget: () => rV, isDeprecatedDeclaration: () => QM, isDestructuringAssignment: () => C0, isDiskPathRoot: () => UW, isDoStatement: () => E2e, isDocumentRegistryEntry: () => L8, isDotDotDotToken: () => DL, isDottedName: () => L3, isDynamicName: () => AR, isEffectiveExternalModule: () => FA, isEffectiveStrictModeSourceFile: () => Lz, isElementAccessChain: () => sz, isElementAccessExpression: () => Uo, isEmittedFileOfProgram: () => Zle, isEmptyArrayLiteral: () => Mae, isEmptyBindingElement: () => Ore, isEmptyBindingPattern: () => Pre, isEmptyObjectLiteral: () => PV, isEmptyStatement: () => J$, isEmptyStringLiteral: () => Hz, isEntityName: () => Jf, isEntityNameExpression: () => Po, isEnumConst: () => _1, isEnumDeclaration: () => I1, isEnumMember: () => Fy, isEqualityOperatorKind: () => $M, isEqualsGreaterThanToken: () => ooe, isExclamationToken: () => pO, isExcludedFile: () => Tce, isExclusivelyTypeOnlyImportOrExport: () => jH, isExpandoPropertyDeclaration: () => bC, isExportAssignment: () => fc, isExportDeclaration: () => yl, isExportModifier: () => CC, isExportName: () => qL, isExportNamespaceAsDefaultDeclaration: () => Q5, isExportOrDefaultModifier: () => CO, isExportSpecifier: () => df, isExportsIdentifier: () => jx, isExportsOrModuleExportsOrAlias: () => wS, isExpression: () => kt, isExpressionNode: () => Gh, isExpressionOfExternalModuleImportEqualsDeclaration: () => Ife, isExpressionOfOptionalChainRoot: () => N5, isExpressionStatement: () => _u, isExpressionWithTypeArguments: () => Py, isExpressionWithTypeArgumentsInClassExtendsClause: () => JR, isExternalModule: () => $l, isExternalModuleAugmentation: () => eS, isExternalModuleImportEqualsDeclaration: () => d1, isExternalModuleIndicator: () => z4, isExternalModuleNameRelative: () => cu, isExternalModuleReference: () => Oy, isExternalModuleSymbol: () => Hk, isExternalOrCommonJsModule: () => z_, isFileLevelReservedGeneratedIdentifier: () => M4, isFileLevelUniqueName: () => X5, isFileProbablyExternalModule: () => EO, isFirstDeclarationOfSymbolParameter: () => SY, isFixablePromiseHandler: () => ZY, isForInOrOfStatement: () => Px, isForInStatement: () => ML, isForInitializer: () => Gp, isForOfStatement: () => hO, isForStatement: () => E1, isFullSourceFile: () => Og, isFunctionBlock: () => tS, isFunctionBody: () => yz, isFunctionDeclaration: () => il, isFunctionExpression: () => Ho, isFunctionExpressionOrArrowFunction: () => tb, isFunctionLike: () => Xa, isFunctionLikeDeclaration: () => Ro, isFunctionLikeKind: () => zk, isFunctionLikeOrClassStaticBlockDeclaration: () => IA, isFunctionOrConstructorTypeNode: () => tie, isFunctionOrModuleBlock: () => pz, isFunctionSymbol: () => sae, isFunctionTypeNode: () => Kh, isGeneratedIdentifier: () => hc, isGeneratedPrivateIdentifier: () => Dx, isGetAccessor: () => Eg, isGetAccessorDeclaration: () => rd, isGetOrSetAccessorDeclaration: () => L4, isGlobalScopeAugmentation: () => Hh, isGlobalSourceFile: () => S0, isGrammarError: () => kie, isHeritageClause: () => Y_, isHoistedFunction: () => iR, isHoistedVariableStatement: () => aR, isIdentifier: () => Xe, isIdentifierANonContextualKeyword: () => cV, isIdentifierName: () => dae, isIdentifierOrThisTypeNode: () => Woe, isIdentifierPart: () => Sy, isIdentifierStart: () => zh, isIdentifierText: () => S_, isIdentifierTypePredicate: () => Gie, isIdentifierTypeReference: () => Tse, isIfStatement: () => A1, isIgnoredFileFromWildCardWatching: () => t8, isImplicitGlob: () => KV, isImportAttribute: () => voe, isImportAttributeName: () => Zre, isImportAttributes: () => i2, isImportCall: () => o_, isImportClause: () => em, isImportDeclaration: () => xc, isImportEqualsDeclaration: () => Vl, isImportKeyword: () => LN, isImportMeta: () => MA, isImportOrExportSpecifier: () => Bv, isImportOrExportSpecifierName: () => e_e, isImportSpecifier: () => Of, isImportTypeAssertionContainer: () => P2e, isImportTypeNode: () => dh, isImportable: () => UY, isInComment: () => L0, isInCompoundLikeAssignment: () => nV, isInExpressionContext: () => dR, isInJSDoc: () => qD, isInJSFile: () => Er, isInJSXText: () => Lfe, isInJsonFile: () => hR, isInNonReferenceComment: () => Wfe, isInReferenceComment: () => Ufe, isInRightSideOfInternalImportEqualsDeclaration: () => TM, isInString: () => YC, isInTemplateString: () => eY, isInTopLevelContext: () => fR, isInTypeQuery: () => sC, isIncrementalBuildInfo: () => o8, isIncrementalBundleEmitBuildInfo: () => bue, isIncrementalCompilation: () => pS, isIndexSignatureDeclaration: () => ab, isIndexedAccessTypeNode: () => vS, isInferTypeNode: () => Qx, isInfinityOrNaNString: () => wN, isInitializedProperty: () => $O, isInitializedVariable: () => U3, isInsideJsxElement: () => NM, isInsideJsxElementOrAttribute: () => Rfe, isInsideNodeModules: () => N8, isInsideTemplateLiteral: () => T8, isInstanceOfExpression: () => UR, isInstantiatedModule: () => tH, isInterfaceDeclaration: () => wu, isInternalDeclaration: () => hie, isInternalModuleImportEqualsDeclaration: () => Mx, isInternalName: () => nq, isIntersectionTypeNode: () => DC, isIntrinsicJsxName: () => GA, isIterationStatement: () => Wv, isJSDoc: () => Im, isJSDocAllType: () => Coe, isJSDocAugmentsTag: () => RC, isJSDocAuthorTag: () => M2e, isJSDocCallbackTag: () => V$, isJSDocClassTag: () => Aoe, isJSDocCommentContainingNode: () => U5, isJSDocConstructSignature: () => rC, isJSDocDeprecatedTag: () => Y$, isJSDocEnumTag: () => yO, isJSDocFunctionType: () => gE, isJSDocImplementsTag: () => zL, isJSDocImportTag: () => vh, isJSDocIndexSignature: () => yR, isJSDocLikeText: () => fq, isJSDocLink: () => xoe, isJSDocLinkCode: () => koe, isJSDocLinkLike: () => qk, isJSDocLinkPlain: () => R2e, isJSDocMemberName: () => P1, isJSDocNameReference: () => zN, isJSDocNamepathType: () => L2e, isJSDocNamespaceBody: () => Ixe, isJSDocNode: () => DA, isJSDocNonNullableType: () => BL, isJSDocNullableType: () => hE, isJSDocOptionalParameter: () => hL, isJSDocOptionalType: () => z$, isJSDocOverloadTag: () => yE, isJSDocOverrideTag: () => UL, isJSDocParameterTag: () => Cp, isJSDocPrivateTag: () => q$, isJSDocPropertyLikeTag: () => ND, isJSDocPropertyTag: () => Eoe, isJSDocProtectedTag: () => H$, isJSDocPublicTag: () => $$, isJSDocReadonlyTag: () => G$, isJSDocReturnTag: () => WL, isJSDocSatisfiesExpression: () => _$, isJSDocSatisfiesTag: () => VL, isJSDocSeeTag: () => j2e, isJSDocSignature: () => R0, isJSDocTag: () => NA, isJSDocTemplateTag: () => Od, isJSDocThisTag: () => X$, isJSDocThrowsTag: () => J2e, isJSDocTypeAlias: () => Ed, isJSDocTypeAssertion: () => kS, isJSDocTypeExpression: () => N1, isJSDocTypeLiteral: () => s2, isJSDocTypeTag: () => VN, isJSDocTypedefTag: () => o2, isJSDocUnknownTag: () => B2e, isJSDocUnknownType: () => woe, isJSDocVariadicType: () => JL, isJSXTagName: () => JA, isJsonEqual: () => _L, isJsonSourceFile: () => Xp, isJsxAttribute: () => yh, isJsxAttributeLike: () => B5, isJsxAttributeName: () => Ise, isJsxAttributes: () => SS, isJsxCallLike: () => die, isJsxChild: () => q4, isJsxClosingElement: () => TS, isJsxClosingFragment: () => Toe, isJsxElement: () => gh, isJsxExpression: () => dE, isJsxFragment: () => D1, isJsxNamespacedName: () => Em, isJsxOpeningElement: () => Am, isJsxOpeningFragment: () => tm, isJsxOpeningLikeElement: () => _f, isJsxOpeningLikeElementTagName: () => Afe, isJsxSelfClosingElement: () => a2, isJsxSpreadAttribute: () => FC, isJsxTagNameExpression: () => LD, isJsxText: () => xC, isJumpStatementTarget: () => g8, isKeyword: () => l_, isKeywordOrPunctuation: () => kR, isKnownSymbol: () => rN, isLabelName: () => $G, isLabelOfLabeledStatement: () => VG, isLabeledStatement: () => ob, isLateVisibilityPaintedStatement: () => eR, isLeftHandSideExpression: () => s_, isLet: () => rR, isLineBreak: () => lf, isLiteralComputedPropertyDeclarationName: () => C3, isLiteralExpression: () => Ix, isLiteralExpressionOfObject: () => uz, isLiteralImportTypeNode: () => Cy, isLiteralKind: () => PD, isLiteralNameOfPropertyDeclarationOrIndexAccess: () => kM, isLiteralTypeLiteral: () => aie, isLiteralTypeNode: () => O0, isLocalName: () => Ry, isLogicalOperator: () => Fae, isLogicalOrCoalescingAssignmentExpression: () => EV, isLogicalOrCoalescingAssignmentOperator: () => cN, isLogicalOrCoalescingBinaryExpression: () => R3, isLogicalOrCoalescingBinaryOperator: () => BR, isMappedTypeNode: () => e2, isMemberName: () => Ag, isMetaProperty: () => n2, isMethodDeclaration: () => Fc, isMethodOrAccessor: () => Vk, isMethodSignature: () => Zd, isMinusToken: () => R$, isMissingDeclaration: () => F2e, isMissingPackageJsonInfo: () => Pce, isModifier: () => ws, isModifierKind: () => Jv, isModifierLike: () => gc, isModuleAugmentationExternal: () => Fz, isModuleBlock: () => mh, isModuleBody: () => oie, isModuleDeclaration: () => gl, isModuleExportName: () => jL, isModuleExportsAccessExpression: () => Fg, isModuleIdentifier: () => Xz, isModuleName: () => $oe, isModuleOrEnumDeclaration: () => V4, isModuleReference: () => _ie, isModuleSpecifierLike: () => BM, isModuleWithStringLiteralName: () => Z5, isNameOfFunctionDeclaration: () => YG, isNameOfModuleDeclaration: () => GG, isNamedDeclaration: () => lu, isNamedEvaluation: () => V_, isNamedEvaluationSource: () => lV, isNamedExportBindings: () => cz, isNamedExports: () => ad, isNamedImportBindings: () => vz, isNamedImports: () => hh, isNamedImportsOrExports: () => HR, isNamedTupleMember: () => lE, isNamespaceBody: () => Exe, isNamespaceExport: () => Qh, isNamespaceExportDeclaration: () => gO, isNamespaceImport: () => Wg, isNamespaceReexportDeclaration: () => tae, isNewExpression: () => bS, isNewExpressionTarget: () => TP, isNewScopeNode: () => Lse, isNoSubstitutionTemplateLiteral: () => Kx, isNodeArray: () => GT, isNodeArrayMultiLine: () => zae, isNodeDescendantOf: () => aS, isNodeKind: () => O5, isNodeLikeSystem: () => hW, isNodeModulesDirectory: () => v5, isNodeWithPossibleHoistedDeclaration: () => _ae, isNonContextualKeyword: () => oV, isNonGlobalAmbientModule: () => Oz, isNonNullAccess: () => Ese, isNonNullChain: () => P5, isNonNullExpression: () => PC, isNonStaticMethodOrAccessorWithPrivateName: () => fle, isNotEmittedStatement: () => boe, isNullishCoalesce: () => oz, isNumber: () => Ev, isNumericLiteral: () => f_, isNumericLiteralName: () => Jg, isObjectBindingElementWithoutPropertyName: () => C8, isObjectBindingOrAssignmentElement: () => J4, isObjectBindingOrAssignmentPattern: () => dz, isObjectBindingPattern: () => kp, isObjectLiteralElement: () => bz, isObjectLiteralElementLike: () => ky, isObjectLiteralExpression: () => Bs, isObjectLiteralMethod: () => Ad, isObjectLiteralOrClassExpressionMethodOrAccessor: () => oR, isObjectTypeDeclaration: () => fC, isOmittedExpression: () => eu, isOptionalChain: () => uf, isOptionalChainRoot: () => ED, isOptionalDeclaration: () => yC, isOptionalJSDocPropertyLikeTag: () => nO, isOptionalTypeNode: () => OL, isOuterExpression: () => HL, isOutermostOptionalChain: () => ID, isOverrideModifier: () => foe, isPackageJsonInfo: () => y9, isPackedArrayLiteral: () => u$, isParameter: () => ra, isParameterPropertyDeclaration: () => U_, isParameterPropertyModifier: () => OD, isParenthesizedExpression: () => $f, isParenthesizedTypeNode: () => Zx, isParseTreeNode: () => AD, isPartOfParameterDeclaration: () => v1, isPartOfTypeNode: () => ah, isPartOfTypeOnlyImportOrExportDeclaration: () => Qre, isPartOfTypeQuery: () => mR, isPartiallyEmittedExpression: () => moe, isPatternMatch: () => a5, isPinnedComment: () => K5, isPlainJsFile: () => jD, isPlusToken: () => F$, isPossiblyTypeArgumentPosition: () => b8, isPostfixUnaryExpression: () => B$, isPrefixUnaryExpression: () => w1, isPrimitiveLiteralValue: () => vL, isPrivateIdentifier: () => na, isPrivateIdentifierClassElementDeclaration: () => ff, isPrivateIdentifierPropertyAccessExpression: () => EA, isPrivateIdentifierSymbol: () => gae, isProgramUptoDate: () => WH, isPrologueDirective: () => ih, isPropertyAccessChain: () => D5, isPropertyAccessEntityNameExpression: () => M3, isPropertyAccessExpression: () => Qr, isPropertyAccessOrQualifiedName: () => W4, isPropertyAccessOrQualifiedNameOrImportTypeNode: () => rie, isPropertyAssignment: () => Fl, isPropertyDeclaration: () => Na, isPropertyName: () => kl, isPropertyNameLiteral: () => sh, isPropertySignature: () => Pf, isPrototypeAccess: () => Qv, isPrototypePropertyAssignment: () => y3, isPunctuation: () => sV, isPushOrUnshiftIdentifier: () => uV, isQualifiedName: () => zf, isQuestionDotToken: () => NL, isQuestionOrExclamationToken: () => Uoe, isQuestionOrPlusOrMinusToken: () => Voe, isQuestionToken: () => ib, isReadonlyKeyword: () => loe, isReadonlyKeywordOrPlusOrMinusToken: () => zoe, isRecognizedTripleSlashComment: () => Ez, isReferenceFileLocation: () => RE, isReferencedFile: () => J1, isRegularExpressionLiteral: () => P$, isRequireCall: () => c_, isRequireVariableStatement: () => _3, isRestParameter: () => $h, isRestTypeNode: () => FL, isReturnStatement: () => dp, isReturnStatementWithFixablePromiseHandler: () => sj, isRightSideOfAccessExpression: () => NV, isRightSideOfInstanceofExpression: () => Lae, isRightSideOfPropertyAccess: () => JE, isRightSideOfQualifiedName: () => Efe, isRightSideOfQualifiedNameOrPropertyAccess: () => lN, isRightSideOfQualifiedNameOrPropertyAccessOrJSDocMemberName: () => Rae, isRootedDiskPath: () => J_, isSameEntityName: () => UA, isSatisfiesExpression: () => _E, isSemicolonClassElement: () => hoe, isSetAccessor: () => nh, isSetAccessorDeclaration: () => w_, isShiftOperatorOrHigher: () => cq, isShorthandAmbientModuleSymbol: () => K4, isShorthandPropertyAssignment: () => Qu, isSideEffectImport: () => g$, isSignedNumericLiteral: () => wR, isSimpleCopiableExpression: () => AS, isSimpleInlineableExpression: () => bh, isSimpleParameterList: () => qO, isSingleOrDoubleQuote: () => p3, isSolutionConfig: () => Nq, isSourceElement: () => Nse, isSourceFile: () => Zi, isSourceFileFromLibrary: () => XE, isSourceFileJS: () => Uf, isSourceFileNotJson: () => gR, isSourceMapping: () => cle, isSpecialPropertyDeclaration: () => aae, isSpreadAssignment: () => zg, isSpreadElement: () => id, isStatement: () => qi, isStatementButNotDeclaration: () => $4, isStatementOrBlock: () => fie, isStatementWithLocals: () => xie, isStatic: () => ps, isStaticModifier: () => wC, isString: () => Ja, isStringANonContextualKeyword: () => aC, isStringAndEmptyAnonymousObjectIntersection: () => Jfe, isStringDoubleQuoted: () => vR, isStringLiteral: () => Ls, isStringLiteralLike: () => fo, isStringLiteralOrJsxExpression: () => pie, isStringLiteralOrTemplate: () => i_e, isStringOrNumericLiteralLike: () => Sp, isStringOrRegularExpressionOrTemplateLiteral: () => rY, isStringTextContainingNode: () => fz, isSuperCall: () => Lx, isSuperKeyword: () => RN, isSuperProperty: () => x_, isSupportedSourceFileName: () => n$, isSwitchStatement: () => JN, isSyntaxList: () => vE, isSyntheticExpression: () => A2e, isSyntheticReference: () => OC, isTagName: () => qG, isTaggedTemplateExpression: () => C1, isTaggedTemplateTag: () => Cfe, isTemplateExpression: () => LL, isTemplateHead: () => kC, isTemplateLiteral: () => $k, isTemplateLiteralKind: () => jv, isTemplateLiteralToken: () => Xre, isTemplateLiteralTypeNode: () => poe, isTemplateLiteralTypeSpan: () => j$, isTemplateMiddle: () => O$, isTemplateMiddleOrTemplateTail: () => F5, isTemplateSpan: () => pE, isTemplateTail: () => IL, isTextWhiteSpaceLike: () => qfe, isThis: () => UE, isThisContainerOrFunctionBlock: () => Qie, isThisIdentifier: () => Kv, isThisInTypeQuery: () => lS, isThisInitializedDeclaration: () => _R, isThisInitializedObjectBindingExpression: () => eae, isThisProperty: () => o3, isThisTypeNode: () => jN, isThisTypeParameter: () => AN, isThisTypePredicate: () => Yie, isThrowStatement: () => W$, isToken: () => Wk, isTokenKind: () => lz, isTraceEnabled: () => lb, isTransientSymbol: () => Ig, isTrivia: () => qA, isTryStatement: () => r2, isTupleTypeNode: () => IC, isTypeAlias: () => T3, isTypeAliasDeclaration: () => Pd, isTypeAssertionExpression: () => RL, isTypeDeclaration: () => gC, isTypeElement: () => YT, isTypeKeyword: () => CP, isTypeKeywordTokenOrIdentifier: () => LM, isTypeLiteralNode: () => Vf, isTypeNode: () => Fi, isTypeNodeKind: () => UV, isTypeOfExpression: () => uE, isTypeOnlyExportDeclaration: () => Kre, isTypeOnlyImportDeclaration: () => AA, isTypeOnlyImportOrExportDeclaration: () => b0, isTypeOperatorNode: () => k1, isTypeParameterDeclaration: () => uc, isTypePredicateNode: () => EC, isTypeQueryNode: () => gS, isTypeReferenceNode: () => G_, isTypeReferenceType: () => z5, isTypeUsableAsPropertyName: () => td, isUMDExportSymbol: () => qR, isUnaryExpression: () => gz, isUnaryExpressionWithWrite: () => iie, isUnicodeIdentifierStart: () => T5, isUnionTypeNode: () => P0, isUrl: () => fre, isValidBigIntString: () => pL, isValidESSymbolDeclaration: () => qie, isValidTypeOnlyAliasUseSite: () => T1, isValueSignatureDeclaration: () => Wx, isVarAwaitUsing: () => n3, isVarConst: () => LA, isVarConstLike: () => Wie, isVarUsing: () => r3, isVariableDeclaration: () => Ci, isVariableDeclarationInVariableStatement: () => WD, isVariableDeclarationInitializedToBareOrAccessedRequire: () => nS, isVariableDeclarationInitializedToRequire: () => f3, isVariableDeclarationList: () => Cu, isVariableLike: () => UD, isVariableStatement: () => fl, isVoidExpression: () => NC, isWatchSet: () => jV, isWhileStatement: () => U$, isWhiteSpaceLike: () => kg, isWhiteSpaceSingleLine: () => eh, isWithStatement: () => goe, isWriteAccess: () => uC, isWriteOnlyAccess: () => $R, isYieldExpression: () => mO, jsxModeNeedsExplicitImport: () => jY, keywordPart: () => Z_, last: () => Ws, lastOrUndefined: () => nc, length: () => Ve, libMap: () => hq, libs: () => e9, lineBreakPart: () => HE, loadModuleFromGlobalCache: () => Vce, loadWithModeAwareCache: () => r8, makeIdentifierFromModuleName: () => Die, makeImport: () => hb, makeStringLiteral: () => wP, mangleScopedPackageName: () => DE, map: () => vn, mapAllOrFail: () => oD, mapDefined: () => Hi, mapDefinedIterator: () => yy, mapEntries: () => Pte, mapIterator: () => Jl, mapOneOrMany: () => FY, mapToDisplayParts: () => gb, matchFiles: () => ZV, matchPatternOrExact: () => i$, matchedText: () => qte, matchesExclude: () => p9, matchesExcludeWorker: () => d9, maxBy: () => cW, maybeBind: () => as, maybeSetLocalizedDiagnosticMessages: () => Qae, memoize: () => Af, memoizeOne: () => Zm, min: () => lW, minAndMax: () => yse, missingFileModifiedTime: () => B_, modifierToFlag: () => cC, modifiersToFlags: () => lh, moduleExportNameIsDefault: () => qh, moduleExportNameTextEscaped: () => ZT, moduleExportNameTextUnescaped: () => qv, moduleOptionDeclaration: () => rce, moduleResolutionIsEqualTo: () => Tie, moduleResolutionNameAndModeGetter: () => V9, moduleResolutionOptionDeclarations: () => yq, moduleResolutionSupportsPackageJsonExportsAndImports: () => tE, moduleResolutionUsesNodeModules: () => MM, moduleSpecifierToValidIdentifier: () => O8, moduleSpecifiers: () => My, moduleSupportsImportAttributes: () => ase, moduleSymbolToValidIdentifier: () => P8, moveEmitHelpers: () => Xse, moveRangeEnd: () => zR, moveRangePastDecorators: () => Dy, moveRangePastModifiers: () => uh, moveRangePos: () => b1, moveSyntheticComments: () => Hse, mutateMap: () => dN, mutateMapSkippingNewValues: () => Lg, needsParentheses: () => zM, needsScopeMarker: () => M5, newCaseClauseTracker: () => tj, newPrivateEnvironment: () => ple, noEmitNotification: () => XO, noEmitSubstitution: () => uP, noTransformers: () => Vle, noTruncationMaximumTruncationLength: () => xz, nodeCanBeDecorated: () => l3, nodeCoreModules: () => aE, nodeHasName: () => O4, nodeIsDecorated: () => BA, nodeIsMissing: () => Jc, nodeIsPresent: () => wd, nodeIsSynthesized: () => Jo, nodeModuleNameResolver: () => Mce, nodeModulesPathPart: () => Vg, nodeNextJsonConfigResolver: () => jce, nodeOrChildIsDecorated: () => u3, nodeOverlapsWithStartEnd: () => CM, nodePosToString: () => Pxe, nodeSeenTracker: () => VE, nodeStartsNewLexicalEnvironment: () => fV, noop: () => To, noopFileWatcher: () => jE, normalizePath: () => vs, normalizeSlashes: () => xu, normalizeSpans: () => QW, not: () => o5, notImplemented: () => gs, notImplementedResolver: () => Yle, nullNodeConverters: () => Vse, nullParenthesizerRules: () => Wse, nullTransformationContext: () => QO, objectAllocator: () => Lu, operatorPart: () => EP, optionDeclarations: () => nm, optionMapToObject: () => o9, optionsAffectingProgramStructure: () => oce, optionsForBuild: () => bq, optionsForWatch: () => JC, optionsHaveChanges: () => Gk, or: () => j_, orderedRemoveItem: () => lD, orderedRemoveItemAt: () => Pv, packageIdToPackageName: () => Y5, packageIdToString: () => f1, parameterIsThisKeyword: () => Xv, parameterNamePart: () => Gfe, parseBaseNodeFactory: () => Koe, parseBigInt: () => bse, parseBuildCommand: () => mce, parseCommandLine: () => pce, parseCommandLineWorker: () => Tq, parseConfigFileTextToJson: () => xq, parseConfigFileWithSystem: () => Fue, parseConfigHostFromCompilerHostLike: () => X9, parseCustomTypeOption: () => i9, parseIsolatedEntityName: () => BC, parseIsolatedJSDocComment: () => Zoe, parseJSDocTypeExpressionForTests: () => uke, parseJsonConfigFileContent: () => Jke, parseJsonSourceFileConfigFileContent: () => RO, parseJsonText: () => IO, parseListTypeOption: () => fce, parseNodeFactory: () => F1, parseNodeModuleFromPath: () => BO, parsePackageName: () => T9, parsePseudoBigInt: () => xN, parseValidBigInt: () => c$, pasteEdits: () => MK, patchWriteFileEnsuringDirectory: () => ure, pathContainsNodeModules: () => fb, pathIsAbsolute: () => yD, pathIsBareSpecifier: () => WW, pathIsRelative: () => _p, patternText: () => $te, performIncrementalCompilation: () => Rue, performance: () => ene, positionBelongsToNode: () => XG, positionIsASICandidate: () => qM, positionIsSynthesized: () => Cm, positionsAreOnSameLine: () => Zp, preProcessFile: () => YEe, probablyUsesSemicolons: () => D8, processCommentPragmas: () => dq, processPragmasIntoFields: () => mq, processTaggedTemplateExpression: () => hH, programContainsEsModules: () => Vfe, programContainsModules: () => zfe, projectReferenceIsEqualTo: () => kz, propertyNamePart: () => Yfe, pseudoBigIntToString: () => dS, punctuationPart: () => gf, pushIfUnique: () => $p, quote: () => NP, quotePreferenceFromString: () => pY, rangeContainsPosition: () => WE, rangeContainsPositionExclusive: () => y8, rangeContainsRange: () => u_, rangeContainsRangeExclusive: () => Dfe, rangeContainsStartEnd: () => v8, rangeEndIsOnSameLineAsRangeStart: () => J3, rangeEndPositionsAreOnSameLine: () => Uae, rangeEquals: () => eW, rangeIsOnSingleLine: () => qx, rangeOfNode: () => s$, rangeOfTypeParameters: () => o$, rangeOverlapsWithStartEnd: () => SP, rangeStartIsOnSameLineAsRangeEnd: () => Wae, rangeStartPositionsAreOnSameLine: () => VR, readBuilderProgram: () => oM, readConfigFile: () => OO, readJson: () => KA, readJsonConfigFile: () => hce, readJsonOrUndefined: () => OV, reduceEachLeadingCommentRange: () => vre, reduceEachTrailingCommentRange: () => bre, reduceLeft: () => wf, reduceLeftIterator: () => ti, reducePathComponents: () => Bk, refactor: () => ew, regExpEscape: () => o2e, regularExpressionFlagToCharacterCode: () => sxe, relativeComplement: () => Ote, removeAllComments: () => cO, removeEmitHelper: () => x2e, removeExtension: () => Q3, removeFileExtension: () => Nf, removeIgnoredPath: () => eM, removeMinAndVersionNumbers: () => _W, removePrefix: () => uD, removeSuffix: () => gA, removeTrailingDirectorySeparator: () => y0, repeatString: () => x8, replaceElement: () => rW, replaceFirstStar: () => Gx, resolutionExtensionIsTSOrJson: () => vN, resolveConfigFileProjectName: () => bG, resolveJSModule: () => Fce, resolveLibrary: () => b9, resolveModuleName: () => f2, resolveModuleNameFromCache: () => hCe, resolvePackageNameToPackageJson: () => Rq, resolvePath: () => Fv, resolveProjectReferencePath: () => qC, resolveTripleslashReference: () => OH, resolveTypeReferenceDirective: () => Dce, resolvingEmptyArray: () => Sz, returnFalse: () => by, returnNoopFileWatcher: () => yP, returnTrue: () => zT, returnUndefined: () => VT, returnsPromise: () => QY, rewriteModuleSpecifier: () => zC, sameFlatMap: () => YU, sameMap: () => po, sameMapping: () => swe, scanTokenAtPosition: () => Uie, scanner: () => Au, semanticDiagnosticsOptionDeclarations: () => ice, serializeCompilerOptions: () => Eq, server: () => iFe, servicesVersion: () => jDe, setCommentRange: () => Pl, setConfigFileInOptions: () => Iq, setConstantValue: () => Yse, setEmitFlags: () => Pr, setGetSourceFileAsHashVersioned: () => sM, setIdentifierAutoGenerate: () => fO, setIdentifierGeneratedImportReference: () => Zse, setIdentifierTypeArguments: () => N0, setInternalEmitFlags: () => lO, setLocalizedDiagnosticMessages: () => Kae, setNodeChildren: () => Ioe, setNodeFlags: () => xse, setObjectAllocator: () => Xae, setOriginalNode: () => Gr, setParent: () => mo, setParentRecursive: () => S1, setPrivateIdentifier: () => p2, setSnippetElement: () => D$, setSourceMapRange: () => qs, setStackTraceLimit: () => zSe, setStartsOnNewLine: () => CL, setSyntheticLeadingComments: () => x1, setSyntheticTrailingComments: () => TC, setSys: () => YSe, setSysLog: () => ore, setTextRange: () => St, setTextRangeEnd: () => iE, setTextRangePos: () => kN, setTextRangePosEnd: () => wm, setTextRangePosWidth: () => l$, setTokenSourceMapRange: () => qse, setTypeNode: () => Kse, setUILocale: () => Wte, setValueDeclaration: () => YD, shouldAllowImportingTsExtension: () => NE, shouldPreserveConstEnums: () => Zv, shouldRewriteModuleSpecifier: () => b3, shouldUseUriStyleNodeCoreModules: () => ZM, showModuleSpecifier: () => Hae, signatureHasRestParameter: () => hf, signatureToDisplayParts: () => kY, single: () => nW, singleElementArray: () => Lk, singleIterator: () => Nte, singleOrMany: () => Uh, singleOrUndefined: () => Sg, skipAlias: () => Ru, skipConstraint: () => uY, skipOuterExpressions: () => Gc, skipParentheses: () => _o, skipPartiallyEmittedExpressions: () => Yd, skipTrivia: () => Rs, skipTypeChecking: () => rE, skipTypeCheckingIgnoringNoCheck: () => vse, skipTypeParentheses: () => KD, skipWhile: () => Gte, sliceAfter: () => a$, some: () => bt, sortAndDeduplicate: () => cD, sortAndDeduplicateDiagnostics: () => kA, sourceFileAffectingCompilerOptions: () => vq, sourceFileMayBeEmitted: () => oS, sourceMapCommentRegExp: () => iH, sourceMapCommentRegExpDontCareLineStart: () => ale, spacePart: () => zc, spanMap: () => XU, startEndContainsRange: () => LV, startEndOverlapsWithStartEnd: () => wM, startOnNewLine: () => mf, startTracing: () => ine, startsWith: () => _a, startsWithDirectory: () => $W, startsWithUnderscore: () => MY, startsWithUseStrict: () => Loe, stringContainsAt: () => f_e, stringToToken: () => Cx, stripQuotes: () => Id, supportedDeclarationExtensions: () => lL, supportedJSExtensionsFlat: () => nE, supportedLocaleDirectories: () => Rre, supportedTSExtensionsFlat: () => e$, supportedTSImplementationExtensions: () => Y3, suppressLeadingAndTrailingTrivia: () => H_, suppressLeadingTrivia: () => k$, suppressTrailingTrivia: () => jse, symbolEscapedNameNoDefault: () => jM, symbolName: () => Bc, symbolNameNoDefault: () => mY, symbolToDisplayParts: () => IP, sys: () => Xl, sysLog: () => T4, tagNamesAreEquivalent: () => L1, takeWhile: () => mW, targetOptionDeclaration: () => gq, targetToLibMap: () => Tre, testFormatSettings: () => gEe, textChangeRangeIsUnchanged: () => Dre, textChangeRangeNewSpan: () => wD, textChanges: () => Dr, textOrKeywordPart: () => xY, textPart: () => Ip, textRangeContainsPositionInclusive: () => I4, textRangeContainsTextSpan: () => kre, textRangeIntersectsWithTextSpan: () => Ere, textSpanContainsPosition: () => XW, textSpanContainsTextRange: () => KW, textSpanContainsTextSpan: () => xre, textSpanEnd: () => Pc, textSpanIntersection: () => Ire, textSpanIntersectsWith: () => D4, textSpanIntersectsWithPosition: () => Are, textSpanIntersectsWithTextSpan: () => wre, textSpanIsEmpty: () => Sre, textSpanOverlap: () => Cre, textSpanOverlapsWith: () => dxe, textSpansEqual: () => qE, textToKeywordObj: () => b5, timestamp: () => Mo, toArray: () => Fk, toBuilderFileEmit: () => xue, toBuilderStateFileInfoForMultiEmit: () => Sue, toEditorSettings: () => U8, toFileNameLowerCase: () => Iv, toPath: () => jo, toProgramEmitPending: () => kue, toSorted: () => M_, tokenIsIdentifierOrKeyword: () => i_, tokenIsIdentifierOrKeywordOrGreaterThan: () => pre, tokenToString: () => ys, trace: () => Sa, tracing: () => Ir, tracingEnabled: () => b4, transferSourceFileChildren: () => Doe, transform: () => GDe, transformClassFields: () => xle, transformDeclarations: () => bH, transformECMAScriptModule: () => vH, transformES2015: () => Mle, transformES2016: () => Lle, transformES2017: () => Ale, transformES2018: () => Ele, transformES2019: () => Ile, transformES2020: () => Dle, transformES2021: () => Nle, transformESDecorators: () => wle, transformESNext: () => Ple, transformGenerators: () => jle, transformImpliedNodeFormatDependentModule: () => Jle, transformJsx: () => Rle, transformLegacyDecorators: () => Cle, transformModule: () => yH, transformNamedEvaluation: () => X_, transformNodes: () => KO, transformSystemModule: () => Ble, transformTypeScript: () => Sle, transpile: () => iIe, transpileDeclaration: () => nIe, transpileModule: () => F_e, transpileOptionValueCompilerOptions: () => cce, tryAddToSet: () => g0, tryAndIgnoreErrors: () => YM, tryCast: () => li, tryDirectoryExists: () => GM, tryExtractTSExtension: () => WR, tryFileExists: () => OP, tryGetClassExtendingExpressionWithTypeArguments: () => IV, tryGetClassImplementingOrExtendingExpressionWithTypeArguments: () => DV, tryGetDirectories: () => HM, tryGetExtensionFromPath: () => Bg, tryGetImportFromModuleSpecifier: () => v3, tryGetJSDocSatisfiesTypeNode: () => gL, tryGetModuleNameFromFile: () => xO, tryGetModuleSpecifierFromDeclaration: () => eC, tryGetNativePerformanceHooks: () => Zte, tryGetPropertyAccessOrIdentifierToString: () => j3, tryGetPropertyNameOfBindingOrAssignmentElement: () => YL, tryGetSourceMappingURL: () => sle, tryGetTextOfPropertyName: () => JD, tryParseJson: () => B3, tryParsePattern: () => hC, tryParsePatterns: () => Z3, tryParseRawSourceMap: () => ole, tryReadDirectory: () => DY, tryReadFile: () => YN, tryRemoveDirectoryPrefix: () => XV, tryRemoveExtension: () => gse, tryRemovePrefix: () => dW, tryRemoveSuffix: () => Vte, tscBuildOption: () => l2, typeAcquisitionDeclarations: () => n9, typeAliasNamePart: () => Xfe, typeDirectiveIsEqualTo: () => Sie, typeKeywords: () => lY, typeParameterNamePart: () => Kfe, typeToDisplayParts: () => A8, unchangedPollThresholds: () => p5, unchangedTextChangeRange: () => k5, unescapeLeadingUnderscores: () => $i, unmangleScopedPackageName: () => UO, unorderedRemoveItem: () => Rk, unprefixedNodeCoreModules: () => Rse, unreachableCodeIsError: () => rse, unsetNodeChildren: () => Q$, unusedLabelIsError: () => ise, unwrapInnermostStatementOfLabel: () => $z, unwrapParenthesizedExpression: () => Ose, updateErrorForNoInputFiles: () => _9, updateLanguageServiceSourceFile: () => CX, updateMissingFilePathsWatch: () => DH, updateResolutionField: () => wE, updateSharedExtendedConfigFileWatcher: () => J9, updateSourceFile: () => _q, updateWatchingWildcardDirectories: () => e8, usingSingleLineStringWriter: () => PA, utf16EncodeAsString: () => CD, validateLocaleAndSetLanguage: () => ez, version: () => Ee, versionMajorMinor: () => Oe, visitArray: () => rP, visitCommaListElements: () => VO, visitEachChild: () => Jn, visitFunctionBody: () => Ep, visitIterationBody: () => qf, visitLexicalEnvironment: () => rH, visitNode: () => ut, visitNodes: () => Qn, visitParameterList: () => Wc, walkUpBindingElementsAndPatterns: () => wx, walkUpOuterExpressions: () => Moe, walkUpParenthesizedExpressions: () => Kd, walkUpParenthesizedTypes: () => k3, walkUpParenthesizedTypesAndGetParentAndChild: () => pae, whitespaceOrMapCommentRegExp: () => aH, writeCommentRange: () => XA, writeFile: () => LR, writeFileEnsuringDirectories: () => SV, zipWith: () => yi });
       var qft = true, tFe;
       function Hft() {
         return tFe ?? (tFe = new ym(Ee));
@@ -88244,7 +88244,7 @@ ${i.prefix}` : `
         return { overload: (t) => ({ bind: (r) => ({ finish: () => jK(e, t, r), deprecate: (i) => ({ finish: () => jK(e, t, r, i) }) }) }) };
       }
       var iFe = {};
-      B(iFe, { ActionInvalidate: () => mM, ActionPackageInstalled: () => hM, ActionSet: () => dM, ActionWatchTypingLocations: () => d8, Arguments: () => LG, AutoImportProviderProject: () => Sge, AuxiliaryProject: () => bge, CharRangeSection: () => Gge, CloseFileWatcherEvent: () => KK, CommandNames: () => LFe, ConfigFileDiagEvent: () => qK, ConfiguredProject: () => xge, ConfiguredProjectLoadKind: () => Ige, CreateDirectoryWatcherEvent: () => XK, CreateFileWatcherEvent: () => YK, Errors: () => Wy, EventBeginInstallTypes: () => FG, EventEndInstallTypes: () => RG, EventInitializationFailed: () => ofe, EventTypesRegistry: () => OG, ExternalProject: () => JK, GcTimer: () => cge, InferredProject: () => vge, LargeFileReferencedEvent: () => $K, LineIndex: () => v7, LineLeaf: () => Kj, LineNode: () => lI, LogLevel: () => Zhe, Msg: () => ege, OpenFileInfoTelemetryEvent: () => kge, Project: () => uw, ProjectInfoTelemetryEvent: () => GK, ProjectKind: () => YP, ProjectLanguageServiceStateEvent: () => HK, ProjectLoadingFinishEvent: () => VK, ProjectLoadingStartEvent: () => zK, ProjectService: () => jge, ProjectsUpdatedInBackgroundEvent: () => Gj, ScriptInfo: () => _ge, ScriptVersionCache: () => lQ, Session: () => VFe, TextStorage: () => fge, ThrottledOperations: () => oge, TypingsInstallerAdapter: () => XFe, allFilesAreJsOrDts: () => hge, allRootFilesAreJsOrDts: () => mge, asNormalizedPath: () => cFe, convertCompilerOptions: () => Yj, convertFormatOptions: () => sI, convertScriptKindName: () => ZK, convertTypeAcquisition: () => wge, convertUserPreferences: () => Age, convertWatchOptions: () => g7, countEachFileTypes: () => p7, createInstallTypingsRequest: () => tge, createModuleSpecifierCache: () => Uge, createNormalizedPathMap: () => lFe, createPackageJsonCache: () => Wge, createSortedArray: () => sge, emptyArray: () => tu, findArgument: () => lEe, formatDiagnosticToProtocol: () => y7, formatMessage: () => zge, getBaseConfigFileName: () => BK, getDetailWatchInfo: () => rQ, getLocationInNewDocument: () => Hge, hasArgument: () => cEe, hasNoTypeScriptSource: () => gge, indent: () => bP, isBackgroundProject: () => m7, isConfigFile: () => Bge, isConfiguredProject: () => U0, isDynamicFileName: () => GP, isExternalProject: () => d7, isInferredProject: () => aI, isInferredProjectName: () => nge, isProjectDeferredClose: () => h7, makeAutoImportProviderProjectName: () => ige, makeAuxiliaryProjectName: () => age, makeInferredProjectName: () => rge, maxFileSize: () => WK, maxProgramSizeForNonTsFiles: () => UK, normalizedPathToPath: () => iI, nowString: () => uEe, nullCancellationToken: () => OFe, nullTypingsInstaller: () => Xj, protocol: () => lge, scriptInfoIsContainedByBackgroundProject: () => pge, scriptInfoIsContainedByDeferredClosedProject: () => dge, stringifyIndented: () => U1, toEvent: () => Vge, toNormalizedPath: () => Oo, tryConvertScriptKindName: () => QK, typingsInstaller: () => Qhe, updateProjectIfDirty: () => Md });
+      B(iFe, { ActionInvalidate: () => mM, ActionPackageInstalled: () => hM, ActionSet: () => dM, ActionWatchTypingLocations: () => d8, Arguments: () => LG, AutoImportProviderProject: () => Sge, AuxiliaryProject: () => bge, CharRangeSection: () => Gge, CloseFileWatcherEvent: () => KK, CommandNames: () => LFe, ConfigFileDiagEvent: () => qK, ConfiguredProject: () => xge, ConfiguredProjectLoadKind: () => Ige, CreateDirectoryWatcherEvent: () => XK, CreateFileWatcherEvent: () => YK, Errors: () => Wy, EventBeginInstallTypes: () => FG, EventEndInstallTypes: () => RG, EventInitializationFailed: () => ofe, EventTypesRegistry: () => OG, ExternalProject: () => JK, GcTimer: () => cge, InferredProject: () => vge, LargeFileReferencedEvent: () => $K, LineIndex: () => v7, LineLeaf: () => Kj, LineNode: () => lI, LogLevel: () => Zhe, Msg: () => ege, OpenFileInfoTelemetryEvent: () => kge, Project: () => uw, ProjectInfoTelemetryEvent: () => GK, ProjectKind: () => YP, ProjectLanguageServiceStateEvent: () => HK, ProjectLoadingFinishEvent: () => VK, ProjectLoadingStartEvent: () => zK, ProjectService: () => jge, ProjectsUpdatedInBackgroundEvent: () => Gj, ScriptInfo: () => _ge, ScriptVersionCache: () => lQ, Session: () => VFe, TextStorage: () => fge, ThrottledOperations: () => oge, TypingsInstallerAdapter: () => XFe, allFilesAreJsOrDts: () => hge, allRootFilesAreJsOrDts: () => mge, asNormalizedPath: () => cFe, convertCompilerOptions: () => Yj, convertFormatOptions: () => sI, convertScriptKindName: () => ZK, convertTypeAcquisition: () => wge, convertUserPreferences: () => Age, convertWatchOptions: () => g7, countEachFileTypes: () => p7, createInstallTypingsRequest: () => tge, createModuleSpecifierCache: () => Uge, createNormalizedPathMap: () => lFe, createPackageJsonCache: () => Wge, createSortedArray: () => sge, emptyArray: () => tu, findArgument: () => lEe, formatDiagnosticToProtocol: () => y7, formatMessage: () => zge, getBaseConfigFileName: () => BK, getDetailWatchInfo: () => rQ, getLocationInNewDocument: () => Hge, hasArgument: () => cEe, hasNoTypeScriptSource: () => gge, indent: () => bP, isBackgroundProject: () => m7, isConfigFile: () => Bge, isConfiguredProject: () => W0, isDynamicFileName: () => GP, isExternalProject: () => d7, isInferredProject: () => aI, isInferredProjectName: () => nge, isProjectDeferredClose: () => h7, makeAutoImportProviderProjectName: () => ige, makeAuxiliaryProjectName: () => age, makeInferredProjectName: () => rge, maxFileSize: () => WK, maxProgramSizeForNonTsFiles: () => UK, normalizedPathToPath: () => iI, nowString: () => uEe, nullCancellationToken: () => OFe, nullTypingsInstaller: () => Xj, protocol: () => lge, scriptInfoIsContainedByBackgroundProject: () => pge, scriptInfoIsContainedByDeferredClosedProject: () => dge, stringifyIndented: () => U1, toEvent: () => Vge, toNormalizedPath: () => Oo, tryConvertScriptKindName: () => QK, typingsInstaller: () => Qhe, updateProjectIfDirty: () => Md });
       var Qhe = {};
       B(Qhe, { TypingsInstaller: () => n_t, getNpmCommandForInstallation: () => sFe, installNpmPackages: () => t_t, typingsName: () => oFe });
       var e_t = { isEnabled: () => false, writeLine: To };
@@ -88718,7 +88718,7 @@ ${i.prefix}` : `
         }
         detachAllProjects() {
           for (let e of this.containingProjects) {
-            U0(e) && e.getCachedDirectoryStructureHost().addOrDeleteFile(this.fileName, this.path, 2);
+            W0(e) && e.getCachedDirectoryStructureHost().addOrDeleteFile(this.fileName, this.path, 2);
             let t = e.getRootFilesMap().get(this.path);
             e.removeFile(this, false, false), e.onFileAddedOrRemoved(this.isSymlink()), t && !aI(e) && e.addMissingFileRoot(t.fileName);
           }
@@ -88734,7 +88734,7 @@ ${i.prefix}` : `
               let e, t, r, i;
               for (let a = 0; a < this.containingProjects.length; a++) {
                 let o = this.containingProjects[a];
-                if (U0(o)) {
+                if (W0(o)) {
                   if (o.deferredClose) continue;
                   if (!o.isSourceOfProjectReferenceRedirect(this.fileName)) {
                     if (i === void 0 && a !== this.containingProjects.length - 1 && (i = o.projectService.findDefaultConfiguredProject(this) || false), i === o) return o;
@@ -89418,12 +89418,12 @@ ${i.prefix}` : `
         }
         addMissingFileWatcher(t, r) {
           var i;
-          if (U0(this)) {
+          if (W0(this)) {
             let o = this.projectService.configFileExistenceInfoCache.get(t);
             if ((i = o?.config) != null && i.projects.has(this.canonicalConfigFilePath)) return jE;
           }
           let a = this.projectService.watchFactory.watchFile(va(r, this.currentDirectory), (o, c) => {
-            U0(this) && this.getCachedDirectoryStructureHost().addOrDeleteFile(o, t, c), c === 0 && this.missingFilesMap.has(t) && (this.missingFilesMap.delete(t), a.close(), this.projectService.delayUpdateProjectGraphAndEnsureProjectStructureForOpenFiles(this));
+            W0(this) && this.getCachedDirectoryStructureHost().addOrDeleteFile(o, t, c), c === 0 && this.missingFilesMap.has(t) && (this.missingFilesMap.delete(t), a.close(), this.projectService.delayUpdateProjectGraphAndEnsureProjectStructureForOpenFiles(this));
           }, 500, this.projectService.getWatchOptions(this), du.MissingFile, this);
           return a;
         }
@@ -89738,7 +89738,7 @@ ${i.prefix}` : `
           }
           let E = f.getResolvedProjectReferences(), N = 0;
           return E?.length && r.projectService.getHostPreferences().includeCompletionsForModuleExports && E.forEach(($) => {
-            if ($?.commandLine.options.outFile) N += F(J([A0($.commandLine.options.outFile, ".d.ts")]));
+            if ($?.commandLine.options.outFile) N += F(J([E0($.commandLine.options.outFile, ".d.ts")]));
             else if ($) {
               let H = Af(() => m2($.commandLine, !r.useCaseSensitiveFileNames()));
               N += F(J(Hi($.commandLine.fileNames, (Z) => !pu(Z) && !Ac(Z, ".json") && !f.getSourceFile(Z) ? _P(Z, $.commandLine, !r.useCaseSensitiveFileNames(), H) : void 0)));
@@ -89943,7 +89943,7 @@ ${i.prefix}` : `
       function aI(e) {
         return e.projectKind === 0;
       }
-      function U0(e) {
+      function W0(e) {
         return e.projectKind === 1;
       }
       function d7(e) {
@@ -89953,7 +89953,7 @@ ${i.prefix}` : `
         return e.projectKind === 3 || e.projectKind === 4;
       }
       function h7(e) {
-        return U0(e) && !!e.deferredClose;
+        return W0(e) && !!e.deferredClose;
       }
       var UK = 20 * 1024 * 1024, WK = 4 * 1024 * 1024, Gj = "projectsUpdatedInBackground", zK = "projectLoadingStart", VK = "projectLoadingFinish", $K = "largeFileReferenced", qK = "configFileDiag", HK = "projectLanguageServiceState", GK = "projectInfo", kge = "openFileInfo", YK = "createFileWatcher", XK = "createDirectoryWatcher", KK = "closeFileWatcher", bFe = "*ensureProjectForOpenFiles*";
       function TFe(e) {
@@ -90160,7 +90160,7 @@ ${i.prefix}` : `
         return `User requested reload projects: ${e}`;
       }
       function Rge(e) {
-        U0(e) && (e.projectOptions = true);
+        W0(e) && (e.projectOptions = true);
       }
       function Lge(e) {
         let t = 1;
@@ -90512,7 +90512,7 @@ ${i.prefix}` : `
           this.openFilesWithNonRootedDiskPath.get(o) === t && this.openFilesWithNonRootedDiskPath.delete(o);
           let c = false;
           for (let f of t.containingProjects) {
-            if (U0(f)) {
+            if (W0(f)) {
               t.hasMixedContent && t.registerFileUpdate();
               let u = f.openFileWatchTriggered.get(t.path);
               u !== void 0 && (f.openFileWatchTriggered.delete(t.path), f.pendingUpdateLevel < u && (f.pendingUpdateLevel = u, f.markFileAsDirty(t.path)));
@@ -90662,12 +90662,12 @@ ${i.prefix}` : `
             Rge(t);
             return;
           }
-          let r = U0(t) ? t.projectOptions : void 0;
+          let r = W0(t) ? t.projectOptions : void 0;
           Rge(t);
           let i = { projectId: this.host.createSHA256Hash(t.projectName), fileStats: p7(t.getScriptInfos(), true), compilerOptions: kce(t.getCompilationSettings()), typeAcquisition: o(t.getTypeAcquisition()), extends: r && r.configHasExtendsProperty, files: r && r.configHasFilesProperty, include: r && r.configHasIncludeProperty, exclude: r && r.configHasExcludeProperty, compileOnSave: t.compileOnSaveEnabled, configFileName: a(), projectType: t instanceof JK ? "external" : "configured", languageServiceEnabled: t.languageServiceEnabled, version: Ee };
           this.eventHandler({ eventName: GK, data: i });
           function a() {
-            return U0(t) && BK(t.getConfigFilePath()) || "other";
+            return W0(t) && BK(t.getConfigFilePath()) || "other";
           }
           function o({ enable: c, include: f, exclude: u }) {
             return { enable: c, include: f !== void 0 && f.length !== 0, exclude: u !== void 0 && u.length !== 0 };
@@ -91082,7 +91082,7 @@ Dynamic files must always be opened with service's current directory or service 
           let v = this.getScriptInfo(o);
           if (!v || !v.containingProjects.length) return;
           return v.containingProjects.forEach((C) => {
-            U0(C) && k(C);
+            W0(C) && k(C);
           }), a;
           function k(C) {
             (t.originalConfiguredProjects ?? (t.originalConfiguredProjects = /* @__PURE__ */ new Set())).add(C.canonicalConfigFilePath);
@@ -91146,7 +91146,7 @@ Dynamic files must always be opened with service's current directory or service 
           let { validatedFilesSpec: a, validatedIncludeSpecs: o, validatedExcludeSpecs: c } = r.options.configFile.configFileSpecs, f = Oo(va(hi(t), this.currentDirectory));
           return a?.some((u) => this.toPath(va(u, f)) === i.path) ? true : !o?.length || d9(i.fileName, c, this.host.useCaseSensitiveFileNames, this.currentDirectory, f) ? false : o?.some((u) => {
             let g = QV(u, f, "files");
-            return !!g && w0(`(${g})$`, this.host.useCaseSensitiveFileNames).test(i.fileName);
+            return !!g && A0(`(${g})$`, this.host.useCaseSensitiveFileNames).test(i.fileName);
           });
         }
         tryFindDefaultConfiguredProjectForOpenScriptInfoOrClosedFileInfo(t, r, i, a, o, c) {
@@ -91206,7 +91206,7 @@ Dynamic files must always be opened with service's current directory or service 
         }
         ensureProjectChildren(t, r, i) {
           var a;
-          if (!h0(i, t.canonicalConfigFilePath) || t.getCompilerOptions().disableReferencedProjectLoad) return;
+          if (!g0(i, t.canonicalConfigFilePath) || t.getCompilerOptions().disableReferencedProjectLoad) return;
           let o = (a = t.getCurrentProgram()) == null ? void 0 : a.getResolvedProjectReferences();
           if (o) for (let c of o) {
             if (!c) continue;
@@ -91240,7 +91240,7 @@ Dynamic files must always be opened with service's current directory or service 
         }
         getOrphanConfiguredProjects(t, r, i) {
           let a = new Set(this.configuredProjects.values()), o = (g) => {
-            g.originalConfiguredProjects && (U0(g) || !g.isOrphan()) && g.originalConfiguredProjects.forEach((m, v) => {
+            g.originalConfiguredProjects && (W0(g) || !g.isOrphan()) && g.originalConfiguredProjects.forEach((m, v) => {
               let k = this.getConfiguredProjectByCanonicalConfigFilePath(v);
               return k && u(k);
             });
@@ -91849,7 +91849,7 @@ ${o}${i}`;
         return !!i && i.resolvedPath !== i.path && i.resolvedPath !== e.toPath(t.fileName);
       }
       function A_t(e) {
-        return U0(e) ? e.canonicalConfigFilePath : e.getProjectName();
+        return W0(e) ? e.canonicalConfigFilePath : e.getProjectName();
       }
       function XP({ fileName: e, textSpan: t }) {
         return { fileName: e, pos: t.start };
@@ -93415,7 +93415,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
       };
       YFe.requestDelayMillis = 100;
       var XFe = YFe, KFe = {};
-      B(KFe, { ActionInvalidate: () => mM, ActionPackageInstalled: () => hM, ActionSet: () => dM, ActionWatchTypingLocations: () => d8, Arguments: () => LG, AutoImportProviderProject: () => Sge, AuxiliaryProject: () => bge, CharRangeSection: () => Gge, CloseFileWatcherEvent: () => KK, CommandNames: () => LFe, ConfigFileDiagEvent: () => qK, ConfiguredProject: () => xge, ConfiguredProjectLoadKind: () => Ige, CreateDirectoryWatcherEvent: () => XK, CreateFileWatcherEvent: () => YK, Errors: () => Wy, EventBeginInstallTypes: () => FG, EventEndInstallTypes: () => RG, EventInitializationFailed: () => ofe, EventTypesRegistry: () => OG, ExternalProject: () => JK, GcTimer: () => cge, InferredProject: () => vge, LargeFileReferencedEvent: () => $K, LineIndex: () => v7, LineLeaf: () => Kj, LineNode: () => lI, LogLevel: () => Zhe, Msg: () => ege, OpenFileInfoTelemetryEvent: () => kge, Project: () => uw, ProjectInfoTelemetryEvent: () => GK, ProjectKind: () => YP, ProjectLanguageServiceStateEvent: () => HK, ProjectLoadingFinishEvent: () => VK, ProjectLoadingStartEvent: () => zK, ProjectService: () => jge, ProjectsUpdatedInBackgroundEvent: () => Gj, ScriptInfo: () => _ge, ScriptVersionCache: () => lQ, Session: () => VFe, TextStorage: () => fge, ThrottledOperations: () => oge, TypingsInstallerAdapter: () => XFe, allFilesAreJsOrDts: () => hge, allRootFilesAreJsOrDts: () => mge, asNormalizedPath: () => cFe, convertCompilerOptions: () => Yj, convertFormatOptions: () => sI, convertScriptKindName: () => ZK, convertTypeAcquisition: () => wge, convertUserPreferences: () => Age, convertWatchOptions: () => g7, countEachFileTypes: () => p7, createInstallTypingsRequest: () => tge, createModuleSpecifierCache: () => Uge, createNormalizedPathMap: () => lFe, createPackageJsonCache: () => Wge, createSortedArray: () => sge, emptyArray: () => tu, findArgument: () => lEe, formatDiagnosticToProtocol: () => y7, formatMessage: () => zge, getBaseConfigFileName: () => BK, getDetailWatchInfo: () => rQ, getLocationInNewDocument: () => Hge, hasArgument: () => cEe, hasNoTypeScriptSource: () => gge, indent: () => bP, isBackgroundProject: () => m7, isConfigFile: () => Bge, isConfiguredProject: () => U0, isDynamicFileName: () => GP, isExternalProject: () => d7, isInferredProject: () => aI, isInferredProjectName: () => nge, isProjectDeferredClose: () => h7, makeAutoImportProviderProjectName: () => ige, makeAuxiliaryProjectName: () => age, makeInferredProjectName: () => rge, maxFileSize: () => WK, maxProgramSizeForNonTsFiles: () => UK, normalizedPathToPath: () => iI, nowString: () => uEe, nullCancellationToken: () => OFe, nullTypingsInstaller: () => Xj, protocol: () => lge, scriptInfoIsContainedByBackgroundProject: () => pge, scriptInfoIsContainedByDeferredClosedProject: () => dge, stringifyIndented: () => U1, toEvent: () => Vge, toNormalizedPath: () => Oo, tryConvertScriptKindName: () => QK, typingsInstaller: () => Qhe, updateProjectIfDirty: () => Md }), typeof console < "u" && (D.loggingHost = { log(e, t) {
+      B(KFe, { ActionInvalidate: () => mM, ActionPackageInstalled: () => hM, ActionSet: () => dM, ActionWatchTypingLocations: () => d8, Arguments: () => LG, AutoImportProviderProject: () => Sge, AuxiliaryProject: () => bge, CharRangeSection: () => Gge, CloseFileWatcherEvent: () => KK, CommandNames: () => LFe, ConfigFileDiagEvent: () => qK, ConfiguredProject: () => xge, ConfiguredProjectLoadKind: () => Ige, CreateDirectoryWatcherEvent: () => XK, CreateFileWatcherEvent: () => YK, Errors: () => Wy, EventBeginInstallTypes: () => FG, EventEndInstallTypes: () => RG, EventInitializationFailed: () => ofe, EventTypesRegistry: () => OG, ExternalProject: () => JK, GcTimer: () => cge, InferredProject: () => vge, LargeFileReferencedEvent: () => $K, LineIndex: () => v7, LineLeaf: () => Kj, LineNode: () => lI, LogLevel: () => Zhe, Msg: () => ege, OpenFileInfoTelemetryEvent: () => kge, Project: () => uw, ProjectInfoTelemetryEvent: () => GK, ProjectKind: () => YP, ProjectLanguageServiceStateEvent: () => HK, ProjectLoadingFinishEvent: () => VK, ProjectLoadingStartEvent: () => zK, ProjectService: () => jge, ProjectsUpdatedInBackgroundEvent: () => Gj, ScriptInfo: () => _ge, ScriptVersionCache: () => lQ, Session: () => VFe, TextStorage: () => fge, ThrottledOperations: () => oge, TypingsInstallerAdapter: () => XFe, allFilesAreJsOrDts: () => hge, allRootFilesAreJsOrDts: () => mge, asNormalizedPath: () => cFe, convertCompilerOptions: () => Yj, convertFormatOptions: () => sI, convertScriptKindName: () => ZK, convertTypeAcquisition: () => wge, convertUserPreferences: () => Age, convertWatchOptions: () => g7, countEachFileTypes: () => p7, createInstallTypingsRequest: () => tge, createModuleSpecifierCache: () => Uge, createNormalizedPathMap: () => lFe, createPackageJsonCache: () => Wge, createSortedArray: () => sge, emptyArray: () => tu, findArgument: () => lEe, formatDiagnosticToProtocol: () => y7, formatMessage: () => zge, getBaseConfigFileName: () => BK, getDetailWatchInfo: () => rQ, getLocationInNewDocument: () => Hge, hasArgument: () => cEe, hasNoTypeScriptSource: () => gge, indent: () => bP, isBackgroundProject: () => m7, isConfigFile: () => Bge, isConfiguredProject: () => W0, isDynamicFileName: () => GP, isExternalProject: () => d7, isInferredProject: () => aI, isInferredProjectName: () => nge, isProjectDeferredClose: () => h7, makeAutoImportProviderProjectName: () => ige, makeAuxiliaryProjectName: () => age, makeInferredProjectName: () => rge, maxFileSize: () => WK, maxProgramSizeForNonTsFiles: () => UK, normalizedPathToPath: () => iI, nowString: () => uEe, nullCancellationToken: () => OFe, nullTypingsInstaller: () => Xj, protocol: () => lge, scriptInfoIsContainedByBackgroundProject: () => pge, scriptInfoIsContainedByDeferredClosedProject: () => dge, stringifyIndented: () => U1, toEvent: () => Vge, toNormalizedPath: () => Oo, tryConvertScriptKindName: () => QK, typingsInstaller: () => Qhe, updateProjectIfDirty: () => Md }), typeof console < "u" && (D.loggingHost = { log(e, t) {
         switch (e) {
           case 1:
             return console.error(t);
@@ -93792,7 +93792,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
     let T = y.$owners?.[p];
     return T !== void 0 && iWe.has(T);
   }
-  function m0(y, p, T) {
+  function h0(y, p, T) {
     let A = y.$owners ??= /* @__PURE__ */ Object.create(null), P = A[p];
     if (P !== void 0 && P.yielding) P.dispose(), delete A[p];
     else if (P !== void 0) throw new Bt(`${y.constructor.name}.${p} is already bound (by ${P.label})`);
@@ -93807,7 +93807,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
   }
   function bv(y, p, T) {
     let A = new tl(`${y.constructor.name}.${p} (runtime derive)`, T, (P) => nU(y, p, P), 0, true);
-    return m0(y, p, A), A.run(), A;
+    return h0(y, p, A), A.run(), A;
   }
   var MF;
   var Wee;
@@ -94633,7 +94633,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
         this.surface = null, this.backend = null, T?.destroy();
       }
       flush(p) {
-        this.selectable === true && p.setSelectableRegion?.(true), p.setX(this.x), p.setY(this.y), p.setWidth(this.width), p.setHeight(this.height), p.setFill(this.fill), this.cornerRadius !== 0 && p.setCornerRadius(this.cornerRadius), this.stroke !== null && p.setStroke(this.stroke), this.shadow !== null && p.setShadow(this.shadow), p.setVisible(this.visible), p.setOpacity(this.opacity), this.ignoreClip && p.setIgnoreClip?.(true), this.ignoreScroll && p.setIgnoreScroll?.(true), this.cursor !== "" && p.setCursor(this.cursor), this.pointerEvents !== "" && p.setPointerEvents(this.pointerEvents), (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0) && p.setScale(this.scale, this.pivotX, this.pivotY), this.applyClip(this.clip), (this.scrolls === "y" || this.scrolls === "both") && p.setScroll?.(true, (A) => {
+        this.selectable === true && p.setSelectableRegion?.(true), p.setX(this.x), p.setY(this.y), p.setWidth(this.width), p.setHeight(this.height), p.setFill(this.fill), this.cornerRadius !== 0 && p.setCornerRadius(this.cornerRadius), this.stroke !== null && p.setStroke(this.stroke), this.shadow !== null && p.setShadow(this.shadow), p.setVisible(this.visible), p.setOpacity(this.opacity), this.ignoreClip && p.setIgnoreClip?.(true), this.ignoreScroll && p.setIgnoreScroll?.(true), this.cursor !== "" && p.setCursor(this.cursor), this.pointerEvents !== "" && p.setPointerEvents(this.pointerEvents), (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0) && p.setScale(this.scale, this.pivotX, this.pivotY), this.blend !== "normal" && p.setBlend?.(this.blend), this.applyClip(this.clip), (this.scrolls === "y" || this.scrolls === "both") && p.setScroll?.(true, (A) => {
           this.scrollY = A;
         }), (this.scrolls === "x" || this.scrolls === "both") && p.setScrollX?.(true, (A) => {
           this.scrollX = A;
@@ -94710,7 +94710,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
     } }, ignoreLayout: { def: false, push: (y) => {
       let p = y.parent;
       p instanceof rs && p.childrenMutated();
-    } }, ignoreClip: { def: false, push: (y, p) => y.surface?.setIgnoreClip?.(p) }, ignoreScroll: { def: false, push: (y, p) => y.surface?.setIgnoreScroll?.(p) }, opacity: { def: 1, push: (y, p) => y.surface?.setOpacity(p) }, cursor: { def: "", push: (y, p) => y.surface?.setCursor(p) }, pointerEvents: { def: "", push: (y, p) => y.surface?.setPointerEvents(p) }, scale: { def: 1, push: (y) => y.surface?.setScale(y.scale, y.pivotX, y.pivotY) }, pivotX: { def: 0, push: (y) => y.surface?.setScale(y.scale, y.pivotX, y.pivotY) }, pivotY: { def: 0, push: (y) => y.surface?.setScale(y.scale, y.pivotX, y.pivotY) }, focusable: { def: false }, focusTrap: { def: false }, anchor: { def: "" }, link: { def: "", push: (y) => {
+    } }, ignoreClip: { def: false, push: (y, p) => y.surface?.setIgnoreClip?.(p) }, ignoreScroll: { def: false, push: (y, p) => y.surface?.setIgnoreScroll?.(p) }, opacity: { def: 1, push: (y, p) => y.surface?.setOpacity(p) }, cursor: { def: "", push: (y, p) => y.surface?.setCursor(p) }, pointerEvents: { def: "", push: (y, p) => y.surface?.setPointerEvents(p) }, scale: { def: 1, push: (y) => y.surface?.setScale(y.scale, y.pivotX, y.pivotY) }, pivotX: { def: 0, push: (y) => y.surface?.setScale(y.scale, y.pivotX, y.pivotY) }, pivotY: { def: 0, push: (y) => y.surface?.setScale(y.scale, y.pivotX, y.pivotY) }, blend: { def: "normal", push: (y, p) => y.surface?.setBlend?.(p) }, focusable: { def: false }, focusTrap: { def: false }, anchor: { def: "" }, link: { def: "", push: (y) => {
       y.rewireInput(), y.surface?.setLink?.(y.link, y.label ?? "");
     } }, replace: { def: false }, shows: { def: "" }, clip: { def: null, push: (y, p) => y.applyClip(p) }, scrolls: { def: "none", push: NWe }, tip: { def: "" }, scrollY: { def: 0, push: (y, p) => y.surface?.scrollToY?.(p) }, claim: { def: "both" }, scrollX: { def: 0, push: (y, p) => y.surface?.scrollToX?.(p) }, textColor: { def: 0, prevailing: true }, selectable: { def: false, prevailing: true, push: (y, p) => y.surface?.setSelectableRegion?.(p === true) }, fontSize: { def: 16, prevailing: true }, fontFamily: { def: "sans-serif", prevailing: true }, fontWeight: { def: "normal", prevailing: true }, letterSpacing: { def: 0, prevailing: true }, iconSize: { def: 16, prevailing: true }, headingColor: { def: null, prevailing: true }, headingWeight: { def: "bold", prevailing: true }, linkColor: { def: null, prevailing: true }, codeColor: { def: null, prevailing: true }, codeSize: { def: 0, prevailing: true }, codeFamily: { def: "", prevailing: true }, codeBackground: { def: null, prevailing: true }, codeRule: { def: null, prevailing: true }, richTextLayout: { def: null, prevailing: true }, theme: { def: Xbe, prevailing: true }, styles: { def: null }, stylesheet: { def: null, prevailing: true, push: (y) => oWe(y) }, layout: { def: null, push: (y, p) => {
       oU.get(y)?.(), oU.delete(y), p !== null && oU.set(y, p.attachTo(y));
@@ -95026,7 +95026,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
         let B = Dc(p, T);
         if (B !== null) throw new Bt(`${p.constructor.name}.${T} is already bound (by ${B.label}), but ${P} arranges its children's ${T} \u2014 drop one of the two`);
         let U = this.bases.get(p) ?? {};
-        T in U || (U[T] = p[T], this.bases.set(p, U)), m0(p, T, A);
+        T in U || (U[T] = p[T], this.bases.set(p, U)), h0(p, T, A);
       }
       unclaim(p, T, A) {
         if (Vee(p, T, A), !this.rearming || this.view !== null && Kee(this.view)) return;
@@ -95096,13 +95096,13 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
                 let Ve = ae[Ee], Ne = At[Ee];
                 return Ve + (Ne - Ve) * this.t;
               }, (ae) => Ia(U, Oe, ae));
-              m0(U, Oe, qe), A.push({ child: U, slot: Oe, k: qe });
+              h0(U, Oe, qe), A.push({ child: U, slot: Oe, k: qe });
             }
             let _e = new tl(`${this.constructor.name}[${le}].visible`, () => {
               let Oe = this.from[le], Ee = this.to[le];
               return Oe === void 0 || Ee === void 0 ? true : this.t < 1 ? Oe.vis : Ee.vis;
             }, (Oe) => Ia(U, "visible", Oe));
-            m0(U, "visible", _e), A.push({ child: U, slot: "visible", k: _e });
+            h0(U, "visible", _e), A.push({ child: U, slot: "visible", k: _e });
           });
         } catch (U) {
           for (let le of A) Vee(le.child, le.slot, le.k), le.k.dispose();
@@ -95214,7 +95214,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
   }
   function MWe(y, p, T) {
     let A = T.entries[T.entries.length - 1];
-    T.topK = A.make(y), rU(y, p), m0(y, p, T.topK), T.topK.run();
+    T.topK = A.make(y), rU(y, p), h0(y, p, T.topK), T.topK.run();
   }
   function mCt(y, p, T, A) {
     let P = LWe(y), B = P.get(p);
@@ -95237,7 +95237,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
         MWe(y, p, P);
         return;
       }
-      A.delete(p), rU(y, p), P.baseOwner !== null ? (m0(y, p, P.baseOwner), P.baseOwner.resume()) : Ia(y, p, P.baseValue);
+      A.delete(p), rU(y, p), P.baseOwner !== null ? (h0(y, p, P.baseOwner), P.baseOwner.resume()) : Ia(y, p, P.baseValue);
     }
   }
   function gCt(y, p) {
@@ -95633,7 +95633,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
     let U = Bh(T);
     if ("error" in U) throw new Bt(`${y.constructor.name}.${p} = { \u2026 } ${U.error}`, A);
     let le = U.fn, _e = new tl(`${y.constructor.name}.${p}`, () => le.call(y, y.parent, P), (Ee) => Ia(y, p, Ee));
-    _e.source = T, A != null && typeof A.line == "number" && (_e.sourcePos = { line: A.line, col: A.col ?? 0 }), m0(y, p, _e);
+    _e.source = T, A != null && typeof A.line == "number" && (_e.sourcePos = { line: A.line, col: A.col ?? 0 }), h0(y, p, _e);
     let Oe = B !== void 0 && B.some((Ee) => Ee.startsWith(":") || Ee.includes(".read("));
     if (B !== void 0 && B.length > 0 && !Oe) {
       let Ee = B.map((qe) => Bh(qe)).filter((qe) => "fn" in qe).map((qe) => qe.fn);
@@ -95650,27 +95650,27 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
       let _e = mU(A, y.$data(U), B);
       return _e === B ? KUe(y, p) : _e;
     }, (_e) => Ia(y, p, _e));
-    m0(y, p, le), le.run();
+    h0(y, p, le), le.run();
   }
   function qWe(y, p) {
     let T = typeof p == "string" ? dy(p) : p, A = new tl(`${y.constructor.name}.datapath = :${typeof p == "string" ? p : p.join(".")}`, () => {
       let P = BT(y.parent);
       return P === null ? null : P.data.cursorAt([...P.path, ...T]);
     }, (P) => Ia(y, "datapath", P));
-    m0(y, "datapath", A), A.run();
+    h0(y, "datapath", A), A.run();
   }
   function HWe(y, p, T, A) {
     let P = Bh(p);
     if ("error" in P) throw new Bt(`${y.constructor.name}.datapath = { \u2026 } ${P.error}`, T);
     let B = P.fn, U = `${y.constructor.name}.datapath`, le = new tl(U, () => dU(B.call(y, y.parent, A), U), (_e) => Ia(y, "datapath", _e));
-    m0(y, "datapath", le), le.run();
+    h0(y, "datapath", le), le.run();
   }
   function GWe(y, p, T, A) {
     let P = y.constructor.name, B = Object.hasOwn(VWe, p) ? VWe[p] : null;
     if (B === null) throw new Bt(`${P}.${p} = ${T}%: no axis to resolve a percent against`, A);
     if (!(y.parent instanceof rs)) throw new Bt(`${P}.${p} = ${T}%: the root has no parent for a percent to resolve against`, A);
     let U = new tl(`${P}.${p} = ${T}%`, () => y.parent[B] * (T / 100), (le) => Ia(y, p, le));
-    iU(U), m0(y, p, U), U.run();
+    iU(U), h0(y, p, U), U.run();
   }
   function YWe(y, p, T, A) {
     let P = y.constructor.name, B = p === "x" ? "width" : "height";
@@ -95681,7 +95681,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
       let _e = y.alignBand(p);
       return (le - _e.size) / 2 - _e.lead;
     }, (le) => Ia(y, p, le));
-    iU(U), m0(y, p, U), U.run();
+    iU(U), h0(y, p, U), U.run();
   }
   var VWe;
   var gTe = xo(() => {
@@ -97962,7 +97962,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
     let A = p.value;
     if (A.kind === "code") return { ok: true, binding: { src: A.src, pos: A.pos } };
     if (A.kind === "path") return { ok: true, datapath: { path: A.path, many: A.many, pos: A.pos, plan: A.plan } };
-    let P = r_(y, p.name), B = P !== null ? d0(P, A) : null;
+    let P = r_(y, p.name), B = P !== null ? m0(P, A) : null;
     if (B === null || !B.ok) throw new Bt(`${y.name}.${p.name}: this precompiled program does not match its runtime (rebuild the artifact)`, p.pos);
     return { ok: true, value: B.value };
   }
@@ -98078,14 +98078,14 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
         le[Ne.name] = Object.freeze(Ne.value.items.map((ti) => {
           if (ti.kind === "number" || ti.kind === "string") return ti.value;
           if (ti.kind === "hexColor") {
-            let yi = d0({ kind: "color" }, ti);
+            let yi = m0({ kind: "color" }, ti);
             return yi.ok ? yi.value : null;
           }
           if (ti.kind === "ident") {
             if (ti.name === "null") return null;
             if (ti.name === "true") return true;
             if (ti.name === "false") return false;
-            let yi = d0({ kind: "color" }, ti);
+            let yi = m0({ kind: "color" }, ti);
             return yi.ok ? yi.value : null;
           }
           return null;
@@ -98860,7 +98860,7 @@ it has: ${ti.join(", ")}` };
     if (Ewt(A)) {
       if (!(B instanceof rs)) return P("only a View can take a child");
       try {
-        let Ve = hv(`App [
+        let Ve = gv(`App [
 ${A}
 ]`).root.children[0];
         if (Ve === void 0) return P("that parsed to no view");
@@ -100205,7 +100205,7 @@ ${U.join(`
   function RUe(y, p) {
     let { schemas: T } = Sk(p.classes), A;
     try {
-      A = hv(y);
+      A = gv(y);
     } catch {
       return [];
     }
@@ -100453,7 +100453,7 @@ ${U.join(`
   function ZJ(y, p = {}) {
     let T;
     try {
-      T = hv(y);
+      T = gv(y);
     } catch (br) {
       if (br instanceof Kb) return { source: null, errors: [...br.errors], warnings: [], ...yv([...br.errors], [], "syntax") };
       if (br instanceof Bt) return { source: null, errors: [br], warnings: [], ...yv([br], [], "syntax") };
@@ -100518,7 +100518,7 @@ ${U.join(`
 ` && Ee++;
     let qe = Wkt(U, Ee), ae = (br) => br.map(qe), At;
     try {
-      At = hv(_e);
+      At = gv(_e);
     } catch (br) {
       if (br instanceof Bt) {
         let Yn = ae([br]);
@@ -100547,7 +100547,7 @@ ${U.join(`
         br.sort((Ya, Nn) => Nn.start - Ya.start);
         for (let Ya of br) _e = _e.slice(0, Ya.start) + Ya.text + _e.slice(Ya.end);
         try {
-          At = hv(_e);
+          At = gv(_e);
         } catch (Ya) {
           if (Ya instanceof Bt) {
             let Nn = ae([Ya]);
@@ -100583,7 +100583,7 @@ ${U.join(`
     {
       let br = null;
       try {
-        br = hv(jn);
+        br = gv(jn);
       } catch {
       }
       if (br !== null) {
@@ -100608,7 +100608,7 @@ ${U.join(`
     {
       let br = null;
       try {
-        br = hv(jn);
+        br = gv(jn);
       } catch {
       }
       if (br !== null && br.scripts.length > 0) for (let Yn of [...br.scripts].sort((vo, Ya) => Ya.span.start - vo.span.start)) {
@@ -100619,7 +100619,7 @@ ${U.join(`
     }
     let $t;
     try {
-      $t = hv(jn);
+      $t = gv(jn);
     } catch (br) {
       if (br instanceof Bt) {
         let Yn = ae([br]), vo = ae(yi.warnings);

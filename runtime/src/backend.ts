@@ -185,6 +185,20 @@ export interface Surface {
    *  walk, so a scaled view stays clickable). */
   setScale(scale: number, pivotX: number, pivotY: number): void;
 
+  /** The compositing OPERATOR this surface lands with against what has
+   *  already painted beneath it within the nearest isolating ancestor
+   *  (compositing.md §4.1 — the App root, a group-opacity subtree, a
+   *  scroller's content group, an island boundary; plain containers are
+   *  transparent to blending). The token is the schema's camelCase Blend
+   *  enum ("multiply", "colorDodge", …; "normal" = plain painting); each
+   *  backend maps it to its native operator — CSS mix-blend-mode, canvas
+   *  globalCompositeOperation, Core Animation compositingFilter. A blending
+   *  surface blends as a UNIT, children included (its subtree composites
+   *  internally first, then the finished group lands with the operator).
+   *  Paint only, never input. Optional — a backend that composites nothing
+   *  (headless) omits it, with its seam-table row saying so. */
+  setBlend?(mode: string): void;
+
   /** Clip this surface's subtree to a shape (SVG path data, view-local
    *  coordinates); null = unclipped. Applied at composite time — moving or
    *  re-clipping never re-rasterizes content (rendering model rule 3). */

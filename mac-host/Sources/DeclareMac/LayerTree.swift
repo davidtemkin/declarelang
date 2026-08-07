@@ -8,10 +8,26 @@
 // platform composites; it never negotiates.
 
 import AppKit
+import CoreImage
 import CoreText
 import QuartzCore
 import ImageIO
 import UniformTypeIdentifiers
+
+/// The Blend enum's camelCase tokens → the CIFilter each layer composites
+/// with (`compositingFilter` — public API on macOS; compositing.md §2). The
+/// same operators are already proven inside drawings through CGBlendMode
+/// (DrawReplay); this is the view tier of the same table. `normal` → nil.
+private let BLEND_FILTERS: [String: String] = [
+    "multiply": "CIMultiplyBlendMode", "screen": "CIScreenBlendMode",
+    "overlay": "CIOverlayBlendMode", "darken": "CIDarkenBlendMode",
+    "lighten": "CILightenBlendMode", "colorDodge": "CIColorDodgeBlendMode",
+    "colorBurn": "CIColorBurnBlendMode", "hardLight": "CIHardLightBlendMode",
+    "softLight": "CISoftLightBlendMode", "difference": "CIDifferenceBlendMode",
+    "exclusion": "CIExclusionBlendMode", "hue": "CIHueBlendMode",
+    "saturation": "CISaturationBlendMode", "color": "CIColorBlendMode",
+    "luminosity": "CILuminosityBlendMode", "plusLighter": "CIAdditionCompositing",
+]
 
 final class Node {
     let id: Int
@@ -452,6 +468,14 @@ final class LayerTree {
             // the layer must be re-placed because its parent-relative y is now
             // measured against a box that no longer scrolls under it.
             if let p = n.parent { restack(p); place(n) }
+        case 35: // BLEND — the view-tier compositing operator (compositing.md
+            // §4.1). A compositing filter rides the LAYER, not the order:
+            // Core Animation renders the layer's subtree as a group and lands
+            // it with the filter against what is already composited beneath —
+            // the same blends-as-a-unit semantics the web backends realize.
+            // restack/clipHost are untouched.
+            guard let n = nodes[id] else { return }
+            n.layer.compositingFilter = (str(a(0)).flatMap { BLEND_FILTERS[$0] }).flatMap { CIFilter(name: $0) }
         default:
             break
         }

@@ -381,6 +381,33 @@ const C2_SOURCE = `App [ width=240, height=160, fill=#20242C,
   View [ x=20, y=90, width=200, height=50, clip=true, fill=#264653,
     TextInput [ x=8, y=10, width=180, height=22, fontSize=15, fontFamily="Arial", textColor=#FFFFFF, text="inside the clip" ] ] ]`;
 
+// The view-compositing scene (compositing.md §6): `blend` where its absence —
+// or a wrong isolation model — shows. Four cases over a two-tone sibling
+// ground, each a distinct failure mode:
+//   chip — a multiply LEAF over sibling fills: a backend that ignores
+//          setBlend paints it flat opaque red;
+//   unit — a multiply view WITH a child: the subtree composites internally
+//          first and lands as ONE group (§4.1's unit clause) — leaf-only
+//          blending, which passes the chip case, renders the child unblended;
+//   deep — a screen chip under two PLAIN containers: containers are
+//          transparent to blending, so it must still read the ground;
+//   pane — a multiply chip inside an unfilled SCROLLER: a scroller's content
+//          group isolates, so the chip paints plain (the backdrop within the
+//          group is transparent), never blending through to the ground.
+// Solid fills only, so every expectation is exact compositing arithmetic in
+// encoded sRGB (the stated color-space contract, compositing.md §8).
+const BLEND_SOURCE = `App [ width=240, height=160, fill=#20242C,
+  View [ x=0, y=0, width=120, height=160, fill=#FFD24A ],
+  View [ x=120, y=0, width=120, height=160, fill=#2244AA ],
+  chip: View [ x=20, y=10, width=200, height=30, blend=multiply, fill=#CC3344 ],
+  unit: View [ x=20, y=50, width=90, height=40, blend=multiply, fill=#66CCEE,
+    View [ x=10, y=10, width=40, height=20, fill=#EEEEEE ] ],
+  outer: View [ x=20, y=100, width=80, height=40,
+    View [ x=4, y=4, width=72, height=32,
+      View [ x=4, y=4, width=60, height=24, blend=screen, fill=#703090 ] ] ],
+  pane: View [ x=140, y=50, width=80, height=60, scrolls=y,
+    View [ x=10, y=10, width=60, height=30, blend=multiply, fill=#CC3344 ] ] ]`;
+
 // One page template per backend and program; the only differences are which
 // backend class renders and which source. The canvas backend's first paint is
 // its scheduled rAF, so readiness is flagged one frame after that (double-rAF
@@ -743,6 +770,8 @@ function serveDist() {
     "/canvas-c1": pageHtml("CanvasBackend", C1_SOURCE),
     "/dom-c2": pageHtml("DomBackend", C2_SOURCE),
     "/canvas-c2": pageHtml("CanvasBackend", C2_SOURCE),
+    "/dom-blend": pageHtml("DomBackend", BLEND_SOURCE),
+    "/canvas-blend": pageHtml("CanvasBackend", BLEND_SOURCE),
     // The box-clip CONTAINMENT test: an App declaring `clip = true` (the
     // calendar's fixed-window design) with a panel parked BEYOND the frame —
     // the browser must gain no scroll extent and focus must not shift the frame.
@@ -2426,6 +2455,42 @@ try {
     const diff = await diffShots(canvasC2.page, domC2.png, canvasC2.png, {
       soft: [{ x: 26, y: 98, w: 184, h: 26, label: "field edge (border-radius vs arc AA)" }],
     });
+    assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
+    assert.equal(diff.over, 0, `channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+  });
+
+  // ── the view compositing tier: `blend` (compositing.md §6) ───────────────
+
+  const BLEND_PROBES = [
+    { at: [5, 5], color: [0xff, 0xd2, 0x4a], label: "ground, yellow field" },
+    { at: [235, 5], color: [0x22, 0x44, 0xaa], label: "ground, blue field" },
+    // multiply is per-channel a·b/255 — exact, both fields
+    { at: [60, 25], color: [204, 42, 20], label: "multiply leaf over the yellow sibling" },
+    { at: [180, 25], color: [27, 14, 45], label: "multiply leaf over the blue sibling" },
+    { at: [100, 55], color: [102, 168, 69], label: "blending parent, its own fill" },
+    // the unit-clause discriminator: the child composites INTO the group
+    // (opaque, covering the parent) and the finished group lands multiply —
+    // leaf-only blending would leave it plain (238,238,238)
+    { at: [50, 70], color: [238, 196, 69], label: "child inside the blending group" },
+    { at: [50, 120], color: [255, 219, 176], label: "screen chip through two plain containers" },
+    // the isolation discriminator: inside the scroller's content group the
+    // backdrop is transparent, so the chip paints plain — a backend that
+    // blends through to the ground lands (27,14,45) here
+    { at: [170, 65], color: [204, 51, 68], label: "chip isolated by its scroller" },
+  ];
+
+  const domBlend = await renderShot("/dom-blend", 1, "blend-dom.png");
+  const canvasBlend = await renderShot("/canvas-blend", 1, "blend-canvas.png");
+
+  for (const [name, shot] of [["DOM", domBlend], ["Canvas", canvasBlend]]) {
+    await test(`${name}: view blending — operator, unit clause, container transparency, scroller isolation`, async () => {
+      const actual = await samplePixels(shot.page, shot.png, BLEND_PROBES.map((p) => p.at));
+      BLEND_PROBES.forEach((p, i) => assertColorNear(actual[i], p.color, `${name} ${p.label}`));
+    });
+  }
+
+  await test("cross-backend: the blend scene agrees within AA tolerance", async () => {
+    const diff = await diffShots(canvasBlend.page, domBlend.png, canvasBlend.png);
     assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
     assert.equal(diff.over, 0, `channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
   });

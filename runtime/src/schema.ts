@@ -114,6 +114,19 @@ const ViewSchema: ComponentSchema = {
     scale: { kind: "number" },
     pivotX: { kind: "number" },
     pivotY: { kind: "number" },
+    // How this view COMPOSITES against what has already painted beneath it
+    // within the nearest isolating ancestor (compositing.md §4.1: the App
+    // root, a group-opacity subtree, a scroller's content group, an island
+    // boundary — plain containers are transparent to blending, so a multiply
+    // chip inside three nested layout Views blends against the card under
+    // them). Declaration order — the language's own z-order — is also the
+    // blending order. A blending view lands as a UNIT, children included;
+    // compositing is paint, never input. Tokens are camelCase (`colorDodge`),
+    // the W3C mode set every renderer carries natively.
+    blend: enumType("Blend", "normal", "multiply", "screen", "overlay",
+      "darken", "lighten", "colorDodge", "colorBurn", "hardLight", "softLight",
+      "difference", "exclusion", "hue", "saturation", "color", "luminosity",
+      "plusLighter"),
     clip: { kind: "shape" },
     // Scroll: which AXES of interior overflow this view scrolls (ruled
     // 2026-07-29, the axis-enum form — the Stretch shape): `none` (the View

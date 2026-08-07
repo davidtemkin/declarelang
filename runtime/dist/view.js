@@ -435,6 +435,8 @@ export class View extends Node {
             s.setPointerEvents(this.pointerEvents);
         if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
             s.setScale(this.scale, this.pivotX, this.pivotY);
+        if (this.blend !== "normal")
+            s.setBlend?.(this.blend);
         this.applyClip(this.clip);
         if (this.scrolls === "y" || this.scrolls === "both")
             s.setScroll?.(true, (y) => { this.scrollY = y; });
@@ -718,6 +720,9 @@ defineAttributes(View, {
     scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
     pivotX: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
     pivotY: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
+    // optional-chained (the ignoreScroll pattern): backends adopt independently,
+    // and the seam table (test/seam.test.mjs) says which have.
+    blend: { def: "normal", push: (v, b) => v.surface?.setBlend?.(b) },
     focusable: { def: false },
     focusTrap: { def: false },
     // `anchor` — the view's name in the reveal namespace (location.md §6). A stored

@@ -2413,6 +2413,16 @@ var DeclareMac = (() => {
           scale: { kind: "number" },
           pivotX: { kind: "number" },
           pivotY: { kind: "number" },
+          // How this view COMPOSITES against what has already painted beneath it
+          // within the nearest isolating ancestor (compositing.md §4.1: the App
+          // root, a group-opacity subtree, a scroller's content group, an island
+          // boundary — plain containers are transparent to blending, so a multiply
+          // chip inside three nested layout Views blends against the card under
+          // them). Declaration order — the language's own z-order — is also the
+          // blending order. A blending view lands as a UNIT, children included;
+          // compositing is paint, never input. Tokens are camelCase (`colorDodge`),
+          // the W3C mode set every renderer carries natively.
+          blend: enumType("Blend", "normal", "multiply", "screen", "overlay", "darken", "lighten", "colorDodge", "colorBurn", "hardLight", "softLight", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "plusLighter"),
           clip: { kind: "shape" },
           // Scroll: which AXES of interior overflow this view scrolls (ruled
           // 2026-07-29, the axis-enum form — the Stretch shape): `none` (the View
@@ -7066,6 +7076,8 @@ var DeclareMac = (() => {
             s.setPointerEvents(this.pointerEvents);
           if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
             s.setScale(this.scale, this.pivotX, this.pivotY);
+          if (this.blend !== "normal")
+            s.setBlend?.(this.blend);
           this.applyClip(this.clip);
           if (this.scrolls === "y" || this.scrolls === "both")
             s.setScroll?.(true, (y) => {
@@ -7336,6 +7348,9 @@ var DeclareMac = (() => {
         scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
         pivotX: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
         pivotY: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
+        // optional-chained (the ignoreScroll pattern): backends adopt independently,
+        // and the seam table (test/seam.test.mjs) says which have.
+        blend: { def: "normal", push: (v, b) => v.surface?.setBlend?.(b) },
         focusable: { def: false },
         focusTrap: { def: false },
         // `anchor` — the view's name in the reveal namespace (location.md §6). A stored
@@ -16208,7 +16223,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     SCROLLXPOS: 31,
     PAGEFILL: 32,
     IGNORESCROLL: 33,
-    RICHWIDTH: 34
+    RICHWIDTH: 34,
+    BLEND: 35
   };
   function host() {
     const h = globalThis.__declareMacHost;
@@ -16331,6 +16347,13 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     setOpacity(o) {
       this.opacity = o;
       emit(OP.OPACITY, this.id, o);
+    }
+    /** The schema token rides the wire verbatim; the Swift side maps it to a
+     *  CIFilter for `layer.compositingFilter` (public on macOS — LayerTree
+     *  case 35). A compositing filter rides the layer, not the order, so the
+     *  restack/clipHost machinery is untouched. */
+    setBlend(mode) {
+      emit(OP.BLEND, this.id, mode);
     }
     setCursor(c) {
       this.cursorStyle = c;

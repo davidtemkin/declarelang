@@ -373,6 +373,20 @@ both `pivotX`/`pivotY` to scale about the middle rather than the top-left.
 ## pivotY
 The vertical pivot — the twin of `pivotX`.
 
+## blend
+The **compositing operator** this view lands with against what has already painted
+beneath it — `normal` (the default), or one of the W3C blend modes in camelCase
+(`multiply`, `screen`, `overlay`, `darken`, `lighten`, `colorDodge`, `colorBurn`,
+`hardLight`, `softLight`, `difference`, `exclusion`, `hue`, `saturation`, `color`,
+`luminosity`, `plusLighter`). Declaration order — the z-order you already have — is
+the blending order, and blending reaches down to the nearest **isolating** ancestor:
+the `App` root, an `opacity < 1` group, a scrolling view's content, an island
+boundary. A plain container is transparent to blending, so a `multiply` chip inside
+nested layout Views blends against the card under them — which is what you meant.
+A blending view blends **as a unit**, children included; compositing is paint, never
+input — hit-testing and focus are unchanged. A token string in a `{ }` body, like
+`scrolls` — so a blend can be state: `blend = { active ? "multiply" : "normal" }`.
+
 ## scrollX
 **Read it, don't set it** in practice: the live horizontal offset of a `scrolls = x`
 (or `both`) view, mirrored from the native scroll — `scrollY`'s twin. Use it for a

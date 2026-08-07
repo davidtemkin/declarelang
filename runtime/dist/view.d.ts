@@ -85,6 +85,13 @@ export declare class View extends Node {
     scale: number;
     pivotX: number;
     pivotY: number;
+    /** The compositing operator this view LANDS with against what has already
+     *  painted beneath it within the nearest isolating ancestor (compositing.md
+     *  §4.1 — the App root, a group-opacity subtree, a scroller's content
+     *  group, an island boundary; plain containers are transparent to
+     *  blending). `normal` = plain painting. A blending view blends as a unit,
+     *  children included; paint only — hit testing and focus never change. */
+    blend: "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "colorDodge" | "colorBurn" | "hardLight" | "softLight" | "difference" | "exclusion" | "hue" | "saturation" | "color" | "luminosity" | "plusLighter";
     /** Which axes of interior overflow this view scrolls — `"none"` (the View
      *  default), `"y"`, `"x"`, or `"both"`. Overflow along a declared axis
      *  becomes scroll range; along any other axis it is out of frame. */

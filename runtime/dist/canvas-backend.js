@@ -44,6 +44,19 @@ function applyCanvasEditStyle(el, st) {
     const m = fontMetrics(fontString(st));
     s.lineHeight = m.ascent + m.descent + "px";
 }
+/** The Blend enum's camelCase tokens → Canvas2D operators. The set is the
+ *  W3C compositing-and-blending modes every backend carries natively
+ *  (compositing.md §2); only two spellings differ from a mechanical
+ *  hyphenation: `normal` is source-over, `plusLighter` is `lighter`. */
+const BLEND_OPS = {
+    normal: "source-over", multiply: "multiply", screen: "screen",
+    overlay: "overlay", darken: "darken", lighten: "lighten",
+    colorDodge: "color-dodge", colorBurn: "color-burn",
+    hardLight: "hard-light", softLight: "soft-light",
+    difference: "difference", exclusion: "exclusion", hue: "hue",
+    saturation: "saturation", color: "color", luminosity: "luminosity",
+    plusLighter: "lighter",
+};
 /** An identity-transform scratch context for Path2D point tests: the
  *  compositor's own ctx carries the dpr transform (which would rescale the
  *  path under isPointInPath), so clip hit-testing gets a context where path
@@ -520,6 +533,15 @@ class CanvasSurface {
     box = null;
     visible = true;
     opacity = 1;
+    /** This surface's compositing operator (globalCompositeOperation form;
+     *  "source-over" = normal painting). See setBlend. */
+    blendMode = "source-over";
+    /** How many BLENDING surfaces this subtree holds, self included —
+     *  maintained incrementally (setBlend / insertChild / destroy) so an
+     *  isolating ancestor (a scroller) can know, without walking, that its
+     *  content must composite through a group (compositing.md §4.1: blending
+     *  never reaches past the nearest isolating ancestor). */
+    blends = 0;
     cursorStyle = "";
     /** Uniform scale about (pivotX, pivotY) in this surface's own coordinates;
      *  1 = identity. Applied in the paint walk and inverted in the hit walk. */
@@ -643,6 +665,29 @@ class CanvasSurface {
         this.clipPath = null; this.compositor.invalidate(); }
     setVisible(v) { this.visible = v; this.compositor.invalidate(); }
     setOpacity(o) { this.opacity = o; this.compositor.invalidate(); }
+    /** Add `delta` to the blending count of `from` and every ancestor above it
+     *  — the incremental half of the `blends` field's contract. */
+    static addBlends(from, delta) {
+        for (let p = from; p !== null; p = p.parent)
+            p.blends += delta;
+    }
+    setBlend(mode) {
+        // The schema's camelCase token → the canvas operator. The single-surface
+        // painter's model realizes §4.1 directly: at the moment this surface
+        // lands, everything beneath it inside its isolating group is already
+        // painted, so the operator IS the semantics — a leaf simply paints with
+        // it; a subtree composites internally first (the opacity-group path) and
+        // the finished group lands with it (paint()).
+        const op = BLEND_OPS[mode] ?? "source-over";
+        if (op === this.blendMode)
+            return;
+        const was = this.blendMode !== "source-over" ? 1 : 0;
+        const now = op !== "source-over" ? 1 : 0;
+        this.blendMode = op;
+        if (now !== was)
+            CanvasSurface.addBlends(this, now - was);
+        this.compositor.invalidate();
+    }
     // pointer-events is a DOM compositing concept; the canvas paints its own
     // display list and hit-tests it, so there is nothing to yield to here.
     /** Consulted by hit() below — the walk realizes what CSS realizes on DOM. */
@@ -1249,6 +1294,12 @@ class CanvasSurface {
         const existing = this.children.indexOf(c);
         if (existing >= 0)
             this.children.splice(existing, 1); // a re-insert is a move
+        else if (c.parent !== this && c.blends > 0) {
+            // arriving from elsewhere: its blending count moves ancestor chains
+            if (c.parent !== null)
+                CanvasSurface.addBlends(c.parent, -c.blends);
+            CanvasSurface.addBlends(this, c.blends);
+        }
         c.parent = this;
         const at = before === null ? -1 : this.children.indexOf(before);
         this.children.splice(at < 0 ? this.children.length : at, 0, c);
@@ -1259,6 +1310,8 @@ class CanvasSurface {
         this.editEl = null;
         this.compositor.unregisterEditable(this);
         if (this.parent !== null) {
+            if (this.blends > 0)
+                CanvasSurface.addBlends(this.parent, -this.blends);
             const siblings = this.parent.children;
             siblings.splice(siblings.indexOf(this), 1);
             this.parent = null;
@@ -1281,6 +1334,12 @@ class CanvasSurface {
             ctx.scale(this.scaleK, this.scaleK);
             ctx.translate(-this.pivotX, -this.pivotY);
         }
+        // A blending view lands with its operator from here on — set BEFORE the
+        // shadow so the whole unit (shadow included) blends, the way a CSS
+        // mix-blend-mode element's box-shadow blends with it. The save() above
+        // restores source-over after this subtree.
+        if (this.blendMode !== "source-over")
+            ctx.globalCompositeOperation = this.blendMode;
         // The box's own drop shadow is painted BEFORE the clip, so it escapes the
         // view's overflow exactly as a CSS box-shadow escapes overflow:hidden.
         // (paintBox no longer casts it — it would land inside the clip.)
@@ -1289,12 +1348,24 @@ class CanvasSurface {
             paintBoxShadow(ctx, this.box, this.shadow);
         }
         const cpPaint = this.clipPathObj();
+        // Offscreen-group cases (one layer, three reasons — compositing.md §4.1):
+        // a translucent subtree (the R1 opacity group); a blending view WITH
+        // children (the subtree composites internally first, then the finished
+        // group lands with the operator — leaf-only blending would pass a naive
+        // probe and be wrong in real programs); and a scroller whose CONTENT
+        // blends (a scroller is an isolating boundary, so blending must not
+        // reach past its content group — the `blends` count knows without
+        // walking; the count includes this surface itself, whose own blend is
+        // the outside world's business, hence the subtraction).
+        const group = this.opacity < 1
+            || (this.blendMode !== "source-over" && this.children.length > 0)
+            || (this.scrolls && this.blends > (this.blendMode !== "source-over" ? 1 : 0));
         // ignoreClip children paint OUTSIDE the clip bracket, in their declared
         // stacking side (leading exempt run below the clipped set, the rest
         // above) — mirroring the DOM's element partition. Only taken on the
-        // plain-opacity path: under a group-opacity layer the whole subtree
-        // composites as one (a clipped exempt child there is the documented edge).
-        const exempt = cpPaint !== null && this.opacity >= 1 && this.children.some((c) => c.ignoresClip);
+        // plain path: under a group layer the whole subtree composites as one
+        // (a clipped exempt child there is the documented edge).
+        const exempt = cpPaint !== null && !group && this.children.some((c) => c.ignoresClip);
         if (exempt) {
             let i = 0;
             while (i < this.children.length && this.children[i].ignoresClip) {
@@ -1314,17 +1385,20 @@ class CanvasSurface {
         }
         if (cpPaint !== null)
             ctx.clip(cpPaint);
-        if (this.opacity < 1)
+        if (group)
             this.paintLayer(ctx);
         else
             this.paintContent(ctx);
         ctx.restore();
     }
-    /** Group opacity: the subtree paints opaquely into a layer sharing the
-     *  target's device size and transform, then lands in one drawImage at this
-     *  opacity — an identity-transform, pixel-aligned blit (no resampling)
-     *  that still honors the ambient clip. The cost exists only where
-     *  translucency does; sizing layers to subtree bounds and pooling them are
+    /** The offscreen GROUP: the subtree paints normally (source-over, full
+     *  alpha) into a layer sharing the target's device size and transform,
+     *  then lands in one drawImage carrying the ambient state — this surface's
+     *  opacity, and (when it blends) the operator paint() already set on the
+     *  shared ctx — an identity-transform, pixel-aligned blit (no resampling)
+     *  that still honors the ambient clip. Group opacity, group blending, and
+     *  scroller isolation are all this one landing. The cost exists only where
+     *  a group does; sizing layers to subtree bounds and pooling them are
      *  later policy work (free dimensions — rendering model). */
     paintLayer(ctx) {
         const target = ctx.canvas;

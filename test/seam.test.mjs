@@ -61,6 +61,13 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
+  // ── the compositing seam (compositing.md, 2026-08-06) ────────────────────
+
+  setBlend: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
+
   setPageExtent: {
     dom: true, canvas: true,
     mac: "GAP (found 2026-07-31, not yet fixed) — same family as setIgnoreScroll: the App-is-the-page scroll realization. Without it the host cannot publish the document extent, so an app taller than its window has no scroll range to give the platform",
@@ -223,9 +230,14 @@ for (const member of members) {
 // scan here does not count: absent = synchronous rich measurement, which is
 // what keeps headless reveals first-call while DOM reveals hold for the
 // ResizeObserver.)
+// 15 → 16 (2026-08-06, compositing phase 2 — compositing.md §5.0): setBlend,
+// the view-tier compositing operator. Optional for the ignoreScroll reason —
+// backends adopt independently — and rowed from day one so an absence is a
+// declaration, never an inference; the blendview probe is the pixel half
+// (a backend that ignores setBlend renders visibly flat-wrong there).
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 15,
+  assert.equal(members.length, 16,
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);

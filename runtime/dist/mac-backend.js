@@ -31,7 +31,7 @@ export const OP = {
     SCROLL: 21, SCROLLPOS: 22, CURSOR: 23, EDIT: 24, EDITFOCUS: 25,
     RICH: 26, RICHSCROLL: 27, EMBED: 28, IGNORECLIP: 29,
     SCROLLX: 30, SCROLLXPOS: 31, PAGEFILL: 32,
-    IGNORESCROLL: 33, RICHWIDTH: 34,
+    IGNORESCROLL: 33, RICHWIDTH: 34, BLEND: 35,
 };
 function host() {
     const h = globalThis.__declareMacHost;
@@ -140,6 +140,11 @@ class MacSurface {
     }
     setVisible(v) { this.visible = v; emit(OP.VISIBLE, this.id, v ? 1 : 0); }
     setOpacity(o) { this.opacity = o; emit(OP.OPACITY, this.id, o); }
+    /** The schema token rides the wire verbatim; the Swift side maps it to a
+     *  CIFilter for `layer.compositingFilter` (public on macOS — LayerTree
+     *  case 35). A compositing filter rides the layer, not the order, so the
+     *  restack/clipHost machinery is untouched. */
+    setBlend(mode) { emit(OP.BLEND, this.id, mode); }
     setCursor(c) { this.cursorStyle = c; emit(OP.CURSOR, this.id, c); }
     /** No CSS pointer-events natively: the hit walk is ours, so an inert
      *  surface simply drops its sink (setInput(null)) — this is a no-op kept

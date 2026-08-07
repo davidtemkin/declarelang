@@ -780,6 +780,16 @@ class DomSurface implements Surface {
     }
   }
 
+  setBlend(mode: string): void {
+    // The schema's camelCase token → CSS's hyphenated spelling (colorDodge →
+    // color-dodge). mix-blend-mode is the whole §4.1 ruling natively: the
+    // element blends as a unit (children included) against the backdrop
+    // within its nearest stacking-context-isolating ancestor — and the
+    // boundaries CSS would NOT create on its own (the app root, a scroller)
+    // get explicit `isolation: isolate` (attachRoot, applyScrollStyle).
+    this.element.style.mixBlendMode = mode === "normal" ? "" : mode.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+  }
+
   setClip(d: string | null): void {
     // clip-path clips native hit-testing along with the pixels, so the
     // clipped-away part of an interactive box falls through — the same
@@ -1064,6 +1074,10 @@ class DomSurface implements Surface {
       el.style.overflow = "clip";
       (el.style as CSSStyleDeclaration & { overscrollBehavior: string }).overscrollBehavior = "";
       delete el.dataset.declareScroll;
+      // The App root ISOLATES blending (compositing.md §4.1): nothing inside
+      // blends against the page behind an embedded island. CSS gives the
+      // root no stacking context by default, so say it.
+      el.style.isolation = "isolate";
       this.applyRootSize();
       this.updateCarved();       // pointer-events back to the sink-derived state
       this.refreshTouchAction(); // the root default owns the gesture surface
@@ -1072,6 +1086,12 @@ class DomSurface implements Surface {
     const any = this.scrollYOn || this.scrollXOn;
     el.style.overflowY = this.scrollYOn ? "auto" : any ? "hidden" : "";
     el.style.overflowX = this.scrollXOn ? "auto" : any ? "hidden" : "";
+    // A scroller's content group ISOLATES blending (compositing.md §4.1) —
+    // CSS overflow alone creates no stacking context, so a `multiply` child
+    // would blend right through the pane. Declaration order is already paint
+    // order here (absolute children, no z-index), so the new context cannot
+    // reorder anything; the perceptual suite pins that.
+    el.style.isolation = any ? "isolate" : "";
     const ob = el.style as CSSStyleDeclaration & {
       overscrollBehavior: string; overscrollBehaviorX: string; overscrollBehaviorY: string;
     };
