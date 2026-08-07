@@ -3274,7 +3274,25 @@ var DeclareMac = (() => {
         blur: "blur is a drawing op \u2014 take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
         mixBlendMode: "compositing is the 'blend' attribute \u2014 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
         backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' \u2014 samples and blurs what lies beneath the view's own shape",
-        mask: "masking is 'clip' \u2014 true for the box, or a path for an arbitrary shape"
+        mask: "masking is 'clip' \u2014 true for the box, or a path for an arbitrary shape",
+        // The 2026-08-08 foreign-reach audit (HTML/CSS · React · iOS, read against the
+        // whole reference): the attribute-position instincts a newcomer actually
+        // types, each with its one true equivalent. Question-shaped foreign names
+        // (useState, VStack, ScrollView) live in the concept table instead —
+        // they are asked, never written in an attribute position.
+        flex: "there is no flex \u2014 arrangement is the 'layout' attribute; leftover space goes to a 'Spacer' child; proportions are your own arithmetic ('width = { parent.width * 0.4 }')",
+        float: "there is no float \u2014 position with x/y, or let 'layout: WrappingLayout [ ]' flow and wrap children",
+        position: "there is no position property \u2014 x/y place a view in its parent; 'ignoreScroll = true' is fixed chrome; 'ignoreLayout = true' opts out of arrangement; stacking is source order",
+        visibility: "showing is 'visible' \u2014 a 'visible = false' view stays in the tree but paints nothing, and a layout reclaims its space",
+        whiteSpace: "wrapping is Text's 'wrap' \u2014 'wrap = false' is the nowrap; there is no ellipsis (clip = true crops at the box)",
+        textOverflow: "there is no text-overflow ellipsis \u2014 'wrap = false' keeps one line and 'clip = true' crops at the box edge",
+        maxWidth: "there is no maxWidth \u2014 constrain it: 'width = { Math.min(contentWidth, 480) }'",
+        maxHeight: "there is no maxHeight \u2014 constrain it: 'height = { Math.min(contentHeight, 400) }'",
+        transition: "there is no transition \u2014 motion is declared beside the attribute: an 'Animator' (timed), a 'Spring' (live target), or a 'State' for a bundle that snaps with motion",
+        animation: "there is no animation property \u2014 motion is a member: an 'Animator' (timed, from\u2192to), a 'Spring' (chases a live target), an 'AnimatorGroup' (sequence)",
+        keyframes: "there are no keyframes \u2014 an 'Animator' drives one attribute from\u2192to through a motion curve; sequence several with 'AnimatorGroup'",
+        fontStyle: "italics are Text's 'italic = true'",
+        objectFit: "image fitting is 'stretches' \u2014 'cover' fills and crops, 'contain' letterboxes"
       };
     }
   });

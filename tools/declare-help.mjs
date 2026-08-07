@@ -311,6 +311,13 @@ function answer() {
   }
   if (answerShared()) return true;
 
+  // a case-only miss on a class name answers AS the class — `button`, `image`,
+  // `checkbox` are the HTML spellings of things the library ships, and the
+  // member table beats a did-you-mean. After attributes (so `text` stays the
+  // attribute it also is), before concepts and near-misses.
+  const ciClass = CLASS_NAMES.find((c) => c.toLowerCase() === query.toLowerCase());
+  if (ciClass) { sayClass(ciClass); json = { kind: "class", name: ciClass }; return true; }
+
   // concept — the curated synonym table, then negative knowledge, then retrieval
   const norm = query.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
   const syn = CONCEPTS.synonyms[norm] ?? CONCEPTS.synonyms[query];

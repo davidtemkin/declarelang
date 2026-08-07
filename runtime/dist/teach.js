@@ -47,6 +47,24 @@ export const CSS_ATTRIBUTE_HINTS = {
     mixBlendMode: "compositing is the 'blend' attribute — 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
     backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' — samples and blurs what lies beneath the view's own shape",
     mask: "masking is 'clip' — true for the box, or a path for an arbitrary shape",
+    // The 2026-08-08 foreign-reach audit (HTML/CSS · React · iOS, read against the
+    // whole reference): the attribute-position instincts a newcomer actually
+    // types, each with its one true equivalent. Question-shaped foreign names
+    // (useState, VStack, ScrollView) live in the concept table instead —
+    // they are asked, never written in an attribute position.
+    flex: "there is no flex — arrangement is the 'layout' attribute; leftover space goes to a 'Spacer' child; proportions are your own arithmetic ('width = { parent.width * 0.4 }')",
+    float: "there is no float — position with x/y, or let 'layout: WrappingLayout [ ]' flow and wrap children",
+    position: "there is no position property — x/y place a view in its parent; 'ignoreScroll = true' is fixed chrome; 'ignoreLayout = true' opts out of arrangement; stacking is source order",
+    visibility: "showing is 'visible' — a 'visible = false' view stays in the tree but paints nothing, and a layout reclaims its space",
+    whiteSpace: "wrapping is Text's 'wrap' — 'wrap = false' is the nowrap; there is no ellipsis (clip = true crops at the box)",
+    textOverflow: "there is no text-overflow ellipsis — 'wrap = false' keeps one line and 'clip = true' crops at the box edge",
+    maxWidth: "there is no maxWidth — constrain it: 'width = { Math.min(contentWidth, 480) }'",
+    maxHeight: "there is no maxHeight — constrain it: 'height = { Math.min(contentHeight, 400) }'",
+    transition: "there is no transition — motion is declared beside the attribute: an 'Animator' (timed), a 'Spring' (live target), or a 'State' for a bundle that snaps with motion",
+    animation: "there is no animation property — motion is a member: an 'Animator' (timed, from→to), a 'Spring' (chases a live target), an 'AnimatorGroup' (sequence)",
+    keyframes: "there are no keyframes — an 'Animator' drives one attribute from→to through a motion curve; sequence several with 'AnimatorGroup'",
+    fontStyle: "italics are Text's 'italic = true'",
+    objectFit: "image fitting is 'stretches' — 'cover' fills and crops, 'contain' letterboxes",
 };
 /** The CSS-instinct hint for an unknown attribute name, or "" when the miss
  *  isn't a known CSS name. */

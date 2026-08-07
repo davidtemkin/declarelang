@@ -55,7 +55,7 @@
     "dark mode": "View.theme",
     "palette": "View.theme",
     "bold": "Markdown",
-    "italic": "Markdown",
+    "italic": "Text.italic",
     "emphasis": "Markdown",
     "rich text": "Markdown",
     "font weight": "View.fontWeight",
@@ -80,16 +80,151 @@
     "modes": "State",
     "dynamic layout": "Layout.method.laid",
     "data driven layout": "Layout.method.laid",
-    "layout replication": "Layout.method.laid"
+    "layout replication": "Layout.method.laid",
+    "flexbox": "View.layout",
+    "flex layout": "View.layout",
+    "vstack": "SimpleLayout",
+    "hstack": "SimpleLayout",
+    "stack": "SimpleLayout",
+    "stack view": "SimpleLayout",
+    "media query": "ResponsiveLayout",
+    "breakpoint": "ResponsiveLayout",
+    "responsive": "ResponsiveLayout",
+    "scrollview": "View.scrolls",
+    "scroll view": "View.scrolls",
+    "fixed position": "View.ignoreScroll",
+    "sticky header": "View.ignoreScroll",
+    "position fixed": "View.ignoreScroll",
+    "state": "State",
+    "geometryreader": "View.width",
+    "withanimation": "Animator",
+    "router": "App.location",
+    "routing": "App.location",
+    "navigation stack": "App.location",
+    "modal": "Dialog",
+    "sheet": "Dialog",
+    "alert": "Dialog",
+    "popover": "Menu",
+    "dropdown": "Menu",
+    "context menu": "Menu",
+    "select": "Combobox",
+    "combo box": "Combobox",
+    "autocomplete": "Combobox",
+    "form": "Field",
+    "form row": "Field",
+    "toggle": "Switch",
+    "spinner": "ProgressBar",
+    "activity indicator": "ProgressBar",
+    "loading indicator": "ProgressBar",
+    "progress": "ProgressBar",
+    "tabs": "Segmented",
+    "tab bar": "Segmented",
+    "segmented control": "Segmented",
+    "text field": "TextInput",
+    "text input": "TextInput",
+    "textfield": "TextInput",
+    "virtualized list": "View.virtualize",
+    "virtualization": "View.virtualize",
+    "lazy list": "View.virtualize",
+    "recycler": "View.virtualize",
+    "uitableview": "View.virtualize",
+    "flatlist": "View.virtualize",
+    "infinite scroll": "View.virtualize",
+    "letter spacing": "View.letterSpacing",
+    "text align": "Text.textAlign",
+    "font family": "View.fontFamily",
+    "typeface": "View.fontFamily",
+    "italics": "Text.italic",
+    "sticky": "View.ignoreScroll",
+    "position sticky": "View.ignoreScroll"
   },
   "negative": [
     {
-      "terms": ["drawImage", "draw image", "rasterize image", "image in canvas"],
+      "terms": [
+        "drawImage",
+        "draw image",
+        "rasterize image",
+        "image in canvas"
+      ],
       "answer": "No `d.drawImage` — `Draw` cannot rasterize a picture. A picture is an `Image` view (`stretches = cover|contain` for fit, `tint` to recolor), and since the compositing arc it rotates and scales like any view (`rotation`, `scale`, about `pivotX`/`pivotY`) — so a rotated photograph no longer needs a drawing at all. What remains unreachable is compositing a decoded bitmap INSIDE a `draw(d: Draw)` recording."
     },
     {
-      "terms": ["bitmap cache", "image cache", "preload", "predecode", "prefetch image"],
+      "terms": [
+        "bitmap cache",
+        "image cache",
+        "preload",
+        "predecode",
+        "prefetch image"
+      ],
       "answer": "No app-facing bitmap cache or preload call. Today each `Image` instance decodes its `source` itself — a photograph shown on one surface is decoded again on the next. A platform-managed bitmap store (decode table shared across instances + cached draw rasterizations) is planned — see docs/system-design/ (adaptive draw cache) and the 2026-08-06 assessment; until it lands, the idiom is to keep the SAME view alive across surfaces (one sprung scalar, many followers) rather than to rebuild it."
+    },
+    {
+      "terms": [
+        "useState",
+        "use state",
+        "useEffect",
+        "hooks",
+        "redux",
+        "state management",
+        "setState",
+        "props"
+      ],
+      "answer": "No hooks, no stores, no props plumbing — state is an attribute declared where it lives (`count: number = 0` on a view), derived state is a `{ }` constraint reading it, and \"effects\" are the constraint graph's own propagation. A descendant reads an ancestor's attribute by name (`app.count`, `parent.width`, `classroot.…`) — no context, no lifting. Handlers write; constraints react."
+    },
+    {
+      "terms": [
+        "key",
+        "keys prop",
+        "ref",
+        "refs",
+        "useRef"
+      ],
+      "answer": "No `key=` and no refs — a named member IS its handle (`box: View [ … ]` → `app.box`), and replicated rows take their identity from the record's own `id` field automatically. Reach any node by its dotted path; give records an `id` when their identity matters across reloads."
+    },
+    {
+      "terms": [
+        "svg"
+      ],
+      "answer": "No SVG element — a vector mark is a `draw(d: Draw)` member (paths, arcs, gradients — a recorded, reactive drawing), the house icons are `Icon` subclasses drawn exactly that way, and an actual `<svg>` you already have lives inside a `DOMIsland`."
+    },
+    {
+      "terms": [
+        "ellipsis",
+        "truncate",
+        "truncation",
+        "text overflow",
+        "line clamp"
+      ],
+      "answer": "No text truncation — there is no ellipsis today. `wrap = false` keeps a run to one line and `clip = true` crops it at the box; slicing the string yourself in a `{ }` constraint is the current idiom for a measured cut. A real `truncate` is a known gap — worth reporting if it blocks you."
+    },
+    {
+      "terms": [
+        "grid",
+        "css grid",
+        "grid layout"
+      ],
+      "answer": "No grid layout strategy — `WrappingLayout` flows and wraps; a fixed N-column grid is a small `Layout` subclass of your own (`place()` is ~15 lines of arithmetic over `this.laid()` and `this.view.width`); and tabular DATA wants `Table` or `DataGrid`, which are components, not layouts."
+    },
+    {
+      "terms": [
+        "zstack",
+        "z stack",
+        "overlay"
+      ],
+      "answer": "No ZStack and no overlay wrapper — children stack by default: a view with no `layout` imposes no arrangement, and declaration order is z-order (later siblings paint above). Place the layers with x/y; `ignoreLayout = true` floats one child above an arranged set."
+    },
+    {
+      "terms": [
+        "toast",
+        "snackbar",
+        "drawer",
+        "carousel",
+        "skeleton",
+        "badge",
+        "card",
+        "avatar"
+      ],
+      "answer": "No dedicated component — the library is deliberately small, and these are compositions: a card is a `View` (`cornerRadius`, `shadow`, `fill`); a toast is an `ignoreScroll` View a `Spring` slides in; a drawer is a panel whose `x` follows one sprung scalar; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
     }
   ]
 }
