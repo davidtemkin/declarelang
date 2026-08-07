@@ -39,7 +39,7 @@ export const OP = {
   SCROLL: 21, SCROLLPOS: 22, CURSOR: 23, EDIT: 24, EDITFOCUS: 25,
   RICH: 26, RICHSCROLL: 27, EMBED: 28, IGNORECLIP: 29,
   SCROLLX: 30, SCROLLXPOS: 31, PAGEFILL: 32,
-  IGNORESCROLL: 33, RICHWIDTH: 34, BLEND: 35,
+  IGNORESCROLL: 33, RICHWIDTH: 34, BLEND: 35, BACKDROP: 36,
 } as const;
 
 /** The host side of the bridge — provided by the Swift shell before boot. */
@@ -171,6 +171,14 @@ class MacSurface implements Surface {
    *  case 35). A compositing filter rides the layer, not the order, so the
    *  restack/clipHost machinery is untouched. */
   setBlend(mode: string): void { emit(OP.BLEND, this.id, mode); }
+  /** The frost, natively (LayerTree case 36): the Swift side samples the
+   *  layers beneath the node's padded region (CALayer.render(in:)), filters
+   *  in encoded sRGB (the DrawReplay color-space precedent) and lands the
+   *  result as a masked layer under the node's own fill. [blur, saturate]
+   *  ride the wire; null clears. */
+  setBackdrop(spec: { blur: number; saturate: number } | null): void {
+    emit(OP.BACKDROP, this.id, spec === null ? null : spec.blur, spec === null ? 1 : spec.saturate);
+  }
   setCursor(c: string): void { this.cursorStyle = c; emit(OP.CURSOR, this.id, c); }
   /** No CSS pointer-events natively: the hit walk is ours, so an inert
    *  surface simply drops its sink (setInput(null)) — this is a no-op kept

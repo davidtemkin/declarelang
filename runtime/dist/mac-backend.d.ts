@@ -39,6 +39,7 @@ export declare const OP: {
     readonly IGNORESCROLL: 33;
     readonly RICHWIDTH: 34;
     readonly BLEND: 35;
+    readonly BACKDROP: 36;
 };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
@@ -114,6 +115,15 @@ declare class MacSurface implements Surface {
      *  case 35). A compositing filter rides the layer, not the order, so the
      *  restack/clipHost machinery is untouched. */
     setBlend(mode: string): void;
+    /** The frost, natively (LayerTree case 36): the Swift side samples the
+     *  layers beneath the node's padded region (CALayer.render(in:)), filters
+     *  in encoded sRGB (the DrawReplay color-space precedent) and lands the
+     *  result as a masked layer under the node's own fill. [blur, saturate]
+     *  ride the wire; null clears. */
+    setBackdrop(spec: {
+        blur: number;
+        saturate: number;
+    } | null): void;
     setCursor(c: string): void;
     /** No CSS pointer-events natively: the hit walk is ours, so an inert
      *  surface simply drops its sink (setInput(null)) — this is a no-op kept

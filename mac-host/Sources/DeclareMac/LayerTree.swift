@@ -54,6 +54,15 @@ final class Node {
     var scrollExtentX: CGFloat = 0
     var vbar: Scrollbar?
     var hbar: Scrollbar?
+    /// The frost (compositing.md §5.3): what to sample beneath this node.
+    var backdrop: (blur: CGFloat, saturate: CGFloat)?
+    /// The frosted sample, masked by the node's cornerRadius — FIRST in the
+    /// node's own stack, under everything the node paints.
+    var frostLayer: CALayer?
+    /// A frosted node's SOLID fill rides here, just above the frost —
+    /// `backgroundColor` on the node's layer would paint BEHIND sublayers,
+    /// i.e. behind the frost, and the material contract is wash OVER blur.
+    var frostFill: CALayer?
     var scaleK: CGFloat = 1
     /// This node is the mounted program's ROOT. The App keeps to its frame —
     /// definitional containment (the DOM realizes the same rule as
@@ -181,6 +190,11 @@ final class LayerTree {
         // Geometry is final now — this is the first moment a flow's band is
         // worth rastering, and it is still inside the transaction below.
         flushBands()
+        // Frosted nodes re-sample once per commit — under-content changed if
+        // ANYTHING in this settle painted, and a settle is the only time
+        // anything does (a frost invalidates on under-content change, never
+        // on its own state — compositing.md §5.2, same statement as the web).
+        refreshFrosts()
         let ct0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
         CATransaction.commit()
         if statsOn { caCommitMsTotal += (CFAbsoluteTimeGetCurrent() - ct0) * 1000 }
@@ -292,6 +306,7 @@ final class LayerTree {
             for c in n.children { place(c) }      // their flip depends on this height
             layoutContent(n)
             if n.rich != nil { refreshBand(n) }
+            if n.frostLayer != nil { sizeFrost(n) }
             if n.scaleK != 1 { applyScale(n) }    // the pivot mirrors against the new height
             // NOT re-rasterized here. A recording is in the view's own
             // coordinates and does not depend on the box, so moving or
@@ -311,7 +326,10 @@ final class LayerTree {
         case 6: // FILL
             guard let n = nodes[id] else { return }
             n.gradient?.removeFromSuperlayer(); n.gradient = nil
-            n.layer.backgroundColor = str(a(0)).flatMap { CSSColor.parse($0)?.cgColor }
+            let fill = str(a(0)).flatMap { CSSColor.parse($0)?.cgColor }
+            // a frosted node's solid fill rides frostFill (see case 36)
+            if let ff = n.frostFill { ff.backgroundColor = fill }
+            else { n.layer.backgroundColor = fill }
         case 7: // GRADIENT
             guard let n = nodes[id], let spec = a(0) as? [String: Any] else { return }
             applyGradient(n, spec)
@@ -320,6 +338,7 @@ final class LayerTree {
             n.radius = num(a(0))
             n.layer.cornerRadius = n.radius
             n.clipHost?.cornerRadius = n.radius
+            if n.frostLayer != nil { sizeFrost(n) }
             if n.boxClip { applyClip(n) }
             if n.layer.shadowOpacity > 0 { applyShadowPath(n) }
         case 9: // STROKE (inside the box, like the other renderers)
@@ -468,6 +487,48 @@ final class LayerTree {
             // the layer must be re-placed because its parent-relative y is now
             // measured against a box that no longer scrolls under it.
             if let p = n.parent { restack(p); place(n) }
+        case 36: // BACKDROP — the frost (compositing.md §5.3, AS BUILT: CPU
+            // sampling, the fallback the plan records — an NSVisualEffectView
+            // is an AppKit SUBVIEW, and a subview always draws above the whole
+            // CALayer tree (the RichOverlay lesson, stated in Overlays.swift),
+            // so the material would paint over the frosted panel's own
+            // children. Instead: render the layers beneath (sampleFrost),
+            // blur+saturate in encoded sRGB (the DrawReplay precedent, its
+            // measured CIGaussianBlur convention: inputRadius IS the CSS
+            // sigma), and land the result as a masked layer under the node's
+            // own fill — held to the per-program perceptual baseline (§4.3).
+            guard let n = nodes[id] else { return }
+            if a(0) == nil || a(0) is NSNull {
+                guard n.backdrop != nil else { return }
+                n.backdrop = nil
+                frosted.remove(id)
+                // the solid fill comes home to the layer itself
+                if let ff = n.frostFill { n.layer.backgroundColor = ff.backgroundColor; ff.removeFromSuperlayer() }
+                n.frostLayer?.removeFromSuperlayer()
+                n.frostFill = nil
+                n.frostLayer = nil
+                restack(n)
+            } else {
+                n.backdrop = (blur: num(a(0)), saturate: num(a(1)))
+                frosted.insert(id)
+                if n.frostLayer == nil {
+                    let inert: [String: CAAction] = ["position": NSNull(), "bounds": NSNull(), "contents": NSNull(), "cornerRadius": NSNull()]
+                    let f = CALayer()
+                    f.anchorPoint = .zero
+                    f.masksToBounds = true
+                    f.actions = inert
+                    n.frostLayer = f
+                    let ff = CALayer()
+                    ff.anchorPoint = .zero
+                    ff.masksToBounds = true
+                    ff.actions = inert
+                    ff.backgroundColor = n.layer.backgroundColor
+                    n.layer.backgroundColor = nil
+                    n.frostFill = ff
+                    restack(n)
+                }
+                sizeFrost(n)
+            }
         case 35: // BLEND — the view-tier compositing operator (compositing.md
             // §4.1). A compositing filter rides the LAYER, not the order:
             // Core Animation renders the layer's subtree as a group and lands
@@ -481,11 +542,81 @@ final class LayerTree {
         }
     }
 
+    // ── the frost (compositing.md §5.3) ─────────────────────────────────────
+
+    /// Node ids carrying a live `backdrop` — the per-commit resample walk.
+    private var frosted = Set<Int>()
+
+    /// Filter in ENCODED sRGB, not linear light — the DrawReplay precedent,
+    /// chosen so the native result matches the web's.
+    private static let frostCI = CIContext(options: [.workingColorSpace: NSNull()])
+
+    /// Keep the frost layers glued to the node's box and rounding.
+    private func sizeFrost(_ n: Node) {
+        let r = CGRect(origin: .zero, size: n.box.size)
+        n.frostLayer?.frame = r
+        n.frostLayer?.cornerRadius = n.radius
+        n.frostFill?.frame = r
+        n.frostFill?.cornerRadius = n.radius
+    }
+
+    private func refreshFrosts() {
+        guard !frosted.isEmpty, let r = root else { return }
+        for id in frosted { if let n = nodes[id] { sampleFrost(n, root: r) } }
+    }
+
+    /// The sample-under, natively: render the tree WITHOUT this node into a
+    /// padded bitmap (the pad is the blur radius, so edges do not bleed dry),
+    /// blur + saturate, crop the pad ring away, land as the frost layer's
+    /// contents. v1 scope, stated: the render is the whole tree minus this
+    /// node, so content stacked ABOVE a frosted panel joins the sample — the
+    /// panels in the corpus (menus, sheets) are topmost, where the two
+    /// readings coincide.
+    private func sampleFrost(_ n: Node, root r: Node) {
+        guard let spec = n.backdrop, let fl = n.frostLayer,
+              n.box.width > 0, n.box.height > 0, !n.layer.isHidden else { return }
+        let s = scale
+        let pad = spec.blur
+        let frame = n.layer.convert(n.layer.bounds, to: r.layer)
+        let region = frame.insetBy(dx: -pad, dy: -pad)
+        let w = Int(region.width * s), h = Int(region.height * s)
+        guard w > 0, h > 0, w * h < 32_000_000,
+              let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+        ctx.scaleBy(x: s, y: s)
+        ctx.translateBy(x: -region.origin.x, y: -region.origin.y)
+        n.layer.isHidden = true                    // inside the open transaction — never composited
+        r.layer.render(in: ctx)
+        n.layer.isHidden = false
+        guard let shot = ctx.makeImage() else { return }
+        var img = CIImage(cgImage: shot)
+        if let f = CIFilter(name: "CIGaussianBlur") {
+            f.setValue(img, forKey: kCIInputImageKey)
+            // inputRadius IS the standard deviation, which is what CSS
+            // blur(<length>) means (measured — see DrawReplay.composite);
+            // stated in view px, scaled to this bitmap's device px.
+            f.setValue(spec.blur * s, forKey: kCIInputRadiusKey)
+            img = f.outputImage ?? img
+        }
+        if spec.saturate != 1, let f = CIFilter(name: "CIColorControls") {
+            f.setValue(img, forKey: kCIInputImageKey)
+            f.setValue(spec.saturate, forKey: kCIInputSaturationKey)
+            img = f.outputImage ?? img
+        }
+        let crop = CGRect(x: pad * s, y: pad * s, width: n.box.width * s, height: n.box.height * s)
+        guard let out = LayerTree.frostCI.createCGImage(img, from: crop) else { return }
+        fl.contents = out
+        fl.contentsScale = s
+    }
+
     // ── content plumbing ────────────────────────────────────────────────────
 
     /// Re-establish paint order: gradient, drawing, image, text, then children.
     private func restack(_ n: Node) {
         var order: [CALayer] = []
+        if let f = n.frostLayer { order.append(f) }   // beneath everything the node paints
+        if let ff = n.frostFill { order.append(ff) }  // …with the solid wash right over it
         if let g = n.gradient { order.append(g) }
         if let d = n.draw { order.append(d) }
         if let i = n.image { order.append(i) }
@@ -1224,6 +1355,7 @@ final class LayerTree {
     /// the caller forgot.
     private func tearDown(_ n: Node, recurse: Bool = true) {
         if recurse { for c in n.children { tearDown(c) } }
+        frosted.remove(n.id)
         n.rich?.remove()
         n.editable?.remove()
         n.vbar?.layer.removeFromSuperlayer()

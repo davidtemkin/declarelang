@@ -16256,7 +16256,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     PAGEFILL: 32,
     IGNORESCROLL: 33,
     RICHWIDTH: 34,
-    BLEND: 35
+    BLEND: 35,
+    BACKDROP: 36
   };
   function host() {
     const h = globalThis.__declareMacHost;
@@ -16386,6 +16387,14 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
      *  restack/clipHost machinery is untouched. */
     setBlend(mode) {
       emit(OP.BLEND, this.id, mode);
+    }
+    /** The frost, natively (LayerTree case 36): the Swift side samples the
+     *  layers beneath the node's padded region (CALayer.render(in:)), filters
+     *  in encoded sRGB (the DrawReplay color-space precedent) and lands the
+     *  result as a masked layer under the node's own fill. [blur, saturate]
+     *  ride the wire; null clears. */
+    setBackdrop(spec) {
+      emit(OP.BACKDROP, this.id, spec === null ? null : spec.blur, spec === null ? 1 : spec.saturate);
     }
     setCursor(c) {
       this.cursorStyle = c;

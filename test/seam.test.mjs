@@ -67,9 +67,15 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
+  // The Mac arm FILLED 2026-08-06, same day, phase 4 — NOT with the planned
+  // NSVisualEffectView: an AppKit subview always draws above the whole CALayer
+  // tree (the RichOverlay lesson), so the material would have painted over the
+  // frosted panel's own children. Built instead as the plan's recorded
+  // fallback — CALayer.render(in:) sampling + CIGaussianBlur/CIColorControls
+  // in encoded sRGB, landed as a masked layer under the node's fill — held to
+  // the per-program perceptual baseline exactly as §4.3 intended.
   setBackdrop: {
-    dom: true, canvas: true,
-    mac: "GAP (deliberate, compositing.md §7 — phase 3 lands the web pair, phase 4 the native realization: an NSVisualEffectView overlay hosted by the Overlays.swift discipline, masked by the view's cornerRadius, held to the §4.3 per-program perceptual baseline). Until then a frosted panel on the native host renders as plain translucency — exactly the pre-frost web rendering the themes' translucent washes were shaped for",
+    dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
 

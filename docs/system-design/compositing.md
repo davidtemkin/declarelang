@@ -273,6 +273,23 @@ setBackdrop?(spec: { blur: number; saturate: number } | null): void
   Held to the perceptual baseline per §4.3. If the material's look ever fails the
   baseline badly, the fallback is CPU sampling (`CALayer.render(in:)` of the layers
   beneath), recorded here so the option is on the table without being the plan.
+- **AS BUILT (2026-08-06, phase 4): the recorded fallback, not the effect view —
+  for a structural reason found before a line was written.** An
+  `NSVisualEffectView` is an AppKit *subview*, and a subview always draws above
+  the whole CALayer tree (the `RichOverlay` lesson, stated in `Overlays.swift`) —
+  so the material would have painted over the frosted panel's own children (a
+  menu's items, behind its own glass). The build is therefore
+  `CALayer.render(in:)` of the tree minus the frosted node, over-scanned by the
+  blur radius, filtered by `CIGaussianBlur` + `CIColorControls` in **encoded
+  sRGB** (the DrawReplay context and its measured inputRadius-is-CSS-sigma
+  convention), landed as a masked layer under the node's fill (the solid fill
+  moves to a `frostFill` sublayer — `backgroundColor` paints behind sublayers,
+  and the contract is wash over blur). Resampled once per commit — under-content
+  changes only happen in a settle. Gate: **`frost` 2.34 % differing / 0 %
+  structural** vs Chrome — the kernel-difference class (`blur` is 2.75 %), which
+  is exactly what the §4.3 baseline absorbs; blessed 2026-08. v1 scope, stated:
+  content stacked *above* a frosted panel joins its sample; the corpus's frosted
+  surfaces (menus, sheets) are topmost, where the two readings coincide.
 
 ### 5.4 Headless
 

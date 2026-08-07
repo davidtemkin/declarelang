@@ -56,5 +56,9 @@
   "blendview": {
     "differing": 0.56,
     "structural": 0.55
+  },
+  "frost": {
+    "differing": 2.34,
+    "structural": 0
   }
 }
