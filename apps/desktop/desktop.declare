@@ -111,8 +111,28 @@ class Window extends View [ width = 560, height = 400, clip = true,
     bornX: number = -1,
     bornY: number = -1,
     bornFrom: View = null,                       // the view the open came from, for the return trip
-    pivotX = { this.bornX >= 0 ? this.bornX : this.width / 2 },
-    pivotY = { this.bornY >= 0 ? this.bornY : this.height / 2 },
+
+    // ── the TILT easter egg (rotation road-tested where everyone lives) ──
+    // Press `r` and every window on screen springs to a random lean between
+    // −30° and 30°; `r` again re-rolls, `R` levels everything. DORMANT until
+    // pressed: `app.tiltSeed` starts at 0, every angle below derives to 0,
+    // and nothing here changes a level desktop's behavior by a bit. The
+    // constraint reads the seed purely to subscribe (Math.random is an
+    // untracked read, so the bump is what re-rolls); the Spring is slightly
+    // underdamped so a window settles into its new lean with a small wobble.
+    // A leaning window untilts on the way into the dock (`miniT` blends the
+    // angle away) so thumbnails park straight, and pivots at its center
+    // instead of the launch icon — the one behavior trade, active only while
+    // actually tilted.
+
+    tilts: boolean = true,                       // a window kind could opt out; none does
+    tiltTarget: number = { app.tiltSeed > 0 && this.tilts ? Math.random() * 60 - 30 : 0 },
+    tiltA: number = 0,
+    tiltSpring: Spring [ attribute = tiltA, to = { classroot.tiltTarget }, stiffness = 160, damping = 14, epsilon = 0.01 ],
+    rotation = { this.tiltA * (1 - this.miniT) },
+
+    pivotX = { this.tiltA != 0 ? this.width / 2 : this.bornX >= 0 ? this.bornX : this.width / 2 },
+    pivotY = { this.tiltA != 0 ? this.height / 2 : this.bornY >= 0 ? this.bornY : this.height / 2 },
     born: Animator [ attribute = baseScale, from = { classroot.bornX >= 0 ? 0.15 : 0.85 }, to = 1,
         duration = 230, motion = cubicOut, started = true ],
 
@@ -339,22 +359,35 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // edge fixed, so x follows the width; a top-edge drag keeps the bottom
     // fixed, so y follows the height.
 
+    // A vector rotated by `deg` — the one piece of trig the tilt egg needs.
+    // moveSize uses it in both directions: the pointer's delta rotated INTO
+    // the window's frame (−rotation), and the center's shift rotated back OUT
+    // (+rotation). At 0° it returns its input, so a level window resizes on
+    // exactly the old arithmetic.
+
+    rot(x: number, y: number, deg: number) -> object {
+        const a = deg * Math.PI / 180
+        return ({ x: x * Math.cos(a) - y * Math.sin(a), y: x * Math.sin(a) + y * Math.cos(a) })
+        },
+
     moveSize() {
         if (sizeMode == "") return
-        const dx = app.pointerX - px0
-        const dy = app.pointerY - py0
-        if (sizeMode.indexOf("r") >= 0) this.width = Math.max(minW, wx0 + dx)
-        if (sizeMode.indexOf("l") >= 0) {
-            const w = Math.max(minW, wx0 - dx)
-            this.wx = wl0 + (wx0 - w)
-            this.width = w
-            }
-        if (sizeMode.indexOf("b") >= 0) this.height = Math.max(minH, wh0 + dy)
-        if (sizeMode.indexOf("t") >= 0) {
-            const h = Math.max(minH, wh0 - dy)
-            this.wy = Math.max(0, wt0 + (wh0 - h))
-            this.height = h
-            }
+        // the pointer's travel, in the window's own axes (a tilted window
+        // sizes along its edges, not the screen's)
+        const d = this.rot(app.pointerX - px0, app.pointerY - py0, -this.rotation)
+        const sx = sizeMode.indexOf("r") >= 0 ? 1 : sizeMode.indexOf("l") >= 0 ? -1 : 0
+        const sy = sizeMode.indexOf("b") >= 0 ? 1 : sizeMode.indexOf("t") >= 0 ? -1 : 0
+        const w = sx != 0 ? Math.max(minW, wx0 + sx * d.x) : wx0
+        const h = sy != 0 ? Math.max(minH, wh0 + sy * d.y) : wh0
+        // plant the OPPOSITE edge: with a center pivot, growing the box moves
+        // both edges, so the center shifts by half the growth toward the
+        // grabbed side — in window axes, hence rotated back to root
+        const m = this.rot(sx * (w - wx0) / 2, sy * (h - wh0) / 2, this.rotation)
+        this.wx = wl0 + (wx0 - w) / 2 + m.x
+        this.wy = wt0 + (wh0 - h) / 2 + m.y
+        if (sy < 0 && this.rotation == 0) this.wy = Math.max(0, this.wy)
+        this.width = w
+        this.height = h
         },
 
     lightsHover: boolean = false,
@@ -1697,6 +1730,13 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     menuBarH: number = 32,                       // the menu bar's height; windows live below it
     wallSeed: number = 7,                        // the generative wallpaper's seed; ` (backtick) cycles it
+
+    // The tilt easter egg's seed (see Window.tilts): 0 = a level desktop
+    // (boot state — the egg is dormant until pressed). `r` bumps it and every
+    // window springs to a fresh random lean; `R` zeroes it and they all
+    // spring level.
+
+    tiltSeed: number = 0,
     iconEdge: number = 56,                       // a dock icon's resting edge
     dockFloor: number = 13,                      // the icons' resting bottom line, up from the desktop's bottom edge
     badgeEdge: number = 20,                      // a minimized window's app badge, at rest
@@ -2355,6 +2395,8 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 **Try things.** Drag the windows. Open apps from the dock. Minimize something. Browse the language's documentation in the Documentation window.
 
 **Curious how it's made?** Press the `[ ]` icon in the dock to read this desktop's own source.
+
+**Never, ever, press the 'r' key.**
 """,
 
     newJot(txt: string, v: View?) {
@@ -2378,7 +2420,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         jotRunning = true
         winSeq = winSeq + 1
         const w = this.createView("JotWindow", this.wins, ({ note: this.welcomeNote,
-            width: 400, height: 345, wx: Math.max(440, app.width - 490), wy: 120 }))
+            width: 400, height: 385, wx: Math.max(440, app.width - 490), wy: 120 }))
         this.frontOpen(w)
         },
 
@@ -2447,6 +2489,8 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     keys: Keys [
         onKeyDown(e: KeyEvent) {
             if (e.key == "`" && !e.meta && !e.repeat) { app.wallSeed = app.wallSeed + 1; return }   // cycle the wallpaper (selection/debug)
+            if (e.key == "r" && !e.meta && !e.repeat) { app.tiltSeed = app.tiltSeed + 1; return }   // the tilt egg: every window springs to a random lean
+            if (e.key == "R" && !e.meta && !e.repeat) { app.tiltSeed = 0; return }                  // …and level again
             if (!e.meta || e.repeat || e.key == "Meta") return
             if (app.bar.mb.shown) return             // an open menu owns the keyboard
             const combo = "⌘" + (e.key.length == 1 ? e.key.toUpperCase() : e.key)
