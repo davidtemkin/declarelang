@@ -448,6 +448,13 @@ constraint (§5) and disconnects the back button. The build's crawler boots the 
 every registry destination and traverses the links each render emits — which is what makes a
 deep link indexable, and why the crawl fails loudly on a reference naming nothing.
 
+**Location is the app's shareable coordinates** — what a recipient should see when handed the
+URL, nothing more. A chapter, a selected item, a map position belong in it; a draft, a
+selection, a session's accumulated working values are ordinary attributes and never reach the
+URL. (The fragment is also never sent to the server — location stays client-side by
+construction.) History holds the same line: **Back traverses locations, nothing else** — a
+value that isn't shareable doesn't ride history.
+
 → `link`/`shows`/`anchor`/`replace`, `App.follow`/`onFollow`/`revealInset`: the model reference
 
 ## 7. Data

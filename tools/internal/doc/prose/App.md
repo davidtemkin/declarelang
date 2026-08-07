@@ -92,13 +92,19 @@ your own grammar code can agree with it.
 ## location
 The app's slice of the URL — the **fragment**, as one two-way reactive string
 (docs/system-design/location.md). The host seeds it from the URL *before first settle* (a deep link
-is just an initial state), mirrors app writes outward (one history entry per changed
+is just an initial value), mirrors app writes outward (one history entry per changed
 settle), and writes it back on back/forward — so navigation, deep links, and the back
 button are all the same thing: a `location` write your constraints re-derive from. The
 app owns the grammar: read it (`mode = { app.location.split("/")[0] }`), write it to
 navigate (`app.location = "why"`). The declared initial is the **default location** —
 the URL stays clean while the app is at it. A trailing `@name` reveals the named view
 or heading after the settle it causes.
+
+The contract: location is the app's **shareable coordinates** — what a recipient
+should see when handed the URL, and the only value that rides browser history. A
+draft, a selection, a session's working values are ordinary attributes: they never
+reach the URL (a fragment is never sent to the server either — location stays
+client-side), and Back does not traverse them.
 
 ```declare
 App [ location = "home",

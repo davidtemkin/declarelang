@@ -22,11 +22,11 @@ between an edit and a reload.
 
 ## The URL is an attribute; links are declared
 
-Inside the app, "where the user is" was always just state — a `tab`, a `chapter`, a
-`selectedId` — with views deriving from it. Deep linking needs exactly one new thing:
-that state, reflected in the URL. That is `location`, a built-in two-way reactive App
-attribute holding the fragment — and the views that manifest its values declare so
-with `shows`:
+Inside the app, "where the user is" was always just an attribute — a `tab`, a
+`chapter`, a `selectedId` — with views deriving from it. Deep linking needs exactly
+one new thing: the *place*, reflected in the URL. That is `location`, a built-in
+two-way reactive App attribute holding the fragment — and the views that manifest
+its values declare so with `shows`:
 
 ```declare
 App [ width = 420, height = 200, fill = whitesmoke, location = "home",
@@ -61,6 +61,17 @@ re-derives; you never handle a history event. A deep link is nothing special —
 initial value, arriving before first paint. The declared initial *is* the default, so
 the bare URL stays clean.
 
+One boundary keeps all of this healthy: **location is your app's shareable
+coordinates** — what a recipient should see when you hand them the URL, and nothing
+else. A chapter, a selected product, a map position: in it goes, and copy-the-URL
+sharing is the reward. A draft reply, a selection, a search session's accumulated
+refinements: ordinary attributes, never location — the URL, and the browser history
+and autocomplete that snapshot it, are the wrong place for words a user typed. The
+honest consequence runs the other way too: **the Back button traverses locations,
+nothing else.** If a value isn't shareable, it doesn't ride history — so design the
+location grammar around the places worth handing to someone, not around everything
+the interface remembers.
+
 For computed families the grammar after `#` is the app's own — `#deck/q3/47` is a
 string you `split`, and `deckId`/`page` derive from it; this documentation's entire
 navigation is three lines of exactly that. One discipline makes all of it free, and
@@ -85,8 +96,8 @@ location preserved — finishing auth lands the user where they aimed.
 
 > **From React:** this section replaced the router. No route table, no `<Link>`
 > component, no guards, no history listener — and the "router state vs app state"
-> question dissolves, because location *is* app state, and links are attributes the
-> compiler can check.
+> question dissolves: the place is one reactive attribute your views derive from
+> like any other, and links are attributes the compiler can check.
 
 ## Crawlers, without a server
 

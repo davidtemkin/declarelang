@@ -357,6 +357,7 @@ why: View [ shows = "why",
 <pre><code class="language-declare-fragment">account: View [ shows = "account", visible = { app.authed } ],
 login:   View [ shows = "account", visible = { !app.authed } ]   // location preserved</code></pre>
 <p>For computed families the grammar after <code>#</code> is the app's own (<code>#deck/q3/47</code> — parse it from <code>app.location</code>, derive everything). Never assign the derived state — that displaces its constraint (§5) and disconnects the back button. The build's crawler boots the app headless at every registry destination and traverses the links each render emits — which is what makes a deep link indexable, and why the crawl fails loudly on a reference naming nothing.</p>
+<p><strong>Location is the app's shareable coordinates</strong> — what a recipient should see when handed the URL, nothing more. A chapter, a selected item, a map position belong in it; a draft, a selection, a session's accumulated working values are ordinary attributes and never reach the URL. (The fragment is also never sent to the server — location stays client-side by construction.) History holds the same line: <strong>Back traverses locations, nothing else</strong> — a value that isn't shareable doesn't ride history.</p>
 <p>→ <code>link</code>/<code>shows</code>/<code>anchor</code>/<code>replace</code>, <code>App.follow</code>/<code>onFollow</code>/<code>revealInset</code>: the model reference</p>
 <h2>7. Data</h2>
 <p>A <code>datapath</code> selects a place in the data. Descendants read fields relative to it with <code>:path</code>, and a path matching many records <strong>replicates</strong> its node — one instance per record. This is the replacement for React's <code>{items.map(…)}</code>: a collection of children comes from data, never from code in the tree.</p>
@@ -656,7 +657,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=5792282af099";
+  import boot from "./bundles/declare-boot.js?v=35ee7d6751fc";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().
