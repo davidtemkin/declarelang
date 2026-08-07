@@ -61,16 +61,67 @@ re-derives; you never handle a history event. A deep link is nothing special —
 initial value, arriving before first paint. The declared initial *is* the default, so
 the bare URL stays clean.
 
-One boundary keeps all of this healthy: **location is your app's shareable
-coordinates** — what a recipient should see when you hand them the URL, and nothing
-else. A chapter, a selected product, a map position: in it goes, and copy-the-URL
-sharing is the reward. A draft reply, a selection, a search session's accumulated
-refinements: ordinary attributes, never location — the URL, and the browser history
-and autocomplete that snapshot it, are the wrong place for words a user typed. The
-honest consequence runs the other way too: **the Back button traverses locations,
-nothing else.** If a value isn't shareable, it doesn't ride history — so design the
-location grammar around the places worth handing to someone, not around everything
-the interface remembers.
+One boundary keeps all of this healthy, and it's a test you can apply in five
+seconds: **would you hand this value to a stranger?** If yes, it's an address — it
+belongs in `location`, and copy-the-URL sharing is the reward. If no, but the Back
+button should still undo it, it's a *step* — it belongs in `waypoint`, below. If
+neither, it's an ordinary attribute, and none of this section applies to it.
+
+## The step: `waypoint`
+
+Some of what an interface remembers fails the stranger test but still deserves the
+Back button. The turns of a search session. A wizard's half-finished page. When a
+user presses Back after a refinement they mean *undo that step* — but the words
+they typed must never appear in the URL bar, the history dropdown, or
+autocomplete. `waypoint` is `location`'s twin with the opposite visibility: one
+two-way reactive string, grammar your own, whose writes make history entries **the
+URL never shows**. The browser carries the value inside the entry itself; Back and
+Forward write it back and your constraints re-derive — the same loop, minus the
+address bar.
+
+```declare
+App [ location = "", waypoint = "",
+
+    query: string = { app.waypoint },
+
+    submit(text: string) {
+        app.waypoint = text          // Back will undo this turn
+        app.location = "results"     // …and this move, together
+        }
+    ]
+```
+
+A history entry is the pair — the address and the step. **One entry per settle in
+which either changed**: if one settle changes both, as above, that's one entry and
+one Back restores both atomically. If a turn refines results in place, the URL
+holds still and Back still undoes the turn — back/forward that work, over a URL
+that never moves, which is the combination neither attribute could deliver alone.
+`replace = true` on a link overwrites the current entry's whole pair.
+
+Every way a user can arrive resolves the pair honestly. A **link or handler**
+writes it. A **pasted URL** carries the address and *no waypoint* — a stranger
+gets the place and none of the session, which is the whole contract. A **reload
+or session restore** resumes both halves, because the entry survives. A
+**traversal** (Back/Forward) restores the pair — the address passes through
+`onFollow` exactly as any arrival does; the step is written directly, and
+deliberately has no hook: a waypoint can never arrive from outside your app, so
+every restored value is one your own code wrote earlier. Your parser is the gate —
+an unrecognized step degrades wherever your parsing sends it, same as an
+unrecognized fragment. Traversals also land at the scroll position the user left
+that entry at; an `@name` arrival reveals its anchor instead.
+
+Two disciplines keep waypoints healthy. **Coordinates, never data**: a waypoint
+names the step, and the data derives from it — entries are copied per history
+entry, so a result set stuffed into one is both a leak of the model and a real
+cost (the host warns loudly past 64KB). And **if you catch yourself wanting a
+waypoint to survive a paste, it was an address all along** — promote it to
+`location`.
+
+| the value | lives in | URL bar | Back undoes it | survives reload | shareable | crawled |
+|---|---|---|---|---|---|---|
+| which chapter, which product, map position | `location` | yes | yes | yes | yes | yes |
+| a session's turns, a wizard's page | `waypoint` | no | yes | yes | no | no |
+| a draft, a hover, a mid-drag selection | ordinary attribute | no | no | no | no | no |
 
 For computed families the grammar after `#` is the app's own — `#deck/q3/47` is a
 string you `split`, and `deckId`/`page` derive from it; this documentation's entire
@@ -113,9 +164,10 @@ program URL and read what a crawler gets; ship it baked into the page with one f
 Two honest rules. Crawlable data is **build-time data** — a relative `DataSource`
 URL is your app's own material and extracts fine; an absolute URL is the network,
 and the crawl refuses *loudly*, naming the fix, rather than emit a silently thinner
-document. And the location is your app's **shareable coordinates** — what a
-recipient should see when handed the URL. Draft text and selection are ordinary
-attributes, never location.
+document. And the crawl walks **locations only, at the declared initial waypoint**:
+content you want indexed must derive from `location`, never from `waypoint` — which
+is the stranger test again, because crawlable and shareable are the same property
+wearing different hats.
 
 > **From React:** compare the apparatus this retires — SSR, hydration, the
 > server/client component split, the rendering service that runs it. Extraction is

@@ -322,8 +322,11 @@ function answer() {
   const norm = query.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
   const syn = CONCEPTS.synonyms[norm] ?? CONCEPTS.synonyms[query];
   if (syn && REF[syn]) { sayEntry(REF[syn]); json = { kind: "entry", concept: norm, entry: REF[syn] }; return true; }
+  // terms are normalized the same way as the query — a stored "viewport-fit"
+  // must match the query "viewport-fit" after both lose their hyphen
+  const normTerm = (t) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
   for (const neg of CONCEPTS.negative) {
-    if (neg.terms.some((t) => norm === t.toLowerCase() || norm.includes(t.toLowerCase()))) {
+    if (neg.terms.some((t) => norm === normTerm(t) || norm.includes(normTerm(t)))) {
       for (const line of neg.answer.split("\n")) say(line);
       json = { kind: "negative", terms: neg.terms, answer: neg.answer };
       return true;

@@ -101,10 +101,38 @@ the URL stays clean while the app is at it. A trailing `@name` reveals the named
 or heading after the settle it causes.
 
 The contract: location is the app's **shareable coordinates** — what a recipient
-should see when handed the URL, and the only value that rides browser history. A
-draft, a selection, a session's working values are ordinary attributes: they never
-reach the URL (a fragment is never sent to the server either — location stays
-client-side), and Back does not traverse them.
+should see when handed the URL. A draft, a hover, a mid-gesture selection are
+ordinary attributes: they never reach the URL (a fragment is never sent to the
+server either — location stays client-side), and Back does not traverse them.
+Session state that Back *should* traverse without ever touching the URL is the
+third kind — that is `waypoint`.
+
+## waypoint
+The **step** — session state the Back button retraces but the URL never shows.
+`location`'s twin with the opposite visibility: one two-way reactive string the
+app owns the grammar of, carried in the History entry itself rather than in the
+URL. A history entry is the pair (location, waypoint); one entry is minted per
+settle in which either changed — both changing together is one entry, restored
+atomically by one Back. Traversal, reload, and session restore bring the step
+back; a pasted URL carries no waypoint by construction, so a recipient starts at
+the declared initial — which is the dividing test: *would you hand the value to
+a stranger?* Yes → `location`. No, but Back should undo it → `waypoint`. Neither
+→ an ordinary attribute. Waypoints are coordinates, never data — derive the data
+from the step, and keep it under a few kilobytes. Because it can never arrive
+from outside the app, a waypoint passes no `onFollow`; your own parsing is the
+gate, and an unrecognized value degrades wherever that parsing sends it. The
+crawl never sees waypoints: content that should be indexed derives from
+`location` — crawlable and shareable are the same property.
+
+```declare
+App [ location = "", waypoint = "",
+    query: string = { app.waypoint },
+    submit(text: string) {
+        app.waypoint = text                      // Back undoes this turn…
+        app.location = "results"                 // …and this move, in ONE entry
+        }
+    ]
+```
 
 ```declare
 App [ location = "home",

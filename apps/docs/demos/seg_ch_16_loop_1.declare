@@ -1,0 +1,9 @@
+App [ location = "", waypoint = "",
+
+    query: string = { app.waypoint },
+
+    submit(text: string) {
+        app.waypoint = text          // Back will undo this turn
+        app.location = "results"     // …and this move, together
+        }
+    ]

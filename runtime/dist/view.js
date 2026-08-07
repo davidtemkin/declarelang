@@ -1235,6 +1235,11 @@ defineAttributes(App, {
     // re-derive on every change. Default "" so an app that declares no initial keeps
     // a clean URL. NOT readOnly — navigation IS a write from app code.
     location: { def: "" },
+    // `waypoint` — the history-carried step (schema.ts has the full contract).
+    // A stored reactive slot exactly like location, with the opposite visibility:
+    // the host mirrors it into the History entry's STATE OBJECT (never the URL)
+    // and writes it back on traversal. Default "" = the declared initial step.
+    waypoint: { def: "" },
     demoSources: { def: {} },
     liveReport: { def: "" },
     // the size floor (bindExtent) — author-settable, 0 = none

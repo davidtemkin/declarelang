@@ -452,8 +452,22 @@ deep link indexable, and why the crawl fails loudly on a reference naming nothin
 URL, nothing more. A chapter, a selected item, a map position belong in it; a draft, a
 selection, a session's accumulated working values are ordinary attributes and never reach the
 URL. (The fragment is also never sent to the server — location stays client-side by
-construction.) History holds the same line: **Back traverses locations, nothing else** — a
-value that isn't shareable doesn't ride history.
+construction.)
+
+Session state that the Back button *should* undo but a stranger should never see — the turns
+of a search, a wizard's page — is the third kind, and it has its own attribute: **`waypoint`**,
+`location`'s twin with the opposite visibility. One two-way reactive string, grammar the
+app's own, carried in the History entry itself and never in the URL. A history entry is the
+pair *(location, waypoint)*: one entry per settle in which either changed — both changing
+together is one entry, and one Back restores the pair atomically, so back/forward can work
+over a URL that never moves. Traversal, reload, and session restore bring the step back; a
+pasted URL carries no waypoint, so a recipient starts at the declared initial. The dividing
+test, applicable in five seconds: *would you hand the value to a stranger?* Yes → `location`.
+No, but Back should undo it → `waypoint`. Neither → an ordinary attribute. Waypoints are
+coordinates, never data (derive the data; keep the string small); they pass no `onFollow`
+(nothing can arrive from outside — every restored value is one the app wrote); and the crawl
+never sees them — content that should be indexed derives from `location`, because crawlable
+and shareable are the same property.
 
 → `link`/`shows`/`anchor`/`replace`, `App.follow`/`onFollow`/`revealInset`: the model reference
 

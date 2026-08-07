@@ -1199,6 +1199,13 @@ export class App extends View {
    *  navigate (`app.location = "why"`). The declared initial is the default — the
    *  fragment is omitted at it (§3). Read-write to user code; schema.ts. */
   declare location: string;
+  /** `waypoint` — the STEP: session state the Back button retraces but the URL
+   *  never shows (the other half of the history entry; `location` is the
+   *  address half). The host carries it in the History entry's state object,
+   *  restores it on back/forward and reload, and never lets it near the URL —
+   *  so it is not shareable and not crawlable, by construction. The app owns
+   *  the grammar, same as location. Schema attr; default "". */
+  declare waypoint: string;
   /** app→host navigation channel: `navigate(to)` sets it, the host (host-client.js
    *  / a backend) polls it, opens the URL, and clears it to "". A plain field, not
    *  a reactive attribute — nothing in the tree renders from it, and no Declare
@@ -1519,6 +1526,11 @@ defineAttributes(App, {
   // re-derive on every change. Default "" so an app that declares no initial keeps
   // a clean URL. NOT readOnly — navigation IS a write from app code.
   location: { def: "" },
+  // `waypoint` — the history-carried step (schema.ts has the full contract).
+  // A stored reactive slot exactly like location, with the opposite visibility:
+  // the host mirrors it into the History entry's STATE OBJECT (never the URL)
+  // and writes it back on traversal. Default "" = the declared initial step.
+  waypoint: { def: "" },
   demoSources: { def: {} },
   liveReport: { def: "" },
   // the size floor (bindExtent) — author-settable, 0 = none

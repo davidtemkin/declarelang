@@ -65,6 +65,16 @@ export async function bootHost(cfg) {
   // no home→target flash. Un-fused from renderAsync so the seed lands pre-mount.
   const app = (window.__app = build(cfg.source, { deps: cfg.deps }));
   const locationInitial = app.location;               // the declared initial = the default (§3)
+  // Seed the STEP first, then the address, so location-derived constraints see
+  // a consistent pair at first settle. A history ENTRY is the pair (URL,
+  // waypoint): the URL carries the address in its fragment; the entry's state
+  // object carries the waypoint. On a reload or a session restore the entry
+  // survives with both halves, so the user resumes mid-session; a pasted URL
+  // carries no waypoint by construction — a stranger gets the place and none
+  // of the session, which is the attribute's whole contract (App.waypoint).
+  const stepOf = () => (typeof history.state?.declare?.w === "string" ? history.state.declare.w : "");
+  const stepSeed = stepOf();
+  if (stepSeed !== "" && app.waypoint !== stepSeed) app.waypoint = stepSeed;
   const seedFrag = fragmentOf() || cfg.location;       // the URL fragment wins; else a host override (?view=)
   if (seedFrag) {
     // A COLD ARRIVAL is a follow (location.md §0.5): the app-scoped onFollow
@@ -73,8 +83,9 @@ export async function bootHost(cfg) {
     // which the canonicalize-by-replace below squares up, minting no entry.
     if (typeof app.follow === "function") app.follow("#" + seedFrag);
     else app.location = seedFrag;                      // an empty fragment leaves the initial alone (§3)
-    settle();                                          // propagate to the location-derived constraints SYNCHRONOUSLY,
-  }                                                     // before the first paint — the deep link's view, no home→target flash
+  }
+  if (seedFrag || stepSeed !== "") settle();           // propagate to the derived constraints SYNCHRONOUSLY,
+                                                       // before the first paint — the deep link's view, no home→target flash
   await loadFonts(fontFacesOf(app));
   mountApp(app, host, new Backend());
   if (cfg.pageWeight != null) app.pageWeight = cfg.pageWeight;
@@ -100,41 +111,81 @@ export async function bootHost(cfg) {
   const onKey = (e) => { if (e.key === "Escape") app.editing = false; };
   addEventListener("keydown", onKey);
 
-  // app.location ⟷ the URL fragment (docs/system-design/location.md §2–3). Mirror OUTWARD per
-  // settle: one history push when the app changed it (push-only, §10.1), a clean URL
-  // when the app sits at its declared initial (the default rule, §3). Write it BACK
-  // on the browser's back/forward — the ambient-data direction, state re-derives, no
-  // popstate handling in app code. Universal and inert when unused: an app that never
-  // writes location holds location == initial, so the fragment stays empty, nothing
-  // pushes. Retires the homepage's hand-wired `route`↔`#why` mirror.
-  let mirrored = app.location;                          // what the URL currently reflects (seeded above)
+  // (app.location, app.waypoint) ⟷ the browser's history. A history ENTRY is
+  // the PAIR: the URL's fragment carries the address (`location`, §2–3 of
+  // docs/system-design/location.md), the entry's STATE OBJECT carries the step
+  // (`waypoint` — session state Back retraces but the URL never shows). Mirror
+  // OUTWARD per settle: one entry when either changed (both changed = ONE
+  // entry, so Back restores the pair atomically), a clean URL when the app
+  // sits at its declared initial (§3). Write both BACK on back/forward — the
+  // ambient-data direction, state re-derives, no popstate handling in app
+  // code. Universal and inert when unused: an app that writes neither holds
+  // both initials, and nothing pushes.
+  let mirrored = app.location;                          // what the entry currently reflects (seeded above)
+  let mirroredW = app.waypoint;
+  // The entry's state object. Namespaced under `declare` so nothing else's
+  // pushState collides; `w` is the waypoint, `s` a scroll snapshot stamped at
+  // DEPARTURE (below) so a traversal can land where the user left. Coordinates,
+  // never data: past ~64KB the contract is being violated and we say so —
+  // loudly, before some browser's serialization limit says it cryptically.
+  const entryState = (w, s) => ({ declare: s == null ? { w } : { w, s } });
+  const guardStep = () => {
+    if (app.waypoint.length > 64 * 1024)
+      console.error("[Declare] waypoint exceeds 64KB — a waypoint is coordinates in the session, not the session's data; derive the data from it instead (guide ch. 16)");
+  };
   // The page's OWN path+query, never a bare "#frag": history resolves against
   // the DOCUMENT BASE, and a source page's <base> points elsewhere (measured
   // on ?viewer, 2026-08-01). Clean URL at the declared initial (§3).
   const urlFor = (loc) => location.pathname + location.search +
     (loc === locationInitial ? "" : "#" + loc);
-  // Square the URL to the app BY REPLACE — no entry minted. Covers: the
+  // Square the ENTRY to the app BY REPLACE — no entry minted. Covers: the
   // default-valued deep link (`#home` → clean URL, the old rule), a cold
   // arrival the onFollow hook redirected or vetoed, and every history
-  // traversal (below). Also consumes a pending replace verb: the URL now
+  // traversal (below). Also consumes a pending replace verb: the entry now
   // agrees with the app, so there is nothing left for the mirror to do.
   const syncByReplace = () => {
     const url = urlFor(app.location);
-    if (location.pathname + location.search + location.hash !== url) history.replaceState(null, "", url);
+    if (location.pathname + location.search + location.hash !== url || stepOf() !== app.waypoint)
+      history.replaceState(entryState(app.waypoint, history.state?.declare?.s), "", url);   // the scroll stamp survives the squaring
     mirrored = app.location;
+    mirroredW = app.waypoint;
     if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
   };
   syncByReplace();
-  const onPop = () => {
+  // Scroll is PER-ENTRY, manually: the browser's own restoration fires before
+  // the traversal's settle (wrong extent), so the host owns it — each entry is
+  // stamped with its scroll at departure (the push below) and at pagehide (so
+  // a reload resumes), and restored after the traversal's settle. Anchor
+  // arrivals keep the reveal instead: a stored `@name` intent is the truer
+  // landing than a pixel offset against re-derived content.
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  const stampScroll = () => {
+    history.replaceState(entryState(stepOf(), scrollY), "", location.pathname + location.search + location.hash);
+  };
+  addEventListener("pagehide", stampScroll);
+  const restoreScroll = (s) => {
+    if (typeof s !== "number") return;
+    // two frames: the traversal's writes settle and paint first, so the extent
+    // the scroll lands against is the restored entry's, not the departed one's
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (!stopped) scrollTo(0, s); }));
+  };
+  if (!seedFrag || seedFrag.indexOf("@") < 0) restoreScroll(history.state?.declare?.s);   // a reload resumes its scroll
+  const onPop = (e) => {
     if (stopped) return;
-    // A TRAVERSAL arrival is a follow (location.md §0.5.6): the onFollow hook
-    // applies, and whatever it decides — pass, redirect, veto — the result is
-    // squared to THIS entry by replace. A traversal never pushes, so a
-    // redirect rule can never trap Back in a loop.
+    // A TRAVERSAL arrival restores the PAIR: the step first (written directly —
+    // a waypoint has no door to guard, since it can never arrive from outside
+    // the app; every restored value is one this app wrote earlier), then the
+    // address through follow (location.md §0.5.6): the onFollow hook applies,
+    // and whatever it decides — pass, redirect, veto — the result is squared
+    // to THIS entry by replace. A traversal never pushes, so a redirect rule
+    // can never trap Back in a loop.
+    const w = typeof e.state?.declare?.w === "string" ? e.state.declare.w : "";
+    if (app.waypoint !== w) app.waypoint = w;
     const ref = fragmentOf() || locationInitial;       // an empty fragment restores the initial (§3)
     if (typeof app.follow === "function") app.follow("#" + ref);
     else app.location = ref;
     syncByReplace();
+    if (ref.indexOf("@") < 0) restoreScroll(e.state?.declare?.s);
   };
   addEventListener("popstate", onPop);
   // A held reveal intent dies on the user's first gesture (location.md
@@ -156,18 +207,29 @@ export async function bootHost(cfg) {
   const locTick = () => {
     if (stopped) return;
     titled = reflectAppName(app, servedTitle, titled);
-    if (app.location !== mirrored) {                   // the app navigated — one entry per changed settle
-      mirrored = app.location;
-      // The history VERB (location.md §0.5.6): "push" (the default) makes an
-      // entry; a follow whose link declared `replace = true` armed "replace" —
-      // fine-grained movement within a place overwrites instead of burying
-      // the Back button. Consumed here, exactly once.
+    if (app.location !== mirrored || app.waypoint !== mirroredW) {
+      // The app moved — one entry per changed settle, for the PAIR: address,
+      // step, or both together (a submit that navigates AND records its turn
+      // is one entry, restored atomically by Back). The history VERB
+      // (location.md §0.5.6): "push" (the default) makes an entry; a follow
+      // whose link declared `replace = true` armed "replace" — fine-grained
+      // movement within a place overwrites instead of burying the Back
+      // button. The verb governs the whole pair. Consumed here, exactly once.
       const verb = app.pendingHistoryVerb === "replace" ? "replace" : "push";
       if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
-      if (verb === "replace") history.replaceState(null, "", urlFor(app.location));
-      else history.pushState(null, "", urlFor(app.location));
+      guardStep();
+      if (verb === "replace") history.replaceState(entryState(app.waypoint), "", urlFor(app.location));
+      else {
+        // stamp the OUTGOING entry with its own pair and the departure scroll,
+        // so Back can land the user exactly where they left it…
+        history.replaceState(entryState(mirroredW, scrollY), "", urlFor(mirrored));
+        // …then mint the new one
+        history.pushState(entryState(app.waypoint), "", urlFor(app.location));
+      }
+      mirrored = app.location;
+      mirroredW = app.waypoint;
     } else if (app.pendingHistoryVerb === "replace") {
-      // a same-location follow (or a vetoed one) armed the verb with nothing
+      // a same-place follow (or a vetoed one) armed the verb with nothing
       // to mirror — disarm it, or an unrelated later push would wrongly replace
       app.pendingHistoryVerb = "push";
     }
@@ -188,6 +250,7 @@ export async function bootHost(cfg) {
     for (const k in raf) cancelAnimationFrame(raf[k]);
     removeEventListener("keydown", onKey);
     removeEventListener("popstate", onPop);
+    removeEventListener("pagehide", stampScroll);
     removeEventListener("wheel", onUserScroll);
     removeEventListener("touchstart", onUserScroll);
     host.querySelectorAll('[data-declare-slot^="run:"]').forEach((box) => {

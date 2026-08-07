@@ -2723,6 +2723,18 @@ var DeclareMac = (() => {
           // — a SCHEMA attr on purpose: §3's `App [ location = "home" ]` needs a checkable
           // [ ] slot (unlike the host-fed read-only channels, which live in LANGUAGE_API).
           location: { kind: "string" },
+          // `waypoint` — the STEP: session state the Back button retraces but the URL
+          // never shows. The second half of the history entry (the pair is location +
+          // waypoint): the host carries it in the History entry's state object —
+          // invisible to the address bar, autocomplete, sharing, and the crawl — and
+          // writes it back on back/forward exactly as it writes `location`. The
+          // dividing test: would you hand the value to a stranger? Yes → location
+          // (it's an address); no, but Back should undo it → waypoint; neither →
+          // an ordinary attribute. The app owns the grammar, same as location. A
+          // pasted URL carries no waypoint (a recipient starts at the declared
+          // initial); reload and session restore resume it (the entry survives).
+          // Coordinates, never data: derive the data from the waypoint.
+          waypoint: { kind: "string" },
           // NOTE: live demo editing is NOT a base-App concern (capabilities.md §7 —
           // RULED shape 3, a component). The app-authored state (editing / liveCard /
           // liveSource) is instance-declared on the demo-hosting apps; the host-fed
@@ -7856,6 +7868,11 @@ var DeclareMac = (() => {
         // re-derive on every change. Default "" so an app that declares no initial keeps
         // a clean URL. NOT readOnly — navigation IS a write from app code.
         location: { def: "" },
+        // `waypoint` — the history-carried step (schema.ts has the full contract).
+        // A stored reactive slot exactly like location, with the opposite visibility:
+        // the host mirrors it into the History entry's STATE OBJECT (never the URL)
+        // and writes it back on traversal. Default "" = the declared initial step.
+        waypoint: { def: "" },
         demoSources: { def: {} },
         liveReport: { def: "" },
         // the size floor (bindExtent) — author-settable, 0 = none

@@ -86,6 +86,7 @@ const SUITE_INPUTS = {
   "verify-apps": ["apps", "tools/verify.mjs"],
   "crawl": ["apps/homepage", "browser", "server", "docs/declare.md"],
   "gesture": ["test/probe", "browser", "server"],
+  "history": ["test/probe", "browser", "server"],
   "perceptual": ["test/probe", "test/artifacts", "browser", "server"],
   // the toolchain and its delivery
   "scaffold": ["compiler/src"],
