@@ -42,12 +42,16 @@ first-class negative knowledge — with a hard token budget per answer.
 | enum/token | `fontWeight tokens`, `scrolls` | the token list with one-line glosses |
 | diagnostic code | `DECLARE7001` | the rule, the real triggers, the fix — same text the compiler would emit |
 
-**Negative knowledge is a success, not a miss.** `declare-help rotation` →
-*"No View rotation. Drawn content rotates (`draw` + `d.rotate`); `drawImage` is
-absent from Draw, so a rotated photograph is currently unreachable. Planned:
-the compositing arc (`docs/system-design/…`)."* Exit code 0. A true miss (no
-entry anywhere) exits 1 and says what *was* searched, so an agent can trust
-silence.
+**Negative knowledge is a success, not a miss.** `declare-help drawImage` →
+*"No `d.drawImage` — `Draw` cannot rasterize a picture. A picture is an `Image`
+view (`stretches = cover|contain`, `tint`), and it rotates and scales like any
+view (`rotation`, `scale`). What remains unreachable is compositing a decoded
+bitmap INSIDE a `draw(d: Draw)` recording."* Exit code 0. A true miss (no entry
+anywhere) exits 1 and says what *was* searched, so an agent can trust silence.
+(This section's original worked example was `rotation`, back when no View
+rotation existed; the compositing arc landed it as a real attribute days later
+and the query now answers positively — negative knowledge is curated precisely
+so an answer flips the day the platform does.)
 
 **Output contract:** plain text in the diagnostic register (rule-stating,
 fix-naming, never cute), ≤ ~40 lines per answer, elision by pointer ("…and 12

@@ -29,7 +29,9 @@ over `angle`.
 ## angle
 The rotation in radians, and **the primitive, so it can be sprung** — an `Accordion`
 twisty turns in step with its pane sliding open rather than snapping between two
-states. Rotation lives in the recording because there is no `rotation` View attribute.
+states. The turn lives in the recording deliberately: the mark rotates inside its
+16-box while the box stays put. (The View-level `rotation` attribute turns the whole
+box — the wrong tool for a glyph whose frame should not move.)
 
 ## draw()
 Renders the chevron. Override to replace the mark while keeping the class's role.

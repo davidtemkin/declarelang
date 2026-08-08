@@ -115,3 +115,19 @@ Explain the *why*, not the diff — the change is visible in the patch; the reas
 Name what you verified and what you did not, state the gate results, and record decisions you
 made along the way so the next person inherits the logic rather than re-deriving it. If you
 found something and chose to leave it, say that too.
+
+## Pull requests carry source, never build output
+
+This repo *commits* its derived artifacts — `bundles/`, `apps/*/dist/`, the hashed
+`index.html` pages, `docs/declare-model.json`, `bundles/cache/`, `service-worker.js` —
+because a fresh clone must run cold, with no build step. That has one consequence for a
+PR: when you run the build or the test suite locally (please do), those files regenerate
+in your working tree, and a `git commit -a` will sweep them in.
+
+**Don't ship them.** Each is a function of the *whole tree at one commit*; the moment
+main moves, your regenerated copies describe a tree that no longer exists, and the PR
+conflicts on files nobody hand-edited (a two-line fix once arrived wrapped in 1.9 MB of
+them). Stage only the files you authored. Whoever lands the PR re-runs the derive chain
+(`node tools/internal/derive.mjs`) on top of current main — the same staleness gates
+check the result either way. Quick self-check before pushing: if `bundles/`, `dist/`, or
+`declare-model.json` appear in your diff, unstage them.

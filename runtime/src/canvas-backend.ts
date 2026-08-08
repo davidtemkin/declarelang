@@ -21,9 +21,11 @@
 // intent — one shared surface, a dirty-bit rAF scheduler, dpr in a base
 // transform, and (R5) the reverse painter's-walk hit test — and rewritten
 // fresh: no z-sorting (tree order is paint order until a z attribute
-// exists), no Flash colortransform/frames, no rotation/scale inverses, no
-// capability probing, no per-sprite `clickable` state (interactivity is the
-// seam's sink, derived from declared handlers).
+// exists), no Flash colortransform/frames, no capability probing, no
+// per-sprite `clickable` state (interactivity is the seam's sink, derived
+// from declared handlers). Rotation/scale inverses — originally left out with
+// the rest — arrived with the compositing arc (2026-08: `invertPoint` below,
+// so the hit walk tells the truth about a turned or scaled surface).
 
 import { DeclareError } from "./errors.js";
 import type { Bitmap, EditableSpec, InputSink, RenderBackend, Stretch, Surface, InputWants } from "./backend.js";
