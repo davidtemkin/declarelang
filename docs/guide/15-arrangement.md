@@ -11,8 +11,8 @@ and the one that separates it from every stack where animation is a layer:
 > change glides, in lock-step, interruptibly, for free.**
 
 The reasoning is direct. Constraints stay true
-([chapter 3](declare-docs:guide:relationships)). A spring moves a value continuously
-([chapter 10](declare-docs:guide:motion-and-modes)). So if every position and size in
+(the [Relationships](declare-docs:guide:relationships) chapter). A spring moves a value continuously
+([Motion & states](declare-docs:guide:motion-and-states)). So if every position and size in
 an arrangement is a constraint reading a handful of sprung values, then moving those
 values *is* rearranging the interface — and every in-between frame is a real layout,
 because the same constraints hold at every instant. Nothing "transitions." The truth
@@ -102,7 +102,7 @@ where the craft lives, and it has a discipline:
   say it for you.
 - **Derive; never duplicate.** The moment two constraints encode the same fact
   independently, they can disagree mid-motion. One source, everything reading it —
-  the discipline of [chapter 3](declare-docs:guide:relationships), now load-bearing
+  the discipline of [Relationships](declare-docs:guide:relationships), now load-bearing
   at 120 frames a second.
 - **Design the endpoints; audit the middle.** You declare the end states, but users
   *live* in the in-betweens — drag the toy above halfway and look. Because every

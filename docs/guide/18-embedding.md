@@ -1,5 +1,5 @@
 <!-- nav: Embedding -->
-<!-- part: In practice -->
+<!-- part: Where it runs -->
 
 # Crossing boundaries — a page in an app, an app in a page
 

@@ -1,7 +1,7 @@
-<!-- nav: Motion & modes -->
+<!-- nav: Motion & states -->
 <!-- part: Continuity -->
 
-# Motion is a target; a mode is a bundle
+# Motion is a target; a state is a bundle
 
 Before the tools, the argument — because this part of the guide is not about
 animation in the sense you're used to. In most stacks, animation is an *effects
@@ -63,7 +63,7 @@ springs are the house idiom.)
 
 ## A state is a reversible bundle of overrides
 
-The other primitive is about *modes*. A `State` is a named set of attribute
+The other primitive is about *configurations*. A `State` is a named set of attribute
 overrides — and even conditional children — applied while a condition holds,
 reverted when it lifts:
 
@@ -84,12 +84,12 @@ App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
 While `open` holds, the height, the fill, and the extra `Text` apply *together*;
 when it lifts, they all revert. Note what is unwritable here: the "set it on enter,
 forget to unset it on exit" bug. An attribute's value is a pure function of its base
-plus the active states, so **a mode cannot leak** — there is no exit code to forget
+plus the active states, so **a state cannot leak** — there is no exit code to forget
 because there is no exit code. States compose (two active states each contribute;
 on a conflict the later declaration wins), they can target named descendants by
 dotted path, and the condition is any constraint — including `app.width < 480`,
 which is the "swap the whole arrangement" form of responsiveness promised in
-[chapter 5](declare-docs:guide:space).
+the [Space](declare-docs:guide:space) chapter.
 
 ## One mechanism, two faces
 
@@ -98,16 +98,39 @@ reversible, interruptible declaration about how things should be.** A state name
 *configuration* that applies and reverts; a spring names a *destination* and makes
 the journey continuous. Both are relationships — not commands — which is why neither
 can be caught in a broken half-applied middle, and why they compose: a state flips a
-value, a spring's target reads it, and the mode change *glides*.
+value, a spring's target reads it, and the change of configuration *glides*.
 
 What neither does alone is move whole *arrangements* — grids reshaping, one surface
 becoming another. That takes the two of them plus one idiom, and it is the next
 chapter — the one the language exists for.
 
+## The heartbeat
+
+One member completes the motion family. `Heartbeat` calls `onFrame(dt)` once per
+animation frame with the real elapsed seconds — for the rare case where you are
+integrating something yourself (a physics engine, a simulation) rather than
+declaring a destination:
+
+```declare
+App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
+    x0: number = 20,
+    v: number = 60,
+    physics: Heartbeat [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }
+        ],
+    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise ]
+    ]
+```
+
+`running` gates it (`running = { app.simulating }`), `dt` is clamped so a backgrounded
+tab does not resume with one enormous step, and it rides the same clock every `Spring`
+and `Animator` uses — so it costs nothing until it runs, and there is no second frame
+loop. Reach for it when you are integrating; for "move this there, smoothly," a
+`Spring` is less code and better behaved.
+
 ---
 
 **What you can now say:** you can declare where things belong and let physics take
-them there, define modes that cannot leak, and interrupt anything mid-flight for
+them there, define states that cannot leak, and interrupt anything mid-flight for
 free — and you know *why* an interface built this way is kinder to its user.
 
 [Next: **Arrangement animates** →](declare-docs:guide:arrangement)

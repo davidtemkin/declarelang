@@ -1,5 +1,5 @@
 <!-- nav: With an LLM -->
-<!-- part: In practice -->
+<!-- part: Working -->
 
 # Writing with an LLM
 
@@ -44,7 +44,7 @@ something you have already touched:
   extracted statically, events that don't bubble, one value pattern for every
   control — means code that looks right *is* right far more often, for an LLM
   exactly as for you.
-- **Verify is the oracle.** The [ladder](declare-docs:guide:loop) gives an agent
+- **Verify is the oracle.** The [ladder](declare-docs:guide:run-check-ship) gives an agent
   the thing agents otherwise lack: a mechanical, trustworthy answer to "does my
   output actually work?" — through boot and behavior, no browser, no human in the
   checking loop.
@@ -74,7 +74,7 @@ Working with an LLM on Declare is deliberately unexotic:
 
 That last point is why this chapter sits at the end of the guide instead of the
 beginning. Review-by-reading only works if you can read — which is the skill the
-previous eleven chapters built. An LLM at your side makes the writing cheap. It
+chapters behind you built. An LLM at your side makes the writing cheap. It
 makes your comprehension *more* valuable, not less.
 
 ## Tested, not assumed

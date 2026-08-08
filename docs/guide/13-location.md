@@ -1,24 +1,20 @@
-<!-- nav: The loop -->
-<!-- part: In practice -->
+<!-- nav: Location -->
+<!-- part: Building -->
 
-# Run it, check it, ship it
+# Where the user is
 
-A program is not finished when it runs — it has an address, gets found, gets checked,
-gets shipped. In the stacks you know, each of those is its own subsystem with its own
-configuration. Here they hang off one fact:
+Everything you have built so far lives inside its own window. This chapter is
+where your app becomes a **citizen of the web**: a thing with real addresses you
+can hand to anyone, a Back button that tells the truth, and pages a crawler can
+read — with no router, no history listener, and no server. The browser gives
+your user three instruments they already trust — the URL bar, the Back button,
+and copy-the-link — and Declare splits the work across two attributes, divided
+by a single test:
 
-> **The program URL is the app's address — for running it, editing it, reading it,
-> crawling it, and building it.**
-
-With the dev server up, navigating to `…/my-apps/hello.declare` compiles and renders
-it — and a directory URL is the same address in short form: `…/apps/calendar/` means
-`…/apps/calendar/calendar.declare`, because a directory containing a program that
-matches its name *is* that program's address. The *same address* answers
-`?viewer=edit` (a live editor beside the running result),
-`?viewer=reader` (the source as an annotated, highlighted document), `?render=canvas`
-(the own-pixels renderer from [chapter 6](declare-docs:guide:style)), and `?extract`
-(what a crawler sees — below). No project scaffold, no route config, no build step
-between an edit and a reload.
+> **Would you hand this value to a stranger?** If yes, it belongs in `location`
+> — it is an *address*. If no, but the Back button should still undo it, it
+> belongs in `waypoint` — it is a *step*. If neither, it is an ordinary
+> attribute, and none of this chapter applies to it.
 
 ## The URL is an attribute; links are declared
 
@@ -126,7 +122,7 @@ waypoint to survive a paste, it was an address all along** — promote it to
 For computed families the grammar after `#` is the app's own — `#deck/q3/47` is a
 string you `split`, and `deckId`/`page` derive from it; this documentation's entire
 navigation is three lines of exactly that. One discipline makes all of it free, and
-you already know it from [chapter 3](declare-docs:guide:relationships): **derived
+you already know it from [Relationships](declare-docs:guide:relationships): **derived
 state is never assigned.** Links write `location`; everything else derives.
 
 When you need code in the path, it's there: `onClick` beside a `link` runs first
@@ -175,130 +171,26 @@ ordinary attribute — including the flight animations, which are the third kind
 
 One thing you cannot try in this page: the live demos in this guide are embedded
 child apps, and an embedded app owns neither the page's URL nor its history —
-both belong to the page it sits in ([chapter 19](declare-docs:guide:embedding)).
+both belong to the page it sits in (the [Embedding](declare-docs:guide:embedding) chapter).
 That is why this is a link rather than a frame.
 
-## Crawlers, without a server
+## What the crawler sees is what a stranger sees
 
-The deeper surprise: this also replaces server-side rendering. A Declare program is
-not an empty `<div>` waiting for JavaScript — **static extraction**, built into the
-compiler, boots the program headlessly to its settled state and serializes its real
-content as semantic HTML: actual headings, paragraphs, links. The crawl follows your
-app's own links — literal fragments and handler writes alike — and emits one document
-at the program URL: the default location's content, plus a section per reachable
-location. Discoverable = linked, exactly like the web. Append `?extract` to any
-program URL and read what a crawler gets; ship it baked into the page with one flag.
-(Try it on the birds guide. Because every tile is a `link`, the crawl walks the
-shelf to all fifty bird pages, prose and all. It also finds the quiz *room* —
-that is an address — but not a single question, score, or answer, because a
-round lives in a waypoint and the crawl boots every location at its declared
-initial. What is crawled is exactly what is shareable, which is exactly what a
-stranger would see.)
-
-Two honest rules. Crawlable data is **build-time data** — a relative `DataSource`
-URL is your app's own material and extracts fine; an absolute URL is the network,
-and the crawl refuses *loudly*, naming the fix, rather than emit a silently thinner
-document. And the crawl walks **locations only, at the declared initial waypoint**:
-content you want indexed must derive from `location`, never from `waypoint` — which
-is the stranger test again, because crawlable and shareable are the same property
-wearing different hats.
-
-> **From React:** compare the apparatus this retires — SSR, hydration, the
-> server/client component split, the rendering service that runs it. Extraction is
-> a *compile step*, not a runtime: this site, its live-editing pages included, is
-> crawlable from GitHub Pages with no server at all. The simplification isn't a
-> missing feature. It's a whole layer the architecture never needed.
-
-## Check it
-
-You have been living the loop all guide: edit, run, read the error, apply the named
-fix. The `verify` command is that loop as an oracle — it climbs a ladder, cheapest
-rung first, and reports the *first real problem*, not a cascade of downstream noise:
-
-1. **structure** — does it parse?
-2. **resolution** — does every name, tag, and datapath resolve?
-3. **analysis** — does it typecheck, with every constraint's reads known?
-4. **boot** — does it construct and settle, headlessly?
-5. **behavior** — does it do what a drive-and-assert script says?
-6. **visual** — does it match its named baselines?
-
-Rungs 1–4 need no browser and no flags — typechecking every `{ }` body is part of
-every compile, always. Within a rung you get every independent error at once, in
-source order, each with its code, its position, and — where the mistake is one the
-compiler anticipates — the fix by name. The diagnostics
-are the same ones you've been meeting when you break this guide's examples — trust
-them, apply them, recompile. That habit is worth more than any chapter of this book.
-
-The last two rungs are worth reaching for once a program does something. Rung 5 opens
-the app in a real browser, drives it with real input, and asserts by **view path**
-rather than DOM selectors, so a check survives any change to how a view is realized:
-
-```js
-export default async ({ drive, expect }) => {
-  await drive.click("app.dock.calendar");
-  await drive.settleMotion();                       // motion runs to rest, frame-exact
-  await expect.visible("app.wins.0");
-  await expect.approx("app.dock.calendar", "width", 72, 1);
-};
-```
-
-`settleMotion` is the interesting one: it takes the app's clock and runs animation to
-rest deterministically, so a spring can be asserted at all — otherwise its value at any
-instant depends on frame timing.
-
-### When it passes and still misbehaves
-
-A green rung means *that rung* found nothing. The first four run with no browser at
-all — approximated text metrics, no CSS, no layout engine, no input routing — so a
-whole class of problem is invisible to them: a transparent view swallowing presses, a
-size that only goes wrong against real fonts, anything that appears only in a bundled
-build. When the checker is happy and the program is not, stop re-reading the source and
-**ask the running program**:
-
-```js
-__declare.explain("app.dock.calendar", "width")
-// → the expression, every read-path it was wired to, and their live values
-```
-
-The same answers have a face: press **⌥⌘D** on any page, or add `?inspector` to a program
-URL, and the [Inspector](declare-docs:operational:inspector) opens over the running app.
-Click a value to see what produced it; click *select* and click the app to find out
-which view a press actually reaches; type a new expression at it and watch the program
-change. Someone has told you about Smalltalk. They were insufferable about it. They
-were also right about one specific thing: the program is a live thing you can ask
-questions of, not a file you re-run — and that is what this is for.
-
-Both the assert vocabulary and the bridge are documented in
-[Introspection](declare-docs:operational:introspection).
-
-## Ship it
-
-Three ways to run, one compiler, and the choice is only *where the compile happens*:
-
-- **The dev server** compiles on request — `npm start`, browse to the program URL.
-  This is also how you host the whole distro, live.
-- **A static host + the service worker**: the compiler runs in the page; the program
-  URL is still the address, with no Node anywhere. Cache-aware, so revisits skip the
-  compiler entirely.
-- **A production build** moves the compile ahead of time: `declarec` (or `?build` on
-  any program URL) emits a self-contained artifact — the app and its runtime, about
-  54 KB gzipped for the flagship calendar, the same figure the homepage reports
-  live from the deployed artifacts — deployable to any static host, no compiler
-  aboard. `--crawler` bakes the extracted document into the built page.
-
-## Islands: the deliberate escape
-
-When you need the platform's own content — a chart library, a map, arbitrary markup
-— a `DOMIsland [ … ]` hands one view's box to foreign DOM: a leaf to Declare's
-layout, sized by constraints, interior yours. Its most powerful case is an **embedded
-child app** — a Declare program running inside another program's island, no iframe —
-which is exactly how every live example in this guide runs. The boundary is always
-an island, always deliberate; everything native stays in the tree.
+The crawl rule falls straight out of the stranger test, because **crawlable and
+shareable are the same property**: the build walks your app's *locations* —
+every destination, every link — and boots each one at its declared initial
+waypoint. Bird pages index; quiz rounds cannot, because a round was never an
+address. Content you want found must derive from `location`. That single rule
+is most of what "citizen of the web" means, and the machinery behind it —
+static extraction, `?extract`, shipping the crawl baked into the page — is the
+[Run, check, ship](declare-docs:guide:run-check-ship) chapter's story.
 
 ---
 
-**What you can now say:** you can give an app's insides addresses, make its content
-crawlable with no server, prove a program correct from parse to pixels, and ship it
-as a small static artifact — all from the one URL where it lives.
+**What you can now say:** you can give an app's places addresses and its
+sessions a working Back button, decide exactly what the URL bar shows —
+including nothing — hand anyone a link that carries the place and none of the
+person, and know that what a crawler reads is precisely what a stranger would
+see. Your app is a citizen of the web, and nothing about it needed a server.
 
-[Next: **Writing with an LLM** →](declare-docs:guide:with-an-llm)
+[Next: **Motion is a target; a state is a bundle** →](declare-docs:guide:motion-and-states)

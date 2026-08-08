@@ -1,5 +1,5 @@
 <!-- nav: Declare Calendar -->
-<!-- part: In practice -->
+<!-- part: Working -->
 
 # Declare Calendar
 
@@ -37,11 +37,11 @@ colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
 rowH: number = { (app.bodyH - app.headH) / app.nr }
 ```
 
-You built exactly this in [chapter 11](declare-docs:guide:arrangement), with two
+You built exactly this in [Arrangement](declare-docs:guide:arrangement), with two
 scalars and twenty-one cells. Here it is with four and forty-two. Switching views is
 one assignment to `mode`; the targets re-derive, the springs chase, and every cell's
 geometry — a constraint reading `colW`/`rowH` — follows in lock-step. Now connect it
-to [chapter 10](declare-docs:guide:motion-and-modes)'s argument, in the running app:
+to [Motion & states](declare-docs:guide:motion-and-states)'s argument, in the running app:
 when you click **Week**, watch what your eyes do. Nothing. You never lose the day
 you were looking at, because it never ceases to exist — *that* is continuity keeping
 the user oriented, delivered by a mechanism you can now write from memory.
@@ -60,7 +60,7 @@ gutter:    number = { app.blockness * 52 }                        // the hour gu
 `blockness` reads `rowH`, which reads `nr`, which is sprung — so as the view zooms,
 "how much of a time view is this?" slides continuously from 0 to 1, and everything
 keyed off it (the hour gutter, each event's shape, its label) morphs *with* the
-motion instead of snapping at a threshold. This is chapter 10's "derive character,
+motion instead of snapping at a threshold. This is [Arrangement](declare-docs:guide:arrangement)'s "derive character,
 not just geometry," and it is why the transitions have no seams — and why an event
 mid-morph is *telling you what it's becoming*: motion carrying meaning, not
 decoration.
@@ -78,14 +78,14 @@ cal: Dataset [ contents = { app.buildModel() } ]
 ```
 
 Paging to the next month sets one number; `buildModel` re-derives; keyed replication
-reconciles. This is [chapter 9](declare-docs:guide:data)'s board — raw truth,
+reconciles. This is [Data](declare-docs:guide:data)'s board — raw truth,
 derived model, edits as writes — at full scale. "Navigation," which in your current
 stack is a subsystem, is here three assignments and a derivation.
 
 ## 4. A drop is just an edit
 
 Drag-to-reschedule looks like the most imperative thing in the app. It is the drag
-pattern from [chapter 7](declare-docs:guide:interaction) — down, move past a
+pattern from [Interaction](declare-docs:guide:interaction) — down, move past a
 threshold, up — and then a drop is *one edit to the data*:
 
 ```declare-fragment
@@ -123,7 +123,7 @@ with less machinery. This was the ceiling.
 
 Write something. `my-apps/` is yours, the [getting-started
 page](declare-docs:operational:getting-started) is the five-minute setup, and the
-board from [chapter 9](declare-docs:guide:data) is a good skeleton to grow. Keep
+board from [Data](declare-docs:guide:data) is a good skeleton to grow. Keep
 [`declare.md`](declare-docs:spec:core) at hand — the whole language, one file, for
 you and your LLM both. The [reference](declare-docs:reference:index) has every
 attribute of every component. And when you hit something rough or wrong — the

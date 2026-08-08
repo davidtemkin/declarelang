@@ -74,7 +74,7 @@ App [ width = 260, height = 120, fill = white,
 
 Narrow the `tags` width and the pills re-wrap. Because layout is a *slot* and not a
 type, it can be swapped, nested, or driven — the seed of what
-[chapter 11](declare-docs:guide:arrangement) grows into whole moving arrangements.
+[Arrangement](declare-docs:guide:arrangement) grows into whole moving arrangements.
 
 These are the arrangements the library ships, and they are ordinary Declare components
 you can read in `library/`:
@@ -207,7 +207,7 @@ user can actually see.
 Who owns a *finger* over all of this — and how a draggable thing on a scrolling
 surface takes the finger only on a press-and-hold — is gesture territory:
 [the Gestures chapter](declare-docs:guide:gestures). Everything here behaves
-identically under either renderer; what differences remain are the platform's
+identically on every renderer; what differences remain are the platform's
 ceiling, not yours.
 
 ## Responsiveness, honestly
@@ -242,7 +242,7 @@ Layout attributes are reactive like any others — `spacing = { app.width < 480 
 is an ordinary constraint — and per-child constraints keying off `app.width` remain
 the direct form for gutters and type sizes. Swapping a whole *configuration* beyond
 geometry is a job for a `State` gated on width, which arrives in
-[chapter 10](declare-docs:guide:motion-and-modes). And often the cleanest answer is
+[Motion & states](declare-docs:guide:motion-and-states). And often the cleanest answer is
 none of these: set the `minWidth` floor and let the stage pan, rather than reflowing
 a design below the width where it works.
 

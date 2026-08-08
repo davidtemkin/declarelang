@@ -2333,14 +2333,14 @@
       "cmd": "node tools/declarec.mjs <app.declare> -o <outdir> --crawler",
       "description": "Also bake the crawled document (every linked location's content) into the built page for crawlers.",
       "test": false,
-      "docs": "declare-docs:guide:addressable"
+      "docs": "declare-docs:guide:location"
      },
      {
       "id": "extract",
       "cmd": null,
       "description": "Append ?extract to any program URL to see the document a crawler gets.",
       "test": false,
-      "docs": "declare-docs:guide:addressable"
+      "docs": "declare-docs:guide:location"
      }
     ]
    }
@@ -6347,12 +6347,12 @@
     "kind": "guide"
    },
    "guide:arrangement": {
-    "path": "docs/guide/14-arrangement.md",
+    "path": "docs/guide/15-arrangement.md",
     "title": "Arrangement animates",
     "kind": "guide"
    },
    "guide:calendar": {
-    "path": "docs/guide/18-calendar.md",
+    "path": "docs/guide/21-calendar.md",
     "title": "Declare Calendar",
     "kind": "guide"
    },
@@ -6367,12 +6367,12 @@
     "kind": "guide"
    },
    "guide:embedding": {
-    "path": "docs/guide/19-embedding.md",
+    "path": "docs/guide/18-embedding.md",
     "title": "Crossing boundaries — a page in an app, an app in a page",
     "kind": "guide"
    },
    "guide:gestures": {
-    "path": "docs/guide/15-gestures.md",
+    "path": "docs/guide/16-gestures.md",
     "title": "The browser owns a gesture until you claim it",
     "kind": "guide"
    },
@@ -6381,9 +6381,9 @@
     "title": "Nothing bubbles",
     "kind": "guide"
    },
-   "guide:loop": {
-    "path": "docs/guide/16-loop.md",
-    "title": "Run it, check it, ship it",
+   "guide:location": {
+    "path": "docs/guide/13-location.md",
+    "title": "Where the user is",
     "kind": "guide"
    },
    "guide:make-your-own": {
@@ -6391,9 +6391,9 @@
     "title": "Your components are the library's equals",
     "kind": "guide"
    },
-   "guide:motion-and-modes": {
-    "path": "docs/guide/13-motion-and-modes.md",
-    "title": "Motion is a target; a mode is a bundle",
+   "guide:motion-and-states": {
+    "path": "docs/guide/14-motion-and-states.md",
+    "title": "Motion is a target; a state is a bundle",
     "kind": "guide"
    },
    "guide:relationships": {
@@ -6402,8 +6402,13 @@
     "kind": "guide"
    },
    "guide:renderers": {
-    "path": "docs/guide/20-renderers.md",
-    "title": "Two renderers — the same program in DOM or on a canvas",
+    "path": "docs/guide/17-renderers.md",
+    "title": "Three renderers, two hosts",
+    "kind": "guide"
+   },
+   "guide:run-check-ship": {
+    "path": "docs/guide/19-run-check-ship.md",
+    "title": "Run it, check it, ship it",
     "kind": "guide"
    },
    "guide:scale": {
@@ -6417,7 +6422,7 @@
     "kind": "guide"
    },
    "guide:style": {
-    "path": "docs/guide/21-style.md",
+    "path": "docs/guide/22-style.md",
     "title": "House style — the one shape every Declare file takes",
     "kind": "guide"
    },
@@ -6437,7 +6442,7 @@
     "kind": "guide"
    },
    "guide:with-an-llm": {
-    "path": "docs/guide/17-with-an-llm.md",
+    "path": "docs/guide/20-with-an-llm.md",
     "title": "Writing with an LLM",
     "kind": "guide"
    },
@@ -6522,8 +6527,10 @@
    ],
    "docs/guide/01-thinking-in-declare.md": [
     "essay:why-declare",
-    "guide:loop",
-    "guide:motion-and-modes",
+    "guide:location",
+    "guide:motion-and-states",
+    "guide:renderers",
+    "guide:run-check-ship",
     "guide:two-brackets",
     "guide:with-an-llm",
     "spec:core"
@@ -6535,7 +6542,7 @@
    ],
    "docs/guide/03-relationships.md": [
     "guide:data",
-    "guide:loop",
+    "guide:location",
     "guide:space",
     "guide:tree",
     "operational:inspector"
@@ -6546,7 +6553,7 @@
    "docs/guide/05-space.md": [
     "guide:arrangement",
     "guide:gestures",
-    "guide:motion-and-modes",
+    "guide:motion-and-states",
     "guide:style"
    ],
    "docs/guide/06-style.md": [
@@ -6590,52 +6597,61 @@
    ],
    "docs/guide/12-above-the-flow.md": [
     "guide:controls",
+    "guide:location",
     "guide:make-your-own",
-    "guide:motion-and-modes",
     "guide:scale"
    ],
-   "docs/guide/13-motion-and-modes.md": [
+   "docs/guide/13-location.md": [
+    "guide:embedding",
+    "guide:motion-and-states",
+    "guide:relationships",
+    "guide:run-check-ship"
+   ],
+   "docs/guide/14-motion-and-states.md": [
     "guide:arrangement",
     "guide:space"
    ],
-   "docs/guide/14-arrangement.md": [
+   "docs/guide/15-arrangement.md": [
     "guide:gestures",
-    "guide:motion-and-modes",
+    "guide:motion-and-states",
     "guide:relationships"
    ],
-   "docs/guide/15-gestures.md": [
+   "docs/guide/16-gestures.md": [
     "guide:interaction",
-    "guide:loop",
+    "guide:renderers",
     "guide:space"
    ],
-   "docs/guide/16-loop.md": [
+   "docs/guide/17-renderers.md": [
+    "guide:embedding"
+   ],
+   "docs/guide/18-embedding.md": [
+    "operational:embedding"
+   ],
+   "docs/guide/19-run-check-ship.md": [
     "guide:embedding",
-    "guide:relationships",
-    "guide:style",
+    "guide:location",
+    "guide:renderers",
     "guide:with-an-llm",
     "operational:inspector",
     "operational:introspection"
    ],
-   "docs/guide/17-with-an-llm.md": [
+   "docs/guide/20-with-an-llm.md": [
     "essay:why-declare",
     "guide:calendar",
-    "guide:loop",
+    "guide:run-check-ship",
     "spec:core"
    ],
-   "docs/guide/18-calendar.md": [
+   "docs/guide/21-calendar.md": [
     "guide:arrangement",
     "guide:data",
     "guide:interaction",
-    "guide:motion-and-modes",
+    "guide:motion-and-states",
     "operational:getting-started",
     "reference:index",
     "spec:core"
    ],
-   "docs/guide/19-embedding.md": [
-    "operational:embedding"
-   ],
    "docs/operational/building.md": [
-    "guide:loop"
+    "guide:run-check-ship"
    ],
    "docs/operational/dev-server.md": [
     "operational:building",
@@ -6670,8 +6686,8 @@
    ],
    "docs/operational/intake.md": [
     "guide:calendar",
-    "guide:loop",
-    "guide:motion-and-modes",
+    "guide:motion-and-states",
+    "guide:run-check-ship",
     "guide:style",
     "operational:introspection",
     "operational:verify",
@@ -6681,7 +6697,7 @@
     "operational:verify"
    ],
    "docs/operational/verify.md": [
-    "guide:loop",
+    "guide:run-check-ship",
     "operational:introspection"
    ]
   }
@@ -40639,24 +40655,38 @@
    }
   },
   {
-   "id": "13-motion-and-modes",
+   "id": "13-location",
    "num": 13,
-   "title": "Motion is a target; a mode is a bundle",
-   "short": "Motion & modes",
-   "part": "Continuity",
+   "title": "Where the user is",
+   "short": "Location",
+   "part": "Building",
    "teaches": {
-    "Animator": 1,
-    "AnimatorGroup": 1,
-    "App": 2,
-    "Spring": 3,
-    "State": 2,
-    "Text": 3,
+    "App": 4,
+    "Markdown": 1,
+    "Text": 2,
     "View": 2
    }
   },
   {
-   "id": "14-arrangement",
+   "id": "14-motion-and-states",
    "num": 14,
+   "title": "Motion is a target; a state is a bundle",
+   "short": "Motion & states",
+   "part": "Continuity",
+   "teaches": {
+    "Animator": 2,
+    "AnimatorGroup": 1,
+    "App": 3,
+    "Heartbeat": 2,
+    "Spring": 5,
+    "State": 2,
+    "Text": 3,
+    "View": 3
+   }
+  },
+  {
+   "id": "15-arrangement",
+   "num": 15,
    "title": "Arrangement animates",
    "short": "Arrangement",
    "part": "Continuity",
@@ -40669,75 +40699,23 @@
    }
   },
   {
-   "id": "15-gestures",
-   "num": 15,
+   "id": "16-gestures",
+   "num": 16,
    "title": "The browser owns a gesture until you claim it",
-   "short": "Gestures",
+   "short": "Touch",
    "part": "Continuity",
    "teaches": {
-    "Animator": 1,
-    "App": 3,
-    "DataGrid": 1,
-    "Dataset": 1,
-    "Heartbeat": 2,
-    "Spring": 3,
-    "View": 2
-   }
-  },
-  {
-   "id": "16-loop",
-   "num": 16,
-   "title": "Run it, check it, ship it",
-   "short": "The loop",
-   "part": "In practice",
-   "teaches": {
-    "App": 4,
-    "DOMIsland": 1,
-    "DataSource": 1,
-    "Markdown": 1,
-    "Node": 1,
-    "Text": 2,
-    "View": 2
-   }
-  },
-  {
-   "id": "17-with-an-llm",
-   "num": 17,
-   "title": "Writing with an LLM",
-   "short": "With an LLM",
-   "part": "In practice",
-   "teaches": {}
-  },
-  {
-   "id": "18-calendar",
-   "num": 18,
-   "title": "Declare Calendar",
-   "short": "Declare Calendar",
-   "part": "In practice",
-   "teaches": {
-    "Dataset": 1,
-    "Spring": 3,
-    "Switch": 1
-   }
-  },
-  {
-   "id": "19-embedding",
-   "num": 19,
-   "title": "Crossing boundaries — a page in an app, an app in a page",
-   "short": "Embedding",
-   "part": "In practice",
-   "teaches": {
     "App": 2,
-    "AppIsland": 3,
-    "DOMIsland": 2
+    "DataGrid": 1,
+    "View": 1
    }
   },
   {
-   "id": "20-renderers",
-   "num": 20,
-   "title": "Two renderers — the same program in DOM or on a canvas",
-   "short": "Two renderers",
-   "part": "In practice",
+   "id": "17-renderers",
+   "num": 17,
+   "title": "Three renderers, two hosts",
+   "short": "Renderers & hosts",
+   "part": "Where it runs",
    "teaches": {
     "AppIsland": 1,
     "DOMIsland": 1,
@@ -40747,8 +40725,51 @@
    }
   },
   {
-   "id": "21-style",
+   "id": "18-embedding",
+   "num": 18,
+   "title": "Crossing boundaries — a page in an app, an app in a page",
+   "short": "Embedding",
+   "part": "Where it runs",
+   "teaches": {
+    "App": 2,
+    "AppIsland": 3,
+    "DOMIsland": 2
+   }
+  },
+  {
+   "id": "19-run-check-ship",
+   "num": 19,
+   "title": "Run it, check it, ship it",
+   "short": "Run, check, ship",
+   "part": "Working",
+   "teaches": {
+    "DataSource": 1,
+    "Node": 1
+   }
+  },
+  {
+   "id": "20-with-an-llm",
+   "num": 20,
+   "title": "Writing with an LLM",
+   "short": "With an LLM",
+   "part": "Working",
+   "teaches": {}
+  },
+  {
+   "id": "21-calendar",
    "num": 21,
+   "title": "Declare Calendar",
+   "short": "Declare Calendar",
+   "part": "Working",
+   "teaches": {
+    "Dataset": 1,
+    "Spring": 3,
+    "Switch": 1
+   }
+  },
+  {
+   "id": "22-style",
+   "num": 22,
    "title": "House style — the one shape every Declare file takes",
    "short": "House style",
    "part": "Appendix",
@@ -40841,6 +40862,12 @@
      "num": 12,
      "title": "A layer is a member you open, not a view you show",
      "short": "Above the flow"
+    },
+    {
+     "id": "13-location",
+     "num": 13,
+     "title": "Where the user is",
+     "short": "Location"
     }
    ]
   },
@@ -40848,57 +40875,62 @@
    "part": "Continuity",
    "chapters": [
     {
-     "id": "13-motion-and-modes",
-     "num": 13,
-     "title": "Motion is a target; a mode is a bundle",
-     "short": "Motion & modes"
+     "id": "14-motion-and-states",
+     "num": 14,
+     "title": "Motion is a target; a state is a bundle",
+     "short": "Motion & states"
     },
     {
-     "id": "14-arrangement",
-     "num": 14,
+     "id": "15-arrangement",
+     "num": 15,
      "title": "Arrangement animates",
      "short": "Arrangement"
     },
     {
-     "id": "15-gestures",
-     "num": 15,
+     "id": "16-gestures",
+     "num": 16,
      "title": "The browser owns a gesture until you claim it",
-     "short": "Gestures"
+     "short": "Touch"
     }
    ]
   },
   {
-   "part": "In practice",
+   "part": "Where it runs",
    "chapters": [
     {
-     "id": "16-loop",
-     "num": 16,
-     "title": "Run it, check it, ship it",
-     "short": "The loop"
+     "id": "17-renderers",
+     "num": 17,
+     "title": "Three renderers, two hosts",
+     "short": "Renderers & hosts"
     },
     {
-     "id": "17-with-an-llm",
-     "num": 17,
+     "id": "18-embedding",
+     "num": 18,
+     "title": "Crossing boundaries — a page in an app, an app in a page",
+     "short": "Embedding"
+    }
+   ]
+  },
+  {
+   "part": "Working",
+   "chapters": [
+    {
+     "id": "19-run-check-ship",
+     "num": 19,
+     "title": "Run it, check it, ship it",
+     "short": "Run, check, ship"
+    },
+    {
+     "id": "20-with-an-llm",
+     "num": 20,
      "title": "Writing with an LLM",
      "short": "With an LLM"
     },
     {
-     "id": "18-calendar",
-     "num": 18,
+     "id": "21-calendar",
+     "num": 21,
      "title": "Declare Calendar",
      "short": "Declare Calendar"
-    },
-    {
-     "id": "19-embedding",
-     "num": 19,
-     "title": "Crossing boundaries — a page in an app, an app in a page",
-     "short": "Embedding"
-    },
-    {
-     "id": "20-renderers",
-     "num": 20,
-     "title": "Two renderers — the same program in DOM or on a canvas",
-     "short": "Two renderers"
     }
    ]
   },
@@ -40906,8 +40938,8 @@
    "part": "Appendix",
    "chapters": [
     {
-     "id": "21-style",
-     "num": 21,
+     "id": "22-style",
+     "num": 22,
      "title": "House style — the one shape every Declare file takes",
      "short": "House style"
     }
@@ -41167,6 +41199,14 @@
        "label": "Guide chapter",
        "path": "docs/guide/12-above-the-flow.md",
        "preview": "Menus, dialogs, popovers, tooltips — everything that appears over an interface rather than in it. In the stacks you know these are the awkward ones: portals to escape a clipping ancestor, z-index arithmetic, an outside-click listener you at…"
+      },
+      {
+       "name": "13. Location",
+       "subtitle": "",
+       "kind": "doc",
+       "label": "Guide chapter",
+       "path": "docs/guide/13-location.md",
+       "preview": "Everything you have built so far lives inside its own window. This chapter is where your app becomes a citizen of the web: a thing with real addresses you can hand to anyone, a Back button that tells the truth, and pages a crawler can read…"
       }
      ]
     },
@@ -41176,75 +41216,82 @@
      "kind": "category",
      "children": [
       {
-       "name": "13. Motion & modes",
+       "name": "14. Motion & states",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/13-motion-and-modes.md",
+       "path": "docs/guide/14-motion-and-states.md",
        "preview": "Before the tools, the argument — because this part of the guide is not about animation in the sense you're used to. In most stacks, animation is an effects layer: something added after the interface works, to make it feel finished. Declare…"
       },
       {
-       "name": "14. Arrangement",
+       "name": "15. Arrangement",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/14-arrangement.md",
+       "path": "docs/guide/15-arrangement.md",
        "preview": "Chapter 1 showed a card that becomes a panel: one sprung scalar, three constraints reading it. This chapter is that idea grown up — the signature idiom of the language, and the one that separates it from every stack where animation is a lay…"
       },
       {
-       "name": "15. Gestures",
+       "name": "16. Touch",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/15-gestures.md",
+       "path": "docs/guide/16-gestures.md",
        "preview": "On the desktop, this guide could treat the pointer as yours, and it nearly was. A touch screen is different terrain: the browser arrives holding the deed to most of what a finger can do — pan, pinch, double tap — and an app that wants any o…"
       }
      ]
     },
     {
-     "name": "In practice",
+     "name": "Where it runs",
      "subtitle": "",
      "kind": "category",
      "children": [
       {
-       "name": "16. The loop",
+       "name": "17. Renderers & hosts",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/16-loop.md",
+       "path": "docs/guide/17-renderers.md",
+       "preview": "Everything you have written so far runs unchanged in more places than you have been told. This part of the guide is that story, and it needs one distinction drawn cleanly first, because they are different claims: A renderer paints the progr…"
+      },
+      {
+       "name": "18. Embedding",
+       "subtitle": "",
+       "kind": "doc",
+       "label": "Guide chapter",
+       "path": "docs/guide/18-embedding.md",
+       "preview": "Everything so far assumed the Declare program owns its world. Real work has borders: a product page that wants one live Declare widget in the middle of ordinary HTML; a Declare app that needs a box of foreign DOM — a video, a map, your exis…"
+      }
+     ]
+    },
+    {
+     "name": "Working",
+     "subtitle": "",
+     "kind": "category",
+     "children": [
+      {
+       "name": "19. Run, check, ship",
+       "subtitle": "",
+       "kind": "doc",
+       "label": "Guide chapter",
+       "path": "docs/guide/19-run-check-ship.md",
        "preview": "A program is not finished when it runs — it has an address, gets found, gets checked, gets shipped. In the stacks you know, each of those is its own subsystem with its own configuration. Here they hang off one fact: The program URL is the a…"
       },
       {
-       "name": "17. With an LLM",
+       "name": "20. With an LLM",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/17-with-an-llm.md",
+       "path": "docs/guide/20-with-an-llm.md",
        "preview": "The calendar you are one chapter from reading reports a number on the homepage: zero lines written by hand. A person decided what the calendar should be, reviewed its behavior, and pushed back; an LLM wrote the Declare — every line — with t…"
       },
       {
-       "name": "18. Declare Calendar",
+       "name": "21. Declare Calendar",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/18-calendar.md",
+       "path": "docs/guide/21-calendar.md",
        "preview": "Chapter 1 made a promise: that you would end this guide by opening a real calendar application — four views, continuous zoom, drag-to-reschedule; 480 lines of code, about seven hundred with its detailed comments — and understanding all of i…"
-      },
-      {
-       "name": "19. Embedding",
-       "subtitle": "",
-       "kind": "doc",
-       "label": "Guide chapter",
-       "path": "docs/guide/19-embedding.md",
-       "preview": "Everything so far assumed the Declare program owns its world. Real work has borders: a product page that wants one live Declare widget in the middle of ordinary HTML; a Declare app that needs a box of foreign DOM — a video, a map, your exis…"
-      },
-      {
-       "name": "20. Two renderers",
-       "subtitle": "",
-       "kind": "doc",
-       "label": "Guide chapter",
-       "path": "docs/guide/20-renderers.md",
-       "preview": "Everything you have written so far runs unchanged under two renderers. The DOM renderer — the default — realizes each view as an element and leans on the browser: CSS paints boxes, native machinery scrolls and selects, real text sits in rea…"
       }
      ]
     },
@@ -41254,11 +41301,11 @@
      "kind": "category",
      "children": [
       {
-       "name": "21. House style",
+       "name": "22. House style",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/21-style.md",
+       "path": "docs/guide/22-style.md",
        "preview": "There is exactly one canonical form for a Declare program, and a tool produces it: bash node tools/format.mjs --write app.declare Run it on save and your files match every other file in the corpus. Because canon is deterministic, formatting…"
       }
      ]
@@ -41984,7 +42031,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/operational/intake.md",
-     "preview": "A brief, a mockup, or a working implementation in another stack is testimony, not instructions. It records what someone wants, in the only vocabulary they had. This page is the first rung of the working loop(declare-docs:guide:loop) — what…"
+     "preview": "A brief, a mockup, or a working implementation in another stack is testimony, not instructions. It records what someone wants, in the only vocabulary they had. This page is the first rung of the working loop(declare-docs:guide:run-check-shi…"
     },
     {
      "name": "Introspection",
@@ -42000,7 +42047,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/operational/verify.md",
-     "preview": "verify checks a program by climbing a ladder of rungs, cheapest first, stopping at the first failure. The concept is Run it, check it, ship it(declare-docs:guide:loop); this page is the command. bash node tools/verify.mjs app.declare The ru…"
+     "preview": "verify checks a program by climbing a ladder of rungs, cheapest first, stopping at the first failure. The concept is Run it, check it, ship it(declare-docs:guide:run-check-ship); this page is the command. bash node tools/verify.mjs app.decl…"
     }
    ]
   },

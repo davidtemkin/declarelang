@@ -73,9 +73,10 @@ to learn it, or jump to the chapter your task needs:
 | the standard library (buttons, inputs), the value pattern | `docs/guide/08-controls.md` |
 | lists, datasets, editing data, loading documents | `docs/guide/09-data.md` |
 | your own component, control, icon, or layout | `docs/guide/11-make-your-own.md` |
-| states, springs, animation | `docs/guide/13-motion-and-modes.md` |
-| touch, gesture ownership, pinch/wheel zoom, `Heartbeat` | `docs/guide/15-gestures.md` |
-| deep links, the URL, run / verify / ship | `docs/guide/16-loop.md` |
+| states, springs, animation, `Heartbeat` | `docs/guide/14-motion-and-states.md` |
+| touch, gesture ownership, pinch/wheel zoom | `docs/guide/16-gestures.md` |
+| deep links, the URL, `location`, `waypoint`, history | `docs/guide/13-location.md` |
+| run / verify / ship, extraction | `docs/guide/19-run-check-ship.md` |
 
 (`docs/guide/` holds the full set; `15-with-an-llm.md` is written for an agent in
 particular.)

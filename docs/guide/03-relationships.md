@@ -124,8 +124,8 @@ disconnects everything that made `mode` trustworthy.
 
 So the rule, whichever kind of member it is: **derived state is never assigned** — change
 its *inputs* instead. It returns with force in
-[chapter 13](declare-docs:guide:loop), where the state deriving from the URL is what
-makes the back button work.
+[Where the user is](declare-docs:guide:location), where the state deriving from the URL
+is what makes the back button work.
 
 ## What reactivity costs
 

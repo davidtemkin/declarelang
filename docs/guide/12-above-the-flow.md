@@ -186,4 +186,4 @@ picker into an app without a portal, a z-index, or a dismissal handler — and y
 they take records rather than children, which of the two dismissal regimes a given layer
 wants, and the ordering rule that keeps a slow action from freezing one on screen.
 
-[Next: **Motion is a target; a mode is a bundle** →](declare-docs:guide:motion-and-modes)
+[Next: **Where the user is** →](declare-docs:guide:location)

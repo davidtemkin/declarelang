@@ -1,4 +1,4 @@
-<!-- nav: Gestures -->
+<!-- nav: Touch -->
 <!-- part: Continuity -->
 
 # The browser owns a gesture until you claim it
@@ -192,28 +192,6 @@ suspends that auto-zoom, and lets go on blur. In every other app the browser's
 behavior stands untouched; instead, the compiler flags a focusable field that
 sits below the 16px line and names the fix.
 
-## The heartbeat
-
-The other half is time — the heartbeat that integrates what the fingers report.
-`Heartbeat` is a member, like a `Spring` or a `Dataset`, that calls `onFrame(dt)`
-once per animation frame with the real elapsed time in seconds:
-
-```declare
-App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
-    x0: number = 20,
-    v: number = 60,
-    physics: Heartbeat [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }
-        ],
-    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise ]
-    ]
-```
-
-`running` gates it (`running = { app.simulating }`), `dt` is clamped so a backgrounded
-tab does not resume with one enormous step, and it rides the same clock every `Spring`
-and `Animator` uses — so it costs nothing until it runs, and there is no second frame
-loop. Reach for it when you are integrating something yourself; for "move this there,
-smoothly," a `Spring` is less code and better behaved.
-
 ---
 
 **What you can now say:** you can design an interface fingers can actually use, you
@@ -221,4 +199,4 @@ can name who owns any gesture over any view — and change the answer by declari
 handler — and you know exactly what an app that takes full gesture control owes its
 user in return.
 
-[Next: **Run it, check it, ship it** →](declare-docs:guide:loop)
+[Next: **Three renderers, two hosts** →](declare-docs:guide:renderers)

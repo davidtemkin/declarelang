@@ -101,7 +101,7 @@ workable for a machine is a property you benefit from first.** Small enough to h
 in your head. Regular enough to read with confidence. Checked strictly enough that
 what compiles is, far more often than you are used to, what you meant. The machine
 story and the human story are the same story — the workflow, and what was built to
-make it trustworthy, is [chapter 12](declare-docs:guide:with-a-model).
+make it trustworthy, is [chapter 12](declare-docs:guide:with-an-llm).
 
 ## What it opens
 
@@ -152,7 +152,7 @@ high-craft UX is within reach** — of one person, not a motion team. One honest
 caveat keeps that second promise real: the language lowers the implementation
 barrier, not the design bar. Deciding what should persist, what should morph, what
 an in-between frame *means* — that is design thinking, and Declare makes it cheap
-to express, not unnecessary to do. [Chapter 9](declare-docs:guide:motion-and-modes)
+to express, not unnecessary to do. [Chapter 9](declare-docs:guide:motion-and-states)
 takes up both the thinking and the tools.
 
 ## What it costs

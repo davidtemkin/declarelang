@@ -2,7 +2,7 @@
 
 A brief, a mockup, or a working implementation in another stack is **testimony, not
 instructions**. It records what someone wants, in the only vocabulary they had. This page is the first rung of
-[the working loop](declare-docs:guide:loop) — what to carry over untouched, what to re-derive,
+[the working loop](declare-docs:guide:run-check-ship) — what to carry over untouched, what to re-derive,
 and what to supply that the brief could not ask for.
 
 Run it before you plan. Its output is a short written restatement; the last step of the loop
@@ -40,7 +40,7 @@ restatement. Fifteen lines is enough.
 Then derive in this order:
 
 1. **Data** — what exists, what it's shaped like, what changes.
-2. **States** — the modes the app can be in ([reversible bundles](declare-docs:guide:motion-and-modes)).
+2. **States** — the modes the app can be in ([reversible bundles](declare-docs:guide:motion-and-states)).
 3. **Views** — arrangement derived from 1 and 2.
 
 Never screens-first. A brief is always organized by screen, because that is how people picture
@@ -55,7 +55,7 @@ Each of these words names a solution in another stack. None of them is a thing h
 | the brief says | it means | the house form |
 |---|---|---|
 | **modal** | focus on one thing, keep context | a state; the detail grows from what was clicked, interruptible, reversible |
-| **page** / **route** | this content, not that | a state bound to the URL ([the loop](declare-docs:guide:loop)) — not a swapped subtree |
+| **page** / **route** | this content, not that | a state bound to the URL ([the loop](declare-docs:guide:run-check-ship)) — not a swapped subtree |
 | **toast** | tell them it worked | a view whose presence and offset derive from a value; it travels in and out |
 | **hover state** / **active state** | respond to the pointer | a scalar sprung 0↔1, with color, scale, and shadow derived from it |
 | **loading spinner** / **skeleton** | something is happening | reserve the space, hold the frame still, derive content from data state |

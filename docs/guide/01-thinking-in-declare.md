@@ -7,7 +7,8 @@ You build user interfaces, so you already have a working theory of what that cos
 one language for structure, another for style, a third for logic, a framework to keep
 the three agreeing, and a build pipeline to hold it all together. This guide is about
 a language built on a different theory — that an interface is *one thing*, and should
-be written as one thing. **Declare is a language for user interfaces the way SQL is a
+be written as one thing: an artifact you can hold whole, check whole, and carry whole
+to wherever it runs. **Declare is a language for user interfaces the way SQL is a
 language for queries**: not a general-purpose language that UI code happens to be
 written in, but a notation for the thing itself. You describe an interface — a tree
 of components, the state they hold, how they respond and relate — and the runtime
@@ -103,7 +104,7 @@ workable for a machine is a property you benefit from first.** Small enough to h
 in your head. Regular enough to read with confidence. Checked strictly enough that
 what compiles is, far more often than you are used to, what you meant. The machine
 story and the human story are the same story — the workflow, and what was built to
-make it trustworthy, is [chapter 14](declare-docs:guide:with-an-llm).
+make it trustworthy, is [Writing with an LLM](declare-docs:guide:with-an-llm).
 
 One more consequence of "one thing," and it lands a tier out. A re-render exists to
 reconcile a UI that drifted from its state; **hydration** is the same reconciliation
@@ -114,7 +115,19 @@ enough to ship whole, there is nothing to reconcile at either scale: the compile
 the program at build time and serializes what it renders, so crawlers read that and
 people get the app. You will still want a server for anything real — data, accounts,
 the things a browser has no business owning — but not one whose job is your front end.
-[The loop](declare-docs:guide:loop) shows the mechanism.
+[Run, check, ship](declare-docs:guide:run-check-ship) shows the mechanism.
+
+Two more consequences of "one thing," stated here because each gets a part of this
+guide. A program with no substrate assumptions leaking in is not welded to the
+browser: the same file renders as DOM elements, as pixels on a canvas, or inside a
+**native Mac application** — real menus, a real window, no WebView anywhere. *Look
+ma, no browser.* A conformance suite holds all three renderings to the same picture
+and the same behavior; [Where it runs](declare-docs:guide:renderers) is that story.
+And because the language owns navigation and history the way it owns style, a
+finished app is a **citizen of the web** — real addresses you can hand to anyone, a
+Back button that tells the truth, pages a crawler can read from a static host — with
+no router and no server anywhere. That arrives where Building ends, in
+[Where the user is](declare-docs:guide:location).
 
 ## What it opens
 
@@ -165,7 +178,7 @@ high-craft UX is within reach** — of one person, not a motion team. One honest
 caveat keeps that second promise real: the language lowers the implementation
 barrier, not the design bar. Deciding what should persist, what should morph, what
 an in-between frame *means* — that is design thinking, and Declare makes it cheap
-to express, not unnecessary to do. [Chapter 9](declare-docs:guide:motion-and-modes)
+to express, not unnecessary to do. [Motion & states](declare-docs:guide:motion-and-states)
 takes up both the thinking and the tools.
 
 ## What it costs
@@ -190,14 +203,17 @@ The page you are reading is a Declare app. So is the [homepage](declare-docs:ess
 and so is the calendar you'll finish on. Everything this guide claims, it
 demonstrates on itself.
 
-The guide has four parts. **The idea** — this chapter and the two after it — gives
+The guide has five parts. **The idea** — this chapter and the two after it — gives
 you the whole mental model: the two-bracket shape of every program, and the standing
-relationships at its core. **Building** covers the craft of real interfaces: the
-tree, space, style, interaction, and data. **Continuity** is the differentiator —
-motion, modes, and the composed idiom where whole arrangements move as one.
-**In practice** is the working life: the loop —
-run it, check it, ship it — then doing all of that with an LLM in hand, and finally
-the calendar, read end to end.
+relationships at its core. **Building** covers the craft of real interfaces — the
+tree, space, style, interaction, data — and ends with your app becoming a citizen of
+the web: addresses, history, and a Back button that tells the truth. **Continuity**
+is the differentiator — motion, states, and the composed idiom where whole
+arrangements move as one, on screens and under fingers. **Where it runs** is the
+payoff of the portable artifact: three renderers, two hosts, and the boundaries
+where apps embed in pages and in each other. **Working** is the working life: run
+it, check it, ship it — then doing all of that with an LLM in hand, and finally the
+calendar, read end to end.
 
 Read it in order — each chapter stands on the ones before it, every chapter's
 examples are live, and none of it is long. The one thing to bring is a willingness

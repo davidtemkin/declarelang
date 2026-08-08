@@ -95,7 +95,7 @@ gauge costs nothing; there is no animation loop and nothing to invalidate.
 
 What it records is a **display list** of plain operations, which both renderers replay —
 so a drawing is not a canvas dependency, and the same view paints identically through DOM
-elements or on a canvas ([chapter 20](declare-docs:guide:renderers)).
+elements, on a canvas, or on a native layer tree ([Where it runs](declare-docs:guide:renderers)).
 
 Three things worth knowing before you reach for it:
 
@@ -284,8 +284,9 @@ Here is what "styling is part of the language" buys beyond convenience. Because 
 view's look is entirely attributes — no stylesheet the browser owns, no cascade to
 consult — the renderer is swappable: the same program paints to DOM elements or
 directly to pixels on a canvas. Open any Declare app and append `?render=canvas` to
-its URL: same tree, same layout, same input, drawn by a different hand. (The two
-renderers are held pixel-for-pixel against each other in the platform's test suite.)
+its URL: same tree, same layout, same input, drawn by a different hand. (The renderers are
+held pixel-for-pixel against each other in the platform's test suite — and the same
+program runs in a native Mac host too, which is [Where it runs](declare-docs:guide:renderers)'s story.)
 And note what this is *not*: on the default DOM renderer, the browser remains the
 browser — text is real text, selection and find-in-page are native, fields are
 native fields, and a scrolling view is ordinary native `overflow` with the
