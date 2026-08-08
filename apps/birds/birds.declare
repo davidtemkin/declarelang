@@ -110,6 +110,16 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
         const old = ({ "carolina-parrot": "carolina-parakeet", "great-footed-hawk": "peregrine-falcon",
             "mocking-bird": "northern-mockingbird", "white-headed-eagle": "bald-eagle" }) as any
         const renamed = ref.slice(0, 3) == "#b/" ? old[ref.slice(3)] : undefined
+        // The RETURN flight is armed here, in the hook, and not in any click
+        // handler — because the hook is the one door EVERY arrival passes
+        // through, the Back button included, and Back runs no handler. One
+        // condition covers both ways home: the "← the whole shelf" link and a
+        // history traversal each announce themselves as an arrival at "#",
+        // and if we are leaving a bird when that arrives, its plate flies
+        // back to its tile (the inverse of beginFlight, derived from data
+        // rather than a captured rect, so it lands on the RIGHT tile even if
+        // prev/next walked us far from the bird we originally opened).
+        if (ref == "#" && app.bird != null) app.armReturn()
         return renamed != undefined ? "#b/" + renamed : ref
         },
 
@@ -183,6 +193,30 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
         // fly from, so the entrance is a plain dissolve on the same animator
         app.flyW = -1
         app.page.fly.start()
+        },
+    armReturn() {
+        // the inverse journey (see onFollow): remember WHO is going home, and
+        // fly. The flyer below derives both endpoints — the page's resting
+        // plate and the bird's own tile — so nothing else needs capturing.
+        app.retSlug = "" + app.bird.slug
+        app.ret.start()
+        },
+    retSlug: string = "",
+    retT:    number = 1,
+    ret:     Animator [ attribute = retT, from = 0, to = 1, duration = 340, motion = cubicOut ],
+    tileRectOf(slug: string) -> object {
+        // a tile's resting rect on the shelf, re-derived from the same
+        // arithmetic the shelf lays out with — content coordinates, so the
+        // flyer lands true at any scroll position
+        const b = app.birds.find((x) => x.slug == slug)
+        if (b == null || !app.data.loaded) return ({ x: 0, y: 0, w: 0 })
+        let y = 84
+        for (const g of app.data.value.groups) {
+            if (g.name == b.group) break
+            y += 34 + Math.ceil(Number(g.count) / app.cols) * (app.tileW + 62) + 34
+        }
+        y += 34 + Math.floor(Number(b.gi) / app.cols) * (app.tileW + 62)
+        return ({ x: app.colX + (Number(b.gi) % app.cols) * (app.tileW + 18), y: y, w: app.tileW })
         },
 
     // ── responsive column ────────────────────────────────────────────────────
@@ -359,7 +393,19 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
                 ],
             pad: View [ width = 1, height = 72 ]
             ]
-        ]
+        ],
+
+    // the RETURN flyer — the same plate, traveling home (declared last, so it
+    // paints above the shelf it lands on). An overlay rather than the page's
+    // frame, because the page has already yielded to the shelf by the time the
+    // return runs; at rest (retT = 1) it does not exist.
+
+    flyer: Plate [ visible = { app.retT < 1 },
+        slug = { app.retSlug },
+        x = { app.lerp(app.colX, app.tileRectOf(app.retSlug).x, app.retT) },
+        y = { app.lerp(84, app.tileRectOf(app.retSlug).y, app.retT) },
+        width = { app.lerp(app.page.plateW, app.tileRectOf(app.retSlug).w, app.retT) },
+        height = { this.width * app.lerp(1.05, 1, app.retT) } ]
     ]
 
 
