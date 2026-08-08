@@ -3,7 +3,7 @@
 
 # The tree is the app
 
-Part One gave you the model: two brackets, and values that stay true. This part is the
+The first part gave you the model: two brackets, and values that stay true. This part is the
 craft of real interfaces, and it starts where all Declare work starts — with the fact
 that most of what you write is not clever machinery but *composition*: taking
 components, nesting and configuring them, and occasionally minting your own.

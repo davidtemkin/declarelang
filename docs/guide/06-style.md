@@ -93,7 +93,7 @@ body read `app.level`, so `app.level` is a wired dependency exactly as it would 
 a `{ }` constraint ([chapter 3](declare-docs:guide:relationships)). Sitting still, this
 gauge costs nothing; there is no animation loop and nothing to invalidate.
 
-What it records is a **display list** of plain operations, which both renderers replay —
+What it records is a **display list** of plain operations, which every renderer replays —
 so a drawing is not a canvas dependency, and the same view paints identically through DOM
 elements, on a canvas, or on a native layer tree ([Where it runs](declare-docs:guide:renderers)).
 

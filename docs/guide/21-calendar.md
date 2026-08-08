@@ -13,7 +13,7 @@ halfway. Then open the source beside this chapter — `?viewer=reader` on the sa
 gives you the annotated reading view.
 
 This is not a line-by-line walk, because you don't need one — most of the file is
-composition you have been writing since Part Two: bar chrome, theme records, a
+composition you have been writing since the Building part: bar chrome, theme records, a
 detail panel, replicated cells. What the walk covers is the four load-bearing
 mechanisms that make the parts that *look impossible* — and each one is a chapter of
 this guide, under load. Framed honestly: this program is the language's **ceiling,

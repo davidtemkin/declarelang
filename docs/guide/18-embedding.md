@@ -125,3 +125,5 @@ you find yourself wanting to reach across a boundary — a constraint on the
 tenant's internals, a DOM query into an island — the design is telling you
 the boundary is in the wrong place: pass data through `env`, or move the
 border.
+
+[Next: **Run it, check it, ship it** →](declare-docs:guide:run-check-ship)

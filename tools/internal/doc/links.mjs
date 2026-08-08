@@ -48,6 +48,14 @@ function titleOf(file) {
 export function buildRegistry(reference) {
   const ids = {};
   const add = (id, file, kind, title) => {
+    // A duplicate id is an ERROR, never a silent last-write: two chapters whose
+    // filenames reduce to one slug would otherwise quietly steal each other's
+    // links while `--check` reports "all links resolve" (found live 2026-08-07:
+    // 06-style.md vs 22-style.md — three chapter-6 references landed on the
+    // appendix, including the guide's own forward reading chain).
+    if (ids[id] !== undefined) {
+      throw new Error(`links: duplicate id "${id}" — ${ids[id].path} and ${path.relative(ROOT, file)} reduce to the same slug; rename one`);
+    }
     ids[id] = { path: path.relative(ROOT, file), title: title ?? titleOf(file), kind };
   };
 

@@ -89,7 +89,7 @@ A specified visual property gets exactly one of three fates:
 
 Dropping it wordlessly is the failure. Uncertainty about whether an effect can be expressed
 resolves *downward* by default, and the result is a flat interface that nobody chose. Check
-[Style](declare-docs:guide:style) before deciding a thing cannot be said.
+[Style](declare-docs:guide:house-style) before deciding a thing cannot be said.
 
 ## By modality
 

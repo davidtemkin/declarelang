@@ -21,7 +21,7 @@ Layout, states, springs, and data all derive from the same constraints, so a vie
 doesn't switch so much as *become* the next one — and the continuous version of
 an interface is often *less* code than the discrete one. The prized, usually
 bespoke layer of UX moves into the declarative, analyzable layer.
-*Held in:* declare.md §1 ("continuity is the grain, not the garnish"); the "why" essay ("Declare makes continuity the grain, not the garnish").
+*Held in:* README ("continuity is the grain, not the garnish"); the "why" essay ("Declare makes continuity the grain, not the garnish").
 
 ### TENET-4 — Motion, layout, and modes are all just values
 Motion is physics on an attribute — a `Spring` toward where a thing belongs, with

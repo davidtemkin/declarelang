@@ -31,8 +31,9 @@ text updates, resize and it re-centers — you wrote no update logic for either.
 no re-render, no diffing, no dependency array, no hook.
 
 It's reactive by construction and statically typed, with all real logic in ordinary
-TypeScript. One tree renders to the DOM or directly to pixels on a canvas — WebGL next,
-with no rewrite. And the compiler runs in the browser as readily as in a Node server,
+TypeScript. One tree renders to the DOM or directly to pixels on a canvas — and targets
+beyond them, WebGL and dedicated mobile runtimes among the options, are within
+reach given the nature of the language and runtime. And the compiler runs in the browser as readily as in a Node server,
 which is what removes the build step: a page can edit and re-run itself, every live
 example on the homepage is genuinely compiling, and the same program deploys to a static
 host with no Node anywhere.
@@ -162,7 +163,7 @@ Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-
 
 ## Where everything is
 
-- **[docs/declare.md](docs/declare.md)** — the whole language, in one file, for you and your model.
+- **[docs/declare.md](docs/declare.md)** — the whole language, in one file, for you and your LLM.
 - **[skill/](skill/SKILL.md)** — the agent skill: the resident kernel + routing table a model loads to write Declare (auto-discovered by Claude Code via a gated copy in `.claude/skills/`).
 - **[docs/](docs/README.md)** — the guide (start at [getting-started](docs/operational/getting-started.md)), operational pages, and the machine model ([declare-model.json](docs/declare-model.json) — exact facts in its `spine`).
 - **[docs/system-design/](docs/system-design/)** — the internal design record (non-authoritative; the docs win).
@@ -173,7 +174,7 @@ Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-
 npm install
 npm run build       # tsc -b: runtime, then compiler → each area's dist/
 npm start           # dev server → http://127.0.0.1:8200/
-npm test            # the per-commit suite — 29 files, seconds for the first two dozen
+npm test            # the per-commit suite — 45 files, seconds for the first two dozen
 npm run test:ladder # the slow rungs — real input and pixels, in headless Chromium
 ```
 
@@ -204,7 +205,7 @@ they serve exactly one navigation per visitor: the cold one.
 
 **Conventions** (for contributors):
 - **Format** every `.declare` to the house style — `node tools/format.mjs --write`. The style
-  is [docs/guide/22-style.md](docs/guide/22-style.md); the tool is
+  is [docs/guide/22-house-style.md](docs/guide/22-house-style.md); the tool is
   [docs/operational/format.md](docs/operational/format.md).
 - **Never rebuild the platform bundles by hand**: the pre-commit hook rebuilds a stale
   one before stamping the build id, and the dev server rebuilds on demand

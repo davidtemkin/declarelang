@@ -6,14 +6,14 @@ written by machines, and bet on verifiability over familiarity.
 ### AREPO-1 — Built for machine-written code
 When machines write the code, familiarity matters less and *verifiability* matters
 more. Declare is designed around that shift, not retrofitted to it.
-*Held in:* homepage hero ("the UI language for the AI era"); FAQ ("Declare is built for the era when much code is written by machines").
+*Held in:* homepage hero ("a UI language for you and your AI"); FAQ ("Declare is built for the era when much code is written by machines").
 
 ### AREPO-2 — The whole language fits in a model's context
 The declarative surface is small, closed, and regular — its *entire* definition is
 one file (`docs/declare.md`, on the order of ten thousand tokens). No model has
 trained on Declare, and none needs to: a model can hold the complete spec while it
 writes.
-*Held in:* declare.md preamble ("the whole language in one file … no model has been trained on it"); FAQ; the "why" essay.
+*Held in:* declare.md preamble ("the language, in one file … no LLM has been trained on it"); FAQ; the "why" essay.
 
 ### AREPO-3 — Comprehension leverage, not corpus leverage
 Declare competes on the kind of leverage a new language *can* have: a language

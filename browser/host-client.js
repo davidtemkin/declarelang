@@ -131,7 +131,7 @@ export async function bootHost(cfg) {
   const entryState = (w, s) => ({ declare: s == null ? { w } : { w, s } });
   const guardStep = () => {
     if (app.waypoint.length > 64 * 1024)
-      console.error("[Declare] waypoint exceeds 64KB — a waypoint is coordinates in the session, not the session's data; derive the data from it instead (guide ch. 16)");
+      console.error("[Declare] waypoint exceeds 64KB — a waypoint is coordinates in the session, not the session's data; derive the data from it instead (guide ch. 13)");
   };
   // The page's OWN path+query, never a bare "#frag": history resolves against
   // the DOCUMENT BASE, and a source page's <base> points elsewhere (measured

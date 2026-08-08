@@ -203,7 +203,7 @@ The page you are reading is a Declare app. So is the [homepage](declare-docs:ess
 and so is the calendar you'll finish on. Everything this guide claims, it
 demonstrates on itself.
 
-The guide has five parts. **The idea** — this chapter and the two after it — gives
+The guide has five parts and an appendix. **The idea** — this chapter and the two after it — gives
 you the whole mental model: the two-bracket shape of every program, and the standing
 relationships at its core. **Building** covers the craft of real interfaces — the
 tree, space, style, interaction, data — and ends with your app becoming a citizen of

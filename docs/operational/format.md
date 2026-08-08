@@ -1,7 +1,7 @@
 # `format` — the canon formatter
 
 `format` rewrites a `.declare` file to the one house style — the shape described in
-[the style appendix](declare-docs:guide:style). It is the enforcement side of that
+[the style appendix](declare-docs:guide:house-style). It is the enforcement side of that
 style: run it on save, and your files match every other file in the corpus.
 
 ```bash

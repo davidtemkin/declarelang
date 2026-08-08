@@ -11,9 +11,7 @@
 // FROZEN eval baseline, and compiling its fences here was a trap — as the language
 // moves the test goes red, and the repair is to edit the baseline, which silently
 // invalidates every measurement ever taken against it. A frozen artifact must be
-// allowed to rot; that is what makes it a control. The guide's runnable fences are validated separately by
-// tools/internal/prebuild.mjs (they become apps/docs/demos/seg_*.declare); folding
-// that path into `npm test` is tracked in docs/system-design/verify-and-evals.md.
+// allowed to rot; that is what makes it a control.
 import { readFileSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -25,18 +23,32 @@ import { SURFACES, everySpineSectionHasASurface } from "../tools/internal/doc/su
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
+// COVERED delivers the corpus-wide promise (AREPO-7, docs/README.md, CONTRIBUTING):
+// every ```declare fence in the teaching prose is a complete program the compiler
+// accepts — the guide, the operational pages, the tenets, and the front doors,
+// enumerated by directory so a NEW chapter is covered the day it lands.
+const HERE_ROOT = resolve(HERE, "..");
 const COVERED = [
   "docs/declare.md",
   "apps/homepage/getstarted.md",
+  "README.md",
+  "CONTRIBUTING.md",
+  ...readdirSync(resolve(HERE_ROOT, "docs/guide")).filter((f) => f.endsWith(".md")).map((f) => `docs/guide/${f}`),
+  ...readdirSync(resolve(HERE_ROOT, "docs/operational")).filter((f) => f.endsWith(".md")).map((f) => `docs/operational/${f}`),
+  ...readdirSync(resolve(HERE_ROOT, "docs/tenets")).filter((f) => f.endsWith(".md")).map((f) => `docs/tenets/${f}`),
 ];
 
 for (const rel of COVERED) {
   const md = readFileSync(resolve(HERE, "..", rel), "utf8");
   const programs = [...md.matchAll(/```declare\n([\s\S]*?)```/g)].map((m) => m[1]);
 
-  await test(`${rel}: has complete programs to check`, () => {
-    if (programs.length < 1) throw new Error("no ```declare fences found — extraction regex or doc structure changed");
-  });
+  // the two seed files must contain programs (regression against extraction rot);
+  // a swept file may legitimately hold none
+  if (rel === "docs/declare.md" || rel === "apps/homepage/getstarted.md") {
+    await test(`${rel}: has complete programs to check`, () => {
+      if (programs.length < 1) throw new Error("no ```declare fences found — extraction regex or doc structure changed");
+    });
+  }
 
   for (const [i, src] of programs.entries()) {
     const head = src.trim().split("\n")[0].slice(0, 56);
@@ -55,6 +67,9 @@ for (const rel of COVERED) {
   // the tokenizer rejects). Wrap each in an App body and demand a clean parse.
   const fragments = [...md.matchAll(/```declare-fragment\n([\s\S]*?)```/g)].map((m) => m[1]);
   for (const [i, frag] of fragments.entries()) {
+    // an ellipsis marks a DELIBERATE elision — the fragment illustrates shape,
+    // not parseable source, and the elided middle is the point
+    if (frag.includes("\u2026")) continue;
     const head = frag.trim().split("\n")[0].slice(0, 56);
     await test(`${rel} fragment ${i + 1} parses: ${head}`, () => {
       // a fragment is one of three excerpts: a whole top-level program, a set

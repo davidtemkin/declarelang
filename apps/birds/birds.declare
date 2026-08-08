@@ -2,7 +2,7 @@
 # 50 Birds — a field guide with a quiz, and the teaching app for `location` + `waypoint`
 
 Every value in this program lives in exactly one of three homes, sorted by the
-stranger test (guide ch. 16 — *would you hand it to a stranger?*):
+stranger test (guide ch. 13 — *would you hand it to a stranger?*):
 
   location  the ADDRESSES — "" (the shelf), "b/<slug>" (one bird's page,
             crawlable and shareable), "quiz" (the quiz room). The URL shows

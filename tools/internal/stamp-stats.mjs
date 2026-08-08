@@ -47,7 +47,8 @@ const FORMATS = {
 /** Thousands separators — prose reads "1,623 lines", never "1623". */
 function group(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 
-const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "docs/tenets/1 SATOR.md"];
+const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "docs/tenets/1 SATOR.md",
+  "docs/guide/19-run-check-ship.md", "docs/operational/building.md"];
 const RE = /(<!--stat:([a-zA-Z.]+)-->)([^<]*)(<!--\/stat-->)/g;
 
 let stamped = 0, unchanged = 0;

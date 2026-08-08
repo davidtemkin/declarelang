@@ -39,7 +39,7 @@ hidden — the thing that *isn't* showing is usually what you came to find.
 
 **Object** — the selected object, printed as Declare:
 
-```declare
+```text
 Ev [
   ▾ data = :16 fields          ← the record its `:field` reads land on
       :id = 490

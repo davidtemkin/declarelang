@@ -32,8 +32,15 @@ seam — the reactive graph, layout, hit-testing, every constraint you wrote —
 the identical code the browser runs. A trackpad pinch arrives on the same wheel
 stream with the same `pinch` flag; a scroll consults the same `onWheel` claims;
 `rotation` and `backdrop = frost(…)` land on the layer tree like they land on
-CSS. The host is young — one platform, still growing coverage — but it is not a
-demo: it is held to the same tests as the other two.
+CSS. The host is solid at what it does — the entire app corpus runs on it
+compatibly, held by its own visual gate and by a three-way conformance oracle
+that requires byte-identical behavioral answers from all three renderers (run
+before release rather than on every commit). What it does not yet attempt is
+the other half of desktop software: integration and distribution — installers,
+signing, updates, file dialogs, the dock — the problem Electron actually
+solves. Today it is a proof about the language, at full fidelity; the
+interesting potential is what it points at: an Electron-shaped shell with no
+Chromium in it.
 
 ## The program, the graph, and the seam
 
@@ -56,7 +63,8 @@ None of this is a slogan; it is *tested*, three ways. The **perceptual suite**
 holds DOM and canvas renders of one program pixel-for-pixel within
 anti-aliasing tolerance. The **Mac gate** holds the native host to per-program
 baselines across a corpus of real apps — blends, frost, rotation, rich text,
-the whole desktop. And the **conformance oracle** asks all three the same
+the whole desktop. And the **conformance oracle** — run before release rather
+than per commit, since it needs the live host — asks all three the same
 behavioral questions — where does this press land, what does this scroll move,
 what does the wheel-claim walk decide, where does keyboard focus go — and
 requires byte-identical answers.
@@ -137,9 +145,12 @@ Default to DOM: accessibility, islands, native selection, and instant first
 paint. Reach for canvas when the surface must be sealed and uniform — pixels
 you can capture, composite, or ship somewhere a DOM cannot go — or when an
 interface is so element-heavy that a constant-size page matters more than
-first-paint speed. The Mac host is the young frontier: reach for it when you
-want the program in a real application — real menus, a real window, no browser
-chrome — and expect to be early. And hold every choice loosely: the flag is one
-word, and the program neither knows nor cares.
+first-paint speed. The DOM is the vehicle; the canvas keeps it honest —
+pixel-parity against a second realization is what stops substrate assumptions
+from leaking into the language. The Mac host is the experiment with the most
+interesting potential: it already runs everything, natively; what it awaits is
+the integration story that would make it a way to ship desktop software rather
+than a way to prove the language. And hold every choice loosely: the flag is
+one word, and the program neither knows nor cares.
 
 [Next: **Crossing boundaries** →](declare-docs:guide:embedding)

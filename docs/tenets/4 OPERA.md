@@ -14,7 +14,7 @@ Everything inside `{ }` is ordinary TypeScript — no new expression language to
 learn — type-checked with full knowledge of every component's attributes. What
 you (or a model) already know about TypeScript carries over — at full expression
 strength; type annotations and declarations live on attributes, not in bodies.
-*Held in:* declare.md §1 ("all real logic is ordinary TypeScript"); FAQ ("There is no new expression language to learn").
+*Held in:* README ("with all real logic in ordinary TypeScript"); FAQ ("There is no new expression language to learn").
 
 ### OPERA-3 — No CSS, by design
 Styling is part of the language: paint attributes on views, theme records that
@@ -43,6 +43,6 @@ including replication over data.
 ### OPERA-6 — Data binds declaratively
 Data enters the way everything else does: a `Dataset` or fetched `DataSource`, a
 `datapath` cursor whose descendants read relative to it, replication per element
-of a bound array, and two-way binding for editable fields. Large collections bind
-a *computed* window over the source rather than replicating everything.
+of a bound array, and two-way binding for editable fields. Large collections can declare a
+windowed materialization (`virtualize`, opt-in) rather than building everything.
 *Held in:* FAQ ("How do I get data into an app?").

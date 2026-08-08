@@ -29,7 +29,7 @@ export declare const REQ: {
      *  semantic HTML at its t=0 snapshot (docs/system-design/capabilities.md §5) — the crawler-facing
      *  artifact, inspectable by URL. The dev server extracts in Node; the static host's
      *  service worker extracts in-browser (the same extractor) — full parity. Was the old
-     *  `?view=seo`. Distinct from the `seo` FLAG (flags.ts), which EMBEDS this document in
+     *  `?view=seo`. Distinct from the `crawler` FLAG (flags.ts), which EMBEDS this document in
      *  a run/build page rather than returning it alone. */
     readonly EXTRACT: "extract";
     /** The COMPILED PROGRAM as JSON (`{ source, deps, etag }`) — what a client

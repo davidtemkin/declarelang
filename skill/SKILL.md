@@ -82,7 +82,7 @@ to learn it, or jump to the chapter your task needs:
 | the canvas renderer, the native Mac host, choosing a target | `docs/guide/17-renderers.md` |
 | embedding — an app in a page, foreign DOM in an app, apps in apps | `docs/guide/18-embedding.md` |
 | run / verify / ship, extraction | `docs/guide/19-run-check-ship.md` |
-| canonical formatting, the one file shape | `docs/guide/22-style.md` |
+| canonical formatting, the one file shape | `docs/guide/22-house-style.md` |
 
 (`docs/guide/` holds the full set; `20-with-an-llm.md` is written for an agent in
 particular, and `21-calendar.md` reads the flagship app end to end.)

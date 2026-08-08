@@ -165,7 +165,7 @@ A Declare program that is *about* another program (the Inspector itself) reads t
 surface as a body service, alongside `Themes`, `Keys` and `Focus` — a `{ }` body cannot
 reach `window`, and should not have to:
 
-```declare
+```declare-fragment
 rows: array = { Inspect.ready() ? Inspect.rows(app.open) : [] },
 why:  object = { Inspect.explain(app.sel, app.selAttr) },
 ```
