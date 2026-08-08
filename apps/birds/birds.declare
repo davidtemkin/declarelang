@@ -65,7 +65,12 @@ class Tile extends View [ width = { app.tileW }, height = { app.tileW + 44 },
     // navigates (onClick beside a link runs first) — the flight's origin
 
     onClick() { app.beginFlight(this.frame, Number(:i)) },
-    frame: Plate [ width = { parent.width }, height = { parent.width }, slug = { :slug },
+
+    // an empty `slug` is an empty mat — which is exactly the hole this tile
+    // leaves while its own plate is flying home (app.inFlight)
+
+    frame: Plate [ width = { parent.width }, height = { parent.width },
+        slug = { app.inFlight("" + :slug) ? "" : "" + :slug },
         lift = { classroot.hoverT },
         scale = { 1 + 0.03 * classroot.hoverT }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 } ],
     cap: Text [ y = { parent.width + 8 }, width = { parent.width }, textAlign = center, wrap = false,
@@ -207,6 +212,13 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
     retSlug: string = "",
     retT:    number = 1,
     ret:     Animator [ attribute = retT, from = 0, to = 1, duration = 340, motion = cubicOut ],
+
+    // ONE PLATE, ONE PLACE. While a bird is flying home its shelf slot stands
+    // EMPTY — the mat waits, the picture is in the air — so the eye follows a
+    // single object rather than watching a copy land on its own twin. The tile
+    // asks this of every plate it draws; at rest it is always false.
+
+    inFlight(slug: string) -> boolean { return app.retT < 1 && app.retSlug == slug },
     tileRectOf(slug: string) -> object {
         // a tile's resting rect on the shelf, re-derived from the same
         // arithmetic the shelf lays out with — content coordinates, so the
