@@ -38,6 +38,7 @@ tasks/<id>/
   assert.mjs        rung-5 acceptance, written against the brief (addresses views by role)
   rubric.json       falsifiable visual questions for the future multimodal judge (unused until phase 6/7)
   budget.json       iterated-track caps (provisional until the post-shakedown tuning)
+  idiom.json        optional anti/pro source markers — scores HOW a green solution works (see below)
   fixtures/         data the app consumes (optional)
 harness/
   run.mjs           orchestrator: sandbox × solve × score × record, per task/track/model
@@ -56,6 +57,17 @@ rungs 1–3 (compile, resolve, typecheck), rung 4 (headless boot), rung 5 (behav
 asserts with real input and deterministic motion). Rung 6 (visual judge) arrives with
 the multimodal-judge phase; `rubric.json` is authored now so tasks are ready for it.
 The **format-distance** metric (raw output vs. its canonical form) rides along free.
+
+A task may also carry an **`idiom.json`** — regex markers over the candidate source,
+scored 10 minus the summed weights of *anti*-marker hits (timers driving motion,
+coordinates computed into data, stored rect tables), floor 0. It exists because the
+ladder can't see HOW a program works, only THAT it works: an imperative solution that
+re-implements layout and springs by hand can climb all five rungs. *Pro* markers
+(a `layout:`, a `Spring [`, a `viewAt(`) are recorded as informational presence only —
+never scored, so an idiomatic shape the markers didn't anticipate isn't punished. The
+first idiom task is `shelf`, whose brief deliberately contains **no** idiomatic nudges:
+every requirement has an obvious mainstream answer, and the measure is whether the
+solver reaches for the language's model anyway.
 
 ## Adding a task
 

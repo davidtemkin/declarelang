@@ -1,0 +1,13 @@
+{
+  "note": "Falsifiable visual questions for the multimodal judge (verify-and-evals.md §2.5, §3.5). Unused until the judge lands; authored now so the task is complete. Every question is yes/no and answerable from a screenshot alone.",
+  "states": ["seed", "mid-drag", "selected"],
+  "questions": [
+    { "state": "seed", "ask": "Are there two visually distinct shelf panels side by side?", "expect": true },
+    { "state": "seed", "ask": "Does the left shelf show exactly three blocks and the right exactly two?", "expect": true },
+    { "state": "seed", "ask": "Is the widest left-shelf block visibly about three times the width of the narrowest?", "expect": true },
+    { "state": "seed", "ask": "Are the totals 6 and 4 readable near their shelves?", "expect": true },
+    { "state": "mid-drag", "ask": "Is exactly one shelf visibly highlighted differently from its resting look?", "expect": true },
+    { "state": "selected", "ask": "Does exactly one block stand visibly taller than its row neighbors?", "expect": true },
+    { "state": "selected", "ask": "Do any blocks overlap each other?", "expect": false }
+  ]
+}

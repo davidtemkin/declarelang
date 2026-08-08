@@ -418,6 +418,12 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // The view's origin in root space via THE one walk (scroll-aware) — the
     // anchor primitive overlays position by (menus, popovers).
     `  rootOrigin(): { x: number; y: number };`,
+    // The hit-test pair (view.ts): the same top-paints-first walk the pointer
+    // uses, callable from any handler — the drop-target primitive. Missing
+    // here until the shelf eval's reference tripped over it (2026-08-07),
+    // the day after the prose taught it.
+    `  viewAt(x: number, y: number): View | null;`,
+    `  containsPoint(x: number, y: number): boolean;`,
     // Re-host this view's surface inside a scroller so the platform carries
     // it with the content (the FocusRing's ride); false = unsupported.
     `  travelWith(scroller: View | null): boolean;`,

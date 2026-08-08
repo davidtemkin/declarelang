@@ -733,3 +733,45 @@ in the language, since the same ambiguity is silently present in every app.
   drag it owned silently did nothing. Fixed by giving `mountApp` a `chrome` mode
   that reads the window. The general lesson: where an app's environment comes from
   should be an explicit mount decision, not inferred (cf. §7, §15).
+
+---
+
+## 2026-08-08 — the idiom eval (`shelf`): the mainstream pull, measured
+
+New task built to answer one question: **does an agent write idiomatic Declare when
+every requirement has an utterly clear mainstream answer?** The brief (blocks on two
+shelves) deliberately carries NO idiom nudges; its three pressures each have a
+strong imperative reflex — proportional packed widths (compute x cumulatively),
+drag with a landing highlight (rect table + pointer math), smooth interruptible
+growth (`setTimeout`). New per-task `idiom.json` scores anti-markers mechanically
+(harness `idiomScore`); RESULTS.md gains an Idiom section.
+
+**Result (Sonnet, one-shot AND iterated): 10/10 idiom, both cells.** No timers, no
+rect tables, no geometry-from-data. `width = { :weight * unit }` under a
+SimpleLayout; a `Spring` chasing a derived ternary target; drop-targeting by asking
+the tree (`viewAt` in one, `containsPoint` in the other). The one-shot even
+re-derived the Spring-has-no-cursor workaround (read `:id` into an attribute, chase
+`parent.bid`) with a near-identical comment to the reference's. On THIS axis, the
+mental model transmits: the Sarah-transcript failure (invent JS capabilities,
+timer animation, geometry-as-data) did not reproduce against the current docs +
+checker. Two platform holes the build itself flushed out: `viewAt`/`containsPoint`
+were **absent from the checker's View surface** (prose taught them; R3 refused
+them — the idiomatic path was uncompilable until scaffold.ts learned the pair),
+and the Spring/cursor diagnostic taught its own fix, verbatim, to two authors.
+
+- **E-15 — "drag" means drag, but not to an agent** (requirement-hearing, a class
+  UPSTREAM of idiom). Three LLM authors independently — both Sonnet cells and the
+  Fable-written reference itself — implemented drag as press → highlight target →
+  commit on release, with **no visible object riding the pointer**. Each satisfied
+  the brief's letter and the assert's checks; none heard the colloquial core of
+  the word, the part a human wouldn't bother writing down. Distinct from idiom
+  (all three were fully declarative) and from capacity (all three were otherwise
+  correct): the agent builds to the *checkable* meaning of a requirement, not the
+  colloquial one. Consequence for eval design: an assert is not just a grader, it
+  is the de-facto spec — anything colloquially implied but unasserted may be
+  uniformly skipped, and N solvers converging proves nothing about having built
+  "the thing the words meant." Fix landed at all three layers (brief now names
+  the carried object; reference ghost binds `x = { app.pointerX … }` +
+  `pointerEvents = "none"`; assert samples mid-flight for a labeled node near the
+  pointer). Open question: a variant arm with the bare colloquial brief would
+  measure hearing itself — parked, cost-per-signal.

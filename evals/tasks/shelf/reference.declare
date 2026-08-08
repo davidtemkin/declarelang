@@ -1,0 +1,112 @@
+// blocks and shelves — the idiomatic answer the brief's pressures point away
+// from. Every pull in the brief has a mainstream reflex (compute x positions
+// cumulatively; keep a rect table for hit-testing; drive the growth on a
+// timer) and a one-line Declare answer (SimpleLayout stacks whatever widths
+// the data gives; viewAt asks the live tree; a Spring chases a derived
+// target). This file is the second kind throughout.
+
+class Block extends View [ cornerRadius = 8, clip = true,
+    width = { :weight * 44 },
+    height = { 56 + 20 * this.growT },
+    fill = { app.dragId == :id ? 0x4A6785 : 0x33475C },
+    growT: number = 0,
+
+    // a Spring has no data cursor, so the block reads its own :id into an
+    // attribute and the Spring chases the derived target — interruptible free
+
+    bid: string = { "" + :id },
+    Spring [ attribute = growT, to = { app.sel == parent.bid ? 1 : 0 }, stiffness = 210, damping = 22, epsilon = 0.001 ],
+    onClick() { app.sel = "" + :id },
+    onPointerDown() { app.beginDrag("" + :id) },
+    onPointerMove(e: PointerEvent) { app.dragOver(e.x, e.y) },
+    onPointerUp(e: PointerUpEvent) { app.drop(e.canceled) },
+    t: Text [ x = 8, y = 8, fontSize = 12, textColor = whitesmoke, wrap = false, text = :label ]
+    ]
+
+
+class Shelf extends View [ height = 140, cornerRadius = 10,
+    which: string = "",
+    title: string = "",
+    hot: boolean = { app.dragId != "" && app.dropShelf == this.which },
+    fill = { this.hot ? 0x24362A : 0x1C2430 },
+    stroke = { stroke(1, this.hot ? 0x5FA05F : 0x33404E) },
+    cap: Text [ x = 12, y = 8, fontSize = 12, textColor = #8FA0B0,
+        text = { classroot.title + " — total " + app.sumOf(classroot.which) } ],
+    row: View [ x = 12, y = 32, height = 96,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Block [ datapath = :rows[], key = :id ]
+        ]
+    ]
+
+
+App [ width = 760, height = 260, fill = #141A21, textColor = whitesmoke,
+
+    data: Dataset {
+        { "blocks": [ { "id": "alpha", "shelf": "left", "label": "alpha", "weight": 3 },
+                      { "id": "beta", "shelf": "left", "label": "beta", "weight": 2 },
+                      { "id": "gamma", "shelf": "left", "label": "gamma", "weight": 1 },
+                      { "id": "delta", "shelf": "right", "label": "delta", "weight": 2 },
+                      { "id": "epsilon", "shelf": "right", "label": "epsilon", "weight": 2 } ] }
+        },
+
+    sel: string = "",
+    dragId: string = "",
+    dropShelf: string = "",
+
+    // each shelf's rows DERIVE from the one flat truth; a drop is one data
+    // write and both shelves re-derive
+
+    leftRows: Dataset [ contents = { app.rowsOn("left") } ],
+    rightRows: Dataset [ contents = { app.rowsOn("right") } ],
+    rowsOn(s: string) {
+        const rows = (this.data.read(["blocks"]) ?? []) as any[]
+        return ({ rows: rows.filter((b) => b.shelf == s) })
+        },
+    sumOf(s: string) {
+        const rows = (this.data.read(["blocks"]) ?? []) as any[]
+        return rows.filter((b) => b.shelf == s).reduce((n, b) => n + b.weight, 0)
+        },
+
+    dragLabel: string = "",
+    dragW: number = 0,
+    beginDrag(id: string) {
+        dragId = id
+        const rows = (this.data.read(["blocks"]) ?? []) as any[]
+        const b = rows.find((r) => r.id == id)
+        dragLabel = b == null ? "" : b.label
+        dragW = b == null ? 0 : b.weight * 44
+        },
+    dragOver(x: number, y: number) {
+        // the tree answers what is under the pointer; walk to the shelf marker
+        if (dragId == "") return
+        let t = app.viewAt(x, y)
+        while (t != null && (t as any).which == null) t = t.parent
+        dropShelf = t == null ? "" : "" + (t as any).which
+        },
+    drop(canceled: boolean) {
+        if (!canceled && dragId != "" && dropShelf != "") {
+            const rows = (this.data.read(["blocks"]) ?? []) as any[]
+            const i = rows.findIndex((b) => b.id == dragId)
+            if (i >= 0) this.data.set(["blocks", i, "shelf"], dropShelf)
+        }
+        dragId = ""
+        dropShelf = ""
+        },
+
+    left: Shelf [ x = 24, y = 60, width = 340, which = "left", title = "Left",
+        datapath = { leftRows.value } ],
+    right: Shelf [ x = 396, y = 60, width = 340, which = "right", title = "Right",
+        datapath = { rightRows.value } ],
+
+    // the carried block: a stand-in bound to the LIVE pointer attributes — the
+    // bindings are the following, no per-move math. pointerEvents = "none" so
+    // the viewAt walk underneath still answers with the shelf, not the ghost.
+
+    ghost: View [ pointerEvents = "none", cornerRadius = 8,
+        visible = { app.dragId != "" },
+        x = { app.pointerX - this.width / 2 }, y = { app.pointerY - 22 },
+        width = { app.dragW }, height = 44, fill = 0x5B7FA8, opacity = 0.85,
+        gt: Text [ x = 8, y = 8, fontSize = 12, textColor = whitesmoke, wrap = false,
+            text = { app.dragLabel } ]
+        ]
+    ]

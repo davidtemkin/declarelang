@@ -95,6 +95,25 @@ export function generateResults(metrics, { runName, solverId, resultsPath }) {
     out.push("");
   }
 
+  // idiom score — for tasks that carry an idiom.json: does a working program
+  // work the declared way? Anti-marker hits are named so the smell is legible
+  // from the scoreboard alone.
+  const withIdiom = metrics.filter((m) => m.idiom != null);
+  if (withIdiom.length) {
+    out.push(`## Idiom`);
+    out.push("");
+    const mean = (withIdiom.reduce((s, m) => s + m.idiom.score, 0) / withIdiom.length).toFixed(1);
+    out.push(`Mean idiom score: **${mean}/10** across ${withIdiom.length} cell(s). 10 = no anti-markers (timers for motion, geometry computed into data, stored coordinate tables); \`pro\` column is informational — which declared-way markers appeared.`);
+    out.push("");
+    out.push(table(withIdiom.map((m) => ({
+      task: m.task,
+      track: m.track,
+      score: `${m.idiom.score}/10`,
+      "anti hits": m.idiom.hits.map((h) => `${h.id}×${h.count}`).join(", ") || "—",
+      pro: m.idiom.pro.join(", ") || "—",
+    }))));
+  }
+
   out.push(`---`);
   out.push(`_\`node evals/harness/run.mjs\` regenerates this file. Per-run transcripts + sandboxes live under \`evals/runs/${runName}/\` (gitignored)._`);
   out.push("");

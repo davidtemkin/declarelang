@@ -1,0 +1,4 @@
+{
+  "note": "Iterated-track caps. Provisional — set for real after the shakedown (verify-and-evals.md §6.7). maxIterations bounds the verify feedback loop.",
+  "maxIterations": 8
+}

@@ -53,6 +53,23 @@ export function formatDistance(src) {
   return d;
 }
 
+/** Idiom score (10 − Σ anti-marker weights, floor 0) for tasks that carry an
+ *  idiom.json. The mechanical half of the idiom question: the ladder proves
+ *  the program WORKS; these markers notice it working the wrong way (timers
+ *  for motion, coordinates computed into data, stored rect tables). `pro`
+ *  markers are informational presence only — never scored, so an idiomatic
+ *  solution the markers didn't anticipate isn't punished. */
+export function idiomScore(src, spec) {
+  const hits = [];
+  for (const m of spec.anti ?? []) {
+    const n = (src.match(new RegExp(m.re, "g")) ?? []).length;
+    if (n > 0) hits.push({ id: m.id, count: n, weight: m.weight, why: m.why });
+  }
+  const pro = (spec.pro ?? []).filter((m) => new RegExp(m.re).test(src)).map((m) => m.id);
+  const score = Math.max(0, 10 - hits.reduce((s, h) => s + h.weight * h.count, 0));
+  return { score, hits, pro };
+}
+
 /**
  * Score a candidate program against a task's hidden acceptance.
  * @param {string} appFile   absolute path to the candidate app.declare
@@ -68,12 +85,14 @@ export async function score(appFile, task) {
 
   const { report, stderr } = await runVerify(appFile, opts);
   const src = existsSync(appFile) ? readFileSync(appFile, "utf8") : "";
+  const idiomSpec = join(task.dir, "idiom.json");
+  const idiom = existsSync(idiomSpec) ? idiomScore(src, JSON.parse(readFileSync(idiomSpec, "utf8"))) : null;
 
   if (!report) {
     return {
       ok: false, rungClimbed: 0, rungFailed: 1, compileOk: false,
       diagnostics: [], summary: "verify produced no report",
-      stderr: stderr.slice(-500), formatDistance: formatDistance(src),
+      stderr: stderr.slice(-500), formatDistance: formatDistance(src), idiom,
     };
   }
 
@@ -91,6 +110,7 @@ export async function score(appFile, task) {
     // What verify would print — the exact teaching surface a solver iterates against.
     report: renderForSolver(report),
     formatDistance: formatDistance(src),
+    idiom,
   };
 }
 

@@ -1,0 +1,41 @@
+{
+  "note": "The idiom markers (harness/score.mjs idiomScore). This task exists to measure whether a solver reaches for the language's model when every pressure in the brief points down the mainstream road: proportional packing pulls toward computing x positions into data; drag-with-landing-highlight pulls toward a stored rect table and pointer math; smooth-and-interruptible pulls toward timers. All three imperative answers COMPILE AND PASS the ladder — only these markers separate them. anti: each match subtracts its weight from 10 (floor 0). pro: informational presence of the declared-way markers, never scored. Regexes run over the raw candidate source.",
+  "anti": [
+    {
+      "id": "timer-motion",
+      "re": "set(Timeout|Interval)\\s*\\(",
+      "weight": 3,
+      "why": "motion or scheduling by timer — a Spring drives an attribute toward a live target (interruptible for free); Animator for clock-shaped cases; Heartbeat for per-frame integration"
+    },
+    {
+      "id": "geometry-from-data",
+      "re": "\\b[xy]\\s*=\\s*\\{?\\s*:",
+      "weight": 3,
+      "why": "view positions bound from data fields — coordinates computed into data re-implement layout; widths/heights may derive from data, but ARRANGEMENT is a layout: attribute (SimpleLayout stacks whatever widths the data yields)"
+    },
+    {
+      "id": "coordinate-table",
+      "re": "\\b(rects?|hitBoxes?|bounds|dropZones?|zones)\\s*[:=]",
+      "weight": 2,
+      "why": "a stored table of where things are — the live tree already knows; app.viewAt(x, y) answers with the same walk the pointer uses"
+    }
+  ],
+  "pro": [
+    {
+      "id": "layout-declared",
+      "re": "layout\\s*:"
+    },
+    {
+      "id": "spring-or-animator",
+      "re": "\\b(Spring|Animator)\\s*\\["
+    },
+    {
+      "id": "tree-asked",
+      "re": "\\bviewAt\\s*\\("
+    },
+    {
+      "id": "pointer-bound",
+      "re": "app\\.pointer[XY]"
+    }
+  ]
+}

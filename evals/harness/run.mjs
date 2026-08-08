@@ -45,6 +45,13 @@ const distro = argv.includes("--distro");
 const tracks = distro ? ["agentic"] : list("tracks", "one-shot,iterated");
 const models = list("models", "reference");
 const solverId = val("solver", "reference");
+// "reference" is a MODEL LABEL only for the reference solver; a real solver
+// would pass it verbatim to `claude --model reference` and every cell dies at
+// R1 on the CLI's model-not-found reply (burned a run on 2026-08-08).
+if (solverId !== "reference" && models.includes("reference")) {
+  console.error(`--solver ${solverId} needs a real model: add --models sonnet (or opus, haiku, …)`);
+  process.exit(1);
+}
 const budgetOverride = val("budget", null);
 // which brief the model is measured on. Default = the lean, purpose-built
 // generation brief. (docs-ia §9 step 1 head-to-head, n=3 Sonnet one-shot: the
@@ -108,7 +115,7 @@ async function runDistroCell({ task, model, rep, solver, metricsFile }) {
     briefDoc: "distro:clone", iterations: 1, iterationsToGreen: sc.ok ? 1 : null,
     ok: !!sc.ok, rungClimbed: sc.rungClimbed ?? 0, rungFailed: sc.rungFailed ?? null,
     compileOk: !!sc.compileOk, tokens: gen?.tokens ?? null, wallMs: Date.now() - t0,
-    formatDistance: sc.formatDistance ?? null, diagnostics: sc.diagnostics ?? [],
+    formatDistance: sc.formatDistance ?? null, idiom: sc.idiom ?? null, diagnostics: sc.diagnostics ?? [],
     sandbox: dir,
   };
   appendFileSync(metricsFile, JSON.stringify(line) + "\n");
@@ -157,6 +164,7 @@ async function runCell({ task, track, model, rep, solver, runDir, metricsFile })
     ok: !!sc?.ok, rungClimbed: sc?.rungClimbed ?? 0, rungFailed: sc?.rungFailed ?? null,
     compileOk: !!sc?.compileOk, tokens: tokens || null, wallMs,
     formatDistance: sc?.formatDistance ?? null,
+    idiom: sc?.idiom ?? null,
     diagnostics: (sc?.diagnostics ?? []).map((d) => ({ code: d.code, phase: d.phase, line: d.line })),
     sandbox: corpus ? dir : join("evals/runs", runName, sandboxName({ task, track, model, rep })),
   };
