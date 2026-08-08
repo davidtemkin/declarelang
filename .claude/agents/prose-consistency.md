@@ -21,6 +21,10 @@ The only authorities are the **code** (what the platform does) and the **stated 
 ## Step 1 — establish both authorities (before auditing anything)
 
 **The code surface — what the platform does.** Read the sources of truth; never assume:
+- The FRONT DOOR for any single fact — `node tools/declare-help.mjs <name>` (a class,
+  attribute, enum, diagnostic, or concept; did-you-mean included; a deliberate absence
+  answers with the real door). Its store is `docs/declare-model.json`, generated from
+  source — for bulk checks, grep the model's `reference` and `spine` directly.
 - Public components — `library/autoincludes.json` + `library/*.declare`.
 - Built-in attributes & element types — `runtime/src/view.ts` (`defineAttributes`), `runtime/src/schema.ts`, `runtime/src/registry.ts`.
 - Token enums, diagnostic codes, flags/requests — grep the runtime/compiler; `compiler/src/flags.ts`, `compiler/src/reqtypes.ts`.
@@ -38,7 +42,7 @@ The only authorities are the **code** (what the platform does) and the **stated 
 - **broken-example** — a code fence that won't compile/typecheck against the current build (CONFIRM by writing it to a temp `.declare` and running `verify.mjs`; `--wrap` for a bare component body).
 - **missing-surface** — new public surface a file is responsible for but omits.
 - **cross-doc** — two prose files stating different things about the same feature.
-The fix for all of these is to the prose. Tiers: the reference (`docs/declare-model.json`, `apps/docs/docs-model.json` — must match the code, else the generator is stale); the guide (`docs/guide/01..13-*.md`); operational (`docs/operational/*.md`); and the delicate positioning docs (see below), checked for factual accuracy too.
+The fix for all of these is to the prose. Tiers, largest first: the **reference prose** (`tools/internal/doc/prose/*.md` — the per-class documentation the model assembles; one file per component, ~350 entries across them); the **guide** (`docs/guide/01..22-*.md`, six parts — The idea / Building / Continuity / Where it runs / Working / Appendix); **operational** (`docs/operational/*.md`); the generated `docs/declare-model.json` (must match the code, else the generator or its prose inputs are stale); and the delicate positioning docs (see below), checked for factual accuracy too.
 
 **Top-down — promises, intent is truth.** For each quoted commitment from Step 1, put the *platform* on trial:
 - **Does the code still deliver it?** "no build step" — is there now a required build step? "statically analyzable" — did a feature introduce runtime magic that defeats static analysis? "one address per program" — still exactly one? Confirm against the code / a probe where you can.
@@ -58,11 +62,17 @@ Rank most-severe first: CONFIRMED dead-name / broken-example > promise-drift on 
 
 End with a short summary: what fraction of the corpus and of the commitment list you actually checked, the highest-risk drift in each direction, and the specific files a human must review. If a tier or direction turned up nothing, say so explicitly — silence is not coverage.
 
+Your final message IS the deliverable, formatted so it can be saved verbatim: your invoker
+archives it at `docs/system-design/audits/prose-<date>.md` and stamps
+`.derive/prose-audit.json` (`{date, commit, report}`), which is what quiets the gates
+advisory that asked for this run. Begin the report with a header line naming the date and
+the HEAD commit you audited.
+
 ## Guardrails
 - Read **both** authorities (code and stated intent) before you open a prose file to judge it.
 - **Classify fact vs promise first.** Never "correct" a promise down to match drifted code — that hides the failure that matters most.
 - **Quote promises; never invent them.** If it isn't quotable from the positioning, it isn't a commitment.
-- **Never edit any file.** Especially `declare.md`, homepage, and `SKILL.md` — reserved for the maintainer's direct review.
+- **Never edit any file.** Especially `declare.md`, homepage, and `SKILL.md` (two gate-synced copies: `skill/` and `.claude/skills/declare/`) — reserved for the maintainer's direct review.
 - Do NOT read `docs/system-design/` as truth; it is background.
 - Findings are candidates, not verdicts. Prefer CONFIRMED; label judgment as SUSPECTED.
 - Self-contained: assume no prior conversation — everything you need is in the repo at the paths above.
