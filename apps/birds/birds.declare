@@ -15,14 +15,22 @@ stranger test (guide ch. 16 — *would you hand it to a stranger?*):
             sitting motionless at #quiz the whole time. Reload resumes the
             round; a shared #quiz link starts a fresh one — the URL carries the
             place and none of the session, by construction.
-  ordinary  everything else — hovers, the loaded flag — which neither the URL
-            nor the Back button ever sees.
+  ordinary  everything else — hovers, the loaded flag, and the FLIGHT (the
+            plate's zoom from its shelf tile to the page, LZPix-style). The
+            flight is the third row made vivid: nobody shares a zoom, and Back
+            must restore the page, not re-perform the click that opened it —
+            so the captured rect is plain attributes, history never hears of
+            it, and a traversal or a pasted URL lands with no entrance at all.
 
-`onFollow` is the renamed-pages door: Audubon's own names for these birds
-("carolina-parrot", "great-footed-hawk") redirect to today's slugs, so a
-150-year-old citation still lands. The plates are Audubon's, public domain;
-the data is build-time fixture (birds.json beside this file), which is what
-lets the crawl index every bird page with no server anywhere.
+Around those three: every tile and cross-reference is a `link` (a real <a> —
+hover preview, ⌘-click, the crawler's edge), so the crawl walks the shelf to
+all fifty pages with no route table and no server; `onFollow` is the
+renamed-pages door — Audubon's own names ("carolina-parrot",
+"great-footed-hawk") redirect to today's slugs, so a 150-year-old citation
+still lands; and `appName` derives per place, so the history menu lists real
+titles. The plates are Audubon's, public domain; the data is a build-time
+fixture (birds.json beside this file), which is what makes the whole guide
+crawlable from a static host.
 */
 
 font Serif [ family = "Georgia, 'Times New Roman', serif" ]
@@ -49,6 +57,11 @@ class Tile extends View [ width = { app.tileW }, height = { app.tileW + 44 },
     y = { (Math.floor(:gi / app.cols)) * (app.tileW + 62) },
     hoverT: number = 0,
     Spring [ attribute = hoverT, to = { classroot.hovered ? 1 : 0 }, stiffness = 220, damping = 20, epsilon = 0.001 ],
+
+    // the click CAPTURES this plate's place on the shelf before the link
+    // navigates (onClick beside a link runs first) — the flight's origin
+
+    onClick() { app.beginFlight(this.frame, Number(:i)) },
     frame: Plate [ width = { parent.width }, height = { parent.width }, slug = { :slug },
         lift = { classroot.hoverT },
         scale = { 1 + 0.03 * classroot.hoverT }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 } ],
@@ -141,6 +154,37 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
     nameOf(n: number) -> string { return app.birds.length > n && n >= 0 ? "" + app.birds[n].name : "" },
     slugOf(n: number) -> string { return app.birds.length > n && n >= 0 ? "" + app.birds[n].slug : "" },
 
+    // ── the FLIGHT — one plate traveling from its shelf tile to the page ─────
+    // The LZPix move, and the desktop's own open-zoom: the SAME object leaves
+    // its grid slot and lands as the page's plate, so the transition reads as
+    // continuity, not replacement. Note what the flight is NOT: it is neither
+    // an address nor a step. A pasted `#b/…` URL and a Back press both land
+    // with no entrance — a URL should simply BE the page, and Back restores
+    // where you were rather than re-performing the click that took you there.
+    // So the captured rect lives in ordinary attributes (flyW < 0 = none),
+    // and only a real click ever starts the animator.
+
+    flyX: number = -1,                           // the tile plate's rect, in content coordinates
+    flyY: number = -1,
+    flyW: number = -1,
+    lerp(a: number, b: number, t: number) -> number { return a + (b - a) * t },
+    beginFlight(v: View, i: number) {
+        let x = 0
+        let y = 0
+        let n = v
+        while (n != null && n != app) { x += n.x || 0; y += n.y || 0; n = n.parent }
+        app.flyX = x
+        app.flyY = y
+        app.flyW = v.width
+        app.page.fly.start()
+        },
+    turnPage() {
+        // a within-page turn (prev/next, a cross-reference): no shelf rect to
+        // fly from, so the entrance is a plain dissolve on the same animator
+        app.flyW = -1
+        app.page.fly.start()
+        },
+
     // ── responsive column ────────────────────────────────────────────────────
 
     colW:  number = { Math.min(1060, app.width - 48) },
@@ -175,18 +219,33 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
 
     // ═══ one BIRD — a page with an address you could hand to anyone ══════════
 
-    page: View [ x = { app.colX }, width = { app.colW }, visible = { app.bird != null },
+    page: View [ x = { app.colX }, y = 84, width = { app.colW }, visible = { app.bird != null },
         datapath = { app.bird },
-        arriveT: number = 0,
-        Spring [ attribute = arriveT, to = { app.bird != null ? Number(app.bird.i) : 0 }, stiffness = 190, damping = 24, epsilon = 0.002 ],
-        settle: number = { Math.min(1, Math.abs((app.bird != null ? Number(app.bird.i) : 0) - this.arriveT)) },
-        y = { 84 + this.settle * 12 },
-        opacity = { 1 - this.settle * 0.55 },
+
+        // the arrival scalar: 0 = just left the shelf, 1 = at rest. A clicked
+        // tile flies the plate here (geometry below); a page turn dissolves;
+        // a deep link or a traversal never starts it, so flyT RESTS at 1 and
+        // the page is simply present — the entrance belongs to the gesture
+        // that caused it, never to the URL or the Back button.
+
+        flyT: number = 1,
+        fly: Animator [ attribute = flyT, from = 0, to = 1, duration = 340, motion = cubicOut ],
         wide: boolean = { app.colW >= 760 },
         plateW: number = { this.wide ? Math.min(560, app.colW - 380) : app.colW },
-        frame: Plate [ width = { parent.plateW }, height = { parent.plateW * 1.05 }, slug = { "" + (:slug ?? "") } ],
+
+        // the traveling object: from the captured tile rect (in page-local
+        // terms) to the resting frame — or already at rest when no flight
+
+        frame: Plate [
+            x = { app.flyW < 0 ? 0 : app.lerp(app.flyX - app.colX, 0, parent.flyT) },
+            y = { app.flyW < 0 ? 0 : app.lerp(app.flyY - 84, 0, parent.flyT) },
+            width = { app.flyW < 0 ? parent.plateW : app.lerp(app.flyW, parent.plateW, parent.flyT) },
+            height = { this.width * 1.05 },
+            opacity = { app.flyW < 0 ? parent.flyT : 1 },
+            slug = { "" + (:slug ?? "") } ],
         info: View [ x = { parent.wide ? parent.plateW + 36 : 0 }, y = { parent.wide ? 8 : parent.plateW * 1.05 + 24 },
             width = { parent.wide ? parent.width - parent.plateW - 36 : parent.width },
+            opacity = { parent.flyT },               // the details fade up as the plate lands
             layout: SimpleLayout [ axis = y, spacing = 14 ],
             name: Text [ fontFamily = Serif, fontSize = 30, width = { parent.width }, text = { "" + (:name ?? "") } ],
             latin: Text [ fontSize = 15, textColor = #8A8272, italic = true, text = { "" + (:latin ?? "") } ],
@@ -198,15 +257,23 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
             kinRow: View [ width = { parent.width }, height = 24,
                 layout: SimpleLayout [ axis = x, spacing = 18 ],
                 k1: Text [ fontSize = 14, fontFamily = Serif, textColor = #7A3B2E, wrap = false,
-                    link = { "#b/" + :kin[0] }, text = { app.birds.length > 0 ? "" + (app.birds.find((b) => b.slug == :kin[0])?.name ?? "") : "" } ],
+                    onClick() { app.turnPage() },
+                    link = { "#b/" + :kin[0] }, text = { app.birds.length > 0 ? "" + (app.birds.find((b) => b.slug == :kin[0])?.name ?? "") : "" }
+                    ],
                 k2: Text [ fontSize = 14, fontFamily = Serif, textColor = #7A3B2E, wrap = false,
-                    link = { "#b/" + :kin[1] }, text = { app.birds.length > 0 ? "" + (app.birds.find((b) => b.slug == :kin[1])?.name ?? "") : "" } ]
+                    onClick() { app.turnPage() },
+                    link = { "#b/" + :kin[1] }, text = { app.birds.length > 0 ? "" + (app.birds.find((b) => b.slug == :kin[1])?.name ?? "") : "" }
+                    ]
                 ],
             walk: View [ width = { parent.width }, height = 30,
                 prev: Text [ x = 0, y = center, fontSize = 14, textColor = #8A8272, wrap = false,
-                    visible = { :i > 0 }, link = { "#b/" + app.slugOf(:i - 1) }, text = { "← " + app.nameOf(:i - 1) } ],
+                    onClick() { app.turnPage() },
+                    visible = { :i > 0 }, link = { "#b/" + app.slugOf(:i - 1) }, text = { "← " + app.nameOf(:i - 1) }
+                    ],
                 next: Text [ x = { parent.width - this.width }, y = center, fontSize = 14, textColor = #8A8272, wrap = false,
-                    visible = { :i < 49 }, link = { "#b/" + app.slugOf(:i + 1) }, text = { app.nameOf(:i + 1) + " →" } ]
+                    onClick() { app.turnPage() },
+                    visible = { :i < 49 }, link = { "#b/" + app.slugOf(:i + 1) }, text = { app.nameOf(:i + 1) + " →" }
+                    ]
                 ],
             home: Text [ fontSize = 14, textColor = #8A8272, link = "#", text = "← the whole shelf" ],
             pad: View [ width = 1, height = 56 ]
