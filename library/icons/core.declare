@@ -82,8 +82,8 @@ Renders the arrow.
 class ArrowIcon extends Icon [
     dir: string = "up",                         // up | down | left | right
     angle: number = { classroot.dir == "down" ? Math.PI
-                    : classroot.dir == "left" ? Math.PI / 2
-                    : classroot.dir == "right" ? -Math.PI / 2 : 0 },
+                    : classroot.dir == "left" ? -Math.PI / 2
+                    : classroot.dir == "right" ? Math.PI / 2 : 0 },
 
     draw(d: Draw) {
         d.scale(unit, unit)

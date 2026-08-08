@@ -150,6 +150,34 @@ location preserved — finishing auth lands the user where they aimed.
 > question dissolves: the place is one reactive attribute your views derive from
 > like any other, and links are attributes the compiler can check.
 
+### Five minutes with a real one
+
+`apps/birds/birds.declare` — a field guide of Audubon's plates with an
+identification quiz over it — is this whole section as a working app. Run it and
+do five things in order:
+
+1. **Click a plate.** The URL becomes `#b/roseate-spoonbill`: an address, and one
+   you could paste to anybody.
+2. **Press Back.** The plate flies home to its slot on the shelf. (The return is
+   armed inside `onFollow` — Back runs no handler, and the hook is the one door
+   every arrival comes through, which is what makes a motion answerable to it.)
+3. **Open the quiz and answer a few questions.** Watch the address bar: it says
+   `#quiz` and then never moves again, however long you play.
+4. **Press Back mid-round.** The last question un-asks itself. That is the step
+   moving, not the address — one history entry per turn, none of them a place.
+5. **Paste that `#quiz` URL into a new tab.** You get a *fresh* quiz, because the
+   session was never in the URL to copy.
+
+Each of those is one row of the table above, and the source names which is which:
+its header comment sorts every value in the program into address, step, or
+ordinary attribute — including the flight animations, which are the third kind
+(nobody shares a zoom, so history never hears of them).
+
+One thing you cannot try in this page: the live demos in this guide are embedded
+child apps, and an embedded app owns neither the page's URL nor its history —
+both belong to the page it sits in ([chapter 19](declare-docs:guide:embedding)).
+That is why this is a link rather than a frame.
+
 ## Crawlers, without a server
 
 The deeper surprise: this also replaces server-side rendering. A Declare program is
@@ -160,6 +188,12 @@ app's own links — literal fragments and handler writes alike — and emits one
 at the program URL: the default location's content, plus a section per reachable
 location. Discoverable = linked, exactly like the web. Append `?extract` to any
 program URL and read what a crawler gets; ship it baked into the page with one flag.
+(Try it on the birds guide. Because every tile is a `link`, the crawl walks the
+shelf to all fifty bird pages, prose and all. It also finds the quiz *room* —
+that is an address — but not a single question, score, or answer, because a
+round lives in a waypoint and the crawl boots every location at its declared
+initial. What is crawled is exactly what is shareable, which is exactly what a
+stranger would see.)
 
 Two honest rules. Crawlable data is **build-time data** — a relative `DataSource`
 URL is your app's own material and extracts fine; an absolute URL is the network,
