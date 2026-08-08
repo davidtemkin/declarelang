@@ -15,12 +15,15 @@ stranger test (guide ch. 16 — *would you hand it to a stranger?*):
             sitting motionless at #quiz the whole time. Reload resumes the
             round; a shared #quiz link starts a fresh one — the URL carries the
             place and none of the session, by construction.
-  ordinary  everything else — hovers, the loaded flag, and the FLIGHT (the
-            plate's zoom from its shelf tile to the page, LZPix-style). The
-            flight is the third row made vivid: nobody shares a zoom, and Back
-            must restore the page, not re-perform the click that opened it —
-            so the captured rect is plain attributes, history never hears of
-            it, and a traversal or a pasted URL lands with no entrance at all.
+  ordinary  everything else — hovers, the loaded flag, and the FLIGHTS (the
+            plate's zoom from shelf tile to page, and its return home —
+            LZPix-style). The flights are the third row made vivid: nobody
+            shares a zoom, so their rects are plain attributes and history
+            never hears of them. Arrivals animate only from gestures — a
+            pasted URL simply IS its page — but the journey HOME plays for
+            the Back button too, armed inside `onFollow`: the hook is the one
+            door a link click and a traversal both pass through, which is
+            exactly what lets a motion answer Back without any handler running.
 
 Around those three: every tile and cross-reference is a `link` (a real <a> —
 hover preview, ⌘-click, the crawler's edge), so the crawl walks the shelf to
