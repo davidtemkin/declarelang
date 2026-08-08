@@ -140,6 +140,11 @@ function wireColorScheme(app: App): () => void {
  *  applies a meta patch asynchronously. `edges` itself is read at mount: it is
  *  a fact about the app, not a runtime toggle. */
 function wireSafeArea(app: App, w: Window): void {
+  // No getComputedStyle means no DOM — the mac host's env keeps it undefined
+  // as exactly that signal, and only a computed style can read the env()
+  // paddings off the probe. Safe areas stay at their zero defaults, which is
+  // the truthful answer for a desktop window: nothing overlaps its content.
+  if (typeof w.getComputedStyle !== "function") return;
   const doc = w.document;
   if (app.edges === "cover") {
     let meta = doc.querySelector<HTMLMetaElement>('meta[name="viewport"]');

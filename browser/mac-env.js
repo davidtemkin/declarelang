@@ -65,11 +65,27 @@
     return id;
   };
   g.cancelAnimationFrame = (id) => { rafQueue.delete(id); };
+  // Passive frame observers — the boot pumps' seam. A rAF callback is a DEMAND
+  // for a frame: registering one calls H.needFrame(), which keeps the native
+  // display link running until it is served. A pump that re-armed itself with
+  // rAF therefore held the link awake at the display's refresh rate FOREVER —
+  // measured as the mac host's entire idle cost. An observer runs after the
+  // rAF callbacks of every frame that happens for a real reason and demands
+  // nothing itself; return false to retire. The bet this makes explicit: every
+  // change a pump watches for is caused by an event, a timer, or a completion
+  // callback, and each of those already requests the frame the observer rides.
+  const frameObservers = [];
+  g.__declareObserveFrames = (fn) => { frameObservers.push(fn); };
   g.__declareFrame = (t) => {
     const due = rafQueue;
     rafQueue = new Map();
     for (const fn of due.values()) {
       try { fn(t); } catch (e) { g.console.error("raf: " + (e && e.message || e)); }
+    }
+    for (let i = frameObservers.length - 1; i >= 0; i--) {
+      let keep;
+      try { keep = frameObservers[i](t); } catch (e) { g.console.error("frame observer: " + (e && e.message || e)); }
+      if (keep === false) frameObservers.splice(i, 1);
     }
   };
 

@@ -446,7 +446,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             name: NSNotification.Name("AppleInterfaceThemeChangedNotification"), object: nil)
     }
 
-    @objc func appearanceChanged() { bridge.call("__declareEnvChanged", []) ; bridge.pump() }
+    // needsFrame, not a direct pump: the frame observers (island dark-mode
+    // follow, title mirror) ride on real frames, and pump() without a pending
+    // request is a no-op — this is one of the host events whose frame they
+    // are promised.
+    @objc func appearanceChanged() { bridge.call("__declareEnvChanged", []) ; bridge.needsFrame() }
 
     func open(_ url: String) {
         currentURL = url
@@ -471,6 +475,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         bridge.call("__declareResize", [Double(s.width), Double(s.height), Double(window.backingScaleFactor)])
         bridge.call("__declareSettle", [])
         bridge.pump()
+        // The root app is already resized and flushed by the two calls above;
+        // the frame request is for the observers that follow one frame behind
+        // (an island's tenant re-deriving from its box's new size).
+        bridge.needsFrame()
     }
 
     func windowDidResize(_ n: Notification) { syncSize(); view.repositionOverlays() }

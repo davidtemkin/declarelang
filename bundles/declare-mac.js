@@ -16371,6 +16371,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     return () => mq.removeEventListener("change", update);
   }
   function wireSafeArea(app, w) {
+    if (typeof w.getComputedStyle !== "function")
+      return;
     const doc = w.document;
     if (app.edges === "cover") {
       let meta = doc.querySelector('meta[name="viewport"]');
@@ -17801,17 +17803,16 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   var programName = (u) => (u.split("/").pop() || "app").replace(/\.declare$/, "");
   function startPumps(app) {
     let title = "";
-    const tick = () => {
-      if (currentApp !== app) return;
+    globalThis.__declareObserveFrames(() => {
+      if (currentApp !== app) return false;
       if (app.appName !== title) {
         title = app.appName;
         H.setTitle(title || "Declare");
       }
       wireEmbeds();
       liveTick();
-      globalThis.requestAnimationFrame(tick);
-    };
-    globalThis.requestAnimationFrame(tick);
+    });
+    H.needFrame();
   }
   var wiredEmbeds = /* @__PURE__ */ new Map();
   var embedGen = /* @__PURE__ */ new Map();
@@ -17959,16 +17960,16 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     child.dark = H.appearance() === "dark";
     liveApps.set(child, box);
     childIslands.set(child, surfaceId);
-    const follow = () => {
+    globalThis.__declareObserveFrames(() => {
       if (embedGen.get(surfaceId) !== gen) {
         liveApps.delete(child);
         childIslands.delete(child);
-        return;
+        return false;
       }
       if (surfaceById(surfaceId) !== box) {
         liveApps.delete(child);
         childIslands.delete(child);
-        return;
+        return false;
       }
       if (child.hostWidth !== box.width || child.hostHeight !== box.height) {
         child.hostWidth = box.width;
@@ -17977,9 +17978,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       const dark = H.appearance() === "dark";
       if (child.dark !== dark) child.dark = dark;
       publishChildName(surfaceId, typeof child.appName === "string" ? child.appName : "");
-      globalThis.requestAnimationFrame(follow);
-    };
-    globalThis.requestAnimationFrame(follow);
+    });
     settle();
     flushOps();
     return child;

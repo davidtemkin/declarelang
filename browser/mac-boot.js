@@ -227,17 +227,23 @@ function hostStub() {
 const programName = (u) => (u.split("/").pop() || "app").replace(/\.declare$/, "");
 
 /** Per-frame work the native host drives: settle-driven title, and the embed
- *  (AppIsland) wiring — the native peer of host-client's mountPreviews. */
+ *  (AppIsland) wiring — the native peer of host-client's mountPreviews.
+ *  A frame OBSERVER, not a rAF loop: a rAF re-arm demands the next frame, and
+ *  that demand held the display link — and the process — awake at the display's
+ *  refresh rate while the app sat idle. Everything this watches (appName, new
+ *  islands, live-edit publishes) changes only under an event, a timer, or a
+ *  completion, each of which already requests a frame for the observer to
+ *  ride. The one H.needFrame() below covers boot itself, where islands are
+ *  already pending but nothing else may ever ask for a frame. */
 function startPumps(app) {
   let title = "";
-  const tick = () => {
-    if (currentApp !== app) return;
+  globalThis.__declareObserveFrames(() => {
+    if (currentApp !== app) return false;
     if (app.appName !== title) { title = app.appName; H.setTitle(title || "Declare"); }
     wireEmbeds();
     liveTick();
-    globalThis.requestAnimationFrame(tick);
-  };
-  globalThis.requestAnimationFrame(tick);
+  });
+  H.needFrame();
 }
 
 // ── AppIsland: a whole program inside a box, natively ───────────────────────
@@ -463,10 +469,13 @@ function mountCompiled(surfaceId, compiled, env) {
   liveApps.set(child, box);          // a child can itself publish live edits
   childIslands.set(child, surfaceId);
   // Keep the tenant sized to its box (the box is a constraint target that can
-  // change with the window; the child re-derives from hostWidth/Height).
-  const follow = () => {
-    if (embedGen.get(surfaceId) !== gen) { liveApps.delete(child); childIslands.delete(child); return; }  // a newer tenant owns this island
-    if (surfaceById(surfaceId) !== box) { liveApps.delete(child); childIslands.delete(child); return; }
+  // change with the window; the child re-derives from hostWidth/Height). An
+  // observer, not a rAF loop, for the same reason as startPumps: the box only
+  // moves under a resize, the appearance only flips under __declareEnvChanged,
+  // and both already produce the frame this rides on.
+  globalThis.__declareObserveFrames(() => {
+    if (embedGen.get(surfaceId) !== gen) { liveApps.delete(child); childIslands.delete(child); return false; }  // a newer tenant owns this island
+    if (surfaceById(surfaceId) !== box) { liveApps.delete(child); childIslands.delete(child); return false; }
     if (child.hostWidth !== box.width || child.hostHeight !== box.height) {
       child.hostWidth = box.width; child.hostHeight = box.height;
     }
@@ -476,9 +485,7 @@ function mountCompiled(surfaceId, compiled, env) {
     // Reflect the tenant's name up to the island, so a hosting window can title
     // itself by what it shows (the viewer names its window by the open file).
     publishChildName(surfaceId, typeof child.appName === "string" ? child.appName : "");
-    globalThis.requestAnimationFrame(follow);
-  };
-  globalThis.requestAnimationFrame(follow);
+  });
   settle();
   flushOps();
   return child;

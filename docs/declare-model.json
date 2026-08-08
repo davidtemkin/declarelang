@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "ff7ed40c4ad9",
+  "buildId": "7860edb6bcf4",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -980,6 +980,8 @@
     "  $setData(path: string | readonly string[], v: any): void;",
     "  scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void;",
     "  rootOrigin(): { x: number; y: number };",
+    "  viewAt(x: number, y: number): View | null;",
+    "  containsPoint(x: number, y: number): boolean;",
     "  travelWith(scroller: View | null): boolean;",
     "  raise(below?: View | null): void;",
     "  removeChild(child: View): void;",

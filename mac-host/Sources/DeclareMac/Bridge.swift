@@ -134,7 +134,7 @@ final class Bridge {
             self?.timers.removeValue(forKey: id)?.invalidate()
         } as @convention(block) (Int) -> Void, forKeyedSubscript: "clearTimer")
 
-        host.setObject({ [weak self] in self?.frameRequested = true } as @convention(block) () -> Void,
+        host.setObject({ [weak self] in self?.needsFrame() } as @convention(block) () -> Void,
                        forKeyedSubscript: "needFrame")
 
         host.setObject({ [weak self] () -> Double in
@@ -332,12 +332,25 @@ final class Bridge {
         // and we were passing the wall clock.
         frameTime = link.targetTimestamp * 1000
         pump()
+        // Nobody asked for the next frame: stop the clock. A link left running
+        // wakes the process at every refresh forever — measured at idle as the
+        // ONLY thing the host does, ~250 context switches a second of QuartzCore
+        // servicing a callback whose pump() immediately returns. Pausing here
+        // costs nothing on the wake side: every source of work funnels through
+        // needsFrame(), which resumes the link, and a resumed link fires at the
+        // next vsync — exactly when a never-paused link would have fired.
+        if !frameRequested { link.isPaused = true }
     }
     private var frameTime: Double = 0
 
     /// Ask for a frame without forcing one now — the display link will pick it
     /// up on the next refresh, which is what keeps motion vsync-aligned.
-    func needsFrame() { frameRequested = true }
+    /// Main thread only (AppKit events, run-loop timers, and the completion
+    /// hops in fetch/loadImage all arrive there) — isPaused is not guarded.
+    func needsFrame() {
+        frameRequested = true
+        caLink?.isPaused = false
+    }
 
     // ── gesture statistics ──────────────────────────────────────────────────
     //
