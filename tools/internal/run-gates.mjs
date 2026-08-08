@@ -39,7 +39,7 @@
 // skipping, the fix is its input list, not distrust of the mechanism.
 
 import { readFileSync, appendFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fileSet, setHash } from "./filesets.mjs";
@@ -196,6 +196,34 @@ if (ranked.length > 0) {
     line(`gates: note — touch-input sources changed since the last green iOS regression;`
       + ` when convenient: node tools/internal/sim/regress.mjs <sessionId> (recipe in tools/internal/sim/drive.mjs)`);
   }
+}
+// ── The prose-audit advisory (same pattern as the iOS one) ──────────────────
+// The prose-consistency agent (.claude/agents/prose-consistency.md) is TOO
+// HEAVY for gates and runs at intervals; the danger is that "intervals"
+// quietly becomes "never" (measured: as of 2026-08-07 it had never run, and
+// nothing anywhere said so). The stamp records the audit's date + commit and
+// where its report landed (docs/system-design/audits/); this advisory counts
+// how far the prose corpus has moved since, and starts asking past a
+// threshold. An advisory, never a failure.
+{
+  const PROSE_STAMP = resolve(ROOT, ".derive/prose-audit.json");
+  const PROSE_PATHS = ["docs/declare.md", "docs/guide", "docs/operational", "README.md",
+    "apps/homepage/getstarted.md", "apps/homepage/declare-faq.md", "skill", "tools/internal/doc/prose"];
+  const stamp = existsSync(PROSE_STAMP)
+    ? (() => { try { return JSON.parse(readFileSync(PROSE_STAMP, "utf8")); } catch { return null; } })()
+    : null;
+  try {
+    const since = stamp?.commit
+      ? execSync(`git rev-list --count ${stamp.commit}..HEAD -- ${PROSE_PATHS.join(" ")}`, { cwd: ROOT, encoding: "utf8" }).trim()
+      : null;
+    if (stamp === null) {
+      line(`gates: note — the prose-consistency audit has NEVER run; after the next surface-moving change,`
+        + ` run the prose-consistency agent and stamp .derive/prose-audit.json {date, commit, report}`);
+    } else if (Number(since) >= 12) {
+      line(`gates: note — the prose corpus has moved ${since} commits since the last prose-consistency audit`
+        + ` (${stamp.date}, report ${stamp.report ?? "unrecorded"}); consider a fresh run`);
+    }
+  } catch { /* a shallow or detached checkout answers no advisory */ }
 }
 if (failed.length > 0) {
   line(`gates: FAILED — ${failed.map((f) => f.name).join(", ")}`);
