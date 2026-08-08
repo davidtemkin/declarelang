@@ -333,6 +333,24 @@ const AppSchema = {
         // answer on a hybrid, where the truth changes per gesture: drive hover-only
         // affordances from it, never layout.
         lastPointerType: { kind: "string" },
+        // THE SAFE AREA — the region the device guarantees free of its own chrome
+        // (a phone's notch/Dynamic Island, the home-indicator bar, rounded
+        // corners). By default an app is LETTERBOXED inside it — the browser keeps
+        // the box clear of the system chrome, the letterbox bars wear the app's
+        // own fill (dom-backend attachRoot), and the four insets read 0. Declaring
+        // `edges = cover` extends the app's box under the system chrome
+        // (viewport-fit=cover, patched into the page's viewport meta at mount) and
+        // the insets become live numbers — pinned chrome then places itself with
+        // them (`y = { app.safeTop }`, a bottom bar's height + `app.safeBottom`).
+        // Read at mount: `edges` is a fact about the app, not a runtime toggle.
+        edges: enumType("Edges", "safe", "cover"),
+        // The live safe-area insets, in pixels — 0 while letterboxed (edges=safe,
+        // or any desktop browser), the device's real insets under `edges = cover`,
+        // re-read on rotation. Fed by the runtime (boot.ts wireSafeArea).
+        safeTop: { kind: "number" },
+        safeBottom: { kind: "number" },
+        safeLeft: { kind: "number" },
+        safeRight: { kind: "number" },
         // The EMBEDDING ENVIRONMENT's parameters — a record the HOST provides and
         // keeps live (an island's slot marker carries `|k=v&k2=v2` after the
         // program path; host-client parses, coerces, and writes the whole record).
@@ -401,7 +419,7 @@ const AppSchema = {
     },
     // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
     // set is a compile error) — like View's contentWidth/contentHeight.
-    readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType"],
+    readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight"],
     // `onFollow(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
     // follow() applies it ONCE to every arrival — a linked view, a prose href, a
     // cold URL, back/forward — before routing. Return the reference to proceed

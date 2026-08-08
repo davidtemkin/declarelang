@@ -658,6 +658,7 @@ content natively; the chrome further down (header, cursor) are its
 // and LLMs ever read the stale copy. Exactly the readers this page is for.
 
 App [ tagline: string = "a UI language for you and your AI",
+    edges = cover,
     revealInset = 80,
     appName = { "Declare — " + app.tagline },
     theme = { {
@@ -1643,8 +1644,8 @@ App [ tagline: string = "a UI language for you and your AI",
     // reveal it on scroll retired 2026-07-17: a first-time visitor sees the
     // whole map)
 
-    header: View [ ignoreScroll = true, width = { app.width }, height = 56, y = 0, opacity = 1, fill = { theme.surface },
-        hairline: View [ y = 55, width = { app.width }, height = 1, fill = { theme.line } ],
+    header: View [ ignoreScroll = true, width = { app.width }, height = { 56 + app.safeTop }, y = 0, opacity = 1, fill = { theme.surface },
+        hairline: View [ y = { 55 + app.safeTop }, width = { app.width }, height = 1, fill = { theme.line } ],
 
         /* The header row, gutter to gutter. ONE ResponsiveLayout decides whether
            the pill row fits, and `share: 0` IS the hiding — so there is no width
@@ -1665,7 +1666,7 @@ App [ tagline: string = "a UI language for you and your AI",
            The Spacer is what right-aligns the run: it absorbs the slack between
            the wordmark and whatever follows. Shares fill; naturals align. */
 
-        bar: View [ x = { app.gutter }, y = 0, height = 56,
+        bar: View [ x = { app.gutter }, y = { app.safeTop }, height = 56,
             width = { app.width - app.gutter * 2 },
             layout: ResponsiveLayout [ gap = 0, plan = { [
                 ({ from: 593, flow: "row", share: ({ kebab: 0 }) }),
@@ -1737,10 +1738,10 @@ App [ tagline: string = "a UI language for you and your AI",
     // if the window is widened back past the breakpoint.
 
     navSheet: View [ ignoreScroll = true, visible = { app.menuOpen && app.header.bar.kebab.visible }, width = { app.width }, height = { app.height },
-        scrim: View [ y = 56, width = { parent.width }, height = { parent.height - 56 }, fill = { theme.scrim },
+        scrim: View [ y = { 56 + app.safeTop }, width = { parent.width }, height = { parent.height - 56 - app.safeTop }, fill = { theme.scrim },
             onClick() { app.menuOpen = false }
             ],
-        panel: View [ x = { app.width - app.gutter - this.width }, y = 62, width = 236, cornerRadius = 12,
+        panel: View [ x = { app.width - app.gutter - this.width }, y = { 62 + app.safeTop }, width = 236, cornerRadius = 12,
             fill = { theme.surface }, shadow = { shadow(0, 12, 40, theme.shade) },
 
             // DERIVED from the list, not counted: rows and group children are

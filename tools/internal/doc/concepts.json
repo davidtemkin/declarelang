@@ -136,7 +136,16 @@
     "typeface": "View.fontFamily",
     "italics": "Text.italic",
     "sticky": "View.ignoreScroll",
-    "position sticky": "View.ignoreScroll"
+    "position sticky": "View.ignoreScroll",
+    "safe area": "App.safeTop",
+    "safe area insets": "App.safeTop",
+    "safeareainsets": "App.safeTop",
+    "notch": "App.safeTop",
+    "dynamic island": "App.safeTop",
+    "home indicator": "App.safeBottom",
+    "viewport fit": "App.edges",
+    "edge to edge": "App.edges",
+    "full bleed": "App.edges"
   },
   "negative": [
     {
@@ -225,17 +234,6 @@
         "avatar"
       ],
       "answer": "No dedicated component — the library is deliberately small, and these are compositions: a card is a `View` (`cornerRadius`, `shadow`, `fill`); a toast is an `ignoreScroll` View a `Spring` slides in; a drawer is a panel whose `x` follows one sprung scalar; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
-    },
-    {
-      "terms": [
-        "safe area",
-        "safe-area",
-        "safeAreaInsets",
-        "notch",
-        "home indicator",
-        "viewport-fit"
-      ],
-      "answer": "No safe-area surface yet — a full-page app runs letterboxed inside the safe region (the browser keeps it clear of the notch and home indicator), and the letterbox bars take the app's own `fill`, so nothing looks broken. What is not yet possible is the edge-to-edge look: there is no `viewport-fit=cover` opt-in and no `app.safeTop`/`safeBottom` facts for pinned chrome to inset by. This is a QUEUED fix (2026-08-08, the homepage is its first consumer) — if a brief needs edge-to-edge before it lands, that is worth reporting."
     }
   ]
 }

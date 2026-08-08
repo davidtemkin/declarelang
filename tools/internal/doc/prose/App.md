@@ -167,6 +167,37 @@ answer changes per gesture, which is exactly what makes this the right input for
 affordances — and the wrong one for layout, which must not reflow because someone reached
 past their trackpad.
 
+## edges
+How the app meets the device's **own** chrome — a phone's notch and home-indicator bar.
+`safe` (the default) letterboxes the app inside the safe region: the browser keeps the box
+clear of the system chrome, the letterbox bars wear the app's own `fill`, and every
+`safe*` inset reads 0 — there is nothing to handle. `edges = cover` is the edge-to-edge
+opt-in: the runtime patches `viewport-fit=cover` into the page's viewport meta at mount,
+the box extends under the system chrome, and the `safeTop`…`safeRight` facts carry the
+real insets for pinned chrome to place itself with. A fact about the app, read at mount —
+not a runtime toggle. Desktop browsers are unaffected either way.
+
+## safeTop
+**Read-only.** The top safe-area inset in pixels — the notch/status-bar band. `0` while
+letterboxed (`edges = safe`) and on any desktop; the device's real number under
+`edges = cover`, live across rotation. Pinned top chrome offsets itself with it:
+`y = { app.safeTop }`.
+
+## safeBottom
+**Read-only.** The bottom safe-area inset — the home-indicator band. A pinned bottom bar
+reserves it *below* its buttons: `height = { 56 + app.safeBottom }` with the content
+anchored to the bar's top, so the swipe band is the bar's fill rather than dead space.
+
+## safeLeft
+**Read-only.** The side safe-area insets: `0` in portrait; in landscape the sensor
+housing claims one side and rotation re-feeds all four facts. Full-width pinned chrome
+insets both edges: `x = { app.safeLeft }`,
+`width = { app.width - app.safeLeft - app.safeRight }`.
+
+## safeRight
+**Read-only.** The right-side counterpart of `safeLeft` — see it for the landscape story
+and the full-width idiom.
+
 ## env
 Whatever the host passed in, as a record — the clean pass-through for a desktop hosting a
 child app and pushing appearance or configuration down. `{}` when top-level or when the

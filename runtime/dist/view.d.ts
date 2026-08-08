@@ -529,6 +529,21 @@ export declare class App extends View {
      *  changes per gesture: reveal hover-only affordances with
      *  `visible = { app.lastPointerType == "mouse" }`. Read-only to user code. */
     lastPointerType: string;
+    /** How the app meets the device's own chrome (the notch, the home-indicator
+     *  bar): `"safe"` (default) letterboxes the app inside the safe region —
+     *  the bars wear the app's fill and every inset reads 0; `"cover"` extends
+     *  the box edge-to-edge (viewport-fit=cover, patched at mount) and the
+     *  `safeTop`…`safeRight` facts carry the real insets for pinned chrome to
+     *  place itself with. A fact about the app, read at mount. */
+    edges: "safe" | "cover";
+    /** The safe-area insets, in pixels — live (rotation re-reads them), 0
+     *  while letterboxed or on any desktop. Under `edges = cover`, pinned
+     *  chrome offsets itself: `y = { app.safeTop }`, a bottom bar reserving
+     *  `app.safeBottom` below its buttons. Fed by boot.ts wireSafeArea. */
+    safeTop: number;
+    safeBottom: number;
+    safeLeft: number;
+    safeRight: number;
     /** The embedding environment's parameters (see schema.ts `env`): a record
      *  the host provides and keeps live; `{}` when top-level. Read reactively —
      *  `theme = { Themes.x(app.env.dark == true) }` follows the host's flips. */

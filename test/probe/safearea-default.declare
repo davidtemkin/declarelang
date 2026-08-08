@@ -1,0 +1,3 @@
+// The letterbox default: no edges declaration, so the viewport meta must stay untouched.
+
+App [ width = 200, height = 100, fill = #16191E ]

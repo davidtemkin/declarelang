@@ -5,8 +5,8 @@
     "id": "apps/homepage/homepage.declare",
     "kind": "file",
     "v": {
-     "hash": "81c1a6bbc6d3cd3a",
-     "size": 98156
+     "hash": "64bd2adac961ee09",
+     "size": 98275
     }
    },
    {
@@ -165,7 +165,7 @@
     "id": "apps/homepage/stats.json",
     "kind": "file",
     "v": {
-     "hash": "9354ac4a3aea7ea2",
+     "hash": "c5b8a13e3061186e",
      "size": 575
     }
    },

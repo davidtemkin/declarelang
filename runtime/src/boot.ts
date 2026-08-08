@@ -123,6 +123,53 @@ function wireColorScheme(app: App): () => void {
   return () => mq.removeEventListener("change", update);
 }
 
+/** Feed the SAFE-AREA facts (`app.safeTop`…`safeRight`) and honor `edges = cover`.
+ *
+ *  The default is the letterbox: the browser keeps the app clear of the
+ *  device's own chrome (notch, home indicator), the bars wear the app's fill
+ *  (dom-backend attachRoot), and every inset reads 0 — nothing to handle.
+ *  `edges = cover` is the opt-in for the edge-to-edge look: it patches
+ *  `viewport-fit=cover` into the page's viewport meta (append, never replace —
+ *  the served meta's width/scale terms are load-bearing on iOS), at which
+ *  point the box extends under the system chrome and the insets become real
+ *  numbers pinned chrome must offset by.
+ *
+ *  The one way to READ the insets is CSS `env(safe-area-inset-*)` — resolved
+ *  through a hidden probe element's computed padding. Re-measured on `resize`
+ *  (rotation swaps top/left insets) and once on the next tick, because iOS
+ *  applies a meta patch asynchronously. `edges` itself is read at mount: it is
+ *  a fact about the app, not a runtime toggle. */
+function wireSafeArea(app: App, w: Window): void {
+  const doc = w.document;
+  if (app.edges === "cover") {
+    let meta = doc.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (meta === null) {
+      meta = doc.createElement("meta");
+      meta.name = "viewport";
+      meta.content = "width=device-width, initial-scale=1";
+      doc.head.appendChild(meta);
+    }
+    if (!meta.content.includes("viewport-fit")) {
+      meta.content = meta.content === "" ? "viewport-fit=cover" : meta.content + ", viewport-fit=cover";
+    }
+  }
+  const probe = doc.createElement("div");
+  probe.style.cssText =
+    "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;" +
+    "padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)";
+  doc.body.appendChild(probe);
+  const measure = () => {
+    const s = w.getComputedStyle(probe);
+    app.safeTop = parseFloat(s.paddingTop) || 0;
+    app.safeRight = parseFloat(s.paddingRight) || 0;
+    app.safeBottom = parseFloat(s.paddingBottom) || 0;
+    app.safeLeft = parseFloat(s.paddingLeft) || 0;
+  };
+  measure();
+  w.setTimeout(measure, 0); // the cover reflow lands after the meta patch
+  w.addEventListener("resize", measure);
+}
+
 /** Feed `app.touchDevice` — "am I running on a touch device?" — from the device's
  *  primary pointer: true on a phone or tablet (`(pointer: coarse)`), so mouse-only
  *  affordances (a cursor-chasing dot, a hover reveal) switch off. A stable device
@@ -169,6 +216,7 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   const w = window;
   wireColorScheme(app);                    // top-level app lives for the page — no teardown needed
   wireTouchDevice(app);                    // device pointer kind — likewise page-lived
+  wireSafeArea(app, w);                    // notch/home-indicator insets — likewise page-lived
   // The LAYOUT viewport, never the visual one: on iOS/iPadOS `window.inner*`
   // track the VISUAL viewport and a pinch-zoom fires `resize`, so sizing from
   // them re-laid the whole app out under the user's fingers, at the zoomed

@@ -1170,6 +1170,21 @@ export class App extends View {
    *  changes per gesture: reveal hover-only affordances with
    *  `visible = { app.lastPointerType == "mouse" }`. Read-only to user code. */
   declare lastPointerType: string;
+  /** How the app meets the device's own chrome (the notch, the home-indicator
+   *  bar): `"safe"` (default) letterboxes the app inside the safe region —
+   *  the bars wear the app's fill and every inset reads 0; `"cover"` extends
+   *  the box edge-to-edge (viewport-fit=cover, patched at mount) and the
+   *  `safeTop`…`safeRight` facts carry the real insets for pinned chrome to
+   *  place itself with. A fact about the app, read at mount. */
+  declare edges: "safe" | "cover";
+  /** The safe-area insets, in pixels — live (rotation re-reads them), 0
+   *  while letterboxed or on any desktop. Under `edges = cover`, pinned
+   *  chrome offsets itself: `y = { app.safeTop }`, a bottom bar reserving
+   *  `app.safeBottom` below its buttons. Fed by boot.ts wireSafeArea. */
+  declare safeTop: number;
+  declare safeBottom: number;
+  declare safeLeft: number;
+  declare safeRight: number;
   /** The embedding environment's parameters (see schema.ts `env`): a record
    *  the host provides and keeps live; `{}` when top-level. Read reactively —
    *  `theme = { Themes.x(app.env.dark == true) }` follows the host's flips. */
@@ -1514,6 +1529,31 @@ defineAttributes(App, {
   hasTouch: { def: false },
   hasPointer: { def: true },      // a plain desktop until the profile says otherwise
   lastPointerType: { def: "mouse" },
+  // How the app meets the DEVICE'S OWN chrome — a phone's notch/Dynamic Island
+  // and home-indicator bar. `safe` (the default) letterboxes the app inside the
+  // safe region: the browser keeps the box clear of the system chrome, the
+  // letterbox bars wear the app's own `fill`, and every `safe*` inset reads 0 —
+  // nothing to handle. `cover` is the edge-to-edge opt-in: the runtime patches
+  // `viewport-fit=cover` into the page's viewport meta at mount, the box
+  // extends under the system chrome, and the `safeTop`…`safeRight` facts carry
+  // the real insets for pinned chrome to place itself with. A fact about the
+  // app, read at mount — not a runtime toggle.
+  edges: { def: "safe" },
+  // The top safe-area inset, in pixels — the notch/status-bar band. 0 while
+  // letterboxed (`edges = safe`) and on any desktop; the device's real number
+  // under `edges = cover`, live across rotation. Pinned top chrome offsets
+  // itself with it: `y = { app.safeTop }`.
+  safeTop: { def: 0 },
+  // The bottom safe-area inset — the home-indicator band. A pinned bottom bar
+  // reserves it BELOW its buttons: `height = { 56 + app.safeBottom }` with the
+  // content anchored to the bar's top. 0 letterboxed or on desktop; live.
+  safeBottom: { def: 0 },
+  // The side safe-area insets — 0 in portrait, the sensor-housing band on one
+  // side in landscape (rotation re-feeds all four). Full-width pinned chrome
+  // insets both edges: `x = { app.safeLeft }`,
+  // `width = { app.width - app.safeLeft - app.safeRight }`.
+  safeLeft: { def: 0 },
+  safeRight: { def: 0 },
   // the embedding environment's parameters (schema.ts): the HOST replaces the
   // whole record on every change (never mutates), so the default may be one
   // shared frozen empty object — reads like `app.env.dark` never null-crash

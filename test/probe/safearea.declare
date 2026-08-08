@@ -1,0 +1,7 @@
+// The safe-area probe: edges=cover patches the viewport meta; the four insets
+// are live App facts (0 on any desktop; the device's real numbers on a phone).
+
+App [ width = 200, height = 100, fill = #16191E, edges = cover,
+    bar: View [ x = { app.safeLeft }, y = { app.safeTop },
+        width = { app.width - app.safeLeft - app.safeRight }, height = 40, fill = #24303B ]
+    ]
