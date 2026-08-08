@@ -173,7 +173,7 @@ Text [ text = "OK" ]                  // a CHILD, anonymous
 ```
 
 **`draw(d: Draw)` is a first-class member, not an escape hatch.** It records a display list of plain
-ops that both renderers replay, and it is a *tracked computation* like any constraint: it re-runs
+ops that every renderer replays, and it is a *tracked computation* like any constraint: it re-runs
 when what it read changes, never per frame. The library draws with it — a `Checkbox`'s tick is a
 recorded path, not a glyph. `d` takes the Canvas2D drawing calls (`fillStyle`, `beginPath`,
 `moveTo`, `stroke`, …).
@@ -791,8 +791,10 @@ site noticing; hand it children and you have frozen its internals into your sour
    its path. Apps are typically one file, grown with `include` (§4).
 2. **Run it at its URL.** The program URL *is* the app's address: with the dev server up,
    navigating to `…/<name>.declare` compiles on request and renders. The same address takes
-   modifiers for the alternate renderer, the in-browser editor, and the crawler's document.
-   Typechecking of every `{ }` body is part of every compile; there is no flag.
+   modifiers for the canvas renderer (`?render=canvas`), the in-browser editor, and the
+   crawler's document — and the same file runs unchanged in a native Mac host, held to the
+   browser renderers by a conformance suite. Typechecking of every `{ }` body is part of
+   every compile; there is no flag.
 3. **Read the error.** Every diagnostic carries a code, a line and column, and the fix. Apply
    exactly the named fix, change nothing else, recompile. All independent errors in a phase are
    reported together.

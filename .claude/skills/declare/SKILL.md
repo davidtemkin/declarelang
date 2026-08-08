@@ -72,14 +72,20 @@ to learn it, or jump to the chapter your task needs:
 | hover / press / drag, clicks, keyboard | `docs/guide/07-interaction.md` |
 | the standard library (buttons, inputs), the value pattern | `docs/guide/08-controls.md` |
 | lists, datasets, editing data, loading documents | `docs/guide/09-data.md` |
+| big collections, `virtualize`, selection, `DataGrid` | `docs/guide/10-scale.md` |
 | your own component, control, icon, or layout | `docs/guide/11-make-your-own.md` |
+| menus, dialogs, popovers, tooltips — anything over the flow | `docs/guide/12-above-the-flow.md` |
+| deep links, the URL, `location`, `waypoint`, history, crawlability | `docs/guide/13-location.md` |
 | states, springs, animation, `Heartbeat` | `docs/guide/14-motion-and-states.md` |
+| whole arrangements moving as one — the sprung-scalar idiom | `docs/guide/15-arrangement.md` |
 | touch, gesture ownership, pinch/wheel zoom | `docs/guide/16-gestures.md` |
-| deep links, the URL, `location`, `waypoint`, history | `docs/guide/13-location.md` |
+| the canvas renderer, the native Mac host, choosing a target | `docs/guide/17-renderers.md` |
+| embedding — an app in a page, foreign DOM in an app, apps in apps | `docs/guide/18-embedding.md` |
 | run / verify / ship, extraction | `docs/guide/19-run-check-ship.md` |
+| canonical formatting, the one file shape | `docs/guide/22-style.md` |
 
-(`docs/guide/` holds the full set; `15-with-an-llm.md` is written for an agent in
-particular.)
+(`docs/guide/` holds the full set; `20-with-an-llm.md` is written for an agent in
+particular, and `21-calendar.md` reads the flagship app end to end.)
 
 **For an exact fact** — an attribute's name, an enum's tokens, a flag, a diagnostic code,
 a standard-library component — ask the help tool:
