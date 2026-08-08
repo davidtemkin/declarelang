@@ -594,9 +594,18 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   }
   for (const m of cls.body.methods) {
     const isEvent = /^on[A-Z]/.test(m.name);
-    const id = `${tag}.${isEvent ? "event" : "method"}.${m.name}`;
+    // ONE event vocabulary: keys carry the EVENT name (`Button.event.click`),
+    // exactly as the runtime classes' entries do — a handler name is derived
+    // (`on` + capitalized event), never a second key form. Before this, 21
+    // library events sat under `Class.event.onClick` where the help tool's
+    // class walk could not reach them, so `declare-help Button.onClick`
+    // answered with View's inherited prose while Button's own sat unreachable
+    // (found by the 2026-08-07 prose audit). Prose stays keyed by the handler
+    // heading (`## onClick`), which is how the corpus writes it.
+    const evName = isEvent ? m.name[2].toLowerCase() + m.name.slice(3) : m.name;
+    const id = `${tag}.${isEvent ? "event" : "method"}.${evName}`;
     const pm = prose.methods[m.name] ?? prose.members[m.name] ?? null;
-    nodes[id] = { id, name: m.name, kind: isEvent ? "event" : "method", doc: pm, docSegs: segmentize(pm, id),
+    nodes[id] = { id, name: evName, kind: isEvent ? "event" : "method", doc: pm, docSegs: segmentize(pm, id),
       api: !prose.internal.has(m.name), internal: prose.internal.has(m.name),
       source: { file: rel, line: 0 }, parent: tag, seeAlso: [],
       signature: `${m.name}(${(m.params ?? []).map((p) => p.name ?? p).join(", ")})` };

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "207de8749e81",
+  "buildId": "2e30776558ed",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -3091,9 +3091,9 @@
     "title": "Button",
     "kind": "reference"
    },
-   "Button.event.onClick": {
+   "Button.event.click": {
     "path": "docs/declare-model.json",
-    "title": "Button.event.onClick",
+    "title": "Button.event.click",
     "kind": "reference"
    },
    "Button.gap": {
@@ -3146,9 +3146,9 @@
     "title": "Checkbox.checked",
     "kind": "reference"
    },
-   "Checkbox.event.onClick": {
+   "Checkbox.event.click": {
     "path": "docs/declare-model.json",
-    "title": "Checkbox.event.onClick",
+    "title": "Checkbox.event.click",
     "kind": "reference"
    },
    "Checkbox.label": {
@@ -3366,24 +3366,24 @@
     "title": "Control.down",
     "kind": "reference"
    },
-   "Control.event.onBlur": {
+   "Control.event.blur": {
     "path": "docs/declare-model.json",
-    "title": "Control.event.onBlur",
+    "title": "Control.event.blur",
     "kind": "reference"
    },
-   "Control.event.onFocus": {
+   "Control.event.focus": {
     "path": "docs/declare-model.json",
-    "title": "Control.event.onFocus",
+    "title": "Control.event.focus",
     "kind": "reference"
    },
-   "Control.event.onKeyDown": {
+   "Control.event.keyDown": {
     "path": "docs/declare-model.json",
-    "title": "Control.event.onKeyDown",
+    "title": "Control.event.keyDown",
     "kind": "reference"
    },
-   "Control.event.onPointerDown": {
+   "Control.event.pointerDown": {
     "path": "docs/declare-model.json",
-    "title": "Control.event.onPointerDown",
+    "title": "Control.event.pointerDown",
     "kind": "reference"
    },
    "Control.flash": {
@@ -3496,9 +3496,9 @@
     "title": "DataGrid.escaped",
     "kind": "reference"
    },
-   "DataGrid.event.onInit": {
+   "DataGrid.event.init": {
     "path": "docs/declare-model.json",
-    "title": "DataGrid.event.onInit",
+    "title": "DataGrid.event.init",
     "kind": "reference"
    },
    "DataGrid.headerH": {
@@ -4156,9 +4156,9 @@
     "title": "IconHost",
     "kind": "reference"
    },
-   "IconHost.event.onInit": {
+   "IconHost.event.init": {
     "path": "docs/declare-model.json",
-    "title": "IconHost.event.onInit",
+    "title": "IconHost.event.init",
     "kind": "reference"
    },
    "IconHost.ink": {
@@ -4581,14 +4581,14 @@
     "title": "Pane",
     "kind": "reference"
    },
-   "Pane.event.onClick": {
+   "Pane.event.click": {
     "path": "docs/declare-model.json",
-    "title": "Pane.event.onClick",
+    "title": "Pane.event.click",
     "kind": "reference"
    },
-   "Pane.event.onInit": {
+   "Pane.event.init": {
     "path": "docs/declare-model.json",
-    "title": "Pane.event.onInit",
+    "title": "Pane.event.init",
     "kind": "reference"
    },
    "Pane.initial": {
@@ -4666,9 +4666,9 @@
     "title": "Radio.choice",
     "kind": "reference"
    },
-   "Radio.event.onClick": {
+   "Radio.event.click": {
     "path": "docs/declare-model.json",
-    "title": "Radio.event.onClick",
+    "title": "Radio.event.click",
     "kind": "reference"
    },
    "Radio.label": {
@@ -4841,14 +4841,14 @@
     "title": "SegmentedItem",
     "kind": "reference"
    },
-   "SegmentedItem.event.onClick": {
+   "SegmentedItem.event.click": {
     "path": "docs/declare-model.json",
-    "title": "SegmentedItem.event.onClick",
+    "title": "SegmentedItem.event.click",
     "kind": "reference"
    },
-   "SegmentedItem.event.onKeyDown": {
+   "SegmentedItem.event.keyDown": {
     "path": "docs/declare-model.json",
-    "title": "SegmentedItem.event.onKeyDown",
+    "title": "SegmentedItem.event.keyDown",
     "kind": "reference"
    },
    "SegmentedItem.ink": {
@@ -4911,24 +4911,24 @@
     "title": "Slider.dragging",
     "kind": "reference"
    },
-   "Slider.event.onKeyDown": {
+   "Slider.event.keyDown": {
     "path": "docs/declare-model.json",
-    "title": "Slider.event.onKeyDown",
+    "title": "Slider.event.keyDown",
     "kind": "reference"
    },
-   "Slider.event.onPointerDown": {
+   "Slider.event.pointerDown": {
     "path": "docs/declare-model.json",
-    "title": "Slider.event.onPointerDown",
+    "title": "Slider.event.pointerDown",
     "kind": "reference"
    },
-   "Slider.event.onPointerMove": {
+   "Slider.event.pointerMove": {
     "path": "docs/declare-model.json",
-    "title": "Slider.event.onPointerMove",
+    "title": "Slider.event.pointerMove",
     "kind": "reference"
    },
-   "Slider.event.onPointerUp": {
+   "Slider.event.pointerUp": {
     "path": "docs/declare-model.json",
-    "title": "Slider.event.onPointerUp",
+    "title": "Slider.event.pointerUp",
     "kind": "reference"
    },
    "Slider.frac": {
@@ -5231,9 +5231,9 @@
     "title": "Switch.checked",
     "kind": "reference"
    },
-   "Switch.event.onClick": {
+   "Switch.event.click": {
     "path": "docs/declare-model.json",
-    "title": "Switch.event.onClick",
+    "title": "Switch.event.click",
     "kind": "reference"
    },
    "Switch.method.input": {
@@ -5266,9 +5266,9 @@
     "title": "Table.anchorIndex",
     "kind": "reference"
    },
-   "Table.event.onKeyDown": {
+   "Table.event.keyDown": {
     "path": "docs/declare-model.json",
-    "title": "Table.event.onKeyDown",
+    "title": "Table.event.keyDown",
     "kind": "reference"
    },
    "Table.isTable": {
@@ -5371,14 +5371,14 @@
     "title": "TableRow.active",
     "kind": "reference"
    },
-   "TableRow.event.onClick": {
+   "TableRow.event.click": {
     "path": "docs/declare-model.json",
-    "title": "TableRow.event.onClick",
+    "title": "TableRow.event.click",
     "kind": "reference"
    },
-   "TableRow.event.onPointerDown": {
+   "TableRow.event.pointerDown": {
     "path": "docs/declare-model.json",
-    "title": "TableRow.event.onPointerDown",
+    "title": "TableRow.event.pointerDown",
     "kind": "reference"
    },
    "TableRow.isTableRow": {
@@ -16678,9 +16678,9 @@
    "seeAlso": [],
    "signature": "flashPress()"
   },
-  "Control.event.onFocus": {
-   "id": "Control.event.onFocus",
-   "name": "onFocus",
+  "Control.event.focus": {
+   "id": "Control.event.focus",
+   "name": "focus",
    "kind": "event",
    "doc": "Records focus and captures the keyboard modality into `focusVisible`. An override must\nkeep both or the focus channel goes dark.",
    "docSegs": [
@@ -16699,9 +16699,9 @@
    "seeAlso": [],
    "signature": "onFocus()"
   },
-  "Control.event.onBlur": {
-   "id": "Control.event.onBlur",
-   "name": "onBlur",
+  "Control.event.blur": {
+   "id": "Control.event.blur",
+   "name": "blur",
    "kind": "event",
    "doc": "Clears `focused` and `focusVisible`.",
    "docSegs": [
@@ -16720,9 +16720,9 @@
    "seeAlso": [],
    "signature": "onBlur()"
   },
-  "Control.event.onPointerDown": {
-   "id": "Control.event.onPointerDown",
-   "name": "onPointerDown",
+  "Control.event.pointerDown": {
+   "id": "Control.event.pointerDown",
+   "name": "pointerDown",
    "kind": "event",
    "doc": "Claims focus, clears the `:focus-visible` channel, and opens `menu` if there is one —\nmenus open on **press**, not release, as the platform does. **An override must keep the\n`Focus.focus(this)` call**, or clicking the control strands the keyboard elsewhere.",
    "docSegs": [
@@ -16741,9 +16741,9 @@
    "seeAlso": [],
    "signature": "onPointerDown()"
   },
-  "Control.event.onKeyDown": {
-   "id": "Control.event.onKeyDown",
-   "name": "onKeyDown",
+  "Control.event.keyDown": {
+   "id": "Control.event.keyDown",
+   "name": "keyDown",
    "kind": "event",
    "doc": "Space and Enter run `press()`; ArrowDown opens `menu`. Ignores auto-repeat.",
    "docSegs": [
@@ -16826,10 +16826,10 @@
     "Control.method.flashPress"
    ],
    "events": [
-    "Control.event.onFocus",
-    "Control.event.onBlur",
-    "Control.event.onPointerDown",
-    "Control.event.onKeyDown"
+    "Control.event.focus",
+    "Control.event.blur",
+    "Control.event.pointerDown",
+    "Control.event.keyDown"
    ],
    "example": [],
    "chain": [
@@ -16976,9 +16976,9 @@
    "seeAlso": [],
    "signature": "press()"
   },
-  "Checkbox.event.onClick": {
-   "id": "Checkbox.event.onClick",
-   "name": "onClick",
+  "Checkbox.event.click": {
+   "id": "Checkbox.event.click",
+   "name": "click",
    "kind": "event",
    "doc": "Runs `press()` when enabled. Override `input` instead if what you want is the value.",
    "docSegs": [
@@ -17040,7 +17040,7 @@
     "Checkbox.method.press"
    ],
    "events": [
-    "Checkbox.event.onClick"
+    "Checkbox.event.click"
    ],
    "example": [],
    "chain": [
@@ -17175,9 +17175,9 @@
    "readOnly": false,
    "inheritedFrom": null
   },
-  "Button.event.onClick": {
-   "id": "Button.event.onClick",
-   "name": "onClick",
+  "Button.event.click": {
+   "id": "Button.event.click",
+   "name": "click",
    "kind": "event",
    "doc": "Your handler. Fires after the press is delivered, so the affordance has already\nrun — put the work here, not in `press()`.",
    "docSegs": [
@@ -17249,7 +17249,7 @@
     "Button.method.press"
    ],
    "events": [
-    "Button.event.onClick"
+    "Button.event.click"
    ],
    "example": [],
    "chain": [
@@ -17326,9 +17326,9 @@
    "seeAlso": [],
    "signature": "press()"
   },
-  "Switch.event.onClick": {
-   "id": "Switch.event.onClick",
-   "name": "onClick",
+  "Switch.event.click": {
+   "id": "Switch.event.click",
+   "name": "click",
    "kind": "event",
    "doc": "Fires on click when the switch is enabled. `press()` is the activation path;\nprefer overriding `input` if what you want is the value.",
    "docSegs": [
@@ -17376,7 +17376,7 @@
     "Switch.method.press"
    ],
    "events": [
-    "Switch.event.onClick"
+    "Switch.event.click"
    ],
    "example": [],
    "chain": [
@@ -17649,9 +17649,9 @@
    "seeAlso": [],
    "signature": "quant(v)"
   },
-  "Slider.event.onPointerDown": {
-   "id": "Slider.event.onPointerDown",
-   "name": "onPointerDown",
+  "Slider.event.pointerDown": {
+   "id": "Slider.event.pointerDown",
+   "name": "pointerDown",
    "kind": "event",
    "doc": "Jumps the value to the pressed position, claims focus, and latches the drag.",
    "docSegs": [
@@ -17670,9 +17670,9 @@
    "seeAlso": [],
    "signature": "onPointerDown(e)"
   },
-  "Slider.event.onPointerUp": {
-   "id": "Slider.event.onPointerUp",
-   "name": "onPointerUp",
+  "Slider.event.pointerUp": {
+   "id": "Slider.event.pointerUp",
+   "name": "pointerUp",
    "kind": "event",
    "doc": "Ends the drag.",
    "docSegs": [
@@ -17691,9 +17691,9 @@
    "seeAlso": [],
    "signature": "onPointerUp()"
   },
-  "Slider.event.onPointerMove": {
-   "id": "Slider.event.onPointerMove",
-   "name": "onPointerMove",
+  "Slider.event.pointerMove": {
+   "id": "Slider.event.pointerMove",
+   "name": "pointerMove",
    "kind": "event",
    "doc": "Tracks the drag by **root-space** pointer delta, so the handle keeps up with a pointer\nthat has left the control.",
    "docSegs": [
@@ -17712,9 +17712,9 @@
    "seeAlso": [],
    "signature": "onPointerMove()"
   },
-  "Slider.event.onKeyDown": {
-   "id": "Slider.event.onKeyDown",
-   "name": "onKeyDown",
+  "Slider.event.keyDown": {
+   "id": "Slider.event.keyDown",
+   "name": "keyDown",
    "kind": "event",
    "doc": "Left and Right nudge by one `step`, delivered through `input` like any other change.",
    "docSegs": [
@@ -17825,10 +17825,10 @@
     "Slider.method.dotStyle"
    ],
    "events": [
-    "Slider.event.onPointerDown",
-    "Slider.event.onPointerUp",
-    "Slider.event.onPointerMove",
-    "Slider.event.onKeyDown"
+    "Slider.event.pointerDown",
+    "Slider.event.pointerUp",
+    "Slider.event.pointerMove",
+    "Slider.event.keyDown"
    ],
    "example": [],
    "chain": [
@@ -18069,9 +18069,9 @@
    "seeAlso": [],
    "signature": "press()"
   },
-  "Radio.event.onClick": {
-   "id": "Radio.event.onClick",
-   "name": "onClick",
+  "Radio.event.click": {
+   "id": "Radio.event.click",
+   "name": "click",
    "kind": "event",
    "doc": "Runs `press()` when enabled.",
    "docSegs": [
@@ -18132,7 +18132,7 @@
     "Radio.method.press"
    ],
    "events": [
-    "Radio.event.onClick"
+    "Radio.event.click"
    ],
    "example": [],
    "chain": [
@@ -18981,9 +18981,9 @@
    "readOnly": false,
    "inheritedFrom": null
   },
-  "Pane.event.onInit": {
-   "id": "Pane.event.onInit",
-   "name": "onInit",
+  "Pane.event.init": {
+   "id": "Pane.event.init",
+   "name": "init",
    "kind": "event",
    "doc": "Applies `initial`. Fires once per pane.",
    "docSegs": [
@@ -19044,9 +19044,9 @@
    "seeAlso": [],
    "signature": "press()"
   },
-  "Pane.event.onClick": {
-   "id": "Pane.event.onClick",
-   "name": "onClick",
+  "Pane.event.click": {
+   "id": "Pane.event.click",
+   "name": "click",
    "kind": "event",
    "doc": "Runs `press()` when enabled.",
    "docSegs": [
@@ -19109,8 +19109,8 @@
     "Pane.method.press"
    ],
    "events": [
-    "Pane.event.onInit",
-    "Pane.event.onClick"
+    "Pane.event.init",
+    "Pane.event.click"
    ],
    "example": [],
    "chain": [
@@ -21952,9 +21952,9 @@
    "seeAlso": [],
    "signature": "showRow(i)"
   },
-  "Table.event.onKeyDown": {
-   "id": "Table.event.onKeyDown",
-   "name": "onKeyDown",
+  "Table.event.keyDown": {
+   "id": "Table.event.keyDown",
+   "name": "keyDown",
    "kind": "event",
    "doc": "Arrows, Home/End, Space (multi), Delete/Backspace and Enter. An override should call\nthrough or the table loses its keyboard.",
    "docSegs": [
@@ -22075,7 +22075,7 @@
     "Table.method.activateRequested"
    ],
    "events": [
-    "Table.event.onKeyDown"
+    "Table.event.keyDown"
    ],
    "example": [],
    "chain": [
@@ -22202,9 +22202,9 @@
    "seeAlso": [],
    "signature": "rowIndex()"
   },
-  "TableRow.event.onPointerDown": {
-   "id": "TableRow.event.onPointerDown",
-   "name": "onPointerDown",
+  "TableRow.event.pointerDown": {
+   "id": "TableRow.event.pointerDown",
+   "name": "pointerDown",
    "kind": "event",
    "doc": "Focuses the **table**, not the row — rows are never tab stops, so the arrow keys must\nland on the container.",
    "docSegs": [
@@ -22223,9 +22223,9 @@
    "seeAlso": [],
    "signature": "onPointerDown()"
   },
-  "TableRow.event.onClick": {
-   "id": "TableRow.event.onClick",
-   "name": "onClick",
+  "TableRow.event.click": {
+   "id": "TableRow.event.click",
+   "name": "click",
    "kind": "event",
    "doc": "Delivers the click to the table's `rowClick` with the modifier state. Override\n`rowClick` on the table rather than this, unless a particular row needs to opt out.",
    "docSegs": [
@@ -22288,8 +22288,8 @@
     "TableRow.method.rowIndex"
    ],
    "events": [
-    "TableRow.event.onPointerDown",
-    "TableRow.event.onClick"
+    "TableRow.event.pointerDown",
+    "TableRow.event.click"
    ],
    "example": [],
    "chain": [
@@ -23460,9 +23460,9 @@
    "seeAlso": [],
    "signature": "openSelect(row, cell, field, current)"
   },
-  "DataGrid.event.onInit": {
-   "id": "DataGrid.event.onInit",
-   "name": "onInit",
+  "DataGrid.event.init": {
+   "id": "DataGrid.event.init",
+   "name": "init",
    "kind": "event",
    "doc": "Starts the header's escape from the scroll box (see `escaped`), retrying briefly until\nthe backend has surfaces to work with.",
    "docSegs": [
@@ -23569,7 +23569,7 @@
     "DataGrid.method.tryEscape"
    ],
    "events": [
-    "DataGrid.event.onInit"
+    "DataGrid.event.init"
    ],
    "example": [],
    "chain": [
@@ -25049,9 +25049,9 @@
    "readOnly": false,
    "inheritedFrom": null
   },
-  "IconHost.event.onInit": {
-   "id": "IconHost.event.onInit",
-   "name": "onInit",
+  "IconHost.event.init": {
+   "id": "IconHost.event.init",
+   "name": "init",
    "kind": "event",
    "doc": "Builds the named icon. Fires once.",
    "docSegs": [
@@ -25097,7 +25097,7 @@
    ],
    "methods": [],
    "events": [
-    "IconHost.event.onInit"
+    "IconHost.event.init"
    ],
    "example": [],
    "chain": [
@@ -25227,9 +25227,9 @@
    "seeAlso": [],
    "signature": "press()"
   },
-  "SegmentedItem.event.onClick": {
-   "id": "SegmentedItem.event.onClick",
-   "name": "onClick",
+  "SegmentedItem.event.click": {
+   "id": "SegmentedItem.event.click",
+   "name": "click",
    "kind": "event",
    "doc": "Navigates if the choice carries a `location`, then presses.",
    "docSegs": [
@@ -25248,9 +25248,9 @@
    "seeAlso": [],
    "signature": "onClick()"
   },
-  "SegmentedItem.event.onKeyDown": {
-   "id": "SegmentedItem.event.onKeyDown",
-   "name": "onKeyDown",
+  "SegmentedItem.event.keyDown": {
+   "id": "SegmentedItem.event.keyDown",
+   "name": "keyDown",
    "kind": "event",
    "doc": "Space and Enter pick; arrows rove to the adjacent segment.",
    "docSegs": [
@@ -25322,8 +25322,8 @@
     "SegmentedItem.method.focusShape"
    ],
    "events": [
-    "SegmentedItem.event.onClick",
-    "SegmentedItem.event.onKeyDown"
+    "SegmentedItem.event.click",
+    "SegmentedItem.event.keyDown"
    ],
    "example": [],
    "chain": [
@@ -33368,8 +33368,8 @@
    ],
    "events": [
     {
-     "id": "Control.event.onFocus",
-     "name": "onFocus",
+     "id": "Control.event.focus",
+     "name": "focus",
      "kind": "event",
      "doc": "Records focus and captures the keyboard modality into `focusVisible`. An override must\nkeep both or the focus channel goes dark.",
      "docSegs": [
@@ -33389,8 +33389,8 @@
      "signature": "onFocus()"
     },
     {
-     "id": "Control.event.onBlur",
-     "name": "onBlur",
+     "id": "Control.event.blur",
+     "name": "blur",
      "kind": "event",
      "doc": "Clears `focused` and `focusVisible`.",
      "docSegs": [
@@ -33410,8 +33410,8 @@
      "signature": "onBlur()"
     },
     {
-     "id": "Control.event.onPointerDown",
-     "name": "onPointerDown",
+     "id": "Control.event.pointerDown",
+     "name": "pointerDown",
      "kind": "event",
      "doc": "Claims focus, clears the `:focus-visible` channel, and opens `menu` if there is one —\nmenus open on **press**, not release, as the platform does. **An override must keep the\n`Focus.focus(this)` call**, or clicking the control strands the keyboard elsewhere.",
      "docSegs": [
@@ -33431,8 +33431,8 @@
      "signature": "onPointerDown()"
     },
     {
-     "id": "Control.event.onKeyDown",
-     "name": "onKeyDown",
+     "id": "Control.event.keyDown",
+     "name": "keyDown",
      "kind": "event",
      "doc": "Space and Enter run `press()`; ArrowDown opens `menu`. Ignores auto-repeat.",
      "docSegs": [
@@ -33651,8 +33651,8 @@
    ],
    "events": [
     {
-     "id": "Checkbox.event.onClick",
-     "name": "onClick",
+     "id": "Checkbox.event.click",
+     "name": "click",
      "kind": "event",
      "doc": "Runs `press()` when enabled. Override `input` instead if what you want is the value.",
      "docSegs": [
@@ -33889,8 +33889,8 @@
    ],
    "events": [
     {
-     "id": "Button.event.onClick",
-     "name": "onClick",
+     "id": "Button.event.click",
+     "name": "click",
      "kind": "event",
      "doc": "Your handler. Fires after the press is delivered, so the affordance has already\nrun — put the work here, not in `press()`.",
      "docSegs": [
@@ -33985,8 +33985,8 @@
    ],
    "events": [
     {
-     "id": "Switch.event.onClick",
-     "name": "onClick",
+     "id": "Switch.event.click",
+     "name": "click",
      "kind": "event",
      "doc": "Fires on click when the switch is enabled. `press()` is the activation path;\nprefer overriding `input` if what you want is the value.",
      "docSegs": [
@@ -34238,8 +34238,8 @@
    ],
    "events": [
     {
-     "id": "Slider.event.onPointerDown",
-     "name": "onPointerDown",
+     "id": "Slider.event.pointerDown",
+     "name": "pointerDown",
      "kind": "event",
      "doc": "Jumps the value to the pressed position, claims focus, and latches the drag.",
      "docSegs": [
@@ -34259,8 +34259,8 @@
      "signature": "onPointerDown(e)"
     },
     {
-     "id": "Slider.event.onPointerUp",
-     "name": "onPointerUp",
+     "id": "Slider.event.pointerUp",
+     "name": "pointerUp",
      "kind": "event",
      "doc": "Ends the drag.",
      "docSegs": [
@@ -34280,8 +34280,8 @@
      "signature": "onPointerUp()"
     },
     {
-     "id": "Slider.event.onPointerMove",
-     "name": "onPointerMove",
+     "id": "Slider.event.pointerMove",
+     "name": "pointerMove",
      "kind": "event",
      "doc": "Tracks the drag by **root-space** pointer delta, so the handle keeps up with a pointer\nthat has left the control.",
      "docSegs": [
@@ -34301,8 +34301,8 @@
      "signature": "onPointerMove()"
     },
     {
-     "id": "Slider.event.onKeyDown",
-     "name": "onKeyDown",
+     "id": "Slider.event.keyDown",
+     "name": "keyDown",
      "kind": "event",
      "doc": "Left and Right nudge by one `step`, delivered through `input` like any other change.",
      "docSegs": [
@@ -34647,8 +34647,8 @@
    ],
    "events": [
     {
-     "id": "Radio.event.onClick",
-     "name": "onClick",
+     "id": "Radio.event.click",
+     "name": "click",
      "kind": "event",
      "doc": "Runs `press()` when enabled.",
      "docSegs": [
@@ -35368,8 +35368,8 @@
    ],
    "events": [
     {
-     "id": "Pane.event.onInit",
-     "name": "onInit",
+     "id": "Pane.event.init",
+     "name": "init",
      "kind": "event",
      "doc": "Applies `initial`. Fires once per pane.",
      "docSegs": [
@@ -35389,8 +35389,8 @@
      "signature": "onInit()"
     },
     {
-     "id": "Pane.event.onClick",
-     "name": "onClick",
+     "id": "Pane.event.click",
+     "name": "click",
      "kind": "event",
      "doc": "Runs `press()` when enabled.",
      "docSegs": [
@@ -37358,8 +37358,8 @@
    ],
    "events": [
     {
-     "id": "Table.event.onKeyDown",
-     "name": "onKeyDown",
+     "id": "Table.event.keyDown",
+     "name": "keyDown",
      "kind": "event",
      "doc": "Arrows, Home/End, Space (multi), Delete/Backspace and Enter. An override should call\nthrough or the table loses its keyboard.",
      "docSegs": [
@@ -37765,8 +37765,8 @@
    ],
    "events": [
     {
-     "id": "TableRow.event.onPointerDown",
-     "name": "onPointerDown",
+     "id": "TableRow.event.pointerDown",
+     "name": "pointerDown",
      "kind": "event",
      "doc": "Focuses the **table**, not the row — rows are never tab stops, so the arrow keys must\nland on the container.",
      "docSegs": [
@@ -37786,8 +37786,8 @@
      "signature": "onPointerDown()"
     },
     {
-     "id": "TableRow.event.onClick",
-     "name": "onClick",
+     "id": "TableRow.event.click",
+     "name": "click",
      "kind": "event",
      "doc": "Delivers the click to the table's `rowClick` with the modifier state. Override\n`rowClick` on the table rather than this, unless a particular row needs to opt out.",
      "docSegs": [
@@ -38577,8 +38577,8 @@
    ],
    "events": [
     {
-     "id": "DataGrid.event.onInit",
-     "name": "onInit",
+     "id": "DataGrid.event.init",
+     "name": "init",
      "kind": "event",
      "doc": "Starts the header's escape from the scroll box (see `escaped`), retrying briefly until\nthe backend has surfaces to work with.",
      "docSegs": [
@@ -40089,8 +40089,8 @@
    ],
    "events": [
     {
-     "id": "IconHost.event.onInit",
-     "name": "onInit",
+     "id": "IconHost.event.init",
+     "name": "init",
      "kind": "event",
      "doc": "Builds the named icon. Fires once.",
      "docSegs": [
@@ -40213,8 +40213,8 @@
    ],
    "events": [
     {
-     "id": "SegmentedItem.event.onClick",
-     "name": "onClick",
+     "id": "SegmentedItem.event.click",
+     "name": "click",
      "kind": "event",
      "doc": "Navigates if the choice carries a `location`, then presses.",
      "docSegs": [
@@ -40234,8 +40234,8 @@
      "signature": "onClick()"
     },
     {
-     "id": "SegmentedItem.event.onKeyDown",
-     "name": "onKeyDown",
+     "id": "SegmentedItem.event.keyDown",
+     "name": "keyDown",
      "kind": "event",
      "doc": "Space and Enter pick; arrows rove to the adjacent segment.",
      "docSegs": [
@@ -40972,7 +40972,7 @@
    "name": "2 AREPO",
    "segs": [
     {
-     "md": "# The wager\n\nWhy the language is shaped the way it is: built for the era when much code is\nwritten by machines, and bet on verifiability over familiarity.\n\n### AREPO-1 — Built for machine-written code\nWhen machines write the code, familiarity matters less and *verifiability* matters\nmore. Declare is designed around that shift, not retrofitted to it.\n*Held in:* homepage hero (\"a UI language for you and your AI\"); FAQ (\"Declare is built for the era when much code is written by machines\").\n\n### AREPO-2 — The whole language fits in a model's context\nThe declarative surface is small, closed, and regular — its *entire* definition is\none file (`docs/declare.md`, on the order of ten thousand tokens). No model has\ntrained on Declare, and none needs to: a model can hold the complete spec while it\nwrites.\n*Held in:* declare.md preamble (\"the language, in one file … no LLM has been trained on it\"); FAQ; the \"why\" essay.\n\n### AREPO-3 — Comprehension leverage, not corpus leverage\nDeclare competes on the kind of leverage a new language *can* have: a language\nsmall enough to hand a model whole, regular enough to be analyzed rather than\npattern-matched, backed by a compiler that turns each mistake into a precise\ncorrection. With less code passing under human eyes, the language and its compiler\nare the one reviewer always present.\n*Held in:* the \"why\" essay (\"Two kinds of leverage\").\n\n### AREPO-4 — Type-checking is mandatory, and trustworthy\nEvery `{ }` body is type-checked on every compile, with no opt-out, and the\nchecker is held to **zero false positives** across the repository's own corpus —\nevery app, component, and doc example it ships. So an error always means something\nis genuinely wrong.\n*Held in:* FAQ (\"Mandatory type-checking … zero false positives\").\n\n### AREPO-5 — Diagnostics name the fix\nA compiler message is written to steer the *next* attempt — it states the rule and\nnames the rewrite that fixes it, including \"did you mean\" guidance for instincts\ncarried from other frameworks. The primary reader of a diagnostic, now, is a model\ndeciding what to do next.\n*Held in:* FAQ (\"Diagnostics that name the fix\"); the \"why\" essay.\n\n### AREPO-6 — No magic\nDeclare consistently chooses predictability over cleverness: dependencies are\nextracted statically, events don't bubble, there is one way to say most things.\nWhere it looks familiar it behaves as you'd assume; where it is genuinely new it\n*looks* new — a cue to consult the spec rather than autocomplete from memory.\n*Held in:* FAQ (\"No magic\"); the \"why\" essay.\n\n### AREPO-7 — Tested against models, not assumed\nThe claim that Declare suits LLMs is tested: an evaluation harness gives\nmodel tiers application-building tasks cold, one-shot and iterated, and failures\nfeed back into the language, the diagnostics, and the docs. The documentation\ndoubles as training material — every code fence in the guide is compiled and\nbooted by the test suite, so nothing a model reads is stale or wrong.\n*Held in:* FAQ (\"What has been done during Declare's development to optimize for LLM usage\").\n\n### AREPO-8 — The human owns intent; the toolchain keeps the text honest\nThe workflow the language is designed around: a person directs and reviews; a\nmodel writes the text; the compiler stays in the loop. The flagship calendar\nreports its own number — zero lines written by hand.\n*Held in:* FAQ (\"The calendar says '0 lines written by hand'\").",
+     "md": "# The wager\n\nWhy the language is shaped the way it is: built for the era when much code is\nwritten by machines, and bet on verifiability over familiarity.\n\n### AREPO-1 — Built for machine-written code\nWhen machines write the code, familiarity matters less and *verifiability* matters\nmore. Declare is designed around that shift, not retrofitted to it.\n*Held in:* homepage hero (\"a UI language for you and your AI\"); FAQ (\"Declare is built for the era when much code is written by machines\").\n\n### AREPO-2 — The whole language fits in a model's context\nThe declarative surface is small, closed, and regular — its *entire* definition is\none file (`docs/declare.md`, on the order of ten thousand tokens). No model has\ntrained on Declare, and none needs to: a model can hold the complete spec while it\nwrites.\n*Held in:* declare.md preamble (\"the language, in one file … no LLM has been trained on it\"); FAQ; the \"why\" essay.\n\n### AREPO-3 — Comprehension leverage, not corpus leverage\nDeclare competes on the kind of leverage a new language *can* have: a language\nsmall enough to hand a model whole, regular enough to be analyzed rather than\npattern-matched, backed by a compiler that turns each mistake into a precise\ncorrection. With less code passing under human eyes, the language and its compiler\nare the one reviewer always present.\n*Held in:* the \"why\" essay (\"Two kinds of leverage\").\n\n### AREPO-4 — Type-checking is mandatory, and trustworthy\nEvery `{ }` body is type-checked on every compile, with no opt-out, and the\nchecker is held to **zero false positives** across the repository's own corpus —\nevery app, component, and doc example it ships. So an error always means something\nis genuinely wrong.\n*Held in:* FAQ (\"Mandatory type-checking … zero false positives\").\n\n### AREPO-5 — Diagnostics name the fix\nA compiler message is written to steer the *next* attempt — it states the rule and\nnames the rewrite that fixes it, including \"did you mean\" guidance for instincts\ncarried from other frameworks. The primary reader of a diagnostic, now, is a model\ndeciding what to do next.\n*Held in:* FAQ (\"Diagnostics that name the fix\"); the \"why\" essay.\n\n### AREPO-6 — No magic\nDeclare consistently chooses predictability over cleverness: dependencies are\nextracted statically, events don't bubble, there is one way to say most things.\nWhere it looks familiar it behaves as you'd assume; where it is genuinely new it\n*looks* new — a cue to consult the spec rather than autocomplete from memory.\n*Held in:* FAQ (\"No magic\"); the \"why\" essay.\n\n### AREPO-7 — Tested against models, not assumed\nThe claim that Declare suits LLMs is tested: an evaluation harness gives\nmodel tiers application-building tasks cold, one-shot and iterated, and failures\nfeed back into the language, the diagnostics, and the docs. The documentation\ndoubles as training material — every code fence in the teaching docs is\ncompiled by the test suite, so nothing a model reads is stale or wrong.\n*Held in:* FAQ (\"What has been done during Declare's development to optimize for LLM usage\").\n\n### AREPO-8 — The human owns intent; the toolchain keeps the text honest\nThe workflow the language is designed around: a person directs and reviews; a\nmodel writes the text; the compiler stays in the loop. The flagship calendar\nreports its own number — zero lines written by hand.\n*Held in:* FAQ (\"The calendar says '0 lines written by hand'\").",
      "code": []
     }
    ]
@@ -41008,7 +41008,7 @@
    "name": "5 ROTAS",
    "segs": [
     {
-     "md": "# What Declare is\n\nThe nature of the thing — the promises about what kind of language it is.\n\n### ROTAS-1 — A language, not a framework\nDeclare is a domain-specific language for user interfaces — the way SQL is a DSL\nfor queries — not a library inside JavaScript. There is no framework runtime to\norchestrate, no lifecycle to manage.\n*Held in:* homepage hero; FAQ (\"It's a language, not a framework inside JavaScript\").\n\n### ROTAS-2 — The UI is a standing structure, not a re-run function\nAn interface is a standing tree that values flow through when things change —\nnever a function the platform re-runs and diffs. There is no re-render, no\nvirtual-DOM pass, no reconciliation.\n*Held in:* declare.md §1 (\"A binding is a relationship, not a callback … standing expressions the runtime keeps true\"); FAQ (\"the UI is a *standing structure* … nothing re-renders because nothing was ever a render\").\n\n### ROTAS-3 — One program, any renderer\nOne source tree renders to managed DOM or directly to pixels on a canvas — and to\na screenless headless renderer — with the same layout and input handling. The\nlanguage owns its semantics; no DOM assumptions leak into a program. The DOM and\ncanvas renderers are held equal, verified pixel-for-pixel.\n*Held in:* FAQ (\"renderer-independence\"); declare.md §12 (\"the same file runs unchanged in a native Mac host, held to the browser renderers by a conformance suite\").\n\n### ROTAS-4 — One tree, one language\nStructure, style, and behavior are one tree in one language — not the HTML/CSS/JS\ntrinity. There is no separate stylesheet, template, and script to keep in sync.\n*Held in:* FAQ (\"There is also no HTML/CSS/JS trinity — structure, style, and behavior are one tree in one language\").\n\n### ROTAS-5 — Compiled, everywhere\nDeclare is a compiled language, and the compiler runs anywhere the program does —\nin Node and in the browser, the same compiler with byte-identical output.\n*Held in:* FAQ (\"The compiler itself runs anywhere — in Node, or in the browser\"); declare.md §1.\n\n### ROTAS-6 — A successor that kept the convictions\nDeclare is a from-the-ground-up successor to OpenLaszlo (2002): it keeps the\ndeclarative tree, constraint-based reactivity, and a real compiler, and rebuilds\neverything else — keyword-free syntax, TypeScript for logic, DOM and canvas\nrenderers, in-browser compilation — for the modern, LLM era.\n*Held in:* FAQ (\"Where does Declare come from?\").",
+     "md": "# What Declare is\n\nThe nature of the thing — the promises about what kind of language it is.\n\n### ROTAS-1 — A language, not a framework\nDeclare is a domain-specific language for user interfaces — the way SQL is a DSL\nfor queries — not a library inside JavaScript. There is no framework runtime to\norchestrate, no lifecycle to manage.\n*Held in:* homepage hero; FAQ (\"It's a language, not a framework inside JavaScript\").\n\n### ROTAS-2 — The UI is a standing structure, not a re-run function\nAn interface is a standing tree that values flow through when things change —\nnever a function the platform re-runs and diffs. There is no re-render, no\nvirtual-DOM pass, no reconciliation.\n*Held in:* declare.md §1 (\"A binding is a relationship, not a callback … standing expressions the runtime keeps true\"); FAQ (\"the UI is a *standing structure* … nothing re-renders because nothing was ever a render\").\n\n### ROTAS-3 — One program, any renderer\nOne source tree renders to managed DOM or directly to pixels on a canvas — and\nruns headlessly, no screen at all — with the same layout and input handling. The\nlanguage owns its semantics; no DOM assumptions leak into a program. The DOM and\ncanvas renderers are held equal, verified pixel-for-pixel.\n*Held in:* FAQ (\"renderer-independence\"); declare.md §12 (\"the same file runs unchanged in a native Mac host, held to the browser renderers by a conformance suite\").\n\n### ROTAS-4 — One tree, one language\nStructure, style, and behavior are one tree in one language — not the HTML/CSS/JS\ntrinity. There is no separate stylesheet, template, and script to keep in sync.\n*Held in:* FAQ (\"There is also no HTML/CSS/JS trinity — structure, style, and behavior are one tree in one language\").\n\n### ROTAS-5 — Compiled, everywhere\nDeclare is a compiled language, and the compiler runs anywhere the program does —\nin Node and in the browser, the same compiler with byte-identical output.\n*Held in:* FAQ (\"The compiler itself runs anywhere — in Node, or in the browser\"); declare.md §1.\n\n### ROTAS-6 — A successor that kept the convictions\nDeclare is a from-the-ground-up successor to OpenLaszlo (2002): it keeps the\ndeclarative tree, constraint-based reactivity, and a real compiler, and rebuilds\neverything else — keyword-free syntax, TypeScript for logic, DOM and canvas\nrenderers, in-browser compilation — for the modern, LLM era.\n*Held in:* FAQ (\"Where does Declare come from?\").",
      "code": []
     }
    ]
@@ -41046,7 +41046,7 @@
        "subtitle": "",
        "kind": "tenet",
        "label": "Tenet",
-       "doc": "# The wager\n\nWhy the language is shaped the way it is: built for the era when much code is\nwritten by machines, and bet on verifiability over familiarity.\n\n### AREPO-1 — Built for machine-written code\nWhen machines write the code, familiarity matters less and *verifiability* matters\nmore. Declare is designed around that shift, not retrofitted to it.\n*Held in:* homepage hero (\"a UI language for you and your AI\"); FAQ (\"Declare is built for the era when much code is written by machines\").\n\n### AREPO-2 — The whole language fits in a model's context\nThe declarative surface is small, closed, and regular — its *entire* definition is\none file (`docs/declare.md`, on the order of ten thousand tokens). No model has\ntrained on Declare, and none needs to: a model can hold the complete spec while it\nwrites.\n*Held in:* declare.md preamble (\"the language, in one file … no LLM has been trained on it\"); FAQ; the \"why\" essay.\n\n### AREPO-3 — Comprehension leverage, not corpus leverage\nDeclare competes on the kind of leverage a new language *can* have: a language\nsmall enough to hand a model whole, regular enough to be analyzed rather than\npattern-matched, backed by a compiler that turns each mistake into a precise\ncorrection. With less code passing under human eyes, the language and its compiler\nare the one reviewer always present.\n*Held in:* the \"why\" essay (\"Two kinds of leverage\").\n\n### AREPO-4 — Type-checking is mandatory, and trustworthy\nEvery `{ }` body is type-checked on every compile, with no opt-out, and the\nchecker is held to **zero false positives** across the repository's own corpus —\nevery app, component, and doc example it ships. So an error always means something\nis genuinely wrong.\n*Held in:* FAQ (\"Mandatory type-checking … zero false positives\").\n\n### AREPO-5 — Diagnostics name the fix\nA compiler message is written to steer the *next* attempt — it states the rule and\nnames the rewrite that fixes it, including \"did you mean\" guidance for instincts\ncarried from other frameworks. The primary reader of a diagnostic, now, is a model\ndeciding what to do next.\n*Held in:* FAQ (\"Diagnostics that name the fix\"); the \"why\" essay.\n\n### AREPO-6 — No magic\nDeclare consistently chooses predictability over cleverness: dependencies are\nextracted statically, events don't bubble, there is one way to say most things.\nWhere it looks familiar it behaves as you'd assume; where it is genuinely new it\n*looks* new — a cue to consult the spec rather than autocomplete from memory.\n*Held in:* FAQ (\"No magic\"); the \"why\" essay.\n\n### AREPO-7 — Tested against models, not assumed\nThe claim that Declare suits LLMs is tested: an evaluation harness gives\nmodel tiers application-building tasks cold, one-shot and iterated, and failures\nfeed back into the language, the diagnostics, and the docs. The documentation\ndoubles as training material — every code fence in the guide is compiled and\nbooted by the test suite, so nothing a model reads is stale or wrong.\n*Held in:* FAQ (\"What has been done during Declare's development to optimize for LLM usage\").\n\n### AREPO-8 — The human owns intent; the toolchain keeps the text honest\nThe workflow the language is designed around: a person directs and reviews; a\nmodel writes the text; the compiler stays in the loop. The flagship calendar\nreports its own number — zero lines written by hand.\n*Held in:* FAQ (\"The calendar says '0 lines written by hand'\").",
+       "doc": "# The wager\n\nWhy the language is shaped the way it is: built for the era when much code is\nwritten by machines, and bet on verifiability over familiarity.\n\n### AREPO-1 — Built for machine-written code\nWhen machines write the code, familiarity matters less and *verifiability* matters\nmore. Declare is designed around that shift, not retrofitted to it.\n*Held in:* homepage hero (\"a UI language for you and your AI\"); FAQ (\"Declare is built for the era when much code is written by machines\").\n\n### AREPO-2 — The whole language fits in a model's context\nThe declarative surface is small, closed, and regular — its *entire* definition is\none file (`docs/declare.md`, on the order of ten thousand tokens). No model has\ntrained on Declare, and none needs to: a model can hold the complete spec while it\nwrites.\n*Held in:* declare.md preamble (\"the language, in one file … no LLM has been trained on it\"); FAQ; the \"why\" essay.\n\n### AREPO-3 — Comprehension leverage, not corpus leverage\nDeclare competes on the kind of leverage a new language *can* have: a language\nsmall enough to hand a model whole, regular enough to be analyzed rather than\npattern-matched, backed by a compiler that turns each mistake into a precise\ncorrection. With less code passing under human eyes, the language and its compiler\nare the one reviewer always present.\n*Held in:* the \"why\" essay (\"Two kinds of leverage\").\n\n### AREPO-4 — Type-checking is mandatory, and trustworthy\nEvery `{ }` body is type-checked on every compile, with no opt-out, and the\nchecker is held to **zero false positives** across the repository's own corpus —\nevery app, component, and doc example it ships. So an error always means something\nis genuinely wrong.\n*Held in:* FAQ (\"Mandatory type-checking … zero false positives\").\n\n### AREPO-5 — Diagnostics name the fix\nA compiler message is written to steer the *next* attempt — it states the rule and\nnames the rewrite that fixes it, including \"did you mean\" guidance for instincts\ncarried from other frameworks. The primary reader of a diagnostic, now, is a model\ndeciding what to do next.\n*Held in:* FAQ (\"Diagnostics that name the fix\"); the \"why\" essay.\n\n### AREPO-6 — No magic\nDeclare consistently chooses predictability over cleverness: dependencies are\nextracted statically, events don't bubble, there is one way to say most things.\nWhere it looks familiar it behaves as you'd assume; where it is genuinely new it\n*looks* new — a cue to consult the spec rather than autocomplete from memory.\n*Held in:* FAQ (\"No magic\"); the \"why\" essay.\n\n### AREPO-7 — Tested against models, not assumed\nThe claim that Declare suits LLMs is tested: an evaluation harness gives\nmodel tiers application-building tasks cold, one-shot and iterated, and failures\nfeed back into the language, the diagnostics, and the docs. The documentation\ndoubles as training material — every code fence in the teaching docs is\ncompiled by the test suite, so nothing a model reads is stale or wrong.\n*Held in:* FAQ (\"What has been done during Declare's development to optimize for LLM usage\").\n\n### AREPO-8 — The human owns intent; the toolchain keeps the text honest\nThe workflow the language is designed around: a person directs and reviews; a\nmodel writes the text; the compiler stays in the loop. The flagship calendar\nreports its own number — zero lines written by hand.\n*Held in:* FAQ (\"The calendar says '0 lines written by hand'\").",
        "preview": "Why the language is shaped the way it is: built for the era when much code is written by machines, and bet on verifiability over familiarity. AREPO-1 — Built for machine-written code When machines write the code, familiarity matters less an…"
       },
       {
@@ -41070,7 +41070,7 @@
        "subtitle": "",
        "kind": "tenet",
        "label": "Tenet",
-       "doc": "# What Declare is\n\nThe nature of the thing — the promises about what kind of language it is.\n\n### ROTAS-1 — A language, not a framework\nDeclare is a domain-specific language for user interfaces — the way SQL is a DSL\nfor queries — not a library inside JavaScript. There is no framework runtime to\norchestrate, no lifecycle to manage.\n*Held in:* homepage hero; FAQ (\"It's a language, not a framework inside JavaScript\").\n\n### ROTAS-2 — The UI is a standing structure, not a re-run function\nAn interface is a standing tree that values flow through when things change —\nnever a function the platform re-runs and diffs. There is no re-render, no\nvirtual-DOM pass, no reconciliation.\n*Held in:* declare.md §1 (\"A binding is a relationship, not a callback … standing expressions the runtime keeps true\"); FAQ (\"the UI is a *standing structure* … nothing re-renders because nothing was ever a render\").\n\n### ROTAS-3 — One program, any renderer\nOne source tree renders to managed DOM or directly to pixels on a canvas — and to\na screenless headless renderer — with the same layout and input handling. The\nlanguage owns its semantics; no DOM assumptions leak into a program. The DOM and\ncanvas renderers are held equal, verified pixel-for-pixel.\n*Held in:* FAQ (\"renderer-independence\"); declare.md §12 (\"the same file runs unchanged in a native Mac host, held to the browser renderers by a conformance suite\").\n\n### ROTAS-4 — One tree, one language\nStructure, style, and behavior are one tree in one language — not the HTML/CSS/JS\ntrinity. There is no separate stylesheet, template, and script to keep in sync.\n*Held in:* FAQ (\"There is also no HTML/CSS/JS trinity — structure, style, and behavior are one tree in one language\").\n\n### ROTAS-5 — Compiled, everywhere\nDeclare is a compiled language, and the compiler runs anywhere the program does —\nin Node and in the browser, the same compiler with byte-identical output.\n*Held in:* FAQ (\"The compiler itself runs anywhere — in Node, or in the browser\"); declare.md §1.\n\n### ROTAS-6 — A successor that kept the convictions\nDeclare is a from-the-ground-up successor to OpenLaszlo (2002): it keeps the\ndeclarative tree, constraint-based reactivity, and a real compiler, and rebuilds\neverything else — keyword-free syntax, TypeScript for logic, DOM and canvas\nrenderers, in-browser compilation — for the modern, LLM era.\n*Held in:* FAQ (\"Where does Declare come from?\").",
+       "doc": "# What Declare is\n\nThe nature of the thing — the promises about what kind of language it is.\n\n### ROTAS-1 — A language, not a framework\nDeclare is a domain-specific language for user interfaces — the way SQL is a DSL\nfor queries — not a library inside JavaScript. There is no framework runtime to\norchestrate, no lifecycle to manage.\n*Held in:* homepage hero; FAQ (\"It's a language, not a framework inside JavaScript\").\n\n### ROTAS-2 — The UI is a standing structure, not a re-run function\nAn interface is a standing tree that values flow through when things change —\nnever a function the platform re-runs and diffs. There is no re-render, no\nvirtual-DOM pass, no reconciliation.\n*Held in:* declare.md §1 (\"A binding is a relationship, not a callback … standing expressions the runtime keeps true\"); FAQ (\"the UI is a *standing structure* … nothing re-renders because nothing was ever a render\").\n\n### ROTAS-3 — One program, any renderer\nOne source tree renders to managed DOM or directly to pixels on a canvas — and\nruns headlessly, no screen at all — with the same layout and input handling. The\nlanguage owns its semantics; no DOM assumptions leak into a program. The DOM and\ncanvas renderers are held equal, verified pixel-for-pixel.\n*Held in:* FAQ (\"renderer-independence\"); declare.md §12 (\"the same file runs unchanged in a native Mac host, held to the browser renderers by a conformance suite\").\n\n### ROTAS-4 — One tree, one language\nStructure, style, and behavior are one tree in one language — not the HTML/CSS/JS\ntrinity. There is no separate stylesheet, template, and script to keep in sync.\n*Held in:* FAQ (\"There is also no HTML/CSS/JS trinity — structure, style, and behavior are one tree in one language\").\n\n### ROTAS-5 — Compiled, everywhere\nDeclare is a compiled language, and the compiler runs anywhere the program does —\nin Node and in the browser, the same compiler with byte-identical output.\n*Held in:* FAQ (\"The compiler itself runs anywhere — in Node, or in the browser\"); declare.md §1.\n\n### ROTAS-6 — A successor that kept the convictions\nDeclare is a from-the-ground-up successor to OpenLaszlo (2002): it keeps the\ndeclarative tree, constraint-based reactivity, and a real compiler, and rebuilds\neverything else — keyword-free syntax, TypeScript for logic, DOM and canvas\nrenderers, in-browser compilation — for the modern, LLM era.\n*Held in:* FAQ (\"Where does Declare come from?\").",
        "preview": "The nature of the thing — the promises about what kind of language it is. ROTAS-1 — A language, not a framework Declare is a domain-specific language for user interfaces — the way SQL is a DSL for queries — not a library inside JavaScript.…"
       }
      ]

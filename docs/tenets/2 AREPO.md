@@ -48,8 +48,8 @@ Where it looks familiar it behaves as you'd assume; where it is genuinely new it
 The claim that Declare suits LLMs is tested: an evaluation harness gives
 model tiers application-building tasks cold, one-shot and iterated, and failures
 feed back into the language, the diagnostics, and the docs. The documentation
-doubles as training material — every code fence in the guide is compiled and
-booted by the test suite, so nothing a model reads is stale or wrong.
+doubles as training material — every code fence in the teaching docs is
+compiled by the test suite, so nothing a model reads is stale or wrong.
 *Held in:* FAQ ("What has been done during Declare's development to optimize for LLM usage").
 
 ### AREPO-8 — The human owns intent; the toolchain keeps the text honest

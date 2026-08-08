@@ -52,7 +52,7 @@ No — and that's a feature. Styling is part of the language: paint attributes o
 
 ### Can I intermix React and Declare code?
 
-Side by side, yes; interleaved, no. A Declare app embeds in any page — including a React page (the repository carries a React re-implementation of this site's homepage, hosting live Declare demos, built for exactly this comparison). And inside a Declare program, the `DOMIsland` component hosts foreign content — a video player, a code editor, a React widget — in a box the Declare tree sizes and positions. What you can't do is put a React component *inside* the Declare tree as if it were a Declare view, or vice versa. The boundary is always an island, which is what keeps both sides comprehensible.
+Side by side, yes; interleaved, no. A Declare app embeds in any page — including a React page. And inside a Declare program, the `DOMIsland` component hosts foreign content — a video player, a code editor, a React widget — in a box the Declare tree sizes and positions. What you can't do is put a React component *inside* the Declare tree as if it were a Declare view, or vice versa. The boundary is always an island, which is what keeps both sides comprehensible.
 
 ### How do I deep-link into an app? Is there a router?
 
@@ -68,7 +68,7 @@ Because the compiler runs in the page, the page can edit and re-run itself: ever
 
 ### What does Declare's renderer-independence bring to the table?
 
-One program renders through managed DOM elements or directly to a single canvas — same tree, same layout, same input handling, verified pixel-for-pixel against each other in the test suite (append `?render=canvas` to any app URL to see it). What this buys: the language owns its semantics — no DOM assumptions leak into your program; the canvas path suits environments where a DOM isn't available or isn't fast enough; and future renderers can be added without rewriting applications. A third, headless renderer runs programs with no screen at all — it's what powers static extraction and testing.
+One program renders through managed DOM elements or directly to a single canvas — same tree, same layout, same input handling, verified pixel-for-pixel against each other in the test suite (append `?render=canvas` to any app URL to see it). What this buys: the language owns its semantics — no DOM assumptions leak into your program; the canvas path suits environments where a DOM isn't available or isn't fast enough; and future renderers can be added without rewriting applications. Programs also run headlessly — no screen, no renderer at all — which is what powers static extraction and testing.
 
 ## Performance
 
@@ -106,7 +106,7 @@ Two ways. First, the language is small enough that its *entire definition* fits 
 
 ### What has been done during Declare's development to optimize for LLM usage? What methodology ensures it works?
 
-It's tested, not assumed. Declare's development runs an evaluation harness: a ladder of application-building tasks given to models cold, in one-shot and iterated configurations, across model tiers. Failures feed back into the language, the diagnostics, and the documentation — several language changes exist specifically because evals showed models tripping. The documentation is written to double as training material: plain declarative prose, and every code fence in the guide is compiled and booted by the test suite, so nothing a model reads is stale or wrong. The result is a feedback loop — spec, diagnostics, evals — rather than a hope.
+It's tested, not assumed. Declare's development runs an evaluation harness: a ladder of application-building tasks given to models cold, in one-shot and iterated configurations, across model tiers. Failures feed back into the language, the diagnostics, and the documentation — several language changes exist specifically because evals showed models tripping. The documentation is written to double as training material: plain declarative prose, and every code fence in the teaching docs is compiled by the test suite, so nothing a model reads is stale or wrong. The result is a feedback loop — spec, diagnostics, evals — rather than a hope.
 
 ## Background and practicalities
 
