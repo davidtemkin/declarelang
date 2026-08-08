@@ -30,7 +30,12 @@ App [
 
 **`place()`** is the whole contract — no time, no side effects. `this.laid()`
 answers the managed children (the view's children minus any with
-`ignoreLayout = true`), in child order; return one box per laid child,
+`ignoreLayout = true`), in child order — **replicated instances included**: a
+layout composes with datapath replication, arranging one box per record's
+instance exactly as it would hand-written children, and re-placing as records
+come and go. And the boxes it returns land as the children's ordinary
+`x`/`y`/`width`/`height` — readable by any handler or constraint, hit-tested by
+`viewAt`, like geometry from any other source. Return one box per laid child,
 aligned by index — a plain object naming any of `x`, `y`, `w`, `h`, `vis`.
 The boxes' shape declares ownership: carry exactly the slots the strategy
 manages, uniformly across children — a `{ x }` box owns each child's

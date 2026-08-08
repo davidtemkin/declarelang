@@ -655,7 +655,30 @@ export function describeLiteral(lit: Literal): string {
  *  encodings: plain opaque 0xRRGGBB and the translucent form (see Color). */
 export function colorToCss(c: Color): string {
   if (c === null) return "transparent";
+  // A STRING reaching here is the classic seam mistake — a `{ }` body handed
+  // `"#87CEEB"` (or a named color) where a color is a NUMBER (`0x87CEEB`).
+  // Typed code can't do it (`Color = number | null`), but an `any` smuggles it
+  // through, and the old arithmetic below then produced garbage CSS the
+  // browser DISCARDED SILENTLY — a paint that simply never happens, no error
+  // anywhere (measured cost: an hour of a real user's debugging, 2026-08-07).
+  // Say it loudly, once per distinct value, and paint nothing on purpose.
+  if (typeof c !== "number") {
+    warnBadColor(c);
+    return "transparent";
+  }
   if (c < ALPHA) return "#" + c.toString(16).padStart(6, "0");
   const v = c - ALPHA;
   return "#" + Math.floor(v / 0x100).toString(16).padStart(6, "0") + (v % 0x100).toString(16).padStart(2, "0");
+}
+
+const badColors = new Set<string>();
+function warnBadColor(c: unknown): void {
+  const key = String(c);
+  if (badColors.has(key) || typeof console === "undefined") return;
+  badColors.add(key);
+  const hex = /^#([0-9a-fA-F]{6})$/.exec(key);
+  console.error(
+    `[Declare] a color slot received ${JSON.stringify(key)} (a ${typeof c}) — inside { } a color is a NUMBER: ` +
+    (hex ? `write 0x${hex[1].toUpperCase()}` : `0xRRGGBB (named colors are bare-slot vocabulary only)`) +
+    `. Nothing was painted.`);
 }

@@ -69,7 +69,7 @@ to learn it, or jump to the chapter your task needs:
 | scope — `this` / `parent` / `classroot` / `app`, classes, composition | `docs/guide/04-tree.md` |
 | layout, sizing, position, responsiveness, scrolling, fixed chrome (`ignoreScroll`) | `docs/guide/05-space.md` |
 | color, type, borders, shadows, themes | `docs/guide/06-style.md` |
-| hover / press / drag, clicks, keyboard | `docs/guide/07-interaction.md` |
+| hover / press / drag & drop, hit-testing (`viewAt`), clicks, keyboard | `docs/guide/07-interaction.md` |
 | the standard library (buttons, inputs), the value pattern | `docs/guide/08-controls.md` |
 | lists, datasets, editing data, loading documents | `docs/guide/09-data.md` |
 | big collections, `virtualize`, selection, `DataGrid` | `docs/guide/10-scale.md` |

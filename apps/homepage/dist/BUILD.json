@@ -61,7 +61,7 @@
     "id": "apps/homepage/declare-faq.md",
     "kind": "file",
     "v": {
-     "hash": "82dad59aff4fc9fe",
+     "hash": "e790120d4a1b8625",
      "size": 23819
     }
    },
@@ -165,7 +165,7 @@
     "id": "apps/homepage/stats.json",
     "kind": "file",
     "v": {
-     "hash": "23e8e3b6acb0cf88",
+     "hash": "9f93121e2be52ef8",
      "size": 575
     }
    },
@@ -213,8 +213,8 @@
     "id": "runtime/dist/value.js",
     "kind": "file",
     "v": {
-     "hash": "c4f6a13b5349dc58",
-     "size": 26065
+     "hash": "220a83ea779314ad",
+     "size": 27227
     }
    },
    {

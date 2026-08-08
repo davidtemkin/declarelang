@@ -2297,12 +2297,24 @@ var DeclareMac = (() => {
   function colorToCss(c) {
     if (c === null)
       return "transparent";
+    if (typeof c !== "number") {
+      warnBadColor(c);
+      return "transparent";
+    }
     if (c < ALPHA)
       return "#" + c.toString(16).padStart(6, "0");
     const v = c - ALPHA;
     return "#" + Math.floor(v / 256).toString(16).padStart(6, "0") + (v % 256).toString(16).padStart(2, "0");
   }
-  var ALPHA, stop, stroke, shadow, frost, DEFAULT_THEME, DECLARED_TYPES, DECLARED_TYPE_NAMES, ok, fail, COLOR, FILL, STROKE, SHADOW, BACKDROP, MOTION, SHAPE;
+  function warnBadColor(c) {
+    const key = String(c);
+    if (badColors.has(key) || typeof console === "undefined")
+      return;
+    badColors.add(key);
+    const hex = /^#([0-9a-fA-F]{6})$/.exec(key);
+    console.error(`[Declare] a color slot received ${JSON.stringify(key)} (a ${typeof c}) \u2014 inside { } a color is a NUMBER: ` + (hex ? `write 0x${hex[1].toUpperCase()}` : `0xRRGGBB (named colors are bare-slot vocabulary only)`) + `. Nothing was painted.`);
+  }
+  var ALPHA, stop, stroke, shadow, frost, DEFAULT_THEME, DECLARED_TYPES, DECLARED_TYPE_NAMES, ok, fail, COLOR, FILL, STROKE, SHADOW, BACKDROP, MOTION, SHAPE, badColors;
   var init_value = __esm({
     "runtime/dist/value.js"() {
       "use strict";
@@ -2348,6 +2360,7 @@ var DeclareMac = (() => {
       BACKDROP = `a Backdrop (frost(radius) or frost(radius, saturation) \u2014 blur what lies beneath, saturation \u2265 0 (default 1) \u2014 or null)`;
       MOTION = `a Motion (a named curve like easeBoth, quartOut, expoIn, or laszloBoth; or a constructor: cubicBezier(x1, y1, x2, y2), back(overshoot), steps(n[, jumpStart | jumpEnd]), laszlo(beginPole, endPole))`;
       SHAPE = `a Shape (SVG path data in a string, like "M0 0 L80 0 L40 60 Z", or null)`;
+      badColors = /* @__PURE__ */ new Set();
     }
   });
 

@@ -406,6 +406,24 @@ await test("CSS_COLORS is the full 148-keyword CSS named-color set", () => {
   assert.equal(CSS_COLORS.transparent, undefined); // "no color" is `null`
 });
 
+await test("colorToCss refuses a smuggled string LOUDLY, not silently", () => {
+  // the seam mistake an `any` lets through: a { } body handing "#87CEEB" where
+  // a color is a number. The old path did arithmetic on the string and emitted
+  // garbage CSS the browser discarded with no error anywhere (a real user lost
+  // an hour to it, 2026-08-07). The contract now: transparent paint + one loud
+  // console.error naming the numeric spelling.
+  const said = [];
+  const orig = console.error;
+  console.error = (...a) => said.push(a.join(" "));
+  try {
+    assert.equal(colorToCss("#87CEEB"), "transparent");
+    assert.equal(colorToCss("#87CEEB"), "transparent");   // second time stays quiet
+    assert.equal(colorToCss("tomato"), "transparent");
+  } finally { console.error = orig; }
+  assert.equal(said.length, 2, "one warning per distinct bad value");
+  assert.ok(said[0].includes("0x87CEEB"), "the fix is named: " + said[0]);
+});
+
 await test("colorToCss renders a Color as CSS", () => {
   assert.equal(colorToCss(0x1e3a49), "#1e3a49");
   assert.equal(colorToCss(null), "transparent");

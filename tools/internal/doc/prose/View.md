@@ -519,6 +519,35 @@ Whether this view and its subtree take pointer events: `"auto"` (the default) or
 a full-viewport chrome overlay — so presses reach what is beneath it. It is the fix for
 the invisible-lid bug: an overlay sized to the frame that silently swallows every click.
 
+## viewAt()
+The tree answers **what is under a root-space point** — the deepest visible view,
+by the same scroll-aware, clip-aware, transform-aware walk that routes the pointer
+itself, so what a handler computes and what a press would hit can never disagree.
+This is the language's hit-testing: never measure geometry by hand, ask.
+Its defining use is **drag and drop** — the dragger asks, one reactive slot fans
+out, every target derives:
+
+```declare-fragment
+// on the dragger
+onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.x, e.y) },
+onPointerUp(e: PointerEvent)   { if (!e.canceled && app.dropTarget != null) app.dropTarget.accept(this) },
+// on each target — no handlers, just a standing relationship
+hot = { app.dropTarget == this }
+```
+
+The answer is the *deepest* view; when the dragger needs "the card, not its
+label," walk `.parent` up to the view carrying the marker attribute it declared.
+Coordinates are root-space — exactly what `onPointerMove`/`onPointerUp` carry.
+The full pattern is the guide's Interaction chapter ("Finding what is under the
+pointer").
+
+## containsPoint()
+One view's own membership test — `v.containsPoint(x, y)` asks whether the
+root-space point lands in `v`, by the same honest walk `viewAt` runs (clip
+shapes, scale, rotation, scroll and `pointerEvents` all count). Reach for it
+when you already hold the candidate; reach for `viewAt` when you are asking
+the whole tree.
+
 ## raise()
 Moves this view to the **top of its parent's children**, so it paints over its siblings —
 stacking is declaration order, and this is the runtime verb for changing it. **The

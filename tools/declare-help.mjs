@@ -350,9 +350,14 @@ function answer() {
   const nearCls = nearestName(query, CLASS_NAMES, 1);
   if (nearCls !== null) { say(`no '${query}' — did you mean '${nearCls}'?`); json = { kind: "near-miss", name: query, suggestion: nearCls }; return true; }
 
-  // last: deterministic retrieval over reference prose (all query words present)
+  // last: deterministic retrieval over reference prose (all query words present).
+  // Internal entries are excluded: surfacing a component's private plumbing as
+  // the answer to a capability question actively misleads — a real agent asked
+  // "drag and drop" and was answered with DataGrid's internal drop-commit
+  // methods instead of the viewAt idiom (2026-08-07).
   const hits = [];
   for (const [id, e] of Object.entries(REF)) {
+    if (e.internal === true) continue;
     const hay = ((e.doc ?? "") + " " + id).toLowerCase();
     if (words.every((w) => hay.includes(w))) hits.push(id);
   }
