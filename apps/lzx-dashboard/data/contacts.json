@@ -1,0 +1,133 @@
+{
+  "contacts": [
+    {
+      "name": "David Temkin",
+      "user": "David",
+      "title": "CTO and VP Engineering",
+      "email": "temkin@laszlosystems.com",
+      "telephone": "(415)241-2700",
+      "address": "San Francisco, CA",
+      "notes": "Rarely forgets covers on TPS reports"
+    },
+    {
+      "name": "Antony Campitelli",
+      "user": "Antony",
+      "title": "VP Marketing",
+      "email": "antony@laszlosystems.com",
+      "telephone": "(415)241-2700",
+      "address": "San Francisco, CA"
+    },
+    {
+      "name": "Rick Blaine",
+      "user": "Rick",
+      "title": "Bartender",
+      "email": "ricks@laszlosystems.com",
+      "telephone": "(415)241-2700",
+      "address": "Casablanca, Morocco"
+    },
+    {
+      "name": "Lazlo Hollyfeld",
+      "user": "Lazlo",
+      "title": "Resident Genius",
+      "email": "lhollyfeld@laszlosystems.com",
+      "telephone": "(415)241-2700",
+      "address": "San Francisco, CA"
+    },
+    {
+      "name": "Anne Harrison",
+      "user": "Anne",
+      "title": "Director, Partner Relations",
+      "email": "anne@laszlosystems.com",
+      "telephone": "(415)555-0056",
+      "address": "San Francisco, CA"
+    },
+    {
+      "name": "Peter Andrea",
+      "user": "Peter",
+      "title": "Interface Architect",
+      "email": "pandrea@laszlosystems.com",
+      "telephone": "(510)555-7463",
+      "address": "Oakland, CA",
+      "notes": "Designing the new MOMA"
+    },
+    {
+      "name": "Dan Lewis",
+      "user": "Dan",
+      "title": "Art Director",
+      "email": "dlewis@mac.com",
+      "telephone": "(925)555-7463",
+      "address": "Walnut Creek, CA",
+      "notes": "Acquired Napster's remaining assets"
+    },
+    {
+      "name": "Bret Simister",
+      "user": "Bret",
+      "title": "Chief Interface Architect",
+      "email": "bret@laszlosystems.com",
+      "telephone": "(510)555-1252",
+      "address": "Berkeley, CA",
+      "notes": "It's all about animation"
+    },
+    {
+      "name": "Grig Bilham",
+      "user": "Grig",
+      "title": "Senior Laszloid",
+      "email": "grig@neuronaut.com",
+      "telephone": "(415)555-0056",
+      "address": "San Francisco, CA",
+      "notes": "New album due out soon"
+    },
+    {
+      "name": "Adam Wolff",
+      "user": "Adam",
+      "title": "Software Architect",
+      "email": "adam@laszlosystems.com",
+      "telephone": "(510)555-1252",
+      "address": "Berkeley, CA",
+      "notes": "ECMAScript true believer"
+    },
+    {
+      "name": "Eric Bloch",
+      "user": "Eric",
+      "title": "Director, Engineering",
+      "email": "bloch@laszlosystems.com",
+      "telephone": "(415)555-4589",
+      "address": "San Francisco, CA"
+    },
+    {
+      "name": "Max Carlson",
+      "user": "Max",
+      "title": "Software Architect",
+      "email": "max@sfsu.edu",
+      "telephone": "(415)555-7785",
+      "address": "San Francisco, CA",
+      "notes": "Book signing on Friday"
+    },
+    {
+      "name": "Pablo Kang",
+      "user": "Pablo",
+      "title": "Senior Software Engineer",
+      "email": "pablo@burntman.com",
+      "telephone": "(415)555-4589",
+      "address": "San Francisco, CA",
+      "notes": "Has tickets to Matrix Premiere!"
+    },
+    {
+      "name": "Oliver Steele",
+      "user": "Oliver",
+      "title": "Chief Software Architect",
+      "email": "osteele@laszlosystems.com",
+      "telephone": "(415)555-3456",
+      "address": "Boston, MA",
+      "notes": "Language God"
+    },
+    {
+      "name": "Antun Karlovac",
+      "user": "Antun",
+      "title": "Support Engineer",
+      "email": "antun@laszlosystems.com",
+      "telephone": "(415)555-3016",
+      "address": "San Francisco, CA"
+    }
+  ]
+}

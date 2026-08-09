@@ -1,0 +1,28 @@
+{
+  "tracks": [
+    {
+      "imageurl": "media/icon/jfk.jpg",
+      "label": "We choose",
+      "url": "media/video/jfk.mp4",
+      "info": "We choose..."
+    },
+    {
+      "imageurl": "media/icon/astro.jpg",
+      "label": "Astronauts",
+      "url": "media/video/astro.mp4",
+      "info": "The Astronauts"
+    },
+    {
+      "imageurl": "media/icon/blast.jpg",
+      "label": "Blast Off",
+      "url": "media/video/blast.mp4",
+      "info": "Blast Off!"
+    },
+    {
+      "imageurl": "media/icon/land.jpg",
+      "label": "Small step",
+      "url": "media/video/land.mp4",
+      "info": "One small step..."
+    }
+  ]
+}

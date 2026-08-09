@@ -1,0 +1,336 @@
+/*
+# Chrome — the drawn window system
+
+The window frame, the accordion, and the pill button. In the original all
+three are bitmaps: about 170 slices of grayscale art, multiplied at runtime by
+a per-window tint so one set of pieces could dress five differently coloured
+windows. Here they are drawn, and the tint is folded in — each class takes the
+few colours its window needs and paints the rest from them.
+
+`shade` is the original's arithmetic, kept because the art was built for it:
+a grayscale value times a factor is how every highlight and shadow in this
+file relates to its base colour.
+*/
+
+script {
+    /** A 0xRRGGBB colour with every channel multiplied by `f` and clamped. */
+    function shade(c: number, f: number): number {
+        const ch = (s: number) => Math.min(255, Math.round(((c >> s) & 255) * f))
+        return (ch(16) << 16) | (ch(8) << 8) | ch(0)
+        }
+    }
+
+
+/*
+## DashButton
+
+The rounded pill, drawn where the original used a nine-piece stretched
+bitmap. Two of them appear in the app and differ only in colour, so `face`
+and `edge` are the whole variation: sage in the contacts bar, rust on the
+login. The label is engraved — a dark copy sitting just above a white one.
+*/
+
+class DashButton extends View [
+    label: string = "",
+    height = 16,
+    cornerRadius = 8,
+
+    face: Color = #96B8A6,
+    edge: Color = #2F5646,
+
+    fill = { pressed ? shade(face, 0.85) : hovered ? shade(face, 1.08) : face },
+    stroke = { stroke(1.5, edge) },
+
+    // Centred in whatever height the pill is — 16 in the contacts bar, 20 on
+    // the login — with the engraved copy 0.7px above the face.
+
+    shadowText: Text [ x = { Math.round((parent.width - this.width) / 2) + 0.5 },
+        y = { (classroot.height - this.height) / 2 - 0.7 },
+        fontFamily = Vera, fontWeight = bold, fontSize = 10, textColor = { edge },
+        text = { classroot.label } ],
+    faceText: Text [ x = { Math.round((parent.width - this.width) / 2) },
+        y = { (classroot.height - this.height) / 2 },
+        fontFamily = Vera, fontWeight = bold, fontSize = 10, textColor = #FFFFFF,
+        text = { classroot.label } ]
+    ]
+
+
+/*
+## TabStack and DashTab
+
+The accordion every window's content sits in: tabs stacked vertically, exactly
+one open, sliding over 333ms. A closed tab is its 18px header bar; the open
+one takes every pixel the closed ones leave, so resizing a window re-derives
+all of them with no bookkeeping.
+
+A constraint may not aggregate over a view's children, so the stack computes
+the one shared number — what the closed tabs take together — and writes it to
+each tab as a plain slot. Each tab's own height then reads only its own state.
+*/
+
+class TabStack extends View [
+    width = 100%, height = 100%,
+
+    layout: SimpleLayout [ axis = y ],
+
+    assign(animate: boolean) {
+        let sel = 0
+        for (let i = 0; i < this.children.length; i++) if (this.children[i].selected) sel = i
+        const used = 18 * (this.children.length - 1)
+        for (let i = 0; i < this.children.length; i++) {
+            const c = this.children[i]
+            c.othersUsed = used
+            if (animate) { c.slide.to = i === sel ? this.height - used : 18; c.slide.start() }
+            }
+        },
+
+    onInit() { assign(false) },
+
+    select(tab: DashTab) {
+        for (const child of this.children) child.selected = child === tab
+        assign(true)
+        }
+    ]
+
+
+// The header bar is `tabbar.png` drawn rather than loaded: eighteen rows of
+// grayscale — white on top, a two-step falloff, a flat body, a darkening tail
+// — multiplied by the tint of whichever side of the bar it is on. The label
+// plate uses `btnBase`, the rest of the row `barBase`, split by a white and a
+// black hairline.
+
+class DashTab extends View [
+    width = 100%,
+    label: string = "",
+    selected: boolean = false,
+
+    btnBase: Color = #4F4538,          // per window flavor, sampled
+    barBase: Color = #88775F,
+
+    othersUsed: number = 54,           // what the closed siblings take, together
+
+    height = { selected ? parent.height - othersUsed : 18 },
+    slide: Animator [ attribute = height, duration = 333, motion = laszloBoth ],
+    clip = true,
+
+    header: View [ width = { parent.width }, height = 18,
+
+        onClick() { classroot.parent.select(classroot); app.stage.popup.hide() },
+
+        draw(d: Draw) {
+            const bw = Math.min(width, titleW() + 11)
+            // One gradient with a hard stop per row, rather than eighteen
+            // stacked rects: on a retina display the seam between abutting
+            // rects antialiases and shows as banding, a single fill cannot.
+            const rows = [255, 226, 197, 168, 168, 168, 168, 168, 168, 168, 168, 168, 168, 168, 156, 145, 110, 75]
+            const css = (c) => "rgb(" + ((c >> 16) & 255) + "," + ((c >> 8) & 255) + "," + (c & 255) + ")"
+            const bands = (x0, w0, base) => {
+                const grad = d.createLinearGradient(0, 0, 0, 18)
+                for (let i = 0; i < 18; i++) {
+                    const col = css(shade(base, rows[i] / 168))
+                    grad.addColorStop(i / 18, col)
+                    grad.addColorStop(Math.min(1, (i + 1) / 18 - 0.0001), col)
+                    }
+                d.fillStyle = grad
+                d.fillRect(x0, 0, w0, 18)
+                }
+            bands(0, bw, classroot.btnBase)
+            d.fillStyle = 0xFFFFFF80; d.fillRect(bw, 0, 1, 18)
+            d.fillStyle = 0x00000080; d.fillRect(bw + 1, 0, 1, 18)
+            bands(bw + 2, width - bw - 2, classroot.barBase)
+            },
+        titleW(): number { return title.width },
+
+        titleShadow: Text [ x = 5.5, y = 1.5, fontFamily = Vera, fontWeight = bold,
+            fontSize = 12, textColor = #000000, opacity = 0.5,
+            text = { classroot.label } ],
+        title: Text [ x = 6, y = 1, fontFamily = Vera, fontWeight = bold,
+            fontSize = 12, textColor = #FFFFFF, text = { classroot.label } ]
+        ]
+    ]
+
+
+// One flavour per window: the two base colours its tab strips are drawn from.
+
+class DailyTab   extends DashTab [ btnBase = #4F4538, barBase = #88775F ]
+
+class CommTab    extends DashTab [ btnBase = #47483A, barBase = #616350 ]
+
+class PlannerTab extends DashTab [ btnBase = #414648, barBase = #575E62 ]
+
+class MediaTab   extends DashTab [ btnBase = #444148, barBase = #5D5762 ]
+
+class PeopleTab  extends DashTab [ btnBase = #3E5047, barBase = #4F6058 ]
+
+/*
+## DashWindow
+
+The window all five instances share. Its whole frame — pinstriped top bar,
+icon corner, title lozenge, side rails, rounded bottom — is drawn from one
+near-black per window, so a window is configured by a fill and a frame colour
+rather than by a set of images.
+
+It drags by the title bar (going half-transparent while it moves, as the
+original did), resizes from the grip in the bottom-right, and maximizes or
+restores by animating x, y, width and height together over 500ms.
+*/
+
+class DashWindow extends View [
+    winLabel: string = "",
+    icon: string = "",
+    tint: Color = #999999,             // the body fill (the original's windowTintColor)
+    frame: Color = #252421,            // the frame near-black, sampled per window
+    homeX: number = 0,
+    homeY: number = 0,
+    homeW: number = 400,
+    homeH: number = 300,
+    minW: number = 160,
+    minH: number = 118,
+    maximized: boolean = false,
+    dragging: boolean = false,
+
+    // Geometry is plain state, seeded once from `home*`. Drag, resize,
+    // maximize and restore all write it directly, which a constraint would
+    // refuse.
+
+    onInit() { x = homeX; y = homeY; width = homeW; height = homeH },
+    opacity = { dragging ? 0.5 : 1 },
+
+    // four attributes moving together — the maximize and restore gesture
+
+    ax: Animator [ attribute = x, duration = 500, motion = laszloOut ],
+    ay: Animator [ attribute = y, duration = 500, motion = laszloOut ],
+    aw: Animator [ attribute = width, duration = 500, motion = laszloOut ],
+    ah: Animator [ attribute = height, duration = 500, motion = laszloOut ],
+
+    glide(tx: number, ty: number, tw: number, th: number) {
+        ax.to = tx; ay.to = ty; aw.to = tw; ah.to = th
+        ax.start(); ay.start(); aw.start(); ah.start()
+        },
+    maximize() {
+        this.raise()
+        app.stage.popup.hide()
+        maximized = true
+        glide(12, 1, app.deskW - 36, app.deskH - 64)
+        },
+    restore() {
+        this.raise()
+        app.stage.popup.hide()
+        if (!maximized) return
+        maximized = false
+        glide(homeX, homeY, homeW, homeH)
+        },
+
+    onPointerDown() { this.raise(); app.stage.popup.hide() },
+
+    // The window's silhouette, and what casts its shadow. The root cannot: its
+    // box includes the transparent strip above the bar, so a shadow cast from
+    // it would print a square behind the rounded bottom corners. This plate is
+    // the real outline — everything else paints over it, except at the corners,
+    // where its fill is exactly the frame colour they need.
+
+    silhouette: View [ y = 10, width = { parent.width }, height = { parent.height - 10 },
+        fill = { classroot.frame }, cornerRadius = 13,
+        shadow = shadow(5, 9, 9, #00000099) ],
+
+    // ── the title bar: pinstriped strip, icon corner, title lozenge ────────
+
+    topRow: View [ width = { parent.width }, height = 31,
+        grabX: number = 0,
+        grabY: number = 0,
+
+        onPointerDown(e: PointerEvent) {
+            grabX = e.x; grabY = e.y; classroot.dragging = true
+            classroot.raise(); app.stage.popup.hide()
+            },
+
+        // Move events carry root-space coordinates; a window's x/y are
+        // relative to the stage, hence the parent origin coming off.
+
+        onPointerMove(e: PointerEvent) {
+            classroot.x = e.x - grabX - classroot.parent.x
+            classroot.y = e.y - grabY - classroot.parent.y
+            },
+        onPointerUp() { classroot.dragging = false },
+
+        draw(d: Draw) {
+            const f = classroot.frame
+            d.fillStyle = 0x939393; d.fillRect(26, 8, width - 26, 2) // the light edge above the bar
+            // The bar, rounded into its top-left corner. The icon is a circle
+            // laid over that corner with nothing square behind it.
+            d.fillStyle = f
+            d.beginPath()
+            d.moveTo(0, 31); d.lineTo(0, 22); d.quadraticCurveTo(0, 10, 14, 10)
+            d.lineTo(width, 10); d.lineTo(width, 31); d.closePath(); d.fill()
+            for (let yy = 13; yy < 24; yy += 3) {                    // the ribbed pinstripes
+                d.fillStyle = shade(f, 1.95); d.fillRect(40, yy, width - 40, 1)
+                d.fillStyle = 0x000000; d.fillRect(40, yy + 1, width - 40, 1)
+                }
+            },
+
+        iconArt: Image [ x = 2, y = 0, width = 31, height = 31,
+            source = { classroot.icon } ],
+        lozenge: View [ x = 32, y = 8, height = 23,
+            width = { titleText.width + 24 },
+
+            // the title's lozenge, its right end swept into a cap
+
+            draw(d: Draw) {
+                d.fillStyle = classroot.frame
+                d.beginPath()
+                d.moveTo(0, 0); d.lineTo(width - 22, 0)
+                d.quadraticCurveTo(width - 6, 0, width, height)
+                d.lineTo(0, height); d.closePath(); d.fill()
+                },
+            titleText: Text [ x = 2, y = 2, fontFamily = Vera, fontWeight = bold,
+                fontSize = 16, textColor = #FFFFFF, text = { classroot.winLabel } ]
+            ],
+
+        cap: View [ x = { parent.width - 48 }, y = 10, width = 48, height = 21,
+            fill = { classroot.frame },
+
+            restoreBtn: View [ x = 15, y = 4, width = 13, height = 12,
+                fill = { hovered ? 0x6A6A6A : 0x4A4A4A }, cornerRadius = 2,
+                onClick() { classroot.restore() },
+                glyph: View [ x = 3, y = 5, width = 7, height = 3, fill = #DDDDDD ]
+                ],
+            maxBtn: View [ x = 30, y = 4, width = 13, height = 12,
+                fill = { hovered ? 0x6A6A6A : 0x4A4A4A }, cornerRadius = 2,
+                onClick() { classroot.maximize() },
+                glyphH: View [ x = 3, y = 5, width = 7, height = 3, fill = #DDDDDD ],
+                glyphV: View [ x = 5, y = 3, width = 3, height = 7, fill = #DDDDDD ]
+                ]
+            ]
+        ],
+
+    // ── the body: the window's fill between two frame rails ────────────────
+
+    body: View [ y = 31, width = { parent.width }, height = { parent.height - 31 - 15 },
+        fill = { classroot.tint },
+
+        // Events do not bubble here, so a press on the body is not a press on
+        // the window: raising has to be asked for on both.
+
+        onPointerDown() { classroot.raise() },
+        railL: View [ width = 3, height = 100%, fill = { classroot.frame } ],
+        railR: View [ x = { parent.width - 3 }, width = 3, height = 100%,
+            fill = { classroot.frame } ]
+        ],
+
+    // ── the bottom rail, rounded, with the resize grip in its right end ────
+
+    bottomRow: View [ y = { parent.height - 15 }, width = { parent.width }, height = 15,
+
+        grip: View [ x = { parent.width - 15 }, width = 15, height = 15,
+            cursor = "nwse-resize",
+            onPointerMove(e: PointerEvent) {
+                classroot.width = Math.max(classroot.minW, e.x - classroot.parent.x - classroot.x)
+                classroot.height = Math.max(classroot.minH, e.y - classroot.parent.y - classroot.y)
+                },
+            draw(d: Draw) {                      // the grip's diagonal ridges
+                d.fillStyle = 0xFFFFFF44
+                d.fillRect(4, 10, 8, 1); d.fillRect(7, 7, 5, 1); d.fillRect(10, 4, 2, 1)
+                }
+            ]
+        ]
+    ]

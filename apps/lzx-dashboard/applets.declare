@@ -1,0 +1,578 @@
+/*
+# The live applets
+
+Chat, contacts and the two media players — the four tabs of the dashboard that
+actually do something. (The rest are period screenshots, as they were in the
+original.)
+
+## Chat
+
+The Communications window's live tab. The original talked to a chat server and
+rendered what came back; there is no server here, so a sent line is echoed
+straight into the transcript — in the same blue the server's copy of your own
+message used to arrive in.
+*/
+
+class ChatPanel extends View [
+    width = 100%, height = 100%,
+
+    send() {
+        const t = entry.text.trim()
+        if (t === "") return
+        app.chatLog.insert(["messages"], app.chatLog.value.messages.length,
+            ({ text: app.userName + ": " + t, self: true }))
+        entry.text = ""
+        transcript.scrollY = 100000
+        },
+
+    transcript: View [ x = 15, y = 5, width = { parent.width - 34 },
+        height = { parent.height - 34 },
+        fill = #FFFFFF, cornerRadius = 11, clip = true, scrolls = y,
+
+        rows: View [ x = 6, y = 4, width = { parent.width - 12 },
+            datapath = { app.chatLog.value },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            Text [ datapath = :messages[],
+                width = { parent.width }, wrap = true,
+                fontFamily = VeraRoman, fontSize = 11,
+                textColor = { :self ? 0x0000FF : 0xCC0000 },
+                text = :text ]
+            ]
+        ],
+
+    entry: TextInput [ x = 10, y = { parent.height - 23 }, height = 17,
+        width = { parent.width - 46 },
+        fill = #FFFFFF, cornerRadius = 8, stroke = stroke(2, #959964),
+        fontFamily = VeraRoman, fontSize = 11,
+        onEnter() { classroot.send() }
+        ],
+
+    sendBtn: Image [ width = 37, height = 15,
+        x = { parent.width - 44 }, y = { parent.height - 22 },
+        source = { pressed ? "resources/img/send_down.png"
+                 : hovered ? "resources/img/send_over.png" : "resources/img/send_up.png" },
+        onClick() { classroot.send() }
+        ]
+    ]
+
+
+/*
+## Contacts
+
+The People window's live tab: fifteen contacts as an accordion — one row open
+at a time, clicking the open one closes it — over a slide-out form for adding
+another. A row flashes white when that person comes online.
+*/
+
+class ContactRow extends View [
+    width = { parent.width },
+    open: boolean = false,
+    height = { open ? 224 : 34 },
+    slide: Animator [ attribute = height, duration = 333, motion = laszloBoth ],
+    clip = true,
+
+    setOpen(on: boolean) {
+        if (on === open) return
+        open = on
+        slide.to = on ? 224 : 34
+        slide.start()
+        },
+
+    header: View [ width = 100%, height = 34, fill = #88B29D,
+        // Opening a row closes its siblings; clicking the open row closes it.
+
+        onClick() {
+            for (const sib of classroot.parent.children) {
+                if (sib !== classroot) sib.setOpen(false)
+                }
+            classroot.setOpen(!classroot.open)
+            },
+        edgeT: View [ width = 100%, height = 1, fill = #B0DEC9 ],
+        edgeL: View [ width = 1, height = 34, fill = #B0DEC9 ],
+        edgeB: View [ y = 33, width = 100%, height = 1, fill = #568A70 ],
+        edgeR: View [ x = { parent.width - 1 }, width = 1, height = 34, fill = #568A70 ],
+
+        nameText:  Text [ x = 11, y = 3, fontFamily = Vera, fontWeight = bold, fontSize = 10,
+            textColor = #222222, text = :name ],
+        titleText: Text [ x = 11, y = 16, fontFamily = VeraRoman, fontSize = 10,
+            textColor = #222222, text = :title ],
+
+        // Presence: when this contact is the one who just came online, a white
+        // wash snaps over the row and fades away across two seconds.
+
+        flash: View [ width = 100%, height = 34, fill = #FFFFFF, opacity = 0,
+            fade: Animator [ attribute = opacity, to = 0, duration = 2000 ],
+            watch: View [ visible = { app.flashUser === :user },
+                onInit() { parent.opacity = 0.9; parent.fade.start() }
+                ]
+            ]
+        ],
+
+    detail: View [ y = 34, width = 100%, visible = { classroot.open },
+        fontFamily = VeraRoman, fontSize = 10, textColor = #222222,
+
+        secInfo: View [ x = 5, y = 8, width = 35, height = 15, fill = #82998D,
+            t: Text [ x = 4, y = 1, fontFamily = Vera, fontWeight = bold, fontSize = 10,
+                textColor = #FFFFFF, text = "Info" ]
+            ],
+        divA: View [ x = 5, y = 26, width = { parent.width - 15 }, height = 1, fill = #8D9E95 ],
+        divB: View [ x = 5, y = 27, width = { parent.width - 15 }, height = 1, fill = #C4DBCF ],
+
+        emailHead: Text [ x = 5, y = 33, fontFamily = Vera, fontWeight = bold, fontSize = 10, text = "Email Addresses" ],
+        emailVal:  Text [ x = 12, y = 47, width = { parent.width - 20 }, text = :email ],
+        telHead:   Text [ x = 5, y = 64, fontFamily = Vera, fontWeight = bold, fontSize = 10, text = "Telephone No's" ],
+        telVal:    Text [ x = 12, y = 78, width = { parent.width - 20 }, text = :telephone ],
+        addrHead:  Text [ x = 5, y = 95, fontFamily = Vera, fontWeight = bold, fontSize = 10, text = "Address" ],
+        addrVal:   Text [ x = 12, y = 109, width = { parent.width - 20 }, wrap = true, text = :address ],
+
+        divC: View [ x = 5, y = 130, width = { parent.width - 15 }, height = 1, fill = #8D9E95 ],
+        divD: View [ x = 5, y = 131, width = { parent.width - 15 }, height = 1, fill = #C4DBCF ],
+        secNotes: View [ x = 5, y = 138, width = 90, height = 15, fill = #82998D,
+            t: Text [ x = 4, y = 1, fontFamily = Vera, fontWeight = bold, fontSize = 10,
+                textColor = #FFFFFF, text = "Notes & More" ]
+            ],
+        notesVal: Text [ x = 12, y = 158, width = { parent.width - 20 }, wrap = true,
+            text = { :notes ?? "" } ]
+        ]
+    ]
+
+
+class ContactsPanel extends View [
+    width = 100%, height = 100%,
+    formOpen: boolean = false,
+
+    // ── the toolbar: new, and save/cancel while an edit is open ────────────
+
+    bar: View [ width = 100%, height = 25,
+        // flat sage with a rule at its foot — the sunken well belongs to the
+        // cap art on the right, not to the strip the pill sits on
+
+        draw(d: Draw) {
+            d.fillStyle = 0x8CB29C; d.fillRect(0, 0, width, 24)
+            d.fillStyle = 0x47735D; d.fillRect(0, 24, width, 1)
+            },
+
+        // The stepped right end and its search/sort cluster, which are
+        // decorative in the original too. Both hide while the form is open.
+
+        cap: Image [ x = { parent.width - 160 }, visible = { !classroot.formOpen },
+            source = "resources/img/contact_data_top_r.png",
+            icons: Image [ x = 80, y = 4, source = "resources/img/contact_data_top_buttons.png" ]
+            ],
+        newBtn: DashButton [ x = 4, y = 2, width = 43, label = "new",
+            face = #96B8A6, edge = #2F5646,
+            onClick() {
+                if (classroot.formOpen) return
+                classroot.formOpen = true
+                classroot.form.slide.to = 270; classroot.form.slide.start()
+                }
+            ],
+        saveBtn: DashButton [ x = { parent.width - 110 }, y = 2, width = 50, label = "save",
+            face = #96B8A6, edge = #2F5646,
+            visible = { classroot.formOpen },
+            onClick() { classroot.saveNew() }
+            ],
+        cancelBtn: DashButton [ x = { parent.width - 55 }, y = 2, width = 50, label = "cancel",
+            face = #96B8A6, edge = #2F5646,
+            visible = { classroot.formOpen },
+            onClick() { classroot.closeForm() }
+            ]
+        ],
+
+    saveNew() {
+        const d = app.contactsData.value.contacts
+        app.contactsData.insert(["contacts"], d.length, ({
+            name: form.nameIn.text, user: form.nameIn.text.split(" ")[0],
+            title: form.titleIn.text, email: form.emailIn.text,
+            telephone: form.phoneIn.text, address: form.addrIn.text }))
+        closeForm()
+        },
+    closeForm() {
+        form.slide.to = 0; form.slide.start()
+        formOpen = false
+        },
+
+    // ── the new-contact form, which slides open beneath the toolbar ────────
+
+    form: View [ y = 25, width = 100%, height = 0, clip = true, fill = #B6CCC1,
+        slide: Animator [ attribute = height, duration = 500, motion = laszloBoth ],
+        gutter: View [ width = 55, height = 100%, fill = #9EBAAB ],
+        fontFamily = Vera, fontWeight = bold, fontSize = 10, textColor = #222222,
+
+        nameLbl:  Text [ x = 5, y = 5,   text = "Name" ],
+        nameIn:   TextInput [ x = 60, y = 3, width = { parent.width - 65 }, height = 18,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+        titleLbl: Text [ x = 5, y = 22,  text = "Title" ],
+        titleIn:  TextInput [ x = 60, y = 20, width = { parent.width - 65 }, height = 18,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+        emailLbl: Text [ x = 5, y = 50,  text = "Email" ],
+        emailIn:  TextInput [ x = 60, y = 48, width = { parent.width - 65 }, height = 18,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+        phoneLbl: Text [ x = 5, y = 97,  text = "Phone" ],
+        homeLbl:  Text [ x = 60, y = 97, fontFamily = VeraRoman, text = "Home" ],
+        phoneIn:  TextInput [ x = 93, y = 95, width = { parent.width - 98 }, height = 16,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+        workLbl:  Text [ x = 60, y = 114, fontFamily = VeraRoman, text = "Work" ],
+        workIn:   TextInput [ x = 93, y = 112, width = { parent.width - 98 }, height = 16,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+        cellLbl:  Text [ x = 60, y = 131, fontFamily = VeraRoman, text = "Cell" ],
+        cellIn:   TextInput [ x = 93, y = 129, width = { parent.width - 98 }, height = 16,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+        faxLbl:   Text [ x = 60, y = 148, fontFamily = VeraRoman, text = "Fax" ],
+        faxIn:    TextInput [ x = 93, y = 146, width = { parent.width - 98 }, height = 16,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+        addrLbl:  Text [ x = 5, y = 177, text = "Address" ],
+        addrIn:   TextInput [ x = 60, y = 175, width = { parent.width - 65 }, height = 16,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+        addr2In:  TextInput [ x = 60, y = 192, width = { parent.width - 65 }, height = 16,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+        addr3In:  TextInput [ x = 60, y = 209, width = { parent.width - 65 }, height = 16,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+        addr4In:  TextInput [ x = 60, y = 226, width = { parent.width - 65 }, height = 16,
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ]
+        ],
+
+    /*
+    ### The list, and its own scroll
+
+    `scrolls = y` would hand this pane to the platform, and the platform draws
+    a scrollbar of its own — beside the one this window is supposed to have.
+    So the offset is ours: the list clips, the rows ride at `-scrollPos`, and
+    the wheel and the drawn bar are its two drivers. The trade is momentum and
+    rubber-band, which belong to the platform scroller; a fifteen-row list
+    does not miss them.
+    */
+
+    scrollPos: number = 0,
+    contentH(): number { return Math.max(1, list.rows.height) },
+    maxScroll(): number { return Math.max(0, contentH() - list.height) },
+    scrollBy(dy: number) { scrollPos = Math.max(0, Math.min(maxScroll(), scrollPos + dy)) },
+
+    list: View [ y = { 25 + form.height }, width = { parent.width - 16 },
+        height = { parent.height - 25 - form.height },
+        fill = #88B29D, clip = true,
+
+        onWheel(e: WheelEvent) { classroot.scrollBy(e.deltaY) },
+
+        rows: View [ x = 0, y = { -classroot.scrollPos }, width = { parent.width },
+            datapath = { app.contactsData.value },
+            layout: SimpleLayout [ axis = y ],
+            ContactRow [ datapath = :contacts[] ]
+            ]
+        ],
+
+    /*
+    ### The scrollbar
+
+    A classic one, drawn to the component the original mounts here — the stock
+    `<scrollbar axis="y">` from `runtime/components/lz/vscrollbar.lzx`, tinted
+    sage. An arrow at each end; a light thumb, proportional to how much of the
+    list is visible, carrying a ribbed gripper down its middle; and two track
+    segments that page a viewport when pressed, one above the thumb and one
+    below. The gripper is clipped to `min(200, height − 16)` and centred, as
+    the original's tall ridge texture is.
+    */
+
+    pageBy(dir: number) { scrollBy(dir * list.height) },
+
+    sbar: View [ x = { parent.width - 16 }, y = { 25 + form.height }, width = 16,
+        height = { parent.height - 25 - form.height },
+
+        draw(d: Draw) {
+            d.fillStyle = 0xB6CCC1; d.fillRect(0, 0, 2, height)     // rail against the list
+            d.fillStyle = 0x64716B; d.fillRect(2, 0, 1, height)     // track's left edge (a0)
+            d.fillStyle = 0x798780; d.fillRect(3, 0, 12, height)    // the track itself (c0)
+            d.fillStyle = 0x94A59D; d.fillRect(15, 0, 1, height)    // its right highlight (eb)
+            },
+
+        // one arrow: the pale face, a dark chevron, a shadowed foot
+
+        button(d: Draw, w: number, h: number, up: boolean) {
+            const g = d.createLinearGradient(0, 0, 0, h)
+            g.addColorStop(0, "#98AAA1"); g.addColorStop(1, "#67736D")
+            d.fillStyle = g; d.fillRect(0, 0, w, h)
+            d.fillStyle = 0xA0B4AA; d.fillRect(0, 0, w, 1)
+            d.fillStyle = 0x404844; d.fillRect(0, h - 2, w, 1)
+            d.fillStyle = 0x383F3B; d.fillRect(0, h - 1, w, 1)
+            d.fillStyle = 0x383F3B
+            d.beginPath()
+            if (up) { d.moveTo(w / 2, 3); d.lineTo(w - 3.5, 8); d.lineTo(3.5, 8) }
+            else { d.moveTo(3.5, 4); d.lineTo(w - 3.5, 4); d.lineTo(w / 2, 9) }
+            d.closePath(); d.fill()
+            },
+
+        upBtn: View [ x = 2, width = 14, height = 13,
+            draw(d: Draw) { classroot.sbar.button(d, width, height, true) },
+            onClick() { classroot.scrollBy(-34) }
+            ],
+        downBtn: View [ x = 2, y = { parent.height - 13 }, width = 14, height = 13,
+            draw(d: Draw) { classroot.sbar.button(d, width, height, false) },
+            onClick() { classroot.scrollBy(34) }
+            ],
+
+        // the two track segments; pressing either pages a viewport
+
+        pageUp: View [ x = 2, y = 13, width = 14,
+            height = { Math.max(0, classroot.sbar.thumb.y - 13) },
+            onPointerDown() { classroot.pageBy(-1) }
+            ],
+        pageDown: View [ x = 2, width = 14,
+            y = { classroot.sbar.thumb.y + classroot.sbar.thumb.height },
+            height = { Math.max(0, parent.height - 13 - this.y) },
+            onPointerDown() { classroot.pageBy(1) }
+            ],
+
+        thumb: View [ x = 2, width = 14,
+            trackH(): number { return classroot.sbar.height - 26 },
+            height = { Math.max(20, trackH()
+                * Math.min(1, classroot.list.height / classroot.contentH())) },
+            y = { 13 + (trackH() - this.height)
+                * (classroot.scrollPos / Math.max(1, classroot.maxScroll())) },
+
+            draw(d: Draw) {
+                const g = d.createLinearGradient(0, 0, 0, height)
+                g.addColorStop(0, "#90A299"); g.addColorStop(1, "#6F7C75")   // e6 → b0
+                d.fillStyle = g; d.fillRect(0, 0, 14, height)
+                d.fillStyle = 0xA0B4AA; d.fillRect(0, 0, 14, 1)              // top hairline (ff)
+                d.fillStyle = 0xA0B4AA; d.fillRect(0, 0, 1, height)          // left highlight
+                d.fillStyle = 0x505A55; d.fillRect(13, 0, 1, height)         // right shadow (80)
+                d.fillStyle = 0x505A55; d.fillRect(0, height - 1, 14, 1)     // foot
+                // the gripper: ridges every 3px, centred, capped at 200
+                const gh = Math.max(0, Math.min(200, height - 16))
+                const top = Math.round((height - gh) / 2)
+                for (let i = 0; i + 2 < gh; i += 3) {
+                    d.fillStyle = 0xA0B4AA; d.fillRect(2, top + i, 9, 1)
+                    d.fillStyle = 0x6F7C75; d.fillRect(3, top + i + 1, 8, 1)
+                    }
+                },
+
+            grabY: number = 0,
+            onPointerDown(e: PointerEvent) { grabY = e.y },
+            onPointerMove(e: PointerEvent) {
+                const t = trackH() - this.height
+                const ny = Math.max(0, Math.min(t, e.y - parent.rootOrigin().y - 13 - grabY))
+                classroot.scrollPos = (ny / Math.max(1, t)) * classroot.maxScroll()
+                }
+            ]
+        ]
+    ]
+
+
+/*
+## Media
+
+Two players, one transport. The Media window's Music and Video tabs are the
+same three parts in a different order: a grid of tracks, a player, and the
+transport between them — and the transport is one class serving both.
+
+Nothing here is a media widget. The scrubber's position, the time readout, the
+load bar and the volume ramp are all derived from `Audio` and `Video`'s own
+attributes — `position`, `duration`, `loaded`, `volume` — which is what those
+components are for: they carry the transport and leave the chrome to the app.
+*/
+
+class TrackCell extends View [
+    width = 68, height = 68,
+    kind: string = "audio",
+    art: Image [ x = 12, y = 9, width = 40, height = 40, stretches = both,
+        source = :imageurl ],
+    caption: Text [ y = 50, width = 100%, fontFamily = Kroe, fontSize = 8,
+        textColor = #000000, textAlign = center, text = :label ],
+    onClick() { app.stage.popup.show(art, :label, :info, :imageurl, :url, kind) }
+    ]
+
+
+class MediaTransport extends View [
+    width = 100%, height = 74,
+    idleLabel: string = "Choose a track below.",
+
+    // The player this transport drives, in two halves. Verbs go through
+    // `player`, which the panel assigns once at init. The facts it displays
+    // arrive as constraints from the instance site instead, because reading
+    // through an assigned slot is not a live dependency while a
+    // `{ song.position }` written at the declaration is.
+
+    player: Media = null,
+    pos: number = 0,
+    dur: number = 0,
+    isPlaying: boolean = false,
+    isLoaded: boolean = false,
+
+    // The buttons, wells and glyphs are the original's art — pixel icons are
+    // not worth redrawing — while the bars and their geometry are ours.
+
+    info: Text [ y = 5, width = 100%, textAlign = center,
+        fontFamily = Vera, fontWeight = bold, fontSize = 10, textColor = #222222,
+        text = { app.nowPlayingInfo !== "" ? app.nowPlayingInfo : classroot.idleLabel } ],
+
+    prev: Image [ x = 5, y = 25, width = 18, height = 18,
+        source = { pressed ? "resources/img/prevdown.png"
+                 : hovered ? "resources/img/prevover.png" : "resources/img/prev.png" },
+
+        // Each player's `playing` is derived from `app.mediaWants`, so the
+        // transport moves that rather than the player: a write straight to a
+        // constrained slot is refused.
+
+        onClick() { const p = classroot.player; if (p) p.position = 0; app.mediaWants = false }
+        ],
+
+    loadbar: View [ x = 23, y = 25, width = { parent.width - 132 }, height = 18, clip = true,
+        well: Image [ source = "resources/img/loadbarback.png" ],
+        onClick(e: PointerEvent) {
+            const p = classroot.player
+            if (p && p.duration > 0) p.position = (e.x / this.width) * p.duration
+            },
+
+        // the load-progress fill; metadata arriving is what counts as loaded
+
+        prog: Image [ y = 5, height = 8, stretches = both, source = "resources/img/loadbar.png",
+            width = { parent.width * (classroot.isLoaded ? 1 : 0) } ],
+
+        // The scrubber. Its x is derived from the playhead even mid-drag —
+        // dragging writes `position` and x follows — so there is never a
+        // second source of truth about where the thumb belongs.
+
+        scrub: Image [ y = 1, width = 16, height = 16,
+            // Pause while running, and before any track is chosen, which is
+            // the frame the original's button boots on; play once there is
+            // something to resume.
+
+            source = { (app.nowPlayingKind === "" || classroot.isPlaying)
+                ? (pressed ? "resources/img/pausedown.png"
+                 : hovered ? "resources/img/pauseover.png" : "resources/img/pause.png")
+                : (pressed ? "resources/img/playdown.png"
+                 : hovered ? "resources/img/playover.png" : "resources/img/play.png") },
+            x = { (classroot.pos / Math.max(0.0001, classroot.dur)) * (parent.width - 16) },
+            grabX: number = 0,
+            onPointerDown(e: PointerEvent) { grabX = e.x },
+            onPointerMove(e: PointerEvent) {
+                const p = classroot.player
+                const nx = Math.max(0, Math.min(parent.width - 16, e.x - parent.rootOrigin().x - grabX))
+                if (p && p.duration > 0) p.position = (nx / (parent.width - 16)) * p.duration
+                },
+            onClick() { app.mediaWants = !app.mediaWants }
+            ]
+        ],
+
+    next: Image [ x = { 23 + loadbar.width }, y = 25, width = 18, height = 18,
+        source = { pressed ? "resources/img/nextdown.png"
+                 : hovered ? "resources/img/nextover.png" : "resources/img/next.png" },
+        onClick() {
+            const p = classroot.player
+            if (p && p.duration > 0) p.position = p.duration
+            app.mediaWants = false
+            }
+        ],
+
+    clockOf(secs: number): string {
+        const s = Math.floor(secs)
+        return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
+        },
+
+    timeWell: Image [ x = { parent.width - 87 }, y = 27, source = "resources/img/media_timereadout.png",
+        readout: Text [ x = 3, y = 1, fontFamily = Vera, fontWeight = bold, fontSize = 10, textColor = #000000,
+            text = { classroot.clockOf(classroot.pos) } ]
+        ],
+
+    isBtns: Image [ x = { parent.width - 42 }, y = 25, source = "resources/img/media_is_buttons.png" ],
+
+    // the view-switch strip along the bottom edge, decorative in both
+
+    tabL: Image [ y = { parent.height - 7 }, width = 100%, height = 7, stretches = width,
+        source = "resources/img/media_tab_l.png" ],
+    tabM: Image [ x = 80, y = { parent.height - 28 }, source = "resources/img/media_tab_m.png" ],
+    tabR: Image [ x = 112, y = { parent.height - 25 }, width = { parent.width - 112 }, height = 25,
+        stretches = width, source = "resources/img/media_tab_r.png" ],
+    tabBtns: Image [ x = { parent.width - 97 }, y = { parent.height - 22 },
+        source = "resources/img/media_tab_buttons.png" ],
+
+    // volume: the thumb's 0..39 travel maps linearly onto 0..1
+
+    volume: View [ x = 5, y = { parent.height - 23 }, width = 80, height = 14,
+        soft: Image [ x = 0, y = 2, source = "resources/img/volumesoft.png",
+            onClick() { thumb.x = Math.max(0, thumb.x - 5) }
+            ],
+        track: Image [ x = 10, y = 6, source = "resources/img/volumebar.png" ],
+        thumb: Image [ x = 39, y = 2, source = "resources/img/volumebutton.png",
+            grabX: number = 0,
+            onPointerDown(e: PointerEvent) { grabX = e.x },
+            onPointerMove(e: PointerEvent) {
+                x = Math.max(0, Math.min(39, e.x - parent.rootOrigin().x - 10 - grabX))
+                const p = classroot.player
+                if (p) p.volume = x / 39
+                }
+            ],
+        loud: Image [ x = 64, y = 1, source = "resources/img/volumeloud.png",
+            onClick() { thumb.x = Math.min(39, thumb.x + 5) }
+            ]
+        ]
+    ]
+
+
+class MusicPanel extends View [
+    width = 100%, height = 100%, fill = #BB95C0,
+
+    // A clip that ends has to clear the WANT, not just its own state: since
+    // `playing` is derived from `mediaWants`, leaving that true would
+    // re-assert play the instant the element reported the end.
+
+    song: Audio [ source = { app.nowPlayingUrl },
+        playing = { app.nowPlayingKind === "audio" && app.mediaWants },
+        onEnded() { app.mediaWants = false }
+        ],
+
+    // a component slot takes an assignment, not a constraint
+
+    onInit() { transport.player = song },
+
+    iconShadow: View [ x = 6, y = 5, width = 32, height = 32, fill = #826886 ],
+    iconWell: Image [ x = 4, y = 3, width = 32, height = 32, stretches = both,
+        source = { app.nowPlayingIcon } ],
+
+    transport: MediaTransport [ y = 32,
+        pos = { song.position }, dur = { song.duration },
+        isPlaying = { song.playing }, isLoaded = { song.loaded } ],
+
+    grid: View [ y = 106, width = 100%, height = { parent.height - 106 },
+        fill = #FFFFFF, clip = true, scrolls = y,
+        cells: View [ width = { parent.width },
+            datapath = { app.musicData.value },
+            layout: WrappingLayout [ spacing = 8, lineSpacing = 0 ],
+            TrackCell [ datapath = :tracks[], kind = "audio" ]
+            ]
+        ]
+    ]
+
+
+class VideoPanel extends View [
+    width = 100%, height = 100%, fill = #BB95C0,
+
+    // black behind the picture only; the transport band below stays mauve
+
+    backing: View [ width = 100%, height = { parent.height - 74 - 65 }, fill = #000000 ],
+
+    reel: Video [ source = { app.nowPlayingVideoUrl }, muted = false,
+        playing = { app.nowPlayingKind === "video" && app.mediaWants },
+        height = { parent.height - 74 - 65 },
+        width = { this.height * 240 / 135 },
+        x = { (parent.width - this.width) / 2 },
+        stretches = both,
+        onEnded() { position = 0; app.mediaWants = false }
+        ],
+
+    onInit() { transport.player = reel },
+
+    transport: MediaTransport [ y = { parent.height - 74 - 65 },
+        idleLabel = "Choose a video below.",
+        pos = { reel.position }, dur = { reel.duration },
+        isPlaying = { reel.playing }, isLoaded = { reel.loaded } ],
+
+    strip: View [ y = { parent.height - 65 }, width = 100%, height = 65,
+        fill = #F8EEF8, clip = true,
+        cells: View [ width = { parent.width },
+            datapath = { app.videosData.value },
+            layout: WrappingLayout [ spacing = 8, lineSpacing = 0 ],
+            TrackCell [ datapath = :tracks[], kind = "video" ]
+            ]
+        ]
+    ]

@@ -1,0 +1,393 @@
+/*
+# LZX Dashboard
+
+The OpenLaszlo **Dashboard** sample of 2003 — a web desktop with five windows,
+an accordion of tabs in each, live chat, a contacts book and a media player —
+rebuilt in Declare. The original ships with OpenLaszlo 5.0 under
+`examples/dashboard/`. This is the same application, matched on what it looks
+like and how it behaves; it is not a transliteration of its source.
+
+## The three files
+
+| file | holds |
+|---|---|
+| `lzx-dashboard.declare` | the stage — five windows, the media popup, the login |
+| `chrome.declare` | the window frame, the accordion, the button: the drawn parts |
+| `applets.declare` | chat, contacts, and the two media players |
+
+Data lives in `data/*.json`, converted from the original's inline XML datasets.
+Bitmaps are **content only**: the desktop, the five window icons, the
+decorative tab screenshots, track art, the media itself, and the icon-scale
+player glyphs. Every window frame, tab strip, rail, button and scrollbar is
+drawn. The fonts are the original's own — Bitstream Vera bold and roman, and
+the Kroeger 6pt pixel face.
+
+## Measured against the original
+
+Same machine, same 1000×710 viewport, cold cache, median of five runs, this
+app against the OpenLaszlo 5.0 DHTML build of the same dashboard:
+
+| | Declare | OpenLaszlo | |
+|---|---|---|---|
+| source lines | 1,233 | 2,949 | 2.4× fewer |
+| HTTP requests | 61 | 183 | 3.0× fewer |
+| code over the wire, gzipped | 71 KB | 152 KB | 2.1× smaller |
+| JS heap, desktop open | 6.6 MB | 11.3 MB | 1.7× smaller |
+| DOM nodes | 1,094 | 2,095 | 1.9× fewer |
+| `<img>` elements | 62 | 343 | 5.5× fewer |
+| first screen | 133 ms | 910 ms | 7× sooner |
+| cold start to desktop | 828 ms | 1,027 ms | 1.2× sooner |
+
+The image ratio is the one that explains the others: the original composites
+its window frames, tabs, shadows and buttons out of 343 image slices, and
+those are exactly the pieces drawn here. The same program under
+`?render=canvas` paints the identical desktop through **30 DOM nodes** and a
+single `<canvas>`.
+*/
+
+font Vera      [ Face [ src = "resources/fonts/verabd.ttf", weight = bold ]
+    ]
+
+
+font VeraRoman [ Face [ src = "resources/fonts/vera.ttf" ]
+    ]
+
+
+font Kroe      [ Face [ src = "resources/fonts/kroeger-6-plain-regular.ttf" ]
+    ]
+
+
+include [ "chrome.declare" ]
+
+include [ "applets.declare" ]
+
+/*
+## The app
+
+A fixed 1000×710 stage: the desktop bitmap, five windows on it, the media
+popup, and the login sequence covering everything until you sign in.
+
+The app node holds the state the windows share — who signed in, and which
+track the two media players are pointed at. Keeping the now-playing selection
+here rather than in either player is what lets the popup, the music tab and
+the video tab all speak about one thing.
+*/
+
+App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
+    clip = true,                       // the stage's edge clips a dragged window, as the canvas did
+    fontFamily = [Vera, "Verdana", "sans-serif"],
+
+    deskW: number = 987,
+    deskH: number = 684,
+    signedIn: boolean = false,
+    userName: string = "guest",
+    flashUser: string = "",
+
+    // The one selection the popup sets and both transports read. `mediaWants`
+    // is the play/pause fact: each player's `playing` is derived from it, so
+    // the transport buttons move this rather than the player.
+
+    nowPlayingUrl: string = "",
+    nowPlayingVideoUrl: string = "",
+    nowPlayingIcon: string = "",
+    nowPlayingInfo: string = "",
+    nowPlayingKind: string = "",
+    mediaWants: boolean = false,
+
+    contactsData: DataSource [ url = "data/contacts.json" ],
+    musicData:    DataSource [ url = "data/music.json" ],
+    videosData:   DataSource [ url = "data/videos.json" ],
+    chatLog: Dataset {
+        { "messages": [] }
+        },
+
+    clockText: string = "",
+    tick() {
+        const d = new Date()
+        const wd = ["Sun", "Mon", "Tues", "Wed", "Thur", "Fri", "Sat"][d.getDay()]
+        const h = d.getHours() % 12 === 0 ? 12 : d.getHours() % 12
+        const mm = String(d.getMinutes()).padStart(2, "0")
+        clockText = `${wd} ${h}:${mm} ${d.getHours() >= 12 ? "PM" : "AM"}`
+        },
+    onInit() {
+        tick(); setInterval(() => this.tick(), 30000)
+        contactsData.fetch(); musicData.fetch(); videosData.fetch()
+        },
+
+    signIn(name: string) {
+        userName = name === "" ? "guest" : name
+        signedIn = true
+        // The original lit a contact row when that person signed on to the
+        // chat server. There is no server here, so one buddy arrives on a
+        // timer to show the effect.
+        setTimeout(() => { flashUser = "Bret" }, 6000)
+        },
+
+    desktop: Image [ source = "resources/img/background.png",
+        visible = { app.signedIn } ],
+
+    // Right-aligned, so "Sat 9:11 AM" and the wider "Sat 12:39 PM" end on the
+    // same column with a margin inside the desktop's frame.
+
+    clock: Text [ x = 850, y = 15, width = 122, visible = { app.signedIn },
+        fontFamily = Vera, fontWeight = bold, fontSize = 9, textColor = #FFFFFF,
+        textAlign = right, text = { app.clockText } ],
+
+    /*
+    ### The stage
+
+    The rounded inner region of the desktop art, (6,46) to (980,677) with a
+    13px radius. The windows and the popup are its children and it clips, so a
+    window dragged off the edge is cut on that curve rather than sliding over
+    the frame. Window coordinates below are all relative to this, not the app.
+    */
+
+    stage: View [ x = 6, y = 46, width = 974, height = 631, cornerRadius = 13,
+        clip = true, visible = { app.signedIn },
+        onClick() {
+            dailyContent.restore(); communications.restore()
+            planner.restore(); media.restore(); people.restore()
+            },
+
+        dailyContent: DashWindow [
+            winLabel = "Daily Content", icon = "resources/img/dash_icon_daily.png",
+            homeX = 12, homeY = 1, homeW = 464, homeH = 329,
+            tint = #F2E9DA, frame = #252421,
+
+            tabs: TabStack [ x = 3, y = 31, width = { parent.width - 6 }, height = { parent.height - 46 },
+                Entertainment: DailyTab [ label = "Entertainment", selected = true,
+                    shot: Image [ y = 19, source = "resources/img/entertainment_ex.jpg" ]
+                    ],
+                News: DailyTab [ label = "News",
+                    shot: Image [ y = 19, source = "resources/img/news_ex.jpg" ]
+                    ],
+                Weather: DailyTab [ label = "Weather",
+                    shot: Image [ y = 19, source = "resources/img/weather_ex.png" ]
+                    ],
+                Horoscope: DailyTab [ label = "Horoscope",
+                    shot: Image [ y = 19, source = "resources/img/horoscope_ex.png" ]
+                    ]
+                ]
+            ],
+
+        communications: DashWindow [
+            winLabel = "Communications", icon = "resources/img/dash_icon_com.png",
+            homeX = 12, homeY = 339, homeW = 464, homeH = 274,
+            tint = #C9CCA3, frame = #21211A,
+
+            tabs: TabStack [ x = 3, y = 31, width = { parent.width - 6 }, height = { parent.height - 46 },
+                Email: CommTab [ label = "Email",
+                    shot: Image [ y = 19, source = "resources/img/email_ex.jpg" ]
+                    ],
+                Chat: CommTab [ label = "Chat", selected = true,
+                    panel: ChatPanel [ y = 21, height = { parent.height - 21 }, visible = { parent.selected } ]
+                    ],
+                VoiceMail: CommTab [ label = "Voice Mail",
+                    shot: Image [ y = 19, source = "resources/img/voicemail_ex.jpg" ]
+                    ],
+                IM: CommTab [ label = "Instant Messaging" ]
+                ]
+            ],
+
+        planner: DashWindow [
+            winLabel = "Planner", icon = "resources/img/dash_icon_planner.png",
+            homeX = 492, homeY = 1, homeW = 247, homeH = 240,
+            tint = #A6B5BC, frame = #1B1D1F,
+
+            tabs: TabStack [ x = 3, y = 31, width = { parent.width - 6 }, height = { parent.height - 46 },
+                Calendar: PlannerTab [ label = "Calendar", selected = true,
+                    shot: Image [ x = -1, y = 18, source = "resources/img/db_cal.png" ]
+                    ],
+                Notes: PlannerTab [ label = "Notes",
+                    shot: Image [ x = -1, y = 18, source = "resources/img/notes.png" ]
+                    ],
+                ToDo: PlannerTab [ label = "To Do List",
+                    shot: Image [ x = -1, y = 18, source = "resources/img/list.png" ]
+                    ],
+                Wallet: PlannerTab [ label = "Wallet",
+                    shot: Image [ x = -1, y = 18, source = "resources/img/wallet.png" ]
+                    ]
+                ]
+            ],
+
+        media: DashWindow [
+            winLabel = "Media", icon = "resources/img/dash_icon_media.png",
+            homeX = 492, homeY = 247, homeW = 246, homeH = 366, minH = 100,
+            tint = #6C6672, frame = #131215,
+
+            tabs: TabStack [ x = 3, y = 31, width = { parent.width - 6 }, height = { parent.height - 46 },
+                Music: MediaTab [ label = "Music", selected = true,
+                    panel: MusicPanel [ y = 19, height = { parent.height - 19 }, visible = { parent.selected } ]
+                    ],
+                VideoTab: MediaTab [ label = "Video",
+                    panel: VideoPanel [ y = 19, height = { parent.height - 19 }, visible = { parent.selected } ]
+                    ],
+                Presentations: MediaTab [ label = "Presentations",
+                    // The slide keeps its 4:3 — width drives height — so it is
+                    // never stretched to the pane it sits in.
+
+                    pane: View [ y = 19, width = 100%, height = { parent.height - 19 }, fill = #BB95C0,
+                        visible = { parent.selected },
+                        slide: Image [ x = 5, y = 3, width = { parent.width - 10 }, stretches = both,
+                            height = { this.width * 600 / 800 },
+                            source = "resources/img/presentation/q4numbers.png" ]
+                        ]
+                    ]
+                ]
+            ],
+
+        people: DashWindow [
+            winLabel = "People", icon = "resources/img/dash_icon_people.png",
+            homeX = 752, homeY = 1, homeW = 210, homeH = 613, minH = 100,
+            tint = #B6CCC1, frame = #1E211F,
+
+            tabs: TabStack [ x = 3, y = 31, width = { parent.width - 6 }, height = { parent.height - 46 },
+                SignedIn: PeopleTab [ label = "Signed-In" ],
+                Buddies: PeopleTab [ label = "Buddies" ],
+                Contacts: PeopleTab [ label = "Contacts", selected = true,
+                    panel: ContactsPanel [ y = 19, height = { parent.height - 19 }, visible = { parent.selected } ]
+                    ]
+                ]
+            ],
+
+        /*
+        ### The media popup
+
+        Click a track in either media tab and this balloon opens over it,
+        naming the track and offering to play it. One popup serves both tabs;
+        it carries the clicked track's fields until you either play or dismiss
+        it, and hands them to the app's now-playing slots on play.
+        */
+
+        popup: View [ width = 139, height = 43, visible = false,
+            trackLabel: string = "",
+            trackInfo: string = "",
+            trackIcon: string = "",
+            trackUrl: string = "",
+            trackKind: string = "",
+
+            // Placed once, when it opens. Every gesture that could move the
+            // icon underneath — a window drag, a resize, a tab slide — begins
+            // with a press, and a press dismisses the popup, so there is
+            // nothing for a live position constraint to track.
+
+            show(icon: View, label: string, info: string, art: string, url: string, kind: string) {
+                const o = icon.rootOrigin()
+                x = o.x + icon.width / 2 - 70 - parent.x
+                y = o.y + 33 - parent.y
+                trackLabel = label; trackInfo = info
+                trackIcon = art; trackUrl = url; trackKind = kind
+                visible = true; this.raise()
+                },
+            hide() { visible = false },
+            playSelected() {
+                app.nowPlayingKind = trackKind
+                app.nowPlayingIcon = trackIcon
+                app.nowPlayingInfo = trackInfo
+                if (trackKind === "audio") app.nowPlayingUrl = trackUrl
+                else app.nowPlayingVideoUrl = trackUrl
+                app.mediaWants = true
+                hide()
+                },
+
+            art: Image [ source = "resources/img/media_popup.png" ],
+            playBtn: Image [ x = 30, y = 6, source = "resources/img/media_play.png",
+                onClick() { parent.playSelected() }
+                ],
+            closeBtn: Image [ x = 126, y = 4, source = "resources/img/media_close.png",
+                onClick() { parent.hide() }
+                ],
+            infoText: Text [ x = 3, y = 25, width = 100, fontFamily = Vera, fontWeight = bold,
+                fontSize = 10, textColor = #FFFFFF, textAlign = center,
+                text = { parent.trackLabel } ]
+            ]
+        ],
+
+    /*
+    ## The login
+
+    The Flash-era sequence, which the later DHTML port dropped for a plain
+    fade: a small window holding a loading bar grows to full size over 700ms,
+    and the form fades up behind it. Any name is accepted, or enter as a
+    guest; signing in reveals the desktop.
+    */
+
+    login: View [ width = 100%, height = 100%, fill = #80807E,
+        visible = { !app.signedIn },
+
+        panel: View [ x = { (parent.width - this.width) / 2 },
+            y = { app.height / 3 - this.height / 2 },
+            width = 290, height = 100,
+            shadow = shadow(3, 5, 9, #00000066),
+            cornerRadius = 10,
+
+            // the dark frame the original's edge strips draw around the body
+
+            stroke = stroke(3, #3E3E3E),
+            clip = true, fill = #C26E54,
+
+            grow: AnimatorGroup [ process = simultaneous, duration = 700, motion = laszloIn,
+                Animator [ attribute = width, to = 307 ],
+                Animator [ attribute = height, to = 172 ]
+                ],
+
+            topBar: View [ width = 100%, height = 30, fill = #303030,
+                logo: Image [ source = "resources/img/loadwndw_top_lft.png" ]
+                ],
+            topLine: View [ y = 30, width = 100%, height = 1, fill = #000000 ],
+
+            // The loading bar the grow animation starts from. It shows full
+            // and briefly: this app is already loaded by the time it appears,
+            // so the bar is a beat in the sequence, not a progress report.
+
+            loadView: View [ y = 40, width = 100%,
+                well: View [ x = { (parent.width - 258) / 2 }, y = 29, width = 258, height = 19,
+                    fill = #00000033, cornerRadius = 9 ],
+                barFill: View [ x = { (parent.width - 254) / 2 }, y = 31, width = 254, height = 15,
+                    fill = gradient(stop(0, #E8A88E), stop(1, #A34E34)), cornerRadius = 7 ],
+                fadeOut: Animator [ attribute = opacity, to = 0, duration = 700 ]
+                ],
+
+            onInit() {
+                setTimeout(() => {
+                    loadView.fadeOut.start()
+                    grow.start()
+                    setTimeout(() => { form.fadeUp.start() }, 720)
+                    }, 600)
+                },
+
+            form: View [ x = 4, y = 31, width = 300, opacity = 0,
+                fadeUp: Animator [ attribute = opacity, to = 1, duration = 500 ],
+                fontFamily = VeraRoman, fontSize = 12, textColor = #000000,
+
+                signHead: Text [ x = 8, y = 8, opacity = 0.8, fontFamily = Vera, fontWeight = bold, text = "Sign in to chat" ],
+                signNote: Text [ x = 112, y = 10, fontSize = 10, opacity = 0.8,
+                    text = "(information not saved)" ],
+
+                nameLbl: Text [ x = 8, y = 36, text = "Name" ],
+                nameIn: TextInput [ x = 50, y = 34, width = 170, height = 20,
+                    fill = #FFFFFF, stroke = stroke(1, #1A1A1A), cornerRadius = 0,
+                    onEnter() { Focus.next() }
+                    ],
+                titleLbl: Text [ x = 8, y = 66, text = "Title" ],
+                titleIn: TextInput [ x = 50, y = 64, width = 170, height = 20,
+                    fill = #FFFFFF, stroke = stroke(1, #1A1A1A), cornerRadius = 0,
+                    onEnter() { app.signIn(nameIn.text) }
+                    ],
+                signBtn: DashButton [ x = 230, y = 64, width = 55, height = 20, label = "sign in",
+                    face = #B25F45, edge = #4A2418,
+                    onClick() { app.signIn(parent.nameIn.text) }
+                    ],
+
+                divA: View [ x = 8, y = 96, width = 280, height = 1, fill = #000000, opacity = 0.5 ],
+                divB: View [ x = 8, y = 97, width = 280, height = 1, fill = #FFFFFF, opacity = 0.5 ],
+
+                guestLbl: Text [ x = 8, y = 108, fontFamily = Vera, fontWeight = bold, text = "or enter as a guest." ],
+                guestBtn: DashButton [ x = 230, y = 105, width = 55, height = 20, label = "guest",
+                    face = #B25F45, edge = #4A2418,
+                    onClick() { app.signIn("") }
+                    ]
+                ]
+            ]
+        ]
+    ]

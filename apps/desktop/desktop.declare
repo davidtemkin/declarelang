@@ -81,7 +81,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     minW: number = 340,                          // resize floors
     minH: number = 120,
     gutter: number = 6,                          // the resize halo's reach OUTSIDE the frame (ignoreClip)
-    inset: number = 3,                           // …and INSIDE it — the measured macOS band: ±3px on the
+    inset: number = 3,                           // …and INSIDE it — the resize band: ±3px on the
 
     //   frame line, the window winning over content (scrollbars
     //   included) in those inner px — observed live on Sequoia
@@ -178,8 +178,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
     baseRadius: number = 10,                     // the window's normal corner rounding (the classic treatment;
 
-    // current macOS uses ≈26 with taller, restyled title bars —
-    // adopting that is its own design track, deferred)
+    // (taller, rounder title bars are their own design track, deferred)
 
     bandR: number = { Math.max(2, this.baseRadius - 1) },  // the resize band's inner-cut arc radius — the ONE
 
@@ -288,7 +287,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
     raiseChrome() {
         this.halo.raise()                        // above all content: the inner `inset` px of the band beat
-                                                 // panes and scrollbars (the measured macOS rule); the ring
+                                                 // panes and scrollbars (the band always wins); the ring
                                                  // clip keeps the interior transparent to the pointer
         this.veil.raise()                        // topmost of all — a background window's first-click catcher
         },
@@ -466,9 +465,9 @@ class Window extends View [ width = 560, height = 400, clip = true,
         // other — nonzero rule keeps the band): a Shape clip cuts hit-testing
         // with the pixels on both backends, so everything deeper than the band
         // is genuinely transparent to the pointer whatever the stacking. The
-        // inner cut sits `inset` px INSIDE the frame — the measured macOS ±band
-        // — and is ROUNDED to the window's radius, so the corner void answers
-        // the diagonal exactly like the real thing.
+        // inner cut sits `inset` px INSIDE the frame — the ± resize band —
+        // and is ROUNDED to the window's radius, so the corner void answers
+        // the diagonal exactly.
 
         clip = { this.ring(classroot.gutter, classroot.inset, classroot.bandR, this.width, this.height) },
         ring(g: number, n: number, r: number, w: number, h: number) -> Shape {
@@ -1670,9 +1669,9 @@ class DockIcon extends View [
 
     // the dot marks is-running and never bounces: adding hopY back cancels the
     // icon's launch-bounce offset, pinning the dot to the strip. MEASURED from
-    // the real dock (2×): dot center #1C1D20 on the light shelf, ~4pt across —
-    // near-black, not muted gray. theme.text IS that value (0x1D1D1F light) and
-    // flips to a light dot under a dark theme, exactly the macOS behavior.
+    // the running dot: near-black on the light shelf, ~4px across — not muted
+    // gray. theme.text IS that value (0x1D1D1F light) and flips to a light dot
+    // under a dark theme, so it always reads against the shelf.
 
     dot: View [ width = 4, height = 4, cornerRadius = 2,
         x = { (parent.width - 4) / 2 }, y = { parent.height + 6 + this.parent.hopY },
@@ -1981,7 +1980,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // their stacking order, so the front one ends front); with none open —
     // running or not — the app's default open runs instead.
 
-    /* A dock press dismisses an open menu AND does its own work — the macOS rule,
+    /* A dock press dismisses an open menu AND does its own work — the dock rule,
        and worth stating because it is the opposite of a light dismiss. Clicking
        the wallpaper closes a menu and does nothing else; clicking the Dock closes
        it and opens the app, so the click is TAKEN, not swallowed.

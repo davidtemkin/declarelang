@@ -1,0 +1,28 @@
+{
+  "tracks": [
+    {
+      "imageurl": "media/icon/over.jpg",
+      "label": "Porter",
+      "url": "media/music/over_sensitive.mp3",
+      "info": "Denny Porter - Over Sensitive"
+    },
+    {
+      "imageurl": "media/icon/wher.jpg",
+      "label": "Porter",
+      "url": "media/music/where_to_begin.mp3",
+      "info": "Denny Porter - Where to Begin"
+    },
+    {
+      "imageurl": "media/icon/groo.jpg",
+      "label": "Oblivion",
+      "url": "media/music/grooved_centerline.mp3",
+      "info": "Interface Oblivion - Grooved Centerline"
+    },
+    {
+      "imageurl": "media/icon/choo.jpg",
+      "label": "Neuronaut",
+      "url": "media/music/choofenhoufen.mp3",
+      "info": "Neuronaut - Choofenhoufen"
+    }
+  ]
+}
