@@ -96,6 +96,9 @@ const SUITE_INPUTS = {
   "serve-parity": ["server", "browser"],
   "serve": ["server", "browser", "bundles"],
   "serve-browser": ["server", "browser", "bundles"],
+  // the dumb-static-host contract: the browser compiles the app itself, so
+  // the client that feeds its include host and the apps it compiles both count
+  "static-host": ["browser", "bundles", "apps"],
   "streams-browser": ["server", "browser"],
   "network-browser": ["server", "browser"],
   "toolchain-realm": ["tools", "server"],

@@ -45,7 +45,7 @@ async function create() {
     try {
       const client = await workerClient();
       s.end();
-      return client;
+      return withAppIncludes(client);
     } catch {
       /* fall through to inline */
     }
@@ -53,7 +53,98 @@ async function create() {
   const s = perfStage("compiler-inline");
   const client = await inlineClient();
   s.end();
-  return client;
+  return withAppIncludes(client);
+}
+
+// ── an app's OWN includes ────────────────────────────────────────────────────
+// The include host reads its file map SYNCHRONOUSLY (IncludeHost.resolve
+// answers source-or-null, never a promise) because the Node host reads a
+// filesystem. A browser can only fetch asynchronously, so anything a program
+// includes must already be in hand when the compile starts. The warm-load
+// covers the LIBRARY — a fixed, known set. It cannot cover what an app
+// includes of its OWN: `include [ "weather-art.declare" ]` naming a file
+// beside the program. Those were never fetched, so they resolved to null and
+// the compile failed with DECLARE5002 — but only on a static host, because
+// the dev server compiles on the Node side where the filesystem answers.
+//
+// So: read the directives, fetch what they name relative to the program, and
+// merge the result into the library map the host already gets. Relative
+// first, mirroring the search order (the including file's own dir, then the
+// library root) — a 404 is not an error here, it just means the name belongs
+// to the library, which still gets its turn. A genuinely missing file is
+// still DECLARE5002, reported by the compiler as before.
+
+const INCLUDE_DIRECTIVE = /\binclude\s*\[([^\]]*)\]/g;
+
+/** The paths one source's `include [ … ]` directives name. */
+function includedPaths(src) {
+  const out = [];
+  for (const directive of src.matchAll(INCLUDE_DIRECTIVE))
+    for (const q of directive[1].matchAll(/"([^"]+)"|'([^']+)'/g)) out.push(q[1] ?? q[2]);
+  return out;
+}
+
+/** Collapse `.` / `..` so a key matches the canonical form memoryHost computes
+ *  (compile-browser.ts normalizePath) — the two must agree or the map misses. */
+function normalizeRel(p) {
+  const out = [];
+  for (const seg of p.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (seg === "..") out.pop();
+    else out.push(seg);
+  }
+  return out.join("/");
+}
+
+/** Walk a program's include graph over HTTP, keyed exactly as the host will
+ *  ask for it: relative to the program, whose originDir in the browser is "".
+ *  Transitive — an included file may include more. */
+async function fetchAppIncludes(source, baseHref) {
+  const files = {};
+  const seen = new Set();
+  const walk = async (src, dir) => {
+    await Promise.all(includedPaths(src).map(async (p) => {
+      const key = normalizeRel(dir === "" ? p : dir + "/" + p);
+      if (seen.has(key)) return;
+      seen.add(key);
+      let text = null;
+      try {
+        const res = await fetch(new URL(key, baseHref), { cache: "no-cache" });
+        if (res.ok) text = await res.text();
+      } catch { /* offline or blocked — the compiler reports the miss */ }
+      if (text === null) return;                                   // the library root's turn
+      files[key] = text;
+      await walk(text, key.split("/").slice(0, -1).join("/"));
+    }));
+  };
+  await walk(source, "");
+  return files;
+}
+
+/** Wrap a client so every compile carries the app's own includes alongside the
+ *  library. MERGES rather than replaces: `files` in opts makes the compiler
+ *  take that map INSTEAD of the registered default library (compile-browser
+ *  effectiveLib), so handing it the app's two files alone would strand every
+ *  bare tag. A program with no includes takes the untouched path. */
+function withAppIncludes(client) {
+  const augment = async (source, opts) => {
+    const base = opts?.mainId ?? (typeof location === "undefined" ? null : location.href);
+    if (base === null || includedPaths(source).length === 0) return opts;
+    const appFiles = await fetchAppIncludes(source, base);
+    if (Object.keys(appFiles).length === 0) return opts;
+    const lib = (await loadLibraryOnce()) ?? {};
+    return {
+      ...opts,
+      files: { ...(lib.files ?? {}), ...appFiles },
+      manifest: lib.manifest ?? {},
+      ...(lib.libraryRoot === undefined ? {} : { libraryRoot: lib.libraryRoot }),
+    };
+  };
+  return {
+    ...client,
+    compile: async (source, opts) => client.compile(source, await augment(source, opts)),
+    compileTracked: async (source, opts) => client.compileTracked(source, await augment(source, opts)),
+  };
 }
 
 function workerClient() {
