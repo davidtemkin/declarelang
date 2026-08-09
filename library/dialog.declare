@@ -7,7 +7,7 @@ focusTrap. Buttons are RECORDS (the records door): `{ id, label,
 default?, cancel? }`, rendered as themed library Buttons right-aligned in
 the platform arrangement. Focus SAVES on open and RETURNS on close.
 
-Keyboard: Return picks the DEFAULT button (the macOS rule; a focused
+Keyboard: Return picks the DEFAULT button (the Cupertino rule; a focused
 button also activates on Space/Enter — the pick guard makes the double
 harmless), Escape picks the cancel record when one exists, else just
 closes.
@@ -24,11 +24,11 @@ theme's errorColor.
 
 Platform STRUCTURE is data (the scheme): `dialogWidth`,
 `dialogButtons` = "end" (a right-aligned row — SF, Material) | "stack"
-(the macOS alert — full-width buttons stacked, DEFAULT ON TOP) | "fill"
+(the stacked alert — full-width buttons stacked, DEFAULT ON TOP) | "fill"
 (WinUI ContentDialog — equal-width buttons filling the row),
-`dialogAlign` = "left" | "center" (the macOS centered title),
+`dialogAlign` = "left" | "center" (the Cupertino centered title),
 `dialogTitleSize` / `dialogBodySize`. Plus scrimColor + scrimOpacity
-(macOS barely dims — alerts separate by SHADOW; Material's spec scrim is
+(Cupertino barely dims — alerts separate by SHADOW; Material's spec scrim is
 32%; Fluent's smoke 30%), the menuShadow family, errorColor.
 
 **Declare one and call it.** A `Dialog` is not a view you show and hide around your
@@ -84,7 +84,7 @@ Guarded against double activation, so a focused default button answering Space *
 Return is harmless.
 
 ## pickDefault()
-Picks whichever button record carries `default: true` — Return's action, the macOS rule.
+Picks whichever button record carries `default: true` — Return's action, the Cupertino rule.
 
 ## pickCancel()
 Picks the `cancel: true` record when there is one, else just closes — Escape's action.
@@ -107,7 +107,7 @@ this.
 
 ## arrangement
 How the buttons lay out, elected by `theme.dialogButtons`: `"end"` (a right-aligned
-row), `"stack"` (full-width buttons stacked, macOS-style, default on top), or `"fill"`
+row), `"stack"` (full-width buttons stacked, Cupertino-style, default on top), or `"fill"`
 (equal-width buttons filling the row). **Platform structure is data, not a fork.**
 
 ## centered
@@ -235,7 +235,7 @@ class Dialog extends View [ visible = { shown },
 
     // buttons → Button instances through the internal derived dataset. The
     // "stack" arrangement REORDERS: the default on top, cancel at the bottom
-    // (the macOS stacked alert); row arrangements keep authored order.
+    // (the Cupertino stacked alert); row arrangements keep authored order.
 
     arrangement: string = { typeof theme.dialogButtons == "string" ? theme.dialogButtons : "end" },
     centered: boolean = { theme.dialogAlign == "center" },

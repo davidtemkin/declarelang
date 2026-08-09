@@ -64,5 +64,9 @@
   "rotation": {
     "differing": 0.09,
     "structural": 0.06
+  },
+  "lzx-dashboard": {
+    "differing": 0.95,
+    "structural": 0.31
   }
 }

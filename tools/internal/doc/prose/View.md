@@ -82,7 +82,7 @@ The tooltip text — the layer system's floor (one attribute at the use site): a
 `tip` makes this view hover-interactive, and after the theme's delay the auto-provided
 `Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data
 (`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino
-tips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the
+tips appear near the cursor after ~1s at 11px (the Cupertino help tag), Redmond's above the
 control (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside
 the app. Moving between tip-carrying controls while a tip is up retargets instantly; a
 press dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `""` (the
@@ -409,7 +409,7 @@ painted shape** (its box, rounded by `cornerRadius`, or its `clip` shape), blurr
 sample — a translucent wash over a blurred backdrop, which is how every platform's
 material works. Content moving beneath re-frosts; that is the point. Samples reach the
 same isolating ancestor `blend` does, and like `blend` it is paint only — input never
-changes. `saturation` defaults to `1`; materials in the macOS style run about `1.4`–`1.8`.
+changes. `saturation` defaults to `1`; frosted materials read best around `1.4`–`1.8`.
 
 ```declare
 panel: View [ backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12 ]

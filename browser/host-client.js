@@ -40,6 +40,7 @@ const fragmentOf = () => decodeURIComponent(location.hash.replace(/^#/, ""));
  *   compile?: (source: string) => Promise<{source:string, deps?:any}|null>,  // live recompile (server/in-browser); null = keep last
  *   location?: string,           // initial app.location when it is NOT in the URL fragment — the host's ?view= → initial-location translation (docs/system-design/location.md §4); a real fragment still wins
  *   dataBase?: string,           // abs/page-relative URL of the VIEWED program's directory: a source page's <base> points at the Viewer, so the island's relative DataSource urls (its data lives beside its file) are re-based here via the transport seam
+ *   assetBase?: string,          // the same rule for the island child's BITMAPS and web FACES (asset-base.ts): a "__"-named live-edit island (the Viewer's edit pane) has no path of its own, so the host states the viewed program's directory. A named demo derives its own from demoBase.
  * }}
  */
 export async function bootHost(cfg) {
@@ -292,7 +293,21 @@ export async function bootHost(cfg) {
   // `compiled` is the ONE compile result `{ source, deps }` — the preview child boots
   // on the SAME static-constraint path as the main app (deps applied), never a
   // divergent runtime-tracking path.
-  async function renderChild(box, compiled) {
+  // Where an island child's RELATIVE assets live — its own program's directory,
+  // never the host document's. A named slot IS a path under the demos dir, so
+  // the base derives itself; a "__"-named live-edit channel (__raw__, __page__)
+  // has no path of its own and the host states it (the Viewer knows the file it
+  // is showing). Null leaves the page default in force. The data twin of this
+  // is cfg.dataBase above — same rule, different seam.
+  const childAssetBase = (name) => {
+    if (!name.startsWith("__") && cfg.demoBase) {
+      try { return new URL(name + ".declare", new URL(cfg.demoBase, document.baseURI)).href; } catch {}
+    }
+    if (cfg.assetBase) { try { return new URL(cfg.assetBase, document.baseURI).href; } catch {} }
+    return null;
+  };
+
+  async function renderChild(box, compiled, name) {
     if (!compiled || !compiled.source) return;           // keep the last good render
     if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
     box.innerHTML = "";
@@ -309,10 +324,16 @@ export async function bootHost(cfg) {
       // child's true program URL may set it instead, restoring the natives.
       const backend = new DomBackend();
       backend.linkBase = "";
-      const childApp = await renderAsync(compiled.source, box, backend, { deps: compiled.deps });
+      const childApp = await renderAsync(compiled.source, box, backend,
+        { deps: compiled.deps, assetBase: childAssetBase(name || "") });
       box.__childApp = childApp;
       if (childApp) childApp.demoSources = seeds;         // populate a nested copy's own editors
-    } catch (e) {}
+    } catch (e) {
+      // The island is already marked wired, so a swallowed failure here is a
+      // pane that stays blank forever with nothing said. Say it: a preview that
+      // never mounts is a bug in the host or the child, not a quiet outcome.
+      console.error("[Declare] preview '" + (name || "?") + "' failed to render", e);
+    }
   }
 
   // The source for a preview island. A provided seed wins (the site's editors read the
@@ -400,7 +421,7 @@ export async function bootHost(cfg) {
       delete box.dataset.wiring;
       if (!compiled || !compiled.source) return;             // compiler not warm / source not in yet — retry next tick
       box.dataset.wired = "1";                               // committed: don't remount
-      renderChild(box, compiled).then(() => {
+      renderChild(box, compiled, name).then(() => {
         if (box.__childApp) { box.dataset.envJson = ejson; box.__childApp.env = env; }
       });
     });
@@ -429,10 +450,11 @@ export async function bootHost(cfg) {
     if (!box) return;
     liveSigs.set(theApp, sig);
     const body = theApp.liveSource;
+    const card = theApp.liveCard;                        // captured with the body: both name the edit this timer serves
     clearTimeout(liveTimers.get(theApp));
     liveTimers.set(theApp, setTimeout(async () => {
       const r = await compile(body);
-      if (r && r.source) { theApp.liveReport = ""; renderChild(box, r); }
+      if (r && r.source) { theApp.liveReport = ""; renderChild(box, r, card); }
       else if (r && r.report != null) theApp.liveReport = String(r.report);
       else liveSigs.delete(theApp);                      // compiler not warm — retry
     }, 180));

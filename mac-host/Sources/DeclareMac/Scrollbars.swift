@@ -13,8 +13,8 @@ import AppKit
 import QuartzCore
 
 final class Scrollbar {
-    /// macOS's overlay metrics, measured: a 7pt capsule inset 2pt from the
-    /// edge, with a 3.5pt corner, and a 25pt minimum thumb so a very long
+    /// The overlay bar's metrics: a 7pt capsule inset 2pt from the edge,
+    /// with a 3.5pt corner, and a 25pt minimum thumb so a very long
     /// document still leaves something to see.
     private static let thickness: CGFloat = 7
     /// Widened under the pointer, the way the platform's overlay scroller

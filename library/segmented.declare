@@ -23,7 +23,7 @@ live while anything reaching into the collection is refused —
 `aggregation over a reactive node collection … derive from data [DECLARE7001]`.
 The compiler names the answer.
 
-It is also the mainstream shape. UIKit's segments are titles in an array, SwiftUI
+It is also the mainstream shape. Most native toolkits take segments as titles in an array,
 picks from a `ForEach`, Ant Design takes `options`; only Material and WinUI name
 the item at all, and both compound it. A bare `Segment` class was the minority
 pattern — and bare enough that two apps in this corpus had taken the name for a
@@ -38,11 +38,11 @@ segment by its own label and interpolated the pill between neighbours is
 buildable. The `DECLARE7001` refusal binds constraints reaching into the view
 tree, not the layout strategy whose job that is. Three reasons not to:
 
-- **The systems that call this a segmented control agree.** UIKit divides evenly
-  by default (`apportionsSegmentWidthByContent` is opt-in), as does SwiftUI's
+- **The systems that call this a segmented control agree.** The native ones
+  divide evenly by default, as does the classic
   segmented `Picker`. The ones that size to content — Bootstrap, Ant — are really
   styling a row of buttons.
-- **Apple's guidance makes it a content rule**: keep segment labels short and
+- **The segmented convention makes it a content rule**: keep segment labels short and
   similar in length. Equal width enforces that rather than tolerating it. One long
   label makes the whole control look wrong, which is the feedback you want.
 - **The sliding pill.** At equal widths it translates at constant width. At

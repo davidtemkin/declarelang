@@ -155,16 +155,18 @@ re-derive when the record's fields change** — a method read would go stale. `n
 written (unreplicated) row.
 
 ## onInit
-Starts the header's escape from the scroll box (see `escaped`), retrying briefly until
-the backend has surfaces to work with.
+Requests the header's escape from the scroll box (see `escaped`). The request stands:
+the runtime applies it when the view attaches, so init running before attach costs
+nothing.
 
 ## escaped
 Whether the header surface has left the grid's scrolling box for its parent. **The
 grid's box is the rows' scroll region exactly** — the scrollbar spans rows only, and no
 row ever slides under the header. Backends without the ride keep an in-box header.
 
-## tryEscape()
-**Internal.** Retries the header's re-homing until the backend attaches.
+## escaped — how it settles
+The request is made at init and applied by the runtime at attach; one deferred read
+records the answer. A `false` that survives means the backend has no ride at all.
 
 ## dragCol
 **Internal.** The column id currently being dragged.
@@ -407,14 +409,20 @@ class DataGrid extends Table [
 
     escaped: boolean = false,
 
-    // init can fire before the backend attaches (no surfaces yet) — retry
-    // briefly until the ride exists; backends without it settle at false
+    // init runs before the backend attaches (initTree precedes App.attach), so
+    // the request cannot be answered yet — but travelWith REMEMBERS it and the
+    // runtime applies it the moment this view attaches, so the ride itself is
+    // guaranteed without polling. One deferred read then records the settled
+    // answer for the fallback geometry below; `false` here means the backend
+    // has no ride (headless, native), never "attach was slow".
+    //
+    // (This replaced a 20×50ms retry chain that could EXHAUST its budget on a
+    // loaded machine and leave the header silently un-escaped — a wrong render
+    // with no error, and a visual-baseline flake nobody could reproduce.)
 
-    onInit() { this.tryEscape(20) },
-
-    tryEscape(left: number) {
+    onInit() {
         escaped = this.hdr.travelWith(this.parent as any)
-        if (!escaped && left > 0) setTimeout(() => this.tryEscape(left - 1), 50)
+        if (!escaped) setTimeout(() => { escaped = this.hdr.travelWith(this.parent as any) }, 0)
         },
 
     hdr: View [ height = { classroot.headerH },

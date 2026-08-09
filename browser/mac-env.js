@@ -243,7 +243,11 @@
     // Returning the generic stub for it meant `img.src = …` set a property on
     // a dummy object: nothing loaded, onload never fired, and every Image in
     // the app stayed an empty box.
-    if (String(tag).toLowerCase() === "img") return new DeclareImage();
+    const t = String(tag).toLowerCase();
+    if (t === "img") return new DeclareImage();
+    // media.ts reaches its element through this same seam (its design note
+    // says so): these two answers are what make Video and Audio native here.
+    if (t === "video" || t === "audio") return new DeclareMediaElement(t);
     return { style: styleStub(), appendChild() {}, remove() {}, setAttribute() {}, getContext: () => null };
   };
   doc.querySelector = () => null;
@@ -354,6 +358,71 @@
     im.complete = true;
     try { if (ok) im.onload?.({ type: "load", target: im }); else im.onerror?.({ type: "error", target: im }); }
     catch (e) { g.console.error("image: " + (e && e.message || e)); }
+  };
+
+  // ── media elements: the transport over AVFoundation ──────────────────────
+  // media.ts drives an HTMLMediaElement it got from document.createElement.
+  // This is that element for the native host: same property/callback surface,
+  // every verb forwarded to the Swift media engine by handle, every fact
+  // arriving back through __declareMediaEvent. A <video>'s FRAMES never cross
+  // this bridge — the handle reaches the layer tree via the MEDIA op and the
+  // host binds an AVPlayerLayer where the DOM would have placed the element.
+  let mediaSeq = 1;
+  const mediaEls = new Map();
+  class DeclareMediaElement {
+    constructor(kind) {
+      this.__mediaHandle = mediaSeq++;
+      this.__kind = kind;                       // "video" | "audio"
+      this.videoWidth = 0; this.videoHeight = 0;
+      this.duration = NaN;
+      this.paused = true;
+      this.playsInline = true; this.preload = "metadata";
+      this._muted = false; this._loop = false; this._volume = 1; this._rate = 1;
+      this._pos = 0; this._src = "";
+      this.onloadedmetadata = null; this.onerror = null;
+      this.onplay = null; this.onpause = null; this.onended = null;
+      this.onwaiting = null; this.onplaying = null; this.ontimeupdate = null;
+      mediaEls.set(this.__mediaHandle, this);
+      H.mediaCreate(this.__mediaHandle, kind);
+    }
+    get src() { return this._src; }
+    set src(v) {
+      this._src = String(v);
+      let abs = this._src;   // resolve like DeclareImage: URL(string:) can't take a relative path
+      try { abs = new g.URL(this._src, g.__declareBase || "http://127.0.0.1/").href; } catch (e) { /* keep raw */ }
+      H.mediaLoad(this.__mediaHandle, abs);
+    }
+    get muted() { return this._muted; }
+    set muted(on) { this._muted = !!on; H.mediaSet(this.__mediaHandle, "muted", on ? 1 : 0); }
+    get loop() { return this._loop; }
+    set loop(on) { this._loop = !!on; H.mediaSet(this.__mediaHandle, "loop", on ? 1 : 0); }
+    get volume() { return this._volume; }
+    set volume(n) { this._volume = +n; H.mediaSet(this.__mediaHandle, "volume", +n); }
+    get playbackRate() { return this._rate; }
+    set playbackRate(n) { this._rate = +n; H.mediaSet(this.__mediaHandle, "rate", +n); }
+    get currentTime() { return this._pos; }
+    set currentTime(t) { this._pos = +t; H.mediaSeek(this.__mediaHandle, +t); }
+    play() { H.mediaPlay(this.__mediaHandle); return undefined; }
+    pause() { H.mediaPause(this.__mediaHandle); }
+    addEventListener() {} removeEventListener() {}
+  }
+  g.__declareMediaEvent = (handle, type, a, b, c) => {
+    const m = mediaEls.get(handle);
+    if (!m) return;
+    try {
+      switch (type) {
+        case "metadata":
+          m.duration = a; m.videoWidth = b || 0; m.videoHeight = c || 0;
+          m.onloadedmetadata?.(); break;
+        case "time":  m._pos = a; m.ontimeupdate?.(); break;
+        case "play":  m.paused = false; m.onplay?.(); break;
+        case "pause": m.paused = true; m.onpause?.(); break;
+        case "ended": m.paused = true; m._pos = a; m.onended?.(); break;
+        case "waiting": m.onwaiting?.(); break;
+        case "playing": m.onplaying?.(); break;
+        case "error": m.onerror?.(); break;
+      }
+    } catch (e) { g.console.error("media: " + (e && e.message || e)); }
   };
 
   // ── the measurer: a canvas-2d-shaped façade over Core Text ────────────────

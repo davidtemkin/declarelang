@@ -204,36 +204,18 @@ class MinusIcon extends Icon [
 /*
 # LightbulbIcon
 
-The macOS Help affordance — **Apple's own `lightbulb`, ported exactly** rather than
-redrawn: the outline was lifted from the live symbol at 1024pt and normalised to the
-16-box.
+The help affordance — the one FILLED mark in a stroked set: a continuous
+teardrop of glass over a three-bar tapering base.
 
 ## draw()
-Renders the bulb. **This one mark is filled, and does not answer to `weight`** — an SF
-Symbol is a filled contour with the stroke baked into the outline, so matching Apple
-means adopting a shape, not a stroke. There is no stroke here to widen. The set's own
-drawn bulb is the alternative; this is the port.
+Renders the bulb. **This one mark is filled, and does not answer to `weight`**
+— the contour carries its weight in the outline itself, so there is no stroke
+to widen. The bulb keeps its own visual weight at every rung.
 */
 
-// Ported EXACTLY. Not
-// redrawn from a screenshot and not approximated: the outline was lifted from
-// the live symbol (`NSSymbolImageRep.outlinePath` at 1024pt, 29 elements,
-// bounds 1338 × 2327), normalised so the mark is 16 units tall — 9.20 wide,
-// centred at x + 3.40. No y-flip: `outlinePath` already counts DOWN, like this
-// canvas — flipping it stood the bulb on its head, which the overlay caught and
-// a glance would not have. `test/probe/ref/render.swift` regenerates the
-// reference it was measured against.
-//
-// It is FILLED, and that is not a lapse in a stroked set: an SF Symbol IS a
-// filled contour, with the stroke baked into the outline at a chosen weight.
-// Matching Apple exactly therefore means adopting a shape, not a stroke — so
-// this one mark does not answer to `weight`, and cannot, because there is no
-// stroke to widen. The set's own bulb is the alternative; this is the port.
-//
-// What the port changes, measured against the drawing it replaces: the filament
-// is gone (Apple has none), the glass is a continuous teardrop rather than an
-// arc with a gap, and the base is three tapering bars at 11.48 / 13.19 / 14.68
-// rather than three equal rules.
+// The one filled mark: the CONTOUR is the drawing — glass as a continuous
+// teardrop, the base as three tapering bars — so `weight` has no stroke to
+// act on here. No y-flip anywhere: the path counts DOWN, like this canvas.
 
 class LightbulbIcon extends Icon [
     draw(d: Draw) {

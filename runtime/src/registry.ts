@@ -16,6 +16,7 @@ import { Node } from "./node.js";
 import { Text } from "./text.js";
 import { Image } from "./image.js";
 import { Video } from "./video.js";
+import { Audio } from "./audio.js";
 import { TextInput } from "./text-input.js";
 import { Markdown, HTMLText } from "./markdown.js";
 import { Layout, TweenLayout } from "./layout.js";
@@ -32,7 +33,7 @@ type ViewCtor = new () => View;
 /** Tag → runtime View class (the tree tags). `Node` is registered so a user can
  *  subclass it for a non-visual node (`class Store [ … ]`). */
 export const TAGS: Readonly<Record<string, ViewCtor>> = {
-  App, View, Text, Image, Video, DOMIsland, TextInput, Markdown, HTMLText,
+  App, View, Text, Image, Video, Audio, DOMIsland, TextInput, Markdown, HTMLText,
   Node: Node as unknown as ViewCtor,
 };
 
@@ -101,6 +102,7 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "Text", table: "TAGS", module: "text.js", export: "Text" },
   { name: "Image", table: "TAGS", module: "image.js", export: "Image" },
   { name: "Video", table: "TAGS", module: "video.js", export: "Video" },
+  { name: "Audio", table: "TAGS", module: "audio.js", export: "Audio" },
   { name: "DOMIsland", table: "TAGS", module: "view.js", export: "DOMIsland" },
   { name: "TextInput", table: "TAGS", module: "text-input.js", export: "TextInput" },
   { name: "Markdown", table: "TAGS", module: "markdown.js", export: "Markdown" },

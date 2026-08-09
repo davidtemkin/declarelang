@@ -10,6 +10,7 @@
 import { instantiate } from "./instantiate.js";
 import { App, View } from "./view.js";
 import { fontFacesOf } from "./font.js";
+import { assetBaseFor, rebaseAsset, setAppAssetBase } from "./asset-base.js";
 import type { RenderBackend } from "./backend.js";
 import { DeclareError } from "./errors.js";
 import { Keys } from "./keys.js";
@@ -28,6 +29,21 @@ export interface FontSpec {
   style?: string;
 }
 
+/** A CSS src value's `url("…")` arguments, rebased against `base` — the same
+ *  rule an Image's relative `source` follows, because a face src IS a relative
+ *  asset: `Face [ src = "resources/fonts/vera.ttf" ]` names a file beside the
+ *  PROGRAM. A FontFace resolves it against the DOCUMENT instead, so an app
+ *  booted from elsewhere in the tree (an entry page, an embedded child in an
+ *  island) asked the wrong directory for its type. `local("…")` names an
+ *  installed face and is left alone. */
+function rebaseFontSrc(src: string, base: string | null): string {
+  if (base === null) return src;
+  return src.replace(/url\("((?:[^"\\]|\\.)*)"\)/g, (whole, quoted: string) => {
+    try { return `url(${JSON.stringify(rebaseAsset(JSON.parse(`"${quoted}"`) as string, base))})`; }
+    catch { return whole; }
+  });
+}
+
 /** Load web fonts into the document so BOTH backends see them — one FontFace
  *  serves the Canvas backend's `ctx.font`/measureText and the DOM backend's
  *  `font-family` alike. A sanctioned runtime primitive: font loading lives in
@@ -35,19 +51,34 @@ export interface FontSpec {
  *  sealed-abstraction rule). Awaiting every face lets a caller gate first paint
  *  on it so text measures against the real metrics, not a fallback that reflows
  *  on arrival. A no-op off the DOM (Node/tests), so it stays safe in the
- *  zero-dependency graph. */
-export async function loadFonts(fonts: readonly FontSpec[]): Promise<void> {
+ *  zero-dependency graph.
+ *
+ *  `base` is the directory relative face sources resolve against — the calling
+ *  app's own program dir; omitted, the page-wide asset base applies.
+ *
+ *  A face that fails to load (404, a corrupt file, a CORS refusal) is REPORTED
+ *  and SKIPPED, never thrown: type is the one asset whose absence has a
+ *  fallback built into every text stack. A rejection here used to take the
+ *  whole render with it — one missing woff2 and the app never mounted at all,
+ *  which is a worse answer than the app in fallback type. */
+export async function loadFonts(fonts: readonly FontSpec[], base?: string | null): Promise<void> {
   if (typeof FontFace === "undefined" || typeof document === "undefined") return;
+  const b = base === undefined ? assetBaseFor(null) : base;
   await Promise.all(
     fonts.map(async (f) => {
       // f.src is a full CSS src value — `url("…")`, `local("…")`, or a chain.
-      const face = new FontFace(f.family, f.src, {
-        weight: String(f.weight ?? "normal"),
-        style: f.style ?? "normal",
-      });
-      await face.load();
-      // FontFaceSet is Set-like at runtime; the configured DOM lib omits `add`.
-      (document.fonts as unknown as { add(f: FontFace): void }).add(face);
+      const src = rebaseFontSrc(f.src, b);
+      try {
+        const face = new FontFace(f.family, src, {
+          weight: String(f.weight ?? "normal"),
+          style: f.style ?? "normal",
+        });
+        await face.load();
+        // FontFaceSet is Set-like at runtime; the configured DOM lib omits `add`.
+        (document.fonts as unknown as { add(f: FontFace): void }).add(face);
+      } catch (e) {
+        console.warn(`[Declare] font ${f.family}: ${src} did not load — falling back`, e);
+      }
     }),
   );
 }
@@ -157,6 +188,30 @@ function wireSafeArea(app: App, w: Window): void {
     if (!meta.content.includes("viewport-fit")) {
       meta.content = meta.content === "" ? "viewport-fit=cover" : meta.content + ", viewport-fit=cover";
     }
+    // The SAME opt-in makes the app Home-Screen-installable as a FULL-SCREEN
+    // app. In a Safari TAB the browser keeps its bars until the PAGE scrolls
+    // (an App is the page scroller by default, so a content-tall app earns
+    // the collapse; a fixed-screen app never does), and the status band is
+    // Safari's at every scroll state — its color follows the page background,
+    // which follows the app's fill (dom-backend attachRoot + setFill). So a
+    // tab gets edge-to-edge-LOOKING; standalone gets the real thing, and an
+    // app that declared cover has declared exactly that intent.
+    // `black-translucent` makes the standalone status bar an OVERLAY (the
+    // app paints under it), which is the cover contract; the live safeTop
+    // inset carries its height. Stamped only if the page doesn't already
+    // carry them.
+    for (const [name, content] of [
+      ["mobile-web-app-capable", "yes"],
+      ["apple-mobile-web-app-capable", "yes"],
+      ["apple-mobile-web-app-status-bar-style", "black-translucent"],
+    ]) {
+      if (doc.querySelector(`meta[name="${name}"]`) === null) {
+        const m = doc.createElement("meta");
+        m.name = name;
+        m.content = content;
+        doc.head.appendChild(m);
+      }
+    }
   }
   const probe = doc.createElement("div");
   probe.style.cssText =
@@ -234,7 +289,18 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   const size = () => {
     const de = w.document.documentElement;
     app.hostWidth = de.clientWidth;
-    app.hostHeight = de.clientHeight;
+    // HEIGHT is the layout viewport's, WIDENED to the unzoomed visual
+    // viewport when that is larger: iOS lets content occupy zones the layout
+    // viewport excludes (behind collapsed bar chrome, the home-indicator
+    // band) — flow content already paints there, so a fixed overlay sized to
+    // clientHeight alone CUTS OFF above the real bottom (measured on iPhone,
+    // 2026-08-08). The visual viewport is consulted only at scale ~1 and
+    // through max(), so the 2026-07-28 iPad rule stands unweakened: a pinch
+    // (or the keyboard, which SHRINKS the visual viewport) must never change
+    // what an app considers its host's size.
+    const vv = w.visualViewport;
+    const vvH = vv != null && vv.scale <= 1.01 ? Math.round(vv.height) : 0;
+    app.hostHeight = Math.max(de.clientHeight, vvH);
   };
   const scroll = () => { app.scrollY = w.scrollY; };
   const move = (e: PointerEvent) => {
@@ -264,6 +330,9 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   const up = () => { app.pointerDown = false; };
   size(); scroll();
   w.addEventListener("resize", size);
+  // Bar-chrome collapse moves the VISUAL viewport without always firing a
+  // window resize — hostHeight must track it (the widening above reads it).
+  w.visualViewport?.addEventListener("resize", size);
   w.addEventListener("scroll", scroll, { passive: true });
   // CAPTURE phase, so the coordinates land before ANY handler dispatch: the
   // input router listens at the app root (target/bubble), and a touch press
@@ -415,11 +484,14 @@ export function renderProgram(program: Program, host: HTMLElement, backend: Rend
 }
 
 /** Like renderProgram(), but first loads the program's own web `font` faces so
- *  first paint measures against the real metrics (mirrors renderAsync). */
-export async function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend): Promise<App> {
+ *  first paint measures against the real metrics (mirrors renderAsync).
+ *  `assetBase` states the program's own directory when the page is served from
+ *  elsewhere — its relative bitmaps and faces resolve there (image.ts). */
+export async function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend, assetBase?: string | null): Promise<App> {
   const root = instantiate(program);
   if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
-  await loadFonts(fontFacesOf(root));
+  if (assetBase != null) setAppAssetBase(root, assetBase);
+  await loadFonts(fontFacesOf(root), assetBase);
   mountApp(root, host, backend);
   startTitleMirror(root, host);
   return root;

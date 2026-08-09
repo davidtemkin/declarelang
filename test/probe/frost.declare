@@ -2,7 +2,7 @@
 // over a high-contrast field, offset so the panel's region is unambiguous.
 // Without backdrop sampling the panel renders as plain translucency — the
 // bars stay sharp through the wash, a large localized diff. The saturation
-// argument rides too (the macOS-material range), so a realization that
+// argument rides too (the frosted-material range), so a realization that
 // blurs but forgets saturate is also visible.
 
 App [ width = 400, height = 250, fill = #101418,

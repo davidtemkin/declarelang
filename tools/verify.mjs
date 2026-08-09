@@ -18,7 +18,7 @@
 // --no-typecheck opts out. Exit code: 0 = every requested rung passed;
 // 1 = a rung failed; 2 = usage/toolchain error.
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 import { compile } from "../compiler/dist/compile-node.js";
 
 // ── rung model ────────────────────────────────────────────────────────────
@@ -105,7 +105,12 @@ if (flags.wrap && !/^\s*App\s*\[/m.test(bare)) {
   probeNote = `component probe: App wrapping ${decls.map((d) => d.name).join(", ")}`;
 }
 
-const out = compile(source, { typecheck: flags.typecheck });
+// originDir = the app file's own directory, so `include [ "sibling.declare" ]`
+// resolves the way every other surface resolves it (declarec, the dev server,
+// boot-static all pass it). Missing here until apps/weather grew an art
+// include (2026-08-08) and verify alone could not find a file sitting beside
+// the program.
+const out = compile(source, { typecheck: flags.typecheck, originDir: dirname(resolve(file)) });
 const failing = out.diagnostics.filter((d) => d.severity === "error");
 const warnings = out.diagnostics.filter((d) => d.severity === "warning");
 let failedRung = failing.length ? Math.min(...failing.map((d) => rungOf(d.phase))) : null;

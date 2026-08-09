@@ -140,7 +140,7 @@ try {
     g = g2;
   });
 
-  await test("DOM: the band resizes from inside the frame (−2) — chrome above content (the macOS rule)", async () => {
+  await test("DOM: the band resizes from inside the frame (−2) — chrome above content (the band always wins)", async () => {
     await drag(g.x + g.w - 2, g.y + 200, g.x + g.w - 42, g.y + 200);
     const g2 = await readerGeo();
     assert.ok(g2.w < g.w - 25, `width should shrink (${g.w} → ${g2.w})`);

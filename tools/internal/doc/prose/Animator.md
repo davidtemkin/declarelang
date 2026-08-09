@@ -38,11 +38,15 @@ When true, `to`/`from` are **offsets** from the current value rather than absolu
 
 ## started
 Set true to run it — the declarative `start()`. Drive it from a constraint to gate playback
-on state.
+on state: every change drives the run — true starts, false stops in place, and a fresh true
+is a fresh run from the top. `started` is the **request**, not a status readback: a run that
+completes (or is `stop()`ed) leaves it reading whatever was asked, so ask `settled` or
+`onStop` for arrival, never `started`.
 
 ## paused
 Freeze a running animation and resume it without resetting — distinct from `started`, which
-runs it from the top.
+runs it from the top. A paused animation costs nothing: it holds no frame loop, and resuming
+continues from the freeze as if no time had passed.
 
 ## onStart
 Fires when the run begins (answered by `onStart`).

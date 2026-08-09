@@ -39,7 +39,7 @@ const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented component surface
-  "View", "App", "Text", "Image", "Video", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
+  "View", "App", "Text", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
   "Layout", "TweenLayout", "Editor",
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "Heartbeat", "Keys", "Focus", "Tip",
@@ -763,6 +763,51 @@ for (const ch of guide) {
 }
 const spine = guide.map(({ id, num, title, short, part }) => ({ id, num, title, short, part }));
 
+// ── the search index (apps/docs/search-index.json) ──
+// One flat PLAIN-TEXT projection of everything the docs app can navigate to —
+// guide chapters and the documented reference surface — for the header search
+// (docs.declare). Emitted HERE because this is the one place that holds all
+// the prose in structured form; Markdown is stripped at build time so both
+// matching and snippets are clean at runtime, and per-member entries give
+// results their precise names (View.width, not just View). The app fetches
+// this only when search is first used (the demand-loading contract — never at
+// boot), and the artifact rides the same derive freshness gates as the
+// chapters it summarizes.
+function plainText(md) {
+  if (!md) return "";
+  return md
+    .replace(/```[a-z-]*\n([\s\S]*?)```/g, " $1 ")   // keep fence text (API names are searched), drop the fence
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")         // links → their text
+    .replace(/^#{1,6}\s+/gm, "")                     // heading markers (the text stays)
+    .replace(/[*_]{1,3}([^*_\n]+)[*_]{1,3}/g, "$1")  // emphasis
+    .replace(/^\s*[-+*]\s+/gm, "")                   // list bullets
+    .replace(/\*+/g, " ")                            // stray emphasis markers (nested md — code inside bold — defeats the pair regex; `_` stays, it's identifier material)
+    .replace(/\|/g, " ")                             // table pipes
+    .replace(/\s+/g, " ")
+    .trim();
+}
+const segText = (segs) =>
+  segs.map((s) => [plainText(s.md), ...(s.code ?? []).map((c) => c.source)].join(" ")).join(" ").replace(/\s+/g, " ").trim();
+const searchEntries = [];
+for (const ch of guide) {
+  searchEntries.push({ loc: "guide/" + ch.id, title: ch.num + ". " + ch.short, crumb: "Guide · " + ch.part, text: segText(ch.segs) });
+}
+for (const c of tree) {
+  searchEntries.push({ loc: "reference/" + c.name, title: c.name, crumb: "Reference · class", text: plainText(c.doc ?? "") });
+  for (const [kind, list] of [["attribute", c.attributes], ["method", c.methods], ["event", c.events]]) {
+    for (const m of list) {
+      searchEntries.push({
+        loc: "reference/" + c.name, title: c.name + "." + m.name, crumb: "Reference · " + kind,
+        text: [plainText(m.doc ?? ""), m.signature ?? "", m.type ?? ""].filter(Boolean).join(" "),
+      });
+    }
+  }
+}
+if (!CHECK) {
+  writeFileSync(path.join(ROOT, "apps/docs/search-index.json"), JSON.stringify({ v: 1, entries: searchEntries }) + "\n");
+}
+
 // One author per committed file: this model is the intermediate assemble reads
 // (see OUT above), so there is nothing of assemble's to preserve and no way for
 // a bare extract to corrupt the committed artifact any more — the carry-forward
@@ -782,6 +827,7 @@ console.log(`  nodes:   ${Object.keys(nodes).length} (${Object.entries(counts).m
 console.log(`  guide:   ${guide.length} chapters in ${guideParts.length} parts (${guideParts.map((p) => p.part + ":" + p.chapters.length).join(", ")})`);
 console.log(`  tenets:  ${tenets.length} (${tenets.map((t) => t.title).join(" · ")})`);
 console.log(`  islands: ${Object.keys(genFiles).length} inline runnable examples written to apps/docs/demos/seg_*.declare`);
+console.log(`  search:  ${searchEntries.length} index entries (${Math.round(JSON.stringify(searchEntries).length / 1024)}KB) → apps/docs/search-index.json`);
 console.log(`  @api:    ${documented} documented / ${Object.keys(nodes).length - documented} structural-only`);
 
 // The prose-binding gate: a `## heading` nobody claimed is prose the reference

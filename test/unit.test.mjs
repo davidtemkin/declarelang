@@ -4207,6 +4207,9 @@ function fakeScheduler() {
       cb = null; // consumed (one-shot), like a real rAF handle
       if (fn) { last = now; fn(now); }
     },
+    /** Advance `now` with NO frame — wall time passing while the clock is
+     *  idle (a paused animator produces zero frames; resume re-anchors here). */
+    advance(now) { last = now; },
     get scheduled() { return cb !== null; },
   };
 }
@@ -4485,10 +4488,10 @@ await test("Animator: paused freezes in place; unpausing resumes where it left o
   sched.frame(0);
   sched.frame(50); // → 50
   a.paused = true;
-  sched.frame(60);
-  sched.frame(70); // 20ms elapse while paused — must not count
+  assert.equal(sched.scheduled, false, "paused → off the clock entirely (frozen counts as idle)");
+  sched.advance(70); // 20ms of wall time pass while paused — zero frames, and it must not count
   assert.equal(view.height, 50, "frozen in place while paused");
-  a.paused = false;
+  a.paused = false; // resume re-anchors at now (70)
   sched.frame(80); // +10ms of live time → t = 0.6
   assert.equal(view.height, 60, "resumes from where it froze");
 });
@@ -4678,6 +4681,127 @@ await test("build(): started=true auto-starts the animator at init (opt-in)", ()
   sched.frame(100);
   assert.equal(v.x, 80);
   assert.equal(sched.scheduled, false, "idle after completion");
+});
+
+await test("Animator: `started` is REACTIVE — a constraint flipping it starts and stops the run (issue #19)", () => {
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  const app = build(`App [ width=100, height=100,
+    v: View [ open: boolean = false,
+      anim: Animator [ attribute=x, to=100, duration=100, motion=linear, started = { parent.open } ] ] ]`);
+  const v = app.v;
+  assert.equal(v.anim.started, false, "the binding's boot value");
+  assert.equal(sched.scheduled, false, "false at init → nothing running (opt-in auto-start)");
+  v.open = true;
+  settle();
+  assert.equal(v.anim.started, true, "the constraint re-evaluated");
+  assert.equal(v.anim.isRunning(), true, "…and the change STARTED the run — not just the slot's value");
+  sched.frame(0);
+  sched.frame(40);
+  assert.equal(v.x, 40, "driving the target slot like any other start()");
+  // Flipping the same fact back stops it, in place — one declaration, both edges.
+  v.open = false;
+  settle();
+  assert.equal(v.anim.isRunning(), false, "false → stop()");
+  assert.equal(v.x, 40, "halted in place — no snap to either end");
+  assert.equal(sched.scheduled, false, "the clock goes idle (idle-zero)");
+  // And it re-triggers: the fact becoming true again is a fresh run.
+  v.open = true;
+  settle();
+  assert.equal(v.anim.isRunning(), true, "true again → a new run");
+  sched.frame(60);
+  sched.frame(200);
+  assert.equal(v.x, 100, "which lands on `to`");
+});
+
+await test("Animator: `paused` is clock MEMBERSHIP — a paused animator holds zero frames (idle-zero)", () => {
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  const app = build(`App [ width=100, height=100,
+    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear, started=true ] ] ]`);
+  const v = app.v;
+  sched.frame(0);
+  sched.frame(40);
+  assert.equal(v.x, 40);
+  v.anim.paused = true;
+  settle();
+  assert.equal(sched.scheduled, false, "paused → OFF the clock — no frame loop, no CPU");
+  assert.equal(v.anim.isRunning(), true, "still running (armed), just frozen");
+  sched.advance(5000); // five seconds of wall time, ZERO frames (the whole point)
+  v.anim.paused = false;
+  settle();
+  assert.equal(sched.scheduled, true, "resume re-enrolls");
+  sched.frame(5010); // the resume re-anchored at now: 10ms of progress, not 4970
+  assert.equal(v.x, 50, "resume continues from the freeze — the pause was not elapsed time");
+  sched.frame(5060);
+  assert.equal(v.x, 100, "lands exactly");
+  assert.equal(sched.scheduled, false, "then idle");
+  // A resume push after stop() must not re-enroll a dead animator.
+  v.anim.paused = true; settle();
+  v.anim.paused = false; settle();
+  assert.equal(sched.scheduled, false, "paused writes on a finished animator stay inert");
+});
+
+await test("AnimatorGroup: group `paused` idles the clock; members re-anchor on resume", () => {
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  const app = build(`App [ width=100, height=100,
+    v: View [ g: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started=true,
+      Animator [ attribute=x, to=100 ],
+      Animator [ attribute=y, to=200 ] ] ] ]`);
+  const v = app.v;
+  sched.frame(0);
+  sched.frame(30);
+  assert.equal(v.x, 30);
+  v.g.paused = true;
+  settle();
+  assert.equal(sched.scheduled, false, "paused group → clock idle");
+  sched.advance(9000); // frameless wall time while paused
+  v.g.paused = false;
+  settle();
+  sched.frame(9020); // 20ms after resume — both members re-anchored, no jump
+  assert.equal(v.x, 50, "member x resumed from the freeze");
+  assert.equal(v.y, 100, "member y too (the group cascaded the re-anchor)");
+  sched.frame(9070);
+  assert.equal(v.x, 100);
+  assert.equal(v.y, 200);
+  assert.equal(sched.scheduled, false, "idle after completion");
+});
+
+await test("Animator: start() under `paused = true` arms without enrolling (zero frames until resume)", () => {
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  const app = build(`App [ width=100, height=100,
+    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear, paused=true ] ] ]`);
+  const v = app.v;
+  v.anim.start();
+  assert.equal(v.anim.isRunning(), true, "armed");
+  assert.equal(sched.scheduled, false, "…but frozen at from — no clock, no frames");
+  v.anim.paused = false;
+  settle();
+  assert.equal(sched.scheduled, true, "resume enrolls");
+  sched.frame(100);
+  sched.frame(200);
+  assert.equal(v.x, 100, "then runs to completion");
+});
+
+await test("AnimatorGroup: a reactive `started` drives the whole group (issue #19)", () => {
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  const app = build(`App [ width=100, height=100,
+    v: View [ open: boolean = false,
+      grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started = { parent.open },
+        Animator [ attribute=x, to=10, started=true ],
+        Animator [ attribute=y, to=20 ] ] ] ]`);
+  const v = app.v;
+  assert.equal(sched.scheduled, false, "the group is the driver — a member's own started=true does not pre-fire");
+  v.open = true;
+  settle();
+  assert.equal(v.grp.isRunning(), true, "the group started on the constraint's change");
+  sched.frame(0);
+  sched.frame(100);
+  assert.equal(v.x, 10, "member x ran under the group");
+  assert.equal(v.y, 20, "member y ran under the group");
 });
 
 await test("build(): the target is the parent — a user-declared numeric slot animates too", () => {

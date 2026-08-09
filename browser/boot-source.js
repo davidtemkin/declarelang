@@ -63,6 +63,7 @@ async function run() {
     // reads them off app.demoSources.
     const segments = highlight(raw);
     const relPath = new URL(target).pathname.replace(new URL(ROOT).pathname, "");
+    const viewedDir = new URL(".", target).href;    // the file's own directory — the island child's data/asset base
     document.title = (relPath.split("/").pop() || "source") + " — source";
     await bootHost({
       source, deps,
@@ -70,6 +71,11 @@ async function run() {
       // translates it into the viewer's INITIAL location (docs/system-design/location.md §4).
       // A real URL fragment still wins, so a shared `…#source` deep link holds.
       location: mode,
+      // The viewed program's own directory. This page's <base> is the Viewer's,
+      // so without these the island child asks apps/viewer/ for the file's data,
+      // bitmaps and web faces — and a 404'd face aborts the child's render, which
+      // is what left the edit pane blank for every app declaring a font.
+      dataBase: viewedDir, assetBase: viewedDir,
       seeds: { __source__: JSON.stringify(segments), __raw__: raw, __path__: relPath,
         __metrics__: JSON.stringify(lineMetrics(raw)) },
       // the live-edit mode's recompile seam — the warm-loading client above,

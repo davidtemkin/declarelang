@@ -535,17 +535,18 @@ const ImageSchema: ComponentSchema = {
   },
   readOnly: ["loaded", "failed", "naturalWidth", "naturalHeight"],
 };
-// Video (2026-08): Image's twin — the same `source`/`stretches`/`loaded`/
-// `failed` vocabulary, plus the transport as ATTRIBUTES rather than controls.
-// `playing` and `position` are the two-way pair (author writes, runtime writes
-// back, on the `scrollY` pattern); `duration`/`buffering` are facts to derive
-// from. No player chrome ships here: a scrubber is an application.
-const VideoSchema: ComponentSchema = {
-  name: "Video",
+// Media (2026-08): the transport family's abstract base — the Editor/Stream
+// arrangement (documented, inheritable, uninstantiable; in this table, not the
+// tag registry). The transport is ATTRIBUTES rather than controls: `playing`
+// and `position` are the two-way pair (author writes, runtime writes back, on
+// the `scrollY` pattern); `duration`/`buffering` are facts to derive from. No
+// player chrome ships here: a scrubber is an application. Video adds the
+// picture; Audio adds nothing, which is the point.
+const MediaSchema: ComponentSchema = {
+  name: "Media",
   base: ViewSchema,
   attrs: {
     source: { kind: "string" },
-    stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain"),
     playing: { kind: "boolean" },
     loop: { kind: "boolean" },
     muted: { kind: "boolean" },
@@ -561,6 +562,26 @@ const VideoSchema: ComponentSchema = {
   },
   readOnly: ["ended", "duration", "buffering", "loaded", "failed"],
   events: ["ended"],
+};
+
+// Video: Media plus the picture — Image's twin. The natural size arrives with
+// the metadata; `stretches` is Image's vocabulary, same meanings.
+const VideoSchema: ComponentSchema = {
+  name: "Video",
+  base: MediaSchema,
+  attrs: {
+    stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain"),
+  },
+};
+
+// Audio: Media with nothing to look at — a faceless leaf whose box means
+// nothing. Its one schema-visible difference is behavioral, not structural:
+// `muted` defaults FALSE (sound is its only product; autoplay refusal is
+// handled by `playing` snapping back, not by shipping it silent).
+const AudioSchema: ComponentSchema = {
+  name: "Audio",
+  base: MediaSchema,
+  attrs: {},
 };
 
 // DOMIsland (foreign-content island): a leaf View whose BOX is owned by Declare — it
@@ -992,7 +1013,13 @@ export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   App: AppSchema,
   Text: TextSchema,
   Image: ImageSchema,
+  // Media — the abstract transport base Video and Audio extend (playing/
+  // position/duration/volume live here). In the table so the reference can
+  // give it a page and the leaves inherit from a documented class; NOT in the
+  // tag registry, so it stays uninstantiable — exactly Editor's arrangement.
+  Media: MediaSchema,
   Video: VideoSchema,
+  Audio: AudioSchema,
   DOMIsland: DOMIslandSchema,
   TextInput: TextInputSchema,
   Markdown: MarkdownSchema,

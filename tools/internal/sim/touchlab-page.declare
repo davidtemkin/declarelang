@@ -15,7 +15,7 @@ Zones, one per contract:
   prose  — a Markdown document: the flow species is selectable by default;
            a long-press here SHOULD select (the subtractive realization).
   strip  — tap-to-stop: a clickable band in the scrolling content. A tap
-           during deceleration belongs to the scroll (UIKit's rule) and
+           during deceleration belongs to the scroll (the native scroll rule) and
            must NOT click; a tap at rest must.
 */
 

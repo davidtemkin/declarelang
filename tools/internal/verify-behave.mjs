@@ -124,8 +124,67 @@ bootHost(cfg);
           globalThis.Date = Pinned;
         }, clock);
       }
+      // VIRTUAL DEFERRED TIME. settleMotion drives the animation clock
+      // frame-exactly and costs no real time, so declared motion is already
+      // deterministic — but a raw `setTimeout` (a tooltip's 1s show delay, a
+      // 220ms press flash) runs on WALL time, invisible to it. Whether such a
+      // timer had fired when the frame was captured then depended on machine
+      // load, which is a visual flake nobody can reproduce.
+      //
+      // So DELAYED timers (> 0ms) are virtualized: they fire only when the
+      // harness advances time — each driven clock step (clock.onStepped) and
+      // each drive.wait(ms). A real stall adds no virtual time, so the same
+      // route always yields the same picture.
+      //
+      // Zero-delay timers stay REAL: `setTimeout(fn, 0)` is ordering ("after
+      // this task"), not timing, and boot-time deferrals depend on it running
+      // without anyone driving the clock.
+      await page.evaluateOnNewDocument(() => {
+        const realSet = globalThis.setTimeout.bind(globalThis);
+        const realClear = globalThis.clearTimeout.bind(globalThis);
+        let now = 0, seq = 0;
+        const pend = new Map();   // id → { due, fn, args, every }
+        globalThis.setTimeout = (fn, ms, ...args) => {
+          const d = Number(ms) || 0;
+          if (d <= 0) return realSet(fn, d, ...args);
+          const id = "v" + ++seq;
+          pend.set(id, { due: now + d, fn, args, every: 0 });
+          return id;
+        };
+        globalThis.setInterval = (fn, ms, ...args) => {
+          const d = Math.max(1, Number(ms) || 1);
+          const id = "v" + ++seq;
+          pend.set(id, { due: now + d, fn, args, every: d });
+          return id;
+        };
+        globalThis.clearTimeout = globalThis.clearInterval = (id) => {
+          if (typeof id === "string" && pend.has(id)) { pend.delete(id); return; }
+          realClear(id);
+        };
+        globalThis.__declareTimers = {
+          advance(ms) {
+            now += ms;
+            // due-ordered, and re-read each pass: a fired callback may arm more
+            for (;;) {
+              let next = null;
+              for (const [id, t] of pend) if (t.due <= now && (next === null || t.due < next[1].due)) next = [id, t];
+              if (next === null) return;
+              const [id, t] = next;
+              if (t.every > 0) t.due += t.every; else pend.delete(id);
+              try { t.fn(...t.args); } catch (e) { console.error("virtual timer:", e); }
+            }
+          },
+          pending: () => pend.size,
+        };
+      });
       await page.goto(`http://127.0.0.1:${port}/__verify__/`, { waitUntil: "networkidle0", timeout: 30000 });
       await page.waitForFunction("!!window.__declare", { timeout: 10000 });
+      // Deferred time now rides the driven clock for every stepper — the
+      // asserts' clock.step, settleMotion, and the states' routes alike.
+      await page.evaluate(() => {
+        const c = window.__declare.clock, T = globalThis.__declareTimers;
+        if (c && T && typeof c.onStepped === "function") c.onStepped((ms) => T.advance(ms));
+      });
 
       const log = [];
       const step = (s) => log.push(s);
@@ -160,7 +219,14 @@ bootHost(cfg);
         async key(name) { step(`key ${name}`); await page.keyboard.press(name); },
         async type(text) { step(`type "${text}"`); await page.keyboard.type(text); },
         async tab(n = 1) { for (let i = 0; i < n; i++) await this.key("Tab"); },
-        async wait(ms) { await new Promise((r) => setTimeout(r, ms)); },
+        /** Wait `ms`. Real time passes (browser work — layout, paint, network
+         *  — still needs it) AND the app's virtual deferred time advances by
+         *  exactly `ms`, so a route that waits 300ms always gets 300ms of
+         *  app-visible delay whatever the machine is doing. */
+        async wait(ms) {
+          await new Promise((r) => setTimeout(r, ms));
+          await page.evaluate((m) => globalThis.__declareTimers?.advance(m), ms);
+        },
         /** Run in-flight motion to rest DETERMINISTICALLY (driven clock,
          *  in-page, frame-exact), then hand the clock back to rAF. */
         async settleMotion(maxMs = 5000) {
@@ -275,8 +341,18 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
 
 // ── rung 6: named visual states vs blessed baselines ───────────────────────
 
-/** Screenshot the APP's box (the tree's own extent, not the viewport). */
+/** Screenshot the APP's box (the tree's own extent, not the viewport).
+ *
+ *  PRESENTED, not just settled. The model can be at rest while the COMPOSITOR
+ *  still owes a frame: a `backdrop` (frost) samples what lies beneath and is
+ *  re-rastered on the GPU, so a capture taken the instant the model quiesces
+ *  can catch the blur one frame stale. Measured as exactly that — the sampler's
+ *  frosted `appearance-menu-dark` differing by max Δ 10 over ~0.2% of the image,
+ *  perhaps one run in four, and only ever under load. Two frames are the
+ *  standard guarantee (the first schedules, the second runs after that frame is
+ *  presented), so the pixels being read are the pixels a user would see. */
 async function shootApp(page) {
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
   const app = await page.evaluate(() => {
     const a = window.__declare.inspect();
     return { width: a.width, height: a.height };

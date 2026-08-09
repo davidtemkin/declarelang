@@ -455,10 +455,26 @@ export function validateShape() { return null; }
     // The CRAWLED document (location.md §7) — every reachable location's content in
     // the one page. Data resolves from the app's own directory (the build-time rule);
     // a network DataSource fails the build loudly, by design.
-    const ex = compiled.source === null ? null : await crawlExtract(compiled.source, {
-      deps: compiled.deps, links: compiled.links,
-      data: opts.originDir ? diskDataResolver(opts.originDir) : undefined,
-    });
+    // Deadlined: the crawl runs the APP's code, and an app that never
+    // quiesces (a fetch that never settles, an unbounded location family)
+    // must fail THIS build with its name on it, not hang it. (A synchronous
+    // spin can't be raced from inside the process — derive's per-rule
+    // process kill is the backstop for that.)
+    const CRAWL_DEADLINE_MS = 120_000;
+    const ex = compiled.source === null ? null : await Promise.race([
+      crawlExtract(compiled.source, {
+        deps: compiled.deps, links: compiled.links,
+        data: opts.originDir ? diskDataResolver(opts.originDir) : undefined,
+      }),
+      new Promise((_, reject) => {
+        const t = setTimeout(() => reject(new Error(
+          `--crawler: the crawl of ${name} did not finish within ${CRAWL_DEADLINE_MS / 1000}s — ` +
+          `the app's own code runs during extraction, so a data source that never settles or an ` +
+          `unbounded location set hangs it. Fix the app, or build without --crawler (only indexed ` +
+          `surfaces need the baked document).`)), CRAWL_DEADLINE_MS);
+        t.unref?.(); // the watchdog itself must never hold the process open
+      }),
+    ]);
     if (ex && ex.html) staticBlock = `<div id="declare-static">\n${ex.html}\n</div>`;
     // the settled appName names the deployed page — the <title> SEO reads
     if (ex && ex.title) pageTitle = ex.title;
@@ -789,6 +805,14 @@ async function cli(argv) {
 }
 
 // Run as CLI when invoked directly (not when imported by the server).
+// Exit EXPLICITLY on success: `--crawler`/`--extract` boot the app in-process,
+// and an app whose init starts a raw timer (a clock applet's setInterval)
+// leaves that handle alive after discard — the runtime cannot know about raw
+// JS timers, so relying on event-loop drain hangs the build forever on any
+// such app (four derive runs wedged on lzx-dashboard, 2026-08-08). The CLI's
+// contract is "files written = done"; termination must not depend on the
+// crawled app's timer hygiene. (Imported-as-module callers — the dev server —
+// are unaffected: this branch is CLI-only.)
 if (import.meta.url === `file://${process.argv[1]}`) {
-  cli(process.argv).catch((e) => { console.error(e); process.exit(1); });
+  cli(process.argv).then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });
 }

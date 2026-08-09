@@ -64,6 +64,23 @@ await test("edges = cover patches viewport-fit into the meta, keeping its served
   assert.ok(m.includes("width=device-width"), `the served meta terms are load-bearing and must survive the patch: ${m}`);
 });
 
+await test("cover stamps the standalone web-app metas — a Safari tab can never fully cover, Add to Home Screen can", async () => {
+  await boot("test/probe/safearea.declare");
+  const stamped = await page.evaluate(() => ({
+    generic: document.querySelector('meta[name="mobile-web-app-capable"]')?.content ?? null,
+    apple: document.querySelector('meta[name="apple-mobile-web-app-capable"]')?.content ?? null,
+    bar: document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')?.content ?? null,
+  }));
+  assert.deepEqual(stamped, { generic: "yes", apple: "yes", bar: "black-translucent" });
+});
+
+await test("the letterbox default stamps none of them", async () => {
+  await boot("test/probe/safearea-default.declare");
+  const any = await page.evaluate(() =>
+    document.querySelector('meta[name="apple-mobile-web-app-capable"], meta[name="mobile-web-app-capable"]') !== null);
+  assert.equal(any, false, "an undeclared app must not become installable-fullscreen by surprise");
+});
+
 await test("under cover, the insets are the device's real numbers — and constraints read them", async () => {
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: PHONE });
   await boot("test/probe/safearea.declare");

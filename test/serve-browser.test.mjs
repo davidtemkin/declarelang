@@ -87,6 +87,35 @@ try {
     assert.ok(r.hasReport, "a broken edit should surface a compile report");
   });
 
+  // The Viewer's edit pane runs the VIEWED file as an island child while the
+  // document belongs to apps/viewer/. Its relative bitmaps and web faces mean
+  // "beside my .declare" (asset-base.ts) — and a face the child could not load
+  // used to reject out of renderAsync and abort the mount, so every app with a
+  // `font … Face [ src = "…" ]` showed a blank pane and said nothing.
+  await test("the Viewer's edit pane mounts a child with a web font, at the viewed program's base", async () => {
+    await page.goto(`${B}/apps/lzx-weather/lzx-weather.declare?viewer=edit`, { waitUntil: "networkidle2", timeout: 60000 });
+    await page.waitForFunction(
+      () => (document.querySelector('[data-declare-slot^="run:"]')?.children.length ?? 0) > 0,
+      { timeout: 30000 },
+    ).catch(() => {});
+    const r = await page.evaluate(() => {
+      const box = document.querySelector('[data-declare-slot^="run:"]');
+      const imgs = [...(box?.querySelectorAll("img") ?? [])];
+      return {
+        nodes: box?.querySelectorAll("*").length ?? 0,
+        fonts: [...document.fonts].map((f) => f.status),
+        imgs: imgs.length,
+        misbased: imgs.map((i) => i.src).filter((s) => !s.includes("/apps/lzx-weather/")),
+        broken: imgs.filter((i) => i.complete && !i.naturalWidth).length,
+      };
+    });
+    assert.ok(r.nodes > 0, "the edit pane's island should have mounted the viewed app");
+    assert.ok(r.fonts.includes("loaded"), "the viewed app's own web face should have loaded");
+    assert.ok(r.imgs > 0 && r.misbased.length === 0,
+      "the child's bitmaps resolve against ITS program dir: " + JSON.stringify(r.misbased));
+    assert.equal(r.broken, 0, "no bitmap should 404");
+  });
+
   await test("no page errors or failed requests through the whole run", () => {
     assert.deepEqual(errs, []);
   });

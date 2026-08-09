@@ -24,8 +24,13 @@ element when embedded. The App's own `width` defaults to it, so read `app.hostWi
 responsive layout at any depth. Assigning it is a compile error.
 
 ## hostHeight
-**Read-only.** The host's height — the viewport height at top level; the twin of
-`hostWidth`. Size full-height panes to `app.hostHeight`.
+**Read-only.** The host's height — at top level, the REAL visible height: the layout
+viewport, widened to the unzoomed visual viewport where that is larger. The distinction is
+iOS: the browser lets content occupy zones the layout viewport excludes (behind collapsed
+bar chrome, the home-indicator band), and flow content paints there on its own — so a
+pinned overlay sized to the layout viewport alone would cut off above the true bottom.
+Neither a pinch nor the software keyboard ever changes it. Size full-height panes to
+`app.hostHeight`.
 
 ## scrollY
 The App's own scroll offset — which **is the page's**, since the App's scroller is the
@@ -174,8 +179,17 @@ clear of the system chrome, the letterbox bars wear the app's own `fill`, and ev
 `safe*` inset reads 0 — there is nothing to handle. `edges = cover` is the edge-to-edge
 opt-in: the runtime patches `viewport-fit=cover` into the page's viewport meta at mount,
 the box extends under the system chrome, and the `safeTop`…`safeRight` facts carry the
-real insets for pinned chrome to place itself with. A fact about the app, read at mount —
-not a runtime toggle. Desktop browsers are unaffected either way.
+real insets for pinned chrome to place itself with. Cover also declares the standalone
+intent: the runtime stamps the home-screen web-app metas (`mobile-web-app-capable`,
+`apple-mobile-web-app-capable`, status-bar `black-translucent`), so an added-to-Home-Screen
+app launches truly full screen. A fact about the app, read at mount — not a runtime
+toggle. Desktop browsers are unaffected either way.
+
+In a browser TAB the top chrome region is always the browser's; what a covered app
+controls there is its COLOR — the page behind a top-level app wears the app's `fill`
+(live, following a constraint fill), and a `theme-color` meta rides the same path, which
+is the channel the browser honors for its own chrome. An app whose fill tracks its content
+(the weather app's sky tone) keeps the browser bands reading as part of the app.
 
 ## safeTop
 **Read-only.** The top safe-area inset in pixels — the notch/status-bar band. `0` while

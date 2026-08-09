@@ -8,6 +8,7 @@
 // platform composites; it never negotiates.
 
 import AppKit
+import AVFoundation
 import CoreImage
 import CoreText
 import QuartzCore
@@ -96,6 +97,8 @@ final class Node {
     var textString = ""
     var imageHandle: Int?
     var stretch = "fit"
+    var mediaId: Int?
+    var player: AVPlayerLayer?
 
     init(id: Int) {
         self.id = id
@@ -387,6 +390,11 @@ final class LayerTree {
             guard let n = nodes[id] else { return }
             n.rotation = num(a(0))
             applyScale(n)
+        case 39: // MEDIA — bind this node to a native player (Media.swift).
+            // The frames never cross the bridge: AVPlayerLayer draws them.
+            guard let n = nodes[id] else { return }
+            n.mediaId = (a(0) as? NSNumber)?.intValue
+            applyMedia(n)
         case 14: // CLIP (shape)
             guard let n = nodes[id] else { return }
             n.clipPath = str(a(0)).flatMap { bridge.path(for: $0) }
@@ -423,11 +431,15 @@ final class LayerTree {
         case 19: // IMAGE
             guard let n = nodes[id] else { return }
             n.imageHandle = (a(0) as? NSNumber)?.intValue
+            // A cleared source clears whichever content kind held the box —
+            // the runtime's setImage(null) can follow a MEDIA bind too.
+            if n.imageHandle == nil, n.player != nil { n.mediaId = nil; applyMedia(n) }
             applyImage(n)
         case 20: // STRETCH
             guard let n = nodes[id] else { return }
             n.stretch = str(a(0)) ?? "fit"
             applyImage(n)
+            if n.player != nil { applyMedia(n) }
         case 21: // SCROLL
             guard let n = nodes[id] else { return }
             let on = num(a(0)) != 0
@@ -638,6 +650,7 @@ final class LayerTree {
         if let g = n.gradient { order.append(g) }
         if let d = n.draw { order.append(d) }
         if let i = n.image { order.append(i) }
+        if let p = n.player { order.append(p) }
         if let t = n.text { order.append(t) }
         if let rf = n.rich { order.append(rf.contentLayer) }
         if n.content !== n.layer { order.append(n.content) }
@@ -801,6 +814,7 @@ final class LayerTree {
         let h = n.box.height
         if let g = n.gradient { g.bounds = CGRect(origin: .zero, size: n.box.size); g.position = .zero }
         if let i = n.image { i.bounds = CGRect(origin: .zero, size: n.box.size); i.position = .zero }
+        if let p = n.player { p.bounds = CGRect(origin: .zero, size: n.box.size); p.position = .zero }
         if let t = n.text {
             t.bounds = CGRect(origin: .zero, size: CGSize(width: max(n.box.width, 1), height: max(h, 1)))
             t.position = .zero
@@ -900,6 +914,35 @@ final class LayerTree {
 
     func imageLoaded(handle: Int, image: CGImage) {
         for (_, n) in nodes where n.imageHandle == handle { applyImage(n) }
+    }
+
+    /// The player layer for a media-bound node. Binding is idempotent and safe
+    /// before the item is ready — Core Animation starts showing frames the
+    /// moment the player has them (mediaReady re-applies for the node whose
+    /// MEDIA op raced the load).
+    private func applyMedia(_ n: Node) {
+        guard let mid = n.mediaId, let p = bridge.media.player(mid) else {
+            n.player?.removeFromSuperlayer(); n.player = nil; restack(n); return
+        }
+        let l: AVPlayerLayer
+        if let e = n.player, e.player === p { l = e } else {
+            n.player?.removeFromSuperlayer()
+            l = AVPlayerLayer(player: p)
+            l.anchorPoint = .zero
+            l.actions = ["bounds": NSNull(), "position": NSNull()]
+            n.player = l
+            restack(n)
+        }
+        l.videoGravity = (n.stretch == "cover") ? .resizeAspectFill
+                       : (n.stretch == "none" || n.stretch == "contain") ? .resizeAspect
+                       : .resize   // fill/both/width/height: obey the box
+        l.masksToBounds = true
+        l.bounds = CGRect(origin: .zero, size: n.box.size)
+        l.position = .zero
+    }
+
+    func mediaReady(handle: Int) {
+        for (_, n) in nodes where n.mediaId == handle { applyMedia(n) }
     }
 
     /// The tint composite (compositing.md §3.4): fill the color through the

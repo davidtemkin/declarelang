@@ -13,6 +13,7 @@ import CoreText
 final class Bridge {
     let ctx = JSContext()!
     private(set) var tree: LayerTree!
+    lazy var media = MediaEngine(bridge: self)
     private weak var view: DeclareView?
     private var timers: [Int: Timer] = [:]
     private var frameRequested = false
@@ -173,6 +174,22 @@ final class Bridge {
         host.setObject({ [weak self] (handle: Int, urlStr: String) in
             self?.loadImage(handle: handle, urlStr: urlStr)
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "loadImage")
+
+        // Media (Media.swift): the env's media-element shim by handle. Audio is
+        // a bare AVPlayer; a Video node additionally binds an AVPlayerLayer via
+        // op MEDIA, so frames never cross the bridge.
+        host.setObject({ [weak self] (id: Int, _: String) in self?.media.create(id) }
+            as @convention(block) (Int, String) -> Void, forKeyedSubscript: "mediaCreate")
+        host.setObject({ [weak self] (id: Int, url: String) in self?.media.load(id, url) }
+            as @convention(block) (Int, String) -> Void, forKeyedSubscript: "mediaLoad")
+        host.setObject({ [weak self] (id: Int) in self?.media.play(id) }
+            as @convention(block) (Int) -> Void, forKeyedSubscript: "mediaPlay")
+        host.setObject({ [weak self] (id: Int) in self?.media.pause(id) }
+            as @convention(block) (Int) -> Void, forKeyedSubscript: "mediaPause")
+        host.setObject({ [weak self] (id: Int, t: Double) in self?.media.seek(id, t) }
+            as @convention(block) (Int, Double) -> Void, forKeyedSubscript: "mediaSeek")
+        host.setObject({ [weak self] (id: Int, key: String, v: Double) in self?.media.set(id, key, v) }
+            as @convention(block) (Int, String, Double) -> Void, forKeyedSubscript: "mediaSet")
 
         // Shape-clip hit testing: Core Graphics owns the path, so it answers.
         host.setObject({ [weak self] (d: String, x: Double, y: Double) -> Bool in

@@ -190,7 +190,7 @@ class Menu extends View [ visible = { shown }, width = 220,
     opener: View = null,
     shown: boolean = false,
 
-    // THE COLUMN MODEL (ruled 2026-07-31, resolving Apple's own unevenness):
+    // THE COLUMN MODEL (ruled 2026-07-31, resolving the classic menus' own unevenness):
     // a CHECK column is ALWAYS present — fixed leading space whether or not
     // anything is checked or even checkable; an ICON column exists only when
     // some row in THIS menu carries an icon (no icons → no gutter at all);
@@ -376,7 +376,7 @@ class Menu extends View [ visible = { shown }, width = 220,
         onKeyUp(e: KeyEvent) {
             if (!classroot.shown || e.key != "Escape") return
             if (classroot.subShown(classroot.child)) return   // the deeper menu handles
-            classroot.rootClose()                             // Escape closes the WHOLE chain (macOS)
+            classroot.rootClose()                             // Escape closes the WHOLE chain (the desktop rule)
             }
         ],
 
@@ -404,7 +404,7 @@ class Menu extends View [ visible = { shown }, width = 220,
         height = { Math.min(this.body.contentHeight + 10, app.height - 8) },
         cornerRadius = { typeof theme.menuRadius == "number" ? theme.menuRadius : 8 },
 
-        // a frosted material when the theme names one (the macOS vibrancy
+        // a frosted material when the theme names one (the frosted vibrancy
         // read), else the solid surface: `menuMaterial` is the translucent
         // wash, and a theme that also elects `menuBackdrop` gets true frost —
         // the panel samples and blurs what lies beneath it, wash over blur.
@@ -500,7 +500,7 @@ class Menu extends View [ visible = { shown }, width = 220,
                     textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted },
                     text = { "" + (:key || "") } ],
 
-                // the submenu chevron is DRAWN (the macOS rendition — larger and
+                // the submenu chevron is DRAWN (larger and
                 // more legible than any glyph; reactive draw, both backends)
 
                 // The cascade arrow, from the shared set — a chevron turned

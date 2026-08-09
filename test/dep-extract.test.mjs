@@ -410,6 +410,26 @@ App [ width = 100, height = 100, g: G [ value = "a", R [ choice = "a" ] ] ]`);
   assert.ok(!reads.some((p) => p.includes("(")), "no parens in dep paths: " + JSON.stringify(reads));
 });
 
+test("a written-to defaulted slot keeps its CELL edge alongside the inline (issue #20)", () => {
+  // `retagFilenames: array = { [] }` is a computed default, so a read of it
+  // inlines the formula — whose deps are NOTHING here. But the slot is legal to
+  // WRITE (`app.retagFilenames = …` — default-until-edited), and that write
+  // fires the slot's cell. Inlining alone dropped that edge: the POST body
+  // below woke on retagTag (a literal default → ordinary slot) but stayed
+  // frozen at the first filenames forever. The read of the slot itself must be
+  // recorded IN ADDITION to the inlined formula.
+  const r = extract(`App [ width = 400, height = 200,
+    retagFilenames: array = { [] },
+    retagTag: string = "",
+    retagRequest: DataSource [ method = "POST", url = "./x.json",
+        body = { ({ filenames: app.retagFilenames, tag: app.retagTag }) } ] ]`);
+  const reads = readsOf(r, "body");
+  assert.ok(reads.includes("this.root.retagFilenames"),
+    "the defaulted slot's cell is a dep — a handler write must wake the body: " + JSON.stringify(reads));
+  assert.ok(reads.includes("this.root.retagTag"), "the literal-defaulted slot too: " + JSON.stringify(reads));
+  assert.deepEqual(errsOf(r, "body"), [], "and nothing refuses");
+});
+
 test("a computed default does NOT shadow a same-named app slot (L-17)", () => {
   // The inline decision used to be made on the bare NAME: an inner view declaring
   // `colA` captured every read of `colA` anywhere, including `app.colA` inside the

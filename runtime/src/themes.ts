@@ -1,6 +1,6 @@
 // themes — the named theme PRESETS (library-charter §6: design systems are
 // DATA riding one machinery, never code paths). The naming is geographic —
-// the city, not the brand: `cupertino` for the Apple-fidelity record,
+// the city, not the brand: `cupertino` for the compact-desktop record,
 // `mountainView` for Material 3, `sanFrancisco(dark)` for Declare's own —
 // named for where Declare is made, and it is ALSO the zero-declaration
 // default: an app that never mentions a theme renders sanFrancisco(light)

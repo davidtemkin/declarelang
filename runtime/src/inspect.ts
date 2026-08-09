@@ -326,6 +326,8 @@ class ManualScheduler implements FrameScheduler {
 
 const manual = new ManualScheduler();
 let clockMode: "auto" | "manual" = "auto";
+/** Observers of driven time (clock.onStepped) — a harness's virtualized timers. */
+const stepped: ((ms: number) => void)[] = [];
 
 export const clock = {
   get mode(): "auto" | "manual" { return clockMode; },
@@ -351,7 +353,20 @@ export const clock = {
     if (clockMode !== "manual") this.manual();
     settle();
     manual.fire(ms);
+    for (const fn of stepped) fn(ms);   // deferred time rides the driven clock (see onStepped)
     settle();
+  },
+  /** Register an observer of DRIVEN time — called with each step's ms.
+   *  The determinism seam for WALL-CLOCK work: `settleMotion` makes declared
+   *  motion frame-exact and costs no real time, so anything on a raw
+   *  `setTimeout` (a tooltip's show delay, a press flash) is invisible to it
+   *  and fires on whatever the machine's load decides. A harness that
+   *  virtualizes timers registers here, and those delays advance WITH the
+   *  clock instead of racing it — which is what makes a captured frame the
+   *  same picture on a fast machine and a loaded one. Returns an unsubscribe. */
+  onStepped(fn: (ms: number) => void): () => void {
+    stepped.push(fn);
+    return () => { const i = stepped.indexOf(fn); if (i >= 0) stepped.splice(i, 1); };
   },
   /** Run all in-flight FINITE motion to rest (springs settle, non-looping
    *  animators finish), frame by frame. Perpetual motion — a Heartbeat, an

@@ -480,6 +480,15 @@ export class DomBackend implements RenderBackend {
       doc.documentElement.style.height = "100%";
       doc.body.style.height = "100%";
       doc.body.style.margin = "0";
+      // theme-color: the browser-chrome color channel (see setFill, which
+      // keeps it live when the app's fill is a constraint).
+      let tc = doc.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+      if (tc === null) {
+        tc = doc.createElement("meta");
+        tc.name = "theme-color";
+        doc.head.appendChild(tc);
+      }
+      tc.content = bg;
     }
     // A horizontal trackpad swipe over an app must never become the browser's
     // back/forward history gesture — that navigates the whole page away, out from
@@ -592,10 +601,10 @@ export class DomBackend implements RenderBackend {
 // Scrollbars are the platform's own. An earlier build injected a persistent,
 // space-reserving `::-webkit-scrollbar` (+ `scrollbar-gutter: stable`) so a bar was
 // always visible — but styling `::-webkit-scrollbar` opts Safari OUT of its native
-// overlay bar and into a wide, always-on legacy one, which is not what a macOS app
-// should look like. We now inject nothing: `overflow: auto` gives each pane the OS
-// default — an overlay bar that appears on scroll and widens on hover (macOS), or
-// the classic bar the OS/user setting dictates elsewhere.
+// overlay bar and into a wide, always-on legacy one — a downgrade from what the
+// platform gives for free. We now inject nothing: `overflow: auto` gives each pane
+// the OS default — an overlay bar where the platform draws one, or the classic
+// bar the OS/user setting dictates elsewhere.
 
 // ── embedded-app NAME reflection (the reverse of the `env` channel) ──────────
 //
@@ -759,6 +768,28 @@ class DomSurface implements Surface {
       this.box.fill = f === null ? null : colorToCss(f);
     }
     this.decorate();
+    // The page-behind-the-app paint (attachRoot) follows a LIVE fill: a
+    // top-level app whose fill is a constraint (the weather app's sky tone)
+    // re-tints Safari's own bands — the status area, the collapsed toolbar —
+    // which take their color from the page background. `theme-color` rides
+    // along: it is Apple's DESIGNED channel for the browser-chrome color, and
+    // where the background is only sampled-with-a-wash, the meta is honored
+    // as the chrome's own tone (and tracked live). Top-level roots only; an
+    // embedded island must not touch the shared page.
+    if (this.element.dataset.declareApp !== undefined && this.box.fill !== null) {
+      const doc = this.element.ownerDocument;
+      if (doc.body !== null && this.element.closest("[data-declare-embed]") === null) {
+        doc.documentElement.style.background = this.box.fill;
+        doc.body.style.background = this.box.fill;
+        let tc = doc.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+        if (tc === null) {
+          tc = doc.createElement("meta");
+          tc.name = "theme-color";
+          doc.head.appendChild(tc);
+        }
+        tc.content = this.box.fill;
+      }
+    }
   }
 
   setCornerRadius(r: number): void {
@@ -1704,7 +1735,7 @@ class DomSurface implements Surface {
       s.touchAction = "auto";
       (s as CSSStyleDeclaration & { resize: string }).resize = "none";
       s.pointerEvents = "auto";
-      // Native scrollbar for a scrolling code field (macOS overlay).
+      // Native scrollbar for a scrolling code field (the platform's own).
       const self = el;
       el.addEventListener("input", () => this.edit?.onInput(self.value));
       el.addEventListener("focus", () => this.edit?.onFocus());

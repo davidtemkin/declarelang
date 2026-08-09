@@ -40,7 +40,7 @@ export const OP = {
   RICH: 26, RICHSCROLL: 27, EMBED: 28, IGNORECLIP: 29,
   SCROLLX: 30, SCROLLXPOS: 31, PAGEFILL: 32,
   IGNORESCROLL: 33, RICHWIDTH: 34, BLEND: 35, BACKDROP: 36, TINT: 37,
-  ROTATE: 38,
+  ROTATE: 38, MEDIA: 39,
 } as const;
 
 /** The host side of the bridge — provided by the Swift shell before boot. */
@@ -366,6 +366,10 @@ class MacSurface implements Surface {
   }
 
   setImage(image: unknown | null): void {
+    // A media element (the env's <video> shim) is not a bitmap: it binds the
+    // node to a native player layer instead, and the host draws the frames.
+    const media = image === null ? undefined : (image as { __mediaHandle?: number }).__mediaHandle;
+    if (media !== undefined) { emit(OP.MEDIA, this.id, media); return; }
     const handle = image === null ? null : (image as { __handle?: number }).__handle ?? null;
     emit(OP.IMAGE, this.id, handle);
   }

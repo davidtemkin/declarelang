@@ -50,7 +50,7 @@ export const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
   mixBlendMode: "compositing is the 'blend' attribute — 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
   backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' — samples and blurs what lies beneath the view's own shape",
   mask: "masking is 'clip' — true for the box, or a path for an arbitrary shape",
-  // The 2026-08-08 foreign-reach audit (HTML/CSS · React · iOS, read against the
+  // The 2026-08-08 foreign-reach audit (HTML/CSS · React · native-mobile, read against the
   // whole reference): the attribute-position instincts a newcomer actually
   // types, each with its one true equivalent. Question-shaped foreign names
   // (useState, VStack, ScrollView) live in the concept table instead —

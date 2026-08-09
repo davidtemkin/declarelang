@@ -33,7 +33,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve, join, basename } from "node:path";
 import { formatSource, comparableTokens, commentRaws } from "../tools/format.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { parseLibrary } from "../runtime/dist/parser.js";
+import { parseLibrary, parseProgram } from "../runtime/dist/parser.js";
 import { test, summarize } from "./harness.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -130,9 +130,20 @@ const stripAst = (o) => JSON.parse(JSON.stringify(o, (k, v) => {
   return v;
 }));
 
+/** A source with no App root is a LIBRARY — top-level declarations meant to be
+ *  `include`d, never compiled alone (composition.md §1). Asked by CONTENT, not
+ *  by path: that used to mean "lives in library/", but an include-only
+ *  companion now sits beside the app it serves (weather-art.declare beside
+ *  weather.declare), and compiling one as a standalone program asserts
+ *  something it was never meant to satisfy. Such a file's formatting is held
+ *  to the same standard through the parseLibrary AST below. */
+const isLibrarySource = (src) => {
+  try { parseProgram(src); return false; } catch { return true; }
+};
+
 for (const file of corpus) {
   const rel = file.slice(ROOT.length + 1);
-  const isLibrary = rel.startsWith("library/");
+  const isLibrary = isLibrarySource(readFileSync(file, "utf8"));
   await test(`compiles to the same program: ${rel}`, () => {
     const src = readFileSync(file, "utf8");
     const out = formattedOf.get(file) ?? formatSource(src);

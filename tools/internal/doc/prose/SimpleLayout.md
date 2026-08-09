@@ -1,6 +1,6 @@
 The stacking layout: arranges a view's children in a line along `axis`, `spacing` px
 apart, skipping invisible ones. You set it as the view's `layout` **attribute** — not a
-child (OpenLaszlo's form), not the container's type (SwiftUI/Flutter's) — which is what
+child (OpenLaszlo's form), not the container's type (the stack-container form other frameworks use) — which is what
 lets you **swap or animate it** so an arrangement *transitions* instead of jumping. While
 it's active it drives the children's positions, so any `x`/`y` you set on them is
 overwritten.

@@ -214,6 +214,11 @@ export function createDeclareServer(config = {}) {
       // the viewed program's own directory — the island's relative data urls
       // (e.g. the Tracker's issues.json) resolve here, not at the Viewer's <base>
       dataBase: "/" + relPath.replace(/^\/+/, "").replace(/[^/]*$/, ""),
+      // …and the same directory for the island's relative BITMAPS and web faces
+      // (`Face [ src = "resources/fonts/vera.ttf" ]`), which the Viewer's <base>
+      // would otherwise 404 against apps/viewer/ — a missing face used to abort
+      // the child's render outright and leave the edit pane blank
+      assetBase: "/" + relPath.replace(/^\/+/, "").replace(/[^/]*$/, ""),
       seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath,
         __metrics__: JSON.stringify(await toolchain.metrics(rawSource)) },
     };

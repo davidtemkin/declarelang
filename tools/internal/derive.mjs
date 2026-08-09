@@ -62,7 +62,19 @@ const CHECK = has("--check");
 const TIMING = has("--timing");
 const ALL = has("--all");
 
-const run = (cmd, args) => execFileSync(cmd, args, { cwd: ROOT, encoding: "utf8", stdio: "pipe", maxBuffer: 1 << 28 });
+// Every rule command runs under a HARD deadline, killed outright on overrun
+// (SIGKILL — no cooperation asked). Several rules execute app code in-process
+// (dist --crawler, prewarm, bake-crawler boot real programs), so an app bug —
+// a leaked timer, a runaway loop, a never-settling fetch — must be able to
+// fail a BUILD STEP but never wedge the pipeline (2026-08-08: four derive
+// runs from three sessions sat forever behind one app's setInterval). 300s is
+// ~12x the slowest rule's cold cost; a step that genuinely needs longer is a
+// step to split, not a timeout to raise.
+const RULE_TIMEOUT_MS = 300_000;
+const run = (cmd, args) => execFileSync(cmd, args, {
+  cwd: ROOT, encoding: "utf8", stdio: "pipe", maxBuffer: 1 << 28,
+  timeout: RULE_TIMEOUT_MS, killSignal: "SIGKILL",
+});
 
 /** The committed production builds, discovered rather than listed — a new app
  *  with a dist should not need this file edited. */
@@ -129,7 +141,7 @@ const RULES = [
     inputs: [{ dir: "tools/internal/doc", exclude: ["assemble.mjs"] }, "runtime/dist", "compiler/dist", "library",
              "docs/guide", "docs/tenets",
              { dir: "apps/docs/demos", notPre: "seg_" }],       // the authored per-class examples it embeds
-    outputs: [".derive/docs-extract.json", "apps/docs/chapters",
+    outputs: [".derive/docs-extract.json", "apps/docs/chapters", "apps/docs/search-index.json",
               { dir: "apps/docs/demos", pre: "seg_" }],         // the generated islands, and only those
     run: () => run("node", ["tools/internal/doc/extract.mjs"]),
   },
@@ -139,7 +151,24 @@ const RULES = [
              { dir: "bundles", exclude: ["cache", "version.json"] },
              { dir: "apps/homepage", exclude: ["dist", "index.html"] }, "docs/declare.md"],
     outputs: distApps().map((d) => d.out),
-    run: () => { for (const d of distApps()) run("node", ["tools/declarec.mjs", d.src, "-o", d.out, "--crawler"]); },
+    // `--crawler` (the baked static document) is only for the INDEXED surfaces
+    // (David's ruling, 2026-08-08) — today that means HOMEPAGE alone. Every
+    // other app's dist is a plain production build: crawling it buys nothing a
+    // search engine reads, and it executes the app's own code at build time —
+    // surface area no app should get by merely having a dist. Docs is indexed
+    // in principle but deliberately NOT crawled yet (ruled 2026-08-08): its
+    // crawl went from ~1 min to 15–20 min when the 2026-08-05 backlink pass
+    // made the full 356-class reference reachable (each cold boot also pays
+    // the app's whole-corpus prefetch, ~2.7s). Enabling it needs a design —
+    // a warm crawl (crawlAll's warm: true), or projecting the static document
+    // from declare-model.json directly, since the reference pages are
+    // generated from it anyway.
+    run: () => {
+      const CRAWLED = new Set(["homepage"]);
+      for (const d of distApps()) {
+        run("node", ["tools/declarec.mjs", d.src, "-o", d.out, ...(CRAWLED.has(d.app) ? ["--crawler"] : [])]);
+      }
+    },
   },
   {
     name: "bake-crawler",            // the root page's static extraction (runs the homepage itself)
@@ -275,6 +304,13 @@ for (const r of RULES) {
 
   const s = Date.now();
   try { r.run(); } catch (e) {
+    if (e.code === "ETIMEDOUT" || e.signal === "SIGKILL") {
+      console.error(`derive: ${r.name} KILLED after ${RULE_TIMEOUT_MS / 1000}s — a build step may not hang.`);
+      console.error(`  Rules that boot app code (dist --crawler, prewarm, bake-crawler) inherit the app's bugs:`);
+      console.error(`  a leaked timer, a runaway loop, a fetch that never settles. Find the app, fix the bug.`);
+      console.error((e.stdout ?? "") + (e.stderr ?? ""));
+      process.exit(1);
+    }
     console.error(`derive: ${r.name} FAILED\n${(e.stdout ?? "") + (e.stderr ?? e.message)}`);
     process.exit(1);
   }

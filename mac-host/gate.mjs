@@ -53,6 +53,7 @@ const CORPUS = [
   "apps/lzx-weather/lzx-weather.declare",
   "apps/controls/controls.declare",
   "apps/desktop/desktop.declare",
+  "apps/lzx-dashboard/lzx-dashboard.declare",
 ];
 
 const args = process.argv.slice(2);
