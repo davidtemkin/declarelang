@@ -1,0 +1,1139 @@
+/*
+# Weather
+
+One program, two dialects. Below ~700px it is a phone app — a scrolling list
+of cities, each of which expands in place into a full-page view. Above 700px
+it is a desktop app — a sidebar of cities beside a grid of the same cards.
+Nothing forks but layout and input: one card vocabulary, one set of drawn
+instruments, one truth.
+
+If this is your first Declare program, the shape to hold onto:
+
+- **A program is one tree.** `App [ … ]` at the bottom of this file is the
+  root; everything else here is a `class` — a reusable component — that the
+  tree instantiates. `name = value` sets an attribute; `name: Type = value`
+  declares a new one; `name: Type [ … ]` is a child component.
+- **`{ }` is a relationship, not an assignment.** `width = { parent.width - 32 }`
+  stays true forever: whenever anything it reads changes, it re-evaluates.
+  There is no render loop to trigger and no subscription to manage — the
+  whole app is such relationships, with a handful of handlers that assign
+  plain values and let the relationships follow.
+- **One truth.** `data` (in the App) holds the cities. The selected city is
+  an index into it; every card, sky, and label derives from `app.city`, so
+  switching cities is one number changing and the whole surface re-derives.
+- **Motion is a value.** The row-to-page transition is a single scalar,
+  `openT`, owned by a spring. Every travelling element positions itself with
+  `lerp(rowSeat, pageSeat, openT)` — so the transition is interruptible and
+  reversible by construction, because reversing is just the spring re-aiming.
+- **Data displays are drawn.** The dials, bars, moon, and icons live in
+  weather-art.declare as `draw()` components — code that re-runs when its
+  inputs change, never per frame.
+*/
+
+include [ "weather-art.declare" ]
+
+script {
+    // ── the numbers more than one place must agree on ──────────────────────
+    // A `script { }` block is plain TypeScript; its top-level constants and
+    // functions are readable from any `{ }` body in the file. Everything
+    // that appears only once stays a literal where it is used.
+
+    const SMALL_CARD_H = 176    // natural height of a one-slot card
+    const CONDENSE_SPAN = 120   // scroll distance over which the hero condenses
+    const EDGE_SLACK = 160      // how far past the viewport a takeover reaches
+    const LIST_TOP = 62         // where the phone list's rows begin (below search)
+    const ROW_STEP = 102        // one list row (92) plus its gap (10)
+    const LIST_TAIL = 40        // breathing room after the last row
+    const BOTTOM_CLEAR = 40     // floating chrome stays above the browser's bottom edge
+
+    function fmtTemp(n: number): string { return "" + Math.round(n) + "°" }
+
+    /** Read a value between two ends. Every travelling element in the city
+     *  view is one of these — which is why a position and a font size can
+     *  animate together without a keyframe anywhere. */
+    function lerp(a: number, b: number, t: number): number { return a + (b - a) * t }
+
+    /** 0 until `v` passes `start`, then rising at `speed` — an opacity that
+     *  arrives partway through a transition. (Anything past 1 renders as 1.) */
+    function fadeIn(v: number, start: number, speed: number): number {
+        return Math.max(0, (v - start) * speed)
+    }
+
+    /** 1 at rest, falling at `speed` as `v` rises — an opacity that leaves
+     *  early in a transition. */
+    function fadeOut(v: number, speed: number): number {
+        return Math.max(0, 1 - v * speed)
+    }
+
+    /** One instant, read at a place: `ms` is the shared clock, `tzMin` the
+     *  place's offset from UTC in minutes. Wall-clock arithmetic only. */
+    function localTime(ms: number, tzMin: number): string {
+        if (ms <= 0) return ""
+        const d = new Date(ms + tzMin * 60000)
+        let h = d.getUTCHours()
+        const m = d.getUTCMinutes()
+        const ap = h < 12 ? "AM" : "PM"
+        h = h % 12
+        if (h == 0) h = 12
+        return "" + h + ":" + (m < 10 ? "0" : "") + m + " " + ap
+    }
+    }
+
+
+// ── the shared card chrome ─────────────────────────────────────────────────
+// Every card is a frosted panel with a small uppercase caption. Subclasses
+// add their content; instances set `label` (empty = no caption row).
+//
+// Note the two grid attributes a card DECLARES about itself: `span` (how many
+// columns it occupies) and `baseH` (its natural height, when it is willing to
+// be stretched to level the grid — see MasonryLayout in weather-art). The
+// layout reads these; the card stays the authority on its own shape.
+
+class Card extends View [ cornerRadius = 20, clip = true,
+    span: number = 1,
+    baseH: number = 0,
+    grows: boolean = true,
+    fill = #FFFFFF14, backdrop = { frost(14, 1.25) },
+    stroke = { stroke(1, 0xFFFFFF29) },
+    label: string = "",
+    icon: string = "",
+
+    // `classroot` reaches the root of the component being defined — here,
+    // the Card itself — so a child can read the class's own attributes.
+
+    cap: View [ x = 14, y = 12, height = 14, width = { parent.width - 28 },
+        visible = { classroot.label != "" },
+        capText: Text [ fontSize = 11.5, fontWeight = semibold, textColor = #FFFFFFA8,
+            letterSpacing = 0.6, wrap = false, text = { classroot.label } ]
+        ]
+    ]
+
+
+// ── the hourly strip ───────────────────────────────────────────────────────
+// One column per hour: time, icon, temperature. `:name` is a DATAPATH read —
+// this component is replicated over a list of records (see HourStrip below),
+// and each copy reads fields from its own record.
+
+class HourCol extends View [ width = 58, height = 92,
+    timeText: Text [ x = center, y = 0, fontSize = 15, fontWeight = semibold, textColor = white,
+        wrap = false, text = :t ],
+    icon: WIcon [ x = center, y = 30, width = 30, height = 30, kind = { "" + :icon } ],
+
+    // a zero temperature marks the sunrise/sunset entry, which shows a word
+    // instead of a number
+
+    tempText: Text [ x = center, y = 68, fontSize = 20, fontWeight = medium, textColor = white,
+        wrap = false, text = { :temp > 0 ? fmtTemp(:temp) : (:icon == "sunrise" ? "Sunrise" : "Sunset") } ]
+    ]
+
+
+class HourStrip extends Card [ height = 196,
+    label = "HOURLY FORECAST",
+    summary: string = "",
+    summaryText: Text [ x = 16, y = 32, width = { parent.width - 32 }, fontSize = 15,
+        textColor = white, text = { classroot.summary } ],
+    rule: View [ x = 16, y = 74, width = { parent.width - 32 }, height = 1, fill = #FFFFFF33 ],
+
+    // `scrolls = x` makes this pane scroll horizontally INSIDE the page's
+    // vertical scroll; the platform arbitrates which gesture goes where.
+    // `datapath = :hours[]` replicates one HourCol per record in the city's
+    // hours array; `key` names the field that identifies a record across
+    // updates, so columns keep their identity when the city changes.
+
+    scroller: View [ x = 8, y = 88, width = { parent.width - 16 }, height = 100, scrolls = x,
+        row: View [ layout: SimpleLayout [ axis = x, spacing = 4 ],
+            HourCol [ datapath = :hours[], key = :t ]
+            ]
+        ]
+    ]
+
+
+// ── the 10-day forecast ────────────────────────────────────────────────────
+// One row per day. The range bar needs the WHOLE ten days' min and max so the
+// bars are comparable — those arrive from the card, through each row, into
+// the drawn bar.
+
+class DayRow extends View [ height = 42,
+    lo10: number = 0,
+    hi10: number = 0,
+    todayTemp: number = -1000,
+    name: Text [ x = 0, y = center, width = 74, fontSize = 17, fontWeight = medium,
+        textColor = white, wrap = false, text = :day ],
+    icon: WIcon [ x = 78, y = center, width = 26, height = 26, kind = { "" + :icon } ],
+    lo: Text [ x = 116, y = center, width = 46, fontSize = 17, fontWeight = medium,
+        textColor = #FFFFFFB0, textAlign = right, wrap = false, text = { fmtTemp(:lo) } ],
+    bar: RangeBar [ x = 172, y = center, height = 5,
+        width = { parent.width - 172 - 54 },
+        lo = { :lo }, hi = { :hi },
+        min = { parent.lo10 }, max = { parent.hi10 },
+        now = { :day == "Today" ? parent.todayTemp : -1000 } ],
+    hi: Text [ x = { parent.width - 48 }, y = center, width = 48, fontSize = 17,
+        fontWeight = medium, textColor = white, textAlign = right, wrap = false,
+        text = { fmtTemp(:hi) } ],
+    rule: View [ x = 0, y = { parent.height - 1 }, width = 100%, height = 1, fill = #FFFFFF22 ]
+    ]
+
+
+class TenDay extends Card [
+    label = "10-DAY FORECAST",
+    lo10: number = 0,
+    hi10: number = 0,
+    todayTemp: number = 0,
+
+    // this card's height is its own arithmetic — caption + ten rows + air —
+    // so it opts out of grid stretching by never declaring `baseH`
+
+    height = { 36 + 42 * 10 + 8 },
+    list: View [ x = 16, y = 34, width = { parent.width - 32 },
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        DayRow [ width = { parent.width },
+            lo10 = { classroot.lo10 }, hi10 = { classroot.hi10 },
+            todayTemp = { classroot.todayTemp },
+            datapath = :days[], key = :day ]
+        ]
+    ]
+
+
+// ── the small instrument cards ─────────────────────────────────────────────
+// Each pairs text with a drawn instrument from weather-art. A shared shape:
+// the top block stays put, the instrument centres in whatever height the
+// grid gives the card, and the caption rides the card's FOOT — so a card the
+// grid stretches (to level its column) still reads as designed.
+
+class UVCard extends Card [ label = "UV INDEX",
+    value: number = 0,
+    name: string = "",
+    note: string = "",
+    big: Text [ x = 14, y = 34, fontSize = 34, fontWeight = medium, textColor = white,
+        wrap = false, text = { "" + classroot.value } ],
+    level: Text [ x = 14, y = 76, fontSize = 20, fontWeight = semibold, textColor = white,
+        wrap = false, text = { classroot.name } ],
+    ramp: UVRamp [ x = 14, y = { parent.height - 68 }, width = { parent.width - 28 }, height = 5,
+        value = { classroot.value } ],
+    caption: Text [ x = 14, y = { parent.height - 52 }, width = { parent.width - 28 }, fontSize = 14,
+        textColor = #FFFFFFCC, text = { classroot.note } ]
+    ]
+
+
+class SunsetCard extends Card [ label = "SUNSET",
+    at: string = "",
+    rise: string = "",
+    frac: number = 0.5,
+    big: Text [ x = 14, y = 34, fontSize = 30, fontWeight = medium, textColor = white,
+        wrap = false, text = { classroot.at } ],
+    curve: SunCurve [ x = 14, y = { parent.height - 102 }, width = { parent.width - 28 }, height = 54,
+        frac = { classroot.frac } ],
+    riseLine: Text [ x = 14, y = { parent.height - 42 }, fontSize = 14, textColor = #FFFFFFCC, wrap = false,
+        text = { "Sunrise: " + classroot.rise } ]
+    ]
+
+
+class WindCard extends Card [ label = "WIND",
+    mph: number = 0,
+    deg: number = 0,
+    gusts: string = "",
+    dial: WindDial [ x = center, y = { (parent.height - 112) / 2 }, width = 112, height = 112,
+        deg = { classroot.deg } ],
+    val: Text [ x = center, y = { (parent.height - 112) / 2 + 42 }, fontSize = 21,
+        fontWeight = semibold, textColor = white, wrap = false, text = { "" + classroot.mph } ],
+    unit: Text [ x = center, y = { (parent.height - 112) / 2 + 65 }, fontSize = 12,
+        textColor = #FFFFFFCC, wrap = false, text = "mph" ],
+    gustLine: Text [ x = 14, y = { parent.height - 26 }, width = { parent.width - 28 }, fontSize = 14,
+        textColor = #FFFFFFCC, wrap = false, text = { classroot.gusts } ]
+    ]
+
+
+class PressureCard extends Card [ label = "PRESSURE",
+    inHg: number = 0,
+    frac: number = 0.5,
+    gauge: PressureGauge [ x = center, y = { (parent.height - 112) / 2 }, width = 112, height = 112,
+        frac = { classroot.frac } ],
+    val: Text [ x = center, y = { (parent.height - 112) / 2 + 58 }, fontSize = 22,
+        fontWeight = semibold, textColor = white, wrap = false, text = { "" + classroot.inHg } ],
+    unit: Text [ x = center, y = { (parent.height - 112) / 2 + 80 }, fontSize = 12,
+        textColor = #FFFFFFCC, wrap = false, text = "inHg" ],
+    loLabel: Text [ x = 22, y = { parent.height - 26 }, fontSize = 13, textColor = #FFFFFFCC,
+        wrap = false, text = "Low" ],
+    hiLabel: Text [ x = { parent.width - 52 }, y = { parent.height - 26 }, fontSize = 13,
+        textColor = #FFFFFFCC, wrap = false, text = "High" ]
+    ]
+
+
+// The moon card has two arrangements — a wide row-card and a small square —
+// selected by `wide`. Same disc, same drawn terminator either way; only the
+// arrangement differs.
+
+class MoonCard extends Card [
+    phase: string = "",
+    illum: number = 0,
+    moonset: string = "",
+    nextFull: number = 0,
+    waning: boolean = true,
+    wide: boolean = true,
+    label = { classroot.phase != "" ? classroot.phase.toUpperCase() : "MOON" },
+
+    rows: View [ width = 100%, height = 100%, visible = { classroot.wide },
+        disc: MoonDisc [ x = { parent.width - 132 }, y = center, width = 96, height = 96,
+            illum = { classroot.illum / 100 }, waning = { classroot.waning } ],
+        illumLabel: Text [ x = 16, y = 46, fontSize = 15, textColor = white, wrap = false, text = "Illumination" ],
+        illumVal: Text [ x = 16, y = 46, width = { parent.width - 168 }, fontSize = 15, textAlign = right,
+            fontWeight = medium, textColor = white, wrap = false,
+            text = { "" + classroot.illum + "%" } ],
+        rule1: View [ x = 16, y = 74, width = { parent.width - 168 }, height = 1, fill = #FFFFFF22 ],
+        setLabel: Text [ x = 16, y = 86, fontSize = 15, textColor = white, wrap = false, text = "Moonset" ],
+        setVal: Text [ x = 16, y = 86, width = { parent.width - 168 }, fontSize = 15, textAlign = right,
+            fontWeight = medium, textColor = white, wrap = false, text = { classroot.moonset } ],
+        rule2: View [ x = 16, y = 114, width = { parent.width - 168 }, height = 1, fill = #FFFFFF22 ],
+        fullLabel: Text [ x = 16, y = 126, fontSize = 15, textColor = white, wrap = false, text = "Next Full Moon" ],
+        fullVal: Text [ x = 16, y = 126, width = { parent.width - 168 }, fontSize = 15, textAlign = right,
+            fontWeight = medium, textColor = white, wrap = false,
+            text = { "" + classroot.nextFull + " DAYS" } ]
+        ],
+
+    square: View [ width = 100%, height = 100%, visible = { !classroot.wide },
+
+        // equal air above and below: the disc centres in the band between
+        // the caption row and the foot caption
+
+        disc: MoonDisc [ x = center, width = 100, height = 100,
+            y = { 34 + (parent.height - 34 - 34 - 100) / 2 },
+            illum = { classroot.illum / 100 }, waning = { classroot.waning } ],
+        caption: Text [ x = 14, y = { parent.height - 28 }, width = { parent.width - 28 },
+            fontSize = 14, textColor = #FFFFFFCC, wrap = false,
+            text = { "Moonset: " + classroot.moonset } ]
+        ]
+    ]
+
+
+// The plain value-plus-sentence card — feels like, humidity, visibility.
+// One class, several uses; only the bound values differ.
+
+class StatCard extends Card [
+    value: string = "",
+    sub: string = "",
+    note: string = "",
+    big: Text [ x = 14, y = 34, fontSize = 34, fontWeight = medium, textColor = white,
+        wrap = false, text = { classroot.value } ],
+    subLine: Text [ x = 14, y = 76, fontSize = 18, fontWeight = semibold, textColor = white,
+        wrap = false, visible = { classroot.sub != "" }, text = { classroot.sub } ],
+    noteLine: Text [ x = 14, y = { parent.height - 64 }, width = { parent.width - 28 }, fontSize = 14,
+        textColor = #FFFFFFCC, text = { classroot.note } ]
+    ]
+
+
+class AvgCard extends Card [ label = "AVERAGES",
+    delta: string = "",
+    sign: string = "",
+    today: number = 0,
+    avg: number = 0,
+    big: Text [ x = 14, y = 34, fontSize = 34, fontWeight = medium, textColor = white,
+        wrap = false, text = { classroot.delta } ],
+    signLine: Text [ x = 14, y = 76, width = { parent.width - 28 }, fontSize = 16,
+        fontWeight = semibold, textColor = white, text = { classroot.sign } ],
+    todayLabel: Text [ x = 14, y = { parent.height - 50 }, fontSize = 14, textColor = #FFFFFFA8,
+        wrap = false, text = "Today" ],
+    todayVal: Text [ x = 14, y = { parent.height - 50 }, width = { parent.width - 28 }, fontSize = 14,
+        textAlign = right, fontWeight = semibold, textColor = white, wrap = false,
+        text = { "H:" + fmtTemp(classroot.today) } ],
+    avgLabel: Text [ x = 14, y = { parent.height - 28 }, fontSize = 14, textColor = #FFFFFFA8,
+        wrap = false, text = "Average" ],
+    avgVal: Text [ x = 14, y = { parent.height - 28 }, width = { parent.width - 28 }, fontSize = 14,
+        textAlign = right, fontWeight = semibold, textColor = white, wrap = false,
+        text = { "H:" + fmtTemp(classroot.avg) } ]
+    ]
+
+
+class MapCard extends Card [ label = "PRECIPITATION",
+    base: string = "",
+    amount: number = 0,
+    seed: number = 7,
+    pin: string = "",
+
+    // where this city sits on its own base map, as a fraction of the plate
+
+    px: number = 0.5,
+    py: number = 0.5,
+    plate: View [ x = 12, y = 32, width = { parent.width - 24 }, height = { parent.height - 44 },
+        cornerRadius = 12, clip = true, fill = #EEF3F8,
+
+        // `contain`, not `cover`: a map that has been cropped is a wrong map
+
+        img: Image [ width = 100%, height = 100%, stretches = contain,
+            source = { classroot.base } ],
+        radar: RadarBlobs [ width = 100%, height = 100%,
+            amount = { classroot.amount }, seed = { classroot.seed } ],
+        marker: MapPin [ width = 40, height = 40, label = { classroot.pin },
+            x = { parent.width * classroot.px - 20 },
+            y = { parent.height * classroot.py - 20 } ]
+        ]
+    ]
+
+
+class AQICard extends Card [ label = "AIR QUALITY",
+    value: number = 0,
+    note: string = "",
+    line: AQILine [ x = 14, y = 32, width = { parent.width - 28 }, height = 10,
+        value = { classroot.value } ],
+    noteLine: Text [ x = 14, y = 50, width = { parent.width - 28 }, fontSize = 15, textColor = white,
+        text = { classroot.note } ]
+    ]
+
+
+class AlertCard extends Card [ label = "WEATHER ALERT",
+    fill = #FFFFFF26,
+    body: string = "",
+    bodyText: Text [ x = 14, y = 34, width = { parent.width - 28 }, fontSize = 15, textColor = white,
+        text = { classroot.body } ]
+    ]
+
+
+// ── the card grid ──────────────────────────────────────────────────────────
+// The whole card vocabulary for ONE city. Both dialects instantiate this;
+// only the width and the column count differ (2 columns on a phone, 3 or 4
+// on a desktop). Every card binds its values from `city` — the guards keep
+// the grid quiet before the data arrives.
+
+class CityCards extends View [
+    city: object = null,
+    cols: number = 1,
+    gap: number = 12,
+
+    // one column's width, and the one place a span becomes pixels
+
+    colW: number = { (this.width - this.gap * (this.cols - 1)) / this.cols },
+    spanW(n: number) {
+        const k = Math.max(1, Math.min(this.cols, n))
+        return this.colW * k + this.gap * (k - 1)
+        },
+
+    // this component is exactly as tall as its packed grid
+
+    height = { this.stack.height },
+
+    stack: View [ width = 100%,
+        layout: MasonryLayout [ cols = { classroot.cols }, gap = { classroot.gap } ],
+        alert: AlertCard [ span = { classroot.cols }, width = { classroot.spanW(classroot.cols) }, height = 108,
+            visible = { classroot.city != null && classroot.city.alert != "" },
+            body = { classroot.city == null ? "" : classroot.city.alert } ],
+        hourly: HourStrip [ span = { classroot.cols }, width = { classroot.spanW(classroot.cols) },
+            summary = { classroot.city == null ? "" : classroot.city.summary },
+            datapath = { classroot.city } ],
+        tenDay: TenDay [ span = 2, width = { classroot.spanW(2) },
+            lo10 = { classroot.city == null ? 0 : Math.min(...classroot.city.days.map((d) => d.lo)) },
+            hi10 = { classroot.city == null ? 1 : Math.max(...classroot.city.days.map((d) => d.hi)) },
+            todayTemp = { classroot.city == null ? 0 : classroot.city.temp },
+            datapath = { classroot.city } ],
+        map: MapCard [ span = 2, width = { classroot.spanW(2) }, baseH = 300,
+            base = { classroot.city == null ? "" : "maps/" + classroot.city.map },
+            amount = { classroot.city == null ? 0 : classroot.city.precipIn },
+            seed = { classroot.city == null ? 7 : classroot.city.name.length * 37 + classroot.city.hi },
+            pin = { classroot.city == null ? "" : fmtTemp(classroot.city.temp) },
+            px = { classroot.city == null ? 0.5 : classroot.city.px },
+            py = { classroot.city == null ? 0.5 : classroot.city.py } ],
+        aqi: AQICard [ span = 2, width = { classroot.spanW(2) }, baseH = 96,
+            value = { classroot.city == null ? 0 : classroot.city.aqi },
+            note = { classroot.city == null ? "" : classroot.city.aqiNote } ],
+        uv: UVCard [ span = 1, width = { classroot.spanW(1) }, baseH = { SMALL_CARD_H },
+            value = { classroot.city == null ? 0 : classroot.city.uv },
+            name = { classroot.city == null ? "" : classroot.city.uvName },
+            note = { classroot.city == null ? "" : classroot.city.uvNote } ],
+        sunset: SunsetCard [ span = 1, width = { classroot.spanW(1) }, baseH = { SMALL_CARD_H },
+            at = { classroot.city == null ? "" : classroot.city.sunset },
+            rise = { classroot.city == null ? "" : classroot.city.sunrise },
+            frac = { classroot.city == null ? 0.5 : classroot.city.dayFrac } ],
+        wind: WindCard [ span = 1, width = { classroot.spanW(1) }, baseH = { SMALL_CARD_H },
+            mph = { classroot.city == null ? 0 : classroot.city.windMph },
+            deg = { classroot.city == null ? 0 : classroot.city.windDir },
+            gusts = { classroot.city == null ? "" : classroot.city.gusts } ],
+        feels: StatCard [ span = 1, width = { classroot.spanW(1) }, baseH = { SMALL_CARD_H },
+            label = "FEELS LIKE",
+            value = { classroot.city == null ? "" : fmtTemp(classroot.city.feels) },
+            note = { classroot.city == null ? "" : classroot.city.feelsNote } ],
+        humidity: StatCard [ span = 1, width = { classroot.spanW(1) }, baseH = { SMALL_CARD_H },
+            label = "HUMIDITY",
+            value = { classroot.city == null ? "" : "" + classroot.city.humidity + "%" },
+            note = { classroot.city == null ? "" : classroot.city.dewNote } ],
+        visibility: StatCard [ span = 1, width = { classroot.spanW(1) }, baseH = { SMALL_CARD_H },
+            label = "VISIBILITY",
+            value = { classroot.city == null ? "" : "" + classroot.city.visMi + " mi" },
+            note = { classroot.city == null ? "" : classroot.city.visNote } ],
+        pressure: PressureCard [ span = 1, width = { classroot.spanW(1) }, baseH = { SMALL_CARD_H },
+            inHg = { classroot.city == null ? 0 : classroot.city.pressure },
+            frac = { classroot.city == null ? 0.5 : classroot.city.pressureFrac } ],
+        moon: MoonCard [ span = 2, width = { classroot.spanW(2) }, baseH = { SMALL_CARD_H },
+            wide = true,
+            waning = { classroot.city == null ? true : classroot.city.moon.includes("Waning") },
+            phase = { classroot.city == null ? "" : classroot.city.moon },
+            illum = { classroot.city == null ? 0 : classroot.city.moonIllum },
+            moonset = { classroot.city == null ? "" : classroot.city.moonset },
+            nextFull = { classroot.city == null ? 0 : classroot.city.nextFull } ],
+        avg: AvgCard [ span = 1, width = { classroot.spanW(1) }, baseH = { SMALL_CARD_H },
+            delta = { classroot.city == null ? "" : classroot.city.avgDelta },
+            sign = { classroot.city == null ? "" : classroot.city.avgSign },
+            today = { classroot.city == null ? 0 : classroot.city.avgToday },
+            avg = { classroot.city == null ? 0 : classroot.city.avgAvg } ],
+        foot: Text [ width = { parent.width }, y = 0, fontSize = 13, textAlign = center,
+            textColor = #FFFFFFA0,
+            text = { classroot.city == null ? "" : "Weather for " + classroot.city.name } ],
+        tail: View [ width = { parent.width }, height = 40 ]
+        ]
+    ]
+
+
+// ── the desktop header ─────────────────────────────────────────────────────
+// The desktop content column's title: the city's name over a one-line
+// summary. (The phone has no Hero — its header is the travelling text of the
+// CityView below, which IS the transition.)
+
+class Hero extends View [ height = 220,
+    city: object = null,
+    name: Text [ x = center, y = 0, fontSize = 34, fontWeight = regular, textColor = white,
+        wrap = false, text = { classroot.city == null ? "" : classroot.city.name } ],
+    line: Text [ x = center, y = 40, fontSize = 17, fontWeight = medium, textColor = white,
+        wrap = false,
+        text = { classroot.city == null ? "" : fmtTemp(classroot.city.temp) + "  |  " + classroot.city.condName } ]
+    ]
+
+
+// ── the city view: the row that becomes a page ─────────────────────────────
+// ONE of these exists for the current city (plus one more for the page
+// arriving during a swipe). It grows out of the row you tapped and shrinks
+// back into it. The whole transition is one scalar:
+//
+//   `open` — 0 = sitting in the row, 1 = the full page. A spring owns it
+//   (see App.openSpring), so a tap mid-flight just re-aims the spring; the
+//   transition is interruptible and reversible for free.
+//
+// The box itself travels (position, size, corner radius), and the facts the
+// row and the page share — name, clock, temperature, condition, highs/lows —
+// are the SAME text views throughout, each interpolating its own position
+// and font size with `lerp(rowSeat, pageSeat, open)`. Nothing cross-fades
+// between two copies, so nothing can drift apart.
+//
+// Two more scalars drive the header once the page is scrolling:
+//
+//   `condense` — 0..1 over the first CONDENSE_SPAN pixels of page scroll:
+//   the big temperature gives way to a one-line summary.
+//   `heroLift` — how far past that span the page has scrolled: the whole
+//   (now condensed) header rides up and off with the content. It condenses;
+//   it does not stick.
+
+class CityView extends View [ clip = true,
+    city: object = null,
+    open: number = 0,
+    slide: number = 0,
+    condense: number = 0,
+    heroLift: number = 0,
+
+    // the box: from the tapped row's rectangle to the whole viewport, plus
+    // whatever the pager is carrying it sideways by. The open box runs
+    // EDGE_SLACK past the viewport: this view clips, so its sky must itself
+    // reach under the browser's bottom chrome — overshoot past the screen
+    // edge is invisible, and the inner page gives the slack back below.
+
+    x = { lerp(app.fromX, 0, this.open) + this.slide },
+    y = { lerp(app.fromY, 0, this.open) },
+    width = { lerp(app.fromW, app.hostWidth, this.open) },
+    height = { lerp(app.fromH, app.hostHeight + EDGE_SLACK, this.open) },
+    cornerRadius = { lerp(14, 0, this.open) },
+
+    sky: WSky [ width = 100%, height = 100%,
+        cond = { classroot.city == null ? "cloudy" : "" + classroot.city.cond } ],
+    scrim: View [ width = 100%, height = 100%, fill = #0A1422,
+        opacity = { lerp(0.28, 0.1, classroot.open) }, pointerEvents = "none" ],
+
+    // The scrolling page of cards. It arrives late in the open and leaves
+    // first on the close (the fadeIn starting at 0.45). `claim = x` lets a
+    // horizontal drag on this pane belong to the pager below while vertical
+    // scrolling stays native. Its height gives back the box's EDGE_SLACK —
+    // a scroller taller than its viewport would lose that much scroll range.
+
+    page: View [ width = 100%, height = { parent.height - EDGE_SLACK * classroot.open },
+        scrolls = y, claim = x,
+        opacity = { fadeIn(classroot.open, 0.45, 1.9) },
+        visible = { classroot.open > 0.45 },
+        onPointerDown(e: PointerEvent) {
+            if (classroot.open < 0.99) return
+            app.dragging = true
+            app.dragStartX = e.x
+            app.dragStartSwipe = app.swipeX
+            },
+        onPointerMove(e: PointerEvent) {
+            if (app.dragging) app.swipeX = app.dragStartSwipe + (e.x - app.dragStartX)
+            },
+        onPointerUp(e: PointerUpEvent) { app.endSwipe(e.canceled) },
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        heroSpace: View [ width = 100%, height = { 268 + app.safeTop } ],
+        cards: CityCards [ x = center, width = { parent.width - 32 }, cols = { app.cols },
+            city = { classroot.city } ],
+        tail: View [ width = 100%, height = 24 ]
+        ],
+
+    // a legibility gradient behind the condensed header; it rides off with it
+
+    band: View [ x = 0, y = { -classroot.heroLift }, width = 100%,
+        height = { 116 + app.safeTop }, pointerEvents = "none",
+        opacity = { Math.min(1, classroot.condense * 1.4) * classroot.open },
+        fill = { gradient("180deg", 0x0A1422DD, 0x0A142200) } ],
+
+    // ── the travelling facts ───────────────────────────────────────────────
+    // Each lerps between where the ROW put it and where the PAGE wants it.
+    // `- classroot.heroLift` is the ride-off: zero until the page scrolls
+    // past the condensation span, then one-for-one with the scroll.
+
+    cityName: Text [ pointerEvents = "none", wrap = false, textColor = white,
+        fontWeight = medium,
+        text = { classroot.city == null ? "" : classroot.city.name },
+        fontSize = { lerp(19, 34, classroot.open) },
+        x = { lerp(14, (parent.width - this.width) / 2, classroot.open) },
+        y = { lerp(12, 18 + app.safeTop, classroot.open) - classroot.heroLift } ],
+
+    // the row's little clock exists only near the row form
+
+    rowClock: Text [ pointerEvents = "none", wrap = false, textColor = #FFFFFFC0,
+        fontSize = 13, x = 14, y = 38,
+        opacity = { fadeOut(classroot.open, 3) },
+        text = { classroot.city == null ? "" : localTime(app.nowMs, classroot.city.tz) } ],
+
+    // the big temperature both opens with the page AND collapses with the
+    // scroll — one driver folding in both, so the two motions can never fight
+
+    bigTemp: Text [ pointerEvents = "none", wrap = false, textColor = white,
+        fontWeight = thin,
+        text = { classroot.city == null ? "" : fmtTemp(classroot.city.temp) },
+        fontSize = { lerp(34, 92, classroot.open * (1 - classroot.condense)) },
+        x = { lerp(parent.width - 14 - this.width, (parent.width - this.width) / 2, classroot.open) },
+        y = { lerp(8, 58 + app.safeTop, classroot.open) - classroot.heroLift },
+        opacity = { classroot.open < 0.5 ? 1 : fadeOut(classroot.condense, 1.9) } ],
+
+    condLine: Text [ pointerEvents = "none", wrap = false, textColor = white,
+        text = { classroot.city == null ? "" : classroot.city.condName },
+        fontSize = { lerp(13, 20, classroot.open) },
+        fontWeight = { classroot.open > 0.5 ? "medium" : "regular" },
+        x = { lerp(14, (parent.width - this.width) / 2, classroot.open) },
+        y = { lerp(62, 162 + app.safeTop, classroot.open) - classroot.heroLift },
+        opacity = { classroot.open < 0.5 ? 1 : fadeOut(classroot.condense, 1.9) } ],
+
+    hiLo: Text [ pointerEvents = "none", wrap = false, textColor = white,
+        text = { classroot.city == null ? "" : "H:" + fmtTemp(classroot.city.hi) + "  L:" + fmtTemp(classroot.city.lo) },
+        fontSize = { lerp(13, 20, classroot.open) },
+        x = { lerp(parent.width - 14 - this.width, (parent.width - this.width) / 2, classroot.open) },
+        y = { lerp(62, 188 + app.safeTop, classroot.open) - classroot.heroLift },
+        opacity = { classroot.open < 0.5 ? 1 : fadeOut(classroot.condense, 1.9) } ],
+
+    // the one-line header the condensation swaps in
+
+    condensed: Text [ pointerEvents = "none", wrap = false, textColor = white,
+        fontSize = 17, fontWeight = medium,
+        x = { (parent.width - this.width) / 2 },
+        y = { 58 + app.safeTop - classroot.heroLift },
+        opacity = { classroot.open * fadeIn(classroot.condense, 0.42, 2.6) },
+        text = { classroot.city == null ? "" : fmtTemp(classroot.city.temp) + "  |  " + classroot.city.condName } ],
+
+    // A Heartbeat runs a handler every frame — the escape hatch for the few
+    // facts that must track a live, externally-owned value (here the page's
+    // native scroll position) rather than a reactive one.
+
+    beat: Heartbeat [ onFrame() {
+        // a fresh open reads from the top: openFrom resets the pane's
+        // scroll, but a write to a hidden pane may not reach its platform
+        // surface — so re-assert once the pane is live, while it is still
+        // transparent, and only while OPENING (a close reads the live
+        // scroll for its glide)
+        if (app.openTo == 1 && classroot.open > 0.45 && classroot.open < 0.9
+            && classroot.page.scrollY != 0) classroot.page.scrollY = 0
+        // clamped at 0 so a rubber-band pull-down cannot grow the header
+        // past its resting size; scaled by `open` so a close from a scrolled
+        // page glides the header back onto its morph track
+        const k = Math.max(0, Math.min(1, classroot.open))
+        const sy = classroot.page.scrollY
+        classroot.condense = Math.min(1, Math.max(0, sy / CONDENSE_SPAN)) * k
+        classroot.heroLift = Math.max(0, sy - CONDENSE_SPAN) * k
+        }
+        ]
+    ]
+
+
+// ── a city row ─────────────────────────────────────────────────────────────
+// One row of the list (phone) or the sidebar (desktop): the city's own sky
+// as the background, name and clock left, temperature and range right.
+// Replicated over the filtered list — `:id`, `:name`, etc. are reads from
+// this row's own record.
+
+class SideCity extends View [ height = 92, cornerRadius = 14, clip = true,
+    mine: string = { "" + :id },
+    selected: boolean = { app.city != null && app.city.id == this.mine },
+    sky: WSky [ width = 100%, height = 100%, cond = { "" + :cond } ],
+    scrim: View [ width = 100%, height = 100%, fill = #0A1422, opacity = 0.28 ],
+    ring: View [ width = 100%, height = 100%, cornerRadius = 14, pointerEvents = "none",
+        stroke = { stroke(2, classroot.selected ? 0xFFFFFFE0 : 0xFFFFFF1F) } ],
+    name: Text [ x = 14, y = 12, fontSize = 19, fontWeight = medium, textColor = white,
+        wrap = false, text = :name ],
+    condLine: Text [ x = 14, y = 62, fontSize = 13, textColor = #FFFFFFD0, wrap = false, text = :condName ],
+    clock: Text [ x = 14, y = 38, fontSize = 13, textColor = #FFFFFFC0, wrap = false,
+        text = { localTime(app.nowMs, :tz) } ],
+    temp: Text [ x = 14, y = 8, width = { parent.width - 28 }, fontSize = 34, fontWeight = thin,
+        textAlign = right, textColor = white, wrap = false, text = { fmtTemp(:temp) } ],
+    hiLo: Text [ x = 14, y = 62, width = { parent.width - 28 }, fontSize = 13, textAlign = right,
+        textColor = #FFFFFFD0, wrap = false,
+        text = { "H:" + fmtTemp(:hi) + "  L:" + fmtTemp(:lo) } ],
+
+    // on the phone, THIS row is what fades as its city view grows out of it
+
+    opacity = { app.phone && app.openId == this.mine && app.openT > 0.02 ? 0 : 1 },
+    onClick() {
+        // on a phone the row BECOMES the page; on a desktop the page is
+        // already beside it, so a click is just a selection.
+        // rootOrigin() answers in the root's CONTENT space — the document —
+        // and the city view is a viewport-anchored overlay, so the page
+        // scroll comes back off before the rectangle is handed over.
+        if (!app.phone) { app.selectById(this.mine); return }
+        const o = this.rootOrigin()
+        app.openFrom(this.mine, o.x, o.y - app.scrollY, this.width, this.height)
+        }
+    ]
+
+
+// One glass treatment, declared once, so every floating control matches by
+// construction. The fill sits between white and dark deliberately: a white
+// wash disappears on a bright sky, a dark one at night; the hairline keeps
+// an edge on both.
+
+class GlassChip extends View [
+    fill = #6E7C8C4D,
+    backdrop = { frost(26, 1.5) },
+    stroke = { stroke(1, 0xFFFFFF4D) }
+    ]
+
+
+App [ textColor = whitesmoke, appName = "Weather",
+
+    // the platform's own UI face, then the classic fallbacks
+
+    fontFamily = ["-apple-system", "SF Pro Text", "Helvetica Neue", "Helvetica", "sans-serif"],
+
+    // ── the truth ─────────────────────────────────────────────────────────
+    // A DataSource fetches once (`auto`) and exposes `loaded` and `value` as
+    // reactive facts; everything below derives from them.
+
+    data: DataSource [ auto = true, url = "weather.json" ],
+
+    // TEMPORARY: capped to the first 16 of the 25 shipped cities — drop the
+    // .slice to restore the full set
+
+    cities: array = { data.loaded ? data.value.cities.slice(0, 16) : [] },
+
+    // the selected city is an INDEX; the city itself is a derivation of it
+
+    cityIndex: number = 0,
+    city: object = { app.cities.length > 0 ? app.cities[Math.min(app.cityIndex, app.cities.length - 1)] : null },
+    cond: string = { app.city == null ? "cloudy" : app.city.cond },
+
+    selectById(id: string) {
+        const i = app.cities.findIndex((c) => c.id == id)
+        if (i >= 0) cityIndex = i
+        // a fresh city reads from the top of its page
+        deskUI.content.scrollY = 0
+        },
+
+    // ── search ────────────────────────────────────────────────────────────
+    // The draft lives in a plain attribute the fields' onInput delivers up;
+    // `shown` below re-derives from it on every keystroke.
+
+    query: string = "",
+
+    // Both projections hold COPIES — just the fields their rows render —
+    // never the city objects themselves. A Dataset ADOPTS every container
+    // placed in it, and adoption is exclusive: sharing the objects would
+    // pull them out of `data`, breaking everything else bound to them.
+    // `shown` is the search-filtered list; `pageset` is the pager's roster,
+    // which search must never narrow.
+
+    shown: Dataset [ contents = { ({ rows: app.cities.filter((c) =>
+        app.query.trim() == "" ||
+        ("" + c.name).toLowerCase().includes(app.query.trim().toLowerCase()))
+        .map((c) => ({ id: c.id, name: c.name, temp: c.temp, cond: c.cond,
+            condName: c.condName, hi: c.hi, lo: c.lo, tz: c.tz })) }) } ],
+
+    pageset: Dataset [ contents = { ({ cities: app.cities.map((c) => ({ id: c.id })) }) } ],
+
+    // ── the open/close transition ─────────────────────────────────────────
+    // `openTo` is the intent (0 or 1); `openT` is the live progress a spring
+    // drives toward it. The CityView renders `openT`; handlers only ever set
+    // `openTo` and the rectangle to grow from. Re-aiming mid-flight is what
+    // a spring does naturally — that is the whole interruption story.
+
+    openId: string = "",
+    openT: number = 0,
+    openTo: number = 0,
+    fromX: number = 0,
+    fromY: number = 0,
+    fromW: number = 358,
+    fromH: number = 92,
+    openSpring: Spring [ attribute = openT, to = { app.openTo },
+        stiffness = 320, damping = 31, epsilon = 0.002 ],
+
+    // the view lives while it is opening, open, or still shrinking home —
+    // one reactive fact, no teardown callback to keep in step
+
+    cityUp: boolean = { app.openTo == 1 || app.openT > 0.005 },
+
+    openFrom(id: string, x: number, y: number, w: number, h: number) {
+        fromX = x
+        fromY = y
+        fromW = w
+        fromH = h
+        // a fresh open starts from a clean swipe axis and from the top of
+        // the city page
+        dragging = false
+        swipeTo = 0
+        swipeX = 0
+        phoneUI.city.page.scrollY = 0
+        selectById(id)
+        openId = id
+        openTo = 1
+        },
+
+    closeCity() {
+        // shrink back into the row of the city we are on NOW — paging inside
+        // the view may have moved us from the row we grew out of
+        for (const row of phoneUI.list.rows.children) {
+            if ("" + row.mine == app.openId) {
+                const o = row.rootOrigin()
+                fromX = o.x
+                fromY = o.y - app.scrollY
+                fromW = row.width
+                fromH = row.height
+                break
+            }
+        }
+        openTo = 0
+        dragging = false
+        swipeTo = 0
+        // spring the swipe home rather than zeroing it — a close mid-swipe
+        // must not jump sideways. start() also wakes the spring when its
+        // target has not changed.
+        swipeSpring.start()
+        },
+
+    // ── paging between cities ─────────────────────────────────────────────
+    // `swipeX` is the sideways offset of the current page. While a finger is
+    // down it follows the finger (the spring's target IS swipeX, so the
+    // spring holds still); on release the target becomes `swipeTo` (home)
+    // and the spring carries it there. The arriving neighbour rides one
+    // screen-width beside it — see `peek` in the tree below.
+
+    swipeX: number = 0,
+    swipeTo: number = 0,
+    dragging: boolean = false,
+    dragStartX: number = 0,
+    dragStartSwipe: number = 0,
+    swipeSpring: Spring [ attribute = swipeX,
+        to = { app.dragging ? app.swipeX : app.swipeTo },
+        stiffness = 260, damping = 30, epsilon = 0.4 ],
+
+    // A peek page exists only while the city view is up and the pager is
+    // actually displaced — gating on `cityUp` makes a page stranded over the
+    // list unrepresentable, whatever the swipe values are.
+
+    swiping: boolean = { app.cityUp && Math.abs(app.swipeX) > 0.5 },
+    peekIndex: number = { app.swipeX < 0 ? app.cityIndex + 1 : app.cityIndex - 1 },
+    peekCity: object = { app.cities.length == 0 ? null
+        : app.cities[Math.max(0, Math.min(app.cities.length - 1, app.peekIndex))] },
+
+    endSwipe(canceled: boolean) {
+        if (!app.dragging) return
+        dragging = false
+        swipeTo = 0
+        if (canceled) return
+        const moved = app.swipeX
+        const n = app.cities.length
+        // past a third of the screen the page turns — and swipeX is REBASED
+        // by a screen-width, so the new current page carries on from exactly
+        // where the arriving one was, with no jump to hide
+        if (moved < -app.hostWidth / 3 && app.cityIndex < n - 1) {
+            cityIndex = app.cityIndex + 1
+            openId = app.cities[app.cityIndex].id
+            swipeX = app.swipeX + app.hostWidth
+        } else if (moved > app.hostWidth / 3 && app.cityIndex > 0) {
+            cityIndex = app.cityIndex - 1
+            openId = app.cities[app.cityIndex].id
+            swipeX = app.swipeX - app.hostWidth
+        }
+        },
+
+    stepCity(dir: number) {
+        const i = app.cityIndex + dir
+        if (i < 0 || i >= app.cities.length) return
+        cityIndex = i
+        openId = app.cities[i].id
+        // synthesize the state a completed swipe rebases into — the new page
+        // a screen-width out, springing home — so a tap on the chevron reads
+        // as exactly the motion a swipe does. start() wakes the spring: its
+        // target (0) has not changed, only the value was displaced.
+        swipeX = dir > 0 ? app.hostWidth : -app.hostWidth
+        swipeTo = 0
+        swipeSpring.start()
+        },
+
+    // ── the shared clock ──────────────────────────────────────────────────
+    // Every row's local time is the SAME instant read through its own
+    // offset. One Heartbeat refreshes the instant every ten seconds; each
+    // clock derives from `nowMs`, so they all tick together.
+
+    nowMs: number = 0,
+    clockAcc: number = 0,
+    clock: Heartbeat [ onFrame(dt: number) {
+        app.clockAcc = app.clockAcc + dt
+        if (app.clockAcc > 10) { app.clockAcc = 0; app.nowMs = Date.now() }
+        }
+        ],
+    onInit() { app.nowMs = Date.now() },
+
+    // ── the dialect switch ────────────────────────────────────────────────
+    // One number decides which app this is; `cols` is how many small cards
+    // sit side by side in the grid.
+
+    phone: boolean = { app.hostWidth < 700 },
+    cols: number = { app.hostWidth < 700 ? 2 : app.hostWidth < 1150 ? 3 : 4 },
+
+    // ── the page shape ────────────────────────────────────────────────────
+    // On a phone the app IS the document: its height is the list's content,
+    // and the window is the scroller (an App scrolls vertically by default —
+    // the page itself is its scroller). A browser only tucks its own bars
+    // away when the page scrolls, so this is also what lets the app reach
+    // the screen's edges. On a desktop the content fits one screen and the
+    // inner panes scroll instead.
+
+    height = { app.phone
+        ? Math.max(app.hostHeight, LIST_TOP + LIST_TAIL + app.safeTop + app.safeBottom
+            + (app.shown.value == null ? 0 : app.shown.value.rows.length) * ROW_STEP)
+        : app.hostHeight },
+
+    // `edges = cover` is the edge-to-edge opt-in: the app extends under the
+    // device's own chrome (notch, home indicator), and `app.safeTop` /
+    // `app.safeBottom` report the real insets for anything that must stay
+    // reachable. On a desktop the insets read 0 and nothing moves.
+
+    edges = cover,
+
+    // ── the backdrop ──────────────────────────────────────────────────────
+    // What the floor of the app shows: on the phone the LIST always sits on
+    // the sunny sky (each open city's view carries its own); the desktop
+    // shows the selected city's. `skyTone` is that sky's top-edge color —
+    // the App's `fill` wears it so the browser paints its own bands (status
+    // area, collapsed toolbar) to match, and the haze below fades the same
+    // tone into the clouds so flat band and textured sky never meet at a
+    // hard edge.
+
+    backCond: string = { app.phone && app.openTo == 0 ? "sunny" : app.cond },
+    skyTone: number = { app.backCond == "night" ? 0x0A1230
+           : app.backCond == "sunny" ? 0x2E7FD0
+           : app.backCond == "cumulus" ? 0x4A648A : 0x91A1AD },
+    fill = { app.skyTone },
+
+    // The sky never scrolls: it GLUES itself to the viewport by reading the
+    // page scroll, as an ordinary first child — so it stays behind
+    // everything in paint order. Its height carries EDGE_SLACK for the zones
+    // a browser lets content occupy beyond the layout viewport, capped at
+    // the app's own bottom (an overflowing child would grow the document).
+
+    sky: WSky [ width = 100%, y = { app.scrollY },
+        height = { Math.min(app.hostHeight + EDGE_SLACK, app.height - app.scrollY) },
+        cond = { app.backCond } ],
+    dim: View [ width = 100%, y = { app.scrollY },
+        height = { Math.min(app.hostHeight + EDGE_SLACK, app.height - app.scrollY) },
+        fill = #0A1422, opacity = 0.10, pointerEvents = "none" ],
+    haze: View [ width = 100%, y = { app.scrollY }, height = 140,
+        visible = { app.phone }, pointerEvents = "none",
+        fill = { gradient("180deg", colorWithAlpha(app.skyTone, 1), colorWithAlpha(app.skyTone, 0)) } ],
+
+    // ── the phone dialect ─────────────────────────────────────────────────
+    // The list IS the app; a city expands out of its row and shrinks back
+    // into it. Only ONE city view is ever built (plus the peek), which is
+    // why paging and opening cost nothing to instantiate.
+
+    phoneUI: View [ width = 100%, height = 100%, visible = { app.phone },
+
+        // the list is page content — the window scrolls it — and it recedes
+        // a little as a city takes over
+
+        list: View [ width = 100%, height = 100%,
+            opacity = { fadeOut(app.openT, 1.4) },
+            find: TextInput [ x = center, y = { 14 + app.safeTop }, width = { parent.width - 32 },
+                height = 36, cornerRadius = 18, fill = #FFFFFF1A, padding = 14,
+                fontSize = 16, textColor = white, placeholder = "Search",
+
+                // the field owns its text and delivers it up; a constraint
+                // on `text` would re-assert the old value every keystroke
+
+                onInput() { app.query = this.text },
+                onKeyDown(e: KeyEvent) {
+                    if (e.key == "Escape") { this.text = ""; app.query = "" }
+                    },
+                clear: ClearButton [ x = { parent.width - 28 }, y = center,
+                    visible = { app.query != "" },
+                    onClick() { parent.text = ""; app.query = "" }
+                    ]
+                ],
+            rows: View [ x = center, y = { LIST_TOP + app.safeTop }, width = { parent.width - 32 },
+                layout: SimpleLayout [ axis = y, spacing = 10 ],
+                datapath = { app.shown.value },
+                SideCity [ width = { parent.width }, datapath = :rows[], key = :id ]
+                ],
+            tail: View [ y = { LIST_TOP + app.safeTop + app.shown.value.rows.length * ROW_STEP },
+                width = 100%, height = { LIST_TAIL } ]
+            ],
+
+        // Two city views, never more: the one you are reading and the one
+        // arriving under your finger. `ignoreScroll` anchors them to the
+        // viewport — the page scrolls, they ride the frame. The peek sits
+        // one screen-width beside the current page, on whichever side the
+        // finger is pulling from.
+
+        city: CityView [ ignoreScroll = true, visible = { app.cityUp },
+            city = { app.city }, open = { app.openT }, slide = { app.swipeX } ],
+        peek: CityView [ ignoreScroll = true, visible = { app.swiping },
+            city = { app.peekCity }, open = 1,
+            slide = { app.swipeX + (app.swipeX < 0 ? app.hostWidth : -app.hostWidth) } ],
+
+        // the floating chrome: the pager pill and the back-to-list button,
+        // kept above the browser's own bottom-edge tap zone
+
+        pill: GlassChip [ ignoreScroll = true,
+            y = { app.hostHeight - 60 - Math.max(app.safeBottom, BOTTOM_CLEAR) },
+            height = 48, cornerRadius = 24,
+            x = 16, width = { parent.width - 16 - 48 - 10 - 16 },
+            visible = { app.cityUp },
+            opacity = { fadeIn(app.openT, 0.55, 2.2) },
+            prev: Chevron [ x = 8, y = center, width = 34, height = 34, back = true,
+                dim = { app.cityIndex <= 0 },
+                onClick() { app.stepCity(-1) }
+                ],
+            next: Chevron [ x = { parent.width - 42 }, y = center, width = 34, height = 34,
+                dim = { app.cityIndex >= app.cities.length - 1 },
+                onClick() { app.stepCity(1) }
+                ],
+
+            // the dots DIVIDE the room between the chevrons, so any count
+            // fills the same track
+
+            track: View [ x = center, y = center, height = 30,
+                width = { parent.width - 92 },
+                dots: View [ width = 100%, height = 30,
+                    layout: SimpleLayout [ axis = x, spacing = 0 ],
+                    datapath = { app.pageset.value },
+                    Dot [ width = { Math.max(6, parent.width / Math.max(1, app.cities.length)) },
+                        datapath = :cities[], key = :id ]
+                    ]
+                ]
+            ],
+        back: GlassChip [ ignoreScroll = true,
+            x = { parent.width - 64 },
+            y = { app.hostHeight - 60 - Math.max(app.safeBottom, BOTTOM_CLEAR) },
+            width = 48, height = 48, cornerRadius = 24, cursor = "pointer",
+            visible = { app.cityUp },
+            opacity = { fadeIn(app.openT, 0.55, 2.2) },
+            ic: ListIcon [ x = center, y = center, width = 26, height = 26 ],
+            onClick() { app.closeCity() }
+            ]
+        ],
+
+    // ── the desktop dialect ───────────────────────────────────────────────
+
+    deskUI: View [ width = 100%, height = 100%, visible = { !app.phone },
+        side: View [ x = 0, y = 0, width = 300, height = 100%, scrolls = y,
+            fill = #0A1422B8, backdrop = { frost(30, 1.2) },
+
+            // the FIELD is the pill: no wrapper view to sit over the native
+            // input and take its clicks
+
+            find: TextInput [ x = 16, y = 16, width = 268, height = 36,
+                cornerRadius = 18, fill = #FFFFFF1A, padding = 14,
+                fontSize = 16, textColor = white, placeholder = "Search",
+                onInput() { app.query = this.text },
+                onKeyDown(e: KeyEvent) {
+                    if (e.key == "Escape") { this.text = ""; app.query = "" }
+                    },
+                clear: ClearButton [ x = { parent.width - 28 }, y = center,
+                    visible = { app.query != "" },
+                    onClick() { parent.text = ""; app.query = "" }
+                    ]
+                ],
+            list: View [ x = 16, y = 64, width = 268,
+                layout: SimpleLayout [ axis = y, spacing = 10 ],
+                datapath = { app.shown.value },
+                SideCity [ width = { parent.width }, datapath = :rows[], key = :id ]
+                ]
+            ],
+
+        // the content column is centred and capped: past ~1000px the cards
+        // stop growing, which keeps a 10-day bar readable as a chart
+
+        content: View [ x = 300, y = 0, width = { parent.width - 300 }, height = 100%,
+            scrolls = y,
+            col: View [ x = center, width = { Math.min(1000, parent.width - 48) },
+                layout: SimpleLayout [ axis = y, spacing = 0 ],
+                head: View [ width = 100%, height = 132,
+                    hero: Hero [ x = 0, y = 20, width = 100%, city = { app.city } ]
+                    ],
+                cards: CityCards [ width = 100%, cols = { app.cols }, city = { app.city } ],
+                tail: View [ width = 100%, height = 32 ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── the pager dot ──────────────────────────────────────────────────────────
+// Replicated over the cities; bright for the one on screen. Each dot reads
+// its own record's id and compares it to the selected city's — no index
+// bookkeeping, and it stays right if the list is ever reordered.
+
+class Dot extends View [ width = 18, height = 30, cursor = "pointer",
+    mine: string = { "" + :id },
+    here: boolean = { app.city != null && app.city.id == this.mine },
+
+    // the mark shrinks with its slot, so a long list stays a row of
+    // separate dots
+
+    mark: View [ x = center, y = center, width = { Math.min(8, parent.width - 2) },
+        height = { this.width }, cornerRadius = { this.width / 2 },
+        fill = #FFFFFF, opacity = { classroot.here ? 1 : 0.38 } ],
+    onClick() {
+        if (!app.phone) { app.selectById(this.mine); return }
+        const o = this.rootOrigin()
+        app.openFrom(this.mine, o.x, o.y - app.scrollY, this.width, this.height)
+        }
+    ]
+
+
+// the search field's clear affordance — a small child of the input, so it
+// takes only its own clicks and the rest of the pill still focuses the field
+
+class ClearButton extends View [ width = 20, height = 20, cursor = "pointer",
+    disc: View [ width = 100%, height = 100%, cornerRadius = 10, fill = #FFFFFF42 ],
+    cross: CloseIcon [ x = center, y = center, width = 10, height = 10,
+        ink = #0A1422D0, weight = 2 ]
+    ]
+
+
+// the pill's step control — a drawn chevron, dimmed at the ends of the list
+
+class Chevron extends View [ cursor = "pointer",
+    back: boolean = false,
+    dim: boolean = false,
+    opacity = { this.dim ? 0.25 : 0.9 },
+    draw(d: Draw) {
+        const w = d.w, h = d.h
+        d.strokeStyle = "#FFFFFF"
+        d.lineWidth = 2
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        const x = w / 2, y = h / 2, r = 5
+        d.beginPath()
+        if (this.back) { d.moveTo(x + r * 0.6, y - r); d.lineTo(x - r * 0.6, y); d.lineTo(x + r * 0.6, y + r) }
+        else { d.moveTo(x - r * 0.6, y - r); d.lineTo(x + r * 0.6, y); d.lineTo(x - r * 0.6, y + r) }
+        d.stroke()
+        }
+    ]
