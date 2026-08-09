@@ -7,7 +7,7 @@ spec covers the missing compiler entry points, four small runtime additions, and
 interface.
 
 **On the name.** *Declare Inspector* — matching the family (Declare Calendar, Declare
-Viewer, Declare Desktop) and using the exact word macOS, Chrome DevTools and React
+Viewer, Declare Desktop) and using the exact word Chrome DevTools and React
 DevTools already use, so a newcomer needs to learn nothing to know what it is. The
 differentiator lives in the interface, not the name: the **Why** pane. (Considered and
 set aside: *Lens* and *Scope* read as jargon; *Mirror* is historically apt — Bracha and
@@ -103,8 +103,8 @@ be identical — a developer should not have to learn a second window.
 
 Only the close light is meaningful in v1: there is nowhere to minimise to and no dock.
 Zoom fills the viewport. Since there is exactly one Inspector window it is always the
-active window, so the background-window resize interaction documented in
-`desktop-vs-macos-web.md` §3 does not arise.
+active window, so the desktop app's background-window resize interaction
+does not arise.
 
 Toggled with **⌥⌘D**, or by adding `?inspector` to any program URL. Opening it never reloads
 or disturbs the app. Window position and size are not persisted in v1 (§7).

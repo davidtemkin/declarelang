@@ -11,8 +11,8 @@
 // or null. The library Tooltip singleton renders it (`Tip [ onTip(e) { … } ]`),
 // the same wiring contract as Focus/Keys (sources.ts).
 import { rootFrameOrigin } from "./interaction.js";
-// The default show delay; a theme overrides per platform (`tooltipDelay` —
-// macOS help tags and Windows tooltips both wait ~1s, Material ~500ms).
+// The default show delay; a theme overrides per preset (`tooltipDelay` —
+// desktop help tags conventionally wait ~1s, Material ~500ms).
 const SHOW_DELAY_MS = 500;
 // After a tip hides by the pointer LEAVING (not by a press), the system stays
 // WARM briefly: entering another tip-carrying control inside this window shows

@@ -98,7 +98,7 @@ panel: View [ backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12, … ]
 
 - **Proposed spelling, needs the §4.3 ruling:** a `frost(radius, saturation?)` value
   constructor in the `stroke()`/`shadow()` family, yielding a `Backdrop` value;
-  `null` (default) means none. `saturation` defaults to 1 (macOS-style materials run
+  `null` (default) means none. `saturation` defaults to 1 (frosted materials read best
   ~1.4–1.8; the themes will elect their own). Extensible later (brightness, tint)
   without a new attribute.
 - The sampled region is the view's own painted shape — box, `cornerRadius`, or shape

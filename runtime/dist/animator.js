@@ -117,6 +117,51 @@ export class Animator extends Node {
         if (this.started)
             this.start();
     }
+    /** `started` is a REACTIVE boolean (animation.md §1), not a construct-time
+     *  flag: every later change drives the run — a constraint re-evaluating
+     *  (`started = { app.open }`), a state override arriving, a direct write.
+     *  True starts, false stops (in place, as stop() always does), so the one
+     *  declaration covers both edges of the fact it reads. Before init the slot
+     *  is still just a DECLARATION — construct-time literals and a `{ }`
+     *  binding's first evaluation both land here with the tree half-built and
+     *  `from` unsettled — so pre-init writes belong to autoStart(), which reads
+     *  the settled value once at the init hook. A grouped member is driven by
+     *  its group (its own `started` is ignored; see AnimatorGroup). */
+    startedChanged(v) {
+        if (!this.autoStarted || this.grouped)
+            return;
+        if (v)
+            this.start();
+        else
+            this.stop();
+    }
+    /** `paused` is clock MEMBERSHIP, not a per-frame flag to poll: a paused
+     *  animator produces no frames, so it must not hold the frame loop open —
+     *  the idle-zero invariant (animate.ts) extends to "frozen counts as idle".
+     *  Pause drops off the clock; resume re-seeds the anchor at NOW (elapsed
+     *  cannot have advanced while unenrolled, so nothing jumps — the same
+     *  re-anchor a scheduler handover uses) and re-enrolls. A grouped member
+     *  keeps the old frozen-tick path instead: its group owns the clock and
+     *  must keep ticking its OTHER members, so the member's own pause cannot
+     *  withdraw the group's ticker. */
+    pausedChanged(v) {
+        if (!this.running || this.grouped)
+            return;
+        if (v) {
+            sharedClock.remove(this);
+        }
+        else {
+            this.lastNow = sharedClock.now();
+            sharedClock.add(this);
+        }
+    }
+    /** Re-seed the elapsed-time anchor at `now` — a group resuming from its own
+     *  pause calls this down its members, whose anchors went stale while the
+     *  group was off the clock (the unpause twin of rebase()). */
+    reanchor(now) {
+        if (this.running && this.lastNow !== null)
+            this.lastNow = now;
+    }
     /** Begin driving the target slot through the curve (LZX's doStart). A no-op
      *  while already running (LZX's guard). Samples from / to / duration /
      *  motion / repeat ONCE here, and enrolls in the slot's exact-landing ledger
@@ -177,7 +222,9 @@ export class Animator extends Node {
         this.lastNow = sharedClock.now();
         this.running = true;
         setBound(this, "settled", false); // a new journey un-settles (see `settled`)
-        if (!this.grouped)
+        // A start under `paused = true` arms without enrolling — frozen at `from`,
+        // zero frames until the resume push re-anchors and enrolls (pausedChanged).
+        if (!this.grouped && !this.paused)
             sharedClock.add(this);
         this.fire("onStart");
     }
@@ -306,8 +353,8 @@ defineAttributes(Animator, {
     duration: { def: 1000 },
     motion: { def: DEFAULT_MOTION },
     repeat: { def: 1 },
-    started: { def: false },
-    paused: { def: false },
+    started: { def: false, push: (s, v) => s.startedChanged(v) },
+    paused: { def: false, push: (s, v) => s.pausedChanged(v) },
     settled: { def: false },
 });
 /** AnimatorGroup — coordinates several animators (or nested groups) in
@@ -344,6 +391,38 @@ export class AnimatorGroup extends Node {
         if (this.started)
             this.start();
     }
+    /** The group's own `started`, reactive exactly as an Animator's (see
+     *  Animator.startedChanged) — the group is the driver, so a change here
+     *  starts or stops the whole group, members included. */
+    startedChanged(v) {
+        if (!this.autoStarted || this.grouped)
+            return;
+        if (v)
+            this.start();
+        else
+            this.stop();
+    }
+    /** The group's own pause is clock membership too (see Animator.pausedChanged):
+     *  off the clock while paused — members freeze because nothing ticks them —
+     *  and on resume every running member's anchor is re-seeded at NOW before the
+     *  group re-enrolls, so no member measures the pause as elapsed time. */
+    pausedChanged(v) {
+        if (!this.running || this.grouped)
+            return;
+        if (v) {
+            sharedClock.remove(this);
+        }
+        else {
+            this.reanchor(sharedClock.now());
+            sharedClock.add(this);
+        }
+    }
+    /** Cascade the unpause re-anchor down (Animator.reanchor). */
+    reanchor(now) {
+        for (const m of this.active) {
+            m.reanchor?.(now);
+        }
+    }
     /** Begin the group (LZX doStart): snapshot the members to run this cycle and
      *  register the one group ticker (unless the group is itself group-driven).
      *  Members are NOT started here — each is started lazily when it first
@@ -355,7 +434,9 @@ export class AnimatorGroup extends Node {
         this.running = true;
         this.cyclesLeft = this.repeat;
         this.active = this.members();
-        if (!this.grouped)
+        // Armed-but-frozen under `paused = true`, exactly as an Animator's start
+        // (pausedChanged enrolls on resume).
+        if (!this.grouped && !this.paused)
             sharedClock.add(this);
         this.fire("onStart");
     }
@@ -454,8 +535,8 @@ defineAttributes(AnimatorGroup, {
     motion: { def: DEFAULT_MOTION },
     process: { def: "sequential" },
     repeat: { def: 1 },
-    started: { def: false },
-    paused: { def: false },
+    started: { def: false, push: (s, v) => s.startedChanged(v) },
+    paused: { def: false, push: (s, v) => s.pausedChanged(v) },
 });
 /** Is this node an animation member a group can drive — an Animator or a nested
  *  AnimatorGroup? (The runtime twin of `descendsFrom(schema, "AnimatorGroup")`.) */

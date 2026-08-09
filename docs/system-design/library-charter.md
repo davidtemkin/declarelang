@@ -251,7 +251,7 @@ here):
 
 ## 6. Phase one: styling fidelity (the gate on the vocabulary)
 
-**Goal (David's ruling): Material Design AND Apple styling, end to end, high
+**Goal (David's ruling): Material Design AND Cupertino styling, end to end, high
 fidelity, on the EXISTING components — before the component set grows.** The
 rig is `component-sampler.declare`: every current component × switchable
 themes (switcher via RadioGroup — the missing Menu is the demo's own
@@ -273,7 +273,7 @@ is impossible without it). The ratified model (David), in layers:
    control's true silhouette (a full text-field outline, a circle for a Radio
    — cornerRadius = size/2, a button's rounded rect) by springing position,
    size, and cornerRadius read from the target's own geometry; `focusShape()`
-   overrides odd silhouettes (the macOS mask-path precedent: service draws,
+   overrides odd silhouettes (the mask-path precedent: service draws,
    component shapes). A theme elects its ROLES independently: transitions
    (the traveling flight), at-rest rendition, both, or neither. The flight is
    a flourish — `animateFocusTransitions`, default on, the sampler's toggle,
@@ -289,7 +289,7 @@ is impossible without it). The ratified model (David), in layers:
    pair, auditable by a later verify-level check.
 
 **Supplemental specs (David, at phase start):** the sampler offers THREE modes
-via a three-option RadioGroup — **Declare-native (default), Material, Apple**.
+via a three-option RadioGroup — **Declare-native (default), Material, Cupertino**.
 The default is deliberately un-opinionated: a commonly-used modern look, whose
 one signature addition is the animated focus rects (elected for BOTH roles —
 transitions and at-rest focused rendition). The default must also fix the
@@ -302,7 +302,7 @@ CLIP-CARRIED content (present through the whole open and close, revealed by
 the clip as height animates — never a blank gap; the mechanics are already
 reverse-engineered frame-by-frame in tabslider-gaps.md).
 
-The sampler proves the matrix: Apple-mode = rect at rest, quiet components;
+The sampler proves the matrix: Cupertino-mode = rect at rest, quiet components;
 Material-mode = component-rendered focus, rect for flight or off; the same
 machinery satisfying the invariant through opposite channels. RadioGroup
 composes as one Tab stop with arrow-key roving; the individual radio carries
@@ -311,7 +311,7 @@ composes as one Tab stop with arrow-key roving; the individual radio carries
 **"Matching" a design system means APPEARANCE AND FELT BEHAVIOR — never API
 shape or implementation mechanism.** There is one machinery (the prevailing
 theme record, the Control states, one shape-general focus renderer), and
-"Apple" / "Material" are DATA riding it — token records, not code paths. A
+"Cupertino" / "Material" are DATA riding it — token records, not code paths. A
 third design system is a new record, zero new mechanism.
 
 ## 6a. Phase two: ResponsiveLayout (a named class for responsive intent)
@@ -455,7 +455,7 @@ proof the capability is real, kept green by the same gates thereafter.
 ## 10. Open questions
 
 1. `Floating`'s anchoring relation name (`attachTo`?) — `anchor` is taken.
-2. Does `notice` sit above `modal` (toasts over dialogs — iOS says yes)?
+2. Does `notice` sit above `modal` (toasts over dialogs — the mobile convention says yes)?
 3. Table column declaration shape: children-as-columns
    (`Column [ field, label, width ]`) vs a data-driven `columns` attribute —
    leaning children-as-columns (the tree stays the structure).

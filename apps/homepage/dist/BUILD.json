@@ -61,7 +61,7 @@
     "id": "apps/homepage/declare-faq.md",
     "kind": "file",
     "v": {
-     "hash": "e790120d4a1b8625",
+     "hash": "df0f1ca3cd29dbe2",
      "size": 23819
     }
    },
@@ -165,7 +165,7 @@
     "id": "apps/homepage/stats.json",
     "kind": "file",
     "v": {
-     "hash": "20446bbc52254534",
+     "hash": "450aafc244db95fa",
      "size": 575
     }
    },
@@ -237,8 +237,8 @@
     "id": "runtime/dist/themes.js",
     "kind": "file",
     "v": {
-     "hash": "5e4422ebb18c7946",
-     "size": 2453
+     "hash": "4d56ab0dde37289d",
+     "size": 2454
     }
    },
    {
@@ -293,8 +293,8 @@
     "id": "runtime/dist/tip.js",
     "kind": "file",
     "v": {
-     "hash": "4e3b3d4780cd5415",
-     "size": 4441
+     "hash": "66c0ed0cb2d6bfe4",
+     "size": 4430
     }
    },
    {
@@ -317,8 +317,8 @@
     "id": "runtime/dist/schema.js",
     "kind": "file",
     "v": {
-     "hash": "a823d0a85e309891",
-     "size": 62568
+     "hash": "0a091f31c9c31626",
+     "size": 63684
     }
    },
    {
@@ -333,8 +333,8 @@
     "id": "runtime/dist/view.js",
     "kind": "file",
     "v": {
-     "hash": "55ed486da7ff87ae",
-     "size": 69671
+     "hash": "f74b560689081dfd",
+     "size": 71061
     }
    },
    {
@@ -365,8 +365,8 @@
     "id": "runtime/dist/animator.js",
     "kind": "file",
     "v": {
-     "hash": "5a998e2ffd8731bb",
-     "size": 22079
+     "hash": "fc8945279b2fe9fb",
+     "size": 25944
     }
    },
    {
@@ -453,8 +453,8 @@
     "id": "runtime/dist/replicate.js",
     "kind": "file",
     "v": {
-     "hash": "5f6271a61fd34906",
-     "size": 57863
+     "hash": "b711d1218ba4a806",
+     "size": 57868
     }
    },
    {
@@ -474,19 +474,35 @@
     }
    },
    {
+    "id": "runtime/dist/asset-base.js",
+    "kind": "file",
+    "v": {
+     "hash": "bbfd2d79983922c3",
+     "size": 3505
+    }
+   },
+   {
     "id": "runtime/dist/image.js",
     "kind": "file",
     "v": {
-     "hash": "3b7c592e629a97c5",
-     "size": 6408
+     "hash": "aa5d60e5e704e6b1",
+     "size": 5073
+    }
+   },
+   {
+    "id": "runtime/dist/media.js",
+    "kind": "file",
+    "v": {
+     "hash": "9a0abcb0cb112a2d",
+     "size": 7161
     }
    },
    {
     "id": "runtime/dist/video.js",
     "kind": "file",
     "v": {
-     "hash": "44f2e0fe89e08a8b",
-     "size": 7376
+     "hash": "7d25fa2819460605",
+     "size": 2263
     }
    },
    {
@@ -533,8 +549,8 @@
     "id": "runtime/dist/registry.js",
     "kind": "file",
     "v": {
-     "hash": "c1553ddfacb9b11f",
-     "size": 6353
+     "hash": "c2ff69a1f05613fc",
+     "size": 6471
     }
    },
    {
@@ -549,8 +565,8 @@
     "id": "runtime/dist/inspect.js",
     "kind": "file",
     "v": {
-     "hash": "8c160b30d967554f",
-     "size": 27188
+     "hash": "ab238af9b42b89d4",
+     "size": 28182
     }
    },
    {
@@ -573,8 +589,8 @@
     "id": "runtime/dist/input.js",
     "kind": "file",
     "v": {
-     "hash": "cbd0ccc121611c9a",
-     "size": 31495
+     "hash": "4e23f239af4c9237",
+     "size": 31520
     }
    },
    {
@@ -589,16 +605,16 @@
     "id": "runtime/dist/dom-backend.js",
     "kind": "file",
     "v": {
-     "hash": "a22abafd90b0ead8",
-     "size": 109033
+     "hash": "7f88b126fca43516",
+     "size": 110785
     }
    },
    {
     "id": "runtime/dist/boot.js",
     "kind": "file",
     "v": {
-     "hash": "dbc66745c3f1d8c6",
-     "size": 22756
+     "hash": "8d1b790b3d1da410",
+     "size": 27162
     }
    },
    {

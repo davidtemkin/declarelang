@@ -3,7 +3,7 @@
 
 The styling arc's proof point (library-charter §6): EVERY library component,
 under four switchable stylings — San Francisco (the default), Mountain View,
-Cupertino, and Redmond. One machinery, four token records: the emulations are
+Cupertino, and Redmond. One machinery, four token records: the stylings are
 DATA, never code paths.
 
 The chrome is the house arrangement (Viewer/Calendar): a FIXED-HEIGHT top bar
@@ -114,7 +114,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320,
         ...(accentPick != 0 ? ({ accent: accentPick, controlSelected: Themes.tint(accentPick, darkUI) }) : ({})),
     }) },
 
-    // the type stack is part of the emulation: Roboto for Mountain View, SF for Cupertino
+    // the type stack is part of the styling: Roboto for Mountain View, the system face for Cupertino
 
     fontFamily = { style == "mountainView" ? "Roboto, system-ui, sans-serif" : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : style == "redmond" ? "'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" : "system-ui, sans-serif" },
 

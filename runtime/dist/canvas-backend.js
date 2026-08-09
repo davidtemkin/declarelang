@@ -311,8 +311,8 @@ class Compositor {
                 this.invalidate();
             }
         }, { passive: false });
-        // ── the OVERLAY SCROLLBAR's interaction (macOS/iOS mirrored, renderer-
-        // only): a fine pointer near the bar WIDENS it and can grab the thumb
+        // ── the OVERLAY SCROLLBAR's interaction (one design, both pointer
+        // kinds): a fine pointer near the bar WIDENS it and can grab the thumb
         // (track press jumps-to-spot, then drags); touch has no hover — a
         // touch-HOLD on the thumb (250ms, <8px wander) engages the scrub and
         // widens until release. All state lives here; the app never routes. ──
@@ -425,7 +425,7 @@ class Compositor {
             }
             else {
                 // touch: only the THUMB arms, and only a HOLD engages (no hover on
-                // touch — iOS's grab-the-indicator gesture); a pan cancels the arm
+                // touch — hold IS the grab-the-indicator gesture); a pan cancels the arm
                 if (localY < g.thumbY || localY > g.thumbY + g.thumbH)
                     return;
                 const hold = { s: f.s, ay: f.ay, startY: p.y, engaged: false, timer: 0 };
@@ -568,7 +568,7 @@ class CanvasSurface {
      *  the scroll range's floor when only a window of rows exists. */
     virtualExtent = 0;
     /** The overlay scrollbar's WIDE state (pointer near, grabbed, or
-     *  touch-held) — the macOS proximity widen / iOS hold widen, mirrored. */
+     *  touch-held) — proximity widens for a mouse, a hold widens for touch. */
     barWide = false;
     /** The bar's frame-local geometry, or null when nothing overflows. */
     barGeom() {

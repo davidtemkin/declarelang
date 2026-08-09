@@ -104,6 +104,15 @@ export declare const clock: {
      *  a spring must retarget from it before the frame it is stepped through,
      *  or the step ticks against stale targets and reads as lost motion. */
     step(ms?: number): void;
+    /** Register an observer of DRIVEN time — called with each step's ms.
+     *  The determinism seam for WALL-CLOCK work: `settleMotion` makes declared
+     *  motion frame-exact and costs no real time, so anything on a raw
+     *  `setTimeout` (a tooltip's show delay, a press flash) is invisible to it
+     *  and fires on whatever the machine's load decides. A harness that
+     *  virtualizes timers registers here, and those delays advance WITH the
+     *  clock instead of racing it — which is what makes a captured frame the
+     *  same picture on a fast machine and a loaded one. Returns an unsubscribe. */
+    onStepped(fn: (ms: number) => void): () => void;
     /** Run all in-flight FINITE motion to rest (springs settle, non-looping
      *  animators finish), frame by frame. Perpetual motion — a Heartbeat, an
      *  `repeat = Infinity` animator — is life, not transition (RULED

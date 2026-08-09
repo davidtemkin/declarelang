@@ -35,7 +35,7 @@
 // by pointer kind for a reason that is not arbitrary: with a mouse, movement
 // inside a target is meaningless (the user is still pointing at it — AppKit's
 // track-inside rule), while a finger's movement is the entire vocabulary of
-// scrolling and swiping (UIKit cancels a tap the same way). Relying on the
+// scrolling and swiping (native scroll views cancel a tap the same way). Relying on the
 // browser to tell us instead — `pointercancel` — cannot work, because it only
 // arrives when the movement matches a direction something can scroll.
 //
@@ -95,8 +95,8 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
     let wandered = false;
     // Double-click pairing (platform-level, both backends): a second click on
     // the SAME view within the interval — and, on touch, within slop of the first
-    // tap — also fires dblClick; the third starts a fresh cycle (macOS's rule —
-    // triple is double + single, not two doubles).
+    // tap — also fires dblClick; the third starts a fresh cycle (the classic
+    // desktop rule — triple is double + single, not two doubles).
     let lastClickKey = null;
     let lastClickAt = 0;
     let lastClickX = 0;

@@ -184,6 +184,11 @@ export class View extends Node {
             if (child instanceof View)
                 child.attach(backend, s);
         }
+        // A travel request made before attach (the ordinary case — `onInit` runs
+        // at initTree, which precedes App.attach) lands HERE, now that surfaces
+        // exist. Children first: a request whose host is a descendant scroller
+        // needs that surface in place.
+        this.applyTravel();
     }
     /** Read data relative to this view's inherited cursor — the runtime form
      *  every `:path` in a `{ }` body resolves to. The COMPILER emits the
@@ -508,9 +513,30 @@ export class View extends Node {
      *  home, so chrome can climb OUT of a scroller that sits directly under
      *  it (the DataGrid header's escape).
      *  Returns whether the surface now rides the scroller — false when the
-     *  backend can't (no surface yet, or no travelWith), so callers keep the
-     *  reactive root-space fallback. */
+     *  backend can't (no travelWith) or the surfaces do not exist YET, so
+     *  callers keep the reactive root-space fallback.
+     *
+     *  The request is DECLARATIVE, and that is what makes the answer
+     *  trustworthy: a caller in `onInit` runs before attach (initTree precedes
+     *  App.attach), so the first call can only ever answer "not yet". The
+     *  request is therefore remembered and re-applied when this view attaches
+     *  — no polling, and no retry budget that can be exhausted on a slow
+     *  machine and silently leave the chrome un-escaped (which is exactly what
+     *  DataGrid's 20×50ms chain used to risk). `escaped` becomes true at
+     *  attach, through the ordinary reactive write below, so a `{ }` reading it
+     *  re-runs then. */
     travelWith(scroller) {
+        this.travelHost = scroller;
+        return this.applyTravel();
+    }
+    /** The standing travel request (undefined = never asked). Applied here and
+     *  re-applied at attach; `travelDone` is the reactive echo the requester
+     *  reads (see attach). */
+    travelHost = undefined;
+    applyTravel() {
+        const scroller = this.travelHost;
+        if (scroller === undefined)
+            return false;
         const s = this.surface;
         if (s === null || typeof s.travelWith !== "function")
             return false;

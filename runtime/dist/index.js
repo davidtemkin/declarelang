@@ -25,6 +25,7 @@ import { DeclareError, DeclareErrors } from "./errors.js";
 // The render/wire/font glue lives in boot.ts (compiler-free) so the precompiled
 // production entry (`renderProgram`) can drop the parser + checker entirely.
 import { mountApp, loadFonts } from "./boot.js";
+import { setAppAssetBase } from "./asset-base.js";
 /** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
  *  its App tree (no rendering). Raises a DeclareErrors carrying *every* error at
  *  once (include-resolution + type). */
@@ -58,10 +59,16 @@ export function render(source, host, backend, opts = {}) {
  *  declarations (those with a URL/woff2 source), so first paint measures
  *  against the real metrics. The declarative counterpart to a manual
  *  loadFonts(): the app names its fonts (`font Title [ bold = "…" ]`), the
- *  runtime loads them. A source with only `system` fonts awaits nothing. */
+ *  runtime loads them. A source with only `system` fonts awaits nothing.
+ *
+ *  `opts.assetBase` states THIS app's own directory, which an embedded child
+ *  needs: its relative faces and bitmaps live beside its program, while the
+ *  document they render into belongs to the host page (asset-base.ts). */
 export async function renderAsync(source, host, backend, opts = {}) {
     const app = build(source, opts);
-    await loadFonts(fontFacesOf(app));
+    if (opts.assetBase != null)
+        setAppAssetBase(app, opts.assetBase);
+    await loadFonts(fontFacesOf(app), opts.assetBase);
     return mountApp(app, host, backend);
 }
 export { parse, parseProgram, parseLibrary } from "./parser.js";
@@ -83,8 +90,10 @@ export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
 export { Layout } from "./layout.js";
 export { Dataset, DataSource, toCursor, provideTransport } from "./data.js";
-export { provideAssetBase } from "./image.js";
+export { provideAssetBase, setAppAssetBase } from "./asset-base.js";
 export { Video } from "./video.js";
+export { Audio } from "./audio.js";
+export { Media } from "./media.js";
 // The stream SEAM only — the Stream/EventStream/Socket classes are reachable
 // through registry.js alone, so slimming can drop them (stream-seam.ts).
 export { provideStreams } from "./stream-seam.js";

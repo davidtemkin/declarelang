@@ -16,8 +16,17 @@ export interface FontSpec {
  *  sealed-abstraction rule). Awaiting every face lets a caller gate first paint
  *  on it so text measures against the real metrics, not a fallback that reflows
  *  on arrival. A no-op off the DOM (Node/tests), so it stays safe in the
- *  zero-dependency graph. */
-export declare function loadFonts(fonts: readonly FontSpec[]): Promise<void>;
+ *  zero-dependency graph.
+ *
+ *  `base` is the directory relative face sources resolve against — the calling
+ *  app's own program dir; omitted, the page-wide asset base applies.
+ *
+ *  A face that fails to load (404, a corrupt file, a CORS refusal) is REPORTED
+ *  and SKIPPED, never thrown: type is the one asset whose absence has a
+ *  fallback built into every text stack. A rejection here used to take the
+ *  whole render with it — one missing woff2 and the app never mounted at all,
+ *  which is a worse answer than the app in fallback type. */
+export declare function loadFonts(fonts: readonly FontSpec[], base?: string | null): Promise<void>;
 /** Tear down an embedded app's environment wiring (ResizeObserver + pointer listeners).
  *  Its rendered DOM is removed by the caller (clearing the island box); its input
  *  router self-retires once the root element is disconnected. A no-op for a
@@ -51,5 +60,7 @@ export declare function reflectAppName(app: App, served: string, reflected: stri
  *  never the parser or checker. */
 export declare function renderProgram(program: Program, host: HTMLElement, backend: RenderBackend): App;
 /** Like renderProgram(), but first loads the program's own web `font` faces so
- *  first paint measures against the real metrics (mirrors renderAsync). */
-export declare function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend): Promise<App>;
+ *  first paint measures against the real metrics (mirrors renderAsync).
+ *  `assetBase` states the program's own directory when the page is served from
+ *  elsewhere — its relative bitmaps and faces resolve there (image.ts). */
+export declare function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend, assetBase?: string | null): Promise<App>;

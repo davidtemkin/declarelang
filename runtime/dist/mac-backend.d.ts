@@ -42,6 +42,7 @@ export declare const OP: {
     readonly BACKDROP: 36;
     readonly TINT: 37;
     readonly ROTATE: 38;
+    readonly MEDIA: 39;
 };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {

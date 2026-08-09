@@ -88,6 +88,31 @@ export declare class Animator extends Node implements Animatable {
      *  samples a settled target value). A grouped animator is never reached here
      *  (its group is the init-time child, and it drives its members). */
     autoStart(): void;
+    /** `started` is a REACTIVE boolean (animation.md §1), not a construct-time
+     *  flag: every later change drives the run — a constraint re-evaluating
+     *  (`started = { app.open }`), a state override arriving, a direct write.
+     *  True starts, false stops (in place, as stop() always does), so the one
+     *  declaration covers both edges of the fact it reads. Before init the slot
+     *  is still just a DECLARATION — construct-time literals and a `{ }`
+     *  binding's first evaluation both land here with the tree half-built and
+     *  `from` unsettled — so pre-init writes belong to autoStart(), which reads
+     *  the settled value once at the init hook. A grouped member is driven by
+     *  its group (its own `started` is ignored; see AnimatorGroup). */
+    startedChanged(v: boolean): void;
+    /** `paused` is clock MEMBERSHIP, not a per-frame flag to poll: a paused
+     *  animator produces no frames, so it must not hold the frame loop open —
+     *  the idle-zero invariant (animate.ts) extends to "frozen counts as idle".
+     *  Pause drops off the clock; resume re-seeds the anchor at NOW (elapsed
+     *  cannot have advanced while unenrolled, so nothing jumps — the same
+     *  re-anchor a scheduler handover uses) and re-enrolls. A grouped member
+     *  keeps the old frozen-tick path instead: its group owns the clock and
+     *  must keep ticking its OTHER members, so the member's own pause cannot
+     *  withdraw the group's ticker. */
+    pausedChanged(v: boolean): void;
+    /** Re-seed the elapsed-time anchor at `now` — a group resuming from its own
+     *  pause calls this down its members, whose anchors went stale while the
+     *  group was off the clock (the unpause twin of rebase()). */
+    reanchor(now: number): void;
     /** Begin driving the target slot through the curve (LZX's doStart). A no-op
      *  while already running (LZX's guard). Samples from / to / duration /
      *  motion / repeat ONCE here, and enrolls in the slot's exact-landing ledger
@@ -171,6 +196,17 @@ export declare class AnimatorGroup extends Node implements Animatable {
     /** This group's members (child Animators / AnimatorGroups), in tree order. */
     private members;
     autoStart(): void;
+    /** The group's own `started`, reactive exactly as an Animator's (see
+     *  Animator.startedChanged) — the group is the driver, so a change here
+     *  starts or stops the whole group, members included. */
+    startedChanged(v: boolean): void;
+    /** The group's own pause is clock membership too (see Animator.pausedChanged):
+     *  off the clock while paused — members freeze because nothing ticks them —
+     *  and on resume every running member's anchor is re-seeded at NOW before the
+     *  group re-enrolls, so no member measures the pause as elapsed time. */
+    pausedChanged(v: boolean): void;
+    /** Cascade the unpause re-anchor down (Animator.reanchor). */
+    reanchor(now: number): void;
     /** Begin the group (LZX doStart): snapshot the members to run this cycle and
      *  register the one group ticker (unless the group is itself group-driven).
      *  Members are NOT started here — each is started lazily when it first

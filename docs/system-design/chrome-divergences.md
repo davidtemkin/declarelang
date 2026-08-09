@@ -243,7 +243,7 @@ chosen* — has two looks:
 
 | | selected treatment |
 |---|---|
-| `library/Segment` | `surface` — the raised white pill of a macOS segmented control, with a `line` hairline |
+| `library/Segment` | `surface` — the raised white pill of the Cupertino segmented styling, with a `line` hairline |
 | calendar's tab pill | `controlSelected` — a blue tint (`#D3E2FC` light) |
 | viewer's mode pill | `controlSelected` — the same blue tint |
 
@@ -517,23 +517,16 @@ now the only major surface with no baseline at all.
 
 ## D13 · The menu's icon column crowded its labels (2026-08-03)
 
-Reported from a side-by-side with the macOS Apple menu: our icons sat too close
-to the row text. The COLUMN MODEL was not the problem and is unchanged (check
-column always, icon column iff icons, one text edge) — the gap was.
+Reported on sight: our icons sat too close to the row text. The COLUMN MODEL
+was not the problem and is unchanged (check column always, icon column iff
+icons, one text edge) — the gap was.
 
-Measured, calibrating the reference screenshot at 2× off its cap height:
-
-| | icon box → text | icon **ink** → text |
-|---|---|---|
-| macOS | ≈ 7.5pt | 8.5–11pt, average ≈ 9.5 |
-| ours (before) | 5px | **uniform 8px** |
-
-The box gap was 2.5px tight, but the effect that showed was uniformity. Apple's
-symbols carry side bearing, so only the widest glyph in a menu comes within
-8.5pt of its label while a padlock or a power mark sits 10–11pt clear. Ours are
-drawn to fill their 16px box, so every row landed at that tight extreme at once.
-The number to match is therefore the Mac's AVERAGE air, not its minimum:
-`textEdge` 46 → **50**, which is 9px of box gap and 11–12px of ink.
+The tell was UNIFORMITY, not just tightness. Marks drawn to fill their 16px
+box put every row's ink at the same tight distance from its label at once,
+and a column of identical gaps reads mechanical — a set with natural side
+bearing varies, and the eye reads the AVERAGE air, not the minimum. Ruled:
+`textEdge` 46 → **50**, which is 9px of box gap and 11–12px of ink — enough
+air that the tightest glyph no longer sets the tone for the column.
 
 Four baselines moved, all of them menus with icons. Two more tracker baselines
 differ only inside the masked perf rectangle — `cmp` sees it, the pixel diff

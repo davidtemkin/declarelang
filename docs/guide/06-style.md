@@ -44,7 +44,7 @@ Blending stops at the nearest isolating boundary — the app root, a faded
 And the material one: `backdrop = frost(20)` samples whatever lies beneath the view,
 blurs it, and lets the view's own translucent `fill` wash over the result — the
 frosted-panel look every platform's menus and sheets wear. `frost(radius, saturation)`
-takes an optional saturation multiplier (macOS-style materials run about 1.4–1.8);
+takes an optional saturation multiplier (frosted materials read best around 1.4–1.8);
 the sample keeps to the view's own painted shape, so a rounded panel frosts a rounded
 region.
 
@@ -272,11 +272,14 @@ loaded or untrusted content is never silently mangled. Its `accents` map is the 
 styling hook — content names a fill (`<span class='g'>`) that your app defines, and never
 carries CSS itself.
 
-**Media is the same shape.** `Image` and `Video` are leaves whose lifecycle is reactive
-state, like every source in the language: `loaded` and `failed` are read-only facts you
-derive from rather than callbacks you wire. `Video` adds `playing` — a boolean you
-constrain, not a method you call, so "stop decoding when this is off-screen" is
-`playing = { app.visible }` and nothing else.
+**Media is the same shape.** `Image`, `Video` and `Audio` are leaves whose lifecycle is
+reactive state, like every source in the language: `loaded` and `failed` are read-only
+facts you derive from rather than callbacks you wire. `Video` and `Audio` share one
+transport (the `Media` base): `playing` is a boolean you constrain, not a method you
+call, so "stop decoding when this is off-screen" is `playing = { app.visible }` and
+nothing else — and a progress bar is a `width` derived from `position` and `duration`,
+not a widget. `Audio` is the same transport with nothing to look at: it draws nothing,
+and where you declare it says who owns the sound.
 
 ## Same program, no DOM — try it
 

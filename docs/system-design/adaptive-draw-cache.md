@@ -2,7 +2,7 @@
 
 **Status:** proposal, 2026-07-20. Nothing built. Motivated by the dock-magnification
 paint cost (a hot `draw()` re-rasterizing 9 illustrations per frame dragged Safari's
-rAF from 60 → ~25fps; see [desktop-vs-macos-web.md](desktop-vs-macos-web.md) and the
+rAF from 60 → ~25fps; see the
 manual fix in `apps/desktop/desktop.declare`). This spec is how the runtime would do
 that fix automatically, for any hot draw, with no developer awareness of rasters.
 

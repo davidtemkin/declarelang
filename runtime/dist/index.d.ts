@@ -31,8 +31,14 @@ export declare function render(source: string, host: HTMLElement, backend: Rende
  *  declarations (those with a URL/woff2 source), so first paint measures
  *  against the real metrics. The declarative counterpart to a manual
  *  loadFonts(): the app names its fonts (`font Title [ bold = "…" ]`), the
- *  runtime loads them. A source with only `system` fonts awaits nothing. */
-export declare function renderAsync(source: string, host: HTMLElement, backend: RenderBackend, opts?: BuildOptions): Promise<App>;
+ *  runtime loads them. A source with only `system` fonts awaits nothing.
+ *
+ *  `opts.assetBase` states THIS app's own directory, which an embedded child
+ *  needs: its relative faces and bitmaps live beside its program, while the
+ *  document they render into belongs to the host page (asset-base.ts). */
+export declare function renderAsync(source: string, host: HTMLElement, backend: RenderBackend, opts?: BuildOptions & {
+    assetBase?: string | null;
+}): Promise<App>;
 export { parse, parseProgram, parseLibrary } from "./parser.js";
 export { resolveIncludes, NO_INCLUDES } from "./include.js";
 export type { IncludeHost } from "./include.js";
@@ -53,8 +59,10 @@ export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
 export { Layout } from "./layout.js";
 export { Dataset, DataSource, toCursor, provideTransport } from "./data.js";
-export { provideAssetBase } from "./image.js";
+export { provideAssetBase, setAppAssetBase } from "./asset-base.js";
 export { Video } from "./video.js";
+export { Audio } from "./audio.js";
+export { Media } from "./media.js";
 export { provideStreams } from "./stream-seam.js";
 export type { StreamMessage, StreamFactories, StreamHandle, StreamCallbacks } from "./stream-seam.js";
 export { Tip } from "./tip.js";

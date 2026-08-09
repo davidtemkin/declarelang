@@ -485,12 +485,19 @@ function extractBody(sf, locals, inlinable, extraRoots) {
                 continue;
             if (ts.isPropertyAccessExpression(s) && COMPUTED_DEFAULTS.has(s.name.text)
                 && (inlinable === undefined || inlinable(pathTextOf(s.expression), s.name.text))) {
-                // A read of a computed `{ }` default is a formula, not a subscribable slot:
-                // inline it like a method call so its (branch-union) deps become ours, rather
-                // than recording the slot itself (which has no cell to fire).
+                // A read of a computed `{ }` default is a formula: inline it like a method
+                // call so its (branch-union) deps become ours. AND record the slot itself
+                // (GitHub #20): the formula only answers while the slot is UNPROVIDED — a
+                // decl default yields to a direct write (`app.retagFilenames = …`, the
+                // default-until-edited pattern), and that write fires the slot's cell,
+                // which the runtime getter tracks on every read. Inlining alone dropped
+                // that edge, so a constraint over a written-to defaulted slot went
+                // silently stale. An extra edge while the default still answers is the
+                // file's standard over-approximation — a no-op wake, never a miss.
                 // A computed default takes no arguments and is inlined at the read, so it
                 // is never "projected through a returned parameter" — there are none.
                 calls.push({ kind: "method", name: s.name.text, receiver: pathTextOf(s.expression), args: [], projected: false, tail: null });
+                reads.add(pathTextOf(s));
                 pathEnd = base;
                 break;
             }
@@ -1098,7 +1105,7 @@ export function extractProgram(program) {
         for (const d of el.decls) {
             const v = asCode(d.def);
             if (v) {
-                constraints.push({ tag: el.tag, name: el.name ?? null, attr: d.name, src: v.src, offset: v.pos?.offset ?? 0, node: v, owner: el, classRoot });
+                constraints.push({ tag: el.tag, name: el.name ?? null, attr: d.name, src: v.src, offset: v.pos?.offset ?? 0, node: v, owner: el, classRoot, decl: true });
                 // a `{ }` DECL default is an inline formula, not a cell — register it so reads
                 // of it are inlined (a `name = { }` attribute is a standing constraint, so it
                 // stays a normal subscribable read-path and is NOT registered here).
@@ -1167,7 +1174,19 @@ export function extractProgram(program) {
         // on a class root's own slot is not caught in v1.)
         if (!c.attr.includes(".")) {
             const selfPaths = [`this.${c.attr}`, ...(c.tag === "App" ? [`this.root.${c.attr}`] : [])];
-            if ([...canon].some((rd) => selfPaths.some((s) => rd === s || rd.startsWith(s + ".")))) {
+            // A computed DECL DEFAULT that (transitively) reads its own slot is the
+            // runtime's defect to name (attributes.ts EVALING — the guard this shape
+            // has always hit), not a compile refusal: the slot read recorded for the
+            // GitHub-#20 cell edge would otherwise turn the pinned runtime error
+            // into a new compile error. Drop the self path from a decl default's
+            // deps instead — exactly the pre-#20 dep set for this one shape.
+            if (c.decl === true) {
+                for (const rd of [...canon]) {
+                    if (selfPaths.some((s) => rd === s || rd.startsWith(s + ".")))
+                        canon.delete(rd);
+                }
+            }
+            else if ([...canon].some((rd) => selfPaths.some((s) => rd === s || rd.startsWith(s + ".")))) {
                 errors.push({ message: `'${c.attr}' reads itself — a { } cannot depend on the slot it defines; name the base it derives from instead (e.g. a parent's or the app's '${c.attr}', or a helper such as houseTheme(…))`, offset: 0 });
             }
         }

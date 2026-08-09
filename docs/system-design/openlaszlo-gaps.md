@@ -65,7 +65,7 @@ derivation is runtime-truthful rather than compile-time-lexical.
 |---|---|---|
 | `onclick/ondblclick/onmousedown/up/over/out` | same set plus the resolved layer (`onClick` slop-gated and withheld during the dbl window, `onHold`) | kept, better |
 | `onmousedragin/dragout/upoutside` | pointer capture on press + root-space move/up + `e.canceled` | answered better |
-| `lz.Track` (mousetrack groups: menus, DnD) | `hovered` intrinsic (chain-based, live during press) + MenuBar's internal macOS tracking | answered |
+| `lz.Track` (mousetrack groups: menus, DnD) | `hovered` intrinsic (chain-based, live during press) + MenuBar's internal bar tracking | answered |
 | `lz.GlobalMouse` | `app.pointerX/Y`, `pointerDown`, `hovering` — reactive attributes, not events | answered better |
 | `showhandcursor`, `lz.Cursor` global lock | `cursor` attribute, `""` = inherit | answered |
 | `clickregion` (vector hotspot) | box + `clip` hit rules | close enough; no demand signal |

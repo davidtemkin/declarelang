@@ -561,7 +561,7 @@ export class Replicator {
             ? pRel
             : Math.min(Math.max(0, this.ledger.total() - viewH), pRel * this.scale);
         this.relLogical = rel;
-        // VELOCITY-ADAPTIVE OVERSCAN (the momentum-flick answer — UIKit's
+        // VELOCITY-ADAPTIVE OVERSCAN (the momentum-flick answer — the recycler
         // prefetch shape): the compositor scrolls ASYNCHRONOUSLY, painting
         // frames before any JS runs, so a flick can outrun a fixed buffer and
         // expose blank track. The window therefore leads in the DIRECTION of

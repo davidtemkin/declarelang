@@ -104,7 +104,7 @@ A fifth backend, peer to `dhtml/svg/swf/swf9`, implementing the same contract ag
 **Building blocks that shrink the hard parts.**
 - **Display text:** [`@chenglou/pretext`](https://github.com/chenglou/pretext) (MIT, ~15KB, zero-dep) does DOM-free measurement + international wrapping + line layout via `Intl.Segmenter` + Canvas `measureText()` — exactly the layout core of `LzTextSprite`. The canvas text sprite becomes "Pretext for layout + `fillText` for paint." This is the **light path** of the tiered text plan, done for free; a WebGPU glyph-atlas path would still add a real shaper (HarfBuzz) for complex-script glyph positioning.
 - **Native-wrapping content and interop:** video (no `<video>` inside canvas), and embeds like Stripe/Maps, route through **promote-on-demand DOM overlays** — the same mechanism the original `htmlvideoview` uses to reach `this.sprite.__LZdiv`.
-- **Native feel:** own the **input → physics → render loop**. The browser exposes one rectangular scroll and hides momentum from JS, so any app coordinate model (zoom, nested spaces) needs its own physics, stepped per frame from raw timestamped input. The model to copy is Mesa's measured iOS scroll physics (`/Users/temkin/Code/Mesa/docs/touch-physics.md`) — calibrated to ground truth, not tuned by eye.
+- **Native feel:** own the **input → physics → render loop**. The browser exposes one rectangular scroll and hides momentum from JS, so any app coordinate model (zoom, nested spaces) needs its own physics, stepped per frame from raw timestamped input. The physics must be calibrated against recorded ground-truth gesture traces, not tuned by eye.
 
 ---
 

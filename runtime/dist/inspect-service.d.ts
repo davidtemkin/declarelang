@@ -133,6 +133,7 @@ export declare const Inspect: {
         manual(): void;
         auto(): void;
         step(ms?: number): void;
+        onStepped(fn: (ms: number) => void): () => void;
         settleMotion(maxMs?: number): boolean;
     };
 };

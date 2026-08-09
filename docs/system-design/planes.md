@@ -293,7 +293,7 @@ only as each component demands it (no speculative machinery):
    STATUS (2026-07-18): 1–3 landed in the sampler; 4 is standing — windows
    (move, edge/corner resize, shade, zoom, activation-as-slot), Finder over
    the real docs, Markdown viewers, dock magnification-by-layout, MenuBar
-   (a library component: whole menus as records, one live Menu, macOS
+   (a library component: whole menus as records, one live Menu, bar
    tracking; Menu.place() now works nested), live keys registry + hold-⌘
    HUD, real dark mode. Remaining passes: plane material (vibrancy),
    openly-licensed icon harvest, and the input primitives the desktop

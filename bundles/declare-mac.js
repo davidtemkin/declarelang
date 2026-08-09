@@ -2399,7 +2399,7 @@ var DeclareMac = (() => {
     }
     return out;
   }
-  var FONT_WEIGHT, NodeSchema, ViewSchema, AppSchema, TextSchema, ImageSchema, VideoSchema, DOMIslandSchema, EditorSchema, TextInputSchema, RichTextSchema, MarkdownSchema, HTMLTextSchema, LayoutSchema, TweenLayoutSchema, DatasetSchema, DataSourceSchema, AnimatorSchema, AnimatorGroupSchema, SpringSchema, HeartbeatSchema, KeysSchema, FocusSchema, TipSchema, StreamSchema, EventStreamSchema, SocketSchema, StateSchema, SCHEMAS, handlerName, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES;
+  var FONT_WEIGHT, NodeSchema, ViewSchema, AppSchema, TextSchema, ImageSchema, MediaSchema, VideoSchema, AudioSchema, DOMIslandSchema, EditorSchema, TextInputSchema, RichTextSchema, MarkdownSchema, HTMLTextSchema, LayoutSchema, TweenLayoutSchema, DatasetSchema, DataSourceSchema, AnimatorSchema, AnimatorGroupSchema, SpringSchema, HeartbeatSchema, KeysSchema, FocusSchema, TipSchema, StreamSchema, EventStreamSchema, SocketSchema, StateSchema, SCHEMAS, handlerName, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES;
   var init_schema = __esm({
     "runtime/dist/schema.js"() {
       "use strict";
@@ -2873,12 +2873,11 @@ var DeclareMac = (() => {
         },
         readOnly: ["loaded", "failed", "naturalWidth", "naturalHeight"]
       };
-      VideoSchema = {
-        name: "Video",
+      MediaSchema = {
+        name: "Media",
         base: ViewSchema,
         attrs: {
           source: { kind: "string" },
-          stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain"),
           playing: { kind: "boolean" },
           loop: { kind: "boolean" },
           muted: { kind: "boolean" },
@@ -2894,6 +2893,18 @@ var DeclareMac = (() => {
         },
         readOnly: ["ended", "duration", "buffering", "loaded", "failed"],
         events: ["ended"]
+      };
+      VideoSchema = {
+        name: "Video",
+        base: MediaSchema,
+        attrs: {
+          stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain")
+        }
+      };
+      AudioSchema = {
+        name: "Audio",
+        base: MediaSchema,
+        attrs: {}
       };
       DOMIslandSchema = {
         name: "DOMIsland",
@@ -3187,7 +3198,13 @@ var DeclareMac = (() => {
         App: AppSchema,
         Text: TextSchema,
         Image: ImageSchema,
+        // Media — the abstract transport base Video and Audio extend (playing/
+        // position/duration/volume live here). In the table so the reference can
+        // give it a page and the leaves inherit from a documented class; NOT in the
+        // tag registry, so it stays uninstantiable — exactly Editor's arrangement.
+        Media: MediaSchema,
         Video: VideoSchema,
+        Audio: AudioSchema,
         DOMIsland: DOMIslandSchema,
         TextInput: TextInputSchema,
         Markdown: MarkdownSchema,
@@ -3318,7 +3335,7 @@ var DeclareMac = (() => {
         mixBlendMode: "compositing is the 'blend' attribute \u2014 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
         backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' \u2014 samples and blurs what lies beneath the view's own shape",
         mask: "masking is 'clip' \u2014 true for the box, or a path for an arbitrary shape",
-        // The 2026-08-08 foreign-reach audit (HTML/CSS · React · iOS, read against the
+        // The 2026-08-08 foreign-reach audit (HTML/CSS · React · native-mobile, read against the
         // whole reference): the attribute-position instincts a newcomer actually
         // types, each with its one true equivalent. Question-shaped foreign names
         // (useState, VStack, ScrollView) live in the concept table instead —
@@ -7005,6 +7022,7 @@ var DeclareMac = (() => {
             if (child instanceof _View)
               child.attach(backend2, s);
           }
+          this.applyTravel();
         }
         /** Read data relative to this view's inherited cursor — the runtime form
          *  every `:path` in a `{ }` body resolves to. The COMPILER emits the
@@ -7311,9 +7329,30 @@ var DeclareMac = (() => {
          *  home, so chrome can climb OUT of a scroller that sits directly under
          *  it (the DataGrid header's escape).
          *  Returns whether the surface now rides the scroller — false when the
-         *  backend can't (no surface yet, or no travelWith), so callers keep the
-         *  reactive root-space fallback. */
+         *  backend can't (no travelWith) or the surfaces do not exist YET, so
+         *  callers keep the reactive root-space fallback.
+         *
+         *  The request is DECLARATIVE, and that is what makes the answer
+         *  trustworthy: a caller in `onInit` runs before attach (initTree precedes
+         *  App.attach), so the first call can only ever answer "not yet". The
+         *  request is therefore remembered and re-applied when this view attaches
+         *  — no polling, and no retry budget that can be exhausted on a slow
+         *  machine and silently leave the chrome un-escaped (which is exactly what
+         *  DataGrid's 20×50ms chain used to risk). `escaped` becomes true at
+         *  attach, through the ordinary reactive write below, so a `{ }` reading it
+         *  re-runs then. */
         travelWith(scroller) {
+          this.travelHost = scroller;
+          return this.applyTravel();
+        }
+        /** The standing travel request (undefined = never asked). Applied here and
+         *  re-applied at attach; `travelDone` is the reactive echo the requester
+         *  reads (see attach). */
+        travelHost = void 0;
+        applyTravel() {
+          const scroller = this.travelHost;
+          if (scroller === void 0)
+            return false;
           const s = this.surface;
           if (s === null || typeof s.travelWith !== "function")
             return false;
@@ -8032,6 +8071,50 @@ var DeclareMac = (() => {
           if (this.started)
             this.start();
         }
+        /** `started` is a REACTIVE boolean (animation.md §1), not a construct-time
+         *  flag: every later change drives the run — a constraint re-evaluating
+         *  (`started = { app.open }`), a state override arriving, a direct write.
+         *  True starts, false stops (in place, as stop() always does), so the one
+         *  declaration covers both edges of the fact it reads. Before init the slot
+         *  is still just a DECLARATION — construct-time literals and a `{ }`
+         *  binding's first evaluation both land here with the tree half-built and
+         *  `from` unsettled — so pre-init writes belong to autoStart(), which reads
+         *  the settled value once at the init hook. A grouped member is driven by
+         *  its group (its own `started` is ignored; see AnimatorGroup). */
+        startedChanged(v) {
+          if (!this.autoStarted || this.grouped)
+            return;
+          if (v)
+            this.start();
+          else
+            this.stop();
+        }
+        /** `paused` is clock MEMBERSHIP, not a per-frame flag to poll: a paused
+         *  animator produces no frames, so it must not hold the frame loop open —
+         *  the idle-zero invariant (animate.ts) extends to "frozen counts as idle".
+         *  Pause drops off the clock; resume re-seeds the anchor at NOW (elapsed
+         *  cannot have advanced while unenrolled, so nothing jumps — the same
+         *  re-anchor a scheduler handover uses) and re-enrolls. A grouped member
+         *  keeps the old frozen-tick path instead: its group owns the clock and
+         *  must keep ticking its OTHER members, so the member's own pause cannot
+         *  withdraw the group's ticker. */
+        pausedChanged(v) {
+          if (!this.running || this.grouped)
+            return;
+          if (v) {
+            sharedClock.remove(this);
+          } else {
+            this.lastNow = sharedClock.now();
+            sharedClock.add(this);
+          }
+        }
+        /** Re-seed the elapsed-time anchor at `now` — a group resuming from its own
+         *  pause calls this down its members, whose anchors went stale while the
+         *  group was off the clock (the unpause twin of rebase()). */
+        reanchor(now) {
+          if (this.running && this.lastNow !== null)
+            this.lastNow = now;
+        }
         /** Begin driving the target slot through the curve (LZX's doStart). A no-op
          *  while already running (LZX's guard). Samples from / to / duration /
          *  motion / repeat ONCE here, and enrolls in the slot's exact-landing ledger
@@ -8072,7 +8155,7 @@ var DeclareMac = (() => {
           this.lastNow = sharedClock.now();
           this.running = true;
           setBound(this, "settled", false);
-          if (!this.grouped)
+          if (!this.grouped && !this.paused)
             sharedClock.add(this);
           this.fire("onStart");
         }
@@ -8192,8 +8275,8 @@ var DeclareMac = (() => {
         duration: { def: 1e3 },
         motion: { def: DEFAULT_MOTION },
         repeat: { def: 1 },
-        started: { def: false },
-        paused: { def: false },
+        started: { def: false, push: (s, v) => s.startedChanged(v) },
+        paused: { def: false, push: (s, v) => s.pausedChanged(v) },
         settled: { def: false }
       });
       AnimatorGroup = class extends Node2 {
@@ -8220,6 +8303,37 @@ var DeclareMac = (() => {
           if (this.started)
             this.start();
         }
+        /** The group's own `started`, reactive exactly as an Animator's (see
+         *  Animator.startedChanged) — the group is the driver, so a change here
+         *  starts or stops the whole group, members included. */
+        startedChanged(v) {
+          if (!this.autoStarted || this.grouped)
+            return;
+          if (v)
+            this.start();
+          else
+            this.stop();
+        }
+        /** The group's own pause is clock membership too (see Animator.pausedChanged):
+         *  off the clock while paused — members freeze because nothing ticks them —
+         *  and on resume every running member's anchor is re-seeded at NOW before the
+         *  group re-enrolls, so no member measures the pause as elapsed time. */
+        pausedChanged(v) {
+          if (!this.running || this.grouped)
+            return;
+          if (v) {
+            sharedClock.remove(this);
+          } else {
+            this.reanchor(sharedClock.now());
+            sharedClock.add(this);
+          }
+        }
+        /** Cascade the unpause re-anchor down (Animator.reanchor). */
+        reanchor(now) {
+          for (const m of this.active) {
+            m.reanchor?.(now);
+          }
+        }
         /** Begin the group (LZX doStart): snapshot the members to run this cycle and
          *  register the one group ticker (unless the group is itself group-driven).
          *  Members are NOT started here — each is started lazily when it first
@@ -8231,7 +8345,7 @@ var DeclareMac = (() => {
           this.running = true;
           this.cyclesLeft = this.repeat;
           this.active = this.members();
-          if (!this.grouped)
+          if (!this.grouped && !this.paused)
             sharedClock.add(this);
           this.fire("onStart");
         }
@@ -8328,8 +8442,8 @@ var DeclareMac = (() => {
         motion: { def: DEFAULT_MOTION },
         process: { def: "sequential" },
         repeat: { def: 1 },
-        started: { def: false },
-        paused: { def: false }
+        started: { def: false, push: (s, v) => s.startedChanged(v) },
+        paused: { def: false, push: (s, v) => s.pausedChanged(v) }
       });
     }
   });
@@ -11222,25 +11336,41 @@ var DeclareMac = (() => {
     }
   });
 
-  // runtime/dist/image.js
-  function resolveAsset(source) {
-    if (assetBase === null || source === "")
+  // runtime/dist/asset-base.js
+  function assetBaseFor(root) {
+    return (root != null ? APP_BASES.get(root) : void 0) ?? assetBase;
+  }
+  function rebaseAsset(source, base2) {
+    if (base2 === null || source === "")
       return source;
     if (/^[a-z][a-z0-9+.-]*:/i.test(source) || source.startsWith("//") || source.startsWith("/"))
       return source;
     try {
-      return new URL(source, assetBase).href;
+      return new URL(source, base2).href;
     } catch {
       return source;
     }
   }
-  var assetBase, Image;
+  function resolveAsset(source, root) {
+    return rebaseAsset(source, assetBaseFor(root));
+  }
+  var assetBase, APP_BASES;
+  var init_asset_base = __esm({
+    "runtime/dist/asset-base.js"() {
+      "use strict";
+      assetBase = null;
+      APP_BASES = /* @__PURE__ */ new WeakMap();
+    }
+  });
+
+  // runtime/dist/image.js
+  var Image;
   var init_image = __esm({
     "runtime/dist/image.js"() {
       "use strict";
       init_view();
       init_attributes();
-      assetBase = null;
+      init_asset_base();
       Image = class extends View {
         /** Discards a superseded load: only the latest request may land. */
         loadSeq = 0;
@@ -11297,7 +11427,7 @@ var DeclareMac = (() => {
               return;
             setBound(this, "failed", true);
           };
-          img.src = resolveAsset(this.source);
+          img.src = resolveAsset(this.source, this.root);
         }
       };
       defineAttributes(Image, {
@@ -11312,67 +11442,56 @@ var DeclareMac = (() => {
     }
   });
 
-  // runtime/dist/video.js
-  var Video;
-  var init_video = __esm({
-    "runtime/dist/video.js"() {
+  // runtime/dist/media.js
+  var Media;
+  var init_media = __esm({
+    "runtime/dist/media.js"() {
       "use strict";
       init_view();
       init_attributes();
-      init_image();
-      Video = class extends View {
+      init_asset_base();
+      Media = class extends View {
         /** Discards a superseded load: only the latest request may land. */
         loadSeq = 0;
         el = null;
-        /** The frame's natural size — what contentExtent folds into an auto-extent. */
-        natural = { width: 0, height: 0 };
-        contentExtent(size) {
-          return this.loaded ? this.natural[size] : 0;
+        /** The metadata landed. The leaf takes what is its own — Video adopts the
+         *  natural size and hands the element to the surface as its picture. */
+        metadataArrived(_el) {
+        }
+        /** `source` went empty. Video clears the surface picture; Audio has nothing to clear. */
+        sourceCleared() {
         }
         attach(backend2, parentSurface) {
           super.attach(backend2, parentSurface);
           this.load();
         }
-        flush(s) {
-          super.flush(s);
-          s.setImageStretch(this.stretches);
-        }
         /** (Re)load `source` — at attach, and from the `source` pusher. */
         load() {
           const seq = ++this.loadSeq;
-          const s = this.surface;
-          if (s === null)
+          if (this.surface === null)
             return;
           setBound(this, "failed", false);
           setBound(this, "ended", false);
           if (this.source === "") {
             this.el = null;
-            s.setImage(null);
+            this.sourceCleared();
             return;
           }
           if (typeof document === "undefined")
             return;
-          const el = document.createElement("video");
+          const el = this.makeElement();
           this.el = el;
           el.muted = this.muted;
           el.loop = this.loop;
           el.volume = this.volume;
           el.playbackRate = this.playbackRate;
-          el.playsInline = true;
           el.preload = "metadata";
           el.onloadedmetadata = () => {
             if (seq !== this.loadSeq || this.surface === null)
               return;
-            this.natural = { width: el.videoWidth, height: el.videoHeight };
-            if (!isSet(this, "width") && ownerOf(this, "width") === null) {
-              setBound(this, "width", el.videoWidth);
-            }
-            if (!isSet(this, "height") && ownerOf(this, "height") === null) {
-              setBound(this, "height", el.videoHeight);
-            }
             setBound(this, "duration", isFinite(el.duration) ? el.duration : 0);
+            this.metadataArrived(el);
             setBound(this, "loaded", true);
-            this.surface.setImage(el);
             if (this.playing)
               this.syncPlaying();
           };
@@ -11411,15 +11530,17 @@ var DeclareMac = (() => {
               return;
             setBound(this, "position", el.currentTime);
           };
-          el.src = resolveAsset(this.source);
+          el.src = resolveAsset(this.source, this.root);
         }
         /** Author (or constraint) asked to play or pause. `play()` can be REFUSED —
          *  autoplay policy, a source that never loaded — and it answers with a
          *  rejected promise. When it is refused the slot goes back to false, because
-         *  a `playing` that reads true over a still picture is a lie. */
+         *  a `playing` that reads true over silence (or a still picture) is a lie. */
         syncPlaying() {
           const el = this.el;
           if (el === null)
+            return;
+          if (typeof el.play !== "function")
             return;
           if (this.playing) {
             const p = el.play();
@@ -11444,9 +11565,8 @@ var DeclareMac = (() => {
             el.currentTime = this.position;
         }
       };
-      defineAttributes(Video, {
+      defineAttributes(Media, {
         source: { def: "", push: (v) => v.load() },
-        stretches: { def: "none", push: (v, s) => v.surface?.setImageStretch(s) },
         playing: { def: false, push: (v) => v.syncPlaying() },
         loop: { def: false, push: (v, on) => {
           const e = v.el;
@@ -11474,6 +11594,76 @@ var DeclareMac = (() => {
         buffering: { def: false },
         loaded: { def: false },
         failed: { def: false }
+      });
+    }
+  });
+
+  // runtime/dist/video.js
+  var Video;
+  var init_video = __esm({
+    "runtime/dist/video.js"() {
+      "use strict";
+      init_media();
+      init_attributes();
+      Video = class extends Media {
+        /** The frame's natural size — what contentExtent folds into an auto-extent. */
+        natural = { width: 0, height: 0 };
+        contentExtent(size) {
+          return this.loaded ? this.natural[size] : 0;
+        }
+        flush(s) {
+          super.flush(s);
+          s.setImageStretch(this.stretches);
+        }
+        makeElement() {
+          const el = document.createElement("video");
+          el.playsInline = true;
+          return el;
+        }
+        metadataArrived(el) {
+          const v = el;
+          this.natural = { width: v.videoWidth, height: v.videoHeight };
+          if (!isSet(this, "width") && ownerOf(this, "width") === null) {
+            setBound(this, "width", v.videoWidth);
+          }
+          if (!isSet(this, "height") && ownerOf(this, "height") === null) {
+            setBound(this, "height", v.videoHeight);
+          }
+          this.surface?.setImage(v);
+        }
+        sourceCleared() {
+          this.surface?.setImage(null);
+        }
+      };
+      defineAttributes(Video, {
+        stretches: { def: "none", push: (v, s) => v.surface?.setImageStretch(s) }
+      });
+    }
+  });
+
+  // runtime/dist/audio.js
+  var Audio;
+  var init_audio = __esm({
+    "runtime/dist/audio.js"() {
+      "use strict";
+      init_media();
+      init_attributes();
+      Audio = class extends Media {
+        makeElement() {
+          return document.createElement("audio");
+        }
+      };
+      defineAttributes(Audio, {
+        // Video mutes by default because browsers refuse audible video autoplay and
+        // a silent frame is still a picture. Audio's ONLY product is sound: muted by
+        // default it would be a component that appears broken until you find the
+        // flag. Autoplay policy still holds — a refused play() lands `playing` back
+        // at false — so the polite default here is the audible one.
+        muted: { def: false, push: (v, on) => {
+          const e = v.el;
+          if (e !== null)
+            e.muted = on;
+        } }
       });
     }
   });
@@ -13832,6 +14022,7 @@ var DeclareMac = (() => {
       init_text();
       init_image();
       init_video();
+      init_audio();
       init_text_input();
       init_markdown();
       init_layout();
@@ -13848,6 +14039,7 @@ var DeclareMac = (() => {
         Text,
         Image,
         Video,
+        Audio,
         DOMIsland,
         TextInput,
         Markdown,
@@ -15735,7 +15927,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     }
     return out;
   }
-  var isView2, REGISTRY_NAME, registryIndexed, ManualScheduler, manual, clockMode, clock, evalService, evalServicePriming, leafText, sliceKind, HEX;
+  var isView2, REGISTRY_NAME, registryIndexed, ManualScheduler, manual, clockMode, stepped, clock, evalService, evalServicePriming, leafText, sliceKind, HEX;
   var init_inspect = __esm({
     "runtime/dist/inspect.js"() {
       "use strict";
@@ -15773,6 +15965,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       };
       manual = new ManualScheduler();
       clockMode = "auto";
+      stepped = [];
       clock = {
         get mode() {
           return clockMode;
@@ -15802,7 +15995,25 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
             this.manual();
           settle();
           manual.fire(ms);
+          for (const fn of stepped)
+            fn(ms);
           settle();
+        },
+        /** Register an observer of DRIVEN time — called with each step's ms.
+         *  The determinism seam for WALL-CLOCK work: `settleMotion` makes declared
+         *  motion frame-exact and costs no real time, so anything on a raw
+         *  `setTimeout` (a tooltip's show delay, a press flash) is invisible to it
+         *  and fires on whatever the machine's load decides. A harness that
+         *  virtualizes timers registers here, and those delays advance WITH the
+         *  clock instead of racing it — which is what makes a captured frame the
+         *  same picture on a fast machine and a loaded one. Returns an unsubscribe. */
+        onStepped(fn) {
+          stepped.push(fn);
+          return () => {
+            const i = stepped.indexOf(fn);
+            if (i >= 0)
+              stepped.splice(i, 1);
+          };
         },
         /** Run all in-flight FINITE motion to rest (springs settle, non-looping
          *  animators finish), frame by frame. Perpetual motion — a Heartbeat, an
@@ -15931,6 +16142,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   init_instantiate();
   init_view();
   init_font();
+  init_asset_base();
   init_errors();
   init_keys();
   init_focus();
@@ -16335,16 +16547,33 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   }
 
   // runtime/dist/boot.js
-  async function loadFonts(fonts) {
+  function rebaseFontSrc(src, base2) {
+    if (base2 === null)
+      return src;
+    return src.replace(/url\("((?:[^"\\]|\\.)*)"\)/g, (whole, quoted) => {
+      try {
+        return `url(${JSON.stringify(rebaseAsset(JSON.parse(`"${quoted}"`), base2))})`;
+      } catch {
+        return whole;
+      }
+    });
+  }
+  async function loadFonts(fonts, base2) {
     if (typeof FontFace === "undefined" || typeof document === "undefined")
       return;
+    const b = base2 === void 0 ? assetBaseFor(null) : base2;
     await Promise.all(fonts.map(async (f) => {
-      const face = new FontFace(f.family, f.src, {
-        weight: String(f.weight ?? "normal"),
-        style: f.style ?? "normal"
-      });
-      await face.load();
-      document.fonts.add(face);
+      const src = rebaseFontSrc(f.src, b);
+      try {
+        const face = new FontFace(f.family, src, {
+          weight: String(f.weight ?? "normal"),
+          style: f.style ?? "normal"
+        });
+        await face.load();
+        document.fonts.add(face);
+      } catch (e) {
+        console.warn(`[Declare] font ${f.family}: ${src} did not load \u2014 falling back`, e);
+      }
     }));
   }
   function isEmbedded(host2) {
@@ -16384,6 +16613,18 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       }
       if (!meta.content.includes("viewport-fit")) {
         meta.content = meta.content === "" ? "viewport-fit=cover" : meta.content + ", viewport-fit=cover";
+      }
+      for (const [name, content] of [
+        ["mobile-web-app-capable", "yes"],
+        ["apple-mobile-web-app-capable", "yes"],
+        ["apple-mobile-web-app-status-bar-style", "black-translucent"]
+      ]) {
+        if (doc.querySelector(`meta[name="${name}"]`) === null) {
+          const m = doc.createElement("meta");
+          m.name = name;
+          m.content = content;
+          doc.head.appendChild(m);
+        }
       }
     }
     const probe = doc.createElement("div");
@@ -16431,7 +16672,9 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     const size = () => {
       const de = w.document.documentElement;
       app.hostWidth = de.clientWidth;
-      app.hostHeight = de.clientHeight;
+      const vv = w.visualViewport;
+      const vvH = vv != null && vv.scale <= 1.01 ? Math.round(vv.height) : 0;
+      app.hostHeight = Math.max(de.clientHeight, vvH);
     };
     const scroll = () => {
       app.scrollY = w.scrollY;
@@ -16463,6 +16706,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     size();
     scroll();
     w.addEventListener("resize", size);
+    w.visualViewport?.addEventListener("resize", size);
     w.addEventListener("scroll", scroll, { passive: true });
     w.addEventListener("pointermove", move, { passive: true, capture: true });
     w.addEventListener("pointerdown", down, { passive: true, capture: true });
@@ -16543,6 +16787,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   }
 
   // runtime/dist/index.js
+  init_asset_base();
   init_parser();
   init_include();
   init_check();
@@ -16557,8 +16802,10 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   init_text_input();
   init_layout();
   init_data();
-  init_image();
+  init_asset_base();
   init_video();
+  init_audio();
+  init_media();
   init_stream_seam();
   init_tip();
   init_animator();
@@ -16669,7 +16916,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     BLEND: 35,
     BACKDROP: 36,
     TINT: 37,
-    ROTATE: 38
+    ROTATE: 38,
+    MEDIA: 39
   };
   function host() {
     const h = globalThis.__declareMacHost;
@@ -17000,6 +17248,11 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       emit(OP.DRAW, this.id, list === null ? null : { ops: list.ops, bounds: list.bounds });
     }
     setImage(image) {
+      const media = image === null ? void 0 : image.__mediaHandle;
+      if (media !== void 0) {
+        emit(OP.MEDIA, this.id, media);
+        return;
+      }
       const handle = image === null ? null : image.__handle ?? null;
       emit(OP.IMAGE, this.id, handle);
     }
