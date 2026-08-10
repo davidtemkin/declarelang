@@ -44,7 +44,8 @@
 // USAGE
 //   node tools/internal/derive.mjs                regenerate what is stale
 //   node tools/internal/derive.mjs --all          ignore the manifest, run everything
-//   node tools/internal/derive.mjs --check        exit 1 if anything WAS stale
+//   node tools/internal/derive.mjs --check        RUNS everything, then exit 1 if anything WAS stale
+//   node tools/internal/derive.mjs --dry          READ-ONLY: exit 1 if anything IS stale, writing nothing
 //   node tools/internal/derive.mjs --timing       per-rule cost + skip report
 //   node tools/internal/derive.mjs --paths        print the committed derived paths
 
@@ -59,6 +60,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const CHECK = has("--check");
+// --dry is the READ-ONLY probe --check is not: --check runs every stale rule and
+// only then reports, which is the right thing before a release and the wrong
+// thing in a pre-commit hook, where the whole point is to answer "would this
+// need work?" without doing the work. Same freshness test, no rule ever run, no
+// manifest written.
+const DRY = has("--dry");
 const TIMING = has("--timing");
 const ALL = has("--all");
 
@@ -286,6 +293,7 @@ const specKey = (r) => createHash("sha1")
 const t0 = Date.now();
 let ran = 0, skipped = 0;
 const movedFiles = [];
+const staleRules = [];
 
 for (const r of RULES) {
   const key = `${r.name}:${specKey(r)}`;
@@ -301,6 +309,10 @@ for (const r of RULES) {
     if (TIMING) console.log(`    skip      ${r.name}`);
     continue;
   }
+
+  // READ-ONLY: record the verdict and move on. `always` rules are excluded —
+  // they are unconditional by declaration, not evidence that anything is stale.
+  if (DRY) { if (!r.always) staleRules.push(r.name); continue; }
 
   const s = Date.now();
   try { r.run(); } catch (e) {
@@ -332,10 +344,21 @@ for (const r of RULES) {
 for (const k of Object.keys(manifest)) {
   if (!RULES.some((r) => k === `${r.name}:${specKey(r)}`)) delete manifest[k];
 }
-mkdirSync(dirname(MANIFEST), { recursive: true });
-writeFileSync(MANIFEST, JSON.stringify(manifest, null, 1) + "\n");
+if (!DRY) {
+  mkdirSync(dirname(MANIFEST), { recursive: true });
+  writeFileSync(MANIFEST, JSON.stringify(manifest, null, 1) + "\n");
+}
 
 const total = ((Date.now() - t0) / 1000).toFixed(1);
+
+if (DRY) {
+  if (staleRules.length > 0) {
+    console.error(`derive --dry: ${staleRules.length} rule(s) STALE — run \`npm run derive\`: ${staleRules.join(", ")}`);
+    process.exit(1);
+  }
+  console.log("derive --dry: all derived artifacts current");
+  process.exit(0);
+}
 
 if (CHECK) {
   if (movedFiles.length > 0) {

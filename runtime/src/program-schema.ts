@@ -31,6 +31,31 @@ export const NOUNS = ["this", "parent", "classroot", "app"];
  *  them; this catches the two that are not.) */
 export const RESERVED = CONSTRUCTOR_NAMES;
 
+/** The other two node references the scaffold declares on every View, beside the
+ *  §11 nouns above (scaffold.ts groups all four: parent / classroot / root /
+ *  children). They are NOT scope nouns — §11 lists four and neither of these is
+ *  one; `root` is the under-the-hood spelling `app` compiles to, and `children`
+ *  is Node's own child list. But neither is a schema attribute either, so the
+ *  ordinary "a child may not take an attribute's name" rules miss them, and
+ *  shadowing one breaks code that never mentions it.
+ *
+ *  `root` is the sharp case. Because `app` compiles to `this.root`, a member
+ *  named `root` makes every `{ app.… }` in the SAME class resolve `app` against
+ *  the shadow — so the failure surfaces as "'k' is not a member of View" at the
+ *  binding's line, blaming an app attribute several lines from the name that
+ *  actually took the reference. Caught here so the report names the cause.
+ *  (The runtime already refuses these at instantiate; that check stands, but it
+ *  fires at boot, after typecheck has had its misleading say.) */
+export const STRUCTURAL: Readonly<Record<string, string>> = {
+  root: "the node reference `app` compiles to (`app` is `this.root`)",
+  children: "the node's own child list",
+};
+
+/** The reason a name is structural, or null if it is free to use. */
+export function structuralReason(name: string): string | null {
+  return Object.hasOwn(STRUCTURAL, name) ? STRUCTURAL[name] : null;
+}
+
 /** One registered user class: its declaration, its schema, and its declared
  *  attributes' coerced defaults (undefined = "no default; starts undefined
  *  until set"). instantiate.ts synthesizes the runtime twin from this. */
@@ -250,6 +275,10 @@ export function checkDecl(
   }
   if (RESERVED.includes(d.name)) {
     return err(`'${d.name}' is a value constructor (gradient/stroke/shadow/stop/frost) — it cannot be a member name`, d.pos);
+  }
+  const structural = structuralReason(d.name);
+  if (structural !== null) {
+    return err(`'${d.name}' is ${structural} — it cannot be declared; choose another name`, d.pos);
   }
   if (attrType(schema, d.name) !== null) {
     // A read-only intrinsic must not advise "write name = …" — setting it is

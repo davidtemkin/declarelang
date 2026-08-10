@@ -35,7 +35,7 @@ import { coerce, describeLiteral, declaredType, DECLARED_TYPE_NAMES } from "./va
 import { validateExpr, validateBody } from "./expr.js";
 import { isSelective, staticSegs } from "./datapath.js";
 import { faceWeight, FONT_WEIGHTS } from "./font.js";
-import { NOUNS, RESERVED, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
+import { NOUNS, RESERVED, structuralReason, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
 // The schema half of the twin tables — class registration, effective schemas,
 // replication detection, token coercion — lives in program-schema.ts so a
 // production build ships it WITHOUT this validator (which declarec substitutes
@@ -684,8 +684,12 @@ classRoot = false) {
             }
             // A named child is a member of THIS element (language §4: "reachable
             // as `bg` / `this.bg`") — so its name obeys the member namespace.
+            const structural = structuralReason(child.name);
             if (NOUNS.includes(child.name)) {
                 errors.push(new DeclareError(`'${child.name}' is a scope noun (language §11) — a child cannot take its name`, child.pos));
+            }
+            else if (structural !== null) {
+                errors.push(new DeclareError(`'${child.name}' is ${structural} — a child cannot take its name; choose another`, child.pos));
             }
             else if (declared !== null) {
                 errors.push(new DeclareError(`${schema.name}.${child.name} is an attribute — a child may not take an attribute's name`, child.pos));
@@ -1257,6 +1261,10 @@ export function checkMethod(schema, m) {
     }
     if (RESERVED.includes(m.name)) {
         return err(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop/frost) — it cannot be a member name`, m.pos);
+    }
+    const structural = structuralReason(m.name);
+    if (structural !== null) {
+        return err(`'${m.name}' is ${structural} — a method cannot take its name; choose another`, m.pos);
     }
     // A METHOD named exactly like one of this component's EVENTS is a dead member:
     // the runtime fires the event, which resolves to the `on…` handler, and nothing

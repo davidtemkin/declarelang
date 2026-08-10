@@ -4109,6 +4109,9 @@ var DeclareMac = (() => {
   });
 
   // runtime/dist/program-schema.js
+  function structuralReason(name) {
+    return Object.hasOwn(STRUCTURAL, name) ? STRUCTURAL[name] : null;
+  }
   function programSchemas(classes) {
     const infos = [];
     const schemas = { ...SCHEMAS };
@@ -4254,6 +4257,10 @@ var DeclareMac = (() => {
     if (RESERVED.includes(d.name)) {
       return err2(`'${d.name}' is a value constructor (gradient/stroke/shadow/stop/frost) \u2014 it cannot be a member name`, d.pos);
     }
+    const structural = structuralReason(d.name);
+    if (structural !== null) {
+      return err2(`'${d.name}' is ${structural} \u2014 it cannot be declared; choose another name`, d.pos);
+    }
     if (attrType(schema, d.name) !== null) {
       if (isReadOnly(schema, d.name)) {
         return err2(`'${d.name}' is a built-in read-only intrinsic of ${schema.name} \u2014 it is computed for you; choose another name for your derived value`, d.pos);
@@ -4339,7 +4346,7 @@ var DeclareMac = (() => {
     }
     return null;
   }
-  var NOUNS, RESERVED;
+  var NOUNS, RESERVED, STRUCTURAL;
   var init_program_schema = __esm({
     "runtime/dist/program-schema.js"() {
       "use strict";
@@ -4349,6 +4356,10 @@ var DeclareMac = (() => {
       init_expr();
       NOUNS = ["this", "parent", "classroot", "app"];
       RESERVED = CONSTRUCTOR_NAMES;
+      STRUCTURAL = {
+        root: "the node reference `app` compiles to (`app` is `this.root`)",
+        children: "the node's own child list"
+      };
     }
   });
 
@@ -4821,8 +4832,11 @@ var DeclareMac = (() => {
           errors.push(...checkComponentValue(schemas, schema.name, child.name, declared.of, child));
           continue;
         }
+        const structural = structuralReason(child.name);
         if (NOUNS.includes(child.name)) {
           errors.push(new DeclareError(`'${child.name}' is a scope noun (language \xA711) \u2014 a child cannot take its name`, child.pos));
+        } else if (structural !== null) {
+          errors.push(new DeclareError(`'${child.name}' is ${structural} \u2014 a child cannot take its name; choose another`, child.pos));
         } else if (declared !== null) {
           errors.push(new DeclareError(`${schema.name}.${child.name} is an attribute \u2014 a child may not take an attribute's name`, child.pos));
         }
@@ -5210,6 +5224,10 @@ var DeclareMac = (() => {
     }
     if (RESERVED.includes(m.name)) {
       return err2(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop/frost) \u2014 it cannot be a member name`, m.pos);
+    }
+    const structural = structuralReason(m.name);
+    if (structural !== null) {
+      return err2(`'${m.name}' is ${structural} \u2014 a method cannot take its name; choose another`, m.pos);
     }
     if (eventsOf(schema).includes(m.name)) {
       return err2(`${schema.name}.${m.name}(\u2026) is never called \u2014 '${m.name}' is an EVENT here, delivered to '${handlerName(m.name)}'. Rename it to '${handlerName(m.name)}(\u2026)'. (The 'input(v)' value pattern belongs to CONTROLS \u2014 Checkbox, Slider, Segmented \u2014 which fire no such event; an editor delivers through its event instead.)`, m.pos);

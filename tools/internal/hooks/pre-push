@@ -1,0 +1,34 @@
+#!/bin/sh
+# Before each push: the derived artifacts must match the tree being published.
+#
+# This repo IS the distro — bundles/, runtime/dist, the baked index.html stubs,
+# the prewarm cache, the production builds — so a push is a release, and a
+# release whose artifacts disagree with its sources is broken on arrival. That
+# is a property of what you PUBLISH, not of every local checkpoint, which is why
+# the full regeneration lives here and pre-commit only reports.
+#
+# Fast path first: --dry reads the manifest's content hashes (~0.4s) and says
+# nothing more. Only if something is genuinely stale does the real build run —
+# and then the push is REFUSED, because the tree just changed underneath it. The
+# artifacts are regenerated and staged, so the fix is one commit away.
+#
+# Escape hatch: git push --no-verify (you own the consequence).
+
+if node tools/internal/derive.mjs --dry >/dev/null 2>&1; then
+  exit 0
+fi
+
+echo "pre-push: derived artifacts are stale — regenerating before this push…"
+node tools/internal/derive.mjs || {
+  echo "pre-push: derive FAILED — push refused. Fix the build, or push --no-verify."
+  exit 1
+}
+git add $(node tools/internal/derive.mjs --paths 2>/dev/null) 2>/dev/null
+
+echo ""
+echo "pre-push: artifacts regenerated and staged; the push is refused because the"
+echo "          tree changed. Commit them and push again:"
+echo ""
+echo "            git commit -m 'derived artifacts'"
+echo ""
+exit 1
