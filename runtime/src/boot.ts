@@ -301,6 +301,14 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
     const vv = w.visualViewport;
     const vvH = vv != null && vv.scale <= 1.01 ? Math.round(vv.height) : 0;
     app.hostHeight = Math.max(de.clientHeight, vvH);
+    // …and the same widening, kept as its own fact: the difference IS the
+    // browser's retracted chrome. `hostHeight` alone cannot answer "may a
+    // finger reach here" — it reads the same number whether the bottom band
+    // is the app's to use (bars retracted, content showing through) or the
+    // bars' own. Measured (iPhone 16 Pro, iOS 18.2, 2026-08-09): layout
+    // viewport 678 in both states, visual viewport 678 with Safari's bars
+    // shown and 760 once they retract — so this reads 0, then 82.
+    app.underlapBottom = Math.max(0, app.hostHeight - de.clientHeight);
   };
   const scroll = () => { app.scrollY = w.scrollY; };
   const move = (e: PointerEvent) => {

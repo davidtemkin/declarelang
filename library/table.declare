@@ -277,8 +277,8 @@ class Table extends Control [
         const some = this.children.find(c => (c as TableRow).isTableRow === true)
         const unit = some != null && some.height > 0 ? some.height : 24
         const top = i * unit
-        if (top < this.scrollY) this.scrollY = top
-        else if (top + unit > this.scrollY + this.height) this.scrollY = top + unit - this.height
+        if (top < this.scrollY) this.scrollTo(top)
+        else if (top + unit > this.scrollY + this.height) this.scrollTo(top + unit - this.height)
         },
 
     onKeyDown(e: KeyEvent) {

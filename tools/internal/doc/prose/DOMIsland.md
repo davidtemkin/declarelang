@@ -15,6 +15,7 @@ and mount foreign content into it. Set it to `""` to mount nothing (a closed isl
 to show or swap the tenant reactively.
 
 ## childName
-The name a hosted child app reports up — host-fed, so a hosting window can title itself by
-what it is showing (the viewer names its window by the open file). `""` until a child is
-up. It is the inbound twin of the child's own `appName`.
+**Read-only.** The name a hosted child app reports up — the host's name-mirror writes it
+per child settle, so a hosting window can title itself by what it is showing (the viewer
+names its window by the open file). `""` until a child is up. It is the inbound twin of
+the child's own `appName`; the child changes it by changing *its* `appName`.

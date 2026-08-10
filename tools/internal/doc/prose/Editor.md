@@ -11,15 +11,18 @@ For a `text <-> :path` field, **when** a valid draft commits into the dataset: `
 real record for autosave, or at a working copy you commit on a Save button for a transaction.
 
 ## error
-The current validation message for the draft, or `""` when valid. A reactive slot — bind a
-label to it (`text = { app.field.error }`) to present the error.
+**Read-only.** The current validation message for the draft, or `""` when valid — the edit
+session recomputes it on every edit, so what you own is `validate()`, not this slot. Bind
+a label to it (`text = { app.field.error }`) to present the error.
 
 ## valid
-Whether the draft passes `validate()`. A reactive slot; a form-wide "can save" is just a
-constraint over several fields' `valid` (no form object needed).
+**Read-only.** Whether the draft passes `validate()` — recomputed by the session per edit,
+like `error`. A form-wide "can save" is just a constraint over several fields' `valid` (no
+form object needed).
 
 ## dirty
-Whether the draft differs from the committed dataset value — for enabling a Save affordance
+**Read-only.** Whether the draft differs from the committed dataset value — the session
+maintains it; `commit()` and `revert()` are what clear it. For enabling a Save affordance
 or an unsaved-changes prompt.
 
 ## commit()
@@ -31,7 +34,8 @@ field that is not `<->`-bound.
 Discard edits — reset the field to the committed dataset value.
 
 ## focused
-True while this editor holds keyboard focus — read-only in practice: assigning it does not
-move platform focus, `Focus.focus(view)` does. It is published so an author who displaces
+**Read-only.** True while this editor holds keyboard focus — the runtime maintains it, and
+assigning it (a compile error) would not have moved platform focus anyway:
+**`Focus.focus(view)` is what moves focus**. It is published so an author who displaces
 the default field chrome (by assigning `fill` or `stroke`) can still draw the focus
 affordance themselves.

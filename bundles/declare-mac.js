@@ -2643,7 +2643,14 @@ var DeclareMac = (() => {
           contentHeight: { kind: "length" }
         },
         prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable", "iconSize"],
-        readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed"],
+        // `scrollX` is a platform fact: the backend mirrors the user's pan into it,
+        // and the program asks for a change with the `scrollToX(x)` verb (or drives
+        // it with a declared Animator — the sanctioned driver door). `scrollY` is
+        // the same shape and WANTS to be here too (platform-authorship.md), but the
+        // perceptual probe test/probe/ignorescroll.declare declares an at-rest
+        // initial offset (`scrollY = 120`), which a readOnly listing would refuse —
+        // it joins when the declared-initial form has a ruled replacement.
+        readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed", "scrollX"],
         // R5: the pointer trio (click = press and release on the same view — the
         // shared router's rule, input.ts) plus the construction-complete lifecycle
         // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its
@@ -2734,6 +2741,11 @@ var DeclareMac = (() => {
           safeBottom: { kind: "number" },
           safeLeft: { kind: "number" },
           safeRight: { kind: "number" },
+          // How much of `hostHeight`'s bottom is the browser's own RETRACTABLE
+          // chrome — the band a collapsed toolbar will re-cover, and where a tap
+          // summons it back instead of reaching the app. Fed by the runtime
+          // (boot.ts): `hostHeight` minus the layout viewport, never negative.
+          underlapBottom: { kind: "number" },
           // The EMBEDDING ENVIRONMENT's parameters — a record the HOST provides and
           // keeps live (an island's slot marker carries `|k=v&k2=v2` after the
           // program path; host-client parses, coerces, and writes the whole record).
@@ -2800,9 +2812,14 @@ var DeclareMac = (() => {
           // t=0. Meaningless at runtime, harmless to set.
           crawlSeeds: { kind: "array" }
         },
-        // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
-        // set is a compile error) — like View's contentWidth/contentHeight.
-        readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight"],
+        // The host-fed environment is read-only to user code (the runtime feeds it;
+        // a set is a compile error) — like View's contentWidth/contentHeight. That
+        // includes the page scroll offset and the free-pointer facts (boot.ts writes
+        // them), and `env` (the HOST's record, delivered live — a program that wrote
+        // it would be arguing with its host). `scrollY` here is App's OWN spec
+        // (view.ts) — a dead write before this listing: App's spec shadows View's
+        // pusher, so assigning it never moved the page anyway.
+        readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText", "env"],
         // `onFollow(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
         // follow() applies it ONCE to every arrival — a linked view, a prose href, a
         // cold URL, back/forward — before routing. Return the reference to proceed
@@ -2916,7 +2933,10 @@ var DeclareMac = (() => {
           // child (the viewer names its window by the file it is showing). Host-fed,
           // like the read-only environment channels; "" until a child is up.
           childName: { kind: "string" }
-        }
+        },
+        // The host mirrors the child's name up (dom-backend name-mirror); a program
+        // write would be overwritten at the child's next settle.
+        readOnly: ["childName"]
       };
       EditorSchema = {
         name: "Editor",
@@ -2934,9 +2954,12 @@ var DeclareMac = (() => {
           // fact the house field-chrome's own focus edge derives from — declared here
           // so an author who DISPLACES that chrome (assigning `fill`/`stroke`, the
           // yielding-derive escape) can still render the focus affordance. Read-only
-          // in practice: writing it does not move platform focus, `Focus.focus(v)` does.
+          // (readOnly below): writing it would not move platform focus, `Focus.focus(v)` does.
           focused: { kind: "boolean" }
-        }
+        },
+        // The edit session's facts (editor.ts maintains them; user code reads and
+        // derives — a write would silently be recomputed on the next keystroke).
+        readOnly: ["error", "valid", "dirty", "focused"]
       };
       TextInputSchema = {
         name: "TextInput",
@@ -3091,6 +3114,9 @@ var DeclareMac = (() => {
           // DataSource's .loaded: true only at an uninterrupted destination.
           settled: { kind: "boolean" }
         },
+        // The animator computes arrival; a program write would be overwritten by the
+        // very next tick. Start/stop are the verbs; `settled` is the fact.
+        readOnly: ["settled"],
         // Bare event names (like View's ["click", …]); handlerName() prefixes `on`,
         // so these answer the onStart / onStop / onRepeat handlers (animation.md §1).
         events: ["start", "stop", "repeat"]
@@ -5438,6 +5464,8 @@ var DeclareMac = (() => {
           for (const d of this.deps)
             d.unlink(this);
           this.deps.length = 0;
+          if (this.wired)
+            this.needsRewire = true;
         }
         /** Resume from suspension and re-evaluate against current state now — the
          *  displaced driver taking its slot back on the animator's completion
@@ -7375,6 +7403,30 @@ var DeclareMac = (() => {
         scrollIntoView(align, smooth, inset) {
           this.surface?.scrollIntoView(align, smooth, inset);
         }
+        /** Ask this scroller to go to offset `y` — a REQUEST, not an assignment
+         *  (platform-authorship.md): the platform clamps it to the real scroll
+         *  range, and a surface that cannot take it yet (a hidden pane) HOLDS it
+         *  and applies it when it can (dom-backend SCROLL_WANT/reassertScroll).
+         *  `Infinity` means the far end — "scroll to the bottom" with no magic
+         *  number (each backend resolves it against the range it alone knows).
+         *  The `scrollY` fact follows: a finite request lands in the model now
+         *  (the same write an assignment made), and the surface's mirror settles
+         *  it to the clamped truth; a non-finite request leaves the fact to the
+         *  mirror alone, so the model never holds `Infinity`. The surface call is
+         *  deliberately unconditional — an equality-gated model write must not
+         *  swallow the request (the boot-time trap applyDeclaredScroll records). */
+        scrollTo(y) {
+          if (Number.isFinite(y))
+            this.scrollY = y;
+          this.surface?.scrollToY?.(y);
+        }
+        /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
+         *  for a `scrolls = x` (or `both`) view. */
+        scrollToX(x) {
+          if (Number.isFinite(x))
+            this.scrollX = x;
+          this.surface?.scrollToX?.(x);
+        }
         /** Promotion (planes.md §1 — order is a slot): re-link this view among its
          *  siblings, tree and surface both. `raise()` moves it to the FRONT (last
          *  child — stacking is source order); `raise(below)` moves it to just BENEATH
@@ -7945,6 +7997,16 @@ var DeclareMac = (() => {
         // reserves it BELOW its buttons: `height = { 56 + app.safeBottom }` with the
         // content anchored to the bar's top. 0 letterboxed or on desktop; live.
         safeBottom: { def: 0 },
+        // How much of the bottom of `hostHeight` is the browser's own RETRACTABLE
+        // chrome. `hostHeight` reaches the true bottom — including the zones a
+        // collapsed toolbar has vacated — which is what a full-bleed background
+        // wants. Something a finger must REACH wants the other number: this is the
+        // band the chrome will re-cover, and the band where a tap summons it back
+        // instead of landing on the app. Floating chrome clears both bands at once
+        // with `Math.max(app.safeBottom, app.underlapBottom)` — 0 while the
+        // browser's bars are shown (nothing is hidden, so nothing is in the way),
+        // their height once they retract. Desktop and the native host: always 0.
+        underlapBottom: { def: 0 },
         // The side safe-area insets — 0 in portrait, the sensor-housing band on one
         // side in landscape (rotation re-feeds all four). Full-width pinned chrome
         // insets both edges: `x = { app.safeLeft }`,
@@ -8260,7 +8322,9 @@ var DeclareMac = (() => {
         }
         /** Fire a carried handler if one is installed (onStart / onStop / onRepeat).
          *  A plain Node dispatch — fireEvent (view.ts) is View-typed, and an
-         *  animator is a Node; an absent handler is a silent no-op. */
+         *  animator is a Node; an absent handler is a silent no-op. PROTECTED
+         *  because Spring integrates its own tick and must announce its own
+         *  arrival through the same door (spring.ts's rest branch). */
         fire(handler) {
           const h = this[handler];
           if (typeof h === "function")
@@ -8836,6 +8900,8 @@ var DeclareMac = (() => {
           if (this.attribute === "" || this.resolveTarget() === null)
             return;
           this.springRunning = true;
+          if (this.settled)
+            setBound(this, "settled", false);
           this.springLastNow = sharedClock.now();
           sharedClock.add(this);
         }
@@ -8954,6 +9020,8 @@ var DeclareMac = (() => {
             this.vel = 0;
             this.springRunning = false;
             sharedClock.remove(this);
+            setBound(this, "settled", true);
+            this.fire("onStop");
             return false;
           }
           drive(target, attr, pos);
@@ -16675,6 +16743,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       const vv = w.visualViewport;
       const vvH = vv != null && vv.scale <= 1.01 ? Math.round(vv.height) : 0;
       app.hostHeight = Math.max(de.clientHeight, vvH);
+      app.underlapBottom = Math.max(0, app.hostHeight - de.clientHeight);
     };
     const scroll = () => {
       app.scrollY = w.scrollY;

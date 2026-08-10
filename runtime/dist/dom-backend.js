@@ -300,6 +300,51 @@ const CARVED = new Map();
 // almost every app, almost all the time — is the untouched fast path.
 const TRANSFORMS = new WeakMap();
 let liveTransforms = 0;
+// The scroll offset each marked scroller was last TOLD to hold — the model's
+// answer, kept because the element's own is not always available to give
+// (see setVisible: a `display: none` scroller reads 0, refuses writes, and
+// restores its private offset on show). Written on every push, including the
+// ones the mirror-echo guard skips, so it is never staler than the model.
+const SCROLL_WANT = new WeakMap();
+let SCROLL_WANT_ANY = false;
+function want(el) {
+    let w = SCROLL_WANT.get(el);
+    if (w === undefined) {
+        w = {};
+        SCROLL_WANT.set(el, w);
+        SCROLL_WANT_ANY = true;
+    }
+    return w;
+}
+/** A held offset, resolved against the range the element has NOW. `Infinity`
+ *  is the honest "far end" request (View.scrollTo) — it must resolve at
+ *  application time, because CSSOM normalizes a non-finite scrollTop to 0
+ *  (the top!), and a hidden element's range reads 0 anyway. Overshooting is
+ *  fine: the browser clamps a finite number itself. */
+function wantY(el, v) { return v === Infinity ? el.scrollHeight : v; }
+function wantX(el, v) { return v === Infinity ? el.scrollWidth : v; }
+/** Put the model's offsets back on a subtree that has just become showable —
+ *  the element itself and every marked scroller inside it (an ancestor's
+ *  reveal is the moment a descendant pane can take a write at last). */
+function reassertScroll(root) {
+    const put = (el) => {
+        const w = SCROLL_WANT.get(el);
+        if (w === undefined)
+            return;
+        if (w.y !== undefined) {
+            const t = wantY(el, w.y);
+            if (Math.abs(el.scrollTop - t) > 0.5)
+                el.scrollTop = t;
+        }
+        if (w.x !== undefined) {
+            const t = wantX(el, w.x);
+            if (Math.abs(el.scrollLeft - t) > 0.5)
+                el.scrollLeft = t;
+        }
+    };
+    put(root);
+    root.querySelectorAll("[data-declare-scroll]").forEach(put);
+}
 /** Is any live declare transform on el's ancestor chain (self included)? */
 function declareTransformed(el) {
     if (liveTransforms === 0)
@@ -827,7 +872,20 @@ class DomSurface {
         onDprChange(() => !this.gone, () => { if (this.drawEl !== null)
             this.rasterize(); });
     }
-    setVisible(v) { this.element.style.display = v ? "" : "none"; }
+    setVisible(v) {
+        this.element.style.display = v ? "" : "none";
+        // A HIDDEN native scroller is not a scroller: `display: none` makes the
+        // browser report `scrollTop` as 0 while it privately keeps the offset,
+        // and refuse writes. So a program that scrolls a hidden pane home — the
+        // ordinary "this panel opens at the top" — got BOTH halves wrong: the
+        // write was swallowed (the guard in scrollToY saw a 0 that wasn't real),
+        // and the browser then restored its own stale offset on show, leaving the
+        // model reading 0 over content scrolled somewhere else. Measured on iOS
+        // 18.2 and Chrome, 2026-08-09. The model is the authority, so re-assert
+        // it here, when the element can finally take it.
+        if (v && SCROLL_WANT_ANY)
+            reassertScroll(this.element);
+    }
     setCursor(c) { this.element.style.cursor = c; }
     // The authored pointerEvents attr OVERRIDES the sink-driven default (setInput
     // flips auto/none by sink presence; an explicit value must survive that).
@@ -1058,16 +1116,48 @@ class DomSurface {
     }
     /** The write half of scrollY/scrollX: drive the element's own native offset.
      *  The browser clamps to the scrollable range itself; the half-pixel guard
-     *  breaks the mirror echo (scroll event → attribute → push → here). */
+     *  breaks the mirror echo (scroll event → attribute → push → here). The
+     *  offset is REMEMBERED whether or not the write lands, because a hidden
+     *  element takes neither the write nor an honest read (setVisible). */
     scrollToY(v) {
         const el = this.element;
-        if (Math.abs(el.scrollTop - v) > 0.5)
-            el.scrollTop = v;
+        want(el).y = v;
+        const t = wantY(el, v); // Infinity resolves against the range NOW (and again on show)
+        // THE PAGE REALIZATION has no scroll box of its own: a top-level App root
+        // wears `overflow: clip` and is SIZED to its content, so the document
+        // scrolls it (applyScrollStyle's root branch) and `scrollTop` on the
+        // element is inert. Drive the page instead — the same surface method, the
+        // regime underneath it differs. (An EMBEDDED root does own a scroll box,
+        // and takes the ordinary path.)
+        const page = this.pageScroller();
+        if (page !== null) {
+            if (Math.abs(page.scrollY - t) > 0.5)
+                page.scrollTo({ top: t, left: page.scrollX });
+            return;
+        }
+        if (Math.abs(el.scrollTop - t) > 0.5)
+            el.scrollTop = t;
     }
     scrollToX(v) {
         const el = this.element;
-        if (Math.abs(el.scrollLeft - v) > 0.5)
-            el.scrollLeft = v;
+        want(el).x = v;
+        const t = wantX(el, v);
+        const page = this.pageScroller();
+        if (page !== null) {
+            if (Math.abs(page.scrollX - t) > 0.5)
+                page.scrollTo({ top: page.scrollY, left: t });
+            return;
+        }
+        if (Math.abs(el.scrollLeft - t) > 0.5)
+            el.scrollLeft = t;
+    }
+    /** The window a TOP-LEVEL app root scrolls through, or null for anything
+     *  that owns a scroll box (a pane, an embedded root). */
+    pageScroller() {
+        const el = this.element;
+        if (el.dataset.declareApp === undefined || this.embeddedRoot)
+            return null;
+        return el.ownerDocument.defaultView;
     }
     scrollIntoView(align = "start", smooth = false, inset = 0) {
         // Native walks the scrollable ancestors (document included) and does the
@@ -1273,8 +1363,13 @@ class DomSurface {
             if (this.scrollListener === undefined) {
                 // Mirror the browser's offset back into the view's reactive `scrollY`:
                 // fires for wheel, touch, momentum, scrollbar-drag, and programmatic
-                // scrollTop alike — the one bridge the runtime needs.
-                this.scrollListener = () => onScroll(el.scrollTop);
+                // scrollTop alike — the one bridge the runtime needs. An UNRENDERED
+                // box is not an authority on its own offset, though: hiding a scroller
+                // makes Chrome zero it and announce that as a scroll, which would
+                // overwrite the model with a number the user never scrolled to (the
+                // reciprocal of the write a hidden pane refuses — see setVisible).
+                this.scrollListener = () => { if (el.clientHeight > 0)
+                    onScroll(el.scrollTop); };
                 el.addEventListener("scroll", this.scrollListener, { passive: true });
             }
         }
@@ -1307,8 +1402,9 @@ class DomSurface {
                 el.addEventListener("wheel", this.wheelXListener, { passive: false });
             }
             if (this.scrollXListener === undefined && onScroll !== undefined) {
-                // scrollX parity with scrollY: mirror the offset into the reactive slot.
-                this.scrollXListener = () => onScroll(el.scrollLeft);
+                // scrollX parity with scrollY, hidden-box guard included.
+                this.scrollXListener = () => { if (el.clientWidth > 0)
+                    onScroll(el.scrollLeft); };
                 el.addEventListener("scroll", this.scrollXListener, { passive: true });
             }
         }

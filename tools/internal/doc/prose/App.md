@@ -33,28 +33,31 @@ Neither a pinch nor the software keyboard ever changes it. Size full-height pane
 `app.hostHeight`.
 
 ## scrollY
-The App's own scroll offset — which **is the page's**, since the App's scroller is the
-page (an interior `scrolls` container exposes its own `scrollY` the same way). Read it for
-scroll-driven chrome — a fading header, a parallax hero: `opacity = { 1 - app.scrollY / 200 }`.
+**Read-only.** The App's own scroll offset — which **is the page's**, since the App's
+scroller is the page (an interior `scrolls` container exposes its own `scrollY` the same
+way, writable there for now). The user's scrolling writes it; read it for scroll-driven
+chrome — a fading header, a parallax hero: `opacity = { 1 - app.scrollY / 200 }`. To land
+the page somewhere, call the target view's `scrollIntoView()` — assigning this slot never
+moved the page anyway (the write was dead), which is why it is now refused.
 
 ## pointerX
-The pointer's horizontal position in **viewport space**, live and continuous — present
-even between elements, unlike a view's `pointerMove` (which needs the pointer over it). For
-cursor effects and hover-at-a-distance: a `Spring` following `app.pointerX` trails the
-cursor.
+**Read-only.** The pointer's horizontal position in **viewport space**, live and
+continuous — present even between elements, unlike a view's `pointerMove` (which needs the
+pointer over it). The runtime feeds it from the free pointer. For cursor effects and
+hover-at-a-distance: a `Spring` following `app.pointerX` trails the cursor.
 
 ## pointerY
-The pointer's vertical position in viewport space — the twin of `pointerX`.
+**Read-only.** The pointer's vertical position in viewport space — the twin of `pointerX`.
 
 ## hovering
-Whether a **hovering** pointer is present — true for mouse/trackpad, **false for touch**.
-Gate hover-only chrome (a cursor dot, a rollover) on it so a phone never shows it, yet an
-iPad trackpad — which reports a mouse pointer — still does.
+**Read-only.** Whether a **hovering** pointer is present — true for mouse/trackpad,
+**false for touch**. Gate hover-only chrome (a cursor dot, a rollover) on it so a phone
+never shows it, yet an iPad trackpad — which reports a mouse pointer — still does.
 
 ## pointerOverText
-True while the pointer is over an editable or selectable text field. Yield a custom cursor
-to the native I-beam by gating on `!app.pointerOverText`, so text stays comfortably
-selectable.
+**Read-only.** True while the pointer is over an editable or selectable text field. Yield
+a custom cursor to the native I-beam by gating on `!app.pointerOverText`, so text stays
+comfortably selectable.
 
 ## dark
 **Read-only.** The OS color-scheme flag — `true` under `prefers-color-scheme: dark`, kept
@@ -146,7 +149,7 @@ App [ location = "home",
 ```
 
 ## pointerDown
-True while a pointer is held anywhere in the app — read-only, alongside `pointerX`/
+**Read-only.** True while a pointer is held anywhere in the app, alongside `pointerX`/
 `pointerY`. It is the app-wide fact, not a per-view one: use `View.pressed` to style the
 thing being pressed, and this to suppress something globally for the duration of a drag.
 
@@ -202,6 +205,28 @@ letterboxed (`edges = safe`) and on any desktop; the device's real number under
 reserves it *below* its buttons: `height = { 56 + app.safeBottom }` with the content
 anchored to the bar's top, so the swipe band is the bar's fill rather than dead space.
 
+## underlapBottom
+**Read-only.** How much of the bottom of `hostHeight` is the browser's own *retractable*
+chrome — `0` while its bars are shown, their height once they retract (and always `0` on
+a desktop or the native host).
+
+`hostHeight` reaches the true bottom, including the zones a collapsed toolbar has
+vacated, which is the number a full-bleed background wants. Anything a finger must
+*reach* wants this one alongside it, because `hostHeight` reads the same whether that
+bottom band is the app's to use or the browser's to take back — and while the bars are
+retracted, a tap down there summons them instead of landing on the app.
+
+So floating chrome clears the device's band and the browser's in one expression:
+
+```declare-fragment
+pill: GlassChip [ ignoreScroll = true,
+    y = { app.hostHeight - 60 - Math.max(app.safeBottom, app.underlapBottom) } ]
+```
+
+which keeps the control at one place on screen through the collapse, instead of the
+constant guess — a fixed 40 of clearance is wasted while the bars are up, and may be too
+little once they aren't.
+
 ## safeLeft
 **Read-only.** The side safe-area insets: `0` in portrait; in landscape the sensor
 housing claims one side and rotation re-feeds all four facts. Full-width pinned chrome
@@ -213,10 +238,11 @@ insets both edges: `x = { app.safeLeft }`,
 and the full-width idiom.
 
 ## env
-Whatever the host passed in, as a record — the clean pass-through for a desktop hosting a
-child app and pushing appearance or configuration down. `{}` when top-level or when the
-host passes nothing, so a read never null-crashes. Read-only: it is the host's channel, and
-`app.dark` is the ready-made one most apps want.
+**Read-only.** Whatever the host passed in, as a record — the clean pass-through for a
+desktop hosting a child app and pushing appearance or configuration down. `{}` when
+top-level or when the host passes nothing, so a read never null-crashes. It is the host's
+channel (the host writes it live through the island's `env` string), and `app.dark` is the
+ready-made one most apps want.
 
 ## appName
 What this app calls itself — the host reflects it into the window or document title. An

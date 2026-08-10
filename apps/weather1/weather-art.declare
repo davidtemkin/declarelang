@@ -1,0 +1,702 @@
+// weather-art — the skies and the drawn vocabulary for apps/weather.
+// Included by weather.declare so the app file stays about the app.
+//
+// Everything here that displays data is DRAWN: a `draw(d: Draw)` method is a
+// tracked computation — it re-runs when the reactive values it reads change,
+// never per frame — and its output is resolution-independent. Two skies are
+// photographs (sky/LICENSES.md records their sources); the other two are
+// drawn gradients. Every condition icon is one function over one vocabulary.
+
+script {
+    // ── the icon vocabulary ────────────────────────────────────────────────
+    // Each glyph is authored in a 100×100 box and scaled by the caller.
+    // Kinds: sun, moon, cloud, partly, cloudmoon, storm, rain, sunset,
+    // sunrise. A `script { }` block is plain TypeScript; these helpers are
+    // callable from any draw() in the file.
+
+    function artCloudPath(d: any, cx: number, cy: number, s: number) {
+        // a cloud is three puffs on a flat-bottomed capsule
+        d.beginPath()
+        d.arc(cx - 22 * s, cy + 6 * s, 14 * s, Math.PI * 0.5, Math.PI * 1.5)
+        d.arc(cx - 8 * s, cy - 8 * s, 16 * s, Math.PI * 0.8, Math.PI * 1.9)
+        d.arc(cx + 12 * s, cy - 4 * s, 13 * s, Math.PI * 1.1, Math.PI * 1.98)
+        d.arc(cx + 22 * s, cy + 6 * s, 14 * s, Math.PI * 1.5, Math.PI * 0.5)
+        d.closePath()
+    }
+
+    function artSun(d: any, cx: number, cy: number, r: number) {
+        d.fillStyle = "#FFD34D"
+        for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2
+            d.save()
+            d.translate(cx, cy)
+            d.rotate(a)
+            d.beginPath()
+            d.roundRect(r * 1.35, -r * 0.14, r * 0.55, r * 0.28, r * 0.14)
+            d.fill()
+            d.restore()
+        }
+        d.beginPath()
+        d.arc(cx, cy, r, 0, Math.PI * 2)
+        d.fill()
+    }
+
+    function artMoon(d: any, cx: number, cy: number, r: number, color: string) {
+        // crescent: a full disc minus an offset disc, via a composite
+        d.save()
+        d.beginPath()
+        d.arc(cx, cy, r, 0, Math.PI * 2)
+        d.fillStyle = color
+        d.fill()
+        d.globalCompositeOperation = "destination-out"
+        d.beginPath()
+        d.arc(cx + r * 0.62, cy - r * 0.3, r * 0.86, 0, Math.PI * 2)
+        d.fill()
+        d.restore()
+    }
+
+    function artIcon(d: any, kind: string, w: number, h: number) {
+        const s = Math.min(w, h) / 100
+        d.save()
+        d.scale(s, s)
+        const cloudColor = "#F4F7FB"
+        if (kind == "sun") artSun(d, 50, 50, 26)
+        else if (kind == "moon") artMoon(d, 50, 50, 30, "#F4F7FB")
+        else if (kind == "cloud") {
+            d.fillStyle = cloudColor
+            artCloudPath(d, 50, 56, 1.15)
+            d.fill()
+        } else if (kind == "partly") {
+            artSun(d, 36, 34, 17)
+            d.fillStyle = cloudColor
+            artCloudPath(d, 56, 64, 1.0)
+            d.fill()
+        } else if (kind == "cloudmoon") {
+            artMoon(d, 36, 34, 18, "#E8ECF4")
+            d.fillStyle = cloudColor
+            artCloudPath(d, 56, 64, 1.0)
+            d.fill()
+        } else if (kind == "storm") {
+            d.fillStyle = cloudColor
+            artCloudPath(d, 50, 46, 1.05)
+            d.fill()
+            d.fillStyle = "#FFD34D"
+            d.beginPath()
+            d.moveTo(52, 56); d.lineTo(40, 78); d.lineTo(50, 78)
+            d.lineTo(44, 96); d.lineTo(64, 70); d.lineTo(53, 70); d.lineTo(60, 56)
+            d.closePath()
+            d.fill()
+        } else if (kind == "rain") {
+            d.fillStyle = cloudColor
+            artCloudPath(d, 50, 44, 1.05)
+            d.fill()
+            d.strokeStyle = "#7FB2F2"
+            d.lineWidth = 6
+            d.lineCap = "round"
+            for (let i = 0; i < 3; i++) {
+                d.beginPath()
+                d.moveTo(34 + i * 16, 66)
+                d.lineTo(28 + i * 16, 86)
+                d.stroke()
+            }
+        } else if (kind == "sunset" || kind == "sunrise") {
+            // a half sun on a horizon, with an arrow up or down
+            d.fillStyle = "#FFD34D"
+            d.beginPath()
+            d.arc(50, 58, 20, Math.PI, 0)
+            d.closePath()
+            d.fill()
+            d.strokeStyle = "#F4F7FB"
+            d.lineWidth = 5
+            d.lineCap = "round"
+            d.beginPath(); d.moveTo(16, 62); d.lineTo(84, 62); d.stroke()
+            d.beginPath()
+            const up = kind == "sunrise"
+            d.moveTo(50, up ? 40 : 22); d.lineTo(50, up ? 22 : 40)
+            d.moveTo(42, up ? 30 : 32); d.lineTo(50, up ? 22 : 40); d.lineTo(58, up ? 30 : 32)
+            d.stroke()
+        }
+        d.restore()
+    }
+    }
+
+
+// One icon = one view; `kind` picks the glyph, and because draw() reads it,
+// the glyph redraws whenever kind changes.
+
+class WIcon extends View [
+    kind: string = "sun",
+    draw(d: Draw) { artIcon(d, this.kind, this.width, this.height) }
+    ]
+
+
+// ── the skies ──────────────────────────────────────────────────────────────
+// Every sky fills its parent and sits behind everything. The photographic
+// skies drift very slowly — ambient motion, driven by a Heartbeat because
+// TIME itself is the input, which no reactive value carries.
+
+class SkyPhoto extends View [ clip = true,
+    source: string = "",
+    driftT: number = 0,
+    beat: Heartbeat [ onFrame(dt: number) { classroot.driftT = classroot.driftT + dt }
+        ],
+    img: Image [
+        source = { classroot.source }, stretches = cover,
+
+        // over-scan by 8% and pan a slow figure across it
+
+        width = { parent.width * 1.08 }, height = { parent.height * 1.08 },
+        x = { -parent.width * 0.04 + Math.sin(classroot.driftT * 0.03) * parent.width * 0.03 },
+        y = { -parent.height * 0.04 + Math.cos(classroot.driftT * 0.021) * parent.height * 0.02 } ]
+    ]
+
+
+class SkySunny extends View [
+    draw(d: Draw) {
+        const w = d.w, h = d.h
+        const g = d.createLinearGradient(0, 0, 0, h)
+        g.addColorStop(0, "#2E7FD0")
+        g.addColorStop(0.45, "#5AA2E0")
+        g.addColorStop(1, "#9CC6E8")
+        d.fillStyle = g
+        d.fillRect(0, 0, w, h)
+        // the sun: a layered radial glow, high right
+        const sx = w * 0.82, sy = h * 0.10
+        const glow = d.createRadialGradient(sx, sy, 0, sx, sy, w * 0.55)
+        glow.addColorStop(0, "rgba(255,244,214,0.95)")
+        glow.addColorStop(0.12, "rgba(255,236,180,0.55)")
+        glow.addColorStop(0.35, "rgba(255,236,180,0.16)")
+        glow.addColorStop(1, "rgba(255,236,180,0)")
+        d.fillStyle = glow
+        d.fillRect(0, 0, w, h)
+        }
+    ]
+
+
+class SkyNight extends View [
+    draw(d: Draw) {
+        const w = d.w, h = d.h
+        const g = d.createLinearGradient(0, 0, 0, h)
+        g.addColorStop(0, "#0A1230")
+        g.addColorStop(0.55, "#16244C")
+        g.addColorStop(1, "#2A3A66")
+        d.fillStyle = g
+        d.fillRect(0, 0, w, h)
+        // a deterministic star field: a seeded walk, so the same stars land
+        // in the same places on every redraw
+        let seed = 7
+        const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 }
+        for (let i = 0; i < 90; i++) {
+            const x = rnd() * w, y = rnd() * h * 0.7, r = 0.4 + rnd() * 1.1
+            d.globalAlpha = 0.25 + rnd() * 0.65
+            d.fillStyle = "#DDE6F5"
+            d.beginPath()
+            d.arc(x, y, r, 0, Math.PI * 2)
+            d.fill()
+        }
+        d.globalAlpha = 1
+        }
+    ]
+
+
+// The one sky slot: bind `cond`, get the right member. Visibility is the
+// switch — all four children exist; only one shows.
+
+class WSky extends View [ clip = true,
+    cond: string = "cloudy",
+    cloudy: SkyPhoto [ width = 100%, height = 100%, source = "sky/cloudy.jpg", visible = { classroot.cond == "cloudy" } ],
+    cumulus: SkyPhoto [ width = 100%, height = 100%, source = "sky/cumulus.jpg", visible = { classroot.cond == "cumulus" } ],
+    sunny: SkySunny [ width = 100%, height = 100%, visible = { classroot.cond == "sunny" } ],
+    night: SkyNight [ width = 100%, height = 100%, visible = { classroot.cond == "night" } ]
+    ]
+
+
+// ── the drawn instruments ──────────────────────────────────────────────────
+
+// The 10-day range bar: a dark track, a warm gradient segment spanning
+// lo..hi within the ten days' min..max, and (optionally) a "now" dot.
+
+class RangeBar extends View [
+    lo: number = 0,
+    hi: number = 1,
+    min: number = 0,
+    max: number = 1,
+    now: number = -1000,
+    draw(d: Draw) {
+        const w = d.w, h = d.h, r = h / 2
+        const span = Math.max(1, this.max - this.min)
+        const x0 = ((this.lo - this.min) / span) * (w - h) + r
+        const x1 = ((this.hi - this.min) / span) * (w - h) + r
+        d.strokeStyle = "rgba(10,20,34,0.35)"
+        d.lineWidth = h
+        d.lineCap = "round"
+        d.beginPath(); d.moveTo(r, h / 2); d.lineTo(w - r, h / 2); d.stroke()
+        const g = d.createLinearGradient(x0, 0, x1, 0)
+        g.addColorStop(0, "#8ECB63")
+        g.addColorStop(0.5, "#F5C445")
+        g.addColorStop(1, "#F0973E")
+        d.strokeStyle = g
+        d.beginPath(); d.moveTo(x0, h / 2); d.lineTo(x1, h / 2); d.stroke()
+        if (this.now > -999) {
+            const xn = ((this.now - this.min) / span) * (w - h) + r
+            d.fillStyle = "#FFFFFF"
+            d.strokeStyle = "rgba(10,20,34,0.45)"
+            d.lineWidth = 2
+            d.beginPath(); d.arc(xn, h / 2, h * 0.62, 0, Math.PI * 2); d.fill(); d.stroke()
+        }
+        }
+    ]
+
+
+// The UV ramp: the full spectrum with a marker at value/11.
+
+class UVRamp extends View [
+    value: number = 0,
+    draw(d: Draw) {
+        const w = d.w, h = d.h, r = h / 2
+        const g = d.createLinearGradient(r, 0, w - r, 0)
+        g.addColorStop(0, "#57BB56")
+        g.addColorStop(0.3, "#F5C445")
+        g.addColorStop(0.55, "#F0973E")
+        g.addColorStop(0.78, "#E35D4F")
+        g.addColorStop(1, "#B569D8")
+        d.strokeStyle = g
+        d.lineWidth = h
+        d.lineCap = "round"
+        d.beginPath(); d.moveTo(r, h / 2); d.lineTo(w - r, h / 2); d.stroke()
+        const xn = r + Math.min(1, this.value / 11) * (w - h)
+        d.fillStyle = "#FFFFFF"
+        d.beginPath(); d.arc(xn, h / 2, h * 0.75, 0, Math.PI * 2); d.fill()
+        }
+    ]
+
+
+// The air-quality hairline: the same spectrum, thinner, dot at value/300.
+
+class AQILine extends View [
+    value: number = 0,
+    draw(d: Draw) {
+        const w = d.w, h = d.h, mid = h / 2
+        const g = d.createLinearGradient(0, 0, w, 0)
+        g.addColorStop(0, "#57BB56")
+        g.addColorStop(0.25, "#F5C445")
+        g.addColorStop(0.5, "#F0973E")
+        g.addColorStop(0.75, "#E35D4F")
+        g.addColorStop(1, "#8E3FA8")
+        d.strokeStyle = g
+        d.lineWidth = 3
+        d.lineCap = "round"
+        d.beginPath(); d.moveTo(2, mid); d.lineTo(w - 2, mid); d.stroke()
+        const xn = 2 + Math.min(1, this.value / 300) * (w - 4)
+        d.fillStyle = "#FFFFFF"
+        d.beginPath(); d.arc(xn, mid, 4, 0, Math.PI * 2); d.fill()
+        }
+    ]
+
+
+// The sunset curve: a sine arc over a horizon line, the sun-dot riding at
+// `frac` (0 = sunrise, 1 = sunset).
+
+class SunCurve extends View [
+    frac: number = 0.5,
+    draw(d: Draw) {
+        const w = d.w, h = d.h
+        const mid = h * 0.74
+        const amp = h * 0.60
+        d.strokeStyle = "rgba(244,247,251,0.85)"
+        d.lineWidth = 2
+        d.beginPath()
+        for (let i = 0; i <= 60; i++) {
+            const t = i / 60
+            const x = t * w
+            const y = mid - Math.sin((t - 0.08) / 0.84 * Math.PI) * amp
+            if (i == 0) d.moveTo(x, y); else d.lineTo(x, y)
+        }
+        d.stroke()
+        d.strokeStyle = "rgba(244,247,251,0.45)"
+        d.lineWidth = 1
+        d.beginPath(); d.moveTo(0, mid); d.lineTo(w, mid); d.stroke()
+        const t = 0.08 + this.frac * 0.84
+        const x = t * w, y = mid - Math.sin((t - 0.08) / 0.84 * Math.PI) * amp
+        const glow = d.createRadialGradient(x, y, 0, x, y, 14)
+        glow.addColorStop(0, "rgba(255,255,255,0.9)")
+        glow.addColorStop(1, "rgba(255,255,255,0)")
+        d.fillStyle = glow
+        d.beginPath(); d.arc(x, y, 14, 0, Math.PI * 2); d.fill()
+        d.fillStyle = "#FFFFFF"
+        d.beginPath(); d.arc(x, y, 5, 0, Math.PI * 2); d.fill()
+        }
+    ]
+
+
+// The wind dial: a ring of ticks, cardinal letters, and a needle at `deg`
+// (meteorological: the direction the wind comes FROM).
+
+class WindDial extends View [
+    deg: number = 0,
+    draw(d: Draw) {
+        const w = d.w, h = d.h
+        const cx = w / 2, cy = h / 2
+        const R = Math.min(w, h) / 2 - 4
+        d.strokeStyle = "rgba(244,247,251,0.5)"
+        d.lineCap = "round"
+        for (let i = 0; i < 72; i++) {
+            const a = (i / 72) * Math.PI * 2
+            const long = i % 18 == 0
+            d.lineWidth = long ? 2 : 1
+            d.globalAlpha = long ? 0.9 : 0.45
+            d.beginPath()
+            d.moveTo(cx + Math.cos(a) * (R - (long ? 7 : 4)), cy + Math.sin(a) * (R - (long ? 7 : 4)))
+            d.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R)
+            d.stroke()
+        }
+        d.globalAlpha = 1
+        const a = (this.deg - 90) * Math.PI / 180
+        d.strokeStyle = "#FFFFFF"
+        d.lineWidth = 2.5
+        // the needle leaves the middle clear: the readout lives there
+        const hole = 22
+        d.beginPath()
+        d.moveTo(cx + Math.cos(a) * hole, cy + Math.sin(a) * hole)
+        d.lineTo(cx + Math.cos(a) * (R - 10), cy + Math.sin(a) * (R - 10))
+        d.stroke()
+        d.beginPath()
+        d.moveTo(cx - Math.cos(a) * hole, cy - Math.sin(a) * hole)
+        d.lineTo(cx - Math.cos(a) * (R - 16), cy - Math.sin(a) * (R - 16))
+        d.stroke()
+        // arrowhead
+        d.save()
+        d.translate(cx + Math.cos(a) * (R - 10), cy + Math.sin(a) * (R - 10))
+        d.rotate(a)
+        d.fillStyle = "#FFFFFF"
+        d.beginPath(); d.moveTo(7, 0); d.lineTo(-4, -5); d.lineTo(-4, 5); d.closePath(); d.fill()
+        d.restore()
+        // tail dot
+        d.fillStyle = "#FFFFFF"
+        d.beginPath()
+        d.arc(cx - Math.cos(a) * (R - 14), cy - Math.sin(a) * (R - 14), 4, 0, Math.PI * 2)
+        d.fill()
+        // the cardinals ride the ring itself, drawn — so no overlay text can
+        // ever collide with the readout in the middle
+        d.fillStyle = "rgba(244,247,251,0.7)"
+        d.font = "600 11px system-ui, -apple-system, sans-serif"
+        d.textAlign = "center"
+        d.textBaseline = "middle"
+        const rl = R - 15
+        d.fillText("N", cx, cy - rl)
+        d.fillText("S", cx, cy + rl)
+        d.fillText("W", cx - rl, cy)
+        d.fillText("E", cx + rl, cy)
+        }
+    ]
+
+
+// The pressure gauge: a 240° tick arc, a needle at `frac` 0..1, and the
+// equals-mark above the readout.
+
+class PressureGauge extends View [
+    frac: number = 0.5,
+    draw(d: Draw) {
+        const w = d.w, h = d.h
+        const cx = w / 2, cy = h * 0.56
+        const R = Math.min(w, h) / 2 - 4
+        const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25
+        d.strokeStyle = "rgba(244,247,251,0.5)"
+        d.lineCap = "round"
+        for (let i = 0; i <= 48; i++) {
+            const a = a0 + (i / 48) * (a1 - a0)
+            const long = i % 8 == 0
+            d.lineWidth = long ? 2 : 1
+            d.globalAlpha = long ? 0.9 : 0.45
+            d.beginPath()
+            d.moveTo(cx + Math.cos(a) * (R - (long ? 8 : 5)), cy + Math.sin(a) * (R - (long ? 8 : 5)))
+            d.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R)
+            d.stroke()
+        }
+        d.globalAlpha = 1
+        const a = a0 + this.frac * (a1 - a0)
+        d.strokeStyle = "#FFFFFF"
+        d.lineWidth = 3
+        d.beginPath()
+        d.moveTo(cx + Math.cos(a) * (R - 18), cy + Math.sin(a) * (R - 18))
+        d.lineTo(cx + Math.cos(a) * (R - 2), cy + Math.sin(a) * (R - 2))
+        d.stroke()
+        d.strokeStyle = "rgba(244,247,251,0.9)"
+        d.lineWidth = 2
+        d.beginPath(); d.moveTo(cx - 7, cy - 26); d.lineTo(cx + 7, cy - 26); d.stroke()
+        d.beginPath(); d.moveTo(cx - 7, cy - 20); d.lineTo(cx + 7, cy - 20); d.stroke()
+        }
+    ]
+
+
+// The moon: a photographic disc (art/LICENSES.md) with the phase shadow
+// DRAWN over it. The photograph carries the maria and craters no draw() was
+// going to earn; the terminator must move with the data, so that half is
+// drawn.
+
+class MoonDisc extends View [
+    illum: number = 0.22,
+    waning: boolean = true,
+    disc: Image [ width = 100%, height = 100%, source = "art/moon.png", stretches = both ],
+    shade: MoonShadow [ width = 100%, height = 100%,
+        illum = { classroot.illum }, waning = { classroot.waning } ]
+    ]
+
+
+// The terminator, built by composition rather than one clever path: clip to
+// the disc, fill it dark, then CARVE OUT the lit part — the lit semicircle
+// always, plus (gibbous) or minus (crescent) an ellipse whose width is how
+// far the terminator has swung. Correct at every phase, and it cannot fringe
+// past the limb because the clip IS the limb.
+//   `illum` is the lit fraction 0..1; `waning` puts the lit limb on the left.
+
+class MoonShadow extends View [ opacity = 0.88,
+    illum: number = 0.22,
+    waning: boolean = true,
+    draw(d: Draw) {
+        const w = d.w, h = d.h
+        const R = Math.min(w, h) / 2
+        if (R <= 0) return
+        const cx = w / 2, cy = h / 2
+        const k = this.illum * 2 - 1          // -1 new … +1 full
+        const lit0 = this.waning ? Math.PI / 2 : -Math.PI / 2
+        const lit1 = this.waning ? Math.PI * 1.5 : Math.PI / 2
+
+        d.save()
+        d.beginPath()
+        d.arc(cx, cy, R, 0, Math.PI * 2)
+        d.clip()
+
+        d.fillStyle = "#050912"
+        d.fillRect(0, 0, w, h)
+
+        d.globalCompositeOperation = "destination-out"
+        d.fillStyle = "#000000"
+        d.beginPath()
+        d.arc(cx, cy, R, lit0, lit1)
+        d.closePath()
+        d.fill()
+
+        if (k > 0) {                          // gibbous — the lit side grows
+            d.beginPath()
+            d.ellipse(cx, cy, R * k, R, 0, 0, Math.PI * 2)
+            d.fill()
+        }
+        d.restore()
+
+        if (k < 0) {                          // crescent — the dark side eats in
+            d.save()
+            d.beginPath()
+            d.arc(cx, cy, R, 0, Math.PI * 2)
+            d.clip()
+            d.fillStyle = "#050912"
+            d.beginPath()
+            d.ellipse(cx, cy, R * (-k), R, 0, 0, Math.PI * 2)
+            d.fill()
+            d.restore()
+        }
+        }
+    ]
+
+
+// ── the precipitation map ──────────────────────────────────────────────────
+// A bundled public-domain base map (maps/LICENSES.md) with the radar DRAWN
+// over it: blobs placed and sized from the city's own precipitation figure,
+// so a dry city has a clean map and a stormy one is covered. Deterministic —
+// the same city always paints the same weather, because the seed is its own
+// data.
+
+class RadarBlobs extends View [
+    amount: number = 0,
+    seed: number = 7,
+    draw(d: Draw) {
+        const w = d.w, h = d.h
+        if (this.amount <= 0) return
+        let s = Math.max(1, Math.floor(this.seed))
+        const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 }
+        const n = Math.min(26, Math.round(6 + this.amount * 90))
+        for (let i = 0; i < n; i++) {
+            const x = w * (0.18 + rnd() * 0.64), y = h * (0.2 + rnd() * 0.6)
+            const r = (6 + rnd() * 26) * (0.5 + this.amount * 3)
+            const heat = rnd()
+            const g = d.createRadialGradient(x, y, 0, x, y, r)
+            if (heat > 0.86) { g.addColorStop(0, "rgba(240,90,200,0.85)"); g.addColorStop(0.5, "rgba(150,80,240,0.55)") }
+            else if (heat > 0.6) { g.addColorStop(0, "rgba(80,140,250,0.8)"); g.addColorStop(0.5, "rgba(80,170,250,0.45)") }
+            else { g.addColorStop(0, "rgba(110,200,250,0.6)"); g.addColorStop(0.5, "rgba(120,210,250,0.3)") }
+            g.addColorStop(1, "rgba(120,210,250,0)")
+            d.fillStyle = g
+            d.beginPath()
+            d.arc(x, y, r, 0, Math.PI * 2)
+            d.fill()
+        }
+        }
+    ]
+
+
+// The temperature bubble pinned on the map — drawn, so it sits in map space
+// rather than being another laid-out view.
+
+class MapPin extends View [
+    label: string = "",
+    draw(d: Draw) {
+        const w = d.w, h = d.h
+        d.fillStyle = "rgba(30,110,220,0.95)"
+        d.beginPath()
+        d.arc(w / 2, h / 2, 17, 0, Math.PI * 2)
+        d.fill()
+        d.fillStyle = "#FFFFFF"
+        d.font = "600 15px system-ui, -apple-system, sans-serif"
+        d.textAlign = "center"
+        d.textBaseline = "middle"
+        d.fillText(this.label, w / 2, h / 2)
+        }
+    ]
+
+
+// ── MasonryLayout ──────────────────────────────────────────────────────────
+// A column-packing grid: every card lands in the column run where it can sit
+// HIGHEST, so a short card never leaves a hole under a tall neighbour the
+// way a row flow does.
+//
+// A layout in Declare is one pure `place()`: read the children, return one
+// box per child (by index), and the kernel wires the standing constraints
+// that apply them. This one reads two attributes the cards declare about
+// themselves — `span` (columns occupied) and `baseH` (natural height) — and
+// makes one promise in return: it never reads a height it writes. Packing
+// from DECLARED heights is what keeps the layout a straight computation
+// instead of a feedback loop.
+
+class MasonryLayout extends Layout [
+    cols: number = 2,
+    gap: number = 12,
+
+    // Level the foot of the grid: the card that closes each column grows to
+    // the deepest column's bottom, so the whole set ends on one line instead
+    // of a ragged edge. Only a card that declares `baseH` participates, and
+    // a card can refuse with `grows = false`.
+
+    evenBottom: boolean = true,
+
+    place() {
+        const w = this.view == null ? 0 : this.view.width
+        const n = Math.max(1, Math.round(this.cols))
+        const g = this.gap
+        const colW = (w - g * (n - 1)) / n
+        const kids = this.laid()
+        const out = [] as any
+        for (let i = 0; i < kids.length; i++) out.push({ x: 0, y: 0 })
+
+        // a card with `baseH` is packed AND sized from it; one without keeps
+        // its own height and is never stretched
+        const naturalH = (c) => {
+            const b = (c as any).baseH
+            return b == null || b <= 0 ? c.height : b
+        }
+
+        // how many columns a card takes: its own declaration, or what its
+        // width implies for a child that never declared one
+        const spanOf = (c) => {
+            const declared = (c as any).span
+            const k = declared == null || declared <= 0
+                ? Math.round((c.width + g) / (colW + g))
+                : declared
+            return Math.max(1, Math.min(n, Math.round(k)))
+        }
+
+        const bottom = [] as number[]           // each column's packed depth
+        for (let i = 0; i < n; i++) bottom.push(0)
+        const startCol = [] as number[]         // where each card landed…
+        const spanned = [] as number[]          // …and how wide
+        const growTo = [] as number[]           // stretched height, 0 = natural
+        for (let i = 0; i < kids.length; i++) { startCol.push(0); spanned.push(0); growTo.push(0) }
+
+        // Levelling works in BANDS. A child spanning every column (the
+        // hourly strip, the footer) evens the board by itself, so raggedness
+        // only exists between full-span children: when one is placed, the
+        // band above it closes, and the card ending each of the band's
+        // columns stretches to the closer's seat. A card stretches only if
+        // it ends EVERY column it occupies — one with a later neighbour
+        // below it in some column must not grow into it.
+        const bandLast = [] as number[]
+        for (let k = 0; k < n; k++) bandLast.push(-1)
+        const closeBand = (bandY) => {
+            for (let k = 0; k < n; k++) {
+                const i = bandLast[k]
+                if (i < 0) continue
+                const c = kids[i]
+                const b = (c as any).baseH
+                let ok = this.evenBottom && b != null && b > 0 && (c as any).grows !== false
+                for (let k2 = startCol[i]; k2 < startCol[i] + spanned[i]; k2++) if (bandLast[k2] !== i) ok = false
+                if (ok) growTo[i] = Math.max(b, bandY - g - out[i].y)
+            }
+            for (let k = 0; k < n; k++) bandLast[k] = -1
+        }
+
+        const unplaced = [] as number[]
+        for (let i = 0; i < kids.length; i++) if (kids[i].visible) unplaced.push(i)
+
+        // Fill the LOWEST gap on the board, every time: ask every waiting
+        // card where it could sit highest, and seat the one whose best seat
+        // is highest of all (ties to the earliest, so reading order survives
+        // where it can). Asking every card is what makes a hole impossible —
+        // a gap is only left when NOTHING fits it.
+        while (unplaced.length > 0) {
+            let bestJ = -1
+            let bestCol = 0
+            let bestY = Infinity
+            for (let j = 0; j < unplaced.length; j++) {
+                const c = kids[unplaced[j]]
+                const span = spanOf(c)
+                for (let sCol = 0; sCol + span <= n; sCol++) {
+                    let y = 0
+                    for (let k = sCol; k < sCol + span; k++) y = Math.max(y, bottom[k])
+                    if (y < bestY - 0.5) { bestY = y; bestJ = j; bestCol = sCol }
+                }
+            }
+            if (bestJ < 0) { bestJ = 0; bestCol = 0; bestY = bottom[0] }
+            const i = unplaced[bestJ]
+            unplaced.splice(bestJ, 1)
+            const c = kids[i]
+            const span = Math.min(spanOf(c), n - bestCol)
+            if (span >= n) closeBand(bestY)
+            out[i] = { x: bestCol * (colW + g), y: bestY }
+            startCol[i] = bestCol
+            spanned[i] = span
+            const nextY = bestY + naturalH(c) + g
+            for (let k = bestCol; k < bestCol + span; k++) { bottom[k] = nextY; if (span < n) bandLast[k] = i }
+        }
+        let deepest = 0
+        for (let k = 0; k < n; k++) deepest = Math.max(deepest, bottom[k])
+        closeBand(deepest)
+
+        // size the baseH cards — every one gets its box `h`, stretched or
+        // natural, so the set of managed slots never changes shape
+        for (let i = 0; i < kids.length; i++) {
+            const c = kids[i]
+            if (!c.visible) continue
+            const b = (c as any).baseH
+            if (b == null || b <= 0) continue
+            out[i] = { x: out[i].x, y: out[i].y, h: growTo[i] > 0 ? growTo[i] : b }
+        }
+        return out
+        }
+    ]
+
+
+// the city-list glyph — three rows of a list, drawn
+
+class ListIcon extends View [
+    draw(d: Draw) {
+        const w = d.w, h = d.h
+        d.strokeStyle = "#FFFFFF"
+        d.lineCap = "round"
+        d.lineWidth = 2
+        for (let i = 0; i < 3; i++) {
+            const y = h / 2 - 6 + i * 6
+            d.beginPath()
+            d.moveTo(w / 2 - 8, y)
+            d.lineTo(w / 2 + 8, y)
+            d.stroke()
+        }
+        }
+    ]

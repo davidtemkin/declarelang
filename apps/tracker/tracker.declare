@@ -702,12 +702,16 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     // to the old one — the list starts it at the top. The runtime pins the
     // viewport to its anchor row across DATA changes (so an edit never
     // yanks the reader); a rearrangement is the one case where that
-    // stability is wrong, so the reset is written twice: once now, and
-    // once after the new projection has settled under the anchor logic.
+    // stability is wrong, so the request is made twice: once now, and once
+    // after the new projection has settled — the anchor compensation is a
+    // sanctioned writer that runs AFTER the first request and re-scrolls to
+    // follow the anchor row, so a single request cannot survive it. (The
+    // platform's held-request hold covers a surface that cannot take a
+    // scroll yet, not one a later writer moves — this is the latter.)
 
     rearranged() {
-        this.list.scrollY = 0
-        setTimeout(() => { this.list.scrollY = 0 }, 0)
+        this.list.scrollTo(0)
+        setTimeout(() => { this.list.scrollTo(0) }, 0)
         },
 
     // Is the keyboard currently owned by a text field? A bare-character
@@ -972,8 +976,8 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         const bottom = top + (inst as any).targetH
         const viewTop = this.list.scrollY
         const viewBottom = viewTop + this.list.height
-        if (bottom > viewBottom) this.list.scrollY = Math.min(top - 8, bottom - this.list.height + 8)
-        else if (top < viewTop) this.list.scrollY = top - 8
+        if (bottom > viewBottom) this.list.scrollTo(Math.min(top - 8, bottom - this.list.height + 8))
+        else if (top < viewTop) this.list.scrollTo(top - 8)
         },
 
     draftDirty: boolean = { app.draftRev >= 0 && app.editing && app.draftDiffers(app.draftRev) },

@@ -110,8 +110,13 @@ chains to the page, and sibling panes overscroll independently. On canvas the ru
 manages the offset (clip+translate+wheel), as a single element must.
 
 ## scrollY
-The current vertical scroll offset in pixels of a `scrolls` view — **read it** for
-scroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.
+The current vertical scroll offset in pixels of a `scrolls` view — the **platform writes
+it** as the user scrolls; **read it** for scroll-driven effects (a fading header, reveals,
+parallax): `opacity = { 1 - app.scrollY / 200 }`. To move the pane, **call `scrollTo(y)`**
+rather than assigning: the verb is a request the platform clamps to the real range and
+holds for a pane that cannot take it yet, where an assignment can be silently swallowed
+(an equal-looking value, a hidden pane's lying offset). To reveal a particular view,
+`scrollIntoView()` on the target already does the walk.
 
 ## layout
 How this view arranges its children — a reactive `Layout` attribute, not a child and
@@ -372,6 +377,22 @@ aligning its top to the viewport top — the imperative partner of the declarati
 pattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll
 ancestor's `scrollOffset`). A no-op if nothing above it scrolls.
 
+## scrollTo()
+Ask **this scroller** to go to offset `y` — a **request, not an assignment**: the platform
+clamps it to the real scroll range, and a pane that cannot take it yet (hidden, or not yet
+laid out) holds the request and applies it the moment it can — which is why
+"`scrollTo(0)` before showing a pane" simply works where an assignment was lost to the
+hidden pane's lying offset. **`scrollTo(Infinity)` means the far end** — "scroll to the
+bottom" with no magic number; the clamp resolves it against the range the pane has when it
+can finally take it. The `scrollY` fact follows the platform's answer. Call it on the
+`scrolls` view itself; to reveal a particular *view*, `scrollIntoView()` on the target
+finds the scroller for you. A no-op before the view is attached.
+
+## scrollToX()
+The horizontal twin of `scrollTo()` — the same clamped, held request against `scrollX`,
+for a `scrolls = x` (or `both`) view. On the canvas backend horizontal scroll is not yet
+realized, so there it is a no-op (as `scrollX` itself is).
+
 ## rootOrigin()
 This view's origin in **root space** (the root's content coordinates — the same space
 `viewAt` takes and drag events carry), computed by the one scroll-aware walk the pointer
@@ -430,9 +451,12 @@ input — hit-testing and focus are unchanged. A token string in a `{ }` body, l
 `scrolls` — so a blend can be state: `blend = { active ? "multiply" : "normal" }`.
 
 ## scrollX
-**Read it, don't set it** in practice: the live horizontal offset of a `scrolls = x`
-(or `both`) view, mirrored from the native scroll — `scrollY`'s twin. Use it for a
-paging strip's position, scroll-driven effects, or restoring a strip's place.
+**Read-only.** The live horizontal offset of a `scrolls = x` (or `both`) view, mirrored
+from the native scroll — `scrollY`'s twin, with the enforcement `scrollY` still lacks:
+the platform owns it, and assigning it is a compile error. **`scrollToX(x)` is the verb**
+— a clamped, held request. A declared `Animator [ attribute = scrollX ]` may still drive
+it (the sanctioned driver door — the desktop's Files strip animates a fresh column into
+view). Read it for a paging strip's position or scroll-driven effects.
 
 ## selectable
 **Prevailing.** `selectable = true` on a container makes all its `Text` — including a
@@ -538,8 +562,12 @@ hot = { app.dropTarget == this }
 The answer is the *deepest* view; when the dragger needs "the card, not its
 label," walk `.parent` up to the view carrying the marker attribute it declared.
 Coordinates are root-space — exactly what `onPointerMove`/`onPointerUp` carry.
-The full pattern is the guide's Interaction chapter ("Finding what is under the
-pointer").
+Because the walk is the honest one, the **drag ghost counts**: give it — and any
+container it sits in — `pointerEvents = "none"`, or it is the answer. A sizeless
+container around a pointer-following ghost auto-extends *with* the pointer, so it
+becomes an invisible box over the very targets being dragged onto;
+`explainHit(x, y)` names what really takes the press. The full pattern is the
+guide's Interaction chapter ("Finding what is under the pointer").
 
 ## containsPoint()
 One view's own membership test — `v.containsPoint(x, y)` asks whether the

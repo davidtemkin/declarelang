@@ -624,6 +624,34 @@ await test("dom: overscroll containment is PER-AXIS — the undeclared axis chai
   assert.equal(r.x, "auto", "the undeclared axis chains to whatever encloses it");
 });
 
+await test("dom: a hidden pane's scroll offset is the MODEL's, re-asserted when it can take it", async () => {
+  // A `display: none` scroller is not a scroller: the browser refuses the
+  // write, reports 0 for the read, and (WebKit) restores its own private
+  // offset on show. So "open this panel at the top" — a write while the pane
+  // is still hidden — lost both ways: swallowed going in, overwritten coming
+  // back. Measured on iOS 18.2 with the weather app's city page (the model
+  // read 0 over content scrolled 1553px) and headlessly here in the other
+  // direction, Chrome dropping the offset instead of restoring it. Either
+  // way the rule is the same: the model is the authority, and the surface
+  // takes it at the first moment it can.
+  const r = await page.evaluate(async () => {
+    const settle = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    const pane = window.__app.zoomer.pane;
+    const el = document.querySelector("[data-declare-scroll]");
+    pane.visible = false;
+    await settle();
+    pane.scrollY = 200;              // the write a hidden pane cannot take
+    await settle();
+    const whileHidden = Math.round(el.scrollTop);
+    pane.visible = true;
+    await settle();
+    return { whileHidden, dom: Math.round(el.scrollTop), model: Math.round(pane.scrollY) };
+  });
+  assert.equal(r.whileHidden, 0, "a hidden scroller cannot hold an offset at all — the premise");
+  assert.equal(r.model, 200, "the model holds what the program set while the pane was hidden");
+  assert.equal(r.dom, 200, "and the surface carries it once the pane is showable again");
+});
+
 await test("dom: onHold + drag handlers = the HOLD-GATED claim — nothing at touchdown", async () => {
   // The pair claims the finger at the hold, so the element carries NO
   // touch-action of its own (the quick swipe stays the browser's pan).
@@ -813,6 +841,26 @@ await test("dom: the App's content scrolls as the PAGE — the document owns the
   assert.equal(r.rootOv, "clip", "containment is uniform overflow:clip — no per-axis pair");
   assert.equal(r.docW, 800, "the cross axis is out of frame — the parked child adds no width");
   assert.equal(r.rootTA, "manipulation", "a scrollable page keeps pan with the user");
+});
+
+await test("dom: scrollTo on the App drives the PAGE — the root has no scroll box of its own", async () => {
+  // The page realization sizes the root element to its content and wears
+  // `overflow: clip`, so the DOCUMENT scrolls it and `scrollTop` on the element
+  // is inert — `app.scrollY = …` was a dead write for exactly this reason. The
+  // verb has to reach the regime that actually scrolls.
+  const r = await page.evaluate(async () => {
+    window.scrollTo({ top: 0 });
+    window.__app.scrollTo(500);
+    await new Promise((res) => setTimeout(res, 200));
+    const mid = Math.round(window.scrollY);
+    window.__app.scrollTo(Infinity);
+    await new Promise((res) => setTimeout(res, 200));
+    const end = Math.round(window.scrollY);
+    window.scrollTo({ top: 0 });
+    return { mid, end, max: document.documentElement.scrollHeight - window.innerHeight };
+  });
+  assert.equal(r.mid, 500, "the page went where the verb asked");
+  assert.ok(r.end >= r.max - 1, `scrollTo(Infinity) is the far end (got ${r.end} of ${r.max})`);
 });
 
 await test("dom: ignoreScroll chrome rides the window — fixed through a real page scroll, no extent added", async () => {

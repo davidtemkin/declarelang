@@ -273,7 +273,14 @@ const ViewSchema = {
         contentHeight: { kind: "length" },
     },
     prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable", "iconSize"],
-    readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed"],
+    // `scrollX` is a platform fact: the backend mirrors the user's pan into it,
+    // and the program asks for a change with the `scrollToX(x)` verb (or drives
+    // it with a declared Animator — the sanctioned driver door). `scrollY` is
+    // the same shape and WANTS to be here too (platform-authorship.md), but the
+    // perceptual probe test/probe/ignorescroll.declare declares an at-rest
+    // initial offset (`scrollY = 120`), which a readOnly listing would refuse —
+    // it joins when the declared-initial form has a ruled replacement.
+    readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed", "scrollX"],
     // R5: the pointer trio (click = press and release on the same view — the
     // shared router's rule, input.ts) plus the construction-complete lifecycle
     // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its
@@ -351,6 +358,11 @@ const AppSchema = {
         safeBottom: { kind: "number" },
         safeLeft: { kind: "number" },
         safeRight: { kind: "number" },
+        // How much of `hostHeight`'s bottom is the browser's own RETRACTABLE
+        // chrome — the band a collapsed toolbar will re-cover, and where a tap
+        // summons it back instead of reaching the app. Fed by the runtime
+        // (boot.ts): `hostHeight` minus the layout viewport, never negative.
+        underlapBottom: { kind: "number" },
         // The EMBEDDING ENVIRONMENT's parameters — a record the HOST provides and
         // keeps live (an island's slot marker carries `|k=v&k2=v2` after the
         // program path; host-client parses, coerces, and writes the whole record).
@@ -417,9 +429,14 @@ const AppSchema = {
         // t=0. Meaningless at runtime, harmless to set.
         crawlSeeds: { kind: "array" },
     },
-    // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
-    // set is a compile error) — like View's contentWidth/contentHeight.
-    readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight"],
+    // The host-fed environment is read-only to user code (the runtime feeds it;
+    // a set is a compile error) — like View's contentWidth/contentHeight. That
+    // includes the page scroll offset and the free-pointer facts (boot.ts writes
+    // them), and `env` (the HOST's record, delivered live — a program that wrote
+    // it would be arguing with its host). `scrollY` here is App's OWN spec
+    // (view.ts) — a dead write before this listing: App's spec shadows View's
+    // pusher, so assigning it never moved the page anyway.
+    readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText", "env"],
     // `onFollow(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
     // follow() applies it ONCE to every arrival — a linked view, a prose href, a
     // cold URL, back/forward — before routing. Return the reference to proceed
@@ -566,6 +583,9 @@ const DOMIslandSchema = {
         // like the read-only environment channels; "" until a child is up.
         childName: { kind: "string" },
     },
+    // The host mirrors the child's name up (dom-backend name-mirror); a program
+    // write would be overwritten at the child's next settle.
+    readOnly: ["childName"],
 };
 // TextInput (Layer 3, docs/system-design/input.md): an editable text field — the first
 // EDITOR (language §9, the leaf-input exception). `text` is the model/draft slot,
@@ -589,9 +609,12 @@ const EditorSchema = {
         // fact the house field-chrome's own focus edge derives from — declared here
         // so an author who DISPLACES that chrome (assigning `fill`/`stroke`, the
         // yielding-derive escape) can still render the focus affordance. Read-only
-        // in practice: writing it does not move platform focus, `Focus.focus(v)` does.
+        // (readOnly below): writing it would not move platform focus, `Focus.focus(v)` does.
         focused: { kind: "boolean" },
     },
+    // The edit session's facts (editor.ts maintains them; user code reads and
+    // derives — a write would silently be recomputed on the next keystroke).
+    readOnly: ["error", "valid", "dirty", "focused"],
 };
 const TextInputSchema = {
     name: "TextInput",
@@ -804,6 +827,9 @@ const AnimatorSchema = {
         // DataSource's .loaded: true only at an uninterrupted destination.
         settled: { kind: "boolean" },
     },
+    // The animator computes arrival; a program write would be overwritten by the
+    // very next tick. Start/stop are the verbs; `settled` is the fact.
+    readOnly: ["settled"],
     // Bare event names (like View's ["click", …]); handlerName() prefixes `on`,
     // so these answer the onStart / onStop / onRepeat handlers (animation.md §1).
     events: ["start", "stop", "repeat"],

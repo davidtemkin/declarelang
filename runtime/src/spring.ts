@@ -18,7 +18,7 @@
 import { Animator } from "./animator.js";
 import type { Node } from "./node.js";
 import { sharedClock } from "./animate.js";
-import { defineAttributes, asRuntimeWrite } from "./attributes.js";
+import { defineAttributes, asRuntimeWrite, setBound } from "./attributes.js";
 
 /** A spring's write is a DRIVEN ASSIGNMENT, not a bound push: it must
  *  DISPLACE whatever owns the slot (§5's rule — assignment wins), or an
@@ -69,6 +69,9 @@ export class Spring extends Animator {
     if (this.springRunning) return;
     if (this.attribute === "" || this.resolveTarget() === null) return;
     this.springRunning = true;
+    // leaving rest: arrival is no longer true (Animator's start() does the
+    // same for the timed half)
+    if (this.settled) setBound(this, "settled", false);
     // Seed the baseline NOW rather than on the first tick: enrollment is the
     // moment motion begins, so the first tick integrates a real dt. With a null
     // seed the first tick only recorded a baseline — invisible at 60Hz, but
@@ -200,11 +203,20 @@ export class Spring extends Animator {
 
     const eps = this.epsilon;
     if (Math.abs(to - pos) < eps && Math.abs(this.vel) < eps * 60) {
-      // Landed: assign the exact target, zero the velocity, and sleep.
+      // Landed: assign the exact target, zero the velocity, and sleep — then
+      // ANNOUNCE it. A spring integrates its own tick rather than running
+      // Animator's timed path, so nothing else was ever going to: `settled`
+      // stayed false forever and `onStop` never fired, on the half of the
+      // family you would actually sequence off ("read it to sequence what
+      // should happen after motion instead of guessing with a timer" — the
+      // reference entry, describing something that did not happen). Settled
+      // lands BEFORE the handler, so a handler reads the arrived truth.
       drive(target, attr, to);
       this.vel = 0;
       this.springRunning = false;
       sharedClock.remove(this);
+      setBound(this, "settled", true);
+      this.fire("onStop");
       return false;
     }
     drive(target, attr, pos);

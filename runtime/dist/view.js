@@ -559,6 +559,30 @@ export class View extends Node {
     scrollIntoView(align, smooth, inset) {
         this.surface?.scrollIntoView(align, smooth, inset);
     }
+    /** Ask this scroller to go to offset `y` — a REQUEST, not an assignment
+     *  (platform-authorship.md): the platform clamps it to the real scroll
+     *  range, and a surface that cannot take it yet (a hidden pane) HOLDS it
+     *  and applies it when it can (dom-backend SCROLL_WANT/reassertScroll).
+     *  `Infinity` means the far end — "scroll to the bottom" with no magic
+     *  number (each backend resolves it against the range it alone knows).
+     *  The `scrollY` fact follows: a finite request lands in the model now
+     *  (the same write an assignment made), and the surface's mirror settles
+     *  it to the clamped truth; a non-finite request leaves the fact to the
+     *  mirror alone, so the model never holds `Infinity`. The surface call is
+     *  deliberately unconditional — an equality-gated model write must not
+     *  swallow the request (the boot-time trap applyDeclaredScroll records). */
+    scrollTo(y) {
+        if (Number.isFinite(y))
+            this.scrollY = y;
+        this.surface?.scrollToY?.(y);
+    }
+    /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
+     *  for a `scrolls = x` (or `both`) view. */
+    scrollToX(x) {
+        if (Number.isFinite(x))
+            this.scrollX = x;
+        this.surface?.scrollToX?.(x);
+    }
     /** Promotion (planes.md §1 — order is a slot): re-link this view among its
      *  siblings, tree and surface both. `raise()` moves it to the FRONT (last
      *  child — stacking is source order); `raise(below)` moves it to just BENEATH
@@ -1268,6 +1292,16 @@ defineAttributes(App, {
     // reserves it BELOW its buttons: `height = { 56 + app.safeBottom }` with the
     // content anchored to the bar's top. 0 letterboxed or on desktop; live.
     safeBottom: { def: 0 },
+    // How much of the bottom of `hostHeight` is the browser's own RETRACTABLE
+    // chrome. `hostHeight` reaches the true bottom — including the zones a
+    // collapsed toolbar has vacated — which is what a full-bleed background
+    // wants. Something a finger must REACH wants the other number: this is the
+    // band the chrome will re-cover, and the band where a tap summons it back
+    // instead of landing on the app. Floating chrome clears both bands at once
+    // with `Math.max(app.safeBottom, app.underlapBottom)` — 0 while the
+    // browser's bars are shown (nothing is hidden, so nothing is in the way),
+    // their height once they retract. Desktop and the native host: always 0.
+    underlapBottom: { def: 0 },
     // The side safe-area insets — 0 in portrait, the sensor-housing band on one
     // side in landscape (rotation re-feeds all four). Full-width pinned chrome
     // insets both edges: `x = { app.safeLeft }`,

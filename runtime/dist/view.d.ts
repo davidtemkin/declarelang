@@ -432,6 +432,22 @@ export declare class View extends Node {
      *  the platform primitive — `reveal` is deliberately left free as a member name,
      *  e.g. a `reveal:` fade-in Spring.) */
     scrollIntoView(align?: "start" | "nearest", smooth?: boolean, inset?: number): void;
+    /** Ask this scroller to go to offset `y` — a REQUEST, not an assignment
+     *  (platform-authorship.md): the platform clamps it to the real scroll
+     *  range, and a surface that cannot take it yet (a hidden pane) HOLDS it
+     *  and applies it when it can (dom-backend SCROLL_WANT/reassertScroll).
+     *  `Infinity` means the far end — "scroll to the bottom" with no magic
+     *  number (each backend resolves it against the range it alone knows).
+     *  The `scrollY` fact follows: a finite request lands in the model now
+     *  (the same write an assignment made), and the surface's mirror settles
+     *  it to the clamped truth; a non-finite request leaves the fact to the
+     *  mirror alone, so the model never holds `Infinity`. The surface call is
+     *  deliberately unconditional — an equality-gated model write must not
+     *  swallow the request (the boot-time trap applyDeclaredScroll records). */
+    scrollTo(y: number): void;
+    /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
+     *  for a `scrolls = x` (or `both`) view. */
+    scrollToX(x: number): void;
     /** Promotion (planes.md §1 — order is a slot): re-link this view among its
      *  siblings, tree and surface both. `raise()` moves it to the FRONT (last
      *  child — stacking is source order); `raise(below)` moves it to just BENEATH
@@ -557,6 +573,7 @@ export declare class App extends View {
      *  `app.safeBottom` below its buttons. Fed by boot.ts wireSafeArea. */
     safeTop: number;
     safeBottom: number;
+    underlapBottom: number;
     safeLeft: number;
     safeRight: number;
     /** The embedding environment's parameters (see schema.ts `env`): a record

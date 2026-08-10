@@ -251,6 +251,18 @@ may re-run when `c` changes uselessly. A wasted recompute is cheap; a per-frame
 tree-wide dep-rebuild is not — net win, but this is the specific way "faster per
 run" is not "strictly fewer runs."
 
+That is the trade in **full**, and note its direction: static may over-subscribe,
+never under-subscribe. Tracking is the reference semantics; the static path is an
+optimization, so any case where a wired constraint wakes *less* than a tracked one
+is a defect in the optimization, not a second trade. One such case existed and is
+fixed (2026-08-10): because `run()` on the static path deliberately does not
+rediscover edges, a constraint whose edges had been dropped by `Constraint.suspend`
+— the displace/resume mechanism behind animation.md §2 rules 2–4 and states.md §3's
+override stack — never regained them, and after resuming was permanently deaf.
+Suspension now re-arms the edges so the next run re-probes. The general rule for
+anything that touches a wired constraint's edges: **whatever drops them owns
+re-arming them.**
+
 
 ## 7. Grounding — the audit
 

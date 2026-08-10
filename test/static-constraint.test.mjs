@@ -7,6 +7,7 @@ import { compile } from "../compiler/dist/compile-node.js";
 import { annotateProgram } from "../compiler/dist/dep-extract.js";
 import { parseProgram } from "../runtime/dist/parser.js";
 import { instantiate, settle, build, serializeDeps, applyDeps, forEachCodeValue } from "../runtime/dist/index.js";
+import { Clock, setClock } from "../runtime/dist/animate.js";
 
 let pass = 0, fail = 0;
 function test(name, fn) { try { fn(); pass++; console.log("  ok —", name); } catch (e) { fail++; console.log("  FAIL —", name, "\n     ", e.message); } }
@@ -23,6 +24,19 @@ function run(src) {
   return app;
 }
 const owner = (node, attr) => node.$owners?.[attr];
+
+/** A driven frame source, so animator motion is stepped rather than waited on
+ *  (the same shape unit.test.mjs uses for the motion core). */
+function fakeScheduler() {
+  let cb = null, handle = 0, last = 0;
+  return {
+    now: () => last,
+    request(fn) { cb = fn; return ++handle; },
+    cancel() { cb = null; },
+    frame(now) { const fn = cb; cb = null; if (fn) { last = now; fn(now); } },
+    get scheduled() { return cb !== null; },
+  };
+}
 
 console.log("static-constraint");
 
@@ -166,6 +180,67 @@ test("computed-default inlining is transitive (default → default → method �
   assert.equal(app.v.width, 4);
   app.base = 10; settle();
   assert.equal(app.v.width, 11, "a cell reached only through nested defaults + a method propagates");
+});
+
+// ── SUSPENSION must not sever a wired constraint's edges (regression) ─────────
+// suspend() drops the dependency edges to make a constraint inert, but on the
+// static path run() deliberately does NOT rediscover them — that is what
+// prewiring buys. So a resumed wired constraint used to land its value once
+// (resume() re-runs, per animation.md §2 rule 4) and then never wake again:
+// alive, still owning the slot, still reporting its wiredPaths to explain(), and
+// permanently deaf. constraints.md §6 permits exactly ONE divergence from the
+// tracking path — branch-union OVER-subscription — never under-subscription, so
+// suspension has to re-arm the edges. Both callers of suspend() are covered.
+//
+// Invisible on the tracking path (build(): run() re-tracks every run, so resume
+// self-heals) and easy to miss on the animator, which repairs the value at every
+// stop — the loss shows only when a dep moves in the quiet interval AFTER the
+// resume. Found via a stuck `visible = { app.panelVisible }` on a view whose
+// sibling State had briefly applied at boot (its gate read `app.width < 480`,
+// true before the viewport landed).
+
+test("a wired constraint stays reactive after a State override displaces and pops it", () => {
+  const app = run(`App [ width = 100, height = 100,
+      flag: boolean = false, gate: boolean = false,
+      p: View [ width = 10, height = 10,
+          visible = { app.flag },
+          s: State [ applied = { app.gate }, visible = { false } ] ] ]`);
+  const k = owner(app.p, "visible");
+  assert.equal(k.isStatic, true, "the base is on the static path");
+  app.gate = true; settle();
+  assert.equal(app.p.visible, false, "the override drives the slot while applied");
+  app.gate = false; settle();
+  assert.equal(app.p.visible, false, "the base is restored, re-evaluated (flag still false)");
+  assert.equal(owner(app.p, "visible"), k, "and it is the same base constraint owning the slot again");
+  app.flag = true; settle();
+  assert.equal(app.p.visible, true, "the resumed base still wakes on its dep — edges re-armed, not severed");
+});
+
+test("a wired constraint stays reactive after an Animator displaces and completes", () => {
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  try {
+    const app = run(`App [ width = 400, height = 100,
+        prog: number = 0,
+        v: View [ height = 10, width = { 50 + app.prog },
+            a: Animator [ attribute = width, to = 150, duration = 100, motion = linear ] ] ]`);
+    const k = owner(app.v, "width");
+    assert.equal(k.isStatic, true, "the base is on the static path");
+    assert.equal(app.v.width, 50, "base value at boot");
+    app.v.a.start();
+    sched.frame(0);
+    sched.frame(50);
+    assert.equal(app.v.width, 100, "the animator drives the displaced slot");
+    sched.frame(100);
+    settle();
+    assert.equal(app.v.width, 50, "on completion the base resumes, re-evaluated (animation.md §2 rule 4)");
+    // The value above is repaired by resume()'s own run() even with dead edges —
+    // this next write is the assertion that actually catches the severance.
+    app.prog = 500; settle();
+    assert.equal(app.v.width, 550, "the resumed base still wakes on its dep after the animator finished");
+  } finally {
+    setClock(new Clock());
+  }
 });
 
 console.log(`\nstatic-constraint: ${pass} passed, ${fail} failed`);

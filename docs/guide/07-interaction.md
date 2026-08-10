@@ -209,6 +209,27 @@ hot = { app.dropTarget == this }
 
 One writer, many readers, and the highlight is a constraint like everything else.
 
+There is one thing to get right, and it is the same walk that makes the pattern
+honest that makes it easy to get wrong: `viewAt` answers *what a press would hit*,
+and your drag ghost is under the pointer. Declare it `pointerEvents = "none"` —
+along with any view you wrap it in — or the ghost is the answer, and every target
+test comes back with the ghost instead of the target.
+
+```declare-fragment
+ghost: View [ x = { app.pointerX + 10 }, y = { app.pointerY + 10 },
+    width = 100, height = 40, visible = { app.dragging },
+    pointerEvents = "none"                      // decoration: presses pass through
+    ]
+```
+
+"Any view you wrap it in" is the part that bites. A view with no declared `width`
+or `height` sizes itself to its children, so a container holding a ghost that
+follows the pointer *grows with the pointer* — an invisible box, no fill and no
+stroke, spreading over exactly the targets you are dragging onto, and topmost if
+it is declared last. Nothing on screen suggests it is there. If a drop target
+never highlights, ask `window.__declare.explainHit(x, y)` in the console: it
+narrates the walk's own decisions and names what actually takes the press.
+
 ## Reaching another node: call a method
 
 When a handler must affect something beyond its own node, it does not dispatch an

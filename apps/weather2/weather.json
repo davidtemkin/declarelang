@@ -1,0 +1,4229 @@
+{
+ "cities": [
+  {
+   "id": "sf",
+   "name": "San Francisco",
+   "temp": 58,
+   "cond": "cloudy",
+   "condName": "Cloudy",
+   "hi": 65,
+   "lo": 56,
+   "summary": "Partly cloudy conditions expected around 1PM. Wind gusts are up to 13 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "cloud",
+     "temp": 58
+    },
+    {
+     "t": "10AM",
+     "icon": "cloud",
+     "temp": 59
+    },
+    {
+     "t": "11AM",
+     "icon": "cloud",
+     "temp": 61
+    },
+    {
+     "t": "12PM",
+     "icon": "cloud",
+     "temp": 63
+    },
+    {
+     "t": "1PM",
+     "icon": "partly",
+     "temp": 64
+    },
+    {
+     "t": "2PM",
+     "icon": "partly",
+     "temp": 65
+    },
+    {
+     "t": "3PM",
+     "icon": "partly",
+     "temp": 65
+    },
+    {
+     "t": "4PM",
+     "icon": "partly",
+     "temp": 65
+    },
+    {
+     "t": "5PM",
+     "icon": "partly",
+     "temp": 65
+    },
+    {
+     "t": "6PM",
+     "icon": "partly",
+     "temp": 64
+    },
+    {
+     "t": "7PM",
+     "icon": "sun",
+     "temp": 63
+    },
+    {
+     "t": "8:10PM",
+     "icon": "sunset",
+     "temp": 0
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "partly",
+     "lo": 56,
+     "hi": 65
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 58,
+     "hi": 69
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 57,
+     "hi": 71
+    },
+    {
+     "day": "Tue",
+     "icon": "partly",
+     "lo": 56,
+     "hi": 68
+    },
+    {
+     "day": "Wed",
+     "icon": "cloud",
+     "lo": 55,
+     "hi": 64
+    },
+    {
+     "day": "Thu",
+     "icon": "cloud",
+     "lo": 55,
+     "hi": 63
+    },
+    {
+     "day": "Fri",
+     "icon": "partly",
+     "lo": 56,
+     "hi": 66
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 57,
+     "hi": 70
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 58,
+     "hi": 72
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 57,
+     "hi": 68
+    }
+   ],
+   "uv": 3,
+   "uvName": "Moderate",
+   "uvNote": "Use sun protection until 6PM.",
+   "sunset": "8:10PM",
+   "sunrise": "6:20AM",
+   "dayFrac": 0.62,
+   "windMph": 8,
+   "windDir": 247,
+   "gusts": "Gusts: 13 mph WSW",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 53,
+   "feelsNote": "Wind is making it feel cooler.",
+   "humidity": 91,
+   "dewNote": "The dew point is 56° right now.",
+   "visMi": 3,
+   "visNote": "Light haze is affecting visibility.",
+   "pressure": 29.99,
+   "pressureFrac": 0.46,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "5:14PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "-5°",
+   "avgSign": "from average daily high",
+   "avgToday": 65,
+   "avgAvg": 70,
+   "aqi": 42,
+   "aqiNote": "Air quality index is 42, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": -420,
+   "map": "ca.png",
+   "px": 0.3,
+   "py": 0.42
+  },
+  {
+   "id": "la",
+   "name": "Los Angeles",
+   "temp": 75,
+   "cond": "sunny",
+   "condName": "Sunny",
+   "hi": 84,
+   "lo": 63,
+   "summary": "Sunny conditions will continue all day. Wind gusts are up to 10 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "sun",
+     "temp": 75
+    },
+    {
+     "t": "10AM",
+     "icon": "sun",
+     "temp": 76
+    },
+    {
+     "t": "11AM",
+     "icon": "sun",
+     "temp": 78
+    },
+    {
+     "t": "12PM",
+     "icon": "sun",
+     "temp": 80
+    },
+    {
+     "t": "1PM",
+     "icon": "sun",
+     "temp": 82
+    },
+    {
+     "t": "2PM",
+     "icon": "sun",
+     "temp": 83
+    },
+    {
+     "t": "3PM",
+     "icon": "sun",
+     "temp": 84
+    },
+    {
+     "t": "4PM",
+     "icon": "sun",
+     "temp": 84
+    },
+    {
+     "t": "5PM",
+     "icon": "sun",
+     "temp": 82
+    },
+    {
+     "t": "6PM",
+     "icon": "partly",
+     "temp": 79
+    },
+    {
+     "t": "7PM",
+     "icon": "partly",
+     "temp": 76
+    },
+    {
+     "t": "7:58PM",
+     "icon": "sunset",
+     "temp": 0
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 63,
+     "hi": 84
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 64,
+     "hi": 86
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 64,
+     "hi": 87
+    },
+    {
+     "day": "Tue",
+     "icon": "partly",
+     "lo": 65,
+     "hi": 85
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 88
+    },
+    {
+     "day": "Thu",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 89
+    },
+    {
+     "day": "Fri",
+     "icon": "partly",
+     "lo": 65,
+     "hi": 86
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 64,
+     "hi": 85
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 64,
+     "hi": 86
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 65,
+     "hi": 87
+    }
+   ],
+   "uv": 8,
+   "uvName": "Very High",
+   "uvNote": "Use sun protection until 6PM.",
+   "sunset": "7:58PM",
+   "sunrise": "6:12AM",
+   "dayFrac": 0.28,
+   "windMph": 6,
+   "windDir": 260,
+   "gusts": "Gusts: 10 mph W",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 75,
+   "feelsNote": "It feels about the same as the actual temperature.",
+   "humidity": 58,
+   "dewNote": "The dew point is 59° right now.",
+   "visMi": 10,
+   "visNote": "Perfectly clear view.",
+   "pressure": 29.95,
+   "pressureFrac": 0.5,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "5:22PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "+2°",
+   "avgSign": "above average daily high",
+   "avgToday": 84,
+   "avgAvg": 82,
+   "aqi": 61,
+   "aqiNote": "Air quality index is 61, which is worse than yesterday at about this time.",
+   "alert": "",
+   "tz": -420,
+   "map": "ca.png",
+   "px": 0.46,
+   "py": 0.78
+  },
+  {
+   "id": "nyc",
+   "name": "New York",
+   "temp": 84,
+   "cond": "cloudy",
+   "condName": "Cloudy",
+   "hi": 87,
+   "lo": 72,
+   "summary": "Cloudy through the afternoon. Light rain possible late tonight.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "cloud",
+     "temp": 84
+    },
+    {
+     "t": "2PM",
+     "icon": "cloud",
+     "temp": 85
+    },
+    {
+     "t": "3PM",
+     "icon": "cloud",
+     "temp": 86
+    },
+    {
+     "t": "4PM",
+     "icon": "cloud",
+     "temp": 87
+    },
+    {
+     "t": "5PM",
+     "icon": "cloud",
+     "temp": 86
+    },
+    {
+     "t": "6PM",
+     "icon": "cloud",
+     "temp": 84
+    },
+    {
+     "t": "7PM",
+     "icon": "cloud",
+     "temp": 82
+    },
+    {
+     "t": "8PM",
+     "icon": "cloud",
+     "temp": 80
+    },
+    {
+     "t": "8:18PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "9PM",
+     "icon": "cloudmoon",
+     "temp": 79
+    },
+    {
+     "t": "10PM",
+     "icon": "cloudmoon",
+     "temp": 78
+    },
+    {
+     "t": "11PM",
+     "icon": "cloudmoon",
+     "temp": 77
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "cloud",
+     "lo": 72,
+     "hi": 87
+    },
+    {
+     "day": "Sun",
+     "icon": "storm",
+     "lo": 71,
+     "hi": 84
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 70,
+     "hi": 85
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 69,
+     "hi": 86
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 70,
+     "hi": 88
+    },
+    {
+     "day": "Thu",
+     "icon": "partly",
+     "lo": 71,
+     "hi": 87
+    },
+    {
+     "day": "Fri",
+     "icon": "cloud",
+     "lo": 72,
+     "hi": 85
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 71,
+     "hi": 86
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 70,
+     "hi": 87
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 70,
+     "hi": 88
+    }
+   ],
+   "uv": 4,
+   "uvName": "Moderate",
+   "uvNote": "Use sun protection until 5PM.",
+   "sunset": "8:18PM",
+   "sunrise": "5:57AM",
+   "dayFrac": 0.58,
+   "windMph": 11,
+   "windDir": 80,
+   "gusts": "Gusts: 18 mph E",
+   "precipIn": 0.02,
+   "precipNote": "Light rain possible late tonight.",
+   "feels": 88,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 72,
+   "dewNote": "The dew point is 70° right now.",
+   "visMi": 8,
+   "visNote": "Light haze is affecting visibility.",
+   "pressure": 29.9,
+   "pressureFrac": 0.4,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "5:08PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "-1°",
+   "avgSign": "from average daily high",
+   "avgToday": 87,
+   "avgAvg": 88,
+   "aqi": 55,
+   "aqiNote": "Air quality index is 55, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": -240,
+   "map": "us.png",
+   "px": 0.825,
+   "py": 0.32
+  },
+  {
+   "id": "dc",
+   "name": "Washington",
+   "temp": 91,
+   "cond": "cumulus",
+   "condName": "Mostly Cloudy",
+   "hi": 93,
+   "lo": 75,
+   "summary": "Thunderstorms expected around 6PM. Wind gusts are up to 15 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "cloud",
+     "temp": 91
+    },
+    {
+     "t": "2PM",
+     "icon": "sun",
+     "temp": 92
+    },
+    {
+     "t": "3PM",
+     "icon": "partly",
+     "temp": 93
+    },
+    {
+     "t": "4PM",
+     "icon": "partly",
+     "temp": 93
+    },
+    {
+     "t": "5PM",
+     "icon": "cloud",
+     "temp": 92
+    },
+    {
+     "t": "6PM",
+     "icon": "storm",
+     "temp": 85
+    },
+    {
+     "t": "7PM",
+     "icon": "storm",
+     "temp": 82
+    },
+    {
+     "t": "8PM",
+     "icon": "cloud",
+     "temp": 81
+    },
+    {
+     "t": "8:11PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "9PM",
+     "icon": "cloud",
+     "temp": 81
+    },
+    {
+     "t": "10PM",
+     "icon": "cloudmoon",
+     "temp": 80
+    },
+    {
+     "t": "11PM",
+     "icon": "cloudmoon",
+     "temp": 79
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "storm",
+     "lo": 75,
+     "hi": 93
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 75,
+     "hi": 94
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 76,
+     "hi": 96
+    },
+    {
+     "day": "Tue",
+     "icon": "storm",
+     "lo": 77,
+     "hi": 91
+    },
+    {
+     "day": "Wed",
+     "icon": "storm",
+     "lo": 74,
+     "hi": 85
+    },
+    {
+     "day": "Thu",
+     "icon": "partly",
+     "lo": 73,
+     "hi": 88
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 74,
+     "hi": 92
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 76,
+     "hi": 95
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 77,
+     "hi": 94
+    },
+    {
+     "day": "Mon",
+     "icon": "storm",
+     "lo": 75,
+     "hi": 89
+    }
+   ],
+   "uv": 7,
+   "uvName": "High",
+   "uvNote": "Use sun protection until 7PM.",
+   "sunset": "8:11PM",
+   "sunrise": "6:07AM",
+   "dayFrac": 0.55,
+   "windMph": 9,
+   "windDir": 190,
+   "gusts": "Gusts: 15 mph S",
+   "precipIn": 0.12,
+   "precipNote": "Thunderstorms expected this evening.",
+   "feels": 97,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 68,
+   "dewNote": "The dew point is 74° right now.",
+   "visMi": 10,
+   "visNote": "Perfectly clear view.",
+   "pressure": 29.87,
+   "pressureFrac": 0.38,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "5:05PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "+1°",
+   "avgSign": "above average daily high",
+   "avgToday": 93,
+   "avgAvg": 92,
+   "aqi": 51,
+   "aqiNote": "Air quality index is 51, which is similar to yesterday at about this time.",
+   "alert": "Severe Thunderstorm Watch. These conditions are expected until 10:00 PM EDT tonight. Source: National Weather Service.",
+   "tz": -240,
+   "map": "us.png",
+   "px": 0.79,
+   "py": 0.4
+  },
+  {
+   "id": "miami",
+   "name": "Miami",
+   "temp": 88,
+   "cond": "sunny",
+   "condName": "Sunny",
+   "hi": 91,
+   "lo": 79,
+   "summary": "Sunny and humid through the evening. Wind gusts are up to 20 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "sun",
+     "temp": 88
+    },
+    {
+     "t": "2PM",
+     "icon": "sun",
+     "temp": 89
+    },
+    {
+     "t": "3PM",
+     "icon": "sun",
+     "temp": 90
+    },
+    {
+     "t": "4PM",
+     "icon": "sun",
+     "temp": 91
+    },
+    {
+     "t": "5PM",
+     "icon": "partly",
+     "temp": 90
+    },
+    {
+     "t": "6PM",
+     "icon": "partly",
+     "temp": 88
+    },
+    {
+     "t": "7PM",
+     "icon": "partly",
+     "temp": 86
+    },
+    {
+     "t": "8PM",
+     "icon": "cloud",
+     "temp": 84
+    },
+    {
+     "t": "8:02PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "9PM",
+     "icon": "moon",
+     "temp": 83
+    },
+    {
+     "t": "10PM",
+     "icon": "moon",
+     "temp": 82
+    },
+    {
+     "t": "11PM",
+     "icon": "cloudmoon",
+     "temp": 81
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 79,
+     "hi": 91
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 79,
+     "hi": 92
+    },
+    {
+     "day": "Mon",
+     "icon": "storm",
+     "lo": 78,
+     "hi": 90
+    },
+    {
+     "day": "Tue",
+     "icon": "storm",
+     "lo": 78,
+     "hi": 89
+    },
+    {
+     "day": "Wed",
+     "icon": "partly",
+     "lo": 79,
+     "hi": 91
+    },
+    {
+     "day": "Thu",
+     "icon": "sun",
+     "lo": 80,
+     "hi": 92
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 80,
+     "hi": 93
+    },
+    {
+     "day": "Sat",
+     "icon": "partly",
+     "lo": 79,
+     "hi": 92
+    },
+    {
+     "day": "Sun",
+     "icon": "storm",
+     "lo": 78,
+     "hi": 90
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 79,
+     "hi": 91
+    }
+   ],
+   "uv": 10,
+   "uvName": "Extreme",
+   "uvNote": "Use sun protection until 7PM.",
+   "sunset": "8:02PM",
+   "sunrise": "6:41AM",
+   "dayFrac": 0.55,
+   "windMph": 12,
+   "windDir": 100,
+   "gusts": "Gusts: 20 mph ESE",
+   "precipIn": 0.08,
+   "precipNote": "Showers possible Monday afternoon.",
+   "feels": 97,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 74,
+   "dewNote": "The dew point is 76° right now.",
+   "visMi": 10,
+   "visNote": "Perfectly clear view.",
+   "pressure": 29.98,
+   "pressureFrac": 0.52,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "5:02PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "-1°",
+   "avgSign": "from average daily high",
+   "avgToday": 91,
+   "avgAvg": 92,
+   "aqi": 33,
+   "aqiNote": "Air quality index is 33, which is better than yesterday at about this time.",
+   "alert": "Heat Advisory. Feels-like temperatures near 100° are expected until 8:00 PM EDT this evening.",
+   "tz": -240,
+   "map": "us.png",
+   "px": 0.74,
+   "py": 0.88
+  },
+  {
+   "id": "venice",
+   "name": "Venice",
+   "temp": 88,
+   "cond": "sunny",
+   "condName": "Mostly Sunny",
+   "hi": 89,
+   "lo": 75,
+   "summary": "Sunny conditions will continue all day. Wind gusts are up to 9 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "sun",
+     "temp": 88
+    },
+    {
+     "t": "6PM",
+     "icon": "sun",
+     "temp": 87
+    },
+    {
+     "t": "7PM",
+     "icon": "sun",
+     "temp": 85
+    },
+    {
+     "t": "8PM",
+     "icon": "sun",
+     "temp": 82
+    },
+    {
+     "t": "8:29PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "9PM",
+     "icon": "moon",
+     "temp": 79
+    },
+    {
+     "t": "10PM",
+     "icon": "moon",
+     "temp": 78
+    },
+    {
+     "t": "11PM",
+     "icon": "moon",
+     "temp": 77
+    },
+    {
+     "t": "12AM",
+     "icon": "moon",
+     "temp": 76
+    },
+    {
+     "t": "1AM",
+     "icon": "moon",
+     "temp": 76
+    },
+    {
+     "t": "2AM",
+     "icon": "moon",
+     "temp": 75
+    },
+    {
+     "t": "3AM",
+     "icon": "moon",
+     "temp": 75
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 75,
+     "hi": 89
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 76,
+     "hi": 89
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 77,
+     "hi": 91
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 79,
+     "hi": 93
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 78,
+     "hi": 91
+    },
+    {
+     "day": "Thu",
+     "icon": "sun",
+     "lo": 78,
+     "hi": 90
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 78,
+     "hi": 89
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 75,
+     "hi": 90
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 76,
+     "hi": 90
+    },
+    {
+     "day": "Mon",
+     "icon": "cloud",
+     "lo": 75,
+     "hi": 87
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "Low for the rest of the day.",
+   "sunset": "8:29PM",
+   "sunrise": "6:04AM",
+   "dayFrac": 0.93,
+   "windMph": 4,
+   "windDir": 170,
+   "gusts": "Gusts: 9 mph S",
+   "precipIn": 0.05,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 89,
+   "feelsNote": "It feels about the same as the actual temperature.",
+   "humidity": 51,
+   "dewNote": "The dew point is 68° right now.",
+   "visMi": 15,
+   "visNote": "Perfectly clear view.",
+   "pressure": 30.02,
+   "pressureFrac": 0.55,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "1:26AM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "+9°",
+   "avgSign": "above average daily high",
+   "avgToday": 89,
+   "avgAvg": 80,
+   "aqi": 38,
+   "aqiNote": "Air quality index is 38, which is better than yesterday at about this time.",
+   "alert": "",
+   "tz": 120,
+   "map": "it.png",
+   "px": 0.52,
+   "py": 0.2
+  },
+  {
+   "id": "rome",
+   "name": "Rome",
+   "temp": 79,
+   "cond": "cumulus",
+   "condName": "Mostly Cloudy",
+   "hi": 90,
+   "lo": 68,
+   "summary": "Clouds breaking around sunset. Wind gusts are up to 8 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "cloud",
+     "temp": 79
+    },
+    {
+     "t": "6PM",
+     "icon": "cloud",
+     "temp": 78
+    },
+    {
+     "t": "7PM",
+     "icon": "partly",
+     "temp": 77
+    },
+    {
+     "t": "8PM",
+     "icon": "partly",
+     "temp": 75
+    },
+    {
+     "t": "8:33PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "9PM",
+     "icon": "cloudmoon",
+     "temp": 74
+    },
+    {
+     "t": "10PM",
+     "icon": "moon",
+     "temp": 73
+    },
+    {
+     "t": "11PM",
+     "icon": "moon",
+     "temp": 72
+    },
+    {
+     "t": "12AM",
+     "icon": "moon",
+     "temp": 71
+    },
+    {
+     "t": "1AM",
+     "icon": "moon",
+     "temp": 70
+    },
+    {
+     "t": "2AM",
+     "icon": "moon",
+     "temp": 69
+    },
+    {
+     "t": "3AM",
+     "icon": "moon",
+     "temp": 68
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "cloud",
+     "lo": 68,
+     "hi": 90
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 68,
+     "hi": 89
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 69,
+     "hi": 91
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 70,
+     "hi": 92
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 71,
+     "hi": 93
+    },
+    {
+     "day": "Thu",
+     "icon": "partly",
+     "lo": 70,
+     "hi": 91
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 69,
+     "hi": 90
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 70,
+     "hi": 92
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 71,
+     "hi": 93
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 71,
+     "hi": 92
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed tonight.",
+   "sunset": "8:33PM",
+   "sunrise": "5:51AM",
+   "dayFrac": 0.9,
+   "windMph": 5,
+   "windDir": 220,
+   "gusts": "Gusts: 8 mph SW",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 79,
+   "feelsNote": "It feels about the same as the actual temperature.",
+   "humidity": 60,
+   "dewNote": "The dew point is 64° right now.",
+   "visMi": 12,
+   "visNote": "Perfectly clear view.",
+   "pressure": 30.05,
+   "pressureFrac": 0.58,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "1:12AM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "+3°",
+   "avgSign": "above average daily high",
+   "avgToday": 90,
+   "avgAvg": 87,
+   "aqi": 47,
+   "aqiNote": "Air quality index is 47, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": 120,
+   "map": "it.png",
+   "px": 0.49,
+   "py": 0.45
+  },
+  {
+   "id": "tokyo",
+   "name": "Tokyo",
+   "temp": 77,
+   "cond": "night",
+   "condName": "Clear",
+   "hi": 92,
+   "lo": 76,
+   "summary": "Clear tonight. Hot and humid again tomorrow; gusts to 11 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "moon",
+     "temp": 77
+    },
+    {
+     "t": "3AM",
+     "icon": "moon",
+     "temp": 77
+    },
+    {
+     "t": "4AM",
+     "icon": "moon",
+     "temp": 76
+    },
+    {
+     "t": "5AM",
+     "icon": "cloudmoon",
+     "temp": 76
+    },
+    {
+     "t": "5:04AM",
+     "icon": "sunrise",
+     "temp": 0
+    },
+    {
+     "t": "6AM",
+     "icon": "partly",
+     "temp": 78
+    },
+    {
+     "t": "7AM",
+     "icon": "sun",
+     "temp": 81
+    },
+    {
+     "t": "8AM",
+     "icon": "sun",
+     "temp": 84
+    },
+    {
+     "t": "9AM",
+     "icon": "sun",
+     "temp": 86
+    },
+    {
+     "t": "10AM",
+     "icon": "sun",
+     "temp": 88
+    },
+    {
+     "t": "11AM",
+     "icon": "sun",
+     "temp": 90
+    },
+    {
+     "t": "12PM",
+     "icon": "sun",
+     "temp": 91
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 76,
+     "hi": 92
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 77,
+     "hi": 93
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 78,
+     "hi": 92
+    },
+    {
+     "day": "Tue",
+     "icon": "storm",
+     "lo": 77,
+     "hi": 88
+    },
+    {
+     "day": "Wed",
+     "icon": "partly",
+     "lo": 76,
+     "hi": 90
+    },
+    {
+     "day": "Thu",
+     "icon": "sun",
+     "lo": 77,
+     "hi": 92
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 78,
+     "hi": 93
+    },
+    {
+     "day": "Sat",
+     "icon": "partly",
+     "lo": 78,
+     "hi": 91
+    },
+    {
+     "day": "Sun",
+     "icon": "storm",
+     "lo": 76,
+     "hi": 87
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 75,
+     "hi": 89
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "Low until sunrise.",
+   "sunset": "6:48PM",
+   "sunrise": "5:04AM",
+   "dayFrac": 0.0,
+   "windMph": 5,
+   "windDir": 120,
+   "gusts": "Gusts: 11 mph ESE",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 82,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 84,
+   "dewNote": "The dew point is 72° right now.",
+   "visMi": 12,
+   "visNote": "Perfectly clear view.",
+   "pressure": 29.91,
+   "pressureFrac": 0.42,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:12PM",
+   "nextFull": 19,
+   "moonFrac": 0.78,
+   "avgDelta": "+2°",
+   "avgSign": "above average daily high",
+   "avgToday": 92,
+   "avgAvg": 90,
+   "aqi": 45,
+   "aqiNote": "Air quality index is 45, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": 540,
+   "map": "jp.png",
+   "px": 0.62,
+   "py": 0.55
+  },
+  {
+   "id": "osaka",
+   "name": "Osaka",
+   "temp": 79,
+   "cond": "night",
+   "condName": "Clear",
+   "hi": 93,
+   "lo": 77,
+   "summary": "Clear tonight. Hot and humid again tomorrow; gusts to 7 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "moon",
+     "temp": 79
+    },
+    {
+     "t": "3AM",
+     "icon": "moon",
+     "temp": 78
+    },
+    {
+     "t": "4AM",
+     "icon": "moon",
+     "temp": 78
+    },
+    {
+     "t": "5AM",
+     "icon": "moon",
+     "temp": 77
+    },
+    {
+     "t": "5:12AM",
+     "icon": "sunrise",
+     "temp": 0
+    },
+    {
+     "t": "6AM",
+     "icon": "sun",
+     "temp": 79
+    },
+    {
+     "t": "7AM",
+     "icon": "sun",
+     "temp": 82
+    },
+    {
+     "t": "8AM",
+     "icon": "sun",
+     "temp": 85
+    },
+    {
+     "t": "9AM",
+     "icon": "sun",
+     "temp": 88
+    },
+    {
+     "t": "10AM",
+     "icon": "sun",
+     "temp": 90
+    },
+    {
+     "t": "11AM",
+     "icon": "sun",
+     "temp": 92
+    },
+    {
+     "t": "12PM",
+     "icon": "sun",
+     "temp": 93
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 77,
+     "hi": 93
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 78,
+     "hi": 94
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 78,
+     "hi": 93
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 77,
+     "hi": 95
+    },
+    {
+     "day": "Wed",
+     "icon": "storm",
+     "lo": 76,
+     "hi": 90
+    },
+    {
+     "day": "Thu",
+     "icon": "partly",
+     "lo": 77,
+     "hi": 92
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 78,
+     "hi": 94
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 78,
+     "hi": 95
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 77,
+     "hi": 94
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 78,
+     "hi": 93
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed tonight.",
+   "sunset": "7:02PM",
+   "sunrise": "5:12AM",
+   "dayFrac": 0.0,
+   "windMph": 4,
+   "windDir": 150,
+   "gusts": "Gusts: 7 mph SSE",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 84,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 80,
+   "dewNote": "The dew point is 73° right now.",
+   "visMi": 10,
+   "visNote": "Perfectly clear view.",
+   "pressure": 29.89,
+   "pressureFrac": 0.4,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:20PM",
+   "nextFull": 19,
+   "moonFrac": 0.78,
+   "avgDelta": "+2°",
+   "avgSign": "above average daily high",
+   "avgToday": 93,
+   "avgAvg": 91,
+   "aqi": 50,
+   "aqiNote": "Air quality index is 50, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": 540,
+   "map": "jp.png",
+   "px": 0.49,
+   "py": 0.71
+  },
+  {
+   "id": "sapporo",
+   "name": "Sapporo",
+   "temp": 66,
+   "cond": "night",
+   "condName": "Clear",
+   "hi": 79,
+   "lo": 63,
+   "summary": "Clear and cool tonight. Sunny tomorrow; gusts to 12 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "moon",
+     "temp": 66
+    },
+    {
+     "t": "3AM",
+     "icon": "moon",
+     "temp": 65
+    },
+    {
+     "t": "4AM",
+     "icon": "cloudmoon",
+     "temp": 64
+    },
+    {
+     "t": "4:44AM",
+     "icon": "sunrise",
+     "temp": 0
+    },
+    {
+     "t": "5AM",
+     "icon": "partly",
+     "temp": 64
+    },
+    {
+     "t": "6AM",
+     "icon": "sun",
+     "temp": 66
+    },
+    {
+     "t": "7AM",
+     "icon": "sun",
+     "temp": 69
+    },
+    {
+     "t": "8AM",
+     "icon": "sun",
+     "temp": 72
+    },
+    {
+     "t": "9AM",
+     "icon": "sun",
+     "temp": 74
+    },
+    {
+     "t": "10AM",
+     "icon": "sun",
+     "temp": 76
+    },
+    {
+     "t": "11AM",
+     "icon": "sun",
+     "temp": 78
+    },
+    {
+     "t": "12PM",
+     "icon": "sun",
+     "temp": 79
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 63,
+     "hi": 79
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 62,
+     "hi": 78
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 62,
+     "hi": 80
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 63,
+     "hi": 81
+    },
+    {
+     "day": "Wed",
+     "icon": "cloud",
+     "lo": 64,
+     "hi": 77
+    },
+    {
+     "day": "Thu",
+     "icon": "storm",
+     "lo": 63,
+     "hi": 74
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 62,
+     "hi": 78
+    },
+    {
+     "day": "Sat",
+     "icon": "partly",
+     "lo": 61,
+     "hi": 79
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 62,
+     "hi": 80
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 63,
+     "hi": 81
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed tonight.",
+   "sunset": "7:04PM",
+   "sunrise": "4:44AM",
+   "dayFrac": 0.0,
+   "windMph": 7,
+   "windDir": 310,
+   "gusts": "Gusts: 12 mph NW",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 64,
+   "feelsNote": "Wind is making it feel cooler.",
+   "humidity": 70,
+   "dewNote": "The dew point is 56° right now.",
+   "visMi": 15,
+   "visNote": "Perfectly clear view.",
+   "pressure": 30.08,
+   "pressureFrac": 0.6,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:05PM",
+   "nextFull": 19,
+   "moonFrac": 0.78,
+   "avgDelta": "-2°",
+   "avgSign": "from average daily high",
+   "avgToday": 79,
+   "avgAvg": 81,
+   "aqi": 21,
+   "aqiNote": "Air quality index is 21, which is better than yesterday at about this time.",
+   "alert": "",
+   "tz": 540,
+   "map": "jp.png",
+   "px": 0.6,
+   "py": 0.2
+  },
+  {
+   "id": "sandiego",
+   "name": "San Diego",
+   "temp": 72,
+   "cond": "sunny",
+   "condName": "Sunny",
+   "hi": 77,
+   "lo": 65,
+   "summary": "Sunny conditions will continue all day. Wind gusts are up to 9 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "sun",
+     "temp": 72
+    },
+    {
+     "t": "11AM",
+     "icon": "sun",
+     "temp": 73
+    },
+    {
+     "t": "12PM",
+     "icon": "sun",
+     "temp": 74
+    },
+    {
+     "t": "1PM",
+     "icon": "sun",
+     "temp": 75
+    },
+    {
+     "t": "2PM",
+     "icon": "sun",
+     "temp": 76
+    },
+    {
+     "t": "3PM",
+     "icon": "sun",
+     "temp": 77
+    },
+    {
+     "t": "4PM",
+     "icon": "sun",
+     "temp": 77
+    },
+    {
+     "t": "5PM",
+     "icon": "sun",
+     "temp": 76
+    },
+    {
+     "t": "6PM",
+     "icon": "sun",
+     "temp": 75
+    },
+    {
+     "t": "7PM",
+     "icon": "sun",
+     "temp": 73
+    },
+    {
+     "t": "7:47PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "8PM",
+     "icon": "moon",
+     "temp": 71
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 65,
+     "hi": 77
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 65,
+     "hi": 78
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 66,
+     "hi": 77
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 79
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 67,
+     "hi": 80
+    },
+    {
+     "day": "Thu",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 79
+    },
+    {
+     "day": "Fri",
+     "icon": "partly",
+     "lo": 65,
+     "hi": 78
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 79
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 80
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 67,
+     "hi": 79
+    }
+   ],
+   "uv": 8,
+   "uvName": "Very High",
+   "uvNote": "Use sun protection until 6PM.",
+   "sunset": "7:47PM",
+   "sunrise": "6:04AM",
+   "dayFrac": 0.32,
+   "windMph": 5,
+   "windDir": 270,
+   "gusts": "Gusts: 9 mph W",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 72,
+   "feelsNote": "It feels about the same as the actual temperature.",
+   "humidity": 64,
+   "dewNote": "The dew point is 59° right now.",
+   "visMi": 10,
+   "visNote": "Perfectly clear view.",
+   "pressure": 29.96,
+   "pressureFrac": 0.5,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "5:19PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "0°",
+   "avgSign": "at average daily high",
+   "avgToday": 77,
+   "avgAvg": 77,
+   "aqi": 38,
+   "aqiNote": "Air quality index is 38, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": -420,
+   "map": "ca.png",
+   "px": 0.49,
+   "py": 0.9
+  },
+  {
+   "id": "chicago",
+   "name": "Chicago",
+   "temp": 82,
+   "cond": "cumulus",
+   "condName": "Mostly Cloudy",
+   "hi": 85,
+   "lo": 68,
+   "summary": "Clouds building through the afternoon. Storms possible overnight.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "cloud",
+     "temp": 82
+    },
+    {
+     "t": "1PM",
+     "icon": "cloud",
+     "temp": 83
+    },
+    {
+     "t": "2PM",
+     "icon": "cloud",
+     "temp": 84
+    },
+    {
+     "t": "3PM",
+     "icon": "cloud",
+     "temp": 85
+    },
+    {
+     "t": "4PM",
+     "icon": "cloud",
+     "temp": 85
+    },
+    {
+     "t": "5PM",
+     "icon": "cloud",
+     "temp": 84
+    },
+    {
+     "t": "6PM",
+     "icon": "cloud",
+     "temp": 82
+    },
+    {
+     "t": "7PM",
+     "icon": "cloud",
+     "temp": 80
+    },
+    {
+     "t": "8PM",
+     "icon": "cloudmoon",
+     "temp": 78
+    },
+    {
+     "t": "8:07PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "9PM",
+     "icon": "cloudmoon",
+     "temp": 77
+    },
+    {
+     "t": "10PM",
+     "icon": "cloudmoon",
+     "temp": 76
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "cloud",
+     "lo": 68,
+     "hi": 85
+    },
+    {
+     "day": "Sun",
+     "icon": "storm",
+     "lo": 67,
+     "hi": 83
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 66,
+     "hi": 84
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 65,
+     "hi": 86
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 88
+    },
+    {
+     "day": "Thu",
+     "icon": "partly",
+     "lo": 67,
+     "hi": 87
+    },
+    {
+     "day": "Fri",
+     "icon": "storm",
+     "lo": 68,
+     "hi": 84
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 67,
+     "hi": 86
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 66,
+     "hi": 87
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 88
+    }
+   ],
+   "uv": 5,
+   "uvName": "Moderate",
+   "uvNote": "Use sun protection until 5PM.",
+   "sunset": "8:07PM",
+   "sunrise": "5:51AM",
+   "dayFrac": 0.47,
+   "windMph": 13,
+   "windDir": 50,
+   "gusts": "Gusts: 21 mph NE",
+   "precipIn": 0.15,
+   "precipNote": "Thunderstorms possible after midnight.",
+   "feels": 85,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 61,
+   "dewNote": "The dew point is 67° right now.",
+   "visMi": 10,
+   "visNote": "Perfectly clear view.",
+   "pressure": 29.85,
+   "pressureFrac": 0.36,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:58PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "+1°",
+   "avgSign": "above average daily high",
+   "avgToday": 85,
+   "avgAvg": 84,
+   "aqi": 58,
+   "aqiNote": "Air quality index is 58, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": -300,
+   "map": "us.png",
+   "px": 0.635,
+   "py": 0.33
+  },
+  {
+   "id": "neworleans",
+   "name": "New Orleans",
+   "temp": 89,
+   "cond": "cumulus",
+   "condName": "Mostly Cloudy",
+   "hi": 91,
+   "lo": 77,
+   "summary": "Hot and humid with building afternoon clouds. Gusts to 14 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "partly",
+     "temp": 89
+    },
+    {
+     "t": "1PM",
+     "icon": "partly",
+     "temp": 90
+    },
+    {
+     "t": "2PM",
+     "icon": "partly",
+     "temp": 91
+    },
+    {
+     "t": "3PM",
+     "icon": "partly",
+     "temp": 91
+    },
+    {
+     "t": "4PM",
+     "icon": "partly",
+     "temp": 90
+    },
+    {
+     "t": "5PM",
+     "icon": "partly",
+     "temp": 89
+    },
+    {
+     "t": "6PM",
+     "icon": "partly",
+     "temp": 87
+    },
+    {
+     "t": "7PM",
+     "icon": "partly",
+     "temp": 85
+    },
+    {
+     "t": "7:58PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "8PM",
+     "icon": "cloudmoon",
+     "temp": 84
+    },
+    {
+     "t": "9PM",
+     "icon": "cloudmoon",
+     "temp": 83
+    },
+    {
+     "t": "10PM",
+     "icon": "cloudmoon",
+     "temp": 82
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "partly",
+     "lo": 77,
+     "hi": 91
+    },
+    {
+     "day": "Sun",
+     "icon": "storm",
+     "lo": 77,
+     "hi": 90
+    },
+    {
+     "day": "Mon",
+     "icon": "storm",
+     "lo": 76,
+     "hi": 89
+    },
+    {
+     "day": "Tue",
+     "icon": "partly",
+     "lo": 77,
+     "hi": 92
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 78,
+     "hi": 93
+    },
+    {
+     "day": "Thu",
+     "icon": "storm",
+     "lo": 77,
+     "hi": 90
+    },
+    {
+     "day": "Fri",
+     "icon": "partly",
+     "lo": 76,
+     "hi": 91
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 77,
+     "hi": 92
+    },
+    {
+     "day": "Sun",
+     "icon": "storm",
+     "lo": 78,
+     "hi": 90
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 77,
+     "hi": 91
+    }
+   ],
+   "uv": 7,
+   "uvName": "High",
+   "uvNote": "Use sun protection until 6PM.",
+   "sunset": "7:58PM",
+   "sunrise": "6:24AM",
+   "dayFrac": 0.45,
+   "windMph": 8,
+   "windDir": 170,
+   "gusts": "Gusts: 14 mph S",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 98,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 71,
+   "dewNote": "The dew point is 75° right now.",
+   "visMi": 9,
+   "visNote": "Slight haze on the horizon.",
+   "pressure": 29.92,
+   "pressureFrac": 0.44,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "5:05PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "-1°",
+   "avgSign": "from average daily high",
+   "avgToday": 91,
+   "avgAvg": 92,
+   "aqi": 44,
+   "aqiNote": "Air quality index is 44, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": -300,
+   "map": "us.png",
+   "px": 0.6,
+   "py": 0.79
+  },
+  {
+   "id": "london",
+   "name": "London",
+   "temp": 64,
+   "cond": "cloudy",
+   "condName": "Cloudy",
+   "hi": 68,
+   "lo": 55,
+   "summary": "Overcast through the evening. A shower is possible after midnight.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "cloud",
+     "temp": 64
+    },
+    {
+     "t": "7PM",
+     "icon": "cloud",
+     "temp": 63
+    },
+    {
+     "t": "8PM",
+     "icon": "cloud",
+     "temp": 62
+    },
+    {
+     "t": "8:47PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "9PM",
+     "icon": "cloudmoon",
+     "temp": 61
+    },
+    {
+     "t": "10PM",
+     "icon": "cloudmoon",
+     "temp": 60
+    },
+    {
+     "t": "11PM",
+     "icon": "cloudmoon",
+     "temp": 59
+    },
+    {
+     "t": "12AM",
+     "icon": "cloudmoon",
+     "temp": 58
+    },
+    {
+     "t": "1AM",
+     "icon": "cloudmoon",
+     "temp": 57
+    },
+    {
+     "t": "2AM",
+     "icon": "cloudmoon",
+     "temp": 57
+    },
+    {
+     "t": "3AM",
+     "icon": "cloudmoon",
+     "temp": 56
+    },
+    {
+     "t": "4AM",
+     "icon": "cloudmoon",
+     "temp": 56
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "cloud",
+     "lo": 55,
+     "hi": 68
+    },
+    {
+     "day": "Sun",
+     "icon": "cloud",
+     "lo": 54,
+     "hi": 67
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 54,
+     "hi": 66
+    },
+    {
+     "day": "Tue",
+     "icon": "storm",
+     "lo": 53,
+     "hi": 64
+    },
+    {
+     "day": "Wed",
+     "icon": "cloud",
+     "lo": 54,
+     "hi": 67
+    },
+    {
+     "day": "Thu",
+     "icon": "partly",
+     "lo": 55,
+     "hi": 69
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 54,
+     "hi": 70
+    },
+    {
+     "day": "Sat",
+     "icon": "cloud",
+     "lo": 53,
+     "hi": 68
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 54,
+     "hi": 67
+    },
+    {
+     "day": "Mon",
+     "icon": "cloud",
+     "lo": 55,
+     "hi": 66
+    }
+   ],
+   "uv": 1,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed this evening.",
+   "sunset": "8:47PM",
+   "sunrise": "5:31AM",
+   "dayFrac": 0.85,
+   "windMph": 9,
+   "windDir": 240,
+   "gusts": "Gusts: 16 mph WSW",
+   "precipIn": 0.04,
+   "precipNote": "Light rain possible overnight.",
+   "feels": 62,
+   "feelsNote": "Wind is making it feel cooler.",
+   "humidity": 77,
+   "dewNote": "The dew point is 57° right now.",
+   "visMi": 7,
+   "visNote": "Low cloud is softening the view.",
+   "pressure": 29.77,
+   "pressureFrac": 0.3,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:44PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "-2°",
+   "avgSign": "from average daily high",
+   "avgToday": 68,
+   "avgAvg": 70,
+   "aqi": 31,
+   "aqiNote": "Air quality index is 31, which is better than yesterday at about this time.",
+   "alert": "",
+   "tz": 60,
+   "map": "uk.png",
+   "px": 0.587,
+   "py": 0.845
+  },
+  {
+   "id": "manchester",
+   "name": "Manchester",
+   "temp": 59,
+   "cond": "cloudy",
+   "condName": "Cloudy",
+   "hi": 63,
+   "lo": 52,
+   "summary": "Grey and cool through the evening. Gusts to 18 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "cloud",
+     "temp": 59
+    },
+    {
+     "t": "7PM",
+     "icon": "cloud",
+     "temp": 58
+    },
+    {
+     "t": "8PM",
+     "icon": "cloud",
+     "temp": 57
+    },
+    {
+     "t": "9PM",
+     "icon": "cloudmoon",
+     "temp": 56
+    },
+    {
+     "t": "8:58PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "10PM",
+     "icon": "cloudmoon",
+     "temp": 55
+    },
+    {
+     "t": "11PM",
+     "icon": "cloudmoon",
+     "temp": 55
+    },
+    {
+     "t": "12AM",
+     "icon": "cloudmoon",
+     "temp": 54
+    },
+    {
+     "t": "1AM",
+     "icon": "cloudmoon",
+     "temp": 54
+    },
+    {
+     "t": "2AM",
+     "icon": "cloudmoon",
+     "temp": 53
+    },
+    {
+     "t": "3AM",
+     "icon": "cloudmoon",
+     "temp": 53
+    },
+    {
+     "t": "4AM",
+     "icon": "cloudmoon",
+     "temp": 52
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "cloud",
+     "lo": 52,
+     "hi": 63
+    },
+    {
+     "day": "Sun",
+     "icon": "cloud",
+     "lo": 51,
+     "hi": 62
+    },
+    {
+     "day": "Mon",
+     "icon": "storm",
+     "lo": 51,
+     "hi": 60
+    },
+    {
+     "day": "Tue",
+     "icon": "cloud",
+     "lo": 50,
+     "hi": 62
+    },
+    {
+     "day": "Wed",
+     "icon": "partly",
+     "lo": 51,
+     "hi": 64
+    },
+    {
+     "day": "Thu",
+     "icon": "cloud",
+     "lo": 52,
+     "hi": 65
+    },
+    {
+     "day": "Fri",
+     "icon": "partly",
+     "lo": 51,
+     "hi": 63
+    },
+    {
+     "day": "Sat",
+     "icon": "cloud",
+     "lo": 50,
+     "hi": 62
+    },
+    {
+     "day": "Sun",
+     "icon": "cloud",
+     "lo": 51,
+     "hi": 64
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 52,
+     "hi": 65
+    }
+   ],
+   "uv": 1,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed this evening.",
+   "sunset": "8:58PM",
+   "sunrise": "5:31AM",
+   "dayFrac": 0.83,
+   "windMph": 11,
+   "windDir": 250,
+   "gusts": "Gusts: 18 mph WSW",
+   "precipIn": 0.06,
+   "precipNote": "Drizzle likely overnight.",
+   "feels": 56,
+   "feelsNote": "Wind is making it feel cooler.",
+   "humidity": 81,
+   "dewNote": "The dew point is 54° right now.",
+   "visMi": 6,
+   "visNote": "Low cloud is softening the view.",
+   "pressure": 29.74,
+   "pressureFrac": 0.28,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:41PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "-3°",
+   "avgSign": "from average daily high",
+   "avgToday": 63,
+   "avgAvg": 66,
+   "aqi": 27,
+   "aqiNote": "Air quality index is 27, which is better than yesterday at about this time.",
+   "alert": "",
+   "tz": 60,
+   "map": "uk.png",
+   "px": 0.52,
+   "py": 0.71
+  },
+  {
+   "id": "paris",
+   "name": "Paris",
+   "temp": 75,
+   "cond": "sunny",
+   "condName": "Mostly Sunny",
+   "hi": 81,
+   "lo": 60,
+   "summary": "Clear golden evening. Sunny again tomorrow.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "sun",
+     "temp": 75
+    },
+    {
+     "t": "8PM",
+     "icon": "sun",
+     "temp": 73
+    },
+    {
+     "t": "9PM",
+     "icon": "moon",
+     "temp": 71
+    },
+    {
+     "t": "9:22PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "10PM",
+     "icon": "moon",
+     "temp": 69
+    },
+    {
+     "t": "11PM",
+     "icon": "moon",
+     "temp": 67
+    },
+    {
+     "t": "12AM",
+     "icon": "moon",
+     "temp": 66
+    },
+    {
+     "t": "1AM",
+     "icon": "moon",
+     "temp": 65
+    },
+    {
+     "t": "2AM",
+     "icon": "moon",
+     "temp": 64
+    },
+    {
+     "t": "3AM",
+     "icon": "moon",
+     "temp": 63
+    },
+    {
+     "t": "4AM",
+     "icon": "moon",
+     "temp": 62
+    },
+    {
+     "t": "5AM",
+     "icon": "moon",
+     "temp": 61
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 60,
+     "hi": 81
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 61,
+     "hi": 83
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 61,
+     "hi": 82
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 62,
+     "hi": 84
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 63,
+     "hi": 86
+    },
+    {
+     "day": "Thu",
+     "icon": "storm",
+     "lo": 62,
+     "hi": 83
+    },
+    {
+     "day": "Fri",
+     "icon": "partly",
+     "lo": 61,
+     "hi": 82
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 62,
+     "hi": 84
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 63,
+     "hi": 85
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 63,
+     "hi": 86
+    }
+   ],
+   "uv": 1,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed this evening.",
+   "sunset": "9:22PM",
+   "sunrise": "6:32AM",
+   "dayFrac": 0.87,
+   "windMph": 6,
+   "windDir": 30,
+   "gusts": "Gusts: 10 mph NE",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 75,
+   "feelsNote": "It feels about the same as the actual temperature.",
+   "humidity": 55,
+   "dewNote": "The dew point is 57° right now.",
+   "visMi": 12,
+   "visNote": "Perfectly clear view.",
+   "pressure": 30.04,
+   "pressureFrac": 0.56,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "1:20AM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "+2°",
+   "avgSign": "above average daily high",
+   "avgToday": 81,
+   "avgAvg": 79,
+   "aqi": 49,
+   "aqiNote": "Air quality index is 49, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": 120,
+   "map": "fr.png",
+   "px": 0.494,
+   "py": 0.27
+  },
+  {
+   "id": "berlin",
+   "name": "Berlin",
+   "temp": 70,
+   "cond": "cumulus",
+   "condName": "Mostly Cloudy",
+   "hi": 74,
+   "lo": 57,
+   "summary": "Broken cloud into the evening. Clearing tomorrow.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "cloud",
+     "temp": 70
+    },
+    {
+     "t": "8PM",
+     "icon": "cloud",
+     "temp": 68
+    },
+    {
+     "t": "8:54PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "9PM",
+     "icon": "cloudmoon",
+     "temp": 67
+    },
+    {
+     "t": "10PM",
+     "icon": "cloudmoon",
+     "temp": 65
+    },
+    {
+     "t": "11PM",
+     "icon": "cloudmoon",
+     "temp": 64
+    },
+    {
+     "t": "12AM",
+     "icon": "cloudmoon",
+     "temp": 63
+    },
+    {
+     "t": "1AM",
+     "icon": "cloudmoon",
+     "temp": 62
+    },
+    {
+     "t": "2AM",
+     "icon": "cloudmoon",
+     "temp": 61
+    },
+    {
+     "t": "3AM",
+     "icon": "cloudmoon",
+     "temp": 60
+    },
+    {
+     "t": "4AM",
+     "icon": "cloudmoon",
+     "temp": 59
+    },
+    {
+     "t": "5AM",
+     "icon": "cloudmoon",
+     "temp": 58
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "cloud",
+     "lo": 57,
+     "hi": 74
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 57,
+     "hi": 75
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 58,
+     "hi": 77
+    },
+    {
+     "day": "Tue",
+     "icon": "partly",
+     "lo": 58,
+     "hi": 76
+    },
+    {
+     "day": "Wed",
+     "icon": "cloud",
+     "lo": 59,
+     "hi": 74
+    },
+    {
+     "day": "Thu",
+     "icon": "sun",
+     "lo": 58,
+     "hi": 78
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 57,
+     "hi": 79
+    },
+    {
+     "day": "Sat",
+     "icon": "partly",
+     "lo": 58,
+     "hi": 77
+    },
+    {
+     "day": "Sun",
+     "icon": "cloud",
+     "lo": 59,
+     "hi": 75
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 59,
+     "hi": 78
+    }
+   ],
+   "uv": 1,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed this evening.",
+   "sunset": "8:54PM",
+   "sunrise": "5:41AM",
+   "dayFrac": 0.91,
+   "windMph": 8,
+   "windDir": 300,
+   "gusts": "Gusts: 13 mph NW",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 70,
+   "feelsNote": "It feels about the same as the actual temperature.",
+   "humidity": 62,
+   "dewNote": "The dew point is 56° right now.",
+   "visMi": 11,
+   "visNote": "Perfectly clear view.",
+   "pressure": 29.98,
+   "pressureFrac": 0.52,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "1:05AM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "-1°",
+   "avgSign": "from average daily high",
+   "avgToday": 74,
+   "avgAvg": 75,
+   "aqi": 36,
+   "aqiNote": "Air quality index is 36, which is better than yesterday at about this time.",
+   "alert": "",
+   "tz": 120,
+   "map": "de.png",
+   "px": 0.62,
+   "py": 0.33
+  },
+  {
+   "id": "sydney",
+   "name": "Sydney",
+   "temp": 52,
+   "cond": "night",
+   "condName": "Clear",
+   "hi": 61,
+   "lo": 48,
+   "summary": "Clear and cold overnight. Winter sun tomorrow; gusts to 11 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "moon",
+     "temp": 52
+    },
+    {
+     "t": "4AM",
+     "icon": "moon",
+     "temp": 51
+    },
+    {
+     "t": "5AM",
+     "icon": "moon",
+     "temp": 51
+    },
+    {
+     "t": "6AM",
+     "icon": "moon",
+     "temp": 50
+    },
+    {
+     "t": "6:45AM",
+     "icon": "sunrise",
+     "temp": 0
+    },
+    {
+     "t": "7AM",
+     "icon": "sun",
+     "temp": 50
+    },
+    {
+     "t": "8AM",
+     "icon": "sun",
+     "temp": 49
+    },
+    {
+     "t": "9AM",
+     "icon": "sun",
+     "temp": 49
+    },
+    {
+     "t": "10AM",
+     "icon": "sun",
+     "temp": 50
+    },
+    {
+     "t": "11AM",
+     "icon": "sun",
+     "temp": 52
+    },
+    {
+     "t": "12PM",
+     "icon": "sun",
+     "temp": 55
+    },
+    {
+     "t": "1PM",
+     "icon": "sun",
+     "temp": 58
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 48,
+     "hi": 61
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 47,
+     "hi": 62
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 47,
+     "hi": 60
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 48,
+     "hi": 63
+    },
+    {
+     "day": "Wed",
+     "icon": "cloud",
+     "lo": 49,
+     "hi": 59
+    },
+    {
+     "day": "Thu",
+     "icon": "sun",
+     "lo": 48,
+     "hi": 62
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 47,
+     "hi": 63
+    },
+    {
+     "day": "Sat",
+     "icon": "partly",
+     "lo": 48,
+     "hi": 61
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 49,
+     "hi": 62
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 49,
+     "hi": 63
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed tonight.",
+   "sunset": "5:21PM",
+   "sunrise": "6:45AM",
+   "dayFrac": 0.0,
+   "windMph": 6,
+   "windDir": 220,
+   "gusts": "Gusts: 11 mph SW",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 50,
+   "feelsNote": "Wind is making it feel cooler.",
+   "humidity": 68,
+   "dewNote": "The dew point is 42° right now.",
+   "visMi": 12,
+   "visNote": "Perfectly clear view.",
+   "pressure": 30.12,
+   "pressureFrac": 0.66,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "3:38PM",
+   "nextFull": 19,
+   "moonFrac": 0.78,
+   "avgDelta": "+1°",
+   "avgSign": "above average daily high",
+   "avgToday": 61,
+   "avgAvg": 60,
+   "aqi": 24,
+   "aqiNote": "Air quality index is 24, which is better than yesterday at about this time.",
+   "alert": "",
+   "tz": 600,
+   "map": "au.png",
+   "px": 0.731,
+   "py": 0.725
+  },
+  {
+   "id": "melbourne",
+   "name": "Melbourne",
+   "temp": 45,
+   "cond": "night",
+   "condName": "Clear",
+   "hi": 57,
+   "lo": 42,
+   "summary": "Cold and still tonight. A bright winter day tomorrow.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "moon",
+     "temp": 45
+    },
+    {
+     "t": "4AM",
+     "icon": "moon",
+     "temp": 44
+    },
+    {
+     "t": "5AM",
+     "icon": "moon",
+     "temp": 44
+    },
+    {
+     "t": "6AM",
+     "icon": "moon",
+     "temp": 43
+    },
+    {
+     "t": "7AM",
+     "icon": "sun",
+     "temp": 43
+    },
+    {
+     "t": "7:22AM",
+     "icon": "sunrise",
+     "temp": 0
+    },
+    {
+     "t": "8AM",
+     "icon": "sun",
+     "temp": 42
+    },
+    {
+     "t": "9AM",
+     "icon": "sun",
+     "temp": 42
+    },
+    {
+     "t": "10AM",
+     "icon": "sun",
+     "temp": 43
+    },
+    {
+     "t": "11AM",
+     "icon": "sun",
+     "temp": 46
+    },
+    {
+     "t": "12PM",
+     "icon": "sun",
+     "temp": 49
+    },
+    {
+     "t": "1PM",
+     "icon": "sun",
+     "temp": 53
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 42,
+     "hi": 57
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 41,
+     "hi": 55
+    },
+    {
+     "day": "Mon",
+     "icon": "cloud",
+     "lo": 42,
+     "hi": 54
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 43,
+     "hi": 58
+    },
+    {
+     "day": "Wed",
+     "icon": "storm",
+     "lo": 42,
+     "hi": 52
+    },
+    {
+     "day": "Thu",
+     "icon": "cloud",
+     "lo": 41,
+     "hi": 53
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 42,
+     "hi": 57
+    },
+    {
+     "day": "Sat",
+     "icon": "partly",
+     "lo": 43,
+     "hi": 58
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 42,
+     "hi": 59
+    },
+    {
+     "day": "Mon",
+     "icon": "cloud",
+     "lo": 43,
+     "hi": 55
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed tonight.",
+   "sunset": "5:28PM",
+   "sunrise": "7:22AM",
+   "dayFrac": 0.0,
+   "windMph": 4,
+   "windDir": 340,
+   "gusts": "Gusts: 8 mph NNW",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 43,
+   "feelsNote": "Wind is making it feel cooler.",
+   "humidity": 74,
+   "dewNote": "The dew point is 38° right now.",
+   "visMi": 10,
+   "visNote": "Perfectly clear view.",
+   "pressure": 30.15,
+   "pressureFrac": 0.68,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "3:24PM",
+   "nextFull": 19,
+   "moonFrac": 0.78,
+   "avgDelta": "-2°",
+   "avgSign": "from average daily high",
+   "avgToday": 57,
+   "avgAvg": 59,
+   "aqi": 19,
+   "aqiNote": "Air quality index is 19, which is better than yesterday at about this time.",
+   "alert": "",
+   "tz": 600,
+   "map": "au.png",
+   "px": 0.67,
+   "py": 0.865
+  },
+  {
+   "id": "rio",
+   "name": "Rio de Janeiro",
+   "temp": 79,
+   "cond": "sunny",
+   "condName": "Sunny",
+   "hi": 82,
+   "lo": 66,
+   "summary": "Winter sun all afternoon. Gusts are up to 12 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "sun",
+     "temp": 79
+    },
+    {
+     "t": "3PM",
+     "icon": "sun",
+     "temp": 80
+    },
+    {
+     "t": "4PM",
+     "icon": "sun",
+     "temp": 81
+    },
+    {
+     "t": "5PM",
+     "icon": "sun",
+     "temp": 80
+    },
+    {
+     "t": "5:36PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "6PM",
+     "icon": "moon",
+     "temp": 78
+    },
+    {
+     "t": "7PM",
+     "icon": "moon",
+     "temp": 74
+    },
+    {
+     "t": "8PM",
+     "icon": "moon",
+     "temp": 71
+    },
+    {
+     "t": "9PM",
+     "icon": "moon",
+     "temp": 70
+    },
+    {
+     "t": "10PM",
+     "icon": "moon",
+     "temp": 69
+    },
+    {
+     "t": "11PM",
+     "icon": "moon",
+     "temp": 68
+    },
+    {
+     "t": "12AM",
+     "icon": "moon",
+     "temp": 68
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 82
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 83
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 67,
+     "hi": 84
+    },
+    {
+     "day": "Tue",
+     "icon": "partly",
+     "lo": 67,
+     "hi": 82
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 68,
+     "hi": 85
+    },
+    {
+     "day": "Thu",
+     "icon": "sun",
+     "lo": 67,
+     "hi": 86
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 66,
+     "hi": 84
+    },
+    {
+     "day": "Sat",
+     "icon": "partly",
+     "lo": 67,
+     "hi": 83
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 68,
+     "hi": 85
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 68,
+     "hi": 86
+    }
+   ],
+   "uv": 5,
+   "uvName": "Moderate",
+   "uvNote": "Use sun protection until 4PM.",
+   "sunset": "5:36PM",
+   "sunrise": "6:21AM",
+   "dayFrac": 0.72,
+   "windMph": 7,
+   "windDir": 140,
+   "gusts": "Gusts: 12 mph SE",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 79,
+   "feelsNote": "It feels about the same as the actual temperature.",
+   "humidity": 60,
+   "dewNote": "The dew point is 63° right now.",
+   "visMi": 12,
+   "visNote": "Perfectly clear view.",
+   "pressure": 30.02,
+   "pressureFrac": 0.55,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "3:55PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "+1°",
+   "avgSign": "above average daily high",
+   "avgToday": 82,
+   "avgAvg": 81,
+   "aqi": 41,
+   "aqiNote": "Air quality index is 41, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": -180,
+   "map": "br.png",
+   "px": 0.652,
+   "py": 0.736
+  },
+  {
+   "id": "saopaulo",
+   "name": "São Paulo",
+   "temp": 66,
+   "cond": "cloudy",
+   "condName": "Cloudy",
+   "hi": 70,
+   "lo": 55,
+   "summary": "Grey winter afternoon. Slow clearing tomorrow.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "cloud",
+     "temp": 66
+    },
+    {
+     "t": "3PM",
+     "icon": "cloud",
+     "temp": 67
+    },
+    {
+     "t": "4PM",
+     "icon": "cloud",
+     "temp": 68
+    },
+    {
+     "t": "5PM",
+     "icon": "cloud",
+     "temp": 67
+    },
+    {
+     "t": "5:46PM",
+     "icon": "sunset",
+     "temp": 0
+    },
+    {
+     "t": "6PM",
+     "icon": "cloudmoon",
+     "temp": 65
+    },
+    {
+     "t": "7PM",
+     "icon": "cloudmoon",
+     "temp": 62
+    },
+    {
+     "t": "8PM",
+     "icon": "cloudmoon",
+     "temp": 60
+    },
+    {
+     "t": "9PM",
+     "icon": "cloudmoon",
+     "temp": 59
+    },
+    {
+     "t": "10PM",
+     "icon": "cloudmoon",
+     "temp": 58
+    },
+    {
+     "t": "11PM",
+     "icon": "cloudmoon",
+     "temp": 57
+    },
+    {
+     "t": "12AM",
+     "icon": "cloudmoon",
+     "temp": 57
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "cloud",
+     "lo": 55,
+     "hi": 70
+    },
+    {
+     "day": "Sun",
+     "icon": "cloud",
+     "lo": 54,
+     "hi": 69
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 54,
+     "hi": 71
+    },
+    {
+     "day": "Tue",
+     "icon": "cloud",
+     "lo": 55,
+     "hi": 68
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 56,
+     "hi": 72
+    },
+    {
+     "day": "Thu",
+     "icon": "partly",
+     "lo": 55,
+     "hi": 73
+    },
+    {
+     "day": "Fri",
+     "icon": "cloud",
+     "lo": 54,
+     "hi": 71
+    },
+    {
+     "day": "Sat",
+     "icon": "cloud",
+     "lo": 55,
+     "hi": 70
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 56,
+     "hi": 72
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 56,
+     "hi": 73
+    }
+   ],
+   "uv": 2,
+   "uvName": "Low",
+   "uvNote": "Use sun protection until 3PM.",
+   "sunset": "5:46PM",
+   "sunrise": "6:41AM",
+   "dayFrac": 0.7,
+   "windMph": 9,
+   "windDir": 160,
+   "gusts": "Gusts: 15 mph SSE",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 64,
+   "feelsNote": "Wind is making it feel cooler.",
+   "humidity": 72,
+   "dewNote": "The dew point is 58° right now.",
+   "visMi": 8,
+   "visNote": "Light haze is affecting visibility.",
+   "pressure": 29.94,
+   "pressureFrac": 0.46,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:02PM",
+   "nextFull": 20,
+   "moonFrac": 0.78,
+   "avgDelta": "-2°",
+   "avgSign": "from average daily high",
+   "avgToday": 70,
+   "avgAvg": 72,
+   "aqi": 54,
+   "aqiNote": "Air quality index is 54, which is similar to yesterday at about this time.",
+   "alert": "",
+   "tz": -180,
+   "map": "br.png",
+   "px": 0.597,
+   "py": 0.756
+  },
+  {
+   "id": "mumbai",
+   "name": "Mumbai",
+   "temp": 82,
+   "cond": "night",
+   "condName": "Clear",
+   "hi": 86,
+   "lo": 79,
+   "summary": "Warm and very humid overnight. Monsoon clouds return tomorrow.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "cloudmoon",
+     "temp": 82
+    },
+    {
+     "t": "12AM",
+     "icon": "cloudmoon",
+     "temp": 82
+    },
+    {
+     "t": "1AM",
+     "icon": "cloudmoon",
+     "temp": 81
+    },
+    {
+     "t": "2AM",
+     "icon": "cloudmoon",
+     "temp": 81
+    },
+    {
+     "t": "3AM",
+     "icon": "cloudmoon",
+     "temp": 80
+    },
+    {
+     "t": "4AM",
+     "icon": "cloudmoon",
+     "temp": 80
+    },
+    {
+     "t": "5AM",
+     "icon": "cloudmoon",
+     "temp": 80
+    },
+    {
+     "t": "6AM",
+     "icon": "partly",
+     "temp": 81
+    },
+    {
+     "t": "6:20AM",
+     "icon": "sunrise",
+     "temp": 0
+    },
+    {
+     "t": "7AM",
+     "icon": "partly",
+     "temp": 82
+    },
+    {
+     "t": "8AM",
+     "icon": "partly",
+     "temp": 83
+    },
+    {
+     "t": "9AM",
+     "icon": "partly",
+     "temp": 84
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "partly",
+     "lo": 79,
+     "hi": 86
+    },
+    {
+     "day": "Sun",
+     "icon": "storm",
+     "lo": 79,
+     "hi": 85
+    },
+    {
+     "day": "Mon",
+     "icon": "storm",
+     "lo": 78,
+     "hi": 84
+    },
+    {
+     "day": "Tue",
+     "icon": "partly",
+     "lo": 79,
+     "hi": 87
+    },
+    {
+     "day": "Wed",
+     "icon": "storm",
+     "lo": 80,
+     "hi": 85
+    },
+    {
+     "day": "Thu",
+     "icon": "partly",
+     "lo": 79,
+     "hi": 86
+    },
+    {
+     "day": "Fri",
+     "icon": "storm",
+     "lo": 78,
+     "hi": 84
+    },
+    {
+     "day": "Sat",
+     "icon": "storm",
+     "lo": 79,
+     "hi": 85
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 80,
+     "hi": 87
+    },
+    {
+     "day": "Mon",
+     "icon": "storm",
+     "lo": 79,
+     "hi": 86
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed tonight.",
+   "sunset": "7:12PM",
+   "sunrise": "6:20AM",
+   "dayFrac": 0.0,
+   "windMph": 12,
+   "windDir": 260,
+   "gusts": "Gusts: 20 mph W",
+   "precipIn": 0.6,
+   "precipNote": "Monsoon showers expected most days.",
+   "feels": 90,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 87,
+   "dewNote": "The dew point is 78° right now.",
+   "visMi": 6,
+   "visNote": "Monsoon haze is affecting visibility.",
+   "pressure": 29.71,
+   "pressureFrac": 0.24,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:31PM",
+   "nextFull": 19,
+   "moonFrac": 0.78,
+   "avgDelta": "-1°",
+   "avgSign": "from average daily high",
+   "avgToday": 86,
+   "avgAvg": 87,
+   "aqi": 72,
+   "aqiNote": "Air quality index is 72, which is worse than yesterday at about this time.",
+   "alert": "",
+   "tz": 330,
+   "map": "in.png",
+   "px": 0.358,
+   "py": 0.6
+  },
+  {
+   "id": "delhi",
+   "name": "Delhi",
+   "temp": 90,
+   "cond": "night",
+   "condName": "Clear",
+   "hi": 100,
+   "lo": 84,
+   "summary": "Hot night. Near-record heat again tomorrow; gusts to 13 mph.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "moon",
+     "temp": 90
+    },
+    {
+     "t": "12AM",
+     "icon": "moon",
+     "temp": 89
+    },
+    {
+     "t": "1AM",
+     "icon": "moon",
+     "temp": 88
+    },
+    {
+     "t": "2AM",
+     "icon": "moon",
+     "temp": 87
+    },
+    {
+     "t": "3AM",
+     "icon": "moon",
+     "temp": 86
+    },
+    {
+     "t": "4AM",
+     "icon": "moon",
+     "temp": 86
+    },
+    {
+     "t": "5AM",
+     "icon": "moon",
+     "temp": 85
+    },
+    {
+     "t": "5:46AM",
+     "icon": "sunrise",
+     "temp": 0
+    },
+    {
+     "t": "6AM",
+     "icon": "sun",
+     "temp": 87
+    },
+    {
+     "t": "7AM",
+     "icon": "sun",
+     "temp": 90
+    },
+    {
+     "t": "8AM",
+     "icon": "sun",
+     "temp": 93
+    },
+    {
+     "t": "9AM",
+     "icon": "sun",
+     "temp": 96
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 84,
+     "hi": 100
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 84,
+     "hi": 101
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 83,
+     "hi": 99
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 84,
+     "hi": 102
+    },
+    {
+     "day": "Wed",
+     "icon": "storm",
+     "lo": 85,
+     "hi": 97
+    },
+    {
+     "day": "Thu",
+     "icon": "sun",
+     "lo": 84,
+     "hi": 100
+    },
+    {
+     "day": "Fri",
+     "icon": "partly",
+     "lo": 83,
+     "hi": 101
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 84,
+     "hi": 102
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 85,
+     "hi": 100
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 85,
+     "hi": 101
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed tonight.",
+   "sunset": "7:08PM",
+   "sunrise": "5:46AM",
+   "dayFrac": 0.0,
+   "windMph": 7,
+   "windDir": 280,
+   "gusts": "Gusts: 13 mph W",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 97,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 55,
+   "dewNote": "The dew point is 76° right now.",
+   "visMi": 5,
+   "visNote": "Dust haze is affecting visibility.",
+   "pressure": 29.65,
+   "pressureFrac": 0.2,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:44PM",
+   "nextFull": 19,
+   "moonFrac": 0.78,
+   "avgDelta": "+3°",
+   "avgSign": "above average daily high",
+   "avgToday": 100,
+   "avgAvg": 97,
+   "aqi": 118,
+   "aqiNote": "Air quality index is 118, which is worse than yesterday at about this time.",
+   "alert": "",
+   "tz": 330,
+   "map": "in.png",
+   "px": 0.42,
+   "py": 0.3
+  },
+  {
+   "id": "shanghai",
+   "name": "Shanghai",
+   "temp": 82,
+   "cond": "night",
+   "condName": "Clear",
+   "hi": 95,
+   "lo": 80,
+   "summary": "Hot and close tonight. Another steamy day tomorrow.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "moon",
+     "temp": 82
+    },
+    {
+     "t": "2AM",
+     "icon": "moon",
+     "temp": 82
+    },
+    {
+     "t": "3AM",
+     "icon": "moon",
+     "temp": 81
+    },
+    {
+     "t": "4AM",
+     "icon": "moon",
+     "temp": 81
+    },
+    {
+     "t": "5AM",
+     "icon": "moon",
+     "temp": 80
+    },
+    {
+     "t": "5:15AM",
+     "icon": "sunrise",
+     "temp": 0
+    },
+    {
+     "t": "6AM",
+     "icon": "sun",
+     "temp": 80
+    },
+    {
+     "t": "7AM",
+     "icon": "sun",
+     "temp": 81
+    },
+    {
+     "t": "8AM",
+     "icon": "sun",
+     "temp": 84
+    },
+    {
+     "t": "9AM",
+     "icon": "sun",
+     "temp": 87
+    },
+    {
+     "t": "10AM",
+     "icon": "sun",
+     "temp": 90
+    },
+    {
+     "t": "11AM",
+     "icon": "sun",
+     "temp": 92
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 80,
+     "hi": 95
+    },
+    {
+     "day": "Sun",
+     "icon": "sun",
+     "lo": 80,
+     "hi": 96
+    },
+    {
+     "day": "Mon",
+     "icon": "partly",
+     "lo": 79,
+     "hi": 94
+    },
+    {
+     "day": "Tue",
+     "icon": "storm",
+     "lo": 79,
+     "hi": 91
+    },
+    {
+     "day": "Wed",
+     "icon": "sun",
+     "lo": 80,
+     "hi": 96
+    },
+    {
+     "day": "Thu",
+     "icon": "sun",
+     "lo": 81,
+     "hi": 97
+    },
+    {
+     "day": "Fri",
+     "icon": "partly",
+     "lo": 80,
+     "hi": 95
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 79,
+     "hi": 96
+    },
+    {
+     "day": "Sun",
+     "icon": "storm",
+     "lo": 80,
+     "hi": 93
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 81,
+     "hi": 97
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed tonight.",
+   "sunset": "6:52PM",
+   "sunrise": "5:15AM",
+   "dayFrac": 0.0,
+   "windMph": 6,
+   "windDir": 120,
+   "gusts": "Gusts: 10 mph ESE",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 90,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 78,
+   "dewNote": "The dew point is 77° right now.",
+   "visMi": 8,
+   "visNote": "Summer haze is affecting visibility.",
+   "pressure": 29.82,
+   "pressureFrac": 0.34,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:12PM",
+   "nextFull": 19,
+   "moonFrac": 0.78,
+   "avgDelta": "+2°",
+   "avgSign": "above average daily high",
+   "avgToday": 95,
+   "avgAvg": 93,
+   "aqi": 88,
+   "aqiNote": "Air quality index is 88, which is worse than yesterday at about this time.",
+   "alert": "",
+   "tz": 480,
+   "map": "cn.png",
+   "px": 0.71,
+   "py": 0.6
+  },
+  {
+   "id": "beijing",
+   "name": "Beijing",
+   "temp": 79,
+   "cond": "night",
+   "condName": "Clear",
+   "hi": 93,
+   "lo": 75,
+   "summary": "Warm and quiet tonight. Hazy sunshine tomorrow.",
+   "hours": [
+    {
+     "t": "Now",
+     "icon": "moon",
+     "temp": 79
+    },
+    {
+     "t": "2AM",
+     "icon": "moon",
+     "temp": 78
+    },
+    {
+     "t": "3AM",
+     "icon": "moon",
+     "temp": 78
+    },
+    {
+     "t": "4AM",
+     "icon": "moon",
+     "temp": 77
+    },
+    {
+     "t": "5AM",
+     "icon": "moon",
+     "temp": 77
+    },
+    {
+     "t": "5:12AM",
+     "icon": "sunrise",
+     "temp": 0
+    },
+    {
+     "t": "6AM",
+     "icon": "sun",
+     "temp": 76
+    },
+    {
+     "t": "7AM",
+     "icon": "sun",
+     "temp": 78
+    },
+    {
+     "t": "8AM",
+     "icon": "sun",
+     "temp": 81
+    },
+    {
+     "t": "9AM",
+     "icon": "sun",
+     "temp": 84
+    },
+    {
+     "t": "10AM",
+     "icon": "sun",
+     "temp": 87
+    },
+    {
+     "t": "11AM",
+     "icon": "sun",
+     "temp": 90
+    }
+   ],
+   "days": [
+    {
+     "day": "Today",
+     "icon": "sun",
+     "lo": 75,
+     "hi": 93
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 75,
+     "hi": 94
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 74,
+     "hi": 92
+    },
+    {
+     "day": "Tue",
+     "icon": "sun",
+     "lo": 75,
+     "hi": 95
+    },
+    {
+     "day": "Wed",
+     "icon": "storm",
+     "lo": 76,
+     "hi": 90
+    },
+    {
+     "day": "Thu",
+     "icon": "partly",
+     "lo": 75,
+     "hi": 93
+    },
+    {
+     "day": "Fri",
+     "icon": "sun",
+     "lo": 74,
+     "hi": 94
+    },
+    {
+     "day": "Sat",
+     "icon": "sun",
+     "lo": 75,
+     "hi": 95
+    },
+    {
+     "day": "Sun",
+     "icon": "partly",
+     "lo": 76,
+     "hi": 93
+    },
+    {
+     "day": "Mon",
+     "icon": "sun",
+     "lo": 76,
+     "hi": 94
+    }
+   ],
+   "uv": 0,
+   "uvName": "Low",
+   "uvNote": "No sun protection needed tonight.",
+   "sunset": "7:21PM",
+   "sunrise": "5:12AM",
+   "dayFrac": 0.0,
+   "windMph": 5,
+   "windDir": 200,
+   "gusts": "Gusts: 9 mph SSW",
+   "precipIn": 0,
+   "precipNote": "None expected in next 10 days.",
+   "feels": 84,
+   "feelsNote": "Humidity is making it feel warmer.",
+   "humidity": 64,
+   "dewNote": "The dew point is 68° right now.",
+   "visMi": 7,
+   "visNote": "Summer haze is affecting visibility.",
+   "pressure": 29.86,
+   "pressureFrac": 0.38,
+   "moon": "Waning Crescent",
+   "moonIllum": 22,
+   "moonset": "4:05PM",
+   "nextFull": 19,
+   "moonFrac": 0.78,
+   "avgDelta": "+1°",
+   "avgSign": "above average daily high",
+   "avgToday": 93,
+   "avgAvg": 92,
+   "aqi": 96,
+   "aqiNote": "Air quality index is 96, which is worse than yesterday at about this time.",
+   "alert": "",
+   "tz": 480,
+   "map": "cn.png",
+   "px": 0.64,
+   "py": 0.43
+  }
+ ]
+}

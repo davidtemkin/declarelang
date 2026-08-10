@@ -214,6 +214,13 @@ export class Constraint {
         for (const d of this.deps)
             d.unlink(this);
         this.deps.length = 0;
+        // Dropping the edges is what makes suspension inert, but on the STATIC path
+        // run() does not rediscover edges (that is the whole point of prewiring), so
+        // a resumed wired constraint would land its value once and then never wake
+        // again. Arm the re-probe here: the next run re-tracks over the compiler's
+        // read-paths and the constraint is a live citizen again.
+        if (this.wired)
+            this.needsRewire = true;
     }
     /** Resume from suspension and re-evaluate against current state now — the
      *  displaced driver taking its slot back on the animator's completion

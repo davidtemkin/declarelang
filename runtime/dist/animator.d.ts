@@ -152,8 +152,10 @@ export declare class Animator extends Node implements Animatable {
     private end;
     /** Fire a carried handler if one is installed (onStart / onStop / onRepeat).
      *  A plain Node dispatch — fireEvent (view.ts) is View-typed, and an
-     *  animator is a Node; an absent handler is a silent no-op. */
-    private fire;
+     *  animator is a Node; an absent handler is a silent no-op. PROTECTED
+     *  because Spring integrates its own tick and must announce its own
+     *  arrival through the same door (spring.ts's rest branch). */
+    protected fire(handler: string): void;
 }
 /** AnimatorGroup — coordinates several animators (or nested groups) in
  *  `sequential` or `simultaneous` order (animation.md §1, LzAnimatorGroup.lzs).

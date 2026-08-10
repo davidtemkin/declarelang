@@ -338,7 +338,9 @@ export class Animator extends Node {
     }
     /** Fire a carried handler if one is installed (onStart / onStop / onRepeat).
      *  A plain Node dispatch — fireEvent (view.ts) is View-typed, and an
-     *  animator is a Node; an absent handler is a silent no-op. */
+     *  animator is a Node; an absent handler is a silent no-op. PROTECTED
+     *  because Spring integrates its own tick and must announce its own
+     *  arrival through the same door (spring.ts's rest branch). */
     fire(handler) {
         const h = this[handler];
         if (typeof h === "function")

@@ -415,6 +415,12 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  $data(path: string | readonly (string | { i: number } | { s: (number | null)[] } | { w: number })[]): any;`,
     `  $setData(path: string | readonly string[], v: any): void;`,
     `  scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;`,
+    // The scroll-offset REQUEST pair (platform-authorship.md): the platform
+    // clamps to the real range (Infinity = the far end) and holds a request a
+    // hidden surface cannot take yet, applying it on show. The verbs, where
+    // `scrollY`/`scrollX` are the facts.
+    `  scrollTo(y: number): void;`,
+    `  scrollToX(x: number): void;`,
     // The view's origin in root space via THE one walk (scroll-aware) — the
     // anchor primitive overlays position by (menus, popovers).
     `  rootOrigin(): { x: number; y: number };`,

@@ -22,7 +22,7 @@ class ChatPanel extends View [
         app.chatLog.insert(["messages"], app.chatLog.value.messages.length,
             ({ text: app.userName + ": " + t, self: true }))
         entry.text = ""
-        transcript.scrollY = 100000
+        transcript.scrollTo(Infinity)   // the far end — the platform clamps to the real bottom
         },
 
     transcript: View [ x = 15, y = 5, width = { parent.width - 34 },

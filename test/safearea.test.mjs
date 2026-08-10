@@ -98,6 +98,41 @@ await test("the insets are LIVE: a rotation-shaped change re-feeds them", async 
   assert.deepEqual(await facts(), { top: 0, bottom: 21, left: 47, right: 47 });
 });
 
+// `underlapBottom` — the browser's own retractable chrome, told apart from the
+// device's. iOS reports it by growing the VISUAL viewport past the layout one
+// when the bars collapse (measured iPhone 16 Pro, iOS 18.2: 678 layout in both
+// states, 678 visual with the bars up and 760 once they retract); no desktop
+// browser does that, so the fact is fed a stand-in visual viewport here and
+// asserted on the device by the simulator rig.
+const withVisualHeight = async (h) => page.evaluate((hh) => {
+  Object.defineProperty(window.visualViewport, "height", { get: () => hh, configurable: true });
+  window.visualViewport.dispatchEvent(new Event("resize"));
+  return null;
+}, h);
+
+await test("bars shown: nothing of the app is under the browser's chrome", async () => {
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: PHONE });
+  await boot("test/probe/safearea.declare");
+  const layout = await page.evaluate(() => document.documentElement.clientHeight);
+  await withVisualHeight(layout);
+  const a = await page.evaluate(() => {
+    const x = globalThis.__declare.find("app");
+    return { host: x.hostHeight, under: x.underlapBottom };
+  });
+  assert.deepEqual(a, { host: layout, under: 0 });
+});
+
+await test("bars retracted: the band they vacated is hostHeight's, and underlapBottom names it", async () => {
+  const layout = await page.evaluate(() => document.documentElement.clientHeight);
+  await withVisualHeight(layout + 82);
+  const a = await page.evaluate(() => {
+    const x = globalThis.__declare.find("app");
+    return { host: x.hostHeight, under: x.underlapBottom };
+  });
+  assert.deepEqual(a, { host: layout + 82, under: 82 },
+    "hostHeight reaches the true bottom; underlapBottom is how much of it a finger cannot rely on");
+});
+
 await test("the default is the letterbox: no edges declaration leaves the meta untouched", async () => {
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: PHONE });
   await boot("test/probe/safearea-default.declare");
