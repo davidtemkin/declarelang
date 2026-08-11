@@ -57,7 +57,9 @@ to assume a rule from React, CSS, or HTML carries over.
 - **A real program to read** — [apps/calendar/calendar.declare](apps/calendar/calendar.declare),
   the reference app: four views, continuous zoom, drag and edit, written by a model.
 - **The loop** — write the whole program, check it with
-  [verify](docs/operational/verify.md), then *ask the running program* with
+  [verify](docs/operational/verify.md), *ask the platform* with
+  [declare-help](docs/operational/help.md) — `node tools/declare-help.mjs <name>`, one exact
+  answer per question, cheaper than reading for it — then *ask the running program* with
   [introspection](docs/operational/introspection.md). A clean compile is not a working app:
   layout, fonts, paint, and input routing do not exist until it runs.
 - **Changing the platform itself** rather than writing a program in it —

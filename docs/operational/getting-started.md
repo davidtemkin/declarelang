@@ -104,6 +104,20 @@ chain it searched. You will spend more time reading diagnostics than chasing
 misbehavior — they are written to be trusted, applied, and recompiled. That loop
 *is* the first lesson.
 
+When the question is a fact rather than a failure — an attribute's name, an
+enum's tokens, what a library component carries, what a diagnostic code means —
+ask the platform instead of reading for it:
+
+```
+node tools/declare-help.mjs Slider.value      # any dotted name, class, or attribute
+node tools/declare-help.mjs DECLARE4001       # a concept, an enum, a diagnostic code
+```
+
+One answer per question, did-you-mean included, and a true miss says what it
+searched — so silence is trustworthy. It is the cheapest way to be sure of a
+name, and the third verb of the loop: write it, check it, **ask**
+([declare-help](declare-docs:operational:help)).
+
 ## 5. The address does more
 
 The program URL takes modifiers, one query parameter each:
@@ -126,7 +140,5 @@ covers `declarec` and hosting.
   the complete surface stated once.
 - **Put it in a real project** — [Embedding Declare](declare-docs:operational:embedding),
   when your app should live in its own repo next to a back end rather than in `my-apps/`.
-- **Look something up** — `node tools/declare-help.mjs <name-or-question>` answers a
-  name, a concept, an enum, or a diagnostic code in one shot
-  ([declare-help](declare-docs:operational:help)); the browsable form is the
-  [reference](declare-docs:reference:index).
+- **Look something up** — [declare-help](declare-docs:operational:help), above; the
+  browsable form is the [reference](declare-docs:reference:index).

@@ -18,15 +18,17 @@ compiler disagree, the compiler is right. Status: pre-1.0, under active design (
 
 | where | what is there | go when |
 |---|---|---|
-| [`declare-model.json`](declare-model.json) | every component, attribute, type, method, event and diagnostic — generated from source, keyed `Class.attr` under `reference`. A class's page carries its own members and then each ancestor's, so everything reachable on it is on one page. The way in is `node tools/declare-help.mjs <name>` — one answer per question, did-you-mean included | you need a name, a type, or a signature |
+| [**`declare-help`**](operational/help.md) | **ask the platform for one exact fact** — `node tools/declare-help.mjs <name>` takes any dotted name, class, attribute, concept, enum, or diagnostic code and answers in the compiler's register, did-you-mean included. A true miss exits 1 and says what it searched, so silence is trustworthy. Reading for a name costs more than asking for it | you need a name, a type, a signature, or what a code means |
+| [`declare-model.json`](declare-model.json) | what `declare-help` reads: every component, attribute, type, method, event and diagnostic — generated from source, keyed `Class.attr` under `reference`. A class's page carries its own members and then each ancestor's, so everything reachable on it is on one page | you want to browse the whole surface rather than ask one question |
 | `library/` | the standard components — controls, structure, layouts, embedding, and the `Control` base your own controls extend — written in Declare | you want to know what ships, or to read how one is built |
 | `apps/` | complete programs; `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->840<!--/stat--> lines) is the reference, and `apps/birds/birds.declare` is the worked example of `location` + `waypoint` | you want the idiom at full scale |
 | [`docs/guide/`](guide/01-thinking-in-declare.md) | a narrative course, chapter by chapter | you want the reasoning, or you are learning rather than looking up |
 | [`docs/operational/`](operational/) | install, dev server, build, deploy | you are running or shipping rather than writing |
 
-**Those five carry everything you need to write Declare.** The language is closed and small, so
-when you need a name you do not have, look it up rather than invent it: a guessed attribute is a
-compile error, and a hand-built widget is usually one the library already ships. (`docs/system-design/`
+**Those six carry everything you need to write Declare.** The language is closed and small, so
+when you need a name you do not have, **ask for it rather than invent it** — that is what
+`declare-help` is for: a guessed attribute is a compile error, and a hand-built widget is usually
+one the library already ships. (`docs/system-design/`
 also exists — it is the design record, including superseded decisions. Background, not truth.)
 
 One boundary makes the rest of this file readable. **Every capitalized tag is a component** —
@@ -798,7 +800,12 @@ site noticing; hand it children and you have frozen its internals into your sour
 3. **Read the error.** Every diagnostic carries a code, a line and column, and the fix. Apply
    exactly the named fix, change nothing else, recompile. All independent errors in a phase are
    reported together.
-4. **Ask the running program.** A clean compile means the checker found nothing, not that nothing
+4. **Ask the platform.** When what you need is a fact rather than a failure — an attribute's
+   name, an enum's tokens, a signature, what a diagnostic code means, what a library component
+   carries — `node tools/declare-help.mjs <name>` answers it in one shot rather than sending you
+   reading. It is the cheapest step in this list, and the one that keeps a guess from becoming a
+   compile error.
+5. **Ask the running program.** A clean compile means the checker found nothing, not that nothing
    is wrong: layout, fonts, paint, and input routing do not exist until the program runs. When
    something compiles yet misbehaves, stop re-reading the source. `__declare.explain(path, attr)`
    answers *why* a slot holds its value, giving the expression, the read-paths it was wired to,
