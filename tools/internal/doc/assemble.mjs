@@ -337,7 +337,7 @@ function stampTeaches(guide, spine) {
 // synonym target resolves and every negative entry answers its triggers.
 function conceptSpine() {
   const raw = JSON.parse(readFileSync(join(ROOT, "tools/internal/doc/concepts.json"), "utf8"));
-  return { synonyms: raw.synonyms, negative: raw.negative };
+  return { synonyms: raw.synonyms, forms: raw.forms ?? [], negative: raw.negative };
 }
 
 // ── the BROWSE tree: the single walkable IA over everything documented ────────

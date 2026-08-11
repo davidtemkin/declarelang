@@ -205,6 +205,11 @@ const RULES = [
   {
     name: "assemble",                // the ONE committed doc model + projections; needs the final build id
     inputs: ["tools/internal/doc/assemble.mjs", "tools/internal/doc/links.mjs", "tools/internal/ops.mjs",
+             // conceptSpine() reads this file directly (prose/ arrives via the
+             // extract intermediate, but concepts.json has no such carrier) —
+             // undeclared, an edit to it never invalidated the model and only
+             // assemble --check noticed, one gate late
+             "tools/internal/doc/concepts.json",
              ".derive/docs-extract.json", "compiler/dist", "runtime/dist", "library",
              "bundles/version.json", "skill/SKILL.md",
              { dir: "docs", exclude: ["declare-model.json"] }],

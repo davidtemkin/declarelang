@@ -74,7 +74,7 @@ const model = JSON.parse(readFileSync(join(ROOT, "docs/declare-model.json"), "ut
 const REF = model.reference;
 const SPINE = model.spine;
 const TREE = new Map(model.tree.map((n) => [n.id, n]));
-const CONCEPTS = SPINE.concepts ?? { synonyms: {}, negative: [] };
+const CONCEPTS = SPINE.concepts ?? { synonyms: {}, forms: [], negative: [] };
 
 // Every class name the reference answers for (kernel + library), and every
 // attribute name any of them carries — the two unscoped candidate pools.
@@ -325,6 +325,27 @@ function answer() {
   // terms are normalized the same way as the query — a stored "viewport-fit"
   // must match the query "viewport-fit" after both lose their hyphen
   const normTerm = (t) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  // FORMS — the language's own vocabulary: the top-level declarations, the
+  // class-level keywords, the binding operators, the scope nouns. None of them
+  // is a component, so the Class.attr model has no room for them and a lookup
+  // fell through to substring noise ("use" matched 127 entries). These are
+  // POSITIVE facts, so they answer before negative knowledge.
+  for (const form of (CONCEPTS.forms ?? [])) {
+    // EXACT match on the raw query first: an operator normalizes to the empty
+    // string (punctuation is stripped), and an empty needle makes includes()
+    // true for everything — so `<-` would answer every query. Substring is
+    // only allowed for terms that survive normalization.
+    // EXACT only. Substring matching is wrong here in both directions: an
+    // operator normalizes to the empty string (so `<-` would answer every
+    // query), and a longer name CONTAINS a shorter form (`classroot` would be
+    // answered by `class`). Every phrasing worth catching is an explicit term.
+    if (form.terms.some((t) => t.toLowerCase() === query.toLowerCase().trim()
+        || (normTerm(t).length > 0 && normTerm(t) === norm))) {
+      for (const line of form.answer.split("\n")) say(line);
+      json = { kind: "form", terms: form.terms, answer: form.answer };
+      return true;
+    }
+  }
   for (const neg of CONCEPTS.negative) {
     if (neg.terms.some((t) => norm === normTerm(t) || norm.includes(normTerm(t)))) {
       for (const line of neg.answer.split("\n")) say(line);

@@ -283,9 +283,21 @@ An ordered list of `style` bundles applied at **construction** — **static in v
 live, use `stylesheet` instead.
 
 ## stylesheet
-The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it
-and the subtree re-styles in a single settle. The reactive counterpart to the static
-`styles` list.
+Which declared sheet governs this subtree — **the attribute, not the top-level form of the
+same name**. `stylesheet Dark [ … ]` DECLARES a skin; `stylesheet = Dark` APPLIES one. The
+syntax tells them apart (a form is followed by a name, the attribute by `=`), and the shared
+word is deliberate: it says what kind of thing `Dark` is.
+
+Prevailing, so provide one anywhere and that whole subtree reskins; swap it and the subtree
+re-styles in a single settle. A sheet is a dictionary keyed by CLASS name — no selectors, no
+structural matching, no specificity — resolved by a class-chain walk with field-wise merge,
+and its fields land as offers that sit BELOW any value the view sets itself. It carries a
+`theme` record too, which is why a skin can be theme-aware.
+
+The three styling channels differ by who decides: `styles` is opted into BY THE VIEW and is
+static after construction; `theme` is a token record an ancestor provides and bindings READ;
+a stylesheet is IMPOSED from outside on views that never mention it — style without source
+edits.
 
 ## focusable
 Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no

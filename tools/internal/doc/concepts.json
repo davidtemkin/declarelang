@@ -260,5 +260,149 @@
    ],
    "answer": "No `requestAnimationFrame` — and though `setTimeout`/`setInterval` exist for host chores, they are never the motion system. Motion is declared: a `Spring` drives an attribute toward a live target (interruptible for free), an `Animator` is the clock-shaped sibling, and per-frame integration (physics you step yourself) is `Heartbeat [ onFrame(dt) ]`, which rides the one shared frame clock. A setTimeout-driven animation fights the settle loop and cannot be interrupted mid-flight; see the guide's Motion & states chapter."
   }
+ ],
+ "forms": [
+  {
+   "terms": [
+    "class",
+    "declare a class",
+    "define a component",
+    "component definition"
+   ],
+   "answer": "`class Name extends Base [ … ]` — the one way to define a component. Everything inside the brackets is a MEMBER: `name = value` sets an inherited attribute, `name: Type = value` declares a new one, `name: Type [ … ]` is a named child, `name(args) { … }` a method, `onThing() { … }` an event handler.\nA class is not a file and not a module — it is a top-level declaration, and a program is one tree of them (declare.md §4). `extends` may name a class declared LATER in the file. Guide: 04-tree, 11-make-your-own."
+  },
+  {
+   "terms": [
+    "extends",
+    "subclass",
+    "inherit",
+    "base class"
+   ],
+   "answer": "`class Name extends Base [ … ]` — single inheritance from another component (a library class or one of your own). The subclass sees every attribute, child, method and event of the base; re-stating an attribute overrides its default, and re-stating a named child extends that child rather than replacing it.\nNot top-level in its own right — it is part of a `class` declaration (parser.ts:673). Omit it and you extend `View`. Guide: 11-make-your-own."
+  },
+  {
+   "terms": [
+    "script",
+    "script block",
+    "typescript block",
+    "helper function",
+    "plain typescript"
+   ],
+   "answer": "`script { … }` — a top-level block of plain TypeScript: constants, functions, model types. Its top-level names are visible from every `{ }` body in the same file, and a constraint may call one — the compiler reads THROUGH the call to find what the body depends on, so a helper does not break reactivity (declare.md §5).\nThis is where arithmetic and formatting live, so the tree stays about the tree. Guide: 03-relationships, 04-tree."
+  },
+  {
+   "terms": [
+    "include",
+    "include another file",
+    "split a program",
+    "multiple files",
+    "import a file"
+   ],
+   "answer": "`include [ \"path.declare\" ]` — merges another file's TOP-LEVEL DECLARATIONS (its classes, scripts, fonts, styles) into this program, once, however many times it is named. It does not import a root instance and it is not a module system: there are no exports and no namespacing — everything merges into one program.\nThe path resolves relative to the including file. On a static host the browser compiles the app itself and its include host reads a SYNCHRONOUS map, so app-relative includes must be prefetched (test/static-host.test.mjs pins this). Guide: 04-tree."
+  },
+  {
+   "terms": [
+    "use",
+    "use directive",
+    "keep a component",
+    "tree shaking",
+    "constructed by name",
+    "createView"
+   ],
+   "answer": "`use [ Name, Other ]` — keeps components the build would otherwise DROP. The production build tree-shakes anything no tag instantiates; if your code constructs one by name at runtime (`app.createView(\"Badge\")`), nothing in the tree mentions it and it is removed. `use` is how you say it is still needed (declare.md §4, §7).\nThe symptom without it is a component that works in dev and is missing from the built app."
+  },
+  {
+   "terms": [
+    "font",
+    "declare a font",
+    "web font",
+    "font family",
+    "typeface",
+    "font face"
+   ],
+   "answer": "`font Name [ … ]` — declares a font family. `Face` children carry the web-font files (weight/style per face); a use site picks the family by name: `fontFamily = [Name, \"system-ui\"]`, which is a fallback LIST, not a single name.\nDeclaring a font does not load it — a face loads when something asks for it. Guide: 05-space, 06-style."
+  },
+  {
+   "terms": [
+    "style",
+    "style block",
+    "named style",
+    "reusable style"
+   ],
+   "answer": "`style Name [ … ]` — a named bundle of attribute values a view can wear, so a look is declared once and applied by name rather than copied. Top-level, like `class` (parser.ts's `atTop`).\nDistinct from `stylesheet`, which carries THEME TOKENS rather than a bundle of attributes. Guide: 06-style."
+  },
+  {
+   "terms": [
+    "stylesheet",
+    "theme",
+    "tokens",
+    "design tokens",
+    "theming"
+   ],
+   "answer": "`stylesheet Name [ … ]` — declares a swappable SKIN: a dictionary keyed by CLASS name (no selectors, no structural matching, no specificity), resolved by a class-chain walk with field-wise merge, schema-checked at compile time so a stale skin fails loudly. It may carry its own `theme` record, which is what makes a skin theme-aware.\nThe TOP-LEVEL FORM declares; the View ATTRIBUTE of the same name applies — `stylesheet Dark [ … ]` then `App [ stylesheet = Dark ]`. Same word on purpose: it says what kind of thing `Dark` is, and the syntax already tells them apart.\nA sheet is the EXTERNAL channel — style without source edits, imposed on views that never mention it, landing below anything a view sets itself. Compare `styles` (opted into by the view, static after construction) and `theme` (tokens an ancestor provides and bindings read). Guide: 06-style."
+  },
+  {
+   "terms": [
+    "<-",
+    "subscribe",
+    "subscribe operator",
+    "stream operator",
+    "left arrow"
+   ],
+   "answer": "`name <- source` — SUBSCRIBE: this member follows a stream or external source, taking each value as it arrives. The tokenizer's `subfrom` (parser.ts). Distinct from `=` (a one-time value) and from `{ }` (a standing relationship over reactive state).\nUse it where the value is PUSHED to you from outside the program's own state."
+  },
+  {
+   "terms": [
+    "<->",
+    "two way",
+    "two-way binding",
+    "bidirectional",
+    "double arrow",
+    "live commit"
+   ],
+   "answer": "`name <-> :path` — TWO-WAY binding between a leaf input and a data path: edits in the field write back through the cursor (declare.md §9, the leaf-input exception). The tokenizer's `bindtwo` (parser.ts).\nDeliberately narrow — it is for editable leaves, not a general mechanism; ordinary bindings are one-way `{ }` so data flow stays traceable."
+  },
+  {
+   "terms": [
+    "->",
+    "return type",
+    "method return",
+    "arrow in a signature"
+   ],
+   "answer": "`method(arg: Type) -> Type { … }` — the RETURN-TYPE marker in a method signature (declare.md §4; the tokenizer's `arrow`). Omit it for a method that returns nothing.\nNot a lambda arrow and not a binding operator — inside a `{ }` body or a `script` block, `=>` is ordinary TypeScript."
+  },
+  {
+   "terms": [
+    "this",
+    "parent",
+    "classroot",
+    "app",
+    "scope noun",
+    "scope nouns",
+    "nouns"
+   ],
+   "answer": "The four SCOPE NOUNS (declare.md §11) — the only names that reach a node from inside a `{ }` body:\n  this       — the member's own node\n  parent     — its parent in the tree\n  classroot  — the root of the class being defined (how a child reads its class's attributes)\n  app        — the program root\nThey are reserved: a child, method or declared attribute may not take one of these names. `app` compiles to `this.root`, which is why a member named `root` shadows every `app.…` in the same class."
+  },
+  {
+   "terms": [
+    "gradient",
+    "stroke",
+    "shadow",
+    "stop",
+    "frost",
+    "value constructor",
+    "value constructors"
+   ],
+   "answer": "The VALUE CONSTRUCTORS — `gradient(…)`, `stroke(…)`, `shadow(…)`, `stop(…)`, `frost(…)` — build the composite values attributes take: `fill = { gradient(\"180deg\", a, b) }`, `backdrop = { frost(26, 1.5) }`.\nReserved names: none may be used as a member name. Watch the alpha convention — `colorWithAlpha(rgb, a)` takes a 0…255 alpha, not 0…1."
+  },
+  {
+   "terms": [
+    "root",
+    "children",
+    "structural member",
+    "shadowing root"
+   ],
+   "answer": "`root` and `children` are STRUCTURAL members the scaffold declares on every View — not scope nouns, not schema attributes, but not free either:\n  root      — the node reference `app` compiles to (`app` is `this.root`)\n  children  — the node's own child list\nA child, method or declared attribute of either name is refused at typecheck. `root` is the sharp one: shadowing it makes every `{ app.… }` in the SAME class resolve against the shadow, and the error surfaces at some unrelated binding."
+  }
  ]
 }
