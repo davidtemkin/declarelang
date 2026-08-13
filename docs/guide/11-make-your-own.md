@@ -194,7 +194,7 @@ reserved:
 | position against a view in another coordinate space | `v.rootOrigin()` |
 | move keyboard focus, or save and restore it | `Focus.focus(v)` · `Focus.getFocus()` |
 | take the arrow keys from the page while an overlay roves | `Keys.navClaim(this, true)` |
-| build structure that genuinely cannot be declared | `app.createView(tag, parent, props)` |
+| build structure that genuinely cannot be declared | `parent.createView(tag, props)` · `v.discard()` |
 | gate what Tab descends into | override `tabOrder()`, compose `tabDefault()` |
 
 Two habits keep such a thing well-behaved: **claim in pairs** — a `navClaim(…, true)` on

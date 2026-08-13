@@ -188,9 +188,12 @@ class FocusRing extends View [ opacity = 0,
             const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
             const iw = typeof theme.focusRingInnerWidth == "number" ? theme.focusRingInnerWidth : 0
             const off = gap + iw + lw / 2
+            // a traveled ring draws the CONTENT-space box (homeW/homeH/homeRad):
+            // any ancestor transform above the scroller reaches its surface
+            // through the platform, so frame-space extents would double-apply it
             classroot.tx = gx - off; classroot.ty = gy - off
-            classroot.tw = g.w + 2 * off; classroot.th = g.h + 2 * off
-            classroot.trad = g.rad + off
+            classroot.tw = (homed ? g.homeW : g.w) + 2 * off; classroot.th = (homed ? g.homeH : g.h) + 2 * off
+            classroot.trad = (homed ? g.homeRad : g.rad) + off
             // Only a FOCUS CHANGE flies. The same control moving under a resting
             // ring — a dragged slider thumb, a reflow — takes the ring with it
             // rigidly: the springs' targets just moved, so land them NOW. The

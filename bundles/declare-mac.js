@@ -2447,20 +2447,26 @@ var DeclareMac = (() => {
           // attribute.
           ignoreScroll: { kind: "boolean" },
           opacity: { kind: "number" },
-          // Uniform scale transform (painted only — never layout, like opacity): the
-          // view's subtree renders scaled about the pivot point (pivotX/pivotY, in the
-          // view's own coordinates; default the top-left corner). Animate it with a
-          // Spring for zoom effects; 1 = no transform. Both backends realize it (DOM
-          // CSS transform, canvas ctx.scale), and hit-testing follows the visible
-          // geometry so a scaled view stays correctly clickable.
+          // Uniform scale transform: the view's subtree renders scaled about the
+          // pivot point (pivotX/pivotY, in the view's own coordinates; default the
+          // top-left corner). Animate it with a Spring for zoom effects; 1 = no
+          // transform. ONE GEOMETRY, every reader (the 2026-08-13 ruling,
+          // superseding the earlier paint-only stance): paint, hit-testing,
+          // rootOrigin/inspect, the parent's auto-size, and layouts all compose the
+          // same transform — a scale = 0.5 child occupies half its slot (bounds(),
+          // the transformed footprint, is what layout packs and auto-extent
+          // measures), where CSS makes transform paint-only and lets the two
+          // disagree. The view's OWN width/height stay local (its children's
+          // world is untouched); the parent sees the footprint. All backends
+          // realize the paint (DOM CSS transform, canvas ctx.scale, mac).
           scale: { kind: "number" },
           pivotX: { kind: "number" },
           pivotY: { kind: "number" },
-          // Rotation in DEGREES, clockwise, about the same pivot scale uses —
-          // painted only, like scale and opacity: the box the tree reasons about
-          // never rotates, layout is untouched, and hit-testing follows the
-          // VISIBLE geometry through the inverse transform (interaction.ts), so a
-          // rotated control stays honestly clickable. Composes with scale in one
+          // Rotation in DEGREES, clockwise, about the same pivot scale uses — the
+          // same one-geometry rule: paint, hit-testing (inverse transform,
+          // interaction.ts), rootOrigin/inspect, auto-size and layouts all agree,
+          // with the footprint the rotated frame's AABB (bounds()), so a rotated
+          // card reserves the box it visibly covers. Composes with scale in one
           // documented order: scale, then rotate, about the shared pivot (for
           // uniform scale the two commute; the order is stated so nobody has to
           // prove that). 0 = unrotated.
@@ -5612,18 +5618,42 @@ var DeclareMac = (() => {
           }
           child.parent = null;
         }
-        /** Retire this node's standing machinery, depth-first — called once when a
-         *  subtree leaves the tree (replication, navigation). The base recurses and
-         *  runs registered teardowns; View overrides it to also drop its surface +
-         *  bindings, and Animator to drop its clock enrolment + bindings. Recursing
-         *  over EVERY child (not just Views) is what tears down an Animator/Spring
-         *  child — a Node, not a View — whose `to` binding would otherwise linger,
-         *  subscribed to whatever it read, keeping the whole discarded subtree alive
-         *  (and, for a Spring, still ticking). */
+        /** The self-completing retirement verb — the pair of createView: cut the
+         *  model link if one still stands, tear the subtree down, then notify the
+         *  ex-parent that its child list changed as a unit (childrenMutated), so
+         *  an arrangement re-packs and auto-extent re-derives with no second
+         *  incantation. Machinery that unlinks FIRST (the replicator's bursts,
+         *  markdown rebuilds) arrives here with `parent` already null and pays
+         *  nothing extra — the once-per-burst notify stays the burst's own. */
         discard() {
+          const p = this.parent;
+          if (p !== null)
+            p.removeChild(this);
+          this.teardown();
+          if (p !== null)
+            p.childrenMutated();
+        }
+        /** Retire this node's standing machinery, depth-first — teardown ONLY, no
+         *  unlinking: the recursion for a subtree leaving as one (a child's link
+         *  dies with its parent). The base runs registered teardowns; View
+         *  overrides it to also drop its surface + bindings, and Animator to drop
+         *  its clock enrolment + bindings. Recursing over EVERY child (not just
+         *  Views) is what tears down an Animator/Spring child — a Node, not a View
+         *  — whose `to` binding would otherwise linger, subscribed to whatever it
+         *  read, keeping the whole discarded subtree alive (and, for a Spring,
+         *  still ticking). */
+        teardown() {
           for (const child of this.children)
-            child.discard();
+            child.teardown();
           runRetire(this);
+        }
+        /** Children were inserted/removed/reordered as a unit — the notification
+         *  seam the tree verbs speak (discard above; the replicator, once per
+         *  reconcile). A no-op at this layer: Node owns structure, not geometry.
+         *  View overrides it with the visual response (layout re-arm, auto-extent
+         *  re-derive). Declared here so `discard` can notify an ex-parent without
+         *  the base knowing what a View is. */
+        childrenMutated() {
         }
       };
       RETIRE = /* @__PURE__ */ new WeakMap();
@@ -6249,20 +6279,63 @@ var DeclareMac = (() => {
     }
     return lx >= 0 && ly >= 0 && lx <= view.width && ly <= view.height;
   }
-  function rootFrameOrigin(view) {
-    let x = 0;
-    let y = 0;
-    for (let n = view; n !== null; ) {
-      x += n.x;
-      y += n.y;
+  function rootTransform(view, stopAt = null) {
+    let cs = 1;
+    let cr = 0;
+    let tx = 0;
+    let ty = 0;
+    for (let n = view; n !== null && n !== stopAt; ) {
+      const s = n.scale;
+      const rot = n.rotation * Math.PI / 180;
+      if (s !== 1 || rot !== 0) {
+        const ca = Math.cos(rot);
+        const sa = Math.sin(rot);
+        const dx = tx - n.pivotX;
+        const dy = ty - n.pivotY;
+        tx = n.pivotX + s * (dx * ca - dy * sa);
+        ty = n.pivotY + s * (dx * sa + dy * ca);
+        cs *= s;
+        cr += rot;
+      }
+      tx += n.x;
+      ty += n.y;
       const p = isView(n.parent) ? n.parent : null;
+      if (p === stopAt)
+        break;
       if (p !== null && p.scrolls !== "none" && !n.ignoreScroll) {
-        x -= p.scrollX;
-        y -= p.scrollY;
+        tx -= p.scrollX;
+        ty -= p.scrollY;
       }
       n = p;
     }
-    return { x, y };
+    return { scale: cs, rotation: cr, tx, ty };
+  }
+  function rootFrameOrigin(view) {
+    const t = rootTransform(view);
+    return { x: t.tx, y: t.ty };
+  }
+  function rootFrameBox(view, rect, stopAt = null) {
+    const t = rootTransform(view, stopAt);
+    const rx = rect?.x ?? 0;
+    const ry = rect?.y ?? 0;
+    const rw = rect?.w ?? view.width;
+    const rh = rect?.h ?? view.height;
+    const ca = Math.cos(t.rotation);
+    const sa = Math.sin(t.rotation);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [px, py] of [[rx, ry], [rx + rw, ry], [rx, ry + rh], [rx + rw, ry + rh]]) {
+      const fx = t.tx + t.scale * (px * ca - py * sa);
+      const fy = t.ty + t.scale * (px * sa + py * ca);
+      if (fx < minX)
+        minX = fx;
+      if (fx > maxX)
+        maxX = fx;
+      if (fy < minY)
+        minY = fy;
+      if (fy > maxY)
+        maxY = fy;
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY, scale: t.scale };
   }
   function readHovered(view) {
     const r = recOf(view);
@@ -6349,14 +6422,14 @@ var DeclareMac = (() => {
           const text = String(view.tip ?? "");
           if (text === "")
             return;
-          const o = rootFrameOrigin(view);
+          const b = rootFrameBox(view);
           let root = view;
           for (let n = view; n !== null && typeof n === "object"; ) {
             root = n;
             n = n.parent ?? null;
           }
           this.shown = true;
-          this.emit({ text, x: o.x, y: o.y, w: view.width, h: view.height, root });
+          this.emit({ text, x: b.x, y: b.y, w: b.width, h: b.height, root });
         }
         emit(e) {
           for (const fn of [...this.handlers])
@@ -7158,7 +7231,8 @@ var DeclareMac = (() => {
               continue;
             if (percentOwned(c, axis) || percentOwned(c, size))
               continue;
-            const extent = c[axis] + c[size];
+            const b = c.bounds();
+            const extent = (axis === "x" ? b.x : b.y) + b[size];
             if (extent > max)
               max = extent;
           }
@@ -7177,6 +7251,59 @@ var DeclareMac = (() => {
         }
         get contentHeight() {
           return this.extentOf("height");
+        }
+        /** This view's TRANSFORMED box in the parent's coordinates — the axis-aligned
+         *  bounding box of the frame under scale-then-rotate about the pivot, the
+         *  same F(p) = pivot + s·R(p−pivot) that paint, the hit walk, and the root
+         *  walk compose (interaction.ts `toChildLocal` is its inverse). THE
+         *  FOOTPRINT: what a layout packs and what auto-extent measures, so a
+         *  `scale = 0.5` child really occupies half its slot (the fractal idiom) and
+         *  a rotated card reserves the box it visibly covers. Identity when
+         *  scale = 1 and rotation = 0 — the box IS x/y/width/height, at no cost.
+         *  Every read is reactive (x, y, width, height, scale, pivotX, pivotY,
+         *  rotation — the effects row in the compiler names exactly these), so a
+         *  constraint or a place() reading it re-derives as any of them move. */
+        bounds() {
+          const f = this.footprint();
+          return { x: this.x + f.x, y: this.y + f.y, width: f.width, height: f.height };
+        }
+        /** The POSITION-FREE half of `bounds()`: the transformed box relative to
+         *  this view's own untransformed origin — `x`/`y` here are the lead offsets
+         *  the transform introduces (0 when untransformed; negative when a
+         *  centered-pivot scale-up grows past the origin), `width`/`height` the
+         *  footprint extents. Reads ONLY width, height, scale, pivotX, pivotY,
+         *  rotation — never `x`/`y` — which is what a layout's place() must consume:
+         *  a strategy that read a slot it writes would wake itself and break the
+         *  one-pass discipline (pinned by the re-layout test). `bounds()` is this
+         *  plus the position, for every reader that is not writing the position. */
+        footprint() {
+          const s = this.scale;
+          const rot = this.rotation;
+          const w = this.width;
+          const h = this.height;
+          if (s === 1 && rot === 0)
+            return { x: 0, y: 0, width: w, height: h };
+          const px = this.pivotX;
+          const py = this.pivotY;
+          const a = rot * Math.PI / 180;
+          const ca = Math.cos(a);
+          const sa = Math.sin(a);
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const [cx, cy] of [[0, 0], [w, 0], [0, h], [w, h]]) {
+            const dx = cx - px;
+            const dy = cy - py;
+            const fx = px + s * (dx * ca - dy * sa);
+            const fy = py + s * (dx * sa + dy * ca);
+            if (fx < minX)
+              minX = fx;
+            if (fx > maxX)
+              maxX = fx;
+            if (fy < minY)
+              minY = fy;
+            if (fy > maxY)
+              maxY = fy;
+          }
+          return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
         }
         /** This view's View children — the reactive read of the child list, and the
          *  only one there is: `children` is a plain array (machinery included, and
@@ -7245,20 +7372,35 @@ var DeclareMac = (() => {
         alignBand(axis) {
           return { lead: 0, size: axis === "x" ? this.width : this.height };
         }
+        /** The self-completing exit (Node.discard does the unlink + ex-parent
+         *  notify): this override only moves the DEPARTURE hook earlier for the
+         *  still-linked caller — presence ends while the tree is WHOLE, so an
+         *  `onRetire` reading `parent`, a datapath, or focus sees live state (the
+         *  replicator's own order: fire, unlink, teardown). Unlink-first paths
+         *  arrive with `parent` null and keep today's timing: teardown's own
+         *  lifetime-guarded fire covers them. */
+        discard() {
+          if (this.parent !== null) {
+            if (!EVICTING.has(this))
+              fireRetireTree(this);
+            focusDiscardHook?.(this);
+          }
+          super.discard();
+        }
         /** Retire this subtree: dispose every standing computation (bindings,
          *  percents, derives, a laid parent's constraints on these slots, the draw
          *  recording), run registered teardowns (a replicator's), uninstall the
          *  arrangement, and destroy the surfaces — so no data or attribute change
-         *  can ever wake work for a removed view. Children first; the model links
-         *  (parent/children) are the caller's to cut (Node.removeChild). */
-        discard() {
+         *  can ever wake work for a removed view. Children first; teardown ONLY —
+         *  unlinking (and notifying the ex-parent) is discard's, the verb above. */
+        teardown() {
           if (EVICTING.has(this))
             EVICTING.delete(this);
           else
             fireRetireTree(this);
           focusDiscardHook?.(this);
           for (const child of this.children)
-            child.discard();
+            child.teardown();
           runRetire(this);
           const undoLayout = INSTALLED.get(this);
           if (undoLayout !== void 0) {
@@ -7460,6 +7602,20 @@ var DeclareMac = (() => {
          *  drag it home while its position slots still read the host's CONTENT
          *  coordinates — the ring painting a scroller's origin above its target.
          *  The MODEL order still moves; only the surface seat is left alone. */
+        /** Imperative creation (planes.md §7): instantiate a component by NAME
+         *  into THIS view — the receiver is the parent, and with it the new
+         *  instance's scope and data anchor (`classroot` resolution and `datapath`
+         *  inheritance boot against it). A full citizen: bindings installed, init
+         *  fired, and the arrangement/auto-extent notified (childrenMutated).
+         *  Resolves against the tree's program registry (via `root`); a name
+         *  referenced only here needs `use [ Name ]` to survive static tracing.
+         *  `props` are post-init writes (`datapath: record` gives the instance a
+         *  data context — replication's convention). The pair of `discard()`. */
+        createView(tag, props) {
+          if (viewCreator === null)
+            throw new Error("createView: the instantiation module is not loaded");
+          return viewCreator(this.root, tag, this, props);
+        }
         raise(below) {
           const p = this.parent;
           if (!(p instanceof _View))
@@ -7738,17 +7894,6 @@ var DeclareMac = (() => {
          *  the call statically (links.ts → `<a href>` in the static extraction), and at
          *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
          *  navigation rides this channel like `editing` — one clear way, analyzable. */
-        /** Imperative creation (planes.md §7): instantiate a component by NAME
-         *  into `parent`, a full citizen (bindings installed, init fired). Resolves
-         *  against this tree's program registry; a name referenced only here needs
-         *  `use [ Name ]` to survive static tracing. `props` are post-init writes
-         *  (`datapath: record` gives the instance a data context — replication's
-         *  convention). */
-        createView(tag, parent, props) {
-          if (viewCreator === null)
-            throw new Error("createView: the instantiation module is not loaded");
-          return viewCreator(this, tag, parent, props);
-        }
         navigate(to) {
           this.pendingNav = to;
         }
@@ -8253,15 +8398,15 @@ var DeclareMac = (() => {
           this.releaseSlot(false);
           this.end();
         }
-        /** Retire with the host view (View.discard reaches us now): drop off the
-         *  clock and dispose our own `{ }` bindings (`to`, `attribute`, …). Without
-         *  this a discarded Spring's `to` binding stays subscribed to what it read —
-         *  the leak — and the spring keeps ticking. Bindings first, so a stop() that
-         *  fires onStop cannot re-target through a live binding. */
-        discard() {
+        /** Retire with the host view (the teardown recursion reaches us): drop off
+         *  the clock and dispose our own `{ }` bindings (`to`, `attribute`, …).
+         *  Without this a discarded Spring's `to` binding stays subscribed to what
+         *  it read — the leak — and the spring keeps ticking. Bindings first, so a
+         *  stop() that fires onStop cannot re-target through a live binding. */
+        teardown() {
           disposeBindings(this);
           this.stop();
-          super.discard();
+          super.teardown();
         }
         /** One clock frame (the Ticker contract): advance by real elapsed time,
          *  write the eased DELTA additively, handle repeat / completion. `frozen`
@@ -8448,10 +8593,10 @@ var DeclareMac = (() => {
         }
         /** Retire with the host view: drop the group ticker + own bindings, then
          *  recurse so each member animator disposes its own bindings too. */
-        discard() {
+        teardown() {
           disposeBindings(this);
           this.stop();
-          super.discard();
+          super.teardown();
         }
         /** One group frame: drive the active members with the shared `now`, retire
          *  the finished, replay or finish when all are done. `sequential` advances
@@ -9235,14 +9380,14 @@ var DeclareMac = (() => {
           }
           for (const f of finishes)
             f();
+          target.childrenMutated();
         }
-        /** Retire the subtree: discard each built view's standing machinery and
-         *  surface, unlink it, and drop any name it bound. */
+        /** Retire the subtree: discard each built view — the verb unlinks and
+         *  notifies the target itself now — and drop any name it bound. Per-child
+         *  notify is fine at State scale (a conditional subtree, not a burst). */
         teardownChildren(target) {
-          for (const v of this.builtChildren) {
+          for (const v of this.builtChildren)
             v.discard();
-            target.removeChild(v);
-          }
           for (const tmpl of this.childTemplates) {
             if (tmpl.name !== null && target[tmpl.name] !== void 0) {
               delete target[tmpl.name];
@@ -9256,9 +9401,9 @@ var DeclareMac = (() => {
          *  view alive. The state's EFFECTS (override constraints owned by the target,
          *  built children spliced into the target) are torn down by the target view's
          *  own discard, so there is nothing else to undo here. */
-        discard() {
+        teardown() {
           disposeBindings(this);
-          super.discard();
+          super.teardown();
         }
         /** Fire a carried handler if installed (onApply / onRemove) — a plain Node
          *  dispatch, like the Animator's on* firing. */
@@ -10205,10 +10350,14 @@ var DeclareMac = (() => {
           if (v === null || this.geometryHandlers.size === 0)
             return;
           const k = new Constraint("Focus.follower", () => {
-            const o = rootFrameOrigin(v);
             const root = rootOf(v);
-            const x = o.x + root.scrollX;
-            const y = o.y + root.scrollY;
+            const fsFn = v.focusShape;
+            const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
+            const rect = fs !== null ? { x: fs.x, y: fs.y, w: fs.w, h: fs.h } : void 0;
+            const radLocal = fs ? fs.rad : v.cornerRadius > 0 ? v.cornerRadius : 4;
+            const fb = rootFrameBox(v, rect);
+            const x = fb.x + root.scrollX;
+            const y = fb.y + root.scrollY;
             let scroller = root;
             for (let n = v.parent; n instanceof View; n = n.parent) {
               if (n.scrolls !== "none") {
@@ -10216,31 +10365,21 @@ var DeclareMac = (() => {
                 break;
               }
             }
-            let homeX = 0, homeY = 0;
-            for (let n = v; n !== scroller; ) {
-              homeX += n.x;
-              homeY += n.y;
-              if (!(n.parent instanceof View))
-                break;
-              n = n.parent;
-            }
-            if (scroller === root) {
-              homeX = x;
-              homeY = y;
-            }
-            const fsFn = v.focusShape;
-            const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
+            const hb = scroller === root ? { x, y, width: fb.width, height: fb.height, scale: fb.scale } : rootFrameBox(v, rect, scroller);
             return {
-              x: x + (fs ? fs.x : 0),
-              y: y + (fs ? fs.y : 0),
-              w: fs ? fs.w : v.width,
-              h: fs ? fs.h : v.height,
-              rad: fs ? fs.rad : v.cornerRadius > 0 ? v.cornerRadius : 4,
+              x,
+              y,
+              w: fb.width,
+              h: fb.height,
+              rad: radLocal * fb.scale,
               view: v,
               root,
               scroller,
-              homeX: homeX + (fs ? fs.x : 0),
-              homeY: homeY + (fs ? fs.y : 0)
+              homeX: hb.x,
+              homeY: hb.y,
+              homeW: hb.width,
+              homeH: hb.height,
+              homeRad: radLocal * hb.scale
             };
           }, (g) => {
             if (g != null)
@@ -15025,6 +15164,7 @@ var DeclareMac = (() => {
       }
     }
     made.finish();
+    parent.childrenMutated();
     return made.view;
   }
   function materializer(ctx) {
@@ -15071,6 +15211,7 @@ var DeclareMac = (() => {
       if (ps !== null && parent.backend !== null)
         made.view.attach(parent.backend, ps, null);
       made.finish();
+      parent.childrenMutated();
       return made.view;
     } finally {
       ctx.trusted = wasTrusted;
@@ -15142,8 +15283,8 @@ var DeclareMac = (() => {
   function rectOf(n) {
     if (!(n instanceof View))
       return null;
-    const o = rootFrameOrigin(n);
-    return { x: o.x, y: o.y, width: n.width || 0, height: n.height || 0 };
+    const b = rootFrameBox(n);
+    return { x: b.x, y: b.y, width: b.width, height: b.height };
   }
   function rows(n, open, depth, path, out) {
     let anyConstrained = false;
@@ -15727,11 +15868,14 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   }
   function inspect(node, path = "app") {
     const v = isView2(node) ? node : null;
-    let rootX = 0, rootY = 0;
+    let rootX = 0, rootY = 0, rootWidth = 0, rootHeight = 0;
     if (v !== null) {
       const o = rootFrameOrigin(v);
       rootX = o.x;
       rootY = o.y;
+      const b = rootFrameBox(v);
+      rootWidth = b.width;
+      rootHeight = b.height;
     }
     let shown = true;
     for (let n = node; n !== null; n = n.parent) {
@@ -15750,6 +15894,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       height: v?.height ?? 0,
       rootX,
       rootY,
+      rootWidth,
+      rootHeight,
       visible: v?.visible ?? true,
       shown,
       attrs: safeAttr(ownValues(node)),

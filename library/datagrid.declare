@@ -387,7 +387,7 @@ class DataGrid extends Table [
         for (const c of this.children) {
             if ((c as Column).isColumn === true && this.colId(c) == field) opts = (c as Column).options
             }
-        if (selMenu == null) selMenu = app.createView("Menu", app, ({ }))
+        if (selMenu == null) selMenu = app.createView("Menu", ({ }))
         const m = this.selMenu as any
         m.width = 170
         m.items = (opts ?? []).map((o) => ({ id: "" + o, label: "" + o, checked: "" + (current ?? "") == "" + o }))

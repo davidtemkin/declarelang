@@ -12,7 +12,7 @@
 // the same wiring contract as Focus/Keys (sources.ts).
 
 import type { View } from "./view.js";
-import { rootFrameOrigin, type InteractionView } from "./interaction.js";
+import { rootFrameBox, type InteractionView } from "./interaction.js";
 
 export interface TipEvent {
   readonly text: string;
@@ -99,7 +99,10 @@ class TipService {
     // put its tooltip at y=309. The renderer places against the app frame, so
     // this has to be the frame position — the same fact `inspect()` reports and
     // the Inspector highlights, from the same function, so the three agree.
-    const o = rootFrameOrigin(view as unknown as InteractionView);
+    // the composed BOX, not origin + local w/h — a scaled target's avoid
+    // region is the box it paints, or the tip parks against phantom space
+    // (the 2026-08-13 transform audit)
+    const b = rootFrameBox(view as unknown as InteractionView);
     // the topmost link, which the event carries so a renderer can size itself
     // against the app; the chain may pass through non-visual nodes.
     let root: View = view;
@@ -108,7 +111,7 @@ class TipService {
       n = (n as { parent?: unknown }).parent ?? null;
     }
     this.shown = true;
-    this.emit({ text, x: o.x, y: o.y, w: view.width, h: view.height, root });
+    this.emit({ text, x: b.x, y: b.y, w: b.width, h: b.height, root });
   }
 
   private emit(e: TipEvent | null): void {

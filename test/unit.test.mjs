@@ -1012,10 +1012,10 @@ await test("element-typed arrays (`Window[]`) and the literal-tag createView", (
   ok(`class Menu extends View [ n: number = 0 ]\nApp [ width=1, height=1, m: Menu [ ] ]`);
 
   // createView: a literal tag returns that class; a dynamic tag honestly View
-  ok(`class Menu extends View [ shown: boolean = false ]\nApp [ width=1, height=1, n: number = 0, go() { const m = app.createView("Menu", app, ({ })); this.n = m.shown ? 1 : 0 } ]`);
-  assert.match(errs(`class Menu extends View [ shown: boolean = false ]\nApp [ width=1, height=1, n: number = 0, go() { const m = app.createView("Menu", app, ({ })); this.n = m.showwn ? 1 : 0 } ]`),
+  ok(`class Menu extends View [ shown: boolean = false ]\nApp [ width=1, height=1, n: number = 0, go() { const m = app.createView("Menu", ({ })); this.n = m.shown ? 1 : 0 } ]`);
+  assert.match(errs(`class Menu extends View [ shown: boolean = false ]\nApp [ width=1, height=1, n: number = 0, go() { const m = app.createView("Menu", ({ })); this.n = m.showwn ? 1 : 0 } ]`),
     /did you mean 'shown'/);
-  ok(`App [ width=1, height=1, k: string = "Text", go() { const v = app.createView(this.k, app, ({ })); v.x = 1 } ]`);
+  ok(`App [ width=1, height=1, k: string = "Text", go() { const v = app.createView(this.k, ({ })); v.x = 1 } ]`);
 });
 
 await test("function types — `(id: string) -> void`, the type a method IS", () => {
@@ -5963,7 +5963,7 @@ await test("contentHeight over a replication-populated container re-derives on A
   app.n = 1;
   settle();
   assert.equal(app.panel.height, 30, "removal re-derives too");
-  app.createView("View", app.panel.body, { width: 5, height: 90 });
+  app.panel.body.createView("View", { width: 5, height: 90 });
   settle();
   assert.equal(app.panel.height, 100, "imperative arrival (createView) re-derives too");
   // the RE-WIRE half: the arrival refreshed the constraint's edges, so an
@@ -6032,7 +6032,7 @@ await test("createView: imperative creation by name — a full citizen, loudly-c
 App [ width = 200, height = 100,
   slot: View [ x = 10, y = 10, width = 100, height = 60 ],
 ]`);
-  const made = app.createView("Chip", app.slot, { label: "made", x: 5 });
+  const made = app.slot.createView("Chip", { label: "made", x: 5 });
   assert.equal(made.constructor.name, "Chip");
   assert.equal(app.slot.children[app.slot.children.length - 1], made, "inserted LAST among the parent's children");
   assert.equal(made.parent, app.slot);
@@ -6040,13 +6040,86 @@ App [ width = 200, height = 100,
   settle();
   assert.equal(made.t.text, "made", "bindings installed and settled — a full citizen");
   const before = app.slot.children.length;
-  app.slot.removeChild(made);   // removal and teardown are two verbs (the replicator's own order)
-  made.discard();
-  assert.equal(app.slot.children.length, before - 1, "removeChild + discard — the imperative lifecycle's exit");
-  const builtin = app.createView("Text", app, { text: "raw" });
+  made.discard();   // the self-completing exit: unlink + teardown + notify, ONE verb
+  assert.equal(app.slot.children.length, before - 1, "discard() unlinks on its own — the pair of createView");
+  const builtin = app.createView("Text", { text: "raw" });
   assert.equal(builtin.constructor.name, "Text", "built-in tags resolve too");
-  assert.throws(() => app.createView("Nope", app), /no component named 'Nope'.*use \[ Nope \]/s,
+  assert.throws(() => app.createView("Nope"), /no component named 'Nope'.*use \[ Nope \]/s,
     "an unknown name throws and NAMES the fix");
+});
+
+await test("one geometry: scale/rotation compose into layout, auto-size, and the root walk (field report 2026-08-13)", () => {
+  // Repro A (layout + auto-size): the middle child at scale 0.5 occupies HALF
+  // its slot — the footprint, not the raw width — and the row auto-sizes to
+  // the packed run. Repro B (the root walk): nested scaled frames compose, so
+  // rootOrigin agrees with paint and the hit walk (it summed local x blind).
+  // Plus the rotation twin: a rotated child reserves its AABB.
+  const r = compile(`App [ width = 700, height = 600,
+    row: View [ x = 20, y = 40, layout: SimpleLayout [ axis = x, spacing = 10 ],
+      a: View [ width = 120, height = 120 ],
+      scaled: View [ scale = 0.5, pivotX = 0, pivotY = 0, width = 120, height = 120 ],
+      c: View [ width = 120, height = 120 ] ],
+    L0: View [ x = 40, y = 300, pivotX = 0, pivotY = 0,
+      L1: View [ x = 140, y = 0, scale = 0.5, pivotX = 0, pivotY = 0,
+        L2: View [ x = 140, y = 0, scale = 0.5, pivotX = 0, pivotY = 0,
+          t2: View [ width = 100, height = 100 ] ] ] ],
+    rot: View [ x = 20, y = 500,
+      r1: View [ x = 30, width = 100, height = 20, rotation = 90, pivotX = 0, pivotY = 0 ] ],
+    t: Text [ text = "x" ],
+  ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  // A: 120 + 10 + 60 + 10 → c at 200; run 320 wide, 120 tall
+  assert.equal(app.row.c.x, 200, "the scaled child's slot is its footprint");
+  assert.equal(app.row.width, 320, "auto-size packs the footprints");
+  assert.equal(app.row.height, 120, "cross axis: max footprint");
+  // the footprint pair: bounds() = footprint() + position
+  const b = app.row.scaled.bounds();
+  assert.deepEqual([b.x, b.width, b.height], [app.row.scaled.x, 60, 60], "bounds is the transformed box in parent coords");
+  assert.equal(app.row.scaled.footprint().x, 0, "footprint is position-free (pivot 0: no lead)");
+  // B: 40 + 140 → 180; ×0.5 +140 +40 → 250 (the report's wrong answer was 320)
+  assert.equal(app.L0.L1.L2.t2.rootOrigin().x, 250, "nested scales compose into the root walk");
+  // rotation: a 100×20 bar at 90° about its origin spans x ∈ [x−20, x], y ∈ [0, 100]
+  assert.ok(Math.abs(app.rot.contentWidth - 30) < 1e-9, "a rotated child reserves its AABB (x extent)");
+  assert.equal(app.rot.contentHeight, 100, "…and the y extent");
+  app.discard();
+});
+
+await test("createView/discard notify: auto-size engages on an EMPTY parent; layouts place and re-pack", () => {
+  // The field report ("a createView'd child doesn't count toward its parent's
+  // contentWidth", 2026-08-12): contentWidth always counted it — what broke
+  // was AUTO-SIZE on a parent EMPTY at attach. bindExtent skips a childless
+  // view, and the structure cell can only wake an installed derive, never
+  // install one — that installation is the verb's childrenMutated, the same
+  // call the replicator makes once per reconcile.
+  const r = compile(`App [ width = 400, height = 300,
+    empty: View [ x = 10, y = 10 ],
+    stack: View [ x = 10, y = 100, layout: SimpleLayout [ axis = y, spacing = 5 ],
+      a: View [ width = 20, height = 10 ],
+      b: View [ width = 20, height = 10 ],
+    ],
+    t: Text [ text = "x" ],
+  ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  app.empty.createView("View", { width: 50, height: 40 });
+  settle();
+  assert.equal(app.empty.width, 50, "auto-size engages on imperative arrival into an empty parent");
+  assert.equal(app.empty.height, 40, "…both axes");
+  // an installed arrangement places the newcomer (child order IS the layout
+  // semantics), where before the notify it stayed stranded at y=0
+  const made = app.stack.createView("View", { width: 20, height: 10 });
+  settle();
+  assert.equal(made.y, 30, "the arrangement packs the createView'd child");
+  assert.equal(app.stack.height, 40, "…and auto-size folds it in");
+  // the exit half of the pair: discard() unlinks, retires, notifies — the
+  // gap CLOSES, which no structure-cell wake could do for the layout (its
+  // shape watcher deliberately does not track the child list)
+  app.stack.b.discard();
+  settle();
+  assert.equal(made.y, 15, "discard re-packs the arrangement — the gap closes");
+  assert.equal(app.stack.height, 25, "…and auto-size shrinks");
+  app.discard();
 });
 
 await test("tip: the attribute auto-provides the Tooltip singleton (the FocusRing mechanism)", () => {

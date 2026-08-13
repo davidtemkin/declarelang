@@ -313,25 +313,88 @@ export function boxContains(view, x, y) {
     }
     return lx >= 0 && ly >= 0 && lx <= view.width && ly <= view.height;
 }
-/** A view's origin in the ROOT'S FRAME space (viewport coordinates for a
- *  top-level app) — the inverse of the descent the walk makes, minus scale
- *  (callers so far box overlays that don't scale; the term joins when one
- *  does). Shared for the same reason the walk is: the Inspector's highlight
- *  accumulated x/y by hand and was blind to every scroll regime. */
-export function rootFrameOrigin(view) {
-    let x = 0;
-    let y = 0;
-    for (let n = view; n !== null;) {
-        x += n.x;
-        y += n.y;
+/** The COMPOSED view→root-frame transform — every level's scale-then-rotate
+ *  about its pivot (F(p) = pivot + s·R(rot)(p − pivot), the forward of
+ *  toChildLocal's terms 3–4), translate, and scroll subtraction folded into
+ *  ONE similarity {scale, rotation, tx, ty}: a point p in `view`'s frame
+ *  space lands at (tx, ty) + scale·R(rotation)(p). Omitting the transform
+ *  terms was the scale-blind twin of the scroll-blind-walk bug: a view under
+ *  scaled ancestors reported the Σ(local x) position while paint and the hit
+ *  walk agreed on the composed one (field report 2026-08-13, repro B: 320 vs
+ *  the real 250).
+ *
+ *  `stopAt` (exclusive) bounds the walk for CONTENT-space geometry — the
+ *  focus ring's travel home stops at its scroller, before that scroller's own
+ *  translate and (deliberately unread) scroll offset. */
+export function rootTransform(view, stopAt = null) {
+    let cs = 1; // composed scale
+    let cr = 0; // composed rotation, radians
+    let tx = 0;
+    let ty = 0;
+    for (let n = view; n !== null && n !== stopAt;) {
+        // lift the accumulated similarity through n's own transform: G∘A, where
+        // G(q) = pivot + s·R(rot)(q − pivot) + (x, y)
+        const s = n.scale;
+        const rot = (n.rotation * Math.PI) / 180;
+        if (s !== 1 || rot !== 0) {
+            const ca = Math.cos(rot);
+            const sa = Math.sin(rot);
+            const dx = tx - n.pivotX;
+            const dy = ty - n.pivotY;
+            tx = n.pivotX + s * (dx * ca - dy * sa);
+            ty = n.pivotY + s * (dx * sa + dy * ca);
+            cs *= s;
+            cr += rot;
+        }
+        tx += n.x;
+        ty += n.y;
         const p = isView(n.parent) ? n.parent : null;
+        if (p === stopAt)
+            break; // content space: the boundary's own scroll is not crossed
         if (p !== null && p.scrolls !== "none" && !n.ignoreScroll) {
-            x -= p.scrollX;
-            y -= p.scrollY;
+            tx -= p.scrollX;
+            ty -= p.scrollY;
         }
         n = p;
     }
-    return { x, y };
+    return { scale: cs, rotation: cr, tx, ty };
+}
+/** A view's origin in the ROOT'S FRAME space (viewport coordinates for a
+ *  top-level app) — the composed transform of (0, 0). Shared for the same
+ *  reason the walk is: the Inspector's highlight accumulated x/y by hand and
+ *  was blind to every scroll regime. */
+export function rootFrameOrigin(view) {
+    const t = rootTransform(view);
+    return { x: t.tx, y: t.ty };
+}
+/** The root-frame AXIS-ALIGNED BOX of a local rect (default the view's whole
+ *  frame, [0,width]×[0,height]) — the four corners through the composed
+ *  transform, min/maxed. What every overlay that DRAWS a box must use: an
+ *  origin from the walk paired with the LOCAL width/height boxes a scaled
+ *  view at its unscaled size (the Inspector-highlight/tooltip/focus-ring
+ *  defect this replaced, 2026-08-13). `stopAt` as in rootTransform. */
+export function rootFrameBox(view, rect, stopAt = null) {
+    const t = rootTransform(view, stopAt);
+    const rx = rect?.x ?? 0;
+    const ry = rect?.y ?? 0;
+    const rw = rect?.w ?? view.width;
+    const rh = rect?.h ?? view.height;
+    const ca = Math.cos(t.rotation);
+    const sa = Math.sin(t.rotation);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [px, py] of [[rx, ry], [rx + rw, ry], [rx, ry + rh], [rx + rw, ry + rh]]) {
+        const fx = t.tx + t.scale * (px * ca - py * sa);
+        const fy = t.ty + t.scale * (px * sa + py * ca);
+        if (fx < minX)
+            minX = fx;
+        if (fx > maxX)
+            maxX = fx;
+        if (fy < minY)
+            minY = fy;
+        if (fy > maxY)
+            maxY = fy;
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY, scale: t.scale };
 }
 /** The tracked read behind `View.hovered`. */
 export function readHovered(view) {

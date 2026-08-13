@@ -313,7 +313,7 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     openSub(row: object, subItems: array) {
         const o = (row as View).rootOrigin()
-        if (child == null) child = app.createView("Menu", app, ({ isRoot: false, rootMenu: this.rootMenu != null ? this.rootMenu : this }))
+        if (child == null) child = app.createView("Menu", ({ isRoot: false, rootMenu: this.rootMenu != null ? this.rootMenu : this }))
         this.driveSub(child, subItems, o.x + this.width - 6, o.y - 5)
         },
 
@@ -452,8 +452,8 @@ class Menu extends View [ visible = { shown }, width = 220,
                 onClick() { if (enabled && !divider && !sub && custom == "") classroot.pick("" + :id) },
 
                 onInit() {
-                    if (custom != "") app.createView(custom, this.host, ({ datapath: :props }))
-                    if (typeof :icon == "string") app.createView("" + :icon, this.icoHost, ({ datapath: :props }))
+                    if (custom != "") this.host.createView(custom, ({ datapath: :props }))
+                    if (typeof :icon == "string") this.icoHost.createView("" + :icon, ({ datapath: :props }))
                     },
 
                 // the hover highlight — inset, rounded, accent (the Mac read)

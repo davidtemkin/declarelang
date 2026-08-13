@@ -252,25 +252,6 @@ ordinary reactive attribute, so a title that tracks the open document is a bindi
 than a mechanism: `appName = { "Viewer — " + app.fileName }`. `""` (the default) means no
 opinion, and the host keeps whatever title it served.
 
-## createView()
-Instantiates a component **by tag name** and inserts it as a live child of `parent`,
-returning it — the imperative door, for structure that genuinely cannot be declared.
-Reach for replication over a datapath first: it reconciles, keys, and tears down for you.
-
-**The build drops components nothing statically references**, so a component you only ever
-name as a *string* needs `use [ Name ]` at the top level to survive. That is the one
-non-obvious requirement, and forgetting it fails at runtime, not compile time. The
-returned view is yours: `discard()` it when done.
-
-```declare-fragment
-use [ Menu ]
-…
-onInit() { this.list = app.createView("Menu", app, ({ })) }
-```
-
-The library builds its own overlays exactly this way — a `Menu` cannot declare a `Menu`
-child without recursing, so the cascade is created by name at first use.
-
 ## openWindow()
 Opens a URL in a new window or tab — the service action, so a `{ }` body never touches the
 document. `navigate` is the same-window form.

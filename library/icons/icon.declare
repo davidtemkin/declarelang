@@ -166,7 +166,7 @@ class IconHost extends View [
     ink: Color = { theme.text },
     textColor = { classroot.ink },
 
-    onInit() { if (this.kind != "") app.createView(this.kind, this, ({ })) }
+    onInit() { if (this.kind != "") this.createView(this.kind, ({ })) }
     ]
 
 

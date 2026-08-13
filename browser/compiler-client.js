@@ -36,7 +36,18 @@ const perfStage = (name) => {
 
 let clientPromise = null;
 export function loadCompiler() {
-  return (clientPromise ??= create());
+  // A FAILURE MUST NOT BE MEMOIZED. `??=` retained a rejected promise, so one bad
+  // moment — offline, a CDN blip during the boot-time warm-load — would poison every
+  // later call for the life of the page: liveCompile catches the rejection, returns
+  // null ("compiler not warm — no change"), and the editor stops recompiling with no
+  // error shown and no retry. Drop the memo on failure so the next call tries again.
+  //
+  // NOT a repair for an observed fault: the scenario is reasoned, not reproduced. An
+  // attempt to force it in a browser (2026-08-13) failed to prove anything, because
+  // CDP request-blocking applies to the page target and a module worker fetches from
+  // its own — the compiler loaded anyway and the test measured nothing. `?warm=0`
+  // (boot-uniform) is the switch that could actually stage it.
+  return (clientPromise ??= create().catch((e) => { clientPromise = null; throw e; }));
 }
 
 async function create() {
@@ -211,7 +222,9 @@ let libraryPromise = null;
 export function loadLibraryOnce() {
   if (libraryPromise === null) {
     const s = perfStage("library");
-    libraryPromise = loadLibrary().then((lib) => { s.end(); return lib; });
+    // Same rule as loadCompiler: a failed fetch is not an answer worth keeping.
+    libraryPromise = loadLibrary().then((lib) => { s.end(); return lib; })
+      .catch((e) => { libraryPromise = null; throw e; });
   }
   return libraryPromise;
 }

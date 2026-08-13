@@ -1372,6 +1372,12 @@ export function createViewIn(root: View, tag: string, parent: View, props?: Reco
     }
   }
   made.finish();
+  // The arrival notify (the replicator's once-per-reconcile call, here once
+  // per verb): re-arm the parent's arrangement and install/re-run auto-extent
+  // — a never-sized parent EMPTY until now becomes derivable at this moment,
+  // which the structure cell alone cannot express (it wakes installed
+  // subscribers; it cannot install one).
+  parent.childrenMutated();
   return made.view;
 }
 
@@ -1431,6 +1437,7 @@ export function createElementIn(root: View, el: Element, parent: View): View {
     const ps = parent.surface;
     if (ps !== null && parent.backend !== null) made.view.attach(parent.backend, ps, null);
     made.finish();
+    parent.childrenMutated(); // the arrival notify — same as createViewIn
     return made.view;
   } finally {
     ctx.trusted = wasTrusted;

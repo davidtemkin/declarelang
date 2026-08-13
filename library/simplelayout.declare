@@ -50,6 +50,10 @@ class SimpleLayout extends Layout [
 
         // slack, only when someone flexes: the view's extent along the axis
         // minus the rigid content and the gaps between visible children
+        // a child's slot is its FOOTPRINT (the scale/rotation-composed box),
+        // so a scale = 0.5 child occupies half the run and a rotated card
+        // reserves what it visibly covers; the box's lead compensates the
+        // transform's own offset so the VISIBLE edge lands on the slot
         let each = 0
         let flexN = 0
         for (const c of kids) if (c.visible && flexing(c)) flexN = flexN + 1
@@ -59,7 +63,7 @@ class SimpleLayout extends Layout [
             for (const c of kids) {
                 if (!c.visible) continue
                 visN = visN + 1
-                if (!flexing(c)) content = content + (c as any)[size]
+                if (!flexing(c)) content = content + (c as any).footprint()[size]
             }
             const extent = this.view == null ? 0 : (this.view as any)[size]
             each = Math.max(0, (extent - content - this.spacing * Math.max(0, visN - 1)) / flexN)
@@ -68,9 +72,14 @@ class SimpleLayout extends Layout [
         let pos = 0
         return kids.map((c) => {
             const flex = c.visible && flexing(c)
-            const box = (axis == "x" ? ({ x: pos }) : ({ y: pos })) as any
+            // footprint, never bounds: the strategy must not read the slot it
+            // writes (one-pass discipline). A flexing child's size is ALLOCATED
+            // (box.w/h), so its footprint is never consulted — lead 0, raw slot.
+            const f = flex ? null : (c as any).footprint()
+            const lead = f == null ? 0 : (axis == "x" ? f.x : f.y)
+            const box = (axis == "x" ? ({ x: pos - lead }) : ({ y: pos - lead })) as any
             if (flex) box[axis == "x" ? "w" : "h"] = each
-            if (c.visible) pos = pos + (flex ? each : (c as any)[size]) + this.spacing
+            if (c.visible) pos = pos + (flex ? each : (f as any)[size]) + this.spacing
             return box
             })
         }

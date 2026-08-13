@@ -70,13 +70,19 @@ class WrappingLayout extends Layout [
         for (let i = 0; i < kids.length; i++) {
             const c = kids[i]
             if (!c.visible) { out.push({ x: cx, y: cy }); continue }   // skipped: reclaim its slot
-            const cw = c.width
-            const ch = c.height
+            // the child's FOOTPRINT (scale/rotation composed, position-free —
+            // place() must not read the x/y it writes), and the transform's own
+            // lead offset, compensated so the visible box lands on the flow
+            const f = (c as any).footprint()
+            const cw = f.width
+            const ch = f.height
+            const leadX = f.x
+            const leadY = f.y
             // wrap when this child (with its leading gap) would overflow — never
             // on a row's first child, so one over-wide child just overflows
             if (!firstInRow && cx + sp + cw > w) { justify(i, cx); cx = 0; cy = cy + rowH + ls; rowH = 0; firstInRow = true; rowStart = i }
             if (!firstInRow) cx = cx + sp
-            out.push({ x: cx, y: cy })
+            out.push({ x: cx - leadX, y: cy - leadY })
             cx = cx + cw
             rowH = Math.max(rowH, ch)
             firstInRow = false

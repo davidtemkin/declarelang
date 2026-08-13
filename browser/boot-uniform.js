@@ -509,7 +509,23 @@ export default async function boot(cfg) {
   // Warm the compiler + library for the first live edit — but ONLY on a static
   // host. Under the dev server, live edits compile on the server (serverCompile),
   // so pulling the compiler bundle here would defeat the whole point.
-  if (!window.__declareServer) loadCompiler().then(ensureLibrary).catch(() => {});
+  //
+  // `?warm=0` turns it off, so the cost can be MEASURED rather than argued about.
+  // What it costs is real and was not visible until it was instrumented: the
+  // fetch starts at the first frame (measured on the live site: first-frame and
+  // compiler-worker both at 628 ms on the homepage, 319 ms on the calendar), so it
+  // is not deferred behind the page's own content — it beat the hero video by 5 ms
+  // — and it pulls 1.21 MB of compiler plus 78 KB of library onto pages whose
+  // programs are precompiled precisely so that no compiler is needed. Against that,
+  // it buys a first edit that answers in ~322 ms instead of ~700+.
+  //
+  // The switch exists because those two numbers are the whole argument and neither
+  // was measurable before. It is a boot knob, not a compile modifier: it changes
+  // WHEN the compiler is fetched, never what a compile produces.
+  const warm = new URLSearchParams(location.search).get("warm");
+  if (!window.__declareServer && warm !== "0" && warm !== "false") {
+    loadCompiler().then(ensureLibrary).catch(() => {});
+  }
   return app;
 }
 

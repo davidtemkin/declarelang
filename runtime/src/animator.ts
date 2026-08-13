@@ -306,15 +306,15 @@ export class Animator extends Node implements Animatable {
     this.end();
   }
 
-  /** Retire with the host view (View.discard reaches us now): drop off the
-   *  clock and dispose our own `{ }` bindings (`to`, `attribute`, …). Without
-   *  this a discarded Spring's `to` binding stays subscribed to what it read —
-   *  the leak — and the spring keeps ticking. Bindings first, so a stop() that
-   *  fires onStop cannot re-target through a live binding. */
-  override discard(): void {
+  /** Retire with the host view (the teardown recursion reaches us): drop off
+   *  the clock and dispose our own `{ }` bindings (`to`, `attribute`, …).
+   *  Without this a discarded Spring's `to` binding stays subscribed to what
+   *  it read — the leak — and the spring keeps ticking. Bindings first, so a
+   *  stop() that fires onStop cannot re-target through a live binding. */
+  override teardown(): void {
     disposeBindings(this);
     this.stop();
-    super.discard();
+    super.teardown();
   }
 
   /** One clock frame (the Ticker contract): advance by real elapsed time,
@@ -538,10 +538,10 @@ export class AnimatorGroup extends Node implements Animatable {
 
   /** Retire with the host view: drop the group ticker + own bindings, then
    *  recurse so each member animator disposes its own bindings too. */
-  override discard(): void {
+  override teardown(): void {
     disposeBindings(this);
     this.stop();
-    super.discard();
+    super.teardown();
   }
 
   /** One group frame: drive the active members with the shared `now`, retire

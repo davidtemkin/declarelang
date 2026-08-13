@@ -233,6 +233,22 @@ to size to content with a cap; assigning it is a compile error.
 **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured
 extent of the subtree, for sizing a container to its content.
 
+
+## bounds()
+This view's **transformed box in the parent's coordinates** — the bounding box of the
+frame under scale-then-rotate about the pivot. The footprint: what a layout packs and
+what the parent's auto-size measures, and the exterior twin of the local
+`width`/`height` (which never change under transform — they are the view's interior
+coordinate space). Identity when `scale = 1` and `rotation = 0`. Every read is live, so
+a constraint like `width = { this.chip.bounds().width + 20 }` follows a springing
+scale.
+
+## footprint()
+`bounds()` minus the position: the same transformed box **relative to this view's own
+origin** — `x`/`y` are the lead offsets the transform introduces (0 untransformed),
+`width`/`height` the footprint extents. It never reads the view's `x`/`y`, which is why
+a layout's `place()` consumes this form: a strategy must never read the slots it
+writes. Reach for `bounds()` everywhere else.
 ## onClick
 Fires when the pointer presses **and** releases on the same view (a true click, not a
 stray press) — answered by an `onClick()` handler. The primary interaction event;
@@ -414,25 +430,31 @@ at a pointer, a popover dropping under a control — so they land where the view
 at any scroll. Hand-accumulating ancestor `x`/`y` is scroll-blind; call this instead.
 
 ## scale
-A uniform **paint** transform — the view's subtree renders scaled about its pivot, never
-re-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the
-visible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.
+A uniform transform — the view's subtree renders scaled about its pivot, and **every
+reader agrees on the one geometry**: paint, hit-testing, `rootOrigin`, the parent's
+auto-size, and layouts all compose the same transform, so a `scale = 0.5` child really
+occupies half its slot (the fractal idiom) — where CSS makes transform paint-only and
+lets layout disagree with what you see. The view's **own** `width`/`height` stay local
+(its interior world is untouched — that is what makes scale mean "the same world,
+smaller"); the parent packs the transformed **footprint** (`bounds()`). Pair with
+`pivotX`/`pivotY` to choose the center; `1` is unscaled; spring it for zoom effects.
 
 ## pivotX
-The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set
-both `pivotX`/`pivotY` to scale about the middle rather than the top-left.
+The horizontal center of `scale` and `rotation`, in the view's own coordinates. Defaults
+to the origin; set both `pivotX`/`pivotY` to transform about the middle rather than the
+top-left.
 
 ## pivotY
 The vertical pivot — the twin of `pivotX`.
 
 ## rotation
 Rotation in **degrees**, clockwise, about the same (`pivotX`, `pivotY`) pivot `scale`
-uses — and like `scale` it is **paint-only**: the box the tree reasons about never
-rotates, layout is untouched, and hit-testing follows the *visible* geometry through
-the inverse transform, so a rotated control stays honestly clickable (`hovered`,
-`pressed`, and `viewAt` all agree with what you see). Composes with `scale` in one
-documented order — scale, then rotate, about the shared pivot. `0` (the default) is
-unrotated; spring it for turn effects.
+uses — and the same one-geometry rule: hit-testing follows the *visible* geometry
+through the inverse transform (`hovered`, `pressed`, and `viewAt` all agree with what
+you see), and layout and auto-size reserve the rotated frame's bounding box
+(`bounds()`), so a rotated card takes the room it visibly covers. Composes with `scale`
+in one documented order — scale, then rotate, about the shared pivot. `0` (the default)
+is unrotated; spring it for turn effects.
 
 ## backdrop
 The **frost** — `frost(radius)` or `frost(radius, saturation)`; `null` (the default) =
@@ -632,19 +654,46 @@ and how a replicated row edits its own record without knowing where in the datas
 sits. The write wakes exactly the bindings that read the changed region, so a grid cell
 committing an edit re-derives everything downstream and nothing else.
 
+## createView()
+Instantiates a component **by tag name** into this view — the receiver is the parent, and
+with it the new instance's scope and data anchor. Returns the created view, a full
+citizen: bindings installed, `onInit` fired, and the parent's arrangement and auto-size
+take it in on arrival. The imperative door, for structure that genuinely cannot be
+declared; reach for replication over a datapath first — it reconciles, keys, and tears
+down for you.
+
+**The build drops components nothing statically references**, so a component you only
+ever name as a *string* needs `use [ Name ]` at the top level to survive. That is the one
+non-obvious requirement, and forgetting it fails at runtime, not compile time. The
+returned view is yours: `discard()` it when done.
+
+```declare-fragment
+use [ Menu ]
+…
+onInit() { this.list = app.createView("Menu", ({ })) }
+```
+
+The library builds its own overlays exactly this way — a `Menu` cannot declare a `Menu`
+child without recursing, so the cascade is created by name at first use (parented to the
+`app` root plane, which is why the receiver there is `app` itself).
+
 ## insertChild()
-Inserts a view you already hold as a child at `index` — the placement half of
-`app.createView`. Prefer replication over data for collections; this is for genuinely
-imperative structure.
+Inserts a view you already hold as a child at `index` — the placement primitive beneath
+`createView`. Prefer replication over data for collections; this is for genuinely
+imperative structure. A primitive, not a verb: it does not notify the arrangement — after
+imperative re-ordering, the layout re-packs on the next arrival or removal.
 
 ## removeChild()
 Detaches a child from this view. The child is **not** torn down — use `discard()` for
 that; a removed view you keep a reference to can be inserted somewhere else.
 
 ## discard()
-Tears a view down for good: unwires its constraints and drops its surface. **The pair of
-`app.createView`** — a view you built imperatively is yours to destroy, while a replicated
-instance is the runtime's and leaves when its record does.
+Tears a view down for good, in one verb: unlinks it from its parent, retires its whole
+subtree (constraints unwired, surfaces dropped, `onRetire` fired while everything is
+still alive), and re-packs what it leaves behind — the parent's arrangement closes the
+gap and its auto-size shrinks. **The pair of `createView`** — a view you built
+imperatively is yours to destroy, while a replicated instance is the runtime's and
+leaves when its record does.
 
 ## tabOrder()
 The members keyboard traversal descends into from this view. **Override it to gate

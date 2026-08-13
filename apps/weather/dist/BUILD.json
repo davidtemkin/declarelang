@@ -29,8 +29,8 @@
     "id": "library/simplelayout.declare",
     "kind": "file",
     "v": {
-     "hash": "b02eabd7405c8dc3",
-     "size": 3107
+     "hash": "026b8948a68155be",
+     "size": 3803
     }
    },
    {
@@ -45,8 +45,8 @@
     "id": "library/icons/icon.declare",
     "kind": "file",
     "v": {
-     "hash": "a3e77066173553dc",
-     "size": 9340
+     "hash": "e87a40a3698fa47f",
+     "size": 9335
     }
    },
    {
@@ -293,8 +293,8 @@
     "id": "runtime/dist/node.js",
     "kind": "file",
     "v": {
-     "hash": "4ca1ec7d49345cfe",
-     "size": 5391
+     "hash": "e2318f4bcc2e5d0e",
+     "size": 6623
     }
    },
    {
@@ -325,8 +325,8 @@
     "id": "runtime/dist/tip.js",
     "kind": "file",
     "v": {
-     "hash": "66c0ed0cb2d6bfe4",
-     "size": 4430
+     "hash": "efd4d9c94b4e1c52",
+     "size": 4621
     }
    },
    {
@@ -341,16 +341,16 @@
     "id": "runtime/dist/interaction.js",
     "kind": "file",
     "v": {
-     "hash": "ead824216c97b7e8",
-     "size": 16579
+     "hash": "32091b043f8a35f5",
+     "size": 19578
     }
    },
    {
     "id": "runtime/dist/schema.js",
     "kind": "file",
     "v": {
-     "hash": "c99b59719b7c1777",
-     "size": 65881
+     "hash": "ba63cceee7b2d89e",
+     "size": 66331
     }
    },
    {
@@ -365,24 +365,24 @@
     "id": "runtime/dist/view.js",
     "kind": "file",
     "v": {
-     "hash": "347e821864ee1069",
-     "size": 73111
+     "hash": "5c16a5ff9028a4d6",
+     "size": 77579
     }
    },
    {
     "id": "runtime/dist/focus.js",
     "kind": "file",
     "v": {
-     "hash": "eeb4c0ca3160992d",
-     "size": 15373
+     "hash": "e6bb04c86789370c",
+     "size": 15537
     }
    },
    {
     "id": "runtime/dist/inspect-service.js",
     "kind": "file",
     "v": {
-     "hash": "17bfab1948db62d5",
-     "size": 22136
+     "hash": "ebb727841dae0a75",
+     "size": 22259
     }
    },
    {
@@ -397,8 +397,8 @@
     "id": "runtime/dist/animator.js",
     "kind": "file",
     "v": {
-     "hash": "23a2ce58d9e84d12",
-     "size": 26092
+     "hash": "fc567c5ce1ed9b5a",
+     "size": 26102
     }
    },
    {
@@ -421,8 +421,8 @@
     "id": "runtime/dist/state.js",
     "kind": "file",
     "v": {
-     "hash": "5dd13b0363f66534",
-     "size": 10253
+     "hash": "f95811a10ba78f7c",
+     "size": 10547
     }
    },
    {
@@ -549,16 +549,16 @@
     "id": "runtime/dist/instantiate.js",
     "kind": "file",
     "v": {
-     "hash": "02471f3510785c4a",
-     "size": 71564
+     "hash": "bf2e6595e6dcc923",
+     "size": 72034
     }
    },
    {
     "id": "runtime/dist/inspect.js",
     "kind": "file",
     "v": {
-     "hash": "ab238af9b42b89d4",
-     "size": 28182
+     "hash": "19f70f70876b2a8e",
+     "size": 28345
     }
    },
    {

@@ -10,7 +10,7 @@
 // allocates until asked). The `__declare` page bridge is installed by boot.ts
 // for top-level apps.
 import { Node } from "./node.js";
-import { hitAt, traceHitAt, rootFrameOrigin } from "./interaction.js";
+import { hitAt, traceHitAt, rootFrameOrigin, rootFrameBox } from "./interaction.js";
 import { View } from "./view.js";
 import { isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
 import { materializationInfo } from "./replicate.js";
@@ -142,11 +142,14 @@ export function inspect(node, path = "app") {
     // is blind to every scroll between here and the root, so a row below a pane's
     // fold reported the position it would have had unscrolled. Same walk the
     // highlight and the hit test use, so the three cannot disagree.
-    let rootX = 0, rootY = 0;
+    let rootX = 0, rootY = 0, rootWidth = 0, rootHeight = 0;
     if (v !== null) {
         const o = rootFrameOrigin(v);
         rootX = o.x;
         rootY = o.y;
+        const b = rootFrameBox(v);
+        rootWidth = b.width;
+        rootHeight = b.height;
     }
     // effective visibility is inherited, so it is walked from THIS node up
     // rather than threaded down — inspect() is entered at arbitrary depth
@@ -164,7 +167,7 @@ export function inspect(node, path = "app") {
         name: nameOf(node),
         path,
         x: v?.x ?? 0, y: v?.y ?? 0, width: v?.width ?? 0, height: v?.height ?? 0,
-        rootX, rootY,
+        rootX, rootY, rootWidth, rootHeight,
         visible: v?.visible ?? true,
         shown,
         attrs: safeAttr(ownValues(node)),

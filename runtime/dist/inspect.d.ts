@@ -21,6 +21,13 @@ export interface InspectNode {
      *  something scrolls, and then silently wrong. */
     rootX: number;
     rootY: number;
+    /** The composed root-frame EXTENTS — the AABB of the frame through every
+     *  ancestor transform (scale/rotation), the box the view PAINTS. Equal to
+     *  width/height (which stay local, the view's own coordinate space) when no
+     *  transform is in play. Under rotation rootX/rootY remain the frame
+     *  ORIGIN's image, which is a quad corner, not necessarily the AABB's. */
+    rootWidth: number;
+    rootHeight: number;
     /** This node's OWN `visible` slot — what the program says about it. */
     visible: boolean;
     /** Whether it is actually SHOWN: its own `visible` and every ancestor's.

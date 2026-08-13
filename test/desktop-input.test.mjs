@@ -154,6 +154,102 @@ try {
     assert.equal(g2.x, g.x, "no move");
   });
 
+  // ── the zoom egg (`s`): window drag/resize/hit under SCALE ────────────────
+  // Deterministic: Math.random pinned to 0 makes every zoomTarget 0.55.
+  const zoomOn = async () => {
+    await page.evaluate(() => {
+      globalThis.__rand = Math.random; Math.random = () => 0;
+      globalThis.__declare.find("app").scaleSeed = 1;
+    });
+    await new Promise((r) => setTimeout(r, 1000)); // the spring settles
+  };
+  const zoomOff = async () => {
+    await page.evaluate(() => {
+      globalThis.__declare.find("app").scaleSeed = 0;
+      if (globalThis.__rand) Math.random = globalThis.__rand;
+    });
+    await new Promise((r) => setTimeout(r, 1000));
+  };
+  const winGeo = () => page.evaluate(() => {
+    const w = globalThis.__w;
+    const o = w.parent.rootOrigin();   // the wins layer sits below the menu bar
+    return { wx: w.wx, wy: w.wy, w: w.width, h: w.height, scale: w.scale, ox: o.x, oy: o.y };
+  });
+
+  const zoomDragResize = async () => {
+    const z = await winGeo();
+    assert.ok(Math.abs(z.scale - 0.55) < 0.02, `the window springs to 0.55 (${z.scale})`);
+    // TITLE-BAR DRAG at its VISIBLE position (center pivot: the window's
+    // center is scale-invariant; the bar's mid-line sits (h/2 − 16)·s above)
+    const cx = z.ox + z.wx + z.w / 2, cy = z.oy + z.wy + z.h / 2;
+    const barY = Math.round(cy - (z.h / 2 - 16) * z.scale);
+    await drag(Math.round(cx), barY, Math.round(cx) + 60, barY + 30);
+    const g2 = await winGeo();
+    assert.ok(Math.abs(g2.wx - (z.wx + 60)) < 3, `drag is 1:1 in screen space (${z.wx} → ${g2.wx})`);
+    assert.ok(Math.abs(g2.wy - (z.wy + 30)) < 3, `…both axes (${z.wy} → ${g2.wy})`);
+    // RESIZE from the VISIBLE right edge: +40 screen pixels grow the local
+    // width by 40/scale ≈ 73; the opposite VISIBLE edge stays planted
+    const c2x = g2.ox + g2.wx + g2.w / 2, c2y = g2.oy + g2.wy + g2.h / 2;
+    const edgeX = c2x + (g2.w / 2) * g2.scale;
+    const leftBefore = c2x - (g2.w / 2) * g2.scale;
+    // +1 SCREEN pixel out, not +3: the band's carved shape is LOCAL geometry,
+    // so its visible reach scales — +3 screen at 0.55× is ~5.5 local, past it
+    await drag(Math.round(edgeX) + 1, Math.round(c2y), Math.round(edgeX) + 41, Math.round(c2y));
+    const g3 = await winGeo();
+    assert.ok(g3.w > g2.w + 55, `local width grows by ~40/scale (${g2.w} → ${g3.w})`);
+    const leftAfter = g3.ox + g3.wx + g3.w / 2 - (g3.w / 2) * g3.scale;
+    assert.ok(Math.abs(leftAfter - leftBefore) < 3, `the opposite visible edge stays planted (${leftBefore} → ${leftAfter})`);
+  };
+
+  await test("DOM: the zoom egg — title-bar drag and edge resize on a 0.55× window", async () => {
+    await zoomOn();
+    await zoomDragResize();
+    await zoomOff();
+  });
+
+  await test("DOM: the calendar island rides its window's scale — box, and honest input coordinates", async () => {
+    // open the real calendar app in an AppWindow from the dock
+    const icon = await page.evaluate(() => {
+      let found = null;
+      const walk = (v) => { for (const c of v.children ?? []) { if (c.constructor.name === "DockIcon" && c.name === "Calendar") found = c; walk(c); } };
+      walk(globalThis.__declare.find("app"));
+      let x = 0, y = 0, v = found;
+      while (v && v.x !== undefined) { x += v.x; y += v.y; v = v.parent; }
+      return { x: Math.round(x + found.width / 2), y: Math.round(y + found.height / 2) };
+    });
+    await page.mouse.click(icon.x, icon.y);
+    await page.waitForFunction(() => {
+      const box = document.querySelector('[data-declare-slot^="run:"]');
+      return box != null && box.__childApp != null;
+    }, { timeout: 30000 });
+    await new Promise((r) => setTimeout(r, 800));
+    await zoomOn();
+    const r = await page.evaluate(() => {
+      const aw = globalThis.__declare.find("app.wins").children.find((c) => c.constructor.name === "AppWindow");
+      const box = document.querySelector('[data-declare-slot^="run:"]');
+      const rect = box.getBoundingClientRect();
+      return { rectW: rect.width, rectCx: rect.left + rect.width / 2, rectCy: rect.top + rect.height / 2,
+               islandW: aw.island.width, scale: aw.scale };
+    });
+    // the island's DOM box is INSIDE the transformed window element, so the
+    // platform carries the whole child app: its client rect is the scaled size
+    assert.ok(Math.abs(r.rectW - r.islandW * r.scale) < 2,
+      `the island's client box is the scaled footprint (${r.rectW} vs ${r.islandW} × ${r.scale})`);
+    // input INTO the scaled child: the pointer over the island's visible
+    // center must reach the child app in ITS OWN coordinates (the localPoint
+    // inversion, dom-backend) — the child's width is the island's layout
+    // width, so honest local x is width/2
+    await page.mouse.move(Math.round(r.rectCx), Math.round(r.rectCy));
+    await new Promise((res) => setTimeout(res, 250));
+    const p = await page.evaluate(() => {
+      const box = document.querySelector('[data-declare-slot^="run:"]');
+      return { x: box.__childApp.pointerX, y: box.__childApp.pointerY, w: box.__childApp.width };
+    });
+    assert.ok(Math.abs(p.x - p.w / 2) < 5,
+      `the child hears local coordinates through the scale (pointerX ${p.x}, center ${p.w / 2})`);
+    await zoomOff();
+  });
+
   // ── canvas renderer: the same contract through the canvas walk ───────────
   await openReader(`${B}/apps/desktop/desktop.declare?render=canvas`);
   g = await readerGeo();
@@ -180,6 +276,12 @@ try {
     const g2 = await readerGeo();
     assert.equal(g2.w, g.w, "no resize");
     assert.equal(g2.x, g.x, "no move");
+  });
+
+  await test("canvas: the zoom egg — the same drag/resize contract through the canvas walk", async () => {
+    await zoomOn();
+    await zoomDragResize();
+    await zoomOff();
   });
 } finally {
   await browser.close();

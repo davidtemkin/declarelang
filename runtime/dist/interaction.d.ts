@@ -87,14 +87,50 @@ export declare function hitAt(root: unknown, x: number, y: number, pierce?: bool
  *  occlusion is `hitAt`'s question — so a view can ask "is the pointer within
  *  me" without a tree walk. */
 export declare function boxContains(view: InteractionView, x: number, y: number): boolean;
+/** The COMPOSED view→root-frame transform — every level's scale-then-rotate
+ *  about its pivot (F(p) = pivot + s·R(rot)(p − pivot), the forward of
+ *  toChildLocal's terms 3–4), translate, and scroll subtraction folded into
+ *  ONE similarity {scale, rotation, tx, ty}: a point p in `view`'s frame
+ *  space lands at (tx, ty) + scale·R(rotation)(p). Omitting the transform
+ *  terms was the scale-blind twin of the scroll-blind-walk bug: a view under
+ *  scaled ancestors reported the Σ(local x) position while paint and the hit
+ *  walk agreed on the composed one (field report 2026-08-13, repro B: 320 vs
+ *  the real 250).
+ *
+ *  `stopAt` (exclusive) bounds the walk for CONTENT-space geometry — the
+ *  focus ring's travel home stops at its scroller, before that scroller's own
+ *  translate and (deliberately unread) scroll offset. */
+export declare function rootTransform(view: InteractionView, stopAt?: InteractionView | null): {
+    scale: number;
+    rotation: number;
+    tx: number;
+    ty: number;
+};
 /** A view's origin in the ROOT'S FRAME space (viewport coordinates for a
- *  top-level app) — the inverse of the descent the walk makes, minus scale
- *  (callers so far box overlays that don't scale; the term joins when one
- *  does). Shared for the same reason the walk is: the Inspector's highlight
- *  accumulated x/y by hand and was blind to every scroll regime. */
+ *  top-level app) — the composed transform of (0, 0). Shared for the same
+ *  reason the walk is: the Inspector's highlight accumulated x/y by hand and
+ *  was blind to every scroll regime. */
 export declare function rootFrameOrigin(view: InteractionView): {
     x: number;
     y: number;
+};
+/** The root-frame AXIS-ALIGNED BOX of a local rect (default the view's whole
+ *  frame, [0,width]×[0,height]) — the four corners through the composed
+ *  transform, min/maxed. What every overlay that DRAWS a box must use: an
+ *  origin from the walk paired with the LOCAL width/height boxes a scaled
+ *  view at its unscaled size (the Inspector-highlight/tooltip/focus-ring
+ *  defect this replaced, 2026-08-13). `stopAt` as in rootTransform. */
+export declare function rootFrameBox(view: InteractionView, rect?: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}, stopAt?: InteractionView | null): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    scale: number;
 };
 /** The tracked read behind `View.hovered`. */
 export declare function readHovered(view: InteractionView): boolean;

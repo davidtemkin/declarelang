@@ -83,7 +83,7 @@ where it belongs.
    expression, so React's `{items.map(…)}` and `{cond && …}` have no equivalent there: a
    collection comes from *replication* over a datapath, and conditional presence is `visible`.
    (Those operators are ordinary TypeScript in any `{ }` value, and a handler *can* build views
-   imperatively with `app.createView` — the declarative tree is simply not where either
+   imperatively with `createView` — the declarative tree is simply not where either
    happens.) (§7)
 5. **There is no CSS and no DOM.** No selectors, cascade, specificity, media queries, z-index,
    flexbox, or grid. Style is attributes, stacking is declaration order, and responsiveness is
@@ -250,7 +250,7 @@ Besides `class`, the top level holds `script`, `include`, `use`, `font`, `style`
 helpers; a constraint may call one and the compiler reads through it (§5). **`include
 [ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
 a component the build would otherwise drop, for when your code constructs it by name at runtime
-(`app.createView`, §7). **`font Name [ … ]`** declares a font family (`Face` children carry web-font files; a use
+(`createView`, §7). **`font Name [ … ]`** declares a font family (`Face` children carry web-font files; a use
 site picks with `fontFamily = [Name, "system-ui"]`), and `style` and `stylesheet`
 are style constructs (§9).
 
@@ -548,17 +548,19 @@ as the answer changes. There is nothing else to write: no row heights, no scroll
 no keys.
 
 **When structure is genuinely imperative**, build it from a handler:
-`app.createView(tag, parent, props)` instantiates a component by name and inserts it as a live
-child, and `insertChild` places one you already hold. Reach for replication first — it reconciles,
-keys, and tears down for you — but the imperative door is open, and `use [ Name ]` (§4) is how you
-keep a component the build would otherwise drop when you name it only as a string.
+`parent.createView(tag, props)` instantiates a component by name into the receiver — a full
+citizen, and the parent's arrangement and auto-size take it in on arrival. Its pair is
+`view.discard()`: one verb unlinks the view, retires its whole subtree, and re-packs what it
+leaves behind. Reach for replication first — it reconciles, keys, and tears down for you — but
+the imperative door is open, and `use [ Name ]` (§4) is how you keep a component the build would
+otherwise drop when you name it only as a string.
 
 **Data that keeps arriving is a stream** — `EventStream` and `Socket`, connected exactly while
 `active` and a `url` say so, delivering `onMessage` and a reactive `last`. Same lifecycle shape as
 a `DataSource`, and nothing to unsubscribe.
 
-→ `Dataset` and `DataSource` attributes, `Stream`/`EventStream`/`Socket`, `App.createView`,
-`Node.insertChild`: the model reference · paths, selection and editing:
+→ `Dataset` and `DataSource` attributes, `Stream`/`EventStream`/`Socket`, `View.createView`,
+`View.discard`: the model reference · paths, selection and editing:
 [the data chapter](declare-docs:guide:data) · virtualization at scale:
 [scale](declare-docs:guide:scale)
 

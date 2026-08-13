@@ -33,7 +33,7 @@ bitmap is a certain music-video still, and it earns its keep.)
 */
 
 // The window classes below are created only at runtime, by name —
-// `app.createView("FilesWindow", …)` — never as a declared tag. Class
+// `wins.createView("FilesWindow", …)` — never as a declared tag. Class
 // reachability is otherwise a static fact (unused classes are dropped, which
 // is what tree-shakes production builds), and a name inside a runtime string
 // is invisible to that analysis. `use` is the explicit bridge: keep these
@@ -131,8 +131,18 @@ class Window extends View [ width = 560, height = 400, clip = true,
     tiltSpring: Spring [ attribute = tiltA, to = { classroot.tiltTarget }, stiffness = 160, damping = 14, epsilon = 0.01 ],
     rotation = { this.tiltA * (1 - this.miniT) },
 
-    pivotX = { this.tiltA != 0 ? this.width / 2 : this.bornX >= 0 ? this.bornX : this.width / 2 },
-    pivotY = { this.tiltA != 0 ? this.height / 2 : this.bornY >= 0 ? this.bornY : this.height / 2 },
+    // ── the ZOOM egg — the tilt's scale twin (`s` re-rolls, `S` resets) ──
+    // Same dormancy contract: zoomA rides at 1 until the seed is bumped, and
+    // blends away on the way into the dock (the park scale must land exact —
+    // seatCheck measures it to half a pixel). Composed MULTIPLICATIVELY into
+    // the park blend below, so the two journeys never fight.
+
+    zoomTarget: number = { app.scaleSeed > 0 && this.tilts ? 0.55 + Math.random() * 0.9 : 1 },
+    zoomA: number = 1,
+    zoomSpring: Spring [ attribute = zoomA, to = { classroot.zoomTarget }, stiffness = 160, damping = 14, epsilon = 0.002 ],
+
+    pivotX = { this.tiltA != 0 || this.zoomA != 1 ? this.width / 2 : this.bornX >= 0 ? this.bornX : this.width / 2 },
+    pivotY = { this.tiltA != 0 || this.zoomA != 1 ? this.height / 2 : this.bornY >= 0 ? this.bornY : this.height / 2 },
     born: Animator [ attribute = baseScale, from = { classroot.bornX >= 0 ? 0.15 : 0.85 }, to = 1,
         duration = 230, motion = cubicOut, started = true ],
 
@@ -190,7 +200,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
     x = { this.wx + (this.slotX - this.wx) * this.miniT },
     y = { this.wy + (this.parkY - this.wy) * this.miniT },
-    scale = { this.baseScale + (this.parkScale - this.baseScale) * this.miniT },
+    scale = { (this.baseScale + (this.parkScale - this.baseScale) * this.miniT) * (1 + (this.zoomA - 1) * (1 - this.miniT)) },
 
     // Each journey stops the other before it starts, so a restore mid-park never
     // leaves two animators racing `miniT`; and each completion handler checks
@@ -372,19 +382,25 @@ class Window extends View [ width = 560, height = 400, clip = true,
     moveSize() {
         if (sizeMode == "") return
         // the pointer's travel, in the window's own axes (a tilted window
-        // sizes along its edges, not the screen's)
-        const d = this.rot(app.pointerX - px0, app.pointerY - py0, -this.rotation)
+        // sizes along its edges, not the screen's) — and in its own UNITS: a
+        // zoomed window's local pixels cover `scale` screen pixels each, so
+        // the rotated delta divides by the scale (the zoom egg's twin of the
+        // rotation term; at 1 it divides by nothing)
+        const sc = Math.max(0.05, this.scale)
+        const d0 = this.rot(app.pointerX - px0, app.pointerY - py0, -this.rotation)
+        const d = ({ x: d0.x / sc, y: d0.y / sc })
         const sx = sizeMode.indexOf("r") >= 0 ? 1 : sizeMode.indexOf("l") >= 0 ? -1 : 0
         const sy = sizeMode.indexOf("b") >= 0 ? 1 : sizeMode.indexOf("t") >= 0 ? -1 : 0
         const w = sx != 0 ? Math.max(minW, wx0 + sx * d.x) : wx0
         const h = sy != 0 ? Math.max(minH, wh0 + sy * d.y) : wh0
         // plant the OPPOSITE edge: with a center pivot, growing the box moves
         // both edges, so the center shifts by half the growth toward the
-        // grabbed side — in window axes, hence rotated back to root
-        const m = this.rot(sx * (w - wx0) / 2, sy * (h - wh0) / 2, this.rotation)
+        // grabbed side — half the VISIBLE growth (× scale), in window axes,
+        // hence rotated back to root
+        const m = this.rot(sx * (w - wx0) / 2 * sc, sy * (h - wh0) / 2 * sc, this.rotation)
         this.wx = wl0 + (wx0 - w) / 2 + m.x
         this.wy = wt0 + (wh0 - h) / 2 + m.y
-        if (sy < 0 && this.rotation == 0) this.wy = Math.max(0, this.wy)
+        if (sy < 0 && this.rotation == 0 && this.scale == 1) this.wy = Math.max(0, this.wy)
         this.width = w
         this.height = h
         },
@@ -1736,6 +1752,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // spring level.
 
     tiltSeed: number = 0,
+    scaleSeed: number = 0,                       // the zoom egg's seed; `s` re-rolls, `S` resets
     iconEdge: number = 56,                       // a dock icon's resting edge
     dockFloor: number = 13,                      // the icons' resting bottom line, up from the desktop's bottom edge
     badgeEdge: number = 20,                      // a minimized window's app badge, at rest
@@ -2199,7 +2216,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     openAbout(a: string) {
         winCount = winCount + 1
         winSeq = winSeq + 1
-        const w = this.createView("AboutWindow", this.wins, ({ forApp: "" + a,
+        const w = this.wins.createView("AboutWindow", ({ forApp: "" + a,
             wx: (app.width - 280) / 2 + (winCount % 3) * 16, wy: 110 + (winCount % 3) * 14 }))
         this.frontOpen(w)
         },
@@ -2250,7 +2267,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         winCount = winCount + 1
         winSeq = winSeq + 1
         // spawn positions cascade, wrapping after a handful
-        const w = this.createView("FilesWindow", this.wins, ({ wx: 90 + (winCount % 7) * 28, wy: 46 + (winCount % 7) * 26 }))
+        const w = this.wins.createView("FilesWindow", ({ wx: 90 + (winCount % 7) * 28, wy: 46 + (winCount % 7) * 26 }))
         this.frontOpen(w)
         },
 
@@ -2264,7 +2281,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         winCount = winCount + 1
         winSeq = winSeq + 1
         const depth = ("" + folderPath).split("\n").length - 1
-        const w = this.createView("FilesWindow", this.wins, ({ wx: 90 + (winCount % 7) * 28, wy: 46 + (winCount % 7) * 26, selPath: "" + folderPath, focusDepth: depth }))
+        const w = this.wins.createView("FilesWindow", ({ wx: 90 + (winCount % 7) * 28, wy: 46 + (winCount % 7) * 26, selPath: "" + folderPath, focusDepth: depth }))
         this.frontOpen(w)
         },
 
@@ -2303,7 +2320,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             const wx = 160 + (winCount % 7) * 28
             const wy = 36 + (winCount % 7) * 26
             const o = this.originOf(v)
-            const w = this.createView("ViewerWindow", this.wins, ({ ...props, wx: wx, wy: wy,
+            const w = this.wins.createView("ViewerWindow", ({ ...props, wx: wx, wy: wy,
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
                 bornFrom: v != null ? v : null }))
             this.frontOpen(w)
@@ -2370,7 +2387,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
                 wx = Math.round((this.width - ww) / 2)
                 }
             const o = this.originOf(v)
-            const w = this.createView("AppWindow", this.wins, ({ appPath: "" + p, appTitle: "" + nm, forApp: isCal ? "calendar" : "declareviewer", wx: wx, wy: wy,
+            const w = this.wins.createView("AppWindow", ({ appPath: "" + p, appTitle: "" + nm, forApp: isCal ? "calendar" : "declareviewer", wx: wx, wy: wy,
                 width: ww, height: wh,
                 extraEnv: envExtra != null ? envExtra : "",
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
@@ -2395,7 +2412,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
 **Curious how it's made?** Press the `[ ]` icon in the dock to read this desktop's own source.
 
-**Never, ever, press the 'r' key.**
+**Never, ever, press the 'r' or 's' keys.**
 """,
 
     newJot(txt: string, v: View?) {
@@ -2407,7 +2424,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
             this.dismissAbouts()
             winCount = winCount + 1
             winSeq = winSeq + 1
-            const w = this.createView("JotWindow", this.wins, ({ note: "" + (txt || "*A new note.*"),
+            const w = this.wins.createView("JotWindow", ({ note: "" + (txt || "*A new note.*"),
                 wx: 480 + (winCount % 5) * 26, wy: 90 + (winCount % 5) * 24 }))
             this.frontOpen(w)
             }
@@ -2418,7 +2435,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     openWelcome() {
         jotRunning = true
         winSeq = winSeq + 1
-        const w = this.createView("JotWindow", this.wins, ({ note: this.welcomeNote,
+        const w = this.wins.createView("JotWindow", ({ note: this.welcomeNote,
             width: 400, height: 385, wx: Math.max(440, app.width - 490), wy: 120 }))
         this.frontOpen(w)
         },
@@ -2490,6 +2507,8 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
             if (e.key == "`" && !e.meta && !e.repeat) { app.wallSeed = app.wallSeed + 1; return }   // cycle the wallpaper (selection/debug)
             if (e.key == "r" && !e.meta && !e.repeat) { app.tiltSeed = app.tiltSeed + 1; return }   // the tilt egg: every window springs to a random lean
             if (e.key == "R" && !e.meta && !e.repeat) { app.tiltSeed = 0; return }                  // …and level again
+            if (e.key == "s" && !e.meta && !e.repeat) { app.scaleSeed = app.scaleSeed + 1; return } // the zoom egg: every window springs to a random scale
+            if (e.key == "S" && !e.meta && !e.repeat) { app.scaleSeed = 0; return }                 // …and true-size again
             if (!e.meta || e.repeat || e.key == "Meta") return
             if (app.bar.mb.shown) return             // an open menu owns the keyboard
             const combo = "⌘" + (e.key.length == 1 ? e.key.toUpperCase() : e.key)

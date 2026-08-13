@@ -13,7 +13,7 @@
 // with only the transport changing.
 import { Node } from "./node.js";
 import { View, App, inheritedCursor } from "./view.js";
-import { rootFrameOrigin } from "./interaction.js";
+import { rootFrameBox } from "./interaction.js";
 import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf } from "./inspect.js";
 import { compileExpr, validateExpr } from "./expr.js";
 import { scanDatapaths } from "./datapath.js";
@@ -48,11 +48,13 @@ const needTarget = () => {
 function rectOf(n) {
     if (!(n instanceof View))
         return null;
-    // The shared frame-space accumulator (interaction.ts): the highlight overlay
-    // is viewport-fixed, so the box must land where the view PAINTS — which a
-    // plain x/y sum gets wrong under any scroll regime (page or pane).
-    const o = rootFrameOrigin(n);
-    return { x: o.x, y: o.y, width: n.width || 0, height: n.height || 0 };
+    // The shared frame-space BOX (interaction.ts): the highlight overlay is
+    // viewport-fixed, so the box must land where the view PAINTS — a plain x/y
+    // sum was blind to scrolls, and origin + LOCAL width/height was blind to
+    // every ancestor scale/rotation (the 2026-08-13 transform audit: a 0.5×
+    // scaled view highlighted at twice its painted size).
+    const b = rootFrameBox(n);
+    return { x: b.x, y: b.y, width: b.width, height: b.height };
 }
 /** The member name a child is reachable by, when it has one. */
 const memberOf = (c) => nameOf(c);

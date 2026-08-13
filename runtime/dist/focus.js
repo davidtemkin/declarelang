@@ -13,7 +13,7 @@
 // is wired by the runtime entry, not here, keeping this layer independent.
 import { View, fireEvent, setFocusDiscardHook } from "./view.js";
 import { Cell, Constraint } from "./reactive.js";
-import { rootFrameOrigin } from "./interaction.js";
+import { rootFrameBox } from "./interaction.js";
 export class FocusService {
     current = null;
     rootView = null;
@@ -140,15 +140,23 @@ export class FocusService {
         if (v === null || this.geometryHandlers.size === 0)
             return;
         const k = new Constraint("Focus.follower", () => {
-            const o = rootFrameOrigin(v);
             const root = rootOf(v);
-            const x = o.x + root.scrollX;
-            const y = o.y + root.scrollY;
-            // the nearest scrolling ancestor (exclusive) — the travel home; and
-            // the view's origin in ITS content space (plain accumulation up to
-            // the scroller: nearest means no scrolled pane sits between, and the
-            // scroller's OWN offset is deliberately not a read — a traveled
-            // indicator must NOT re-derive per scroll tick, that's the point)
+            const fsFn = v.focusShape;
+            const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
+            const rect = fs !== null ? { x: fs.x, y: fs.y, w: fs.w, h: fs.h } : undefined;
+            const radLocal = fs ? fs.rad : (v.cornerRadius > 0 ? v.cornerRadius : 4);
+            // The composed root-frame BOX (interaction.ts) — origin + local w/h
+            // boxed a scaled control at its unscaled size (the 2026-08-13 audit);
+            // rad rides the composed scale so the ring's corners match the
+            // painted ones.
+            const fb = rootFrameBox(v, rect);
+            const x = fb.x + root.scrollX;
+            const y = fb.y + root.scrollY;
+            // the nearest scrolling ancestor (exclusive) — the travel home; the
+            // home box walks the SAME transform composition but stops at the
+            // scroller's content space (its own translate and — deliberately
+            // unread — scroll offset are not crossed, so a traveled indicator
+            // never re-derives per scroll tick)
             let scroller = root;
             for (let n = v.parent; n instanceof View; n = n.parent) {
                 if (n.scrolls !== "none") {
@@ -156,26 +164,16 @@ export class FocusService {
                     break;
                 }
             }
-            let homeX = 0, homeY = 0;
-            for (let n = v; n !== scroller;) {
-                homeX += n.x;
-                homeY += n.y;
-                if (!(n.parent instanceof View))
-                    break;
-                n = n.parent;
-            }
-            if (scroller === root) {
-                homeX = x;
-                homeY = y;
-            }
-            const fsFn = v.focusShape;
-            const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
+            const hb = scroller === root
+                ? { x, y, width: fb.width, height: fb.height, scale: fb.scale }
+                : rootFrameBox(v, rect, scroller);
             return {
-                x: x + (fs ? fs.x : 0), y: y + (fs ? fs.y : 0),
-                w: fs ? fs.w : v.width, h: fs ? fs.h : v.height,
-                rad: fs ? fs.rad : (v.cornerRadius > 0 ? v.cornerRadius : 4),
+                x, y,
+                w: fb.width, h: fb.height,
+                rad: radLocal * fb.scale,
                 view: v, root, scroller,
-                homeX: homeX + (fs ? fs.x : 0), homeY: homeY + (fs ? fs.y : 0),
+                homeX: hb.x, homeY: hb.y,
+                homeW: hb.width, homeH: hb.height, homeRad: radLocal * hb.scale,
             };
         }, (g) => { if (g != null)
             for (const fn of [...this.geometryHandlers])

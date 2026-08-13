@@ -50,6 +50,16 @@ export const LANGUAGE_METHOD_EFFECTS: ReadonlyMap<string, readonly string[]> = n
   // app-scoped onFollow hook runs inside it imperatively, never as a tracked
   // read). The LINK relation itself is authored (`link =`), not inferred here.
   ["follow", []],
+  // View.bounds() (runtime/src/view.ts) — the transformed footprint: the AABB
+  // of the frame under scale-then-rotate about the pivot, in parent
+  // coordinates. Its reads are all receiver-relative slots, so they are
+  // nameable here (unlike rootOrigin's ancestor walk, below) — a constraint
+  // reading `c.bounds().width` wires exactly these and stays live.
+  ["bounds", ["x", "y", "width", "height", "scale", "pivotX", "pivotY", "rotation"]],
+  // View.footprint() — bounds() minus the position: the same transformed box
+  // relative to the view's own origin, deliberately NOT reading x/y (a layout
+  // strategy consumes this so it never reads the slots it writes).
+  ["footprint", ["width", "height", "scale", "pivotX", "pivotY", "rotation"]],
   // View.raise(below?) (runtime/src/view.ts) — promotion: re-links the view to
   // the front of its siblings, or just beneath `below` when given (planes.md
   // §1, order-as-slot). Structural mutation, no reactive READ → pure for
@@ -93,9 +103,9 @@ export const LANGUAGE_METHOD_EFFECTS: ReadonlyMap<string, readonly string[]> = n
   // (`classroot.$setData(["title"], v)`, the DataGrid editors). A write reads
   // no reactive cell → pure for analysis.
   ["$setData", []],
-  // App.createView(tag, parent, props?) — imperative creation (planes.md §7,
-  // instantiate.ts). Constructs a subtree; reads no reactive cell at the call
-  // site → pure for analysis (the created instance's own bindings wire
-  // themselves through the ordinary pipeline).
+  // parent.createView(tag, props?) — imperative creation (planes.md §7,
+  // instantiate.ts); the receiver is the parent. Constructs a subtree; reads
+  // no reactive cell at the call site → pure for analysis (the created
+  // instance's own bindings wire themselves through the ordinary pipeline).
   ["createView", []],
 ]);

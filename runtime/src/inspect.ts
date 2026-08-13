@@ -11,7 +11,7 @@
 // for top-level apps.
 
 import { Node } from "./node.js";
-import { hitAt, traceHitAt, rootFrameOrigin, type InteractionView } from "./interaction.js";
+import { hitAt, traceHitAt, rootFrameOrigin, rootFrameBox, type InteractionView } from "./interaction.js";
 import { View } from "./view.js";
 import { isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
 import { materializationInfo, type MaterializationDiag } from "./replicate.js";
@@ -37,6 +37,12 @@ export interface InspectNode {
    *  reports where a view WOULD have been unscrolled — the same answer until
    *  something scrolls, and then silently wrong. */
   rootX: number; rootY: number;
+  /** The composed root-frame EXTENTS — the AABB of the frame through every
+   *  ancestor transform (scale/rotation), the box the view PAINTS. Equal to
+   *  width/height (which stay local, the view's own coordinate space) when no
+   *  transform is in play. Under rotation rootX/rootY remain the frame
+   *  ORIGIN's image, which is a quad corner, not necessarily the AABB's. */
+  rootWidth: number; rootHeight: number;
   /** This node's OWN `visible` slot — what the program says about it. */
   visible: boolean;
   /** Whether it is actually SHOWN: its own `visible` and every ancestor's.
@@ -168,10 +174,12 @@ export function inspect(node: Node, path = "app"): InspectNode {
   // is blind to every scroll between here and the root, so a row below a pane's
   // fold reported the position it would have had unscrolled. Same walk the
   // highlight and the hit test use, so the three cannot disagree.
-  let rootX = 0, rootY = 0;
+  let rootX = 0, rootY = 0, rootWidth = 0, rootHeight = 0;
   if (v !== null) {
     const o = rootFrameOrigin(v as unknown as InteractionView);
     rootX = o.x; rootY = o.y;
+    const b = rootFrameBox(v as unknown as InteractionView);
+    rootWidth = b.width; rootHeight = b.height;
   }
   // effective visibility is inherited, so it is walked from THIS node up
   // rather than threaded down — inspect() is entered at arbitrary depth
@@ -186,7 +194,7 @@ export function inspect(node: Node, path = "app"): InspectNode {
     name: nameOf(node),
     path,
     x: v?.x ?? 0, y: v?.y ?? 0, width: v?.width ?? 0, height: v?.height ?? 0,
-    rootX, rootY,
+    rootX, rootY, rootWidth, rootHeight,
     visible: v?.visible ?? true,
     shown,
     attrs: safeAttr(ownValues(node)) as Record<string, unknown>,

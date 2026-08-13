@@ -135,7 +135,10 @@ class ResponsiveLayout extends Layout [
         for (const c of kids) {
             if (!c.visible || hidden(c)) continue
             if (flexing(c)) { flexN = flexN + 1; continue }
-            rigid = rigid + (stack ? c.height : (shares.has(c) ? shareW(c) : c.width))
+            // natural sizes are the FOOTPRINT (scale/rotation composed,
+            // position-free); a share or flex allocation stays the raw slot it
+            // claims — the strategy never reads a slot it writes
+            rigid = rigid + (stack ? (c as any).footprint().height : (shares.has(c) ? shareW(c) : (c as any).footprint().width))
         }
         const room = stack ? view.height - gap * Math.max(0, visN - 1) : avail
         const each = flexN > 0 ? Math.max(0, room - rigid) / flexN : 0
@@ -146,12 +149,17 @@ class ResponsiveLayout extends Layout [
                 // excluded from the flow entirely: hidden, space reclaimed
                 return stack ? ({ y: pos, vis: false }) : ({ x: pos, vis: false })
             }
-            const box = (stack ? ({ y: pos }) : ({ x: pos })) as any
+            // allocated children (share, flex) take their slot raw; natural
+            // ones are placed by footprint, lead-compensated
+            const natural = !flexing(c) && !(stack ? false : shares.has(c))
+            const f = natural ? (c as any).footprint() : null
+            const lead = f == null ? 0 : (stack ? f.y : f.x)
+            const box = (stack ? ({ y: pos - lead }) : ({ x: pos - lead })) as any
             if (shares.has(c)) box.w = shareW(c)                       // a share allocates WIDTH, both flows
             if (flexing(c)) box[stack ? "h" : "w"] = each              // a spacer flexes along the flow axis
             const adv = flexing(c) ? each
-                      : stack      ? c.height
-                      : shares.has(c) ? shareW(c) : c.width
+                      : stack      ? (f as any).height
+                      : shares.has(c) ? shareW(c) : (f as any).width
             if (c.visible) pos = pos + adv + gap
             return box
             })

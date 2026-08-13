@@ -12,7 +12,7 @@ node tools/declarec.mjs apps/calendar/calendar.declare -o dist
 
 The output is a directory with an `index.html`, a content-hashed `app.<hash>.js`, and your
 data assets copied alongside — deployable to any static host. On the flagship calendar it lands
-around **<!--stat:calendar.wireKB-->77<!--/stat--> KB gzipped**. Four things keep it small:
+around **<!--stat:calendar.wireKB-->78<!--/stat--> KB gzipped**. Four things keep it small:
 
 - **Precompile.** Parse, resolve, and typecheck happen once, now; the program ships as a JSON
   string parsed at boot, with source positions stripped.

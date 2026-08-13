@@ -25,20 +25,24 @@ Everything here is enforced by something runnable. Nothing is honour-system.
 ```sh
 node tools/verify.mjs <file>   # one program, six rungs: parse → resolve → analyze → boot → input → pixels
 npm test                       # everything that tests the sources — no derive needed
-npm run derive                 # regenerate the committed artifacts (required before a push)
-git add $(node tools/internal/derive.mjs --paths)     # stage what it just wrote — see below
+npm run derive                 # regenerate the committed artifacts (required before a push) — stages its outputs
 npm run test:derived           # the artifact gates — only meaningful straight after a derive
 npm run test:ladder            # the slow rungs — real input, real pixels, headless Chromium
 ```
 
-**Stage between the two.** `derive` writes to disk; it never touches the index, on purpose
-(the pre-commit hook's rule — the index is yours). But a content-hashed artifact is a NEW
-PATH every build (`apps/homepage/dist/app.<hash>.js`), so it lands *untracked*, and
-`dist-freshness` inside `test:derived` asks whether every asset the published page
-references is in the tree. Run the gates before staging and it fails on a file `derive` had
-just correctly produced — the process tripping over itself, not a real defect. Stage first
-and the gate reads what you are actually about to publish. `--paths` is the staging list;
-`git commit -am` cannot pick these up, because a new path is not a modification.
+**Derive stages what it owns.** A derive produces three kinds of change — files rewritten,
+files created under NEW NAMES (`apps/homepage/dist/app.<hash>.js`), and files pruned — and
+only the first is something `git commit -a` would pick up. So derive reconciles the index
+for its OWN outputs itself (`git add -A` over each output pathspec) and reports
+`· outputs staged`; that is why `dist-freshness` inside `test:derived` can trust that every
+asset the published page references is in the tree. Two boundaries it keeps: **stamped**
+files (README, `docs/declare.md`, `index.html` — hand-authored around their markers) are
+never staged wholesale, since that would sweep up prose you were still writing — those stay
+yours to stage; and it stages **unconditionally**, not only when this run rewrote something,
+because "git's picture of derive's outputs matches the disk" can be false with nothing
+regenerated at all (a half-staged rename, an interrupted run). If staging itself fails,
+derive prints the exact `git add -A -- …` to run by hand; `--paths` remains the full
+audit list (outputs plus stamps), which is what the pre-push gate checks against.
 
 `verify` stops at the first real rung that fails and reports every independent error there.
 A clean compile is not a working app: layout, fonts, paint, and input routing do not exist

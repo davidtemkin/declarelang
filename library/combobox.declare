@@ -177,7 +177,7 @@ class Combobox extends Control [
 
     ensureList() {
         if (list != null) return
-        list = app.createView("Menu", app, ({ }))
+        list = app.createView("Menu", ({ }))
         const m = this.list as any
         m.picked = (id) => this.pickIndex(parseInt(id))
         },

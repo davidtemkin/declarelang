@@ -11,7 +11,9 @@
 // Measured 2026-08-04, which is why this exists: an eleven-suite gate run took
 // 7.5 minutes, of which `crawl` alone was 380s — 85% — because two of its cases
 // each extract the docs app (~125s apiece). Per-suite numbers found the suite;
-// only per-case numbers name the two lines.
+// only per-case numbers name the two lines. (HISTORY, not current cost: those
+// two cases were removed 2026-08-05 — see crawl.test.mjs — and crawl now runs
+// in seconds. The instrument they justified stays, for the next 380s case.)
 
 let passed = 0;
 let failed = 0;

@@ -77,20 +77,26 @@ const ViewSchema = {
         // attribute.
         ignoreScroll: { kind: "boolean" },
         opacity: { kind: "number" },
-        // Uniform scale transform (painted only — never layout, like opacity): the
-        // view's subtree renders scaled about the pivot point (pivotX/pivotY, in the
-        // view's own coordinates; default the top-left corner). Animate it with a
-        // Spring for zoom effects; 1 = no transform. Both backends realize it (DOM
-        // CSS transform, canvas ctx.scale), and hit-testing follows the visible
-        // geometry so a scaled view stays correctly clickable.
+        // Uniform scale transform: the view's subtree renders scaled about the
+        // pivot point (pivotX/pivotY, in the view's own coordinates; default the
+        // top-left corner). Animate it with a Spring for zoom effects; 1 = no
+        // transform. ONE GEOMETRY, every reader (the 2026-08-13 ruling,
+        // superseding the earlier paint-only stance): paint, hit-testing,
+        // rootOrigin/inspect, the parent's auto-size, and layouts all compose the
+        // same transform — a scale = 0.5 child occupies half its slot (bounds(),
+        // the transformed footprint, is what layout packs and auto-extent
+        // measures), where CSS makes transform paint-only and lets the two
+        // disagree. The view's OWN width/height stay local (its children's
+        // world is untouched); the parent sees the footprint. All backends
+        // realize the paint (DOM CSS transform, canvas ctx.scale, mac).
         scale: { kind: "number" },
         pivotX: { kind: "number" },
         pivotY: { kind: "number" },
-        // Rotation in DEGREES, clockwise, about the same pivot scale uses —
-        // painted only, like scale and opacity: the box the tree reasons about
-        // never rotates, layout is untouched, and hit-testing follows the
-        // VISIBLE geometry through the inverse transform (interaction.ts), so a
-        // rotated control stays honestly clickable. Composes with scale in one
+        // Rotation in DEGREES, clockwise, about the same pivot scale uses — the
+        // same one-geometry rule: paint, hit-testing (inverse transform,
+        // interaction.ts), rootOrigin/inspect, auto-size and layouts all agree,
+        // with the footprint the rotated frame's AABB (bounds()), so a rotated
+        // card reserves the box it visibly covers. Composes with scale in one
         // documented order: scale, then rotate, about the shared pivot (for
         // uniform scale the two commute; the order is stated so nobody has to
         // prove that). 0 = unrotated.

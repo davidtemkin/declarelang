@@ -300,6 +300,38 @@ export declare class View extends Node {
      *  live, and independent of this view's own width/height. */
     get contentWidth(): number;
     get contentHeight(): number;
+    /** This view's TRANSFORMED box in the parent's coordinates — the axis-aligned
+     *  bounding box of the frame under scale-then-rotate about the pivot, the
+     *  same F(p) = pivot + s·R(p−pivot) that paint, the hit walk, and the root
+     *  walk compose (interaction.ts `toChildLocal` is its inverse). THE
+     *  FOOTPRINT: what a layout packs and what auto-extent measures, so a
+     *  `scale = 0.5` child really occupies half its slot (the fractal idiom) and
+     *  a rotated card reserves the box it visibly covers. Identity when
+     *  scale = 1 and rotation = 0 — the box IS x/y/width/height, at no cost.
+     *  Every read is reactive (x, y, width, height, scale, pivotX, pivotY,
+     *  rotation — the effects row in the compiler names exactly these), so a
+     *  constraint or a place() reading it re-derives as any of them move. */
+    bounds(): {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+    /** The POSITION-FREE half of `bounds()`: the transformed box relative to
+     *  this view's own untransformed origin — `x`/`y` here are the lead offsets
+     *  the transform introduces (0 when untransformed; negative when a
+     *  centered-pivot scale-up grows past the origin), `width`/`height` the
+     *  footprint extents. Reads ONLY width, height, scale, pivotX, pivotY,
+     *  rotation — never `x`/`y` — which is what a layout's place() must consume:
+     *  a strategy that read a slot it writes would wake itself and break the
+     *  one-pass discipline (pinned by the re-layout test). `bounds()` is this
+     *  plus the position, for every reader that is not writing the position. */
+    footprint(): {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
     /** This view's View children — the reactive read of the child list, and the
      *  only one there is: `children` is a plain array (machinery included, and
      *  unlike the DOM's `children` it is NOT pre-filtered), so reading it in a
@@ -352,13 +384,21 @@ export declare class View extends Node {
         lead: number;
         size: number;
     };
+    /** The self-completing exit (Node.discard does the unlink + ex-parent
+     *  notify): this override only moves the DEPARTURE hook earlier for the
+     *  still-linked caller — presence ends while the tree is WHOLE, so an
+     *  `onRetire` reading `parent`, a datapath, or focus sees live state (the
+     *  replicator's own order: fire, unlink, teardown). Unlink-first paths
+     *  arrive with `parent` null and keep today's timing: teardown's own
+     *  lifetime-guarded fire covers them. */
+    discard(): void;
     /** Retire this subtree: dispose every standing computation (bindings,
      *  percents, derives, a laid parent's constraints on these slots, the draw
      *  recording), run registered teardowns (a replicator's), uninstall the
      *  arrangement, and destroy the surfaces — so no data or attribute change
-     *  can ever wake work for a removed view. Children first; the model links
-     *  (parent/children) are the caller's to cut (Node.removeChild). */
-    discard(): void;
+     *  can ever wake work for a removed view. Children first; teardown ONLY —
+     *  unlinking (and notifying the ex-parent) is discard's, the verb above. */
+    teardown(): void;
     /** Push this view's full visual state across the seam. Subclasses extend
      *  it with their capabilities (Text, Image); it runs before the children
      *  attach, so a backend that keeps content in arrival order (the DOM) gets
@@ -460,6 +500,16 @@ export declare class View extends Node {
      *  drag it home while its position slots still read the host's CONTENT
      *  coordinates — the ring painting a scroller's origin above its target.
      *  The MODEL order still moves; only the surface seat is left alone. */
+    /** Imperative creation (planes.md §7): instantiate a component by NAME
+     *  into THIS view — the receiver is the parent, and with it the new
+     *  instance's scope and data anchor (`classroot` resolution and `datapath`
+     *  inheritance boot against it). A full citizen: bindings installed, init
+     *  fired, and the arrangement/auto-extent notified (childrenMutated).
+     *  Resolves against the tree's program registry (via `root`); a name
+     *  referenced only here needs `use [ Name ]` to survive static tracing.
+     *  `props` are post-init writes (`datapath: record` gives the instance a
+     *  data context — replication's convention). The pair of `discard()`. */
+    createView(tag: string, props?: Record<string, unknown>): View;
     raise(below?: View | null): void;
     /** This view's input route, or null when it answers no pointer event —
      *  interactivity *derives* from declared handlers (Decisions §R5): a view
@@ -623,13 +673,6 @@ export declare class App extends View {
      *  the call statically (links.ts → `<a href>` in the static extraction), and at
      *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
      *  navigation rides this channel like `editing` — one clear way, analyzable. */
-    /** Imperative creation (planes.md §7): instantiate a component by NAME
-     *  into `parent`, a full citizen (bindings installed, init fired). Resolves
-     *  against this tree's program registry; a name referenced only here needs
-     *  `use [ Name ]` to survive static tracing. `props` are post-init writes
-     *  (`datapath: record` gives the instance a data context — replication's
-     *  convention). */
-    createView(tag: string, parent: View, props?: Record<string, unknown>): View;
     navigate(to: string): void;
     /** The reference schemes a link may carry (location.md §0.4) — the shared
      *  predicate lives at the render seam (backend.ts allowedRef), because the

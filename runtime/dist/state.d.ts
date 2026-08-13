@@ -52,8 +52,9 @@ export declare class State extends Node {
      *  (just after the state node), attach live surfaces, fire init — the same
      *  construct/finish path replicate.ts runs per record. */
     private buildChildren;
-    /** Retire the subtree: discard each built view's standing machinery and
-     *  surface, unlink it, and drop any name it bound. */
+    /** Retire the subtree: discard each built view — the verb unlinks and
+     *  notifies the target itself now — and drop any name it bound. Per-child
+     *  notify is fine at State scale (a conditional subtree, not a burst). */
     private teardownChildren;
     /** Retire with the host view (View.discard reaches every child now): dispose
      *  our `applied` gate binding — else it lingers, subscribed to whatever it
@@ -61,7 +62,7 @@ export declare class State extends Node {
      *  view alive. The state's EFFECTS (override constraints owned by the target,
      *  built children spliced into the target) are torn down by the target view's
      *  own discard, so there is nothing else to undo here. */
-    discard(): void;
+    teardown(): void;
     /** Fire a carried handler if installed (onApply / onRemove) — a plain Node
      *  dispatch, like the Animator's on* firing. */
     private fire;

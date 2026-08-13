@@ -185,7 +185,7 @@ interface TouchEvent extends PointerEvent { touches: readonly Touch[]; changed: 
 interface WheelEvent extends PointerEvent { deltaX: number; deltaY: number; pinch: boolean }
 interface PinchEvent extends PointerEvent { scale: number; center: { readonly x: number; readonly y: number } }
 interface KeyEvent { code: string; key: string; shift: boolean; ctrl: boolean; alt: boolean; meta: boolean; repeat: boolean }
-interface FocusGeometry { x: number; y: number; w: number; h: number; rad: number; view: View; root: View; scroller: View; homeX: number; homeY: number }
+interface FocusGeometry { x: number; y: number; w: number; h: number; rad: number; view: View; root: View; scroller: View; homeX: number; homeY: number; homeW: number; homeH: number; homeRad: number }
 interface TipEvent { readonly text: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly root: View }
 interface StreamMessage { readonly data: string; readonly type: string; readonly id: string }
 type MotionCurve = { readonly __motion: true };
@@ -389,12 +389,6 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // `app.inspect()` for this one. Rides the same host-polled channel shape as
     // navigate/openWindow — a `{ }` body never touches the document.
     `  inspect(slot?: string): void;`,
-    // The tag is a string LITERAL at nearly every call site, and the scaffold owns
-    // the class table — so the return is the class the tag names (DeclareTags,
-    // emitted per program). A DYNAMIC tag string falls to the second overload
-    // and honestly returns View: unknowable statically, by construction.
-    `  createView<K extends keyof DeclareTags>(tag: K, parent: View, props?: Record<string, unknown>): DeclareTags[K];`,
-    `  createView(tag: string, parent: View, props?: Record<string, unknown>): View;`,
     // INTERIM (capabilities.md §7): the two host-fed live-demo channels the
     // demo-hosting site apps still read — `demoSources` (host-seeded name→source
     // map, host-client.js) and `liveReport` (the last live recompile's rendered
@@ -433,11 +427,27 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // Re-host this view's surface inside a scroller so the platform carries
     // it with the content (the FocusRing's ride); false = unsupported.
     `  travelWith(scroller: View | null): boolean;`,
+    // Imperative creation — the receiver IS the parent (and the new view's
+    // scope/data anchor). The tag is a string LITERAL at nearly every call
+    // site, and the scaffold owns the class table — so the return is the class
+    // the tag names (DeclareTags, emitted per program). A DYNAMIC tag string
+    // falls to the second overload and honestly returns View: unknowable
+    // statically, by construction.
+    `  createView<K extends keyof DeclareTags>(tag: K, props?: Record<string, unknown>): DeclareTags[K];`,
+    `  createView(tag: string, props?: Record<string, unknown>): View;`,
+    // The transformed footprint — the AABB of the frame under scale-then-rotate
+    // about the pivot, in the PARENT's coordinates. What layouts pack and
+    // auto-extent measures; identity when scale = 1 and rotation = 0.
+    `  bounds(): { x: number; y: number; width: number; height: number };`,
+    // bounds() minus the position: x/y are the transform's lead offsets, and it
+    // never reads the view's x/y — the form a layout's place() consumes (a
+    // strategy must not read the slots it writes).
+    `  footprint(): { x: number; y: number; width: number; height: number };`,
     `  raise(below?: View | null): void;`,
     `  removeChild(child: View): void;`,
-    // Tear a runtime-created view down for good (unwire constraints, drop the
-    // surface) — the pair of createView, and like it a real view.ts method that
-    // was missing here (found the day window params became typeable).
+    // Tear a runtime-created view down for good: unlink from the parent,
+    // unwire constraints, drop the surface, notify the ex-parent's layout and
+    // auto-extent — the self-completing pair of createView.
     `  discard(): void;`,
     `  insertChild(child: View, index: number): void;`,
     // The keyboard-traversal protocol (focus.ts): a view's tabOrder() decides

@@ -441,7 +441,7 @@ export class View extends Node {
    *  once per burst (the replicator calls this once per reconcile, not per
    *  child). A replicated block arriving under a never-sized view can also
    *  make a slot newly derivable — bindExtent picks it up. */
-  childrenMutated(): void {
+  override childrenMutated(): void {
     this.layout?.rearm();
     if (this.backend !== null) this.bindExtent();
     const derives = EXTENT.get(this);
@@ -489,7 +489,12 @@ export class View extends Node {
       if (!(c instanceof View) || !c.visible) continue;
       if (c.ignoreClip) continue; // frame chrome: derives from the bounds, never defines them
       if (percentOwned(c, axis) || percentOwned(c, size)) continue;
-      const extent = c[axis] + c[size];
+      // The TRANSFORMED footprint (bounds), not the raw slots: a scaled or
+      // rotated child counts the box it visibly covers — the same geometry
+      // paint and the hit walk already honor (one geometry, every reader
+      // agrees; the 2026-08-13 scale ruling).
+      const b = c.bounds();
+      const extent = (axis === "x" ? b.x : b.y) + b[size];
       if (extent > max) max = extent;
     }
     return max;
@@ -505,6 +510,56 @@ export class View extends Node {
    *  live, and independent of this view's own width/height. */
   get contentWidth(): number { return this.extentOf("width"); }
   get contentHeight(): number { return this.extentOf("height"); }
+
+  /** This view's TRANSFORMED box in the parent's coordinates — the axis-aligned
+   *  bounding box of the frame under scale-then-rotate about the pivot, the
+   *  same F(p) = pivot + s·R(p−pivot) that paint, the hit walk, and the root
+   *  walk compose (interaction.ts `toChildLocal` is its inverse). THE
+   *  FOOTPRINT: what a layout packs and what auto-extent measures, so a
+   *  `scale = 0.5` child really occupies half its slot (the fractal idiom) and
+   *  a rotated card reserves the box it visibly covers. Identity when
+   *  scale = 1 and rotation = 0 — the box IS x/y/width/height, at no cost.
+   *  Every read is reactive (x, y, width, height, scale, pivotX, pivotY,
+   *  rotation — the effects row in the compiler names exactly these), so a
+   *  constraint or a place() reading it re-derives as any of them move. */
+  bounds(): { x: number; y: number; width: number; height: number } {
+    const f = this.footprint();
+    return { x: this.x + f.x, y: this.y + f.y, width: f.width, height: f.height };
+  }
+
+  /** The POSITION-FREE half of `bounds()`: the transformed box relative to
+   *  this view's own untransformed origin — `x`/`y` here are the lead offsets
+   *  the transform introduces (0 when untransformed; negative when a
+   *  centered-pivot scale-up grows past the origin), `width`/`height` the
+   *  footprint extents. Reads ONLY width, height, scale, pivotX, pivotY,
+   *  rotation — never `x`/`y` — which is what a layout's place() must consume:
+   *  a strategy that read a slot it writes would wake itself and break the
+   *  one-pass discipline (pinned by the re-layout test). `bounds()` is this
+   *  plus the position, for every reader that is not writing the position. */
+  footprint(): { x: number; y: number; width: number; height: number } {
+    const s = this.scale;
+    const rot = this.rotation;
+    const w = this.width;
+    const h = this.height;
+    if (s === 1 && rot === 0) return { x: 0, y: 0, width: w, height: h };
+    const px = this.pivotX;
+    const py = this.pivotY;
+    const a = (rot * Math.PI) / 180;
+    const ca = Math.cos(a);
+    const sa = Math.sin(a);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [cx, cy] of [[0, 0], [w, 0], [0, h], [w, h]]) {
+      const dx = cx - px;
+      const dy = cy - py;
+      const fx = px + s * (dx * ca - dy * sa);
+      const fy = py + s * (dx * sa + dy * ca);
+      if (fx < minX) minX = fx;
+      if (fx > maxX) maxX = fx;
+      if (fy < minY) minY = fy;
+      if (fy > maxY) maxY = fy;
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
 
   /** This view's View children — the reactive read of the child list, and the
    *  only one there is: `children` is a plain array (machinery included, and
@@ -578,16 +633,36 @@ export class View extends Node {
     return { lead: 0, size: axis === "x" ? this.width : this.height };
   }
 
+  /** The self-completing exit (Node.discard does the unlink + ex-parent
+   *  notify): this override only moves the DEPARTURE hook earlier for the
+   *  still-linked caller — presence ends while the tree is WHOLE, so an
+   *  `onRetire` reading `parent`, a datapath, or focus sees live state (the
+   *  replicator's own order: fire, unlink, teardown). Unlink-first paths
+   *  arrive with `parent` null and keep today's timing: teardown's own
+   *  lifetime-guarded fire covers them. */
+  override discard(): void {
+    if (this.parent !== null) {
+      if (!EVICTING.has(this)) fireRetireTree(this);
+      // Focus must find its survivor while this subtree is still LINKED —
+      // noteDiscarded walks the live tree for a neighbor (idempotent: the
+      // teardown-path call below finds focus already moved and returns).
+      focusDiscardHook?.(this);
+    }
+    super.discard();
+  }
+
   /** Retire this subtree: dispose every standing computation (bindings,
    *  percents, derives, a laid parent's constraints on these slots, the draw
    *  recording), run registered teardowns (a replicator's), uninstall the
    *  arrangement, and destroy the surfaces — so no data or attribute change
-   *  can ever wake work for a removed view. Children first; the model links
-   *  (parent/children) are the caller's to cut (Node.removeChild). */
-  override discard(): void {
+   *  can ever wake work for a removed view. Children first; teardown ONLY —
+   *  unlinking (and notifying the ex-parent) is discard's, the verb above. */
+  override teardown(): void {
     // The departure hook (D5/D8): presence is ENDING — fire onRetire down
     // the subtree while everything is still alive, unless this discard is a
     // window EVICTION (the presence continues; the replicator marked it).
+    // A verb-entry discard already fired this while LINKED; the per-lifetime
+    // guard makes this second call a no-op.
     if (EVICTING.has(this)) EVICTING.delete(this);
     else fireRetireTree(this);
     // Move focus off this subtree before it is torn down (input.md §mutation).
@@ -595,7 +670,7 @@ export class View extends Node {
     // EVERY child, not just Views: an Animator/Spring child is a Node, and its
     // `to`/`attribute` bindings must be disposed too (else they leak, subscribed
     // to whatever they read — e.g. a Spring `to = { app.openSection … }`).
-    for (const child of this.children) child.discard();
+    for (const child of this.children) child.teardown();
     runRetire(this);
     const undoLayout = INSTALLED.get(this);
     if (undoLayout !== undefined) {
@@ -791,6 +866,20 @@ export class View extends Node {
    *  drag it home while its position slots still read the host's CONTENT
    *  coordinates — the ring painting a scroller's origin above its target.
    *  The MODEL order still moves; only the surface seat is left alone. */
+  /** Imperative creation (planes.md §7): instantiate a component by NAME
+   *  into THIS view — the receiver is the parent, and with it the new
+   *  instance's scope and data anchor (`classroot` resolution and `datapath`
+   *  inheritance boot against it). A full citizen: bindings installed, init
+   *  fired, and the arrangement/auto-extent notified (childrenMutated).
+   *  Resolves against the tree's program registry (via `root`); a name
+   *  referenced only here needs `use [ Name ]` to survive static tracing.
+   *  `props` are post-init writes (`datapath: record` gives the instance a
+   *  data context — replication's convention). The pair of `discard()`. */
+  createView(tag: string, props?: Record<string, unknown>): View {
+    if (viewCreator === null) throw new Error("createView: the instantiation module is not loaded");
+    return viewCreator(this.root as View, tag, this, props);
+  }
+
   raise(below?: View | null): void {
     const p = this.parent;
     if (!(p instanceof View)) return;
@@ -1285,17 +1374,6 @@ export class App extends View {
    *  the call statically (links.ts → `<a href>` in the static extraction), and at
    *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
    *  navigation rides this channel like `editing` — one clear way, analyzable. */
-  /** Imperative creation (planes.md §7): instantiate a component by NAME
-   *  into `parent`, a full citizen (bindings installed, init fired). Resolves
-   *  against this tree's program registry; a name referenced only here needs
-   *  `use [ Name ]` to survive static tracing. `props` are post-init writes
-   *  (`datapath: record` gives the instance a data context — replication's
-   *  convention). */
-  createView(tag: string, parent: View, props?: Record<string, unknown>): View {
-    if (viewCreator === null) throw new Error("createView: the instantiation module is not loaded");
-    return viewCreator(this, tag, parent, props);
-  }
-
   navigate(to: string): void { this.pendingNav = to; }
 
   /** The reference schemes a link may carry (location.md §0.4) — the shared

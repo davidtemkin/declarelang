@@ -41,6 +41,12 @@ export const PREWARMED = [
   // every View Source / ?viewer= page boots the viewer — high-traffic on the
   // static deploy, so its first paint deserves the compiler-free path too
   { main: "apps/viewer/viewer.declare", props: { render: "dom" } },
+  // Weather and Birds joined the homepage's Apps menu (2026-08-13), so they are
+  // front-door destinations now — same compiler-free first paint as the rest of
+  // the menu. (Prewarm only; the crawler bake stays homepage-only, per the
+  // 2026-08-08 ruling: it is for the INDEXED surfaces.)
+  { main: "apps/weather/weather.declare", props: { render: "dom" } },
+  { main: "apps/birds/birds.declare", props: { render: "dom" } },
   // the homepage's live demo panels (index.html `demos: […]`): prewarmed, the
   // previews mount the moment the page paints — no compiler download on the path
   // at all. Islands always render on the DOM backend, so render:dom is the one key.

@@ -10,7 +10,7 @@
 // fact to subscribers: the active tip (text + the target's root-space box),
 // or null. The library Tooltip singleton renders it (`Tip [ onTip(e) { … } ]`),
 // the same wiring contract as Focus/Keys (sources.ts).
-import { rootFrameOrigin } from "./interaction.js";
+import { rootFrameBox } from "./interaction.js";
 // The default show delay; a theme overrides per preset (`tooltipDelay` —
 // desktop help tags conventionally wait ~1s, Material ~500ms).
 const SHOW_DELAY_MS = 500;
@@ -81,7 +81,10 @@ class TipService {
         // put its tooltip at y=309. The renderer places against the app frame, so
         // this has to be the frame position — the same fact `inspect()` reports and
         // the Inspector highlights, from the same function, so the three agree.
-        const o = rootFrameOrigin(view);
+        // the composed BOX, not origin + local w/h — a scaled target's avoid
+        // region is the box it paints, or the tip parks against phantom space
+        // (the 2026-08-13 transform audit)
+        const b = rootFrameBox(view);
         // the topmost link, which the event carries so a renderer can size itself
         // against the app; the chain may pass through non-visual nodes.
         let root = view;
@@ -90,7 +93,7 @@ class TipService {
             n = n.parent ?? null;
         }
         this.shown = true;
-        this.emit({ text, x: o.x, y: o.y, w: view.width, h: view.height, root });
+        this.emit({ text, x: b.x, y: b.y, w: b.width, h: b.height, root });
     }
     emit(e) {
         for (const fn of [...this.handlers])

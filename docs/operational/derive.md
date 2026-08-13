@@ -29,24 +29,29 @@ as is on purpose: the bundle was stale, nothing could serve until it was rebuilt
 
 | step | needs first | does / writes | reports | what blocks it |
 |---|---|---|---|---|
-| `npm run derive` | nothing | the writer of record: runs the rules, skipping any whose inputs are unchanged | `N derived file(s) regenerated — M rule(s) ran, K skipped` | a generator failing or exceeding its 300s rule timeout |
+| `npm run derive` | nothing | the writer of record: runs the rules, skipping any whose inputs are unchanged, then stages its OWN outputs (`git add -A` per output pathspec — stamped hand-authored files stay yours) | `N derived file(s) regenerated — M rule(s) ran, K skipped · outputs staged` | a generator failing or exceeding its 300s rule timeout |
 | `git commit` | nothing | pre-commit checks the staged `.declare` files are canon. **Writes nothing** — derived artifacts may be stale, which is the expected state | silent on success; on failure, the files and the `format --write` line | a staged `.declare` that isn't canon |
 | `npm test` | nothing | every suite that tests the SOURCES. Writes its own `tsc -b` output, and may rebuild a stale bundle via `rebuildStale()` when a suite boots the dev server | per-suite pass/fail | nothing downstream — informational, not a gate |
-| `git add $(node tools/internal/derive.mjs --paths)` | `npm run derive` | stages what derive just wrote. `derive` never touches the index itself (the pre-commit rule: the index is yours) | nothing | nothing |
-| `npm run test:derived` | `npm run derive` **and the stage above** | the suites whose subject IS an artifact: `docs`, `schema-completeness`, `declare-help`, `prewarm`, `dist-freshness`, `ops`. Read-only | which artifact disagrees with the tree | nothing mechanically — it is what tells you a push will be honest |
+| `npm run test:derived` | `npm run derive` | the suites whose subject IS an artifact: `docs`, `schema-completeness`, `declare-help`, `prewarm`, `dist-freshness`, `ops`. Read-only | which artifact disagrees with the tree | nothing mechanically — it is what tells you a push will be honest |
 | `git push` | artifacts fresh **and committed** | pre-push asks two read-only questions: `--dry` (fresh on disk?) and `git status` on the derived outputs (is what's on disk what you're publishing?). **Writes nothing** | silent on success; on refusal, which check failed and the commands | stale artifacts; derived artifacts uncommitted or untracked. Escape: `--no-verify` |
 
 **The one rule you have to hold in your head:** `test:derived` is only meaningful
-straight after `derive` — *and after staging what derive wrote*. Everything else is
-free-standing or enforced by a refusal.
+straight after `derive`. Everything else is free-standing or enforced by a refusal.
 
-**Why the stage comes before the gates.** A content-hashed artifact is a NEW PATH every
+**Why derive stages its own outputs.** A content-hashed artifact is a NEW PATH every
 build (`apps/homepage/dist/app.<hash>.js`), so it lands untracked; `dist-freshness` asks
-whether every asset the published page references is in the tree. Run the gates before
-staging and it fails on a file derive had just correctly produced — the process tripping
-over itself. (`git commit -am` cannot pick these up either: a new path is not a
-modification. That is the same trap pre-push's second question exists to catch, and the
-reason `--paths` is a list rather than an instruction to commit everything.)
+whether every asset the published page references is in the tree, and `git commit -am`
+cannot pick a new path up — a new path is not a modification. Leaving the stage as a
+separate step to remember is how a published page comes to 404 on its own bundle, so
+derive reconciles the index for the outputs it owns (rewrites, new hashed names, prunes —
+`git add -A` over each output pathspec lands all three) and reports `· outputs staged`.
+Two boundaries: **stamped** files (README, `docs/declare.md`, `index.html` — hand-authored
+around their markers) are never staged wholesale, so prose you were still writing stays
+yours to stage; and reconciliation runs even on a no-op derive, because "git's picture of
+derive's outputs matches the disk" can be false with nothing regenerated (a half-staged
+rename, an interrupted run). If staging fails, derive prints the exact `git add -A -- …`
+to run by hand. (That is the same trap pre-push's second question exists to catch, and
+the reason `--paths` is an audit list rather than an instruction to commit everything.)
 
 Why `pre-push` refuses instead of fixing: a commit made inside a pre-push hook is not
 part of the push it intercepts — git has already resolved the refs — so a hook-made
@@ -133,7 +138,8 @@ The rules of trust, in order:
 - **"a gate failed about git tracking"** (`dist-freshness`), or **pre-push says the
   artifacts aren't committed** — generated files exist on disk that your commit
   doesn't track, and `git commit -am` cannot pick up a new content-hashed bundle.
-  Stage the derived paths explicitly: `git add $(node tools/internal/derive.mjs --paths)`.
+  Re-run `npm run derive` — it stages its outputs itself; stamped files you edited are
+  yours to stage.
 - **"pre-push refused and I don't want to derive right now"** — then don't push;
   a push is a deploy. `git push --no-verify` exists and you own the consequence.
 - **"I edited a generated file and my edit survived"** — only until its rule's

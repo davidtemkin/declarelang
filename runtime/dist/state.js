@@ -190,14 +190,17 @@ export class State extends Node {
         }
         for (const f of finishes)
             f();
+        // The arrival notify (same as createView/the replicator): a state's
+        // built children re-pack the target's arrangement and can make a
+        // never-sized empty target newly derivable.
+        target.childrenMutated();
     }
-    /** Retire the subtree: discard each built view's standing machinery and
-     *  surface, unlink it, and drop any name it bound. */
+    /** Retire the subtree: discard each built view — the verb unlinks and
+     *  notifies the target itself now — and drop any name it bound. Per-child
+     *  notify is fine at State scale (a conditional subtree, not a burst). */
     teardownChildren(target) {
-        for (const v of this.builtChildren) {
+        for (const v of this.builtChildren)
             v.discard();
-            target.removeChild(v);
-        }
         for (const tmpl of this.childTemplates) {
             if (tmpl.name !== null && target[tmpl.name] !== undefined) {
                 delete target[tmpl.name];
@@ -211,9 +214,9 @@ export class State extends Node {
      *  view alive. The state's EFFECTS (override constraints owned by the target,
      *  built children spliced into the target) are torn down by the target view's
      *  own discard, so there is nothing else to undo here. */
-    discard() {
+    teardown() {
         disposeBindings(this);
-        super.discard();
+        super.teardown();
     }
     /** Fire a carried handler if installed (onApply / onRemove) — a plain Node
      *  dispatch, like the Animator's on* firing. */

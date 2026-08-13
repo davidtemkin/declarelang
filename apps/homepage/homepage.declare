@@ -94,6 +94,20 @@ Width auto-fits the label plus 12px of padding each side.
 class NavLink extends View [ height = 33, cornerRadius = 8,
     label:   string = "",
 
+    // a pill WITH children opens the dropdown instead of following a link —
+    // the wide rendition of the sheet's group rows. The anchor is snapshotted
+    // at the gesture (rootOrigin, converted to viewport space), the sanctioned
+    // overlay pattern (Menu.openAt).
+
+    menu:    boolean = false,
+    onClick() {
+        if (!this.menu) return
+        const o = this.rootOrigin()
+        app.appsX = o.x - app.scrollX
+        app.appsY = o.y - app.scrollY + this.height + 6
+        app.appsOpen = !app.appsOpen
+        },
+
     // ONE reference (location.md §0.3) where three fields and an if-chain
     // stood: "#why" is a destination, "#apps" a bare anchor (the runtime
     // derives its location and reveals it), a URL leaves the app. The follow,
@@ -141,7 +155,7 @@ class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerR
     // the coexistence rule (location.md §0.4): the handler runs — closing the
     // sheet — then the follow. Navigation itself is the `link`.
 
-    onClick()     { app.menuOpen = false },
+    onClick()     { app.menuOpen = false; app.appsOpen = false },
 
     lbl: Text [ x = { classroot.sub ? 30 : 14 }, y = center, fontFamily = [Sans, "system-ui", "sans-serif"],
         fontSize = 16, fontWeight = medium,
@@ -761,6 +775,8 @@ App [ tagline: string = "a UI language for you and your AI",
             ({ label: "Calendar", link: "apps/calendar/calendar.declare", children: [] }),
             ({ label: "Desktop",  link: "apps/desktop/desktop.declare",  children: [] }),
             ({ label: "Tracker",  link: "apps/tracker/tracker.declare",  children: [] }),
+            ({ label: "Weather",  link: "apps/weather/weather.declare",  children: [] }),
+            ({ label: "Birds",    link: "apps/birds/birds.declare",      children: [] }),
             ] }),
         ({ label: "Docs",     link: "apps/docs/docs.declare", children: [] }),
         // last, and the only item that leaves the site — an off-site link placed
@@ -857,6 +873,14 @@ App [ tagline: string = "a UI language for you and your AI",
 
     navSource: Dataset [ contents = { ({ items: app.navItems }) } ],
     menuOpen: boolean = false,
+
+    // the Apps dropdown (wide rendition): open state + the gesture-time anchor,
+    // and its rows DERIVED from the one navItems list (no second list to drift)
+
+    appsOpen: boolean = false,
+    appsX: number = 0,
+    appsY: number = 0,
+    appsSource: Dataset [ contents = { ({ items: (app.navItems.find((i) => i.label == "Apps") || ({ children: [] })).children }) } ],
 
     // the content measure and the centering gutter — the one geometry every
     // aligned edge on the page (column, wordmark, nav) derives from
@@ -1688,7 +1712,8 @@ App [ tagline: string = "a UI language for you and your AI",
             nav: View [ y = 11,
                 layout: SimpleLayout [ axis = x, spacing = 2 ],
                 datapath = { app.navSource.value },
-                NavLink [ datapath = :items[], label = { :label }, link = { :link } ]
+                NavLink [ datapath = :items[], label = { :label }, menu = { :children.length > 0 },
+                    link = { :children.length > 0 ? "" : :link } ]
                 ],
 
             // the kebab — three stacked dots (the page's dot motif), the pill's own
@@ -1753,6 +1778,27 @@ App [ tagline: string = "a UI language for you and your AI",
                 layout: SimpleLayout [ axis = y, spacing = 0 ],
                 datapath = { app.navSource.value },
                 MobileNavGroup [ datapath = :items[] ]
+                ]
+            ]
+        ],
+
+    // the Apps dropdown — the pill row's own menu, the same rows as the sheet
+    // (MobileNavRow), anchored under the Apps pill. A transparent catcher
+    // below closes it on an outside tap; narrowing past the breakpoint hides
+    // it with the pills it belongs to.
+
+    appsMenu: View [ ignoreScroll = true, visible = { app.appsOpen && !app.header.bar.kebab.visible },
+        width = { app.width }, height = { app.height },
+        catcher: View [ width = { parent.width }, height = { parent.height },
+            onClick() { app.appsOpen = false }
+            ],
+        panel: View [ x = { app.appsX }, y = { app.appsY }, width = 190, cornerRadius = 12,
+            fill = { theme.surface }, shadow = { shadow(0, 12, 40, theme.shade) },
+            height = { this.list.contentHeight + 12 },
+            list: View [ x = 6, y = 6, width = { parent.width - 12 }, height = { this.contentHeight },
+                layout: SimpleLayout [ axis = y, spacing = 0 ],
+                datapath = { app.appsSource.value },
+                MobileNavRow [ datapath = :items[], label = { :label }, link = { :link } ]
                 ]
             ]
         ]

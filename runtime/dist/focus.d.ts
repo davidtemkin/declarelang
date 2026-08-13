@@ -22,6 +22,14 @@ export interface FocusGeometry {
      *  root. focusShape offsets are folded in, like x/y. */
     homeX: number;
     homeY: number;
+    /** The box and radius in the scroller's CONTENT space — a traveled
+     *  indicator draws THESE (the platform applies any ancestor transform
+     *  above the scroller to its surface, so drawing the frame-space w/h there
+     *  would double-apply it). Equal to w/h/rad when the scroller is the root
+     *  or nothing between is transformed. */
+    homeW: number;
+    homeH: number;
+    homeRad: number;
 }
 export declare class FocusService {
     private current;
