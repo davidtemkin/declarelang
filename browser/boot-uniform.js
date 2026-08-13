@@ -41,6 +41,7 @@ import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 import { loadBuild, relativize } from "./prewarm-cache.js";
 import { prewarmedEntry } from "./prewarm-manifest.js";
+import { isEntryPage, launchTarget } from "./serve-core.js";
 import { fnv1a, isUpToDate, lookupKey } from "../compiler/dist/closure.js";
 import { provideTransport, provideAssetBase } from "../runtime/dist/index.js";
 
@@ -223,7 +224,6 @@ async function pruneBuckets(build) {
  *  It does NOT touch a committed BUILD (bundles/cache): a deployment artifact, not a
  *  cache. Nothing about it goes stale behind your back, and dropping it would only
  *  mean fetching the compiler to rebuild what was already correct. */
-const ENTRY_PAGE = /^\/(index\.html)?$|\/index\.html$/;
 
 async function clearAllCaches() {
   let dropped = 0;
@@ -248,24 +248,9 @@ async function clearAllCaches() {
 // (the server answers the target directly). Gated on cfg.launcher so ordinary
 // run pages never reinterpret their own query params (?render, ?viewer…).
 
-/** The launch target from a bare-path query, else null. The grammar: the whole
- *  search string is the target when it reads as a relative path (contains "/"
- *  with no "=" before it) — `?apps/calendar`, `?apps/docs/docs.declare?render=canvas`.
- *  Ordinary flag queries (?crawler, ?render=canvas) never match. */
-function launchTarget() {
-  const raw = location.search.slice(1);
-  if (raw === "") return null;
-  const slash = raw.indexOf("/"), eq = raw.indexOf("=");
-  if (slash < 0 || (eq >= 0 && eq < slash)) return null;
-  let url;
-  try { url = new URL(decodeURIComponent(raw), location.href); } catch { return null; }
-  // Same-origin and inside this entry page's directory — kills absolute URLs,
-  // protocol-relative hosts, and `..` escapes (URL normalizes them first).
-  const base = new URL("./", location.href);
-  if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) return null;
-  if (url.hash === "" && location.hash !== "") url.hash = location.hash;   // carry the fragment through
-  return url;
-}
+// The grammar itself lives in serve-core.js (launchTarget), pure and therefore
+// testable without a browser — test/serve-parity.test.mjs pins it.
+
 
 /** Install the SW (static host), then hand the navigation over. Under the dev
  *  server (marker) or with no SW support, redirect at once — the server serves
@@ -313,7 +298,7 @@ async function serverCompile(mainUrl, source) {
  */
 export default async function boot(cfg) {
   if (cfg.launcher) {
-    const target = launchTarget();
+    const target = launchTarget(location.href);
     if (target !== null) { await launchTo(target); return; }
   }
   registerServiceWorker();
@@ -340,7 +325,7 @@ export default async function boot(cfg) {
   const sVersion = perfStage("version");
   const build = await platformBuild();
   sVersion.end();
-  if (ENTRY_PAGE.test(location.pathname) && new URLSearchParams(location.search).has("clear")) await clearAllCaches();
+  if (isEntryPage(location.pathname) && new URLSearchParams(location.search).has("clear")) await clearAllCaches();
   pruneBuckets(build);
   const key = lookupKey(mainId, props, build);
 

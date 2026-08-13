@@ -13,7 +13,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, summarize } from "./harness.mjs";
-import { requestType, REQ, runWrapper, programName, directoryProgram, stubPage } from "../browser/serve-core.js";
+import { requestType, REQ, runWrapper, programName, directoryProgram, stubPage, launchTarget, isEntryPage } from "../browser/serve-core.js";
 import { demoNames } from "../tools/internal/bake-app-stubs.mjs";
 
 const params = (q) => new URLSearchParams(q);
@@ -40,6 +40,50 @@ await test("requestType maps the query to a request (the classifier both hosts s
   assert.equal(requestType(params("segments")), REQ.SEGMENTS);
   assert.equal(requestType(params("extract")), REQ.EXTRACT);
   assert.equal(requestType(params("reader")), REQ.RUN);              // bare ?reader is not a request now
+});
+
+// THE LAUNCHER URL — the one link that works COLD, before any service worker
+// exists, and therefore the one you hand to a stranger. Its grammar decides what a
+// stranger's browser will navigate to, so the refusals matter as much as the
+// accepts. Pure, so this costs no browser.
+
+await test("launchTarget reads a bare-path query as the target", () => {
+  const t = (href) => launchTarget(href);
+  assert.equal(t("https://x.dev/index.html?apps/desktop/").pathname, "/apps/desktop/");
+  assert.equal(t("https://x.dev/?apps/desktop/").pathname, "/apps/desktop/");
+  assert.equal(t("https://x.dev/index.html?apps/docs/docs.declare").pathname, "/apps/docs/docs.declare");
+  // a project-page deploy: everything is relative to the entry page's directory
+  assert.equal(t("https://x.dev/declarelang/index.html?apps/desktop/").pathname, "/declarelang/apps/desktop/");
+});
+
+await test("launchTarget ignores ordinary flag queries — a page keeps its own params", () => {
+  for (const q of ["", "?render=canvas", "?crawler", "?viewer=edit", "?clear", "?a=b/c"]) {
+    assert.equal(launchTarget("https://x.dev/index.html" + q), null, `${q || "(no query)"} is not a launch target`);
+  }
+});
+
+await test("launchTarget refuses anything outside the entry page's own directory", () => {
+  const bad = [
+    "https://x.dev/index.html?https://evil.example/x.declare",   // absolute
+    "https://x.dev/index.html?//evil.example/x.declare",         // protocol-relative
+    "https://x.dev/declarelang/index.html?../../etc/passwd",     // .. escape, normalized first
+    "https://x.dev/declarelang/index.html?../other/app.declare", // sibling deploy
+  ];
+  for (const href of bad) assert.equal(launchTarget(href), null, href);
+});
+
+await test("launchTarget carries the entry page's fragment to a target without one", () => {
+  assert.equal(launchTarget("https://x.dev/index.html?apps/docs/docs.declare#guide/05-space").hash, "#guide/05-space");
+  // the target's own fragment wins
+  assert.equal(launchTarget("https://x.dev/index.html?apps/docs/docs.declare%23a#b").hash, "#a");
+});
+
+// `?clear` is a HOST-wide verb, so it is honored only at a host-wide address.
+await test("isEntryPage accepts entry pages and refuses program URLs", () => {
+  for (const p of ["/", "/index.html", "/declarelang/index.html", "/apps/desktop/index.html"])
+    assert.ok(isEntryPage(p), p);
+  for (const p of ["/apps/desktop/", "/apps/desktop/desktop.declare", "/my-apps/x.declare", "/notindex.html"])
+    assert.ok(!isEntryPage(p), p);
 });
 
 await test("programName strips the directory and extension", () => {

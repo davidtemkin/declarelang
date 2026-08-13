@@ -44,6 +44,44 @@ export function directoryProgram(pathname) {
   return trimmed + "/" + name + ".declare";
 }
 
+/** Is this an ENTRY PAGE — `/`, or any `…/index.html`? The one address in the
+ *  system that is about the HOST rather than about a program, which is why the
+ *  host-wide `?clear` verb is honored only here (browser/boot-uniform.js). A
+ *  program URL names one program and cannot honestly mean "and everything else". */
+export function isEntryPage(pathname) {
+  return /^\/(index\.html)?$|\/index\.html$/.test(pathname);
+}
+
+/** The LAUNCH TARGET a bare-path query names, as a URL — else null.
+ *
+ *  The grammar: the whole search string is the target when it reads as a relative
+ *  path, i.e. it contains "/" with no "=" before it — `?apps/calendar`,
+ *  `?apps/docs/docs.declare?render=canvas`. An ordinary flag query (`?crawler`,
+ *  `?render=canvas`) can never match, which is what lets one page carry both.
+ *
+ *  `href` is the entry page's own full location. Same-origin and confined to that
+ *  page's directory: absolute URLs, protocol-relative hosts and `..` escapes are all
+ *  refused (URL normalizes the escapes first, so the prefix test sees through them).
+ *  A fragment on the entry page carries through to the target when the target has
+ *  none of its own.
+ *
+ *  Pure and here rather than in boot so it is testable without a browser — the same
+ *  reason requestType and directoryProgram live in this module. */
+export function launchTarget(href) {
+  let loc;
+  try { loc = new URL(href); } catch { return null; }
+  const raw = loc.search.slice(1);
+  if (raw === "") return null;
+  const slash = raw.indexOf("/"), eq = raw.indexOf("=");
+  if (slash < 0 || (eq >= 0 && eq < slash)) return null;
+  let url;
+  try { url = new URL(decodeURIComponent(raw), loc.href); } catch { return null; }
+  const base = new URL("./", loc.href);
+  if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) return null;
+  if (url.hash === "" && loc.hash !== "") url.hash = loc.hash;
+  return url;
+}
+
 export function programName(urlPath) {
   return urlPath.replace(/.*\//, "").replace(/\.declare$/, "");
 }
