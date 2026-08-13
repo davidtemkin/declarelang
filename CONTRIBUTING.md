@@ -30,9 +30,9 @@ npm run test:derived           # the artifact gates — only meaningful straight
 npm run test:ladder            # the slow rungs — real input, real pixels, headless Chromium
 ```
 
-The full edit-to-push sequence — including the SECOND derive turn after your
-commit (the commit id stamps into the artifacts, so committing stales them) —
-is one page: [`docs/operational/shipping.md`](docs/operational/shipping.md).
+The full edit-to-push sequence — one commit when you derive last, and the
+recovery for when something moved after the derive — is one page:
+[`docs/operational/shipping.md`](docs/operational/shipping.md).
 
 **Derive stages what it owns.** A derive produces three kinds of change — files rewritten,
 files created under NEW NAMES (`apps/homepage/dist/app.<hash>.js`), and files pruned — and

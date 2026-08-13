@@ -18,17 +18,14 @@ node tools/verify.mjs <file>    # or: one program, six rungs, while iterating
 npm run derive                  # rewrites AND STAGES its outputs
 npm run test:derived            # the artifact gates — right after a derive
 
-# 4. commit the work
+# 4. ONE commit, then push — pre-push re-checks 3 read-only
 git add <your files> && git commit
-
-# 5. the SECOND derive turn — the commit you just made stales the stamps
-npm run derive
-git add $(node tools/internal/derive.mjs --paths)
-git commit -m 'derived artifacts'
-
-# 6. push — pre-push re-asks 3 and 5 read-only, and refuses if either is off
 git push
 ```
+
+That is the whole loop: **one commit** ships a change, artifacts included —
+IF nothing touched a rule's inputs between your derive and your push. When
+something did, pre-push refuses and prescribes the recovery (step 5 below).
 
 ## Step by step, with the pitfalls
 
@@ -68,24 +65,36 @@ what you did not, and records the decisions (see CONTRIBUTING). Include the
 stamped files from step 3 — `--paths` is the audit list if you are unsure what
 belongs.
 
-**5 — The second derive turn.** This is the step that surprises: **your commit
-itself just staled four rules.** `bundles/version.json` bakes the commit id
-(`stamp-version`), and bundles, the committed dists, and the stats cascade
-from it — so the distro can say exactly which commit it is. Run `derive`
-again, stage `--paths`, and commit as `derived artifacts`. It cannot be
-folded into your commit (the id doesn't exist until the commit does), and the
-pre-push hook deliberately refuses to make the commit for you: a hook-made
-commit lands *after* git has resolved the refs, so it would deploy one commit
-behind, silently. Two commits is the honest shape.
+**5 — Push, and the refusal you will eventually meet.** Pre-push asks two
+read-only questions: is every artifact fresh on disk (`derive --dry`), and is
+everything on the derived paths committed (`git status` over `--paths`)? Both
+pass when nothing changed since your derive, and the single commit ships.
 
-**6 — Push.** Pre-push asks two read-only questions: is every artifact fresh
-on disk (`derive --dry`), and is everything on the derived paths committed
-(`git status` over `--paths`)? A refusal prints the exact recovery — follow
-it; it is always shorter than debugging a stale deploy. `--no-verify` exists
-for the true emergency and for nothing else.
+A refusal means something DID change between your derive and your push — a
+last-minute source tweak, a stamped file edited by hand, a collaborator or a
+second session touching an input (the skip manifest is per-clone, so their
+derive doesn't cover your push). `bundles/version.json` is the sensitive one:
+it is a content hash over the finished platform (`stamp-version` — the
+cache-buster), so *any* platform-input edit ripples into bundles, the
+committed dists, and the stats. The recovery is what the hook prints:
+
+```sh
+npm run derive
+git add $(node tools/internal/derive.mjs --paths)
+git commit -m 'derived artifacts'
+git push
+```
+
+The second commit is the honest shape *for the recovery*: your first commit
+already exists, and the hook deliberately refuses to make the fix-up commit
+for you — a hook-made commit lands after git has resolved the refs, so it
+would deploy one commit behind, silently. But it is the recovery, not the
+rule: re-derive before you commit and the loop stays one commit long.
+`--no-verify` exists for the true emergency and for nothing else.
 
 ## The one-glance version
 
-Edit (canon) → `npm test` → `derive` → `test:derived` → commit → `derive` →
-commit `derived artifacts` → push. Two derives, two commits, every time the
-first commit touches anything a rule reads — which is nearly always.
+Edit (canon) → `npm test` → `derive` → `test:derived` → commit → push.
+One commit, when nothing moved after the derive. If pre-push refuses,
+something did: derive again, stage `--paths`, commit `derived artifacts`,
+push — and next time, derive last.
