@@ -1,0 +1,630 @@
+{
+ "closure": {
+  "entries": [
+   {
+    "id": "apps/weather/weather.declare",
+    "kind": "file",
+    "v": {
+     "hash": "9848376cc5ebb9e0",
+     "size": 76492
+    }
+   },
+   {
+    "id": "apps/weather/weather-art.declare",
+    "kind": "file",
+    "v": {
+     "hash": "3e4ca3e363a106af",
+     "size": 29682
+    }
+   },
+   {
+    "id": "library/autoincludes.json",
+    "kind": "file",
+    "v": {
+     "hash": "951c1bbbc098943b",
+     "size": 1939
+    }
+   },
+   {
+    "id": "library/simplelayout.declare",
+    "kind": "file",
+    "v": {
+     "hash": "b02eabd7405c8dc3",
+     "size": 3107
+    }
+   },
+   {
+    "id": "library/icons/core.declare",
+    "kind": "file",
+    "v": {
+     "hash": "3bcb09aa6753a116",
+     "size": 7942
+    }
+   },
+   {
+    "id": "library/icons/icon.declare",
+    "kind": "file",
+    "v": {
+     "hash": "a3e77066173553dc",
+     "size": 9340
+    }
+   },
+   {
+    "id": "apps/weather/art/LICENSES.md",
+    "kind": "file",
+    "v": {
+     "hash": "c440eed5b9f023bc",
+     "size": 598
+    }
+   },
+   {
+    "id": "apps/weather/art/moon.png",
+    "kind": "file",
+    "v": {
+     "hash": "f41167e3b468153b",
+     "size": 31148
+    }
+   },
+   {
+    "id": "apps/weather/demos.json",
+    "kind": "file",
+    "v": {
+     "hash": "dcd1cd1a2138b85d",
+     "size": 3
+    }
+   },
+   {
+    "id": "apps/weather/maps/LICENSES.md",
+    "kind": "file",
+    "v": {
+     "hash": "e964a8f2a14ad454",
+     "size": 2932
+    }
+   },
+   {
+    "id": "apps/weather/maps/au.png",
+    "kind": "file",
+    "v": {
+     "hash": "7896c42dfebb181c",
+     "size": 14430
+    }
+   },
+   {
+    "id": "apps/weather/maps/br.png",
+    "kind": "file",
+    "v": {
+     "hash": "02e218ce2fb29d81",
+     "size": 22849
+    }
+   },
+   {
+    "id": "apps/weather/maps/ca.png",
+    "kind": "file",
+    "v": {
+     "hash": "cc3c77137c14203e",
+     "size": 22989
+    }
+   },
+   {
+    "id": "apps/weather/maps/cn.png",
+    "kind": "file",
+    "v": {
+     "hash": "33835ad9efe3f7c8",
+     "size": 28903
+    }
+   },
+   {
+    "id": "apps/weather/maps/de.png",
+    "kind": "file",
+    "v": {
+     "hash": "88c1e77cfef30b54",
+     "size": 35162
+    }
+   },
+   {
+    "id": "apps/weather/maps/fr.png",
+    "kind": "file",
+    "v": {
+     "hash": "ee7e752242176293",
+     "size": 40066
+    }
+   },
+   {
+    "id": "apps/weather/maps/in.png",
+    "kind": "file",
+    "v": {
+     "hash": "551df69923058ab7",
+     "size": 28112
+    }
+   },
+   {
+    "id": "apps/weather/maps/it.png",
+    "kind": "file",
+    "v": {
+     "hash": "3c79b05628bd1cf4",
+     "size": 26798
+    }
+   },
+   {
+    "id": "apps/weather/maps/jp.png",
+    "kind": "file",
+    "v": {
+     "hash": "f94c5fc6c14001f0",
+     "size": 24242
+    }
+   },
+   {
+    "id": "apps/weather/maps/uk.png",
+    "kind": "file",
+    "v": {
+     "hash": "4fc3b2bef66fd4ab",
+     "size": 74305
+    }
+   },
+   {
+    "id": "apps/weather/maps/us.png",
+    "kind": "file",
+    "v": {
+     "hash": "22c91e288ace0d24",
+     "size": 22959
+    }
+   },
+   {
+    "id": "apps/weather/sky/LICENSES.md",
+    "kind": "file",
+    "v": {
+     "hash": "1d85328784ed829f",
+     "size": 1601
+    }
+   },
+   {
+    "id": "apps/weather/sky/cloudy.jpg",
+    "kind": "file",
+    "v": {
+     "hash": "ac1abfd094712d2d",
+     "size": 64561
+    }
+   },
+   {
+    "id": "apps/weather/sky/cumulus.jpg",
+    "kind": "file",
+    "v": {
+     "hash": "66111348460dfb05",
+     "size": 101243
+    }
+   },
+   {
+    "id": "apps/weather/weather.json",
+    "kind": "file",
+    "v": {
+     "hash": "35f5f486edc97d75",
+     "size": 71139
+    }
+   },
+   {
+    "id": "runtime/dist/datapath.js",
+    "kind": "file",
+    "v": {
+     "hash": "e76d6cd201d20d31",
+     "size": 18624
+    }
+   },
+   {
+    "id": "runtime/dist/css-colors.js",
+    "kind": "file",
+    "v": {
+     "hash": "9e9f9c7e40db6059",
+     "size": 3831
+    }
+   },
+   {
+    "id": "runtime/dist/shape.js",
+    "kind": "file",
+    "v": {
+     "hash": "d35b81d9424db15b",
+     "size": 2324
+    }
+   },
+   {
+    "id": "runtime/dist/animate.js",
+    "kind": "file",
+    "v": {
+     "hash": "c99356c4faf86e05",
+     "size": 13378
+    }
+   },
+   {
+    "id": "runtime/dist/themes-data.js",
+    "kind": "file",
+    "v": {
+     "hash": "448a3831c8146645",
+     "size": 9543
+    }
+   },
+   {
+    "id": "runtime/dist/value.js",
+    "kind": "file",
+    "v": {
+     "hash": "220a83ea779314ad",
+     "size": 27227
+    }
+   },
+   {
+    "id": "runtime/dist/expr.js",
+    "kind": "file",
+    "v": {
+     "hash": "43fcfc029e7bff12",
+     "size": 13856
+    }
+   },
+   {
+    "id": "runtime/dist/keys.js",
+    "kind": "file",
+    "v": {
+     "hash": "43c54a622c8e568c",
+     "size": 9948
+    }
+   },
+   {
+    "id": "runtime/dist/themes.js",
+    "kind": "file",
+    "v": {
+     "hash": "4d56ab0dde37289d",
+     "size": 2454
+    }
+   },
+   {
+    "id": "runtime/dist/errors.js",
+    "kind": "file",
+    "v": {
+     "hash": "1b1d256f37de5673",
+     "size": 1823
+    }
+   },
+   {
+    "id": "runtime/dist/reactive.js",
+    "kind": "file",
+    "v": {
+     "hash": "aa844dcdee98234d",
+     "size": 14114
+    }
+   },
+   {
+    "id": "runtime/dist/node.js",
+    "kind": "file",
+    "v": {
+     "hash": "4ca1ec7d49345cfe",
+     "size": 5391
+    }
+   },
+   {
+    "id": "runtime/dist/attributes.js",
+    "kind": "file",
+    "v": {
+     "hash": "0bc2312ef0852906",
+     "size": 24073
+    }
+   },
+   {
+    "id": "runtime/dist/stylesheet.js",
+    "kind": "file",
+    "v": {
+     "hash": "aabbefe65b09c8f3",
+     "size": 7527
+    }
+   },
+   {
+    "id": "runtime/dist/backend.js",
+    "kind": "file",
+    "v": {
+     "hash": "c21a218d9dc45a12",
+     "size": 2328
+    }
+   },
+   {
+    "id": "runtime/dist/tip.js",
+    "kind": "file",
+    "v": {
+     "hash": "66c0ed0cb2d6bfe4",
+     "size": 4430
+    }
+   },
+   {
+    "id": "runtime/dist/draw.js",
+    "kind": "file",
+    "v": {
+     "hash": "b76706510c1a225c",
+     "size": 21442
+    }
+   },
+   {
+    "id": "runtime/dist/interaction.js",
+    "kind": "file",
+    "v": {
+     "hash": "ead824216c97b7e8",
+     "size": 16579
+    }
+   },
+   {
+    "id": "runtime/dist/schema.js",
+    "kind": "file",
+    "v": {
+     "hash": "c99b59719b7c1777",
+     "size": 65881
+    }
+   },
+   {
+    "id": "runtime/dist/select.js",
+    "kind": "file",
+    "v": {
+     "hash": "5a839b05d8c5d787",
+     "size": 5779
+    }
+   },
+   {
+    "id": "runtime/dist/view.js",
+    "kind": "file",
+    "v": {
+     "hash": "347e821864ee1069",
+     "size": 73111
+    }
+   },
+   {
+    "id": "runtime/dist/focus.js",
+    "kind": "file",
+    "v": {
+     "hash": "eeb4c0ca3160992d",
+     "size": 15373
+    }
+   },
+   {
+    "id": "runtime/dist/inspect-service.js",
+    "kind": "file",
+    "v": {
+     "hash": "17bfab1948db62d5",
+     "size": 22136
+    }
+   },
+   {
+    "id": "runtime/dist/services.js",
+    "kind": "file",
+    "v": {
+     "hash": "25f02d20a7abfee1",
+     "size": 1771
+    }
+   },
+   {
+    "id": "runtime/dist/animator.js",
+    "kind": "file",
+    "v": {
+     "hash": "23a2ce58d9e84d12",
+     "size": 26092
+    }
+   },
+   {
+    "id": "runtime/dist/layout.js",
+    "kind": "file",
+    "v": {
+     "hash": "2e2c2300caa84714",
+     "size": 23075
+    }
+   },
+   {
+    "id": "runtime/dist/spring.js",
+    "kind": "file",
+    "v": {
+     "hash": "4f1a3820840bc2f4",
+     "size": 11530
+    }
+   },
+   {
+    "id": "runtime/dist/state.js",
+    "kind": "file",
+    "v": {
+     "hash": "5dd13b0363f66534",
+     "size": 10253
+    }
+   },
+   {
+    "id": "runtime/dist/check.js",
+    "kind": "file",
+    "v": {
+     "hash": "36c0fe41500bb8e1",
+     "size": 77049
+    }
+   },
+   {
+    "id": "runtime/dist/program-schema.js",
+    "kind": "file",
+    "v": {
+     "hash": "3384b1c16db23c16",
+     "size": 20039
+    }
+   },
+   {
+    "id": "runtime/dist/font.js",
+    "kind": "file",
+    "v": {
+     "hash": "e552e1c5905742d2",
+     "size": 6011
+    }
+   },
+   {
+    "id": "runtime/dist/data-schema.js",
+    "kind": "file",
+    "v": {
+     "hash": "3c3e603f8d0fb7fe",
+     "size": 3703
+    }
+   },
+   {
+    "id": "runtime/dist/data.js",
+    "kind": "file",
+    "v": {
+     "hash": "eb92ee9957cdc78a",
+     "size": 26922
+    }
+   },
+   {
+    "id": "runtime/dist/bind.js",
+    "kind": "file",
+    "v": {
+     "hash": "5d42a359d8ef3d9b",
+     "size": 9359
+    }
+   },
+   {
+    "id": "runtime/dist/editor.js",
+    "kind": "file",
+    "v": {
+     "hash": "5260f536ce4e2532",
+     "size": 7198
+    }
+   },
+   {
+    "id": "runtime/dist/replicate.js",
+    "kind": "file",
+    "v": {
+     "hash": "b711d1218ba4a806",
+     "size": 57868
+    }
+   },
+   {
+    "id": "runtime/dist/measure.js",
+    "kind": "file",
+    "v": {
+     "hash": "5d489a2b131e2b2c",
+     "size": 6580
+    }
+   },
+   {
+    "id": "runtime/dist/text.js",
+    "kind": "file",
+    "v": {
+     "hash": "7a4944e57ada9791",
+     "size": 9343
+    }
+   },
+   {
+    "id": "runtime/dist/asset-base.js",
+    "kind": "file",
+    "v": {
+     "hash": "bbfd2d79983922c3",
+     "size": 3505
+    }
+   },
+   {
+    "id": "runtime/dist/image.js",
+    "kind": "file",
+    "v": {
+     "hash": "aa5d60e5e704e6b1",
+     "size": 5073
+    }
+   },
+   {
+    "id": "runtime/dist/text-input.js",
+    "kind": "file",
+    "v": {
+     "hash": "e80cc1e3951af303",
+     "size": 9756
+    }
+   },
+   {
+    "id": "runtime/dist/heartbeat.js",
+    "kind": "file",
+    "v": {
+     "hash": "706c534dfc8b9c1f",
+     "size": 4602
+    }
+   },
+   {
+    "id": "runtime/dist/registry.js",
+    "kind": "file",
+    "v": {
+     "hash": "c2ff69a1f05613fc",
+     "size": 6471
+    }
+   },
+   {
+    "id": "runtime/dist/instantiate.js",
+    "kind": "file",
+    "v": {
+     "hash": "02471f3510785c4a",
+     "size": 71564
+    }
+   },
+   {
+    "id": "runtime/dist/inspect.js",
+    "kind": "file",
+    "v": {
+     "hash": "ab238af9b42b89d4",
+     "size": 28182
+    }
+   },
+   {
+    "id": "runtime/dist/boxpaint.js",
+    "kind": "file",
+    "v": {
+     "hash": "9c68375888e10462",
+     "size": 6580
+    }
+   },
+   {
+    "id": "runtime/dist/dpr.js",
+    "kind": "file",
+    "v": {
+     "hash": "4f7aed0fefb3b226",
+     "size": 873
+    }
+   },
+   {
+    "id": "runtime/dist/input.js",
+    "kind": "file",
+    "v": {
+     "hash": "4e23f239af4c9237",
+     "size": 31520
+    }
+   },
+   {
+    "id": "runtime/dist/viewport-lock.js",
+    "kind": "file",
+    "v": {
+     "hash": "5a86f747231bbaf0",
+     "size": 3677
+    }
+   },
+   {
+    "id": "runtime/dist/dom-backend.js",
+    "kind": "file",
+    "v": {
+     "hash": "8f616beaf239fbdd",
+     "size": 115494
+    }
+   },
+   {
+    "id": "runtime/dist/boot.js",
+    "kind": "file",
+    "v": {
+     "hash": "69cd30b6f0b7ab32",
+     "size": 27790
+    }
+   },
+   {
+    "id": "runtime/dist/hydrate.js",
+    "kind": "file",
+    "v": {
+     "hash": "e4e2b8ceb3d48362",
+     "size": 1725
+    }
+   }
+  ],
+  "props": {
+   "render": "dom",
+   "slim": "true",
+   "stripPos": "true",
+   "typecheck": "true",
+   "crawler": "false"
+  }
+ },
+ "built": "apps/weather"
+}

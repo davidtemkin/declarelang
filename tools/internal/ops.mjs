@@ -56,12 +56,15 @@ export const OPS = {
         expect: { exitCode: 0 }, test: true,
         docs: "declare-docs:operational:format" },
       { id: "test", cmd: "npm test",
-        description: "The per-commit suite: 21 files, and rungs 1–4 for every app and component in the corpus. No browser — seconds, not minutes.",
+        description: "Everything that tests the SOURCES, and rungs 1–4 for every app and component in the corpus. Needs no `npm run derive` and is meaningful on any tree — no suite here reads a derived artifact.",
+        test: false, docs: "declare-docs:operational:verify" },
+      { id: "test-derived", cmd: "npm run derive && npm run test:derived",
+        description: "The suites whose SUBJECT is a derived artifact — the assembled doc model, declare-help's knowledge base, the committed prewarm cache, the production builds. Only meaningful straight after a derive, which is why the command carries it: run alone on a stale tree it tests yesterday's artifact.",
         test: false, docs: "declare-docs:operational:verify" },
       { id: "test-ladder", cmd: "npm run test:ladder",
         description: "The SLOW rungs, pre-release: every app shipping a <name>.assert.mjs or <name>.states.mjs beside it is climbed to R5 (real input) and R6 (pixels vs baselines) in headless Chromium. Discovery-based, so a new script is picked up by existing. `npm run test:all` runs both suites.",
         // the smoke test proves DISCOVERY only — climbing the real rungs here
-        // would pull Chromium into the per-commit suite, which is the split
+        // would pull Chromium into the main suite, which is the split
         // this entry exists to keep.
         testCmd: "node test/ladder.test.mjs --list",
         expect: { exitCode: 0, stdoutIncludes: "app(s) discovered" }, test: true,
@@ -71,9 +74,9 @@ export const OPS = {
   maintaining: {
     title: "Maintaining the system (after changing toolchain sources or docs)",
     steps: [
-      { id: "regenerate", cmd: "npm run build && node tools/internal/build-compiler.mjs && node tools/internal/build-boot.mjs && node tools/internal/doc/extract.mjs && node tools/internal/doc/assemble.mjs && node tools/internal/prewarm.mjs && node tools/internal/bake-homepage-crawler.mjs",
-        description: "The regeneration chain, in its load-bearing order: compile → bundles → doc model → link registry → spine projections → prewarmed artifacts → baked page. Run after any .ts, docs/, or registry change.",
-        test: false, docs: "declare-docs:operational:building" },
+      { id: "regenerate", cmd: "npm run derive",
+        description: "Regenerate every committed derived artifact — bundles, the doc model, the prewarm cache, the production builds, the baked pages, the build id. One rule graph owns the order (tools/internal/derive.mjs), and a rule whose inputs are unchanged is skipped, so a doc edit runs the doc rules and nothing else. This is what writes the artifacts: no hook derives, and a commit writes nothing (the one exception is that a suite booting the dev server rebuilds a stale platform bundle). Required before a push, and before `npm run test:derived`.",
+        test: false, docs: "declare-docs:operational:derive" },
       { id: "links-gate", cmd: "node tools/internal/doc/links.mjs --check",
         description: "Every declare-docs: symbolic link in the corpus resolves against the generated registry.",
         expect: { exitCode: 0 }, test: true },

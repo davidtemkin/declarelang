@@ -39,7 +39,8 @@
 import { bootHost } from "./host-client.js";
 import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
-import { loadPrewarm, relativize } from "./prewarm-cache.js";
+import { loadBuild, relativize } from "./prewarm-cache.js";
+import { prewarmedEntry } from "./prewarm-manifest.js";
 import { fnv1a, isUpToDate, lookupKey } from "../compiler/dist/closure.js";
 import { provideTransport, provideAssetBase } from "../runtime/dist/index.js";
 
@@ -118,23 +119,63 @@ function validatorFromResponse(res, text) {
   return v;
 }
 
-// Re-probe one dependency: a cheap HEAD reads ETag/Last-Modified (no body); only if
-// the host offers no strong validator do we GET and re-hash. Mirrors browserProbe.
-async function probe(id) {
+/** A closure entry's id back to a FETCHABLE url. The closure speaks two
+ *  namespaces and they resolve against different bases — the reason a cached
+ *  compile could never validate:
+ *
+ *    • the MAIN entry is an absolute URL (boot passes `mainId`),
+ *    • an app's own includes are canonical to the PROGRAM's directory
+ *      (the browser include host keys them with originDir ""),
+ *    • library components are canonical to the DISTRO root (`library/…`).
+ *
+ *  Fetching all three as document-relative happens to work for the first two
+ *  and 404s every library entry — so `probe` reported them missing, every
+ *  entry failed `isUpToDate`, and the fast path recompiled forever while
+ *  writing a cache it would never accept. The one asymmetry worth stating:
+ *  `library/simplelayout.declare` under a program at `/apps/weather/` means
+ *  `/library/…`, never `/apps/weather/library/…`. */
+function closureUrl(id, mainDir) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(id)) return id;                 // already absolute
+  return new URL(id, id.startsWith(LIB_PREFIX) ? ROOT : mainDir).href;
+}
+const LIB_PREFIX = "library/";
+
+/** Re-probe one dependency, ANSWERING IN THE CURRENCY THE STORED VALIDATOR
+ *  SPEAKS. A cheap HEAD reads ETag/Last-Modified with no body, and that is
+ *  enough only when the stored validator carries one of them too: freshness is
+ *  proven by a SHARED field, and `validatorsEqual` treats "no comparable field"
+ *  as stale rather than guess. Only the main entry is recorded from an HTTP
+ *  response (boot's `validatorFromResponse`); every include and library
+ *  component is recorded as a content hash by the compiler, which no headers-
+ *  only probe can ever match — so for those we must GET and re-hash. Skipping
+ *  that is why a cached compile could never validate: the cache was written on
+ *  every load and refused on every load. */
+async function probe(url, stored) {
+  const canHead = stored !== undefined
+    && (stored.etag !== undefined || stored.lastModified !== undefined);
   try {
-    const head = await fetch(id, { method: "HEAD", cache: "no-cache" });
-    if (!head.ok) return { missing: true };
-    const etag = head.headers.get("etag"), lm = head.headers.get("last-modified");
-    if (etag || lm) return { ...(etag ? { etag } : {}), ...(lm ? { lastModified: lm } : {}) };
-    const res = await fetch(id, { cache: "no-cache" });
-    return res.ok ? { hash: fnv1a(await res.text()) } : { missing: true };
+    if (canHead) {
+      const head = await fetch(url, { method: "HEAD", cache: "no-cache" });
+      if (!head.ok) return { missing: true };
+      const etag = head.headers.get("etag"), lm = head.headers.get("last-modified");
+      if (etag || lm) return { ...(etag ? { etag } : {}), ...(lm ? { lastModified: lm } : {}) };
+    }
+    const res = await fetch(url, { cache: "no-cache" });
+    if (!res.ok) return { missing: true };
+    const text = await res.text();
+    const etag = res.headers.get("etag"), lm = res.headers.get("last-modified");
+    // carry every field this response can answer with — the hash is the floor
+    // that a hash-only stored validator needs, the headers are free alongside
+    return { hash: fnv1a(text), ...(etag ? { etag } : {}), ...(lm ? { lastModified: lm } : {}) };
   } catch { return { missing: true }; }
 }
 
-async function closureFresh(closure) {
+async function closureFresh(closure, mainDir) {
   if (!closure || !Array.isArray(closure.entries)) return false;
   const current = {};
-  await Promise.all(closure.entries.map(async (e) => { current[e.id] = await probe(e.id); }));
+  await Promise.all(closure.entries.map(async (e) => {
+    current[e.id] = await probe(closureUrl(e.id, mainDir), e.v);
+  }));
   return isUpToDate(closure, closure.props, (e) => current[e.id] ?? { missing: true });
 }
 
@@ -159,6 +200,42 @@ async function pruneBuckets(build) {
     const keep = bucketName(build);
     for (const n of await caches.keys()) if (n.startsWith("declare-compiled-") && n !== keep) await caches.delete(n);
   } catch {}
+}
+
+/** `?clear` — drop EVERY Declare cache in this browser, then run.
+ *
+ *  Honored on an ENTRY PAGE only: `/`, or any `…/index.html`. This is a GLOBAL verb,
+ *  and every program address in Declare names one program — so a flag on
+ *  `calendar.declare` could not honestly mean "and every other program too." An entry
+ *  page is the one address in the system that is about the HOST rather than about a
+ *  program, which makes it the only honest place to put one. (Clearing a single
+ *  program was tried and removed: it is not worth a URL surface.)
+ *
+ *  Why it exists at all. Every cache here is keyed to a platform identity and drops
+ *  itself when that identity moves — the browser's buckets on BUILD_ID, the dev
+ *  server's on its toolchain fingerprint — and every read re-checks the stored
+ *  closure, so an ordinary stale entry is found and recompiled with nobody asking.
+ *  What none of that covers is a closure that is INCOMPLETE: a compile that read a
+ *  file the tracker did not record stays "fresh" forever against an edit to that
+ *  file, the platform identity has not moved, and on a deployed host the only
+ *  recovery was DevTools → Application → Clear storage.
+ *
+ *  It does NOT touch a committed BUILD (bundles/cache): a deployment artifact, not a
+ *  cache. Nothing about it goes stale behind your back, and dropping it would only
+ *  mean fetching the compiler to rebuild what was already correct. */
+const ENTRY_PAGE = /^\/(index\.html)?$|\/index\.html$/;
+
+async function clearAllCaches() {
+  let dropped = 0;
+  try {
+    for (const n of await caches.keys()) {
+      if (n.startsWith("declare-compiled-") || n.startsWith("declare-assets-")) {
+        await caches.delete(n);
+        dropped++;
+      }
+    }
+  } catch {}
+  console.log(`[Declare] ?clear — dropped ${dropped} cache bucket(s); this load recompiles`);
 }
 
 // ── The LAUNCHER entry URL (`index.html?apps/calendar`) ──────────────────────
@@ -263,27 +340,35 @@ export default async function boot(cfg) {
   const sVersion = perfStage("version");
   const build = await platformBuild();
   sVersion.end();
+  if (ENTRY_PAGE.test(location.pathname) && new URLSearchParams(location.search).has("clear")) await clearAllCaches();
   pruneBuckets(build);
   const key = lookupKey(mainId, props, build);
 
   let program = null, deps = undefined, pageSource = null, path = "slow", toCache = null;
 
-  // PREWARM TIER — a COMMITTED precompiled artifact (bundles/cache/), tried FIRST.
-  // If present AND still validating against the deployed source (its stored closure
-  // re-probed by content hash — prewarm-cache.js), the program renders with NO
-  // compiler download and NO recompile: the flagship pages' compiler-free first
-  // paint. Never trusted, only validated — a stale (un-regenerated edit) or absent
-  // artifact falls straight through to the CacheStorage tier / in-browser compile,
-  // so this tier can never ship a drifted program (docs/system-design/hosting.md).
+  // LOAD A BUILD — the first of the two requests this boot can make, and a
+  // different question from the one below it (docs/system-design/hosting.md).
+  // The manifest says whether this program ships precompiled, from a list bundled
+  // into this very file — so the answer costs NO request, and a program that is
+  // not on the list never asks. If it is on the list, the artifact is fetched and
+  // rendered: no compiler download, no recompile, and no validation round trips.
+  //
+  // NOT on the dev server. There the source on disk is the truth and an edit must
+  // show on the next reload, so the dev loop always resolves the source (below) —
+  // the one place the two hosts genuinely differ, and they differ in WHICH REQUEST
+  // IS MADE, not in what either request means.
   const relMain = relativize(mainUrl, ROOT);
-  const sPrewarm = perfStage("prewarm");
-  const warm = await loadPrewarm({ root: ROOT, relMain, kind: "run", props, fetchImpl: fetch });
-  sPrewarm.end();
-  if (warm) {
-    program = warm.program;
-    deps = warm.deps;
-    pageSource = warm.source;
-    path = "prewarm";
+  const built = window.__declareServer ? null : prewarmedEntry(relMain, props);
+  if (built !== null) {
+    const sPrewarm = perfStage("prewarm");
+    const warm = await loadBuild({ root: ROOT, relMain, kind: "run", props, fetchImpl: fetch });
+    sPrewarm.end();
+    if (warm) {
+      program = warm.program;
+      deps = warm.deps;
+      pageSource = warm.source;
+      path = "prewarm";
+    }
   }
 
   // FAST PATH — a cached in-browser compile whose closure still validates.
@@ -293,7 +378,7 @@ export default async function boot(cfg) {
     sCache.end();
     if (cached) {
       const sClosure = perfStage("closure-check");
-      const fresh = await closureFresh(cached.closure);
+      const fresh = await closureFresh(cached.closure, mainDir);
       sClosure.end();
       if (fresh) {
         program = cached.program;
@@ -376,13 +461,20 @@ export default async function boot(cfg) {
   // (its ~50 inline examples' editors read their source from the doc model, and their
   // previews are fetched on demand as the reader scrolls to each page).
   const seeds = { __page__: pageSource };
-  // The page NAMES its demos in boot() (the curated root page does). When it doesn't
-  // — the SW's browse-to-run wrapper for a bare `<name>.declare` URL can't know them —
-  // fall back to a committed `demos.json` beside the program (bake-app-stubs writes it),
-  // so those editors carry source on the `.declare` URL too, not only the root page.
-  let demos = Array.isArray(cfg.demos) ? cfg.demos : [];
-  if (!demos.length) {
-    try { const j = await (await fetch(new URL("demos.json", mainDir), { cache: "no-cache" })).json(); if (Array.isArray(j)) demos = j; } catch {}
+  // The page NAMES its demos when its producer could know them — the dev server and
+  // the stub baker both read the filesystem, so they always answer, and an EMPTY
+  // array is an answer: "this program has none to seed." Only a producer that
+  // genuinely cannot know omits the key — the SW's browse-to-run wrapper for a bare
+  // `<name>.declare` URL — and only then do we probe for the committed demos.json
+  // beside the program (bake-app-stubs writes it for exactly that case).
+  //
+  // Reading `!demos.length` as "unknown" was the bug: it conflated "none" with "not
+  // told", so every program without demo panels — every app in apps/, every program
+  // an author writes in my-apps/ — probed for a file that by design would never be
+  // there, and opened its console with a 404. Only apps/homepage has a demos.json.
+  let demos = Array.isArray(cfg.demos) ? cfg.demos : null;
+  if (demos === null) {
+    try { const j = await (await fetch(new URL("demos.json", mainDir), { cache: "no-cache" })).json(); demos = Array.isArray(j) ? j : []; } catch { demos = []; }
   }
   if (demos.length) {
     const sDemos = perfStage("demo-seeds");
@@ -393,22 +485,24 @@ export default async function boot(cfg) {
   }
   const demoBase = new URL("demos/", mainDir).href;              // where mountPreviews fetches unseeded previews
 
-  // Prewarm for ISLANDS — the same VALIDATED tier the page boot rides, offered
-  // to the host's preview mounts: a slot path that resolves to a program on the
-  // committed prewarm list (bundles/cache/), still validating against the
-  // deployed source, mounts with NO compiler and NO compile — the app-in-a-
-  // window case (a desktop window hosting apps/calendar) opens instantly even
-  // on a static cold visit where the compiler bundle hasn't landed. Never
-  // trusted, only validated: a stale or absent artifact returns null and the
-  // mount falls through to the live-compile path exactly as before. Islands
+  // LOAD A BUILD, for ISLANDS — the page boot's first request, offered to the
+  // host's preview mounts: a slot path naming a program that ships precompiled
+  // mounts with NO compiler and NO compile, so the app-in-a-window case (a
+  // desktop window hosting apps/calendar) opens instantly even on a cold static
+  // visit where the compiler bundle hasn't landed. The manifest answers "is
+  // there a build?" with no request, so a preview of an ordinary program — the
+  // common case — costs nothing here and goes straight to live-compile. Islands
   // always render on the DOM backend (renderChild), so the key uses render:dom
-  // regardless of the page's own backend.
+  // regardless of the page's own backend; on the dev server there is no build
+  // request at all, for the same reason the page boot makes none.
+  const ISLAND_PROPS = { render: "dom" };
   const prewarmChild = async (name) => {
     try {
       const u = new URL(name + ".declare", demoBase);
       const rel = relativize(u, ROOT);
       if (!rel) return null;
-      const warm = await loadPrewarm({ root: ROOT, relMain: rel, kind: "run", props: { render: "dom" }, fetchImpl: fetch });
+      if (window.__declareServer || prewarmedEntry(rel, ISLAND_PROPS) === null) return null;
+      const warm = await loadBuild({ root: ROOT, relMain: rel, kind: "run", props: ISLAND_PROPS, fetchImpl: fetch });
       return warm ? { source: warm.program, deps: warm.deps } : null;
     } catch { return null; }
   };

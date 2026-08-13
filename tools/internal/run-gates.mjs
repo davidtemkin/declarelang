@@ -16,12 +16,15 @@
 //
 //   node tools/internal/run-gates.mjs              # what the change-set touches
 //   node tools/internal/run-gates.mjs --all        # every suite, unconditionally
+//   node tools/internal/run-gates.mjs --derived    # the DERIVED tier (run derive first!)
+//   node tools/internal/run-gates.mjs --both       # both tiers
 //   node tools/internal/run-gates.mjs --timing     # …and per-case detail
 //   node tools/internal/run-gates.mjs --only unit,docs,crawl
-//   node tools/internal/run-gates.mjs --bail        # stop at the first failure
+//   node tools/internal/run-gates.mjs --bail       # stop at the first failure
 //
-// The suite ORDER is read from package.json's own `test` script rather than
-// duplicated here — a second list would drift, and the drift would be silent.
+// The suite ORDER is read from package.json's own `test` / `test:derived`
+// scripts rather than duplicated here — a second list would drift, and the
+// drift would be silent.
 //
 // DON'T TEST WHAT'S NOT CHANGED. A suite is a rule: declared inputs, and a
 // recorded hash of them from its last GREEN run (.derive/gates.json, untracked
@@ -49,11 +52,25 @@ const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const val = (f) => { const i = argv.indexOf(f); return i < 0 ? null : argv[i + 1]; };
 
-/** The suite list, taken from package.json's `test` script — one source. */
+/** The suite list, taken from package.json's own scripts — one source.
+ *
+ *  TWO TIERS, and the split is about SUBJECT, not speed (derivation.md §4).
+ *  `test` is every suite that tests the SOURCES; it is meaningful on any tree
+ *  and needs no derive. `test:derived` is the suites whose subject IS a derived
+ *  artifact — the assembled doc model, the committed prewarm cache, the
+ *  production builds — and it is only meaningful immediately after
+ *  `npm run derive`, because otherwise it tests yesterday's artifact.
+ *
+ *  Tier selection is its own axis from `--all`, which means "ignore the skip
+ *  manifest" and applies within whichever tier is selected. */
 function suites() {
   const pkg = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8"));
-  const names = [...(pkg.scripts?.test ?? "").matchAll(/node (test\/([a-z0-9-]+)\.test\.mjs)/g)]
-    .map((m) => ({ path: m[1], name: m[2] }));
+  const scripts = has("--derived") ? ["test:derived"]
+    : has("--both") ? ["test", "test:derived"]
+    : ["test"];
+  const names = scripts.flatMap((s) =>
+    [...(pkg.scripts?.[s] ?? "").matchAll(/node (test\/([a-z0-9-]+)\.test\.mjs)/g)]
+      .map((m) => ({ path: m[1], name: m[2] })));
   const only = val("--only");
   if (only === null) return names;
   const want = new Set(only.split(",").map((s) => s.trim()));

@@ -112,21 +112,23 @@ The contract: location is the app's **shareable coordinates** — what a recipie
 should see when handed the URL. A draft, a hover, a mid-gesture selection are
 ordinary attributes: they never reach the URL (a fragment is never sent to the
 server either — location stays client-side), and Back does not traverse them.
-Session state that Back *should* traverse without ever touching the URL is the
+A step that Back *should* traverse without ever touching the URL is the
 third kind — that is `waypoint`.
 
 ## waypoint
-The **step** — session state the Back button retraces but the URL never shows.
-`location`'s twin with the opposite visibility: one two-way reactive string the
-app owns the grammar of, carried in the History entry itself rather than in the
-URL. A history entry is the pair (location, waypoint); one entry is minted per
-settle in which either changed — both changing together is one entry, restored
-atomically by one Back. Traversal, reload, and session restore bring the step
-back; a pasted URL carries no waypoint by construction, so a recipient starts at
-the declared initial — which is the dividing test: *would you hand the value to
+The **step** — the half of the history coordinate the Back button retraces and the
+URL never shows. `location`'s twin with the opposite visibility: one two-way
+reactive string the app owns the grammar of, carried in the History entry itself
+rather than in the URL. A history entry is the pair (location, waypoint); one entry
+is minted per settle in which either changed — both changing together is one entry,
+restored atomically by one Back. Both halves are coordinates on the entry, never
+storage, so a **traversal** brings the step back while an **arrival** rebuilds the
+app from the URL alone: a reload starts at the declared initial step, exactly as a
+pasted URL does — which is the dividing test: *would you hand the value to
 a stranger?* Yes → `location`. No, but Back should undo it → `waypoint`. Neither
 → an ordinary attribute. Waypoints are coordinates, never data — derive the data
-from the step, and keep it under a few kilobytes. Because it can never arrive
+from the step, keep it under a few kilobytes, and put data that must outlive the
+document where data goes, since no coordinate survives an arrival. Because it can never arrive
 from outside the app, a waypoint passes no `onFollow`; your own parsing is the
 gate, and an unrecognized value degrades wherever that parsing sends it. The
 crawl never sees waypoints: content that should be indexed derives from

@@ -17,7 +17,7 @@
 //
 //   · EVERYTHING, ALWAYS. A no-op derive cost ~21s — extract alone re-reading
 //     every prose file and re-measuring every island stage to conclude nothing
-//     changed — and the pre-commit hook pays it on every commit. Here a rule
+//     changed — and the pre-commit hook paid it on every commit. Here a rule
 //     runs only when the hash of its declared inputs differs from the manifest
 //     (.derive/manifest.json, untracked); a doc edit runs the doc rules and a
 //     commit touching neither runs nearly nothing. The gates remain the
@@ -47,7 +47,8 @@
 //   node tools/internal/derive.mjs --check        RUNS everything, then exit 1 if anything WAS stale
 //   node tools/internal/derive.mjs --dry          READ-ONLY: exit 1 if anything IS stale, writing nothing
 //   node tools/internal/derive.mjs --timing       per-rule cost + skip report
-//   node tools/internal/derive.mjs --paths        print the committed derived paths
+//   node tools/internal/derive.mjs --paths        print the committed derived paths (stamps included)
+//   node tools/internal/derive.mjs --outputs      …only the files a rule authors WHOLE (the pre-push gate's list)
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -62,7 +63,7 @@ const has = (f) => argv.includes(f);
 const CHECK = has("--check");
 // --dry is the READ-ONLY probe --check is not: --check runs every stale rule and
 // only then reports, which is the right thing before a release and the wrong
-// thing in a pre-commit hook, where the whole point is to answer "would this
+// thing in the pre-push gate, where the whole point is to answer "would this
 // need work?" without doing the work. Same freshness test, no rule ever run, no
 // manifest written.
 const DRY = has("--dry");
@@ -136,7 +137,8 @@ const RULES = [
                                      // because the homepage crawl fetches the FAQ and docs/declare.md —
                                      // as one pass with stats, the cached crawl carried LAST round's
                                      // stamped figures (the buildId lag's third sibling; found by this graph)
-    inputs: ["tools/internal/prewarm.mjs", "compiler/dist", "runtime/dist", "library",
+    inputs: ["tools/internal/prewarm.mjs", "browser/prewarm-manifest.js",   // the curated set, declared
+             "compiler/dist", "runtime/dist", "library",
              { dir: "apps", ext: ".declare", exclude: ["dist"], notPre: "seg_" },
              "apps/homepage/demos", "apps/homepage/stats.json",
              "apps/homepage/declare-faq.md", "apps/homepage/getstarted.md", "docs/declare.md"],
@@ -154,9 +156,18 @@ const RULES = [
   },
   {
     name: "dist",                    // the committed production builds (embed stats.json; crawl fetches declare.md)
+    // INPUTS DISCOVERED THE SAME WAY THE OUTPUTS ARE. This rule used to declare
+    // `apps/homepage` alone while its outputs came from distApps(), so the moment a
+    // SECOND app grew a dist (weather) the rule went asymmetric: editing
+    // apps/weather/weather.declare marked nothing stale, `derive --dry` reported all
+    // current, pre-push passed, and the committed weather dist stayed stale forever.
+    // Exactly the omission derivation.md §5.1 names — found by editing weather.declare
+    // and watching derive do nothing. Discovering both halves from one source is what
+    // keeps them in step, per distApps()'s own promise that a new app with a dist
+    // should not need this file edited.
     inputs: ["tools/declarec.mjs", "compiler/dist", "runtime/dist", "browser", "library",
-             { dir: "bundles", exclude: ["cache", "version.json"] },
-             { dir: "apps/homepage", exclude: ["dist", "index.html"] }, "docs/declare.md"],
+             { dir: "bundles", exclude: ["cache", "version.json"] }, "docs/declare.md",
+             ...distApps().map((d) => ({ dir: `apps/${d.app}`, exclude: ["dist", "index.html"] }))],
     outputs: distApps().map((d) => d.out),
     // `--crawler` (the baked static document) is only for the INDEXED surfaces
     // (David's ruling, 2026-08-08) — today that means HOMEPAGE alone. Every
@@ -263,14 +274,32 @@ function validate() {
   });
 }
 
-// ── the committed derived paths (for the hook and --paths) ───────────────────
+// ── the committed derived paths (--paths / --outputs) ────────────────────────
 // Generated from the rules so it cannot drift from them; .derive/* is untracked
-// and excluded. Stamped files are included: the hook must stage them.
-function derivedPaths() {
+// and excluded.
+//
+// TWO LISTS, because the pre-push gate needs the narrower one. `--paths` is
+// everything derive touches, stamps included — the list you `git add` after a
+// derive. `--outputs` is the files a rule authors WHOLE, and it is what the
+// hook compares against HEAD: a stamped file (README, declare.md, index.html)
+// is hand-authored around its marker, so "differs from HEAD" there is ordinary
+// unstaged prose, not an uncommitted artifact, and refusing a push over it
+// would fire constantly on the normal state. The residual gap is stated in
+// the hook: a stamp regenerated and then left out of the commit is caught by
+// `--dry` on disk but not by the HEAD comparison.
+function derivedPaths({ outputsOnly = false } = {}) {
   const out = [];
   for (const r of RULES) {
-    for (const s of [...(r.outputs ?? []), ...(r.stamps ?? [])]) {
-      const p = typeof s === "object" ? s.dir : s;
+    for (const s of [...(r.outputs ?? []), ...(outputsOnly ? [] : r.stamps ?? [])]) {
+      // A PREFIXED output owns only part of its directory, and flattening it to the
+      // bare dir was a real hazard: `apps/docs/demos` holds 84 generated `seg_*`
+      // files AND 9 hand-authored ones, so a consumer of this list would stage (or
+      // a push gate would refuse over) work derive does not own. Emit a git
+      // PATHSPEC instead — `apps/docs/demos/seg_*` — which `git add`/`git status`
+      // match with the same wildmatch, so the filter the rule already declares
+      // survives all the way to git. (`exclude` needs no glob here: its one user is
+      // `bundles`, where nothing is hand-authored.)
+      const p = typeof s === "object" ? (s.pre ? `${s.dir}/${s.pre}*` : s.dir) : s;
       if (p.startsWith(".derive")) continue;
       if (!out.includes(p)) out.push(p);
     }
@@ -278,8 +307,8 @@ function derivedPaths() {
   return out;
 }
 
-if (has("--paths")) {
-  for (const p of derivedPaths()) console.log(p);
+if (has("--paths") || has("--outputs")) {
+  for (const p of derivedPaths({ outputsOnly: has("--outputs") })) console.log(p);
   process.exit(0);
 }
 
@@ -373,6 +402,30 @@ if (CHECK) {
   }
   console.log(`derive --check: all derived artifacts current (${ran} ran, ${skipped} skipped, ${total}s)`);
 } else {
-  console.log(`derive: ${movedFiles.length} derived file(s) regenerated — ${ran} rule(s) ran, ${skipped} skipped (${total}s)`);
+  // STAGE WHAT WE OWN. A derive produces three kinds of change — files rewritten,
+  // files created under NEW NAMES (`app.<hash>.js`, `seg_<slug>_<n>.declare`), and
+  // files pruned — and only the first is something `git commit -a` would pick up.
+  // Leaving the other two to be remembered is how a published page comes to 404 on
+  // its own bundle, so derive reconciles git for its OWN outputs and reports it.
+  //
+  // `-A` over each pathspec is what makes all three land together: git compares its
+  // record of that path against the disk, so a pruned file is discovered as a
+  // deletion rather than looked up in a list nobody keeps.
+  //
+  // OUTPUTS ONLY, never `--paths`: the stamped files (README, declare.md,
+  // index.html) are hand-authored around their markers, and staging one wholesale
+  // would sweep up prose you were still writing. Those stay yours to stage — the
+  // same rule the pre-commit hook keeps for the index.
+  // UNCONDITIONALLY, not just when this run rewrote something. What has to be true
+  // afterwards is "git's picture of derive's outputs matches the disk", and that can
+  // be false with nothing regenerated at all — a half-staged rename, a file restored
+  // after a bad delete, an interrupted run. Gating on `movedFiles` left exactly that
+  // state unreconciled, which is what a no-op derive is asked to fix.
+  const specs = derivedPaths({ outputsOnly: true });
+  let staged = false;
+  try { run("git", ["add", "-A", "--", ...specs]); staged = true; }
+  catch (e) { console.error(`derive: could not stage (${String(e.message ?? e).split("\n")[0]}) — stage by hand:\n   git add -A -- ${specs.join(" ")}`); }
+  console.log(`derive: ${movedFiles.length} derived file(s) regenerated — ${ran} rule(s) ran, ${skipped} skipped (${total}s)` +
+    (staged ? ` · outputs staged` : ""));
   for (const p of movedFiles.slice(0, 12)) console.log(`   ${p}`);
 }

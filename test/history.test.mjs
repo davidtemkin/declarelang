@@ -8,11 +8,13 @@
 //   - a waypoint write mints an entry and the URL DOES NOT MOVE;
 //   - Back/Forward restore the step; a pair written in one settle is ONE entry,
 //     restored atomically;
-//   - reload resumes the pair (the entry survives);
+//   - a RELOAD is an arrival: the address comes back from the URL and the step
+//     does NOT — a coordinate is restored by traversal, never by arrival;
 //   - a fresh page at the same URL starts at the declared initial (a URL
 //     carries no waypoint — the stranger test, enforced by construction);
 //   - `follow(ref, true)` (the replace verb) overwrites the pair, no entry;
-//   - a traversal lands at the departed entry's scroll (the per-entry stamp).
+//   - a traversal lands at the departed entry's scroll (the per-entry stamp),
+//     and a reload does not — the same rule, applied to the other coordinate.
 
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -93,13 +95,23 @@ try {
     assert.equal(s.wp, "turn2");
   });
 
-  await test("reload resumes the pair — the entry survives", async () => {
+  await test("a reload is an arrival — the address returns, the step does not", async () => {
     await page.reload({ waitUntil: "networkidle2" });
     await page.waitForFunction(() => !!window.__app, { timeout: 30000 });
     await tick();
-    const s = await state();
-    assert.equal(s.loc, "results", "the address reloads from the fragment");
-    assert.equal(s.wp, "turn2", "the step reloads from the entry's state object");
+    let s = await state();
+    assert.equal(s.loc, "results", "the address rebuilds from the URL");
+    assert.equal(s.wp, "", "the step starts at the declared initial — a coordinate is not storage");
+    assert.equal(s.entryW, "", "the arrived-on entry was squared to the app, not left stale");
+    // Only the entry arrived on is rebuilt. The route BEHIND it keeps its own
+    // coordinates, which is why Back still walks into the session the reload
+    // started fresh from — a coordinate sits on its entry.
+    await back();
+    assert.equal((await state()).wp, "turn1", "Back still reaches the step on the previous entry");
+    await fwd();
+    s = await state();
+    assert.equal(s.loc, "results", "Forward returns to the rebuilt entry");
+    assert.equal(s.wp, "", "…still at the declared initial step");
   });
 
   await test("a fresh page at the same URL starts at the declared initial step", async () => {
@@ -142,6 +154,20 @@ try {
     await sleep(250);                                  // restore waits two frames past the settle
     const y = await page.evaluate(() => scrollY);
     assert.ok(Math.abs(y - 900) <= 2, `Back returned to the departed scroll (got ${y})`);
+  });
+
+  await test("a reload lands at the top, even on an entry carrying a scroll stamp", async () => {
+    // We are standing on the entry the traversal above restored: it holds that
+    // entry's departure stamp and the page sits at it. The scroll is the other
+    // coordinate, and it follows the same rule — traversal restores it, an
+    // arrival does not, because the top is what the URL says.
+    const stamped = await page.evaluate(() => history.state?.declare?.s);
+    assert.ok(stamped > 0, `precondition: the entry carries its stamp (got ${stamped})`);
+    await page.reload({ waitUntil: "networkidle2" });
+    await page.waitForFunction(() => !!window.__app, { timeout: 30000 });
+    await sleep(400);                                  // past the restore's two-frame window
+    const y = await page.evaluate(() => scrollY);
+    assert.equal(Math.round(y), 0, `the arrival landed at the top (got ${y})`);
   });
 } finally {
   await browser.close();

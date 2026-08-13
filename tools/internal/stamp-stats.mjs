@@ -10,7 +10,7 @@
 //
 //   <!--stat:calendar.wireKB-->68<!--/stat-->
 //
-// and the pre-commit hook (AFTER prewarm refreshes stats.json, BEFORE the doc
+// and the derive chain (AFTER prewarm refreshes stats.json, BEFORE the doc
 // pipeline consumes the files) rewrites every marker's interior from the live
 // stats. Prose text stays the author's; only the number inside the marker moves.
 // Idempotent: unchanged values rewrite nothing. An unknown key is a hard error —

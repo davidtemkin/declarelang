@@ -32,6 +32,49 @@ Two modifiers change *how* a program compiles, and compose onto a run or a build
 
 Booleans accept `?crawler`, `?crawler=1`, `?crawler=true` (on) and `?crawler=0`/`false` (off).
 
+A third is not about compiling but about forgetting — **`?clear`**, on an **entry page**
+(`/`, or any `…/index.html`): drop every compiled-program cache in this browser, and on the
+dev server the server's cache too, then run. Ignored on a program URL, because it is a
+host-wide verb and a program URL names one program. You should not normally need it — see
+[When you would need `?clear`](#when-you-would-need-clear) for why, and for the one case
+that does.
+
+## Sharing a link to a program
+
+A program URL is an address, so it is shareable as it stands — on the dev server, and on
+a static deploy once the visitor's browser has the service worker. The awkward case is the
+one that matters for sharing: **a first visit, on a static host, with no worker installed
+yet.** A bare `…/name.declare` URL arriving cold has nothing to turn it into a running app,
+and the browser downloads the source file instead of rendering it.
+
+The **launcher URL** is the form that always works:
+
+```
+https://…/index.html?apps/desktop/
+```
+
+The whole query is read as a path when it looks like one — a `/` with no `=` before it — so
+`?render=canvas` and `?crawler` can never be mistaken for a target. The entry page installs
+the service worker **first** and only then navigates, so the real URL arrives with the worker
+in control and becomes a run page. Under the dev server it simply redirects, since the server
+answers the target directly. A fragment is carried through, so
+`index.html?apps/docs/docs.declare#guide/05-space` lands where you meant.
+
+The target must be same-origin and inside the entry page's own directory; anything else is
+refused, which rules out absolute URLs and `..` escapes.
+
+Two shorter forms work once you know their limits, and both are fine to share:
+
+| form | works cold? | notes |
+|---|---|---|
+| `index.html?apps/desktop/` | **always** | the launcher — the one to use when you don't want to think about it |
+| `apps/desktop/` | yes, if the program directory has a committed stub | prettier; `bake-app-stubs.mjs` writes those stubs for exactly this |
+| `apps/desktop/desktop.declare` | only with the worker already installed | the canonical address, not the best thing to paste to someone |
+
+The path stays `index.html` in the launcher form, so a shared link can never 404 and needs no
+host 404/rewrite configuration — it behaves the same on GitHub Pages, Firebase, S3, nginx, or
+`python -m http.server`.
+
 ## The fragment is the app's own layer
 
 The URL has three layers, and they do not overlap: the **path** picks the program, the **query**
@@ -46,44 +89,56 @@ document — the default page, then each location's content as a `<section>` who
 location — so the whole app is in the crawler view at the one program URL, and the fragment
 links resolve right there in the static page.
 
-## How a program gets rendered — the three tiers
+## How a program gets rendered — the two requests
 
 Navigating to a `.declare` returns a tiny run shell that boots the platform, which then has to
-turn that program into something running. It tries three tiers in order, and stops at the
-first that produces a program. The tiers are the same on the dev server and on a static host;
-only the last one — the compile — runs in a different place.
+turn that program into something running. It asks one of **two** questions, and it knows which
+one before it asks anything:
 
-**1. Prewarm — a committed, precompiled artifact.** A build step can commit a compiled program
-under `bundles/cache/`. Boot tries it first. It is **not a production build** and it does not
-replace compilation — it merely *skips* it when nothing has changed. The artifact carries the
-compile's dependency closure (the main file plus every `include`d file, each with a content
-hash). Boot re-fetches every file in that closure and re-hashes it; the artifact is used only
-if all of them still match. So **editing the program, or any file it includes, invalidates the
-prewarm** — the changed hash fails the check and boot falls through to compile. Prewarm is
-deployment-independent: it works identically on the dev server and a static host. When it hits,
-the program renders with **no compiler and no compile at all**.
+**1. Load a build.** A small curated set of programs ships precompiled under `bundles/cache/`.
+Whether *this* program is one of them is answered from a list compiled into the boot bundle
+(`browser/prewarm-manifest.js`), so the answer costs no request: a program that is not on the
+list never asks, and one that is fetches its artifact and renders it — **no compiler, no
+compile, and no validation round trips**. It is not a production build and it does not replace
+compilation; it is the deployment asserting "this is what these sources compile to."
 
-**2. Cache — a previous in-browser compile.** On a static host, a compile's result is written to
-CacheStorage keyed by its closure, so a repeat visit re-validates and reuses it without
-recompiling. The dev server does not use this tier — it recompiles instead (see below), which
-is what keeps the edit loop honest.
+That assertion is what `derive` and pre-push exist to keep true: `npm run derive` regenerates
+every artifact from current sources, and a push is refused if the derived artifacts are stale
+on disk or fresh but uncommitted. So a deploy cannot carry a build that disagrees with the
+source shipped beside it.
 
-**3. Compile — the fallback, and the one place the two hosts differ.** Nothing precompiled was
-usable, so the program is compiled now.
+**Not on the dev server.** There the file on disk is the truth and an edit must show on the
+next reload, so the dev loop always asks the second question. This is the one place the two
+hosts differ, and they differ in *which question is asked* — not in what either answer means.
 
-- **On the dev server the compile runs on the server**, via `POST /compile`. The browser sends
-  the source and receives the finished program. It never downloads the compiler and never
-  fetches the component library — the server has both and resolves only what the program
-  actually uses. Every reload recompiles on the server (a localhost round trip is a few
-  milliseconds), so what you see is always current with the file on disk. No client cache is
-  written; the server is the source of truth.
-- **On a static host there is no server, so the compile runs in the browser.** The page pulls
-  the compiler bundle once (cached by the platform's build id thereafter) and compiles
-  client-side, then writes the result to the cache tier above.
+**2. Resolve a source.** Compile it, unless a previous compile is still good. "Still good" is
+the dependency closure: the main file plus every `include` and component the compile actually
+read, each with a validator. If nothing in it moved, the previous compile is reused.
 
-Same request surface either way; only where the compile runs changes. This is why the dev loop
-stays light even for a large app with no prewarm — the server does the work — and why a static
-deployment can serve a flagship app compiler-free when its prewarm is committed.
+- **On the dev server the compile runs on the server** (`POST /compile`), and so does the
+  cache. The server holds the compiled program with its closure and checks freshness against
+  the **disk** — no dependency probing over the network, so a reload costs one request. Edit
+  the program, or any file it includes, and the next reload recompiles. Measured on the
+  calendar: 0.75 s cold, 0.01 s when nothing moved, and back to ~0.3 s the moment a library
+  file it reads is touched. The cache is dropped whole whenever the toolchain itself is
+  rebuilt.
+- **On a static host there is no server, so the compile runs in the browser** and the result
+  is written to CacheStorage, keyed by the platform's build id and the app's identity. A
+  repeat visit re-checks the closure and reuses it. The compiler bundle is pulled once and
+  cached by build id thereafter.
+
+Same request surface either way; the cache and the compiler simply live where the host can put
+them. This is why the dev loop stays light for a large app — the server does the work and
+remembers it — and why a static deployment can serve a flagship app compiler-free.
+
+### When you would need `?clear`
+
+Almost never, and it is worth knowing why. Both caches are keyed to a platform identity and
+drop themselves when it moves; every reuse re-checks the closure first. The gap neither covers
+is a closure that is **incomplete** — a compile that read a file nothing recorded stays "fresh"
+forever against an edit to that file, and no identity moved to dislodge it. If a change refuses
+to show up and you have ruled out your own code, that is the shape of it: `?clear` on an entry
+page forgets everything and recompiles, and the underlying omission is worth reporting.
 
 ## Editing and reload
 

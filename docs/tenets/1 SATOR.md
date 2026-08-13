@@ -43,7 +43,7 @@ the measured artifact), smaller than the runtime alone of most frameworks.
 Input latency is several times lower than the equivalent framework build, with no
 virtual-DOM pass between gesture and pixels, and animation runs at the display's
 full rate. The homepage reports the live figures, measured from the deployed
-artifacts on every commit.
+artifacts and regenerated with them on every publication.
 *Held in:* FAQ ("What should I expect in terms of performance").
 
 ### SATOR-7 — Honest about the trades and the gaps

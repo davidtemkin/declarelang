@@ -21,16 +21,24 @@
 
 import { parentPort } from "node:worker_threads";
 import path from "node:path";
-import { compile, isUpToDate, diskProbe, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
+import { compile, compileTracked, isUpToDate, diskProbe, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
 import { highlight, lineMetrics } from "../compiler/dist/highlight.js";
 import { writeProduction } from "../tools/declarec.mjs";
 
 const project = (r) => ({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
+// The TRACKED projection carries the dependency CLOSURE too — what the server's
+// compile cache is keyed on. `project` deliberately drops it, and for years that
+// was the whole reason the dev server could not cache a page compile: the closure
+// never crossed the worker boundary, so there was nothing to check freshness
+// against (browser/prewarm-cache.js's header tells the other half of this story).
+const projectTracked = (r) => ({ ...project(r), closure: r.closure });
 
 async function handle(m) {
   switch (m.type) {
     case "compile":
       return project(compile(m.source, m.opts ?? {}));
+    case "compileTracked":
+      return projectTracked(compileTracked(m.source, m.opts ?? {}));
     case "extract": {
       const compiled = compile(m.source, { originDir: m.originDir });
       if (compiled.source === null) return { ok: false, report: compiled.report };

@@ -1266,12 +1266,13 @@ export class App extends View {
    *  navigate (`app.location = "why"`). The declared initial is the default — the
    *  fragment is omitted at it (§3). Read-write to user code; schema.ts. */
   declare location: string;
-  /** `waypoint` — the STEP: session state the Back button retraces but the URL
-   *  never shows (the other half of the history entry; `location` is the
-   *  address half). The host carries it in the History entry's state object,
-   *  restores it on back/forward and reload, and never lets it near the URL —
-   *  so it is not shareable and not crawlable, by construction. The app owns
-   *  the grammar, same as location. Schema attr; default "". */
+  /** `waypoint` — the STEP: the half of the history coordinate the URL does
+   *  not show (the other half of the history entry; `location` is the address
+   *  half). The host carries it in the History entry's state object, restores
+   *  it on back/forward — a coordinate comes back by traversal, never by
+   *  arrival, so a reload starts at the declared initial — and never lets it
+   *  near the URL, so it is not shareable and not crawlable, by construction.
+   *  The app owns the grammar, same as location. Schema attr; default "". */
   declare waypoint: string;
   /** app→host navigation channel: `navigate(to)` sets it, the host (host-client.js
    *  / a backend) polls it, opens the URL, and clears it to "". A plain field, not

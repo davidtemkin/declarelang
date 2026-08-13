@@ -415,17 +415,20 @@ const AppSchema: ComponentSchema = {
     // — a SCHEMA attr on purpose: §3's `App [ location = "home" ]` needs a checkable
     // [ ] slot (unlike the host-fed read-only channels, which live in LANGUAGE_API).
     location: { kind: "string" },
-    // `waypoint` — the STEP: session state the Back button retraces but the URL
-    // never shows. The second half of the history entry (the pair is location +
+    // `waypoint` — the STEP: the half of the history coordinate the URL does
+    // not show. The second half of the history entry (the pair is location +
     // waypoint): the host carries it in the History entry's state object —
     // invisible to the address bar, autocomplete, sharing, and the crawl — and
     // writes it back on back/forward exactly as it writes `location`. The
     // dividing test: would you hand the value to a stranger? Yes → location
     // (it's an address); no, but Back should undo it → waypoint; neither →
-    // an ordinary attribute. The app owns the grammar, same as location. A
-    // pasted URL carries no waypoint (a recipient starts at the declared
-    // initial); reload and session restore resume it (the entry survives).
-    // Coordinates, never data: derive the data from the waypoint.
+    // an ordinary attribute. The app owns the grammar, same as location.
+    // A coordinate is restored by TRAVERSAL, not by arrival: Back and Forward
+    // bring the step back, while a reload — like a pasted URL — rebuilds the
+    // app from the URL alone, at the declared initial step. Neither half is
+    // storage, which is why the discipline is coordinates, never data: derive
+    // the data from the waypoint, and put data that must outlive the document
+    // where data goes.
     waypoint: { kind: "string" },
     // NOTE: live demo editing is NOT a base-App concern (capabilities.md §7 —
     // RULED shape 3, a component). The app-authored state (editing / liveCard /

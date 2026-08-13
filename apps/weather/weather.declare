@@ -521,19 +521,17 @@ class Hero extends View [ height = 220,
     ]
 
 
-// ── the row's backdrop ─────────────────────────────────────────────────────
-// Every row shows its city's REAL sky — the clouds, the sun, the star field —
-// because that is what makes the list readable at a glance. The saving is not
-// in dropping the art, it is in drawing only the ONE sky the row needs, at the
-// size of a row.
-//
-// The four-way `WSky` below builds all four conditions and hides three, and a
-// hidden `draw()` still allocates and rasterizes its canvas at full size — 25
-// rows of that was 131MB of backing store nobody could see. Here the condition
-// is a BRANCH INSIDE ONE draw() instead of four nodes: a sunny row records a
-// sunny sky, a night row a star field, and a photographic row records NOTHING
-// AT ALL — an empty recording has no bounds, so no canvas is created for it.
-// One canvas or one image per row, never both, never four.
+/*
+## RowSky — a row's own sky
+
+Every row shows its city's real sky, because that is what makes the list
+readable at a glance. It costs nothing extra to be honest about it: the row
+draws only the ONE sky it needs, at the size of a row.
+
+The gradient underneath is not a fallback, it is the sky's own colour — a
+photograph arrives late and a drawn sky is mostly its gradient at 92px
+anyway, so the row is right before anything has decoded.
+*/
 
 class RowSky extends View [ clip = true,
     cond: string = "sunny",
@@ -577,22 +575,31 @@ class CityRow extends View [ width = 100%, height = { ROW_H }, cursor = "pointer
     mine: string = { "" + :id },
     selected: boolean = { app.city != null && app.city.id == this.mine },
 
-    // The tapped row leaves EXACTLY when the CityView arrives, because both
-    // read the same fact. They are congruent at `openT = 0` — same box, same
-    // seats, same sizes — so the swap has nothing to see, but only if it is a
-    // swap: this used to hand over at `openT > 0.02` while the view appeared
-    // at `cityUp`, which left a ~7ms window with BOTH drawn. Two scrims
-    // compounded and every string was painted twice, which read as a flash of
-    // darkening and a translucent temperature. It showed up only when a frame
-    // happened to land in the window — so it looked intermittent, and it was
-    // the same bug every time.
+    /*
+    ## The handover
+
+    The tapped row leaves exactly when the CityView arrives, because both read
+    THIS ONE FACT. They are congruent at `openT = 0` — same box, same seats,
+    same sizes — so there is nothing to see in the swap.
+
+    One predicate rather than two thresholds is the whole point. Two numbers
+    that look close enough are a race whose width is the frame time: a gap
+    shows the floor, an overlap draws both, and either way it appears only
+    when a frame happens to land inside it. Complements by construction cannot
+    have a gap.
+    */
 
     handing: boolean = { app.phone && app.cityUp && app.openId == this.mine },
 
-    // WHERE A ROW SITS, and how it gets out of the way. Rank comes from the
-    // dataset, not from a layout, so this row owns its own `y` — which is
-    // what lets it ride the expansion. Rank depends only on `shown`, so it is
-    // recomputed when the search changes, never per frame.
+    /*
+    ## Where a row sits, and how it makes room
+
+    Rank comes from the dataset rather than from a layout, so a row owns its
+    own `y` — and a `y` the row owns is a `y` the row can offset, which is
+    what lets the list ride the expansion. (A layout-owned slot could not: the
+    arrangement would be its standing owner.) Rank depends only on `shown`, so
+    it is recomputed when the search changes, never per frame.
+    */
 
     rank: number = { app.shown.value == null ? 0
         : Math.max(0, app.shown.value.rows.findIndex((r) => r.id == this.mine)) },
@@ -602,11 +609,10 @@ class CityRow extends View [ width = 100%, height = { ROW_H }, cursor = "pointer
         : 0 },
     y = { this.rank * (ROW_H + ROW_GAP) + this.slide },
 
-    // No fade at all: the rows LEAVE BY MOVING. Everything above rides up with
-    // the view's top edge and everything below is pushed past the foot of the
-    // screen, so they are gone when they are gone — a list that dissolves
-    // while it slides reads as two effects competing, not as one thing making
-    // room for another.
+    // No fade: the rows LEAVE BY MOVING. Everything above rides up with the
+    // view's top edge, everything below is pushed past the foot of the screen.
+    // A list that dissolves while it slides reads as two effects competing
+    // rather than as one thing making room for another.
 
     opacity = { this.handing ? 0 : 1 },
 
@@ -681,53 +687,52 @@ class CityView extends View [
     cardsH: number = { this.cards.height },
 
     // How far the page has scrolled INTO this city: zero on the row, and in
-    // the open form the distance from the view's own top to the viewport. The
-    // header holds still for the first CONDENSE_SPAN of it and then rides off
-    // with the content, which in a document is just scrolling.
+    /*
+    ## How far the reader has scrolled into this city
 
-    // HOW FAR THE READER HAS SCROLLED INTO THIS CITY — and it is a question
-    // that only has an answer once the city has LANDED. While the view is
-    // travelling, its `y` and the page's scroll offset are both moving, and
-    // they are not updated by the same mechanism: `y` follows the anchor in
-    // the settle, while `app.scrollY` is MIRRORED FROM A SCROLL EVENT the
-    // browser fires on its own schedule. At the landing the two change by the
-    // same 600px, and if a stale scroll event lands after the settle this
-    // reads 600 for exactly one frame — `condense` saturates, the whole
-    // header fades out and the name jumps down by `hold`. That is the
-    // one-frame blink, caught at 60fps: a frame with no name, no temperature
-    // and no condition, between two correct ones.
-    //
-    // Gating on `listGone` makes the question unaskable until it has an
-    // answer. Nothing scrolls during the transition anyway, so this loses
-    // nothing real.
+    …and it is a question with no answer until the city has LANDED. While the
+    view is travelling, its `y` and the page's scroll offset are both moving,
+    and they do not move by the same mechanism: `y` follows the anchor in the
+    settle, while `app.scrollY` is mirrored from a scroll event the browser
+    fires on its own schedule. Asking mid-flight gets an answer built from one
+    number that has moved and one that has not.
+
+    So the question is not asked until it has one — nothing scrolls during the
+    transition anyway, and the header condenses on scroll alone. It holds
+    still for the first CONDENSE_SPAN and then rides off with the content,
+    which in a document is simply scrolling.
+    */
 
     sy: number = { this.pinned || !app.listGone ? 0
         : Math.max(0, app.scrollY - this.y) },
     condense: number = { Math.min(1, this.sy / CONDENSE_SPAN) * this.open },
     hold: number = { Math.min(CONDENSE_SPAN, this.sy) * this.open },
 
-    // THE SKY — the only drawn sky in the program, because this is the only
-    // place its detail is big enough to read. It grows with the box and then
-    // holds still: at `open = 1` its own `y` cancels the page scroll exactly.
+    /*
+    ## The sky
+
+    The only drawn sky in the program, because this is the only place its
+    detail is big enough to read. It grows with the box and then holds still:
+    at `open = 1` its own `y` cancels the page scroll exactly.
+
+    Open, it BLEEDS past both edges of the screen — EDGE_SLACK above the
+    view's own top, the same distance past the bottom. A city's sky is the
+    whole screen, not the part between the insets: the text keeps the safe
+    area, the picture does not.
+
+    The sky IS the card, so it grows on the same schedule as everything else —
+    plain `open`, no delay. It used to hold its row size until `open` passed
+    0.3 and then catch up at 1.5x, a hangover from when a separate box
+    animated around it. With the box gone, that delay WAS the bug: the border
+    raced ahead of the picture, so a white rectangle swept down over flat blue
+    and the sky arrived behind it.
+    */
 
     back: View [ x = 0, width = 100%, clip = true,
         cornerRadius = { lerp(14, 0, classroot.open) },
 
-        // Open, the sky BLEEDS past both edges of the screen: it starts
-        // EDGE_SLACK above the view's own top and runs the same distance past
-        // the bottom. A city's sky is the whole screen, not the part between
-        // the insets — the text keeps the safe area, the picture does not.
-
         y = { classroot.pinned ? 0
             : classroot.sy - lerp(0, EDGE_SLACK, classroot.open) },
-
-        // THE SKY IS THE CARD, so it grows on the SAME schedule as everything
-        // else — plain `open`, no delay. It used to hold its row size until
-        // `open` passed 0.3 and then catch up at 1.5x, a hangover from when a
-        // separate box animated around it. With the box gone, that delay WAS
-        // the bug: the border raced ahead of the picture, so a white rectangle
-        // swept down over flat blue and the sky arrived behind it.
-
         height = { lerp(ROW_H, app.hostHeight + EDGE_SLACK * 2, classroot.open) },
         sky: WSky [ width = 100%, height = 100%,
             cond = { classroot.city == null ? "sunny" : classroot.city.cond } ],
@@ -737,9 +742,8 @@ class CityView extends View [
 
     // The row's selection ring, carried across the handoff so the stroke does
     // not vanish on the frame the view takes over. It hugs THE SKY, not this
-    // view: the view's height runs to the foot of the cards, and a border
-    // drawn around THAT is the rectangle that outran the picture. The sky is
-    // the visible card, so the border is the sky's edge, exactly.
+    // view — the view's height runs on to the foot of the cards, while the sky
+    // is the card you can see, so the sky's edge is where a border belongs.
 
     ring: View [ width = 100%, y = { classroot.back.y },
         height = { classroot.back.height },
@@ -798,17 +802,20 @@ class CityView extends View [
         text = { classroot.city == null ? ""
             : fmtTemp(classroot.city.temp) + "  |  " + classroot.city.condName } ],
 
-    // The cards ride in this view because they belong to it — one grid, built
-    // once, re-bound as you page. They RISE, from the foot of the screen into
-    // their seat under the header, and they are present (and frosted) from the
-    // first frame of the open.
-    //
-    // They used to be held back until the motion had landed, because revealing
-    // a subtree this size cost a whole layout and paint mid-morph. That is no
-    // longer true — the list is nine nodes a row now, not twenty-seven — and
-    // the deferral had a visible price: appearing at the end meant their frost
-    // was composited a frame after they landed, which read as a flicker of the
-    // cards re-rendering once they had already stopped.
+    /*
+    ## The cards rise
+
+    They belong to this view, so they ride in it — one grid, built once,
+    re-bound as you page. They rise from the foot of the screen into their
+    seat under the header, and they are present, and frosted, from the first
+    frame of the open.
+
+    Being there early is the point. Anything revealed at the END of a motion
+    composites its frost a frame after it has stopped, which reads as the
+    cards re-rendering in place once they had already arrived. Rising with
+    everything else, they settle at `open ≈ 0.78` — before the view lands, so
+    nothing changes after the motion is over.
+    */
 
     rise: number = { Math.min(1, fadeIn(this.open, 0.12, 1.5)) },
 
@@ -880,6 +887,25 @@ App [ textColor = whitesmoke, appName = "Weather",
 
     pageset: Dataset [ contents = { ({ cities: app.cities.map((c) => ({ id: c.id })) }) } ],
 
+    /*
+    ## Only the dialect in use is BUILT
+
+    Both dialects live in this one file, but a phone should not pay for the
+    desktop's twenty-five sidebar rows, its card grid and every drawn
+    instrument inside it — nor a desktop for the phone's list.
+
+    A container's `datapath` decides how many of a replicated child exist, so
+    a path with NO records builds nothing. That makes "which dialect is this?"
+    the same question as "how many rows are there?", answered once, in data,
+    rather than by hiding what has already been made. Hiding is not free: a
+    view that is built holds its box, its bindings, and — if it draws — a
+    full-size canvas, whether or not anyone can see it.
+    */
+
+    listRows: object = { app.phone ? app.shown.value : null },
+    sideRows: object = { app.phone ? null : app.shown.value },
+    deskSet: Dataset [ contents = { ({ on: app.phone ? [] : [{ id: "desk" }] }) } ],
+
     // a searched-for city that isn't there is a fact both dialects show
 
     noMatch: boolean = { app.query.trim() != "" && app.shown.value != null
@@ -927,30 +953,25 @@ App [ textColor = whitesmoke, appName = "Weather",
     // the city is up while it is opening, open, or still shrinking home —
     // one reactive fact, no teardown callback to keep in step
 
-    // The threshold is ZERO, not "nearly zero". The view and the row are only
-    // congruent at `openT = 0`; at 0.005 the view is already 11px taller than
-    // the 92px row, because 0.005 of a 2289px range is not small. Handing back
-    // there popped. The spring drives the slot to EXACTLY its target on
-    // arrival, so `> 0` is a real test, and the geometry is continuous across
-    // it either way — a ring into negative territory hides a view that is
-    // already row-shaped.
+    // The threshold is ZERO, not "nearly zero". View and row are congruent
+    // only at exactly 0: a thousandth of a 2289px range is still pixels, and
+    // handing back there pops. A spring drives its slot to exactly the target
+    // on arrival, so `> 0` is a real test rather than an optimistic one.
 
     cityUp: boolean = { app.openTo == 1 || app.openT > 0 },
 
-    // `listGone` is the whole list leaving in ONE flip rather than twenty-five.
-    // The rows have already faded to nothing by a third of the way in; this
-    // takes their boxes out of layout at the landing, so the document is
-    // exactly the city you are reading. Hiding the CONTAINER costs one
-    // operation; asking each row to give up its height cost 2.6ms apiece.
+    // The whole list leaves in ONE flip. Hiding the container takes every row
+    // out of layout in a single operation, where asking each row to give up
+    // its own height is a claim apiece and costs in proportion to the list.
 
     listGone: boolean = false,
 
     // Where the tapped row sat, in the list's own space — the seat the
-    // CityView grows out of. Captured at the tap from the row itself, so no
-    // arithmetic here has to agree with the stack's spacing about where a row
-    // is. (Deriving it from a rank and a stride is what put the opened city
-    // `rank * ROW_GAP` too high, because the stack closes its gaps as the
-    // transition runs and the arithmetic did not.)
+    // CityView grows out of. It is captured AT THE TAP, from the row itself,
+    // so no arithmetic here has to agree with the arrangement about where a
+    // row is. Deriving it from a rank and a stride would: the stride is not a
+    // constant while the transition runs, and arithmetic that races a layout
+    // has to read that layout's live spacing, never the resting value.
 
     openRank: number = { app.shown.value == null ? 0
         : Math.max(0, app.shown.value.rows.findIndex((r) => r.id == app.openId)) },
@@ -1159,10 +1180,10 @@ App [ textColor = whitesmoke, appName = "Weather",
     // here rather than an overlay with a scroller inside it. On a desktop the
     // content fits one screen and the inner panes scroll instead.
     //
-    // `stackH` interpolates between the two extents rather than measuring the
-    // live one: a height that MEASURED the rows would shrink under the scroll
-    // offset mid-transition and the browser would clamp the page out from
-    // under the morph. Interpolating, it only ever grows on the way open.
+    // The two extents are DECLARED rather than measured. A height that
+    // measured the live rows would shrink under the scroll offset mid-
+    // transition, and the browser would clamp the page out from under the
+    // morph. Declared, the page only ever grows on the way open.
 
     rowCount: number = { app.shown.value == null ? 0 : app.shown.value.rows.length },
     cardsH: number = { app.phoneUI.city.cardsH },
@@ -1199,20 +1220,21 @@ App [ textColor = whitesmoke, appName = "Weather",
     // tone into the clouds so flat band and textured sky never meet at a
     // hard edge.
 
-    // WHAT THE FLOOR SHOWS, and WHEN IT CHANGES. On the phone the list always
-    // sits on the sunny sky and the opened city carries its own — so this must
-    // NOT follow the tap. It used to read `openTo == 0`, which flipped the
-    // whole backdrop to the city's condition on the frame you touched a row:
-    // the list went dark behind a night city before anything had moved. The
-    // expansion is supposed to be the ROW's sky growing to fill the screen,
-    // not the screen changing colour underneath it.
-    //
-    // The swap happens at the LANDING instead, where it cannot be seen: by
-    // then the city's own sky covers the viewport edge to edge, and on the way
-    // back `liftOff` restores it while the city is still covering everything.
-    // It matters at all because `fill` below is the page's own background —
-    // the colour the browser paints in the overscroll and behind its chrome —
-    // and that band has to match the city you are reading.
+    /*
+    ## What the floor shows, and when it changes
+
+    On the phone the list always sits on the sunny sky and an opened city
+    carries its own — so the floor must NOT follow the tap. The expansion is
+    the ROW's sky growing to fill the screen, not the screen changing colour
+    underneath it, and a backdrop that flips on touch does the second.
+
+    It swaps at the LANDING instead, where it cannot be seen: by then the
+    city's own sky covers the viewport edge to edge, and on the way back
+    `liftOff` restores it while the city still covers everything. It has to
+    swap at all because `fill` IS the page's background — the colour the
+    browser paints in the overscroll and behind its own chrome — and that band
+    has to match the city you are reading.
+    */
 
     backCond: string = { app.phone ? (app.listGone ? app.cond : "sunny") : app.cond },
     skyTone: number = { app.backCond == "night" ? 0x0A1230
@@ -1220,11 +1242,17 @@ App [ textColor = whitesmoke, appName = "Weather",
            : app.backCond == "cumulus" ? 0x4A648A : 0x91A1AD },
     fill = { app.skyTone },
 
-    // The sky never scrolls: it GLUES itself to the viewport by reading the
-    // page scroll, as an ordinary first child — so it stays behind
-    // everything in paint order. Its height carries EDGE_SLACK for the zones
-    // a browser lets content occupy beyond the layout viewport, capped at
-    // the app's own bottom (an overflowing child would grow the document).
+    /*
+    ## The floor
+
+    The backdrop the list is read against. It never scrolls: it GLUES itself
+    to the viewport by reading the page scroll, as an ordinary first child —
+    so it stays behind everything in paint order.
+
+    The height carries EDGE_SLACK for the zones a browser lets content occupy
+    beyond the layout viewport as its chrome comes and goes, capped at the
+    app's own bottom (an overflowing child would grow the document).
+    */
 
     sky: WSky [ width = 100%, y = { app.scrollY },
         height = { Math.min(app.hostHeight + EDGE_SLACK, app.height - app.scrollY) },
@@ -1232,12 +1260,13 @@ App [ textColor = whitesmoke, appName = "Weather",
     dim: View [ width = 100%, y = { app.scrollY },
         height = { Math.min(app.hostHeight + EDGE_SLACK, app.height - app.scrollY) },
         fill = #0A1422, opacity = 0.10, pointerEvents = "none" ],
+
+    // the same tone fading into the clouds, so the flat band behind the
+    // browser's chrome and the textured sky never meet at a hard edge.
+    // `colorWithAlpha` takes alpha as 0…255, not 0…1.
+
     haze: View [ width = 100%, y = { app.scrollY }, height = 140,
         visible = { app.phone }, pointerEvents = "none",
-
-        // alpha is 0…255, not 0…1 — this read `1` and drew the whole haze at
-        // one 255th opacity, which is to say it has never drawn anything
-
         fill = { gradient("180deg", colorWithAlpha(app.skyTone, 255), colorWithAlpha(app.skyTone, 0)) } ],
 
     // ── the phone dialect ─────────────────────────────────────────────────
@@ -1283,25 +1312,15 @@ App [ textColor = whitesmoke, appName = "Weather",
                 visible = { app.noMatch },
                 text = "No locations match" ],
 
-            // THE ARRANGEMENT. Rows own their own height (a layout returning
-            // `h` would install a standing owner and collide with the row's
-            // own binding), so this stack only has to add them up — and the
-            // gap closes with the transition, or twenty-four dead gaps would
-            // sit above a city that is meant to be at the top of the page.
-            //
-            // `cards` is the last child, so the collapsed rows between it and
-            // the open row contribute nothing and it lands right beneath the
-            // clouds. One instance, built once, re-bound as you page.
-
-            // The list never moves and never re-spaces. It fades as a city
-            // takes over and then leaves in ONE flip — hiding the container
-            // takes twenty-five boxes out of layout in a single operation,
-            // where asking each row to give up its height cost 2.6ms apiece.
+            // The rows. Each one places itself from its rank (see CityRow), so
+            // this is a container rather than an arrangement — which is what
+            // lets a row ride the expansion instead of being told where to be.
+            // The whole list leaves in one flip when the city lands.
 
             rows: View [ x = center, y = { LIST_TOP + app.safeTop },
                 width = { parent.width - 32 },
                 visible = { !app.listGone },
-                datapath = { app.shown.value },
+                datapath = { app.listRows },
                 CityRow [ datapath = :rows[], key = :id ]
                 ],
             tail: View [ y = { app.listGone ? app.cityH : app.listH }, width = 100%,
@@ -1412,7 +1431,7 @@ App [ textColor = whitesmoke, appName = "Weather",
                 visible = { app.noMatch },
                 text = "No locations match" ],
             list: View [ x = 16, y = 64, width = { parent.width - 32 },
-                datapath = { app.shown.value },
+                datapath = { app.sideRows },
                 CityRow [ width = { parent.width }, datapath = :rows[], key = :id ]
                 ]
             ],
@@ -1427,7 +1446,14 @@ App [ textColor = whitesmoke, appName = "Weather",
                 head: View [ width = 100%, height = 132,
                     hero: Hero [ x = 0, y = 20, width = 100%, city = { app.city } ]
                     ],
-                cards: CityCards [ width = 100%, cols = { app.cols }, city = { app.city } ],
+
+                // one record while this dialect is in use, none otherwise —
+                // so a phone never builds the grid or its instruments
+
+                cards: View [ width = 100%, datapath = { app.deskSet.value },
+                    CityCards [ datapath = :on[], key = :id,
+                        width = { parent.width }, cols = { app.cols }, city = { app.city } ]
+                    ],
                 tail: View [ width = 100%, height = 32 ]
                 ]
             ]

@@ -30,12 +30,13 @@
 
 import { requestType, REQ, runWrapper, programName, escapeHtml, directoryProgram } from "./browser/serve-core.js";
 import { prewarmKey, relativize } from "./browser/prewarm-cache.js";
+import { hasSegments } from "./browser/prewarm-manifest.js";
 import { fnv1a } from "./compiler/dist/closure.js";
 
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "33b10667f3e5";
+const BUILD_ID = "21b9fc8d5cfb";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -137,6 +138,10 @@ async function segmentsResponse(url, req) {
   try {
     const mainUrl = new URL(url.pathname, url.origin);
     const rel = relativize(mainUrl.href, ROOT.href);
+    // Ask the manifest FIRST, at no request cost: only prewarmed programs ship
+    // viewer artifacts, so an ordinary program goes straight to its raw bytes
+    // instead of discovering the answer as a 404 (browser/prewarm-manifest.js).
+    if (!hasSegments(rel)) return revalidate(req);
     const art = await (await revalidate(new Request(new URL("bundles/cache/" + prewarmKey(rel, "segments", {}) + ".json", ROOT).href))).json();
     const src = await (await revalidate(new Request(mainUrl.href))).text();
     const want = art?.closure?.entries?.[0]?.v?.hash;

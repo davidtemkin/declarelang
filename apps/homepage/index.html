@@ -8,10 +8,10 @@
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host"></div>
 <script type="module">
-  import boot from "../../bundles/declare-boot.js?v=33b10667f3e5";
+  import boot from "../../bundles/declare-boot.js?v=21b9fc8d5cfb";
   import { requestType, REQ, directoryProgram } from "../../browser/serve-core.js";
   const q = new URLSearchParams(location.search);
   if (requestType(q) !== REQ.RUN && "serviceWorker" in navigator)
     navigator.serviceWorker.ready.then(() => location.reload());
-  boot({ main: directoryProgram(location.pathname) ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined });
+  boot({ main: directoryProgram(location.pathname) ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined, demos: ["components","derived","reactivity","spring","states"] });
 </script>

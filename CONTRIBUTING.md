@@ -24,16 +24,30 @@ Everything here is enforced by something runnable. Nothing is honour-system.
 
 ```sh
 node tools/verify.mjs <file>   # one program, six rungs: parse → resolve → analyze → boot → input → pixels
-npm test                       # the per-commit suite
+npm test                       # everything that tests the sources — no derive needed
+npm run derive                 # regenerate the committed artifacts (required before a push)
+git add $(node tools/internal/derive.mjs --paths)     # stage what it just wrote — see below
+npm run test:derived           # the artifact gates — only meaningful straight after a derive
 npm run test:ladder            # the slow rungs — real input, real pixels, headless Chromium
 ```
+
+**Stage between the two.** `derive` writes to disk; it never touches the index, on purpose
+(the pre-commit hook's rule — the index is yours). But a content-hashed artifact is a NEW
+PATH every build (`apps/homepage/dist/app.<hash>.js`), so it lands *untracked*, and
+`dist-freshness` inside `test:derived` asks whether every asset the published page
+references is in the tree. Run the gates before staging and it fails on a file `derive` had
+just correctly produced — the process tripping over itself, not a real defect. Stage first
+and the gate reads what you are actually about to publish. `--paths` is the staging list;
+`git commit -am` cannot pick these up, because a new path is not a modification.
 
 `verify` stops at the first real rung that fails and reports every independent error there.
 A clean compile is not a working app: layout, fonts, paint, and input routing do not exist
 until the program runs, which is what rungs 4–6 are for.
 → [`docs/operational/verify.md`](docs/operational/verify.md)
 
-Three documentation gates run inside `npm test`:
+Three documentation gates run inside `npm run test:derived` — they compare a committed
+artifact against a fresh assembly, so they belong to the derived tier and are only
+meaningful straight after `npm run derive`:
 
 | gate | refuses |
 |---|---|
@@ -41,10 +55,14 @@ Three documentation gates run inside `npm test`:
 | `spine-gate` | a `declare-model.json` a fresh assembly would not reproduce |
 | `prose-gate` | a `## heading` in reference prose binding to no real attribute, event, or method |
 
-The pre-commit hook regenerates derived artifacts (prewarm caches, stamped stats, the model,
-crawler bakes, bundles, the build id). **Never hand-edit a generated file** —
-`docs/declare-model.json` above all. It is written by `extract.mjs`, then augmented in place
-by `assemble.mjs`; a manual edit is silently overwritten on the next commit.
+**Nothing regenerates on commit.** `npm run derive` is what writes the derived artifacts —
+the prewarm cache, stamped stats, the model, crawler bakes, bundles, the build id — and you
+run it yourself, before a push. Neither hook derives; neither hook writes. (One exception to
+"only derive writes": a suite that boots the dev server rebuilds a stale platform bundle via
+`rebuildStale()`. See [`docs/operational/derive.md`](docs/operational/derive.md).)
+**Never hand-edit a generated file** — `docs/declare-model.json` above all. It is written by
+`extract.mjs`, then augmented in place by `assemble.mjs`; a manual edit is silently
+overwritten on the next derive.
 
 ## Documenting what you add
 

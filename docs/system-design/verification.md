@@ -21,23 +21,29 @@ rungs 1–5; no judgment enters below the rung-6/editorial line.
 
 ## 1. Layer one — per-change deterministic gates (`npm test`, ~6–8 min)
 
+Two tiers since 2026-08-12, split by SUBJECT (derivation.md §4): `npm test` is
+everything that tests the SOURCES and needs no derive; the rows below marked
+**(derived)** are `npm run test:derived`, whose subject is a committed artifact and
+which is only meaningful straight after `npm run derive`.
+
 | gate | enforces | ~time | LLM |
 |---|---|---|---|
 | `tsc -b` | types; a renamed key breaks every stale read site | 5–15s | no |
 | unit (347) | language semantics; diagnostic TEXTS pinned verbatim (E-series messages); location seed/write/derive | 20s | no |
-| docs (8) | every ```declare fence in the brief compiles against the LIVE compiler; the `declare-docs:` link gate — every symbolic link resolves and links.json matches the corpus byte-for-byte | 5s | no |
+| docs (8) **(derived)** | every ```declare fence in the brief compiles against the LIVE compiler; the `declare-docs:` link gate — every symbolic link resolves and links.json matches the corpus byte-for-byte | 5s | no |
 | format (174) | every `.declare` is canon; formatter idempotence | 5s | no |
 | verify-examples (18) | all example apps + library components climb R1–R4 (compile → resolve → typecheck → headless boot) | 40s | no |
-| prewarm (12) | COMMITTED generated artifacts self-validate against the tree (closure hash-probe); stale artifacts fail naming the fix | 10s | no |
+| prewarm (12) **(derived)** | COMMITTED generated artifacts self-validate against the tree (closure hash-probe); stale artifacts fail naming the fix | 10s | no |
 | crawl (7) | the crawl model: BFS over location links, dedup rules, one-document shape, loud network refusal | 5s | no |
 | serve-parity (8) | Node server and static+SW host produce identical output through the one shared core | 10s | no |
 | perceptual (111) | rendered behavior/pixels, BOTH backends, real Chromium (caught the dataset.neoApp emitter/selector split) | 3–4 min | no |
 | declarec / slim / dep-extract / static-constraint / highlight / md / html / richtext / inspect / databinding / scaffold | builds, tree-shaking, dep extraction superset-of-runtime, renderers, inspect bridge | ~1 min total | no |
 
-## 2. Layer two — the regeneration chain (~60–90s; partly pre-commit)
+## 2. Layer two — the regeneration chain (~60–90s; `npm run derive`, before a push)
 
-Order is load-bearing: `tsc → build-compiler → build-boot → doc extract →
-links --emit → prewarm → bake-homepage-crawler`. Doc-relevant properties:
+Order is load-bearing, and since 2026-08-05 it is DECLARED and verified rather
+than hand-maintained: the rule graph in `tools/internal/derive.mjs` owns it
+(`derivation.md`). Doc-relevant properties:
 
 - **extract** re-ingests every guide chapter; runnable fences recompile and
   HEADLESS-BOOT (island stage heights are measured from the settled tree);
@@ -48,9 +54,13 @@ links --emit → prewarm → bake-homepage-crawler`. Doc-relevant properties:
   corpus; any dangling reference or stale manifest fails.
 - **prewarm** re-crawls the exemplar apps cold at every reachable location; a
   doc or app change that breaks the crawl fails here.
-- The pre-commit hook runs bake + prewarm + BUILD_ID stamp — a commit cannot
-  ship stale baked artifacts. (Hooks have no file extension: repo-wide renames
-  must not filter greps by extension — learned 2026-07-16.)
+- **No hook runs any of this.** `npm run derive` is the only writer and you run
+  it; a commit may leave every artifact stale, and `pre-push` refuses a PUSH whose
+  artifacts are stale or uncommitted (ruled 2026-08-12 — a push is the deploy, a
+  commit is a checkpoint). The content gates for this layer are
+  `npm run test:derived`, which is only meaningful straight after a derive.
+  (Hooks have no file extension: repo-wide renames must not filter greps by
+  extension — learned 2026-07-16.)
 
 ## 3. Layer three — live-behavior gates (on demand; before merges; ~4 min)
 
@@ -105,7 +115,7 @@ model matrix).
 
 ## 6. The gap register (known, tracked, costed)
 
-1. **Guide fences are not a hard `npm test` gate.** They verify at extraction
+1. **Guide fences are not a hard suite gate.** They verify at extraction
    and were R4-swept at authoring, but a fence that stops compiling downgrades
    to a static block instead of failing the suite. (~10-line test; tracked in
    verify-and-evals.md.)

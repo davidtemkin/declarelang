@@ -1,6 +1,6 @@
 // ladder — the SLOW rungs, for every app that declares them.
 //
-// verify-apps.test.mjs climbs rungs 1–4 for the whole corpus on every commit,
+// verify-apps.test.mjs climbs rungs 1–4 for the whole corpus on every `npm test`,
 // deliberately stopping short of the browser (its header states the rule). That
 // leaves rungs 5–6 — real input, real pixels — reachable only by remembering to
 // type `--assert` / `--states` with the right paths, which is exactly the kind of

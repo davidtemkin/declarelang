@@ -15,7 +15,8 @@ import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 // segmenter the server runs is the same module, imported directly — so a source
 // page never needs the compiler download just to render segments.
 import { highlight, lineMetrics } from "../compiler/dist/highlight.js";
-import { loadPrewarm } from "./prewarm-cache.js";
+import { loadBuild } from "./prewarm-cache.js";
+import { prewarmedEntry } from "./prewarm-manifest.js";
 
 const ROOT = new URL("../", import.meta.url);
 // The file to display — an absolute URL the SW passed on this module's own URL — and
@@ -37,13 +38,25 @@ async function run() {
     const raw = await fetch(target, { cache: "no-cache" })
       .then((r) => { if (!r.ok) throw new Error(r.status + " fetching " + target); return r.text(); });
 
-    // The viewer app itself: PREWARM first (bundles/cache/ — the committed
-    // precompiled artifact, validated by content hash like every prewarm hit), so
-    // a reader/source tab paints with NO compiler download; a stale/absent
-    // artifact falls through to the in-browser compile of the viewer source.
+    // The viewer app itself: LOAD ITS BUILD (bundles/cache/ — the committed
+    // precompiled artifact), so a reader/source tab paints with NO compiler
+    // download. The manifest says whether that build exists, at no request cost;
+    // an absent or malformed artifact falls through to compiling the viewer
+    // source. NOTE the two paths on this one page, which is the clearest example
+    // of why they are separate questions: the VIEWER is a build, and the file it
+    // is displaying is source, fetched raw above.
+    // The `__declareServer` guard is belt-and-braces: this module is reached only
+    // through the service worker, which boot-uniform does not register under the
+    // dev server — so today it cannot run there. It states the same rule
+    // boot-uniform states anyway, so that if this module is ever reached on the
+    // dev server it resolves the viewer's SOURCE rather than serving a build an
+    // edit to the viewer would not show up in.
+    const VIEWER_MAIN = "apps/viewer/viewer.declare", VIEWER_PROPS = { render: "dom" };
     let source, deps;
-    const warm = await loadPrewarm({ root: ROOT, relMain: "apps/viewer/viewer.declare",
-      kind: "run", props: { render: "dom" }, fetchImpl: fetch });
+    const wantBuild = !window.__declareServer && prewarmedEntry(VIEWER_MAIN, VIEWER_PROPS) !== null;
+    const warm = wantBuild
+      ? await loadBuild({ root: ROOT, relMain: VIEWER_MAIN, kind: "run", props: VIEWER_PROPS, fetchImpl: fetch })
+      : null;
     if (warm) {
       source = warm.program; deps = warm.deps;
     } else {

@@ -11,14 +11,13 @@
 // against the runtime in this page — a settled tree cannot be projected
 // across a worker boundary (only { source, deps, diagnostics, report } can).
 import { loadLibraryOnce } from "./compiler-client.js";
-import { loadPrewarm, relativize } from "./prewarm-cache.js";
 
 const ROOT = new URL("../", import.meta.url);
 const target = new URL(import.meta.url).searchParams.get("src");
 
 function writeDoc(doc) {
   // The extracted document IS the page — same bytes the dev server sends for this
-  // URL, arrived at by the in-browser path (or lifted verbatim from the committed tier).
+  // URL, arrived at by the in-browser path.
   document.open();
   document.write(doc);
   document.close();
@@ -27,14 +26,15 @@ function writeDoc(doc) {
 async function run() {
   try {
     if (!target) throw new Error("no source URL — the Service Worker did not pass ?src=…");
-    // COMMITTED tier first: a precompiled SEO document (bundles/cache/) that still
-    // validates against the deployed source renders with NO compiler at all — the
-    // same drift-proof gate as the run tier (browser/prewarm-cache.js).
-    const warm = await loadPrewarm({
-      root: ROOT, relMain: relativize(new URL(target, location.href).href, ROOT),
-      kind: "seo", props: {}, fetchImpl: fetch,
-    });
-    if (warm) { writeDoc(warm.document); return; }
+    // NO committed tier here, by design (2026-08-12). A precompiled extraction
+    // artifact used to be written and this asked for it — under a kind string
+    // (`seo`) the writer never used (`crawler`), so it had never once hit. It was
+    // also the wrong shape: this page is only reachable through `?extract`, which
+    // needs a browser running JS with the service worker installed, and a crawler
+    // is neither. Crawler content has to be IN THE HTML the crawler fetches —
+    // tools/internal/bake-homepage-crawler.mjs bakes the homepage's extraction into
+    // index.html itself. This path is the developer's inspection view (and the
+    // browser twin of the dev server's serveSeo), so it compiles, every time.
     const [mod, lib, source] = await Promise.all([
       import("../bundles/declare-compiler.js"),
       loadLibraryOnce(),

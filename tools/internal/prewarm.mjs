@@ -8,17 +8,20 @@
 //
 //   node tools/internal/prewarm.mjs
 //
-// For each curated program it writes bundles/cache/<key>.json carrying:
-//   • run — the compiled program + static deps + source, plus the dependency
-//     CLOSURE rewritten for the browser: library reads dropped (BUILD_ID gates
-//     them, like the browser's own closure), every remaining entry a
-//     DEPLOY-RELATIVE id with a CONTENT-HASH validator the browser re-derives by
-//     GET-and-hash. This is what makes the tier self-validating and drift-proof.
-//   • crawler — the static-extraction document (docs/system-design/capabilities.md §5), executed
-//     headlessly to t=0, under the SAME closure so it invalidates on the same edits.
+// For each curated program it writes bundles/cache/<key>.json for two kinds:
+//   • run — the compiled program + static deps + source, plus the dependency CLOSURE
+//     rewritten for the browser — library reads dropped (BUILD_ID gates them, like
+//     the browser's own closure), every remaining entry a DEPLOY-RELATIVE id with a
+//     CONTENT-HASH validator the browser re-derives by GET-and-hash. That is what
+//     makes the tier self-validating and drift-proof.
+//   • segments — { path, segments, metrics } for the code viewer, served by the
+//     service worker's `?segments` route (it builds the key itself).
+//
+// (The `crawler` kind was removed 2026-08-12 — nothing ever read it. See the
+// note at the write site.)
 //
 // NO BUILD_ID is written into the artifacts: they live under bundles/, which the
-// commit hook (tools/internal/hooks/pre-commit → stamp-version.mjs) hashes into the
+// derive chain (tools/internal/derive.mjs → stamp-version.mjs) hashes into the
 // BUILD_ID AFTER this runs. Embedding the id would be circular; the closure
 // re-check is the real freshness gate. The hook runs this BEFORE stamping so a
 // commit ships freshly-regenerated artifacts — but correctness never depends on
@@ -30,47 +33,22 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { compileTracked, crawlExtract, diskDataResolver, crawlerDocument, lineMetrics, highlight } from "../../compiler/dist/compile-node.js";
+import { compileTracked, lineMetrics, highlight } from "../../compiler/dist/compile-node.js";
 import { fnv1a } from "../../compiler/dist/closure.js";
 import { prewarmKey } from "../../browser/prewarm-cache.js";
+import { PREWARMED } from "../../browser/prewarm-manifest.js";
 import { buildProduction } from "../declarec.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
 const CACHE_DIR = path.join(ROOT, "bundles", "cache");
 
-// The curated set. Small on purpose — the flagship, high-traffic pages, the ones
-// whose compiler-free first paint is worth committing an artifact for. Everything
-// else stays pure browser-compile (this tier is additive, never required). `kinds`
-// selects which artifacts to emit: "run" (the compiled program) and/or "crawler" (the
-// static-extraction document, for content pages crawlers read).
-const PROGRAMS = [
-  { main: "apps/homepage/homepage.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
-  { main: "apps/calendar/calendar.declare", props: { render: "dom" }, kinds: ["run"] },
-  // NO crawler artifact: measured 2026-08-04 at 124.7s, against 0.9s for the
-  // homepage — 97% of this script's entire cost, and therefore of every commit,
-  // for one page. The homepage is the crawlable surface; the docs app is a
-  // browsing UI over declare-model.json, and its extraction walked every
-  // reachable location to produce a 529KB document nothing was reading.
-  { main: "apps/docs/docs.declare", props: { render: "dom" }, kinds: ["run"] },
-  { main: "apps/desktop/desktop.declare", props: { render: "dom" }, kinds: ["run"] },
-  // the Tracker is the capstone — the program people are pointed at to judge the
-  // platform — and the heaviest in the corpus, so it has the most to gain from
-  // skipping the compiler on the way to first paint
-  { main: "apps/tracker/tracker.declare", props: { render: "dom" }, kinds: ["run"] },
-  // every View Source / ?viewer= page boots the viewer — high-traffic on the
-  // static deploy, so its first paint deserves the compiler-free path too
-  { main: "apps/viewer/viewer.declare", props: { render: "dom" }, kinds: ["run"] },
-  // the homepage's live demo panels (index.html `demos: […]`): prewarmed, the
-  // previews mount the moment the page paints — no compiler download on the
-  // path at all (host-client tries cfg.prewarm before the live-compile tier).
-  // Islands always render on the DOM backend, so render:dom is the one key.
-  { main: "apps/homepage/demos/components.declare", props: { render: "dom" }, kinds: ["run"] },
-  { main: "apps/homepage/demos/reactivity.declare", props: { render: "dom" }, kinds: ["run"] },
-  { main: "apps/homepage/demos/spring.declare", props: { render: "dom" }, kinds: ["run"] },
-  { main: "apps/homepage/demos/states.declare", props: { render: "dom" }, kinds: ["run"] },
-  { main: "apps/homepage/demos/derived.declare", props: { render: "dom" }, kinds: ["run"] },
-];
+// The curated set is a DECLARATION, and it lives in browser/prewarm-manifest.js so
+// the readers can consult it too — boot asks "is there a build for this program?"
+// before requesting anything, instead of computing a key and discovering the answer
+// as a 404. This tool is one of that list's three readers; it writes an artifact per
+// entry. (prewarm-cache.js stays the oracle for HOW a key is computed.)
+const PROGRAMS = PREWARMED;
 
 const toPosix = (p) => p.split(path.sep).join("/");
 
@@ -177,40 +155,23 @@ for (const prog of PROGRAMS) {
   const closureRun = browserClosure(tracked.closure, prog.props);
 
   const sizes = [];
-  if (prog.kinds.includes("run")) {
-    const n = writeArtifact(prewarmKey(prog.main, "run", prog.props), {
-      main: prog.main, kind: "run", props: prog.props,
-      program: tracked.source, deps: tracked.deps, source: src,
-      closure: closureRun,
-    });
-    sizes.push(`run ${(gzipSync(Buffer.from(JSON.stringify({ program: tracked.source }))).length / 1024).toFixed(1)}KB gz`);
-  }
+  writeArtifact(prewarmKey(prog.main, "run", prog.props), {
+    main: prog.main, kind: "run", props: prog.props,
+    program: tracked.source, deps: tracked.deps, source: src,
+    closure: closureRun,
+  });
+  sizes.push(`run ${(gzipSync(Buffer.from(JSON.stringify({ program: tracked.source }))).length / 1024).toFixed(1)}KB gz`);
   step(`${prog.main} · compile + run artifact`);
-  if (prog.kinds.includes("crawler")) {
-    // The CRAWLED document — every reachable location's content in the one page
-    // (location.md §7). Data resolves from the program's own directory only (the
-    // build-time rule); a network DataSource fails this script loudly.
-    const ex = await crawlExtract(tracked.source, {
-      deps: tracked.deps, links: tracked.links,
-      data: diskDataResolver(path.join(ROOT, path.dirname(prog.main))),
-    });
-    const name = path.basename(prog.main).replace(/\.declare$/, "");
-    // the document's <title>: the app's settled appName, else the filename
-    const document = ex === null ? crawlerDocument("", name) : crawlerDocument(ex.html, ex.title || name);
-    writeArtifact(prewarmKey(prog.main, "crawler", {}), {
-      main: prog.main, kind: "crawler", props: {},
-      document,
-      closure: browserClosure(tracked.closure, {}),   // backend-independent
-    });
-    sizes.push(`crawler ${((document.length) / 1024).toFixed(1)}KB`);
-    step(`${prog.main} · CRAWLER extraction (headless, in Node)`);
-  }
   {
     // The VIEWER artifacts — every prebaked app ships its reader too: the
     // highlighted segments and line metrics the dev server serves as
     // `?segments`, here committed so the static host's viewer (standalone or
-    // embedded) shows the same reader. Validated against the ONE file the
-    // segments derive from — the program's own source.
+    // embedded) shows the same reader. READ BY THE SERVICE WORKER, which builds
+    // the key itself (service-worker.js segmentsResponse) rather than going
+    // through loadPrewarm — so a grep for loadPrewarm call sites does not find
+    // this consumer. Validated against the ONE file the segments derive from —
+    // the program's own source; a miss falls through to the raw bytes, which is
+    // the viewer's plain-code fallback.
     const payload = { path: prog.main, segments: highlight(src), metrics: lineMetrics(src) };
     writeArtifact(prewarmKey(prog.main, "segments", {}), {
       main: prog.main, kind: "segments", props: {},
@@ -220,6 +181,14 @@ for (const prog of PROGRAMS) {
     sizes.push(`segments ${(gzipSync(Buffer.from(JSON.stringify(payload))).length / 1024).toFixed(1)}KB gz`);
   }
   step(`${prog.main} · segments`);
+  // The `crawler` kind was removed 2026-08-12 — the ONLY one that was truly dead.
+  // It was unreachable (boot-extract.js asked loadPrewarm for kind "seo"; this
+  // wrote "crawler", so the key never matched, and the identity guard would have
+  // refused it anyway), redundant, and structurally unfit: it is reachable only
+  // through `?extract`, which needs a browser running JS with the service worker
+  // installed — which a crawler is not. Crawler content has to be IN THE HTML,
+  // and it is: bake-homepage-crawler.mjs injects the homepage's extraction into
+  // index.html itself. A second page wanting it is another BAKE, not a kind here.
   console.log(`  ${prog.main.padEnd(38)} ${closureRun.entries.length} dep(s) · ${sizes.join(" · ")}`);
 }
 

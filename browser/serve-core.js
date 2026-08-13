@@ -4,7 +4,8 @@
 // (server/index.mjs) and the static-host service worker (service-worker.js): read
 // the request TYPE from the query, and for a RUN produce a thin shell that boots
 // the ONE platform bundle (boot-uniform) with `main` = the program's own URL.
-// boot-uniform then owns prewarm → cache → compile → freshness IN THE BROWSER, for
+// boot-uniform then owns the two boot requests — load a build, else resolve the
+// source (closure-checked) — IN THE BROWSER, for
 // both hosts — so the run shell is the last thing the two needed to agree on.
 //
 // Extracting the classifier + the run wrapper HERE makes the two hosts thin
@@ -51,7 +52,7 @@ export function programName(urlPath) {
  * The RUN wrapper — the shell both hosts serve for a `.declare` navigation. It boots
  * the platform bundle with `main = location.pathname` (the page IS served at the
  * .declare URL, so this resolves to the program on both hosts), letting boot-uniform
- * take the prewarm → cache → compile path. The only host-specific inputs are
+ * take the same boot path (load a build, else resolve the source). The only host-specific inputs are
  * PARAMETERS, never branches inside the template:
  *
  * @param cfg {{
@@ -61,13 +62,17 @@ export function programName(urlPath) {
  *   staticBlock?: string,     // baked #declare-static for a crawler (the server's ?crawler flag);
  *                             //   the SW never bakes at request time (crawlers don't install workers)
  *   iconBase?: string|null,   // if set, emit favicon links resolved against it (…/ ending in a slash)
+ *   demos?: string[]|null,    // the live-edit panels to seed, when the producer can KNOW them
+ *                             //   (a host that reads the filesystem). null = "unknown", and boot
+ *                             //   falls back to probing for a committed demos.json; an ARRAY —
+ *                             //   including an empty one — is an answer, and boot asks nothing.
  * }}
  */
-export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, main = null, title = "" }) {
+export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, main = null, title = "", demos = null }) {
   const script = `<script type="module">
   import boot from ${JSON.stringify(bootUrl)};
   const q = new URLSearchParams(location.search);
-  boot({ main: ${JSON.stringify(main)} ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined });
+  boot({ main: ${JSON.stringify(main)} ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined${demos === null ? "" : `, demos: ${JSON.stringify(demos)}`} });
 </script>`;
   return shell({ name, staticBlock, iconBase, title, script });
 }
@@ -89,16 +94,17 @@ export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, m
  *    the stub boots the RUN view and reloads once the worker is ready — the reloaded
  *    navigation is SW-served in the requested mode, and the stub is out of the loop.
  *
- * @param cfg {{ name: string, bootUrl: string, serveCoreUrl: string, iconBase?: string|null }}
+ * @param cfg {{ name: string, bootUrl: string, serveCoreUrl: string, iconBase?: string|null,
+ *              demos?: string[]|null }}   // as runWrapper: the baker reads the directory, so it KNOWS
  */
-export function stubPage({ name, bootUrl, serveCoreUrl, iconBase = null }) {
+export function stubPage({ name, bootUrl, serveCoreUrl, iconBase = null, demos = null }) {
   const script = `<script type="module">
   import boot from ${JSON.stringify(bootUrl)};
   import { requestType, REQ, directoryProgram } from ${JSON.stringify(serveCoreUrl)};
   const q = new URLSearchParams(location.search);
   if (requestType(q) !== REQ.RUN && "serviceWorker" in navigator)
     navigator.serviceWorker.ready.then(() => location.reload());
-  boot({ main: directoryProgram(location.pathname) ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined });
+  boot({ main: directoryProgram(location.pathname) ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined${demos === null ? "" : `, demos: ${JSON.stringify(demos)}`} });
 </script>`;
   return shell({ name, staticBlock: "", iconBase, title: "", script });
 }

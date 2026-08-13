@@ -11,7 +11,7 @@ this file is the first:*
 
 *Declare is new, and no LLM has been trained on it. It resembles React, CSS, and HTML in places,
 and this file is where those resemblances stop. Every complete program below is compiled by the
-test suite on every commit, so the examples are current by construction; where this file and the
+test suite, so the examples are current by construction; where this file and the
 compiler disagree, the compiler is right. Status: pre-1.0, under active design (2026-07).*
 
 ## The map
@@ -456,14 +456,15 @@ selection, a session's accumulated working values are ordinary attributes and ne
 URL. (The fragment is also never sent to the server — location stays client-side by
 construction.)
 
-Session state that the Back button *should* undo but a stranger should never see — the turns
-of a search, a wizard's page — is the third kind, and it has its own attribute: **`waypoint`**,
+State that the Back button *should* undo but a stranger should never see — the turns
+of a search, which page of a wizard — is the third kind, and it has its own attribute: **`waypoint`**,
 `location`'s twin with the opposite visibility. One two-way reactive string, grammar the
 app's own, carried in the History entry itself and never in the URL. A history entry is the
 pair *(location, waypoint)*: one entry per settle in which either changed — both changing
 together is one entry, and one Back restores the pair atomically, so back/forward can work
-over a URL that never moves. Traversal, reload, and session restore bring the step back; a
-pasted URL carries no waypoint, so a recipient starts at the declared initial. The dividing
+over a URL that never moves. Both halves are coordinates on the entry, not storage: a
+**traversal** brings the step back, while an **arrival** rebuilds the app from the URL — so a
+reload, exactly like a pasted URL, starts at the declared initial step. The dividing
 test, applicable in five seconds: *would you hand the value to a stranger?* Yes → `location`.
 No, but Back should undo it → `waypoint`. Neither → an ordinary attribute. Waypoints are
 coordinates, never data (derive the data; keep the string small); they pass no `onFollow`

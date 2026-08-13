@@ -12,8 +12,10 @@ invariants, and the honest account of what the mechanism does and does not prote
 The repository commits its derived artifacts — the prewarm cache, the documentation
 model, the production builds, the baked static surfaces, the build id — so the tree
 hosts and runs as-is with no build step. That choice (the OpenLaszlo distribution
-model) means *generation is part of every commit*, and the generation pipeline's
-quality is therefore commit-path quality.
+model) means *generation is part of every publication*, and the generation pipeline's
+quality is therefore release-path quality. (Until 2026-08-12 it was commit-path
+quality: the pre-commit hook derived on every commit. That moved — §4 — but the
+requirements below were written against the harder case and are unchanged by it.)
 
 The intention, as ruled:
 
@@ -86,7 +88,8 @@ inputs settles immediately instead of re-triggering itself once per round.
 declared inputs (a curated map plus a core set every suite depends on), a hash
 recorded only on a **green** run, a loud `skip` line when unchanged. An unmapped
 suite always runs — *unlisted means unskippable*, so a missing declaration fails
-safe. `npm test` remains the unconditional chain. One walker
+safe. `npm test` and `npm run test:derived` are each unconditional within their
+tier. One walker
 (`tools/internal/filesets.mjs`) serves both systems, because two implementations of
 "what does this depend on" would be its own defect class.
 
@@ -94,7 +97,7 @@ Measured on the same tree, all artifacts byte-identical throughout the rebuild:
 
 | pass | before | after |
 |---|---|---|
-| no-op derive (the pre-commit hook, every commit) | 21.6s | 0.4s |
+| no-op derive (then: the pre-commit hook, every commit) | 21.6s | 0.4s |
 | no-op gates | 223s | 4.5s (all 43 skip) |
 | one guide edit → gates | 223s | 18.2s (exactly `docs` + `ops` run) |
 
@@ -114,6 +117,35 @@ Measured on the same tree, all artifacts byte-identical throughout the rebuild:
 - **prewarm split (`--stats-only` / `--no-stats`)** exists purely so the two halves
   can sit on opposite sides of `stamp-stats` — the fix for failure 3 above. A bare
   `prewarm.mjs` still does both, stats first, for standalone use.
+- **Two test tiers, split by SUBJECT — not by speed** (ruled 2026-08-12). A suite
+  belongs to `test:derived` only if its subject *is* a derived artifact: "the committed
+  thing matches what the tree produces," or "the published thing is coherent." Everything
+  else is `npm test`, which needs no derive and is meaningful on any tree. A test that
+  merely *reads* a derived artifact to get at a fact the sources already hold is reaching
+  for the assembled join out of convenience, and should read the sources — that is a
+  defect in the test, not a tier assignment. Membership was vetted by intent, one suite
+  at a time, and the vetting moved `datasource-failure` out (its only match was a comment)
+  and `declare-help` in (the model *is* its knowledge base — most of its assertions are
+  coverage claims over it). `docs` and `schema-completeness` stay because the assembled
+  model is not source-derivable without running `extract`, which is the expensive rule
+  this whole mechanism exists to skip. The membership is enforceable rather than
+  remembered: `--outputs` × `SUITE_INPUTS` is the regression check, and the proof is
+  running `npm test` against a tree with the artifacts deleted.
+- **Hooks verify; only `derive` writes** (ruled 2026-08-12). `pre-commit` checks canon and
+  writes nothing — it used to format the staged `.declare` files and `git add` the result,
+  which defeated partial staging (a `git add -p` hunk plus later edits became one
+  whole-file add) and staged even when the formatter failed. `pre-push` asks two read-only
+  questions and refuses — it used to derive, stage, and refuse anyway, because **a commit
+  made inside pre-push is not part of the push it intercepts** (git has already resolved
+  the refs), so a hook-made commit would deploy one commit behind, silently. Since it had
+  to refuse regardless, the writes bought nothing.
+- **The push gate needs two questions, because `--dry` reads the wrong tree.** `--dry`
+  compares artifacts on disk against sources on disk; a push publishes HEAD. So "derived
+  but never committed" passes `--dry` and still deploys stale files. The second question —
+  `git status` over `--outputs` — closes that, and catches the content-hash trap besides
+  (`git commit -am` cannot stage the new `app.<hash>.js`). It uses `--outputs` rather than
+  `--paths` because stamped files are hand-authored around their markers, so uncommitted
+  prose in README would otherwise refuse every push.
 - **Mixed directories get prefix filters, not looser claims.** `apps/docs/demos/`
   holds authored per-class examples (extract's *inputs*) beside generated `seg_*`
   islands (extract's *outputs*). The first validator run rejected the whole-dir
@@ -135,7 +167,8 @@ skipping build system is always the same: silence that reads as health.
 2. **A suite's input map can be too narrow**, silently skipping a genuinely affected
    suite. *Backstops:* every map includes the core (runtime, compiler, library,
    harness), so platform edits run the world; maps err coarse; an unmapped suite
-   always runs; `npm test` remains unconditional; and `run-gates --all` is the
+   always runs; each tier's chain (`npm test`, `npm run test:derived`) is
+   unconditional; and `run-gates --all` is the
    stated habit before a push and after anything structural. *Protocol:* if a
    regression ever slips through a skip, the fix is that suite's input list —
    widening it costs seconds — not abandonment of the mechanism.
@@ -173,6 +206,14 @@ skipping build system is always the same: silence that reads as health.
 - **Gate dedupe.** `docs.test` and `ops.test` both execute `assemble --check` and
   `links --check` (one directly, one through the ops registry). With skipping the
   duplicate cost mostly vanishes, so this is now tidiness rather than time.
-- **CI posture.** There is no CI today; the stated habit (`--all` before push)
-  is a convention. If CI ever exists, it runs `derive --all` + `npm test`, and the
-  manifest never enters into it.
+- **CI posture — none, deliberately.** `pre-push` gates freshness and committedness
+  locally, with a documented escape hatch. What it does NOT check is CORRECTNESS: a
+  rule's input list can lie by omission (risk 1), so an artifact can be hash-fresh and
+  wrong. Ruled 2026-08-12 that this does not justify standing infrastructure. The
+  window is narrow — a rule's own sources are among its inputs, so the moment a
+  generator grows an undeclared read the rule reruns and the artifact comes out
+  correct; the defect only appears later, if that newly-read file changes by itself —
+  and the content gates (`npm run test:derived`) catch it on their next run, which is
+  a command already in the flow before any push worth caring about. Recorded, not
+  scheduled. If CI ever exists it runs `derive --all` + `npm test` +
+  `npm run test:derived`, and the manifest never enters into it.

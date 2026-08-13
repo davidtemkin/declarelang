@@ -7,8 +7,9 @@
 compile. It is *not* the universal dev model. Under the **dev server**, a run navigation
 compiles **on the server** (`POST /compile`), so the browser downloads no compiler and
 preloads no library; the in-browser compiler is loaded only on a static host (or for a live
-edit there). The two hosts share one run shell and one three-tier boot (prewarm → cache →
-compile) and differ *only* in where that compile tier runs. See
+edit there). The two hosts share one run shell and one boot — load a committed build, else
+resolve the source (closure-checked) — and differ *only* in where the compile and its cache
+live. See
 [hosting.md](hosting.md) "Dynamic (dev server)" and "Browse-to-run", and
 [operational/dev-server](../operational/dev-server.md) "How a program gets rendered".
 

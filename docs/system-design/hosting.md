@@ -14,7 +14,7 @@ immediately. That is the server's entire job — no chat, no persistent connecti
 data API.
 
 **Where the compile runs is the one place the two hosts diverge, on purpose.** A run
-navigation resolves through the three boot tiers below (prewarm → cache → compile); what
+navigation resolves through one of the two boot requests below (load a build / resolve a source); what
 differs between hosts is only the *compile* tier. Under the dev server, boot detects the
 server (`window.__declareServer`, stamped on every page) and compiles on the server via
 `POST /compile`: the browser sends the source and gets the finished program back,
@@ -96,22 +96,47 @@ regenerates each committed stub from the live template, failing on drift. v1 bak
 crawler content into stubs — the root page remains the one curated SEO surface
 (`bake-homepage-crawler.mjs`); the `staticBlock` seam stays open.
 
-The model is **compile-in-the-browser, cache the output, closure-check freshness**
-(`browser/boot-uniform.js` — the deployed `.declare` source is the single source of
-truth; there is no per-app precompiled artifact to fall stale):
+The model is **two requests, not one ladder** (`browser/boot-uniform.js`). Loading a
+build and resolving a source are different questions, and boot knows which it is
+asking *before* it asks anything:
 
-1. **Fast path.** The compiled program is cached in CacheStorage, keyed by the
-   platform `BUILD_ID` + the app's identity. On load, the cached compile's
-   **dependency closure** is re-probed (a cheap headers-first revalidation of the
-   app's own sources; `closure.js isUpToDate()`) — still fresh → render at once,
-   no compiler, no compile. ~130 ms to a painted app on a real CDN.
-2. **Slow path** (first visit, or the source moved): download the in-browser
-   compiler, compile — **the full compile, typecheck included, identical to every
-   other surface** — render, and cache the result with its closure. The compile
-   runs in a module **worker** (`browser/compile-worker.js` behind
-   `browser/compiler-client.js`), off the main thread, byte-identical by construction.
+0. **Load a build.** A curated set ships precompiled under `bundles/cache/`.
+   `browser/prewarm-manifest.js` — the one declared list, compiled into the boot
+   bundle — says whether this program is one of them, so the answer costs no request.
+   If it is, the artifact is fetched and rendered: no compiler, no compile, **and no
+   validation round trips**. Trust here is the deployment's assertion, kept true by
+   `derive` and by pre-push refusing a stale or uncommitted derive — not
+   re-established by every reader on every load. Skipped entirely on the dev server,
+   where the source on disk is the truth.
+1. **Resolve a source — fast path.** The compiled program is cached, keyed by the
+   platform `BUILD_ID` + the app's identity, and reused when its **dependency
+   closure** still checks out (`closure.js isUpToDate()`) — render at once, no
+   compiler, no compile. ~130 ms to a painted app on a real CDN. On a static host
+   that cache is CacheStorage and the closure is probed over HTTP; on the dev server
+   the cache and the check both live on the SERVER, where the closure is answered
+   from disk and a reload costs one request.
+2. **Resolve a source — slow path** (first visit, or the source moved): compile —
+   **the full compile, typecheck included, identical to every other surface** —
+   render, and store the result with its closure. In the browser this runs in a
+   module **worker** (`browser/compile-worker.js` behind
+   `browser/compiler-client.js`), off the main thread, byte-identical by construction;
+   on the dev server it runs in the toolchain realm.
 3. **Live edits** ("Edit this page", the demo previews) ride the same compiler
-   client, warm-loaded in the background off the paint path.
+   client, warm-loaded in the background off the paint path. An edit is neither of
+   the two requests: it is "compile this buffer I am holding" — no URL to resolve, no
+   closure to check, nothing to cache.
+
+**`?clear`** on an entry page drops every cache on both sides for the one case none
+of the above covers — an *incomplete* closure. See
+[requests.md](declare-docs:system-design:requests).
+
+Until 2026-08-12 this was one speculative ladder — prewarm → cache → compile — in
+which the build tier was tried blind (a 404 on every load of every program not on the
+curated list) and then, because a speculative tier cannot be trusted to short-circuit,
+re-fetched **every** entry of its stored closure in full before daring to use what it
+already held. Measured on `apps/tracker`: 1 request for the artifact, then 18 more
+totalling 230 KB, 15 of them library sources shared with every other app, all
+discarded after hashing.
 
 ### The platform bundles — one path, freshness by construction
 

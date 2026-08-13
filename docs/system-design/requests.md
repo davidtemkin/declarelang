@@ -26,7 +26,7 @@ URL surface.
 
 | Request | URL | What you get back |
 |---|---|---|
-| **run** | *(none)* — the default | the running app, in a generated wrapper. Rides prewarm → cache → compile in the browser. |
+| **run** | *(none)* — the default | the running app, in a generated wrapper. Boot either loads a committed build or resolves the source (hosting.md). |
 | **build** | `?build` | the standalone, minified, self-contained deployable (the `declarec` artifact). A *directory* of files — see the transport note below. |
 | **reader** | `?viewer=reader` | the **viewer** app, reader tab: highlighted source with `/* */` prose rendered as Markdown. |
 | **source** | `?viewer=source` | the **viewer** app, **Source** tab: the verbatim source shown *in the viewer*. (Distinct from `?file`.) |
@@ -54,12 +54,41 @@ present, and nowhere else.
 
 ## Modifiers
 
-Two, and they compose onto `run` and `build` (nothing else):
+Three, and they compose onto `run` and `build` (nothing else):
 
 | Modifier | URL | Meaning |
 |---|---|---|
 | **render** | `?render=canvas` | which renderer: managed DOM (default) or one `<canvas>`. |
 | **crawler** | `?crawler` | embed the crawler DOM (`#declare-static`) in the run/build wrapper — "the running app **with** the crawler content." Removed before first paint (never CSS-hidden; see serve-core.js). Distinct from the `extract` *request*, which returns that document alone. |
+| **clear** | `?clear` | on an **entry page** only (`/` or any `…/index.html`): drop every compiled-program cache in this browser — and, on the dev server, the server's too — then run. Ignored on a program URL. |
+
+### Why `clear` exists, and why it is only on an entry page
+
+Every cache in the system is keyed to a platform identity and drops itself when that
+identity moves: the browser's `declare-compiled-<BUILD_ID>` buckets on a platform
+change, the dev server's compile cache on its toolchain fingerprint. And every read
+re-checks the stored dependency closure, so an ordinary stale entry is found and
+recompiled with nobody asking.
+
+What none of that covers is a closure that is **incomplete**. A compile that read a
+file the tracker did not record stays "fresh" forever against an edit to that file,
+the platform identity has not moved, so nothing drops it. Before `?clear` the recovery
+on a deployed host was DevTools → Application → Clear storage — not something an
+author should need to know, and not something they can be told at the moment they
+need it.
+
+**It is global, so it lives on a global address.** Every program URL names one
+program; a flag on `calendar.declare` could not honestly mean "and every other program
+too." An entry page — `/`, or any `…/index.html` — is the one address in the system
+that is about the HOST rather than about a program, which makes it the only honest
+place for a host-wide verb. On a program URL the flag is ignored.
+
+(A program-scoped variant was built and removed: clearing one program is not worth a
+URL surface.)
+
+It deliberately does **not** touch a committed build (`bundles/cache/`). That is a
+deployment artifact, not a cache: nothing about it goes stale behind your back, and
+dropping it would only mean fetching the compiler to rebuild what was already right.
 
 ## Removed knobs
 
@@ -104,7 +133,7 @@ build time).
 
 | Request | declarec | dev server | static host (service worker) |
 |---|---|---|---|
-| run | — *(build-time, no live serve)* | ✓ | ✓ (prewarm → cache → compile) |
+| run | — *(build-time, no live serve)* | ✓ | ✓ (load a build, else resolve the source) |
 | build | ✓ *(its job)* | ✓ *(builds on demand, serves `/build/<name>/`)* | gap → build in-browser |
 | view=reader | ✗ *(interactive — no build-time browser)* | ✓ | ✓ |
 | view=source | ✗ | ✓ | ✓ |

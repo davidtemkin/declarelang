@@ -1,12 +1,12 @@
 // verify-apps — CI truth-maintenance for the whole corpus (docs/system-design/
 // verify-and-evals.md §2.10). Every runnable example must climb the fast rungs
-// (1–4: compile, resolve, typecheck, headless boot) on every commit, and every
+// (1–4: compile, resolve, typecheck, headless boot) on every `npm test`, and every
 // component-library source must do the same under the probe wrapper (--wrap).
 // This is the mechanized version of "the examples still work" — a compiler or
 // runtime change that breaks a real program fails here, in seconds, no browser.
 //
 // The slow rungs (5–6: real input, pixels) stay in the perceptual suite and in
-// per-app assert/state scripts, run pre-release — not on every commit. They are
+// per-app assert/state scripts, run pre-release — not in the main suite. They are
 // not optional, only deferred: test/ladder.test.mjs (`npm run test:ladder`)
 // climbs them for every app that ships an assert/states script.
 import { spawnSync } from "node:child_process";

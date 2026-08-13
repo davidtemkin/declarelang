@@ -8,7 +8,7 @@
 // the rebundle, debug a stale page). This module makes staleness detectable
 // and repairable in one call, and BOTH enforcement points ride it:
 //
-//   • the pre-commit hook (tools/internal/hooks/pre-commit → stamp-version.mjs) rebuilds
+//   • the derive chain (tools/internal/derive.mjs → stamp-version.mjs) rebuilds
 //     any stale bundle BEFORE hashing the BUILD_ID, then stages it — a commit
 //     cannot ship a stale bundle, by construction;
 //   • the dev server rebuilds a stale bundle ON DEMAND when the artifact is

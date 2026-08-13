@@ -1,26 +1,35 @@
-// Committed pre-warm cache tier (browser/prewarm-cache.js + tools/internal/prewarm.mjs).
+// Committed pre-warm cache tier (browser/prewarm-cache.js, browser/prewarm-manifest.js,
+// tools/internal/prewarm.mjs).
 //
-// The tier's whole promise is NO DRIFT: a committed precompiled artifact is used
-// only when its stored dependency closure still validates against the deployed
-// SOURCE, so it can never render a program that disagrees with a fresh compile.
-// These tests pin that promise. loadPrewarm takes an injectable fetch, so the
-// validation runs entirely in Node against a filesystem-backed shim — the same
-// code path the browser runs, minus the network.
+// TWO REQUESTS, NOT ONE ALGORITHM (2026-08-12). Loading a build and resolving a
+// source are different questions, and the caller knows which it is asking before
+// it asks: the MANIFEST says whether a build exists, at no request cost, and
+// `loadBuild` then fetches it UNCONDITIONALLY. There is no load-time freshness
+// opinion any more — a reader that re-validated on every load spent 1 + N requests
+// (measured: 19 requests, 584 KB, for apps/tracker) to be told what derive already
+// knew.
+//
+// So the drift guarantee did not disappear, it MOVED — from every reader on every
+// load, to build time — and this file is where it now lives:
 //
 //   • key derivation is deterministic and separates main / kind / props;
-//   • a FRESH artifact validates; a tampered/edited source reads STALE (→ null,
-//     the caller falls through to compile); a missing artifact / identity
-//     mismatch / a missing-then-present dependency all fall through;
-//   • INTEGRATION: every artifact actually committed under bundles/cache/ still
-//     validates against the current tree — a stale committed file fails loudly
-//     (run `node tools/internal/derive.mjs`), which is the drift guard itself.
+//   • `loadBuild` returns the artifact, rejects a FOREIGN or malformed one on
+//     identity, and returns null (never throws) when there is nothing there;
+//   • the MANIFEST and the committed artifacts agree, both directions — the
+//     property that makes the manifest safe to trust without a request;
+//   • FRESHNESS: every committed artifact's stored closure still matches the tree.
+//     This is the check the browser used to run on every load; it belongs here and
+//     in `npm run test:derived`, with pre-push refusing a stale or uncommitted
+//     derive. A failure means: run `npm run derive`.
 
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { test, summarize } from "./harness.mjs";
-import { prewarmKey, relativize, loadPrewarm } from "../browser/prewarm-cache.js";
+import { prewarmKey, relativize, loadBuild } from "../browser/prewarm-cache.js";
+import { PREWARMED, prewarmedEntry, hasSegments } from "../browser/prewarm-manifest.js";
+import { fnv1a, isUpToDate } from "../compiler/dist/closure.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ROOT_URL = pathToFileURL(ROOT + "/");
@@ -28,7 +37,7 @@ const CACHE_DIR = join(ROOT, "bundles", "cache");
 
 /** A fetch shim over the filesystem. `overrides` maps an ABSOLUTE path to a body
  *  string (or null = 404), so a test can pretend a file was edited or removed
- *  without touching the tree. Resolves the file:// URLs loadPrewarm builds. */
+ *  without touching the tree. Resolves the file:// URLs loadBuild builds. */
 function fsFetch(overrides = {}) {
   return async (url) => {
     const p = fileURLToPath(typeof url === "string" ? url : url.href);
@@ -63,87 +72,97 @@ await test("relativize strips the ROOT prefix to a deploy-relative main path", (
   assert.equal(relativize("https://other.example/x.declare", ROOT_URL), "https://other.example/x.declare");
 });
 
-await test("a missing artifact falls through (null)", async () => {
-  const r = await loadPrewarm({
+await test("nothing there → null, never a throw", async () => {
+  const r = await loadBuild({
     root: ROOT_URL, relMain: "apps/does-not-exist/x.declare",
     kind: "run", props: { render: "dom" }, fetchImpl: fsFetch(),
   });
   assert.equal(r, null);
 });
 
-await test("a fresh artifact validates; an edited source reads stale", async () => {
+await test("loadBuild is UNCONDITIONAL — an edited source does not withhold the build", async () => {
   const relMain = "apps/calendar/calendar.declare";
   const props = { render: "dom" };
-  assert.ok(existsSync(artFile(relMain, "run", props)), "calendar run artifact is committed");
-
-  const fresh = await loadPrewarm({ root: ROOT_URL, relMain, kind: "run", props, fetchImpl: fsFetch() });
-  assert.ok(fresh, "committed calendar run artifact validates against the tree");
-  assert.equal(fresh.kind, "run");
-  assert.ok(fresh.program.length > 0);
-
-  // Pretend the deployed source was edited but NOT re-prewarmed → hash mismatch.
-  const edited = readFileSync(join(ROOT, relMain), "utf8") + "\n// a later edit\n";
-  const stale = await loadPrewarm({
+  const edited = readFileSync(join(ROOT, relMain), "utf8") + "\n// an edit nobody re-derived\n";
+  const warm = await loadBuild({
     root: ROOT_URL, relMain, kind: "run", props,
     fetchImpl: fsFetch({ [join(ROOT, relMain)]: edited }),
   });
-  assert.equal(stale, null, "an un-regenerated edit falls through to compile");
-});
-
-await test("a deleted dependency busts the artifact", async () => {
-  const relMain = "apps/calendar/calendar.declare";
-  const props = { render: "dom" };
-  const gone = await loadPrewarm({
-    root: ROOT_URL, relMain, kind: "run", props,
-    fetchImpl: fsFetch({ [join(ROOT, relMain)]: null }),
-  });
-  assert.equal(gone, null);
+  // The OLD tier returned null here, after re-fetching the whole closure to find
+  // out. The build is what the deployment shipped; keeping it honest is derive's
+  // job and the freshness test below, not this call's.
+  assert.ok(warm, "the committed build loads regardless of what the source says now");
+  assert.equal(warm.main, relMain);
 });
 
 await test("the identity guard rejects a mismatched artifact (fnv1a collision defense)", async () => {
-  const relMain = "apps/homepage/homepage.declare";
+  const relMain = "apps/calendar/calendar.declare";
   const props = { render: "dom" };
   const forged = JSON.stringify({ kind: "run", main: "apps/other/x.declare", props, program: "x", closure: { entries: [], props } });
-  const r = await loadPrewarm({
+  const r = await loadBuild({
     root: ROOT_URL, relMain, kind: "run", props,
     fetchImpl: fsFetch({ [artFile(relMain, "run", props)]: forged }),
+  });
+  assert.equal(r, null, "an artifact naming another program is refused");
+});
+
+await test("malformed JSON falls through rather than throwing", async () => {
+  const relMain = "apps/calendar/calendar.declare";
+  const props = { render: "dom" };
+  const r = await loadBuild({
+    root: ROOT_URL, relMain, kind: "run", props,
+    fetchImpl: fsFetch({ [artFile(relMain, "run", props)]: "{not json" }),
   });
   assert.equal(r, null);
 });
 
-await test("a stored-missing dependency: absent → fresh, present → stale", async () => {
-  const relMain = "apps/synthetic/x.declare";
-  const props = { render: "dom" };
-  const dep = join(ROOT, relMain);
-  const artifact = JSON.stringify({
-    kind: "run", main: relMain, props, program: "P", deps: {}, source: "S",
-    closure: { entries: [{ id: relMain, kind: "file", v: { missing: true } }], props },
-  });
-  const absent = await loadPrewarm({
-    root: ROOT_URL, relMain, kind: "run", props,
-    fetchImpl: fsFetch({ [artFile(relMain, "run", props)]: artifact, [dep]: null }),
-  });
-  assert.ok(absent, "a recorded-missing dep that is still absent validates");
-  const created = await loadPrewarm({
-    root: ROOT_URL, relMain, kind: "run", props,
-    fetchImpl: fsFetch({ [artFile(relMain, "run", props)]: artifact, [dep]: "now it exists" }),
-  });
-  assert.equal(created, null, "a recorded-missing dep that now exists busts the artifact");
+// THE MANIFEST AND THE ARTIFACTS AGREE — both directions. This is what makes the
+// manifest safe to consult INSTEAD of probing: if it can say "there is a build"
+// when there is not, every reader pays a 404 it was told it would not; if an
+// artifact exists that the manifest does not name, it is dead weight nothing
+// loads (which is exactly how the `crawler` kind survived unread).
+
+await test("every manifest entry has both its committed artifacts", async () => {
+  for (const p of PREWARMED) {
+    for (const kind of ["run", "segments"]) {
+      const f = artFile(p.main, kind, kind === "run" ? p.props : {});
+      assert.ok(existsSync(f), `${p.main} is in the manifest but has no ${kind} artifact — run \`npm run derive\``);
+    }
+  }
 });
 
-// INTEGRATION — every committed artifact must validate against the current tree.
-// A failure here means a flagship source changed without re-running prewarm: the
-// committed program is stale. That's caught (not shipped) — the guarantee working.
+await test("every committed artifact is named by the manifest", async () => {
+  for (const f of readdirSync(CACHE_DIR).filter((n) => n.endsWith(".json"))) {
+    const art = JSON.parse(readFileSync(join(CACHE_DIR, f), "utf8"));
+    const known = art.kind === "segments" ? hasSegments(art.main) : prewarmedEntry(art.main, art.props ?? {}) !== null;
+    assert.ok(known, `${f} (${art.kind} ${art.main}) is committed but no manifest entry names it — nothing will ever load it`);
+  }
+});
+
+await test("prewarmedEntry discriminates on props — a canvas page is a different build", () => {
+  assert.ok(prewarmedEntry("apps/calendar/calendar.declare", { render: "dom" }));
+  assert.equal(prewarmedEntry("apps/calendar/calendar.declare", { render: "canvas" }), null);
+  assert.equal(prewarmedEntry("apps/nope/nope.declare", { render: "dom" }), null);
+});
+
+// FRESHNESS — the check the browser used to run on every load, kept here where it
+// costs a test run instead of 1 + N requests per visitor. Every committed
+// artifact's stored closure is re-hashed against the tree; a mismatch means a
+// source moved without a re-derive, which pre-push also refuses.
 if (existsSync(CACHE_DIR)) {
   const files = readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json"));
-  assert.ok(files.length > 0, "the committed cache is non-empty (run `node tools/internal/derive.mjs`)");
+  assert.ok(files.length > 0, "the committed cache is non-empty (run `npm run derive`)");
+  const diskProbe = (e) => {
+    try { return { hash: fnv1a(readFileSync(join(ROOT, e.id), "utf8")) }; }
+    catch { return { missing: true }; }
+  };
   for (const f of files) {
     const art = JSON.parse(readFileSync(join(CACHE_DIR, f), "utf8"));
-    await test(`committed ${art.kind} artifact for ${art.main} validates against the tree`, async () => {
-      const warm = await loadPrewarm({ root: ROOT_URL, relMain: art.main, kind: art.kind, props: art.props, fetchImpl: fsFetch() });
-      assert.ok(warm, `stale committed artifact ${f} — run \`node tools/internal/prewarm.mjs\``);
-      assert.equal(warm.main, art.main);
-      assert.equal(warm.kind, art.kind);
+    await test(`committed ${art.kind} artifact for ${art.main} still matches the tree`, () => {
+      const closure = art.closure;
+      assert.ok(closure && Array.isArray(closure.entries), `${f} has no closure`);
+      assert.ok(isUpToDate(closure, closure.props, diskProbe),
+        `stale committed artifact ${f} (${art.kind} ${art.main}) — run \`npm run derive\``);
     });
   }
 }

@@ -339,8 +339,9 @@ await test("a one-line top-level declaration stays one line", () => {
 
 await test("the whole corpus is canon (docs/system-design excluded)", () => {
   // The formatter defines the style; this is the gate that the corpus obeys it.
-  // The pre-commit hook runs --write, so drift should never reach here — but a
-  // hook is per-clone and skippable, and 29 files had drifted before it existed.
+  // The pre-commit hook REFUSES a non-canon staged file, so drift should rarely
+  // reach here — but a hook is per-clone and skippable, it only sees the files one
+  // commit stages, and 29 files had drifted before it existed.
   //
   // docs/system-design/ is excluded deliberately: it is the design record, and
   // weather.declare there showcases unlanded grammar (`state … when { }`) the

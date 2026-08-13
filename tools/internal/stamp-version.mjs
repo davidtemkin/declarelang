@@ -15,7 +15,7 @@
 // re-stamp — the SW revalidates every asset (no-cache) and boot-static's closure check already
 // re-verifies each program's sources by content hash.
 //
-// Idempotent: only rewrites files when the id actually changed, so a pre-deploy/pre-commit hook
+// Idempotent: only rewrites files when the id actually changed, so a derive run
 // produces no churn when nothing platform-relevant moved.
 
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from "node:fs";
@@ -29,7 +29,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 // FIRST: the committed platform bundles (bundles/) are pure functions of
 // tree inputs — rebuild any that are stale BEFORE hashing, so the BUILD_ID
 // always describes FRESH artifacts and a commit cannot ship a stale bundle
-// (tools/internal/bundle-freshness.mjs; the pre-commit hook stages bundles/ after
+// (tools/internal/bundle-freshness.mjs; you stage bundles/ after
 // this runs). One path, correctness by construction — never by remembering.
 rebuildStale(ROOT, { log: console.log });
 const SW = join(ROOT, "service-worker.js");

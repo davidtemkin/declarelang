@@ -76,10 +76,9 @@ for (const { app, dir } of dists) {
 // content-addressed: `app.<hash>.js` is a NEW untracked path on every single
 // build. `git add <dir>` picks it up; `git commit -- <path>` does not. The only
 // thing standing between a normal workflow and a dead page was remembering
-// which — and the pre-commit hook does not help, since its `git add` line covers
-// service-worker.js, bundles, index.html, apps/*/index.html (the cold-start STUB,
-// not dist/index.html), README and two docs. Nothing under apps/*/dist is ever
-// auto-staged.
+// which — and no hook helps, because none of them stages anything: a commit
+// writes nothing derived, and pre-push only ever refuses. `git add $(derive
+// --paths)` is the staging step, and it is the developer's.
 //
 // Asserting on tracked-ness is what closes it: independent of how anyone stages,
 // no new mechanism, and it catches the dangling reference directly rather than

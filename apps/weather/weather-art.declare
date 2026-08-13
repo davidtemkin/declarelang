@@ -209,25 +209,35 @@ class SkyPhoto extends View [ clip = true,
     ]
 
 
-class SkySunny extends View [
-    draw(d: Draw) { artSunnySky(d, d.w, d.h) }
-    ]
+/*
+# WSky — the one sky slot
 
+Bind `cond`, get that city's sky. A condition is either DRAWN (the sun and
+its glow, the star field) or PHOTOGRAPHED, so this holds one of each rather
+than one per condition: the drawing is a branch inside a single `draw()`, and
+the single photograph changes its source.
 
-class SkyNight extends View [
-    draw(d: Draw) { artNightSky(d, d.w, d.h) }
-    ]
-
-
-// The one sky slot: bind `cond`, get the right member. Visibility is the
-// switch — all four children exist; only one shows.
+That shape matters more than it looks. A hidden `draw()` still allocates its
+canvas at full size and rasterizes into it, so four children showing one meant
+paying for every sky a city might have had — at a full page that is tens of
+megabytes of backing store nobody can see. Here a photographic condition
+records NOTHING, and an empty recording has no bounds, so no canvas exists at
+all. One canvas or one image, never both, never four.
+*/
 
 class WSky extends View [ clip = true,
     cond: string = "cloudy",
-    cloudy: SkyPhoto [ width = 100%, height = 100%, source = "sky/cloudy.jpg", visible = { classroot.cond == "cloudy" } ],
-    cumulus: SkyPhoto [ width = 100%, height = 100%, source = "sky/cumulus.jpg", visible = { classroot.cond == "cumulus" } ],
-    sunny: SkySunny [ width = 100%, height = 100%, visible = { classroot.cond == "sunny" } ],
-    night: SkyNight [ width = 100%, height = 100%, visible = { classroot.cond == "night" } ]
+    hasPhoto: boolean = { this.cond == "cloudy" || this.cond == "cumulus" },
+
+    photo: SkyPhoto [ width = 100%, height = 100%,
+        visible = { classroot.hasPhoto },
+        source = { classroot.cond == "cumulus" ? "sky/cumulus.jpg" : "sky/cloudy.jpg" } ],
+
+    draw(d: Draw) {
+        if (this.cond == "sunny") artSunnySky(d, d.w, d.h)
+        else if (this.cond == "night") artNightSky(d, d.w, d.h)
+        // cloudy and cumulus record nothing: the photograph above is the sky
+        }
     ]
 
 

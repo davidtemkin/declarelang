@@ -1,34 +1,80 @@
 #!/bin/sh
-# Before each push: the derived artifacts must match the tree being published.
+# A PUSH IS A PUBLICATION. This hook asks two read-only questions and REFUSES if
+# either answer is wrong. It regenerates nothing, stages nothing, commits
+# nothing, and runs no tests.
 #
 # This repo IS the distro — bundles/, runtime/dist, the baked index.html stubs,
-# the prewarm cache, the production builds — so a push is a release, and a
-# release whose artifacts disagree with its sources is broken on arrival. That
-# is a property of what you PUBLISH, not of every local checkpoint, which is why
-# the full regeneration lives here and pre-commit only reports.
+# the prewarm cache, the production builds — and the push is the deploy (GitHub
+# Pages serves what lands). So a release whose artifacts disagree with its
+# sources is broken on arrival, while a local checkpoint that disagrees is
+# simply a checkpoint. That asymmetry is the whole design: pre-commit checks
+# nothing about derivation, and the line is held here.
 #
-# Fast path first: --dry reads the manifest's content hashes (~0.4s) and says
-# nothing more. Only if something is genuinely stale does the real build run —
-# and then the push is REFUSED, because the tree just changed underneath it. The
-# artifacts are regenerated and staged, so the fix is one commit away.
+# WHY IT REFUSES INSTEAD OF FIXING. An earlier version derived, `git add`ed the
+# result, and then refused anyway — because a commit made inside pre-push is
+# NOT part of the push it is intercepting: git has already resolved the refs
+# and hands them to this hook on stdin, so a hook-made commit lands after the
+# pushed SHA and would deploy one commit behind, silently, forever. Since it
+# had to refuse regardless, doing ~20s of writes to your working tree first
+# bought nothing and cost you an unrequested rebuild. Now the developer runs
+# derive; this hook only ever says no.
 #
-# Escape hatch: git push --no-verify (you own the consequence).
+# THE TWO QUESTIONS, and why one is not enough:
+#   1. `--dry` — are the artifacts ON DISK fresh? (hash compare, ~0.4s, writes
+#      nothing, runs no rule)
+#   2. `git status` on the derived OUTPUTS — is what is on disk what you are
+#      PUBLISHING? `--dry` inspects the working tree; a push publishes HEAD, so
+#      "derived but never committed" passes (1) and still deploys stale files.
+#      This also catches the content-hash trap: derive writes a NEW path
+#      (app.<hash>.js) that `git commit -am` cannot stage, so the deployed
+#      index.html would 404 on its own bundle.
+#
+# `--outputs`, not `--paths`: stamped files (README, declare.md, index.html) are
+# hand-authored around their markers, so uncommitted prose there is ordinary
+# work, not an uncommitted artifact. The gap that leaves — a regenerated stamp
+# deliberately left out of the commit — is caught by (1) on disk and by CI after
+# the fact, and is worth it against refusing every push with an edited README.
+#
+# WHAT THIS HOOK DOES NOT DO: it does not verify the artifacts are CORRECT, only
+# that they are current and committed. `--dry` compares declared-input hashes,
+# and a rule's input list can lie by omission (derivation.md §5.1). The content
+# gates — `npm run test:derived` — are the answer to that, run by you after a
+# derive, and by CI on what actually reached the remote.
+#
+# It also assumes you are pushing HEAD. `git push origin <sha>:main` for some
+# other commit is not checked; the refs are on stdin if that ever needs fixing.
+#
+# Escape hatch: git push --no-verify (you own the consequence — and CI is the
+# net under it).
 
-if node tools/internal/derive.mjs --dry >/dev/null 2>&1; then
-  exit 0
+if ! node tools/internal/derive.mjs --dry >/dev/null 2>&1; then
+  echo ""
+  echo "pre-push: derived artifacts are STALE — this push would publish a distro"
+  echo "          whose artifacts disagree with its sources. Run:"
+  echo ""
+  echo "    npm run derive"
+  echo "    git add \$(node tools/internal/derive.mjs --paths)"
+  echo "    git commit -m 'derived artifacts'"
+  echo ""
+  echo "  then push again.  (git push --no-verify to override)"
+  echo ""
+  exit 1
 fi
 
-echo "pre-push: derived artifacts are stale — regenerating before this push…"
-node tools/internal/derive.mjs || {
-  echo "pre-push: derive FAILED — push refused. Fix the build, or push --no-verify."
+DIRTY=$(git status --porcelain -- $(node tools/internal/derive.mjs --outputs) 2>/dev/null)
+if [ -n "$DIRTY" ]; then
+  echo ""
+  echo "pre-push: derived artifacts are fresh on disk but NOT COMMITTED, so this"
+  echo "          push would publish the previous ones:"
+  echo ""
+  echo "$DIRTY" | sed 's/^/    /'
+  echo ""
+  echo "    git add \$(node tools/internal/derive.mjs --paths)"
+  echo "    git commit -m 'derived artifacts'"
+  echo ""
+  echo "  then push again.  (git push --no-verify to override)"
+  echo ""
   exit 1
-}
-git add $(node tools/internal/derive.mjs --paths 2>/dev/null) 2>/dev/null
+fi
 
-echo ""
-echo "pre-push: artifacts regenerated and staged; the push is refused because the"
-echo "          tree changed. Commit them and push again:"
-echo ""
-echo "            git commit -m 'derived artifacts'"
-echo ""
-exit 1
+exit 0

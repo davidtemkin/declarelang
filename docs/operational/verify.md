@@ -105,13 +105,21 @@ error indistinguishable from a crash.
 
 ## Running the ladder across the corpus
 
-Two suites, split at the browser boundary:
+Two suites, split at the browser boundary — and one more split by *subject*, below:
 
 | command | what it climbs | cost |
 |---|---|---|
-| `npm test` | the 21 test files, plus rungs **1–4** for every app and component | seconds, no browser |
+| `npm test` | everything that tests the SOURCES, plus rungs **1–4** for every app and component | seconds for the first two dozen files, no derive needed |
+| `npm run test:derived` | the suites whose subject IS a derived artifact — run it straight after `npm run derive` | seconds |
 | `npm run test:ladder` | rungs **5–6** for every app that ships one of the scripts below | minutes, headless Chromium |
-| `npm run test:all` | both | |
+| `npm run test:all` | `npm test` + the ladder | |
+
+**The derived tier** (`docs`, `schema-completeness`, `declare-help`, `prewarm`,
+`dist-freshness`, `ops`) tests committed artifacts against the tree that produced them, so
+it answers nothing on a tree that has not been derived — it would be reporting on
+yesterday's artifact. That is why it is a separate command and not a slower part of
+`npm test`, and why the rule is *derive immediately before*.
+→ [`derive.md`](declare-docs:operational:derive)
 
 The slow suite works by **discovery**: name a script after its program and put it
 alongside — `controls.declare` → `controls.assert.mjs` (R5), `controls.states.mjs`

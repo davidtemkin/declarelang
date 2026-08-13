@@ -27,9 +27,25 @@ import { requestType, REQ, runWrapper, programName, directoryProgram } from "../
 import { createToolchain } from "./toolchain.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { rebuildStale, BUNDLES } from "../tools/internal/bundle-freshness.mjs";
+import { demoNames } from "../tools/internal/bake-app-stubs.mjs";
 import { createMounts, describeMounts } from "./mounts.mjs";
 import { createProxy } from "./proxy.mjs";
 import { PLATFORM_DIR, defaultBuildCache } from "./config.mjs";
+
+// The dev server's compiled-program cache — the server-side half of Path B (see
+// POST /compile). Keyed by toolchain fingerprint + file + body hash; the value
+// carries the dependency CLOSURE that freshness is checked against. Bounded and
+// cleared wholesale rather than evicted one at a time: this is a dev-loop cache
+// over a handful of programs, and a clear costs one recompile.
+const COMPILE_CACHE = new Map();
+const COMPILE_CACHE_MAX = 64;
+// The generation this cache belongs to. Cleared WHOLESALE when the toolchain
+// fingerprint moves — the dev-server twin of the browser dropping its
+// `declare-compiled-<BUILD_ID>` bucket on a platform change (boot-uniform's
+// pruneBuckets). Without this, a `tsc` rebuild leaves every entry keyed to a
+// fingerprint that can never match again: not wrong answers, but dead weight
+// occupying a bounded cache until it overflows.
+let COMPILE_CACHE_FP = null;
 
 const MIME = {
   ".js": "text/javascript", ".mjs": "text/javascript", ".html": "text/html",
@@ -202,6 +218,19 @@ export function createDeclareServer(config = {}) {
     return send(res, 200, withServerMarker(await sourcePage(relPath, segments, source, backendClass, mode)));
   }
 
+
+  /** The demo panels this program ships, via the ONE shared rule
+   *  (tools/internal/bake-app-stubs.mjs). ALWAYS an array, never null: this host
+   *  reads the filesystem, so "none" and "unknown" are never confused here — which
+   *  is what stops boot probing for a demos.json that was never going to exist. */
+  function demoNamesFor(urlPath) {
+    try {
+      const hit = mounts.resolve(urlPath);
+      if (!hit) return [];
+      return demoNames(path.dirname(hit.abs), programName(urlPath));
+    } catch { return []; }
+  }
+
   async function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
     const r = await toolchain.compile(readFileSync(path.join(VIEWER_DIR, "viewer.declare"), "utf8"), { originDir: VIEWER_DIR });
     if (r.source === null) {
@@ -277,6 +306,10 @@ bootHost(cfg);
     return runWrapper({
       name: programName(urlPath), bootUrl: bootURL("bundles/declare-boot.js"),
       staticBlock, iconBase: bootURL("assets/"), main: urlPath, title,
+      // This host READS THE FILESYSTEM, so it always answers — and an empty array
+      // is an answer ("none to seed"), which is what stops boot probing for a
+      // demos.json that was never going to exist (browser/boot-uniform.js).
+      demos: demoNamesFor(urlPath),
     });
   }
 
@@ -401,6 +434,23 @@ bootHost(cfg);
     try { p = decodeURIComponent(new URL(req.url, "http://x").pathname); }
     catch { return send(res, 400, "bad request", "text/plain"); }
 
+    // `?clear` — the manual escape hatch (docs/system-design/requests.md), honored on
+    // an ENTRY PAGE only: `/`, or any `…/index.html`. Not on a program URL, because
+    // this is a GLOBAL operation and every program address names one program — a flag
+    // on `calendar.declare` cannot honestly mean "and every other program too." An
+    // entry page is the one address in the system that is about the host rather than
+    // about a program, so it is where a host-wide verb belongs.
+    //
+    // The caches drop themselves whenever the platform identity moves, and every read
+    // re-checks its closure, so this exists for the one case neither covers: a closure
+    // that is INCOMPLETE, where a compile stays "fresh" forever against an edit to a
+    // file it read but did not record. The browser clears its own buckets on the same
+    // flag (browser/boot-uniform.js).
+    if (/^\/(index\.html)?$|\/index\.html$/.test(p) && new URL(req.url, "http://x").searchParams.has("clear")) {
+      if (COMPILE_CACHE.size > 0) console.log(`  ?clear — dropped ${COMPILE_CACHE.size} cached compile(s)`);
+      COMPILE_CACHE.clear();
+    }
+
     // DIAG(probe) — TEMPORARY, REMOVE: short aliases for the latch experiment
     // pages, so they are typeable on a device.
     if (p === "/latch-doc" || p === "/latch-pane") {
@@ -453,23 +503,64 @@ bootHost(cfg);
     // Everything below buffers its whole body — safe to compress.
     enableGzip(req, res);
 
-    // POST /compile — live compile. `?main=<url>` (the editor sends it) names the
-    // file so includes and relative data resolve against its directory; absent,
-    // it compiles context-free as before.
+    // POST /compile — RESOLVE A SOURCE, the dev server's half of the two-request
+    // model (browser/prewarm-cache.js). `?main=<url>` (boot and the editor both
+    // send it) names the file so includes and relative data resolve against its
+    // directory; absent, it compiles context-free.
+    //
+    // CACHED, and the cache lives HERE rather than in the browser. Same algorithm
+    // as the static host's — "if the closure is still fresh, reuse the compile;
+    // else recompile and store" — with the two parts that legitimately differ
+    // substituted: the compiler runs in Node, and freshness is answered from the
+    // DISK (isUpToDate over diskProbe, inside the worker realm), so a reload costs
+    // ONE request and no dependency probing at all. The browser's CacheStorage
+    // tier is the static host's answer to the same question and is deliberately
+    // idle here (boot-uniform's `if (!onServer)`).
+    //
+    // Until 2026-08-12 there was no cache on this path: the worker's `project()`
+    // dropped the closure, so nothing could be checked for freshness and every
+    // reload recompiled. The response shape is unchanged — the client never sees
+    // the closure, because on this host the closure is not its business.
     if (req.method === "POST" && p === "/compile") {
       let body = "";
       req.on("data", (c) => { body += c; if (body.length > 4e6) req.destroy(); });
       req.on("end", async () => {
-        let originDir;
+        let originDir, mainAbs;
         try {
-          const main = new URL(req.url, "http://x").searchParams.get("main");
-          if (main) { const hit = mounts.resolve(main); if (hit) originDir = path.dirname(hit.abs); }
+          const q = new URL(req.url, "http://x").searchParams;
+          const main = q.get("main");
+          if (main) { const hit = mounts.resolve(main); if (hit) { mainAbs = hit.abs; originDir = path.dirname(hit.abs); } }
         } catch { /* no main → context-free */ }
-        let out;
-        try {
-          out = await toolchain.compile(body, originDir ? { originDir } : {});
-        } catch (e) {
-          out = { source: null, diagnostics: [], report: String((e && e.message) || e) };
+        // The key is the FINGERPRINT of the toolchain (its BUILD_ID twin — a new
+        // compiler invalidates every entry), the file being compiled, and a hash
+        // of the exact bytes posted. Hashing the body is what keeps an unsaved
+        // editor buffer from ever colliding with the file on disk: a live edit is
+        // simply a different key, compiled and cached under its own identity.
+        const fp = toolchain.fingerprint();
+        if (fp !== COMPILE_CACHE_FP) { COMPILE_CACHE.clear(); COMPILE_CACHE_FP = fp; }
+        const key = mainAbs === undefined ? null
+          : mainAbs + "\0" + createHash("sha256").update(body).digest("hex").slice(0, 16);
+        let out = null;
+        const hit = key === null ? undefined : COMPILE_CACHE.get(key);
+        if (hit !== undefined) {
+          // The body matched, so only the INCLUDES and components can have moved.
+          // That is exactly what the stored closure answers, from disk.
+          try { if (await toolchain.fresh(hit.closure, {})) out = hit.out; }
+          catch { /* fall through and recompile */ }
+        }
+        if (out === null) {
+          try {
+            const r = await toolchain.compileTracked(body, { ...(originDir ? { originDir } : {}), ...(mainAbs ? { mainId: mainAbs } : {}) });
+            out = { source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report };
+            // Only a SUCCESSFUL compile is worth remembering: a failing one is the
+            // state the author is actively fixing, and its closure is incomplete.
+            if (key !== null && r.source !== null && r.closure) {
+              if (COMPILE_CACHE.size >= COMPILE_CACHE_MAX) COMPILE_CACHE.clear();
+              COMPILE_CACHE.set(key, { out, closure: r.closure });
+            }
+          } catch (e) {
+            out = { source: null, diagnostics: [], report: String((e && e.message) || e) };
+          }
         }
         send(res, 200, JSON.stringify(out), "application/json");
       });

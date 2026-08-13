@@ -29,7 +29,7 @@ an operational page's is its filename (`operational:verify`), a reference symbol
 the symbol itself (`View.width`) — so files renumber and move freely under stable IDs.
 
 - **The registry and the gate:** `node tools/internal/doc/links.mjs` builds the ID registry and
-  reports every link; `--check` (run by `npm test`) fails on any dangling link, so a
+  reports every link; `--check` (run by `npm run test:derived`) fails on any dangling link, so a
   wrong target cannot ship; the graph itself travels inside `declare-model.json`.
 - **Resolvers:** each packaging resolves the same IDs its own way — the docs app
   navigates in-app (guide and reference IDs switch the pane; the rest leave through

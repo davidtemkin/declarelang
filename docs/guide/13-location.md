@@ -66,8 +66,8 @@ neither, it's an ordinary attribute, and none of this section applies to it.
 ## The step: `waypoint`
 
 Some of what an interface remembers fails the stranger test but still deserves the
-Back button. The turns of a search session. A wizard's half-finished page. When a
-user presses Back after a refinement they mean *undo that step* — but the words
+Back button. The turns of a search session. Which page of a wizard you are on. When
+a user presses Back after a refinement they mean *undo that step* — but the words
 they typed must never appear in the URL bar, the history dropdown, or
 autocomplete. `waypoint` is `location`'s twin with the opposite visibility: one
 two-way reactive string, grammar your own, whose writes make history entries **the
@@ -94,30 +94,46 @@ holds still and Back still undoes the turn — back/forward that work, over a UR
 that never moves, which is the combination neither attribute could deliver alone.
 `replace = true` on a link overwrites the current entry's whole pair.
 
-Every way a user can arrive resolves the pair honestly. A **link or handler**
-writes it. A **pasted URL** carries the address and *no waypoint* — a stranger
-gets the place and none of the session, which is the whole contract. A **reload
-or session restore** resumes both halves, because the entry survives. A
+Both halves are **coordinates on the entry**, never storage — and that one fact
+decides what each kind of arrival gets: **an arrival rebuilds the app from the
+URL; a traversal restores the entry's pair.** A **link or handler** writes it. A
+**pasted URL** carries the address and *no waypoint* — a stranger gets the place
+and none of the session. A **reload** is the same arrival: the URL is all there
+is to rebuild from, so the address comes back and the step starts at its declared
+initial, however far into a round the user had got. A
 **traversal** (Back/Forward) restores the pair — the address passes through
 `onFollow` exactly as any arrival does; the step is written directly, and
 deliberately has no hook: a waypoint can never arrive from outside your app, so
 every restored value is one your own code wrote earlier. Your parser is the gate —
 an unrecognized step degrades wherever your parsing sends it, same as an
 unrecognized fragment. Traversals also land at the scroll position the user left
-that entry at; an `@name` arrival reveals its anchor instead.
+that entry at; an arrival lands at the top, and an `@name` reveals its anchor
+instead — that much *is* in the URL.
+
+Only the entry you arrive on is rebuilt. The entries behind it keep their own
+coordinates, which is why Back after a reload still walks into the session the
+reload started fresh from: a coordinate sits on its entry.
 
 Two disciplines keep waypoints healthy. **Coordinates, never data**: a waypoint
 names the step, and the data derives from it — entries are copied per history
 entry, so a result set stuffed into one is both a leak of the model and a real
 cost (the host warns loudly past 64KB). And **if you catch yourself wanting a
 waypoint to survive a paste, it was an address all along** — promote it to
-`location`.
+`location`. If you catch yourself wanting one to survive a *reload*, look again at
+what the value is: which step you are on is a coordinate, and a coordinate comes
+back by traversal only; what the user typed or scored on the way there is data, and
+data that must outlive the document belongs somewhere you put it deliberately —
+today, your server.
 
 | the value | lives in | URL bar | Back undoes it | survives reload | shareable | crawled |
 |---|---|---|---|---|---|---|
 | which chapter, which product, map position | `location` | yes | yes | yes | yes | yes |
-| a session's turns, a wizard's page | `waypoint` | no | yes | yes | no | no |
+| a session's turns, which page of a wizard | `waypoint` | no | yes | no | no | no |
 | a draft, a hover, a mid-drag selection | ordinary attribute | no | no | no | no | no |
+
+Read the middle row across and you have the whole attribute: a `waypoint` is the
+one value the Back button undoes without the URL ever showing it — and everything
+else about it, including what a reload does, follows from not being in the URL.
 
 For computed families the grammar after `#` is the app's own — `#deck/q3/47` is a
 string you `split`, and `deckId`/`page` derive from it; this documentation's entire
@@ -161,8 +177,10 @@ do five things in order:
    `#quiz` and then never moves again, however long you play.
 4. **Press Back mid-round.** The last question un-asks itself. That is the step
    moving, not the address — one history entry per turn, none of them a place.
-5. **Paste that `#quiz` URL into a new tab.** You get a *fresh* quiz, because the
-   session was never in the URL to copy.
+5. **Paste that `#quiz` URL into a new tab — or just reload the one you're in.**
+   Either way you get a *fresh* quiz, because both are arrivals and the session
+   was never in the URL to rebuild from. (Press Back once and the round is still
+   there: it lives on the entries, not in the page.)
 
 Each of those is one row of the table above, and the source names which is which:
 its header comment sorts every value in the program into address, step, or

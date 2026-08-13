@@ -7,14 +7,16 @@ stranger test (guide ch. 13 — *would you hand it to a stranger?*):
   location  the ADDRESSES — "" (the shelf), "b/<slug>" (one bird's page,
             crawlable and shareable), "quiz" (the quiz room). The URL shows
             these and nothing else.
-  waypoint  the SESSION — one string, "<seeds>|<answers>|<shown>", from which
+  waypoint  the STEP — one string, "<seeds>|<answers>|<shown>", from which
             the entire quiz round derives: which ten birds, what you answered,
             which card is up, even the decoy choices (deterministic — no stored
             shuffle). Every pick and every Next writes it, so each is a history
             entry: the Back button retraces the quiz action by action, the URL
-            sitting motionless at #quiz the whole time. Reload resumes the
-            round; a shared #quiz link starts a fresh one — the URL carries the
-            place and none of the session, by construction.
+            sitting motionless at #quiz the whole time. A coordinate rides on
+            its entry, so it comes back by TRAVERSAL only: reload the page (or
+            open a shared #quiz link) and you get the invitation and a fresh
+            round, because the URL is all an arrival has to rebuild from — one
+            Back, though, and the old round is still on the entry behind you.
   ordinary  everything else — hovers, the loaded flag, and the FLIGHTS (the
             plate's zoom from shelf tile to page, and its return home —
             LZPix-style). The flights are the third row made vivid: nobody

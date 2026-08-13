@@ -66,15 +66,30 @@ export async function bootHost(cfg) {
   // no home→target flash. Un-fused from renderAsync so the seed lands pre-mount.
   const app = (window.__app = build(cfg.source, { deps: cfg.deps }));
   const locationInitial = app.location;               // the declared initial = the default (§3)
+  // HOW this document was entered, by the browser's own classification
+  // (PerformanceNavigationTiming.type). Only "back_forward" is a TRAVERSAL —
+  // the user walked the route, so the entry's coordinate is theirs to have
+  // back. "navigate" and "reload" are ARRIVALS, and an arrival rebuilds the
+  // app from the URL and nothing else. We defer to the platform's own notion
+  // of which happened rather than inventing a second one.
+  // (optional-called: a host whose `performance` is the runtime's minimal one —
+  // the Mac bridge furnishes `now()` and nothing else — falls back to "navigate",
+  // i.e. an arrival, which is the right default for a host with no history.)
+  const arrival = performance.getEntriesByType?.("navigation")?.[0]?.type ?? "navigate";
+  const traversed = arrival === "back_forward";
   // Seed the STEP first, then the address, so location-derived constraints see
   // a consistent pair at first settle. A history ENTRY is the pair (URL,
   // waypoint): the URL carries the address in its fragment; the entry's state
-  // object carries the waypoint. On a reload or a session restore the entry
-  // survives with both halves, so the user resumes mid-session; a pasted URL
-  // carries no waypoint by construction — a stranger gets the place and none
-  // of the session, which is the attribute's whole contract (App.waypoint).
+  // object carries the step. Both halves are COORDINATES ON THE ENTRY, never
+  // storage — which settles the whole rule in one line: an ARRIVAL rebuilds
+  // from the URL (a reload therefore starts at the declared initial step,
+  // exactly as a pasted link does — the session was never in the URL to come
+  // back), a TRAVERSAL restores the entry's pair. The entries BEHIND this one
+  // keep their own steps either way, which is why Back still walks into the
+  // session a reload just left: a coordinate sits on its entry. The stale
+  // coordinate on THIS entry is squared away by syncByReplace() below.
   const stepOf = () => (typeof history.state?.declare?.w === "string" ? history.state.declare.w : "");
-  const stepSeed = stepOf();
+  const stepSeed = traversed ? stepOf() : "";
   if (stepSeed !== "" && app.waypoint !== stepSeed) app.waypoint = stepSeed;
   const seedFrag = fragmentOf() || cfg.location;       // the URL fragment wins; else a host override (?view=)
   if (seedFrag) {
@@ -155,10 +170,13 @@ export async function bootHost(cfg) {
   syncByReplace();
   // Scroll is PER-ENTRY, manually: the browser's own restoration fires before
   // the traversal's settle (wrong extent), so the host owns it — each entry is
-  // stamped with its scroll at departure (the push below) and at pagehide (so
-  // a reload resumes), and restored after the traversal's settle. Anchor
-  // arrivals keep the reveal instead: a stored `@name` intent is the truer
-  // landing than a pixel offset against re-derived content.
+  // stamped with its scroll at departure (the push below) and at pagehide, and
+  // restored after the TRAVERSAL's settle. The pagehide stamp serves leaving
+  // the site and coming Back (a cross-document traversal re-creates the
+  // document and reads it at boot); it is measurably NOT what a reload sees —
+  // Chrome discards a replaceState issued from pagehide when the navigation is
+  // a reload. Anchor arrivals keep the reveal instead: a stored `@name` intent
+  // is the truer landing than a pixel offset against re-derived content.
   if ("scrollRestoration" in history) history.scrollRestoration = "manual";
   const stampScroll = () => {
     history.replaceState(entryState(stepOf(), scrollY), "", location.pathname + location.search + location.hash);
@@ -170,7 +188,10 @@ export async function bootHost(cfg) {
     // the scroll lands against is the restored entry's, not the departed one's
     requestAnimationFrame(() => requestAnimationFrame(() => { if (!stopped) scrollTo(0, s); }));
   };
-  if (!seedFrag || seedFrag.indexOf("@") < 0) restoreScroll(history.state?.declare?.s);   // a reload resumes its scroll
+  // Only a TRAVERSAL lands where the user left the entry. An arrival lands at
+  // the top, because the top is what the URL says — the same rule as the step.
+  // (An `@name` reveal still wins: that one IS in the URL.)
+  if (traversed && (!seedFrag || seedFrag.indexOf("@") < 0)) restoreScroll(history.state?.declare?.s);
   const onPop = (e) => {
     if (stopped) return;
     // A TRAVERSAL arrival restores the PAIR: the step first (written directly —
