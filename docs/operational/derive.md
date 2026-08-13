@@ -27,6 +27,10 @@ as is on purpose: the bundle was stale, nothing could serve until it was rebuilt
 
 ## When what runs — the whole contract
 
+(For the *order you run these in* — the edit-to-push walkthrough with its
+pitfalls, including the second derive turn after a commit — see
+[`shipping.md`](shipping.md). This table is what each step checks and writes.)
+
 | step | needs first | does / writes | reports | what blocks it |
 |---|---|---|---|---|
 | `npm run derive` | nothing | the writer of record: runs the rules, skipping any whose inputs are unchanged, then stages its OWN outputs (`git add -A` per output pathspec — stamped hand-authored files stay yours) | `N derived file(s) regenerated — M rule(s) ran, K skipped · outputs staged` | a generator failing or exceeding its 300s rule timeout |

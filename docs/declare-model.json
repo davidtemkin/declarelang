@@ -6780,6 +6780,11 @@
     "title": "Introspection — asking a running program about itself",
     "kind": "operational"
    },
+   "operational:shipping": {
+    "path": "docs/operational/shipping.md",
+    "title": "Shipping a change",
+    "kind": "operational"
+   },
    "operational:verify": {
     "path": "docs/operational/verify.md",
     "title": "`verify` — the checking CLI",
@@ -42802,6 +42807,14 @@
      "label": "Markdown file",
      "path": "docs/operational/introspection.md",
      "preview": "A running Declare app can be queried as data: its tree, each node's geometry, every slot's live value, and — the payoff of static dependency extraction — why a slot has the value it has. One vocabulary serves three consumers: verify(declare…"
+    },
+    {
+     "name": "Shipping a change",
+     "subtitle": "",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/operational/shipping.md",
+     "preview": "The whole loop, from edit to push — including the step nearly everyone is surprised by the first time. For what each gate checks, see derive.md(derive.md); this page is the order you do things in, and the pitfalls at each step. (Deploying a…"
     },
     {
      "name": "Verify",
