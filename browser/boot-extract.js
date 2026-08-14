@@ -41,7 +41,16 @@ async function run() {
       fetch(target, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(r.status + " fetching " + target); return r.text(); }),
     ]);
     mod.setDefaultLibrary(lib);
-    const compiled = mod.compile(source);
+    // The walk starts in the TARGET's own directory, not this page's: an include
+    // written beside the program (`include [ "art.declare" ]`) resolves relative
+    // to the program it appears in, exactly as it does on the dev server's disk.
+    const distro = new URL("..", import.meta.url).href;
+    const dir = new URL(".", target).href;
+    const compiled = await mod.compile(source, {
+      mainId: target,
+      originDir: dir.startsWith(distro) ? dir.slice(distro.length).replace(/\/$/, "") : "",
+      origins: { distro },
+    });
     const name = new URL(target).pathname.split("/").pop() || "app";
     // The CRAWLED document (docs/system-design/location.md §7) — every reachable location's
     // content in the one page, identical bytes to the Node server's ?extract. The

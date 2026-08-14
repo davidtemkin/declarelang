@@ -15,10 +15,10 @@ import { compile, crawlLocations, crawlDocument, canonKey, diskDataResolver } fr
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(path.join(ROOT, p), "utf8");
-const compileAt = (rel) => compile(read(rel), { originDir: path.join(ROOT, path.dirname(rel)) });
+const compileAt = async (rel) => await compile(read(rel), { originDir: path.join(ROOT, path.dirname(rel)) });
 
 await test("crawl: WARM mode matches cold byte-for-byte, with the parity gate on (location.md §0.8)", async () => {
-  const r = compileAt("apps/homepage/homepage.declare");
+  const r = await compileAt("apps/homepage/homepage.declare");
   const base = { deps: r.deps, links: r.links, registry: r.linkRegistry,
     data: diskDataResolver(path.join(ROOT, "apps/homepage")) };
   const cold = await crawlLocations(r.source, base);
@@ -32,7 +32,7 @@ await test("crawl: WARM mode matches cold byte-for-byte, with the parity gate on
 });
 
 await test("crawl: homepage emits the #why and #language documents, linked from the front page", async () => {
-  const r = compileAt("apps/homepage/homepage.declare");
+  const r = await compileAt("apps/homepage/homepage.declare");
   // registry included — the modern call (location.md §0.8): bare-anchor edges
   // ("#apps") resolve to their destinations instead of minting phantom keys
   const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links, registry: r.linkRegistry,
@@ -84,7 +84,7 @@ await test("crawl: output-hash aliasing collapses distinct locations with identi
     pillA: View [ width = 20, height = 20, onClick() { app.location = "x" } ],
     pillB: View [ width = 20, height = 20, onClick() { app.location = "y" } ],
   ]`;
-  const r = compile(src, {});
+  const r = await compile(src, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
   const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links });
   // "x" and "y" produce identical bytes to the default → one unique document.
@@ -92,7 +92,7 @@ await test("crawl: output-hash aliasing collapses distinct locations with identi
 });
 
 await test("crawl: ONE document — sections by location id, fragment links resolve intra-document (the ruling)", async () => {
-  const r = compileAt("apps/homepage/homepage.declare");
+  const r = await compileAt("apps/homepage/homepage.declare");
   const doc = await crawlDocument(r.source, { deps: r.deps, links: r.links, data: diskDataResolver(path.join(ROOT, "apps/homepage")) });
   assert.ok(doc.includes('<section id="why">'), "the why article is a section whose id IS its live location");
   assert.ok(doc.includes('href="#why"'), "the fragment link is NOT rewritten — it resolves to the section right here");
@@ -106,7 +106,7 @@ await test("crawl: a network DataSource fails LOUDLY — never a silently partia
     onInit() { this.live.fetch() },
     t: Text [ text = "page", fontSize = 40, fontWeight = bold ],
   ]`;
-  const r = compile(src, {});
+  const r = await compile(src, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
   await assert.rejects(
     () => crawlDocument(r.source, { deps: r.deps, links: r.links }),
@@ -115,7 +115,7 @@ await test("crawl: a network DataSource fails LOUDLY — never a silently partia
   );
   // A relative url that is NOT in the app's material is equally loud.
   const src2 = src.replace("https://api.example.com/live.json", "missing.json");
-  const r2 = compile(src2, {});
+  const r2 = await compile(src2, {});
   await assert.rejects(
     () => crawlDocument(r2.source, { deps: r2.deps, links: r2.links, data: () => null }),
     (e) => e.message.includes("missing.json"),
@@ -124,7 +124,7 @@ await test("crawl: a network DataSource fails LOUDLY — never a silently partia
 });
 
 await test("crawl: deterministic — byte-identical across runs (the browser↔Node oracle discipline)", async () => {
-  const r = compileAt("apps/homepage/homepage.declare");
+  const r = await compileAt("apps/homepage/homepage.declare");
   const opts = { deps: r.deps, links: r.links, data: diskDataResolver(path.join(ROOT, "apps/homepage")) };
   const a = await crawlLocations(r.source, opts);
   const b = await crawlLocations(r.source, opts);

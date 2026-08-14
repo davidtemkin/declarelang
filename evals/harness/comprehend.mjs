@@ -61,8 +61,8 @@ function namedViews(app) {
   return out;
 }
 
-function generateItems(source) {
-  const r = compile(source, {});
+async function generateItems(source) {
+  const r = await compile(source, {});
   if (r.errors.length) throw new Error("comprehension source must be green: " + r.errors[0].message);
   const app = settleHeadless(r.source, { deps: r.deps });
   const items = [];
@@ -131,7 +131,7 @@ function scoreItem(item, ans) {
 
 async function runProgram(rel) {
   const source = readFileSync(join(ROOT, rel), "utf8");
-  const items = generateItems(source);
+  const items = await generateItems(source);
   const qlist = items.map((it, i) => `Q${i + 1} (${it.kind}): ${it.q}`).join("\n");
   const prompt = `${KERNEL}
 

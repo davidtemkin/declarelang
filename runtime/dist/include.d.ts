@@ -13,17 +13,34 @@ export declare function exciseSpans(source: string, spans: readonly Span[]): str
  *  what include-once dedups on, so it must be stable per file (an absolute
  *  path on the fs host). */
 export interface IncludeHost {
-    resolve(fromDir: string, path: string): {
-        canonical: string;
-        dir: string;
-        source: string;
-    } | null;
+    resolve(fromDir: string, path: string): Resolved | null | Promise<Resolved | null>;
+}
+/** What a host hands back for one file. Named so the filesystem host and the
+ *  fetch host state the same shape, and so `resolve` can say "or later". */
+export interface Resolved {
+    canonical: string;
+    dir: string;
+    source: string;
 }
 /** A host that resolves nothing — the default in the zero-dependency graph
  *  (index.ts): a source with no `include`s never calls it, so behavior is
  *  unchanged; a source WITH includes but no real host reports each as
  *  unresolvable rather than importing a filesystem into the runtime graph. */
 export declare const NO_INCLUDES: IncludeHost;
+/** The HOSTLESS case, synchronously — the RUNTIME's path.
+ *
+ *  `compile()` emits one self-contained program (the walk splices every library's
+ *  source ahead of the excised main), so at runtime there is nothing left to
+ *  resolve: build() runs with NO_INCLUDES over an already-empty include list.
+ *  Keeping that case here, sync, is what lets the seam above be async without
+ *  making the runtime's build()/render() async for I/O nobody performs.
+ *
+ *  A source that still carries `include`s and has no host is the honest error the
+ *  walk produced — one `missingInclude` per directive, same diagnostic, same order. */
+export declare function resolveIncludesHostless(program: Program): {
+    program: Program;
+    errors: DeclareError[];
+};
 /** Resolve a program's `include`s (composition.md §1): recursively parse each
  *  included library relative to the including file, fold every library's
  *  top-level declarations into the accumulator (the main program's first), and
@@ -38,12 +55,12 @@ export declare const NO_INCLUDES: IncludeHost;
  *  emitted only after the libraries it includes, so a base is always declared
  *  above its subclass. compile() concatenates `sources` ahead of the excised
  *  main source to emit ONE self-contained program the hostless runtime runs. */
-export declare function resolveIncludes(program: Program, host: IncludeHost, originDir: string): {
+export declare function resolveIncludes(program: Program, host: IncludeHost, originDir: string): Promise<{
     program: Program;
     sources: string[];
     errors: DeclareError[];
     visited: Set<string>;
-};
+}>;
 export declare function autoIncludableNames(): readonly string[];
 /** A host that ALSO auto-includes component libraries by bare tag — the LZX
  *  `lzx-autoincludes` mechanism, ported (composition.md §1a). Using `Bar [ … ]`
@@ -55,11 +72,7 @@ export declare function autoIncludableNames(): readonly string[];
  *  auto-include is a no-op there (single-file compiles stay byte-identical). */
 export interface AutoIncludeHost extends IncludeHost {
     autoincludes(): Record<string, string>;
-    resolveLibrary(path: string): {
-        canonical: string;
-        dir: string;
-        source: string;
-    } | null;
+    resolveLibrary(path: string): Resolved | null | Promise<Resolved | null>;
 }
 /** The component NAMES a program STATICALLY references — its tree tags (children,
  *  including component-valued members like `layout:`/`data:`/animators/states)
@@ -79,8 +92,8 @@ export declare function referencedComponentNames(program: Program): string[];
  *
  *  Backends without the auto-include methods (NO_INCLUDES, a plain fs host)
  *  make this a no-op returning the program unchanged. */
-export declare function resolveAutoIncludes(program: Program, root: Element, host: IncludeHost, visited: Set<string>): {
+export declare function resolveAutoIncludes(program: Program, root: Element, host: IncludeHost, visited: Set<string>): Promise<{
     program: Program;
     sources: string[];
     errors: DeclareError[];
-};
+}>;

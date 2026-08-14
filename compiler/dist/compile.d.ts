@@ -69,4 +69,4 @@ export interface CompileOptions {
  *  merged text, not its own file. This is the v1 reading §1 already defers
  *  (multi-file `Pos`); it keeps the emit path drift-free — one source feeds
  *  check, the Resolver, and the output, so their offsets cannot disagree. */
-export declare function compile(source: string, opts?: CompileOptions): Compiled;
+export declare function compile(source: string, opts?: CompileOptions): Promise<Compiled>;

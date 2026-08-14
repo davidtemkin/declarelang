@@ -21,15 +21,15 @@ import assert from "node:assert/strict";
 import { compile } from "../compiler/dist/compile-node.js";
 import { test, summarize } from "./harness.mjs";
 
-const errs = (src) => (compile(src, { originDir: process.cwd() }).errors ?? []);
-const only = (src) => {
-  const e = errs(src);
+const errs = async (src) => ((await compile(src, { originDir: process.cwd() })).errors ?? []);
+const only = async (src) => {
+  const e = await errs(src);
   assert.equal(e.length, 1, `expected exactly ONE error; got ${e.length}:\n  ${e.map((x) => x.message).join("\n  ")}`);
   return e[0];
 };
 
-await test("an exported function is refused, once, at the keyword", () => {
-  const e = only(`script {
+await test("an exported function is refused, once, at the keyword", async () => {
+  const e = await only(`script {
     export function twice(n: number): number { return n * 2 }
     }
 App [ n: number = 4, Text [ text = { "" + twice(app.n) } ] ]`);
@@ -38,10 +38,10 @@ App [ n: number = 4, Text [ text = { "" + twice(app.n) } ] ]`);
   assert.equal(e.pos.col, 5, "the column of the keyword itself");
 });
 
-await test("the SPRAY is gone — no phantom errors naming other symbols", () => {
+await test("the SPRAY is gone — no phantom errors naming other symbols", async () => {
   // this is the whole point: before, `Text` and `twice` were both reported
   // unresolved at line 5, and the export was reported nowhere
-  const e = errs(`script {
+  const e = await errs(`script {
     export function twice(n: number): number { return n * 2 }
     }
 App [ n: number = 4, Text [ text = { "" + twice(app.n) } ] ]`);
@@ -49,7 +49,7 @@ App [ n: number = 4, Text [ text = { "" + twice(app.n) } ] ]`);
   assert.ok(!e.some((x) => /nothing in scope is named 'twice'/.test(x.message)), "the function is declared right there");
 });
 
-await test("every export FORM is caught", () => {
+await test("every export FORM is caught", async () => {
   const forms = {
     "export const": `export const K = 2`,
     "export class": `export class M { n = 1 }`,
@@ -58,12 +58,12 @@ await test("every export FORM is caught", () => {
     "export list": `function f(): number { return 1 }\n    export { f }`,
   };
   for (const [what, body] of Object.entries(forms)) {
-    const e = only(`script {\n    ${body}\n    }\nApp [ Text [ text = "x" ] ]`);
+    const e = await only(`script {\n    ${body}\n    }\nApp [ Text [ text = "x" ] ]`);
     assert.match(e.message, /script \{ \} block cannot export|'export' has no meaning/, `${what}: ${e.message}`);
   }
 });
 
-await test("`import` is refused as NOT YET, never as a prohibition", () => {
+await test("`import` is refused as NOT YET, never as a prohibition", async () => {
   // composition.md §2 RULES import-in-a-script-block as the way JS modules
   // arrive (`include` moves Declare declarations, `import` moves JS bindings).
   // It is unbuilt, not unwanted — resolution is deferred with the dev-env rung,
@@ -71,7 +71,7 @@ await test("`import` is refused as NOT YET, never as a prohibition", () => {
   // is illegal outright. A diagnostic that said "cannot import" would contradict
   // the design document; today the same source sprays unresolved names instead,
   // which is worse than either. So: refuse, and say which it is.
-  const e = only(`script {
+  const e = await only(`script {
     import { z } from "./z.js"
     }
 App [ Text [ text = "x" ] ]`);
@@ -81,27 +81,27 @@ App [ Text [ text = "x" ] ]`);
     `it must not borrow the export message's finality; got: ${e.message}`);
 });
 
-await test("the same block WITHOUT export compiles clean", () => {
-  assert.deepEqual(errs(`script {
+await test("the same block WITHOUT export compiles clean", async () => {
+  assert.deepEqual((await errs(`script {
     function twice(n: number): number { return n * 2 }
     }
-App [ n: number = 4, Text [ text = { "" + twice(app.n) } ] ]`).map((e) => e.message), []);
+App [ n: number = 4, Text [ text = { "" + twice(app.n) } ] ]`)).map((e) => e.message), []);
 });
 
-await test("a nested export is untouched — only the TOP level modules the file", () => {
+await test("a nested export is untouched — only the TOP level modules the file", async () => {
   // `export` inside a class body is a member modifier in some dialects and a
   // syntax error in none of ours; either way it does not turn the scaffold
   // into a module, so the check must not reach for it
-  assert.deepEqual(errs(`script {
+  assert.deepEqual((await errs(`script {
     function make(): object { const o = { exported: 1 }; return o }
     }
-App [ Text [ text = { "" + make() } ] ]`).map((e) => e.message), []);
+App [ Text [ text = { "" + make() } ] ]`)).map((e) => e.message), []);
 });
 
-await test("a LATER block reports at its own position, not the first one's", () => {
+await test("a LATER block reports at its own position, not the first one's", async () => {
   // two blocks means the offset arithmetic has to be per-block; a shared base
   // would put the second block's error inside the first
-  const e = only(`script {
+  const e = await only(`script {
     function a(): number { return 1 }
     }
 script {

@@ -21,7 +21,7 @@ import { compile, compileTracked, setDefaultLibrary, highlight } from "../bundle
 
 const project = (r) => ({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
 
-self.onmessage = (e) => {
+self.onmessage = async (e) => {
   const m = e.data ?? {};
   try {
     switch (m.type) {
@@ -32,12 +32,12 @@ self.onmessage = (e) => {
         self.postMessage({ id: m.id, result: true });
         return;
       case "compile": {
-        const r = compile(m.source, m.opts ?? {});
+        const r = await compile(m.source, m.opts ?? {});
         self.postMessage({ id: m.id, result: project(r) });
         return;
       }
       case "compileTracked": {
-        const r = compileTracked(m.source, m.opts ?? {});
+        const r = await compileTracked(m.source, m.opts ?? {});
         self.postMessage({ id: m.id, result: { ...project(r), closure: r.closure } });
         return;
       }

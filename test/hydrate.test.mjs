@@ -50,8 +50,8 @@ function firstDiff(a, b) {
 }
 
 for (const app of APPS) {
-  await test(`compact→hydrate round-trips ${app.name}`, () => {
-    const built = compileProgram(readFileSync(app.file, "utf8"), { originDir: path.dirname(app.file), stripPos: true });
+  await test(`compact→hydrate round-trips ${app.name}`, async () => {
+    const built = await compileProgram(readFileSync(app.file, "utf8"), { originDir: path.dirname(app.file), stripPos: true });
     assert.ok(built.program !== null, "corpus app should compile: " + (built.report ?? ""));
     const before = canon(built.program);
     const compacted = JSON.parse(JSON.stringify(built.program, compactValue));
@@ -62,9 +62,9 @@ for (const app of APPS) {
 
 // hydrate is documented idempotent — a never-compacted program passes through
 // untouched; hydrating twice changes nothing.
-await test("hydrateProgram is idempotent", () => {
+await test("hydrateProgram is idempotent", async () => {
   const app = APPS[0];
-  const built = compileProgram(readFileSync(app.file, "utf8"), { originDir: path.dirname(app.file), stripPos: true });
+  const built = await compileProgram(readFileSync(app.file, "utf8"), { originDir: path.dirname(app.file), stripPos: true });
   const once = canon(hydrateProgram(JSON.parse(JSON.stringify(built.program, compactValue))));
   const twice = canon(hydrateProgram(JSON.parse(once)));
   assert.equal(twice, once);

@@ -35,13 +35,13 @@ const fail = (label, c) => {
     c.errors.map((e) => "  " + (e.pos?.line != null ? `line ${e.pos.line}: ` : "") + e.message).join("\n"));
 };
 
-function buildExample(name) {
+async function buildExample(name) {
   const dir = path.join(EXAMPLES, name);
   const appFile = path.join(dir, name + ".declare");
   const src = readFileSync(appFile, "utf8");
 
   // Compile to VALIDATE (and to measure) — the artifact is not emitted.
-  const tracked = compileTracked(src, { originDir: dir, mainId: appFile, props: { render: "dom" } });
+  const tracked = await compileTracked(src, { originDir: dir, mainId: appFile, props: { render: "dom" } });
   fail(name + ".declare", tracked);
 
   const pageWeight = Math.round((RUNTIME_GZ_BYTES + gzipSync(tracked.source).length) / 1024);
@@ -56,7 +56,7 @@ function buildExample(name) {
   if (existsSync(demoDir)) {
     for (const f of readdirSync(demoDir).sort()) {
       if (!f.endsWith(".declare")) continue;
-      fail(`demo ${f}`, compile(readFileSync(path.join(demoDir, f), "utf8"), {}));
+      fail(`demo ${f}`, await compile(readFileSync(path.join(demoDir, f), "utf8"), {}));
       demos++;
     }
   }
@@ -74,6 +74,6 @@ const libFiles = existsSync(libSrc) ? readdirSync(libSrc).filter((f) => f.endsWi
 const names = readdirSync(EXAMPLES).filter((n) => existsSync(path.join(EXAMPLES, n, `${n}.declare`))).sort();
 console.log(`prebuild: validating ${names.length} example(s) · library {${libFiles.join(", ")}}`);
 for (const name of names) {
-  const r = buildExample(name);
+  const r = await buildExample(name);
   console.log(`  ${r.name.padEnd(12)} ${(r.program / 1024).toFixed(1).padStart(6)} KB · ${String(r.demos).padStart(2)} demos · ${String(r.pageWeight).padStart(3)} KB gz · ${String(r.sourceLines).padStart(4)} LOC · ${r.deps} dep(s)`);
 }

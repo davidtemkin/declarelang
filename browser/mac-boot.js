@@ -128,7 +128,7 @@ async function fromClient(programUrl) {
   const src = await (await fetch(programUrl)).text();
   await ensureLibrary(origin);
   const dir = programUrl.replace(/[^/]*$/, "");
-  const out = globalThis.__declareCompiler.compile(src, { originDir: dir });
+  const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
   if (!out.source) throw new Error(out.report || "compile failed");
   log("boot: client compile");
   return { source: out.source, deps: out.deps ?? {}, base: programUrl };
@@ -400,7 +400,7 @@ async function compileLive(src) {
   await ensureLibrary(origin);
   try {
     const dir = main.replace(/[^/]*$/, "");
-    const out = globalThis.__declareCompiler.compile(src, { originDir: dir });
+    const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
     return out.source ? { source: out.source, deps: out.deps ?? {} } : { report: out.report || "compile failed" };
   } catch (e) {
     return { report: e && e.message ? e.message : String(e) };

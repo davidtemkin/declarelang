@@ -122,24 +122,24 @@ function validatorFromResponse(res, text) {
 
 /** A closure entry's id back to a FETCHABLE url. The closure speaks two
  *  namespaces and they resolve against different bases — the reason a cached
- *  compile could never validate:
+ *  compile could never validate. Fetching every id as DOCUMENT-relative 404s
+ *  the library entries, so `probe` reported them missing, every entry failed
+ *  `isUpToDate`, and the fast path recompiled forever while writing a cache it
+ *  would never accept.
  *
- *    • the MAIN entry is an absolute URL (boot passes `mainId`),
- *    • an app's own includes are canonical to the PROGRAM's directory
- *      (the browser include host keys them with originDir ""),
- *    • library components are canonical to the DISTRO root (`library/…`).
- *
- *  Fetching all three as document-relative happens to work for the first two
- *  and 404s every library entry — so `probe` reported them missing, every
- *  entry failed `isUpToDate`, and the fast path recompiled forever while
- *  writing a cache it would never accept. The one asymmetry worth stating:
- *  `library/simplelayout.declare` under a program at `/apps/weather/` means
- *  `/library/…`, never `/apps/weather/library/…`. */
-function closureUrl(id, mainDir) {
+ *  ONE RULE now, because closure ids are deploy-relative on both producers —
+ *  the browser compile (compiler-client passes the program's deploy-relative
+ *  `originDir`) and `tools/internal/prewarm.mjs` (`path.relative(ROOT, id)`).
+ *  Before 2026-08-13 the browser keyed an app's own includes relative to the
+ *  PROGRAM and only library ids to the distro, so this needed a prefix test to
+ *  tell them apart — and `library/simplelayout.declare` under a program at
+ *  `/apps/weather/` had to be talked out of meaning `/apps/weather/library/…`.
+ *  The main entry is still an absolute URL (boot passes `mainId`), which needs
+ *  no resolving at all. */
+function closureUrl(id) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(id)) return id;                 // already absolute
-  return new URL(id, id.startsWith(LIB_PREFIX) ? ROOT : mainDir).href;
+  return new URL(id, ROOT).href;
 }
-const LIB_PREFIX = "library/";
 
 /** Re-probe one dependency, ANSWERING IN THE CURRENCY THE STORED VALIDATOR
  *  SPEAKS. A cheap HEAD reads ETag/Last-Modified with no body, and that is
@@ -171,11 +171,11 @@ async function probe(url, stored) {
   } catch { return { missing: true }; }
 }
 
-async function closureFresh(closure, mainDir) {
+async function closureFresh(closure) {
   if (!closure || !Array.isArray(closure.entries)) return false;
   const current = {};
   await Promise.all(closure.entries.map(async (e) => {
-    current[e.id] = await probe(closureUrl(e.id, mainDir), e.v);
+    current[e.id] = await probe(closureUrl(e.id), e.v);
   }));
   return isUpToDate(closure, closure.props, (e) => current[e.id] ?? { missing: true });
 }
@@ -363,7 +363,7 @@ export default async function boot(cfg) {
     sCache.end();
     if (cached) {
       const sClosure = perfStage("closure-check");
-      const fresh = await closureFresh(cached.closure, mainDir);
+      const fresh = await closureFresh(cached.closure);
       sClosure.end();
       if (fresh) {
         program = cached.program;

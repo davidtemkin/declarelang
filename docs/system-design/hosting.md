@@ -21,7 +21,9 @@ server (`window.__declareServer`, stamped on every page) and compiles on the ser
 downloading no compiler and preloading no component library — the Node compiler has both
 and resolves only what the program uses, demand-driven
 (`compiler/src/include-node.ts`). On a static host there is no server, so that same tier
-compiles **in the browser** instead. Same request surface, same run shell — only the
+compiles **in the browser** instead — since 2026-08-13 just as demand-driven, over the same
+search path (below), so the two differ in *transport* (fetch vs filesystem) and no longer in
+what they resolve or when. Same request surface, same run shell — only the
 location of the compile changes, which is why a large app with no prewarm still loads light
 in dev. `browser/boot-uniform.js` branches on the flag.
 
@@ -173,11 +175,48 @@ the bundles, and the library are fixed at platform build time and gated
 wholesale by `BUILD_ID` (the OL5 LFC model) — an app's closure records **its own
 sources only**.
 
-`compile()` is parameterized by an `IncludeHost`; the browser front-end
-(`compiler/compile-browser.ts`) injects a **synchronous in-memory host** over a
-prefetched file map (fetch is async, the include seam is sync — so the fixed
-library set is prefetched up front and registered once as the compiler's
-default, `setDefaultLibrary`).
+`compile()` is parameterized by an `IncludeHost`, and the seam is **async** —
+`resolve` may answer with a value or a promise. Node reads the filesystem;
+`compiler/compile-browser.ts` injects a **fetch host** that reads each file over
+HTTP as the include walk reaches it. Both go through the one ordered search path
+(`include-search.ts`: the including file's own directory, then the library root),
+tried strictly in sequence, because *first hit wins* is an ordering guarantee a
+parallel probe would quietly break.
+
+Until 2026-08-13 the seam was synchronous, which a browser cannot satisfy: every
+file had to be **in hand before the compile started**. That cost two things, both
+now deleted. The page downloaded the entire component library up front — ~28
+sources, on every load, whether or not anything compiled — and an app's own
+`include`s could not be known in advance at all, so the client **regexed the
+source** for `include [ … ]` and prefetched what it found: a second, cruder
+include discovery running ahead of the real parser, seeing only literal quoted
+paths. Now only the small tag→file **manifest** loads up front (the auto-include
+pass needs the table to know which components a program names) and its values are
+fetched only when a program actually reaches them. Measured on `lzx-dashboard`,
+a static-hosted app with three of its own source files: 104 requests → 76, of
+which library sources went 28 → 2. On a **prewarmed** page, which compiles
+nothing, 49 → 21 with no library sources at all.
+
+Library sources are cached for the life of the page — they are immutable within a
+`BUILD_ID` bucket, so a change to one bumps the id and drops the whole cache
+bucket. App sources are re-read every compile, exactly as the Node host re-reads
+them from disk.
+
+A library component's SOURCE is still a closure entry, though: its text shapes
+the compiled output exactly like an `include`, so editing one invalidates an
+app's cached compile and forces a recompile — verified in a real browser, along
+with the control that an *unchanged* reload does not recompile. (Only the
+runtime/compiler **bundle** stays out of closures, gated by `BUILD_ID`.)
+
+**One key space.** Closure ids are DEPLOY-RELATIVE from both producers — a
+browser compile and `tools/internal/prewarm.mjs` — so `boot-uniform.js
+closureUrl()` resolves every id with one rule against the distro root. Until
+2026-08-13 the browser keyed an app's own includes relative to the *program* and
+only library ids to the distro, which cost a prefix special case in the probe and
+silently swallowed a leading `..`: `include [ "../shared/x.declare" ]` resolved
+on Node and missed in the browser. The browser walk now starts in the program's
+deploy-relative directory, so canonicals come out deploy-relative and the two
+hosts name the same file. A cross-host test pins it.
 
 ### Browse-to-run (service worker)
 

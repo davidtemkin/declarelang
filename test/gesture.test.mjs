@@ -119,9 +119,9 @@ const PAGE_RAW = `App [ fill = #202830,
     parked: View [ x = { app.width + 40 }, y = 100, width = 200, height = 200, fill = #FF0000 ],
     ]`;
 
-const claimsCompiled = compile(CLAIMS_RAW);
+const claimsCompiled = await compile(CLAIMS_RAW);
 assert.deepEqual(claimsCompiled.errors, [], "claims fixture compiles clean");
-const lockCompiled = compile(LOCK_RAW);
+const lockCompiled = await compile(LOCK_RAW);
 assert.deepEqual(lockCompiled.errors, [], "lock fixture compiles clean");
 
 const pageHtml = (backendClass, source, { embedded = false } = {}) => `<!doctype html>
@@ -134,7 +134,7 @@ ${embedded ? '<div data-declare-app="1"><div id="host"></div></div>' : '<div id=
   requestAnimationFrame(() => requestAnimationFrame(() => { window.__rendered = true; }));
 </script>`;
 
-const pageCompiled = compile(PAGE_RAW);
+const pageCompiled = await compile(PAGE_RAW);
 assert.deepEqual(pageCompiled.errors, [], "page fixture compiles clean");
 
 // Selection realization on a COARSE pointer (claim-surface.md): explicit
@@ -143,7 +143,7 @@ assert.deepEqual(pageCompiled.errors, [], "page fixture compiles clean");
 const COARSE_RAW = `App [ width = 640, height = 400, fill = #202830,
     label: Text [ x = 20, y = 20, text = "selectable prose", selectable = true ],
     ]`;
-const coarseCompiled = compile(COARSE_RAW);
+const coarseCompiled = await compile(COARSE_RAW);
 assert.deepEqual(coarseCompiled.errors, [], "coarse fixture compiles clean");
 
 // THE SUBTRACTIVE SELECTION REALIZATION (ruled 2026-07-30): `none` on exactly
@@ -164,7 +164,7 @@ const SEL_RAW = `App [ width = 640, height = 700, fill = #202830,
         p2: Text [ y = 60, text = "second block" ],
         ],
     ]`;
-const selCompiled = compile(SEL_RAW);
+const selCompiled = await compile(SEL_RAW);
 assert.deepEqual(selCompiled.errors, [], "selection fixture compiles clean");
 
 // THE SCROLL-AWARE WALK (ruled 2026-07-30): hovered/pressed hit where things
@@ -183,7 +183,7 @@ const WALK_RAW = `App [ fill = #202830,
     deep: View [ x = 40, y = 900, width = 200, height = 60, fill = #3A4855,
         onClick() { } ],
     ]`;
-const walkCompiled = compile(WALK_RAW);
+const walkCompiled = await compile(WALK_RAW);
 assert.deepEqual(walkCompiled.errors, [], "walk fixture compiles clean");
 
 // ROTATED LOCALIZATION (compositing.md Part II). The browser TARGETS through
@@ -203,7 +203,7 @@ const ROT_RAW = `App [ width = 640, height = 400, fill = #202830,
         onWheel(e: WheelEvent) { app.whx = e.x; app.why = e.y },
         ],
     ]`;
-const rotCompiled = compile(ROT_RAW);
+const rotCompiled = await compile(ROT_RAW);
 assert.deepEqual(rotCompiled.errors, [], "rotation fixture compiles clean");
 
 // ── The iOS missing-cancel takeover (input.ts scroll-takeover detector) ─────
@@ -237,7 +237,7 @@ const TAKEOVER_RAW = `App [ width = 640, height = 400, fill = #202830,
         onTouchCancel(e: TouchEvent) { app.tCancels = app.tCancels + 1 },
         ],
     ]`;
-const takeoverCompiled = compile(TAKEOVER_RAW);
+const takeoverCompiled = await compile(TAKEOVER_RAW);
 assert.deepEqual(takeoverCompiled.errors, [], "takeover fixture compiles clean");
 
 const pages = {

@@ -9,8 +9,9 @@
 //     or the worker fails to boot. Either transport returns the identical
 //     PROJECTED result — { source, deps, diagnostics, report [, closure] } —
 //     so a caller cannot tell (or care) where the compile ran.
-//   • loadLibraryOnce() — the auto-include library (manifest + every src file),
-//     fetched once per page and shared by every compile.
+//   • loadLibraryOnce() — the auto-include MANIFEST (tag → file), fetched once
+//     per page. The sources themselves are read by the compiler's fetch host,
+//     during the compile that reaches them.
 //   • ensureLibrary(client) — loads the library and registers it as the
 //     compiler's DEFAULT (setDefaultLibrary), on whichever transport is live.
 //     After this, `client.compile(src)` just works — bare tags (`Bar [ ]`)
@@ -56,7 +57,7 @@ async function create() {
     try {
       const client = await workerClient();
       s.end();
-      return withAppIncludes(client);
+      return withOrigins(client);
     } catch {
       /* fall through to inline */
     }
@@ -64,97 +65,59 @@ async function create() {
   const s = perfStage("compiler-inline");
   const client = await inlineClient();
   s.end();
-  return withAppIncludes(client);
+  return withOrigins(client);
 }
 
-// ── an app's OWN includes ────────────────────────────────────────────────────
-// The include host reads its file map SYNCHRONOUSLY (IncludeHost.resolve
-// answers source-or-null, never a promise) because the Node host reads a
-// filesystem. A browser can only fetch asynchronously, so anything a program
-// includes must already be in hand when the compile starts. The warm-load
-// covers the LIBRARY — a fixed, known set. It cannot cover what an app
-// includes of its OWN: `include [ "weather-art.declare" ]` naming a file
-// beside the program. Those were never fetched, so they resolved to null and
-// the compile failed with DECLARE5002 — but only on a static host, because
-// the dev server compiles on the Node side where the filesystem answers.
+// ── where a compile reads from ───────────────────────────────────────────────
+// Every compile is told the distro root it reads against and the deploy-relative
+// directory it starts in, and the compiler's fetch host reads what the walk
+// actually reaches. Nothing is prefetched on the chance it might be wanted.
 //
-// So: read the directives, fetch what they name relative to the program, and
-// merge the result into the library map the host already gets. Relative
-// first, mirroring the search order (the including file's own dir, then the
-// library root) — a 404 is not an error here, it just means the name belongs
-// to the library, which still gets its turn. A genuinely missing file is
-// still DECLARE5002, reported by the compiler as before.
+// This replaces two things that were here until 2026-08-13, both of them
+// consequences of a synchronous include seam that could not fetch:
+//
+//   • `withAppIncludes` — a REGEX over the source (`/\binclude\s*\[([^\]]*)\]/`)
+//     that discovered includes ahead of the real parser and prefetched them. A
+//     second implementation of include resolution, necessarily cruder than the
+//     one it was feeding: it saw only literal quoted paths, and any disagreement
+//     with the parser was a file the compiler then could not find.
+//   • the eager library preload — the manifest AND all ~28 source files, on
+//     every page, before knowing whether a compile would happen at all.
+//
+// The manifest still loads up front: it is one small JSON, and the auto-include
+// pass needs the tag→file table in hand to know WHICH components a program
+// refers to. Its VALUES are now fetched only when a program actually names them.
 
-const INCLUDE_DIRECTIVE = /\binclude\s*\[([^\]]*)\]/g;
-
-/** The paths one source's `include [ … ]` directives name. */
-function includedPaths(src) {
-  const out = [];
-  for (const directive of src.matchAll(INCLUDE_DIRECTIVE))
-    for (const q of directive[1].matchAll(/"([^"]+)"|'([^']+)'/g)) out.push(q[1] ?? q[2]);
-  return out;
+/** The program's own DEPLOY-RELATIVE directory — the dir the include walk starts
+ *  in, which is what makes every canonical it produces deploy-relative too
+ *  ("apps/weather/weather-art.declare"), matching the ids prewarm writes and the
+ *  one rule `boot-uniform.js closureUrl()` resolves them with.
+ *
+ *  `mainId` is the program's URL when the caller knows it; an unsaved buffer has
+ *  none and falls back to the page, the same base its relative paths mean. A
+ *  program somehow outside the distro yields "" — it can only reach the library,
+ *  which is the honest answer for something the distro cannot address. */
+function originDirFor(opts) {
+  const program = opts?.mainId ?? (typeof location === "undefined" ? null : location.href);
+  if (program === null) return null;
+  const dir = new URL(".", program).href;
+  return dir.startsWith(DISTRO.href) ? dir.slice(DISTRO.href.length).replace(/\/$/, "") : "";
 }
 
-/** Collapse `.` / `..` so a key matches the canonical form memoryHost computes
- *  (compile-browser.ts normalizePath) — the two must agree or the map misses. */
-function normalizeRel(p) {
-  const out = [];
-  for (const seg of p.split("/")) {
-    if (seg === "" || seg === ".") continue;
-    if (seg === "..") out.pop();
-    else out.push(seg);
-  }
-  return out.join("/");
-}
-
-/** Walk a program's include graph over HTTP, keyed exactly as the host will
- *  ask for it: relative to the program, whose originDir in the browser is "".
- *  Transitive — an included file may include more. */
-async function fetchAppIncludes(source, baseHref) {
-  const files = {};
-  const seen = new Set();
-  const walk = async (src, dir) => {
-    await Promise.all(includedPaths(src).map(async (p) => {
-      const key = normalizeRel(dir === "" ? p : dir + "/" + p);
-      if (seen.has(key)) return;
-      seen.add(key);
-      let text = null;
-      try {
-        const res = await fetch(new URL(key, baseHref), { cache: "no-cache" });
-        if (res.ok) text = await res.text();
-      } catch { /* offline or blocked — the compiler reports the miss */ }
-      if (text === null) return;                                   // the library root's turn
-      files[key] = text;
-      await walk(text, key.split("/").slice(0, -1).join("/"));
-    }));
-  };
-  await walk(source, "");
-  return files;
-}
-
-/** Wrap a client so every compile carries the app's own includes alongside the
- *  library. MERGES rather than replaces: `files` in opts makes the compiler
- *  take that map INSTEAD of the registered default library (compile-browser
- *  effectiveLib), so handing it the app's two files alone would strand every
- *  bare tag. A program with no includes takes the untouched path. */
-function withAppIncludes(client) {
-  const augment = async (source, opts) => {
-    const base = opts?.mainId ?? (typeof location === "undefined" ? null : location.href);
-    if (base === null || includedPaths(source).length === 0) return opts;
-    const appFiles = await fetchAppIncludes(source, base);
-    if (Object.keys(appFiles).length === 0) return opts;
-    const lib = (await loadLibraryOnce()) ?? {};
-    return {
-      ...opts,
-      files: { ...(lib.files ?? {}), ...appFiles },
-      manifest: lib.manifest ?? {},
-      ...(lib.libraryRoot === undefined ? {} : { libraryRoot: lib.libraryRoot }),
-    };
+/** Wrap a client so every compile carries where it reads from: the distro root,
+ *  and its own directory within it. A caller that passes an explicit `files` map
+ *  still wins for anything in it — the host consults what it was handed before
+ *  it reaches for the network. An explicit `originDir` is left alone. */
+function withOrigins(client) {
+  const augment = (opts) => {
+    const originDir = originDirFor(opts);
+    if (originDir === null) return opts;
+    return { originDir, ...opts, origins: { distro: DISTRO.href, ...(opts?.origins ?? {}) } };
   };
   return {
     ...client,
-    compile: async (source, opts) => client.compile(source, await augment(source, opts)),
-    compileTracked: async (source, opts) => client.compileTracked(source, await augment(source, opts)),
+    compile: (source, opts) => client.compile(source, augment(opts)),
+    compileTracked: (source, opts) => client.compileTracked(source, augment(opts)),
   };
 }
 
@@ -206,9 +169,9 @@ async function inlineClient() {
   const project = (r) => ({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
   return {
     transport: "inline",
-    compile: async (source, opts) => project(mod.compile(source, opts ?? {})),
+    compile: async (source, opts) => project(await mod.compile(source, opts ?? {})),
     compileTracked: async (source, opts) => {
-      const r = mod.compileTracked(source, opts ?? {});
+      const r = await mod.compileTracked(source, opts ?? {});
       return { ...project(r), closure: r.closure };
     },
     highlight: async (src) => mod.highlight(src),
@@ -229,26 +192,23 @@ export function loadLibraryOnce() {
   return libraryPromise;
 }
 
-// The manifest (bare tag → file) IS the library's file list — its values name
-// every library file, so one fetch serves both bare tags (`Bar [ ]`) and bare
-// includes (`include [ "x.declare" ]`, resolved along the search path's library
-// root), mirroring the Node fs host. (A library file that is includable but not
-// auto-includable would be a manifest entry, not a second index.) NOT recorded
-// in app closures — the whole library is under BUILD_ID, so a bucket change
-// already covers it.
+// The manifest (bare tag → file) is the tag→file TABLE the auto-include pass
+// reads to decide which components a program refers to, so it must be in hand
+// before a compile starts: one small JSON, fetched once per page.
+//
+// Its VALUES are no longer fetched here. Until 2026-08-13 this downloaded every
+// library source too — the sync include seam left no other option, so a page
+// that compiled nothing still paid for the whole library, and a program using
+// two components paid for all of them. The fetch host reads the referenced ones
+// during the walk instead, and caches them for the life of the page (they are
+// immutable within a BUILD_ID bucket, which is also why library reads stay out
+// of app closures).
 async function loadLibrary() {
   try {
     const manifest = await fetch(new URL("library/autoincludes.json", DISTRO), { cache: "no-cache" }).then((r) => r.json());
-    // values are filenames — skip the structured entries ($provide is a rule list)
-    const names = [...new Set(Object.values(manifest).filter((v) => typeof v === "string"))];
-    const files = {};
-    await Promise.all(names.map(async (rel) => {
-      const res = await fetch(new URL("library/" + rel, DISTRO), { cache: "no-cache" });
-      if (res.ok) files["library/" + rel] = await res.text();
-    }));
-    return { manifest, files };
+    return { manifest, origins: { distro: DISTRO.href } };
   } catch {
-    return { manifest: {}, files: {} }; // no library → programs without auto-includes still compile
+    return { manifest: {} }; // no library → programs without auto-includes still compile
   }
 }
 

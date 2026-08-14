@@ -10,10 +10,12 @@
 //
 // For each curated program it writes bundles/cache/<key>.json for two kinds:
 //   • run — the compiled program + static deps + source, plus the dependency CLOSURE
-//     rewritten for the browser — library reads dropped (BUILD_ID gates them, like
-//     the browser's own closure), every remaining entry a DEPLOY-RELATIVE id with a
+//     rewritten for the browser: every FILE read becomes a DEPLOY-RELATIVE id with a
 //     CONTENT-HASH validator the browser re-derives by GET-and-hash. That is what
-//     makes the tier self-validating and drift-proof.
+//     makes the tier self-validating and drift-proof. (Library reads are KEPT — a
+//     component's source shapes the output like any include, and the browser's own
+//     compile records them too. Only the runtime/compiler BUNDLE stays out, gated by
+//     BUILD_ID. An earlier note here claimed they were dropped; they never were.)
 //   • segments — { path, segments, metrics } for the code viewer, served by the
 //     service worker's `?segments` route (it builds the key itself).
 //
@@ -147,7 +149,7 @@ for (const prog of PROGRAMS) {
   if (!existsSync(absMain)) throw new Error(`prewarm: ${prog.main} does not exist`);
   const src = readFileSync(absMain, "utf8");
 
-  const tracked = compileTracked(src, { originDir: path.dirname(absMain), mainId: absMain, props: prog.props });
+  const tracked = await compileTracked(src, { originDir: path.dirname(absMain), mainId: absMain, props: prog.props });
   if (tracked.source === null || tracked.errors?.length) {
     throw new Error(`prewarm: ${prog.main} did not compile:\n` +
       (tracked.errors ?? []).map((e) => "  " + (e.pos?.line != null ? `line ${e.pos.line}: ` : "") + e.message).join("\n"));

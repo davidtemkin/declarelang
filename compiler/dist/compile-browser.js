@@ -1,21 +1,18 @@
 // compile-browser — the browser front-end for `compile`. Counterpart to
-// compile-node.ts: where that injects the filesystem include host, this
-// injects a SYNCHRONOUS in-memory include host over a map of prefetched
-// sources. The compile itself — INCLUDING the tsc-over-bodies typecheck — is
-// the ONE core (compile.ts imports the checker directly; no front-end wires
-// it, so no front-end can forget it). The only host seam is where lib.d.ts
-// texts come from: the bundle EMBEDS the es2022 closure and registers it at
-// init (build-compiler.mjs → provideLib), mirroring compile-node's disk
-// provider.
+// compile-node.ts: where that injects the filesystem include host, this injects
+// a FETCH host that reads each file over HTTP as the include walk reaches it.
+// The compile itself — INCLUDING the tsc-over-bodies typecheck — is the ONE core
+// (compile.ts imports the checker directly; no front-end wires it, so no
+// front-end can forget it). The only host seam is where lib.d.ts texts come
+// from: the bundle EMBEDS the es2022 closure and registers it at init
+// (build-compiler.mjs → provideLib), mirroring compile-node's disk provider.
 //
-// Why in-memory: `compile.ts` is synchronous and so is the include seam
-// (IncludeHost.resolve returns source-or-null, not a Promise), but a browser
-// can only fetch asynchronously. So the warm-load fetches the FIXED library set
-// (the auto-include manifest + its *.declare files) once, up front, and hands it
-// here as `files`/`manifest`; this host then reads it synchronously. A path not
-// in the map resolves to null — the same "absent file" signal the filesystem
-// host gives — so a source with no `include`s (every example today) needs
-// nothing prefetched at all.
+// TWO HOSTS LIVE HERE. `fetchHost` is the real one (see its own note below).
+// `memoryHost` reads a prefetched map and stays for callers that legitimately
+// have every file in hand — tests, and a compile handed an explicit `files`.
+// Until the include seam went async (2026-08-13) the map was the ONLY option,
+// because a browser cannot read a file synchronously; that constraint is what
+// shaped the old warm-load, and it is gone.
 //
 // tools/internal/build-compiler.mjs bundles THIS module (with `typescript`) into
 // bundles/declare-compiler.js — the artifact the homepage warm-loads.
@@ -75,6 +72,67 @@ export function memoryHost(opts = {}) {
         resolveLibrary: (path) => resolveAt(srcDir, path),
     };
 }
+/** Library sources are immutable within a BUILD_ID bucket (the whole library is
+ *  gated by it — that is why library reads stay out of app closures), so one
+ *  fetch per file serves the life of the page. App sources are NOT: they are
+ *  what the author is editing, so they are re-read every compile exactly as the
+ *  Node host re-reads them from disk. */
+const LIB_CACHE = new Map();
+/** An IncludeHost that reads over HTTP, falling back to `files` for anything
+ *  already in hand (tests and callers that pass an explicit map keep working,
+ *  and a prewarmed page can seed sources it already holds). */
+export function fetchHost(opts) {
+    const files = opts.files ?? {};
+    const manifest = opts.manifest ?? {};
+    const srcDir = opts.libraryRoot ?? "library";
+    const libPrefix = srcDir + "/";
+    const doFetch = opts.fetchImpl ?? fetch;
+    const read = async (canonical) => {
+        const held = files[canonical];
+        if (held !== undefined)
+            return held;
+        const isLib = canonical.startsWith(libPrefix);
+        if (isLib && LIB_CACHE.has(canonical))
+            return LIB_CACHE.get(canonical) ?? null;
+        let text = null;
+        try {
+            // ONE base for every canonical — they are all deploy-relative. The library
+            // prefix now decides only CACHING, not where to read from. `no-cache`
+            // REVALIDATES rather than skipping the HTTP cache: a 304 is the cheap
+            // answer for a file that has not changed, and the strong validator is the
+            // same one the closure probe compares.
+            const url = new URL(canonical, opts.origins.distro);
+            const res = await doFetch(url, { cache: "no-cache" });
+            if (res.ok)
+                text = await res.text();
+        }
+        catch {
+            /* offline, blocked, or genuinely absent — a MISS, reported by the compiler
+               as DECLARE5002 with the path named, exactly like a missing file on disk */
+        }
+        if (isLib)
+            LIB_CACHE.set(canonical, text);
+        return text;
+    };
+    const at = async (canonical) => {
+        const source = await read(canonical);
+        return source === null
+            ? null
+            : { canonical, dir: canonical.split("/").slice(0, -1).join("/"), source };
+    };
+    const resolveAt = (dir, path) => at(normalizePath(dir + "/" + path));
+    const roots = [srcDir];
+    return {
+        resolve: (fromDir, path) => searchIncludePath(fromDir, path, roots, resolveAt),
+        autoincludes: () => manifest,
+        resolveLibrary: (path) => resolveAt(srcDir, path),
+    };
+}
+/** Drop the page-lifetime library-source cache. For tests, and for a host that
+ *  learns its BUILD_ID moved under it. */
+export function clearLibraryCache() {
+    LIB_CACHE.clear();
+}
 // ── The default library ──────────────────────────────────────────────────────
 // A host page loads the auto-include library ONCE (manifest + src files) and
 // registers it here; from then on every compile — the page's own, a live-edit
@@ -99,18 +157,33 @@ function effectiveLib(opts) {
  *  compile-node's `compile`. Prefetched `files`/`manifest` ride in through opts
  *  (they configure the host, not the compile itself); when absent, the
  *  registered default library serves. */
-export function compile(source, opts = {}) {
-    const { files, manifest, libraryRoot, host, ...compileOpts } = { ...effectiveLib(opts), ...stripLib(opts) };
+export async function compile(source, opts = {}) {
+    const lib = effectiveLib(opts);
+    const { files, manifest, libraryRoot, origins: _o, fetchImpl, host, ...compileOpts } = { ...lib, ...stripLib(opts) };
     return compileCore(source, {
         ...compileOpts,
-        host: host ?? memoryHost({ files, manifest, libraryRoot }),
+        host: host ?? includeHost({ files, manifest, libraryRoot, fetchImpl, origins: mergeOrigins(lib, opts) }),
     });
 }
 /** opts minus the library keys — so effectiveLib's choice isn't overridden by
  *  the caller's undefined placeholders. */
 function stripLib(opts) {
-    const { files: _f, manifest: _m, libraryRoot: _r, ...rest } = opts;
+    const { files: _f, manifest: _m, libraryRoot: _r, origins: _o, fetchImpl: _fi, ...rest } = opts;
     return rest;
+}
+/** The registered default supplies the DISTRO (one page, one distro); a later
+ *  call may restate it. Merged rather than replaced so a call that names no
+ *  origins at all still reaches the library the page registered. */
+function mergeOrigins(lib, opts) {
+    const merged = { ...(lib.origins ?? {}), ...(opts.origins ?? {}) };
+    return merged.distro === undefined ? undefined : merged;
+}
+/** The host a browser compile runs on: fetch-backed when it knows where to read
+ *  from, otherwise the prefetched map. ONE decision, so `compile` and
+ *  `compileTracked` cannot drift into resolving includes two different ways. */
+function includeHost(cfg) {
+    const { origins, ...rest } = cfg;
+    return origins === undefined ? memoryHost(rest) : fetchHost({ ...rest, origins });
 }
 /** `compile`, additionally returning the compile's dependency CLOSURE — the
  *  browser mirror of compile-node's compileTracked: the main source plus every
@@ -118,9 +191,13 @@ function stripLib(opts) {
  *  validator (the same validator shape boot-uniform's probes re-derive from a
  *  fetch). Feed it to closure.ts isUpToDate() to decide cached-vs-recompile —
  *  a multi-file app's `include`s now invalidate exactly like the main file. */
-export function compileTracked(source, opts = {}) {
+export async function compileTracked(source, opts = {}) {
     const lib = effectiveLib(opts);
-    const inner = memoryHost({ files: lib.files, manifest: lib.manifest, libraryRoot: lib.libraryRoot });
+    const inner = includeHost({
+        files: lib.files, manifest: lib.manifest, libraryRoot: lib.libraryRoot,
+        fetchImpl: opts.fetchImpl ?? lib.fetchImpl,
+        origins: mergeOrigins(lib, opts),
+    });
     const libPrefix = (lib.libraryRoot ?? "library") + "/";
     const reads = new Map();
     const record = (r) => {
@@ -129,13 +206,18 @@ export function compileTracked(source, opts = {}) {
         }
         return r;
     };
+    // `record` observes each read for the closure. It takes whatever the inner host
+    // returns — a value from the memory host, a promise from a fetch host — and
+    // records after it settles, so the closure is captured identically on both and
+    // in the walk's own sequential order.
+    const recordAsync = async (r) => record(await r);
     const host = {
-        resolve: (fromDir, path) => record(inner.resolve(fromDir, path)),
+        resolve: (fromDir, path) => recordAsync(inner.resolve(fromDir, path)),
         autoincludes: () => inner.autoincludes(),
-        resolveLibrary: (path) => record(inner.resolveLibrary(path)),
+        resolveLibrary: (path) => recordAsync(inner.resolveLibrary(path)),
     };
-    const { files: _f, manifest: _m, libraryRoot: _r, mainId, mainValidator, validators: _v, props, trackLibrary: _t, ...compileOpts } = opts;
-    const result = compileCore(source, {
+    const { files: _f, manifest: _m, libraryRoot: _r, origins: _o, fetchImpl: _fi, mainId, mainValidator, validators: _v, props, trackLibrary: _t, ...compileOpts } = opts;
+    const result = await compileCore(source, {
         ...compileOpts,
         host: opts.host ?? host,
     });

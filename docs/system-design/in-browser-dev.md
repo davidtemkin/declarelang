@@ -5,9 +5,10 @@
 **Scope note (do not let this drift again):** "in-browser compile, no server" is the
 **static-host** path — a dumb host with the service worker, where there is no server to
 compile. It is *not* the universal dev model. Under the **dev server**, a run navigation
-compiles **on the server** (`POST /compile`), so the browser downloads no compiler and
-preloads no library; the in-browser compiler is loaded only on a static host (or for a live
-edit there). The two hosts share one run shell and one boot — load a committed build, else
+compiles **on the server** (`POST /compile`), so the browser downloads no compiler at all;
+the in-browser compiler is loaded only on a static host (or for a live edit there). Neither
+host preloads a library any more — both resolve components on demand, the server from disk
+and the browser by fetch. The two hosts share one run shell and one boot — load a committed build, else
 resolve the source (closure-checked) — and differ *only* in where the compile and its cache
 live. See
 [hosting.md](hosting.md) "Dynamic (dev server)" and "Browse-to-run", and

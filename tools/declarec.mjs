@@ -151,7 +151,7 @@ export async function buildProduction(source, opts = {}) {
     ...(opts.props ?? {}),
   };
   const mainId = opts.originDir ? join(opts.originDir, `${name}.declare`) : undefined;
-  const built = compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true, mainId, props });
+  const built = await compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true, mainId, props });
   if (built.program === null) {
     return { ok: false, errors: built.errors, warnings: built.warnings, diagnostics: built.diagnostics, report: built.report, closure: built.closure, files: [], sizes: null };
   }
@@ -451,7 +451,7 @@ export function validateShape() { return null; }
   let staticBlock = "";
   let pageTitle = name;
   if (opts.crawler) {
-    const compiled = compileFull(source, { originDir: opts.originDir, typecheck: false });
+    const compiled = await compileFull(source, { originDir: opts.originDir, typecheck: false });
     // The CRAWLED document (location.md §7) — every reachable location's content in
     // the one page. Data resolves from the app's own directory (the build-time rule);
     // a network DataSource fails the build loudly, by design.
@@ -661,7 +661,7 @@ async function checkFiles(files, { json, quiet }) {
     // grammar makes, not a guess from an error message.
     let isLibrary = false;
     try { parseLibrary(source); isLibrary = true; } catch { /* a program, or broken as both */ }
-    const out = compileFull(isLibrary ? `${source}\nApp [ ]\n` : source, { originDir: dirname(srcPath) });
+    const out = await compileFull(isLibrary ? `${source}\nApp [ ]\n` : source, { originDir: dirname(srcPath) });
     for (const d of out.diagnostics) {
       records.push({
         file: f, code: d.code, severity: d.severity, phase: d.phase, message: d.message,
@@ -771,7 +771,7 @@ async function cli(argv) {
   // A fresh compile through the front-end + a headless extract; typecheck already gated
   // the build above, so it is skipped on this second pass.
   if (doExtract) {
-    const compiled = compileFull(source, { originDir: srcDir, typecheck: false });
+    const compiled = await compileFull(source, { originDir: srcDir, typecheck: false });
     const ex = compiled.source === null ? null : await crawlExtract(compiled.source, {
       deps: compiled.deps, links: compiled.links,
       data: srcDir ? diskDataResolver(srcDir) : undefined,

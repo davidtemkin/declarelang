@@ -9,8 +9,8 @@ import { parseProgram } from "../runtime/dist/parser.js";
 import { instantiate, settle, inspect, find, explain, stats, clock, pickAt } from "../runtime/dist/index.js";
 import { applyDeps } from "../runtime/dist/deps.js";
 
-function boot(src) {
-  const r = compile(src, {});
+async function boot(src) {
+  const r = await compile(src, {});
   assert.notEqual(r.source, null, "compiles: " + r.errors.map((e) => e.message).join("; "));
   const program = parseProgram(r.source);
   applyDeps(program, r.deps);          // zip the compiler's read-paths back on (what renderAsync does)
@@ -30,8 +30,8 @@ const APP = `App [ width = 400, height = 300, n: number = 10,
         ],
     ]`;
 
-await test("inspect: tree as data — kinds, names, paths, geometry, root-space", () => {
-  const app = boot(APP);
+await test("inspect: tree as data — kinds, names, paths, geometry, root-space", async () => {
+  const app = await boot(APP);
   const t = inspect(app);
   assert.equal(t.kind, "App");
   const panel = t.children.find((c) => c.name === "panel");
@@ -47,11 +47,11 @@ await test("inspect: tree as data — kinds, names, paths, geometry, root-space"
   app.discard();
 });
 
-await test("shown: EFFECTIVE visibility, folding in every ancestor", () => {
+await test("shown: EFFECTIVE visibility, folding in every ancestor", async () => {
   // reported 2026-08-03: a node inside a hidden panel read back `visible: true`
   // — true of its own slot, and useless to a reader asking why nothing is on
   // screen. Both facts are now present and neither is guessed from the other.
-  const app = boot(`App [ width = 300, height = 120,
+  const app = await boot(`App [ width = 300, height = 120,
       pane: View [ visible = false, width = 200, height = 60,
           b: View [ width = 80, height = 24,
               deep: View [ width = 10, height = 10 ] ] ] ]`);
@@ -70,14 +70,14 @@ await test("shown: EFFECTIVE visibility, folding in every ancestor", () => {
   app.discard();
 });
 
-await test("geometry under scroll: rootX/rootY is where the view is SEEN", () => {
+await test("geometry under scroll: rootX/rootY is where the view is SEEN", async () => {
   // Reported 2026-08-03: a driver could not reach anything below a scrolled
   // pane's fold and had to subtract scrollY by hand. inspect() summed ancestor
   // x/y directly — the exact defect rootFrameOrigin() was built to end for the
   // Inspector's highlight ("accumulated x/y by hand and was blind to every
   // scroll regime"), still living in a second walk here. The sum is right until
   // something scrolls, which is why it survived so long.
-  const app = boot(`App [ width = 200, height = 100,
+  const app = await boot(`App [ width = 200, height = 100,
       pane: View [ y = 10, width = 200, height = 100, scrolls = y, clip = true,
           a: View [ y = 0, width = 50, height = 20 ],
           b: View [ y = 300, width = 50, height = 20 ]
@@ -92,14 +92,14 @@ await test("geometry under scroll: rootX/rootY is where the view is SEEN", () =>
   app.discard();
 });
 
-await test("a point from inspect() resolves back through the introspection at()", () => {
+await test("a point from inspect() resolves back through the introspection at()", async () => {
   // The round-trip that makes the number usable: the same coordinates a driver
   // clicks are the ones `at(x, y)` takes. NOTE these are NOT View.viewAt's
   // coordinates — that method takes the root's CONTENT space and converts at the
   // boundary, while the introspection pickAt (inspect.ts) is the raw hit walk.
   // Two functions, one name, different spaces; this pins which one the reported
   // geometry belongs to.
-  const app = boot(`App [ width = 200, height = 100, scrolls = y,
+  const app = await boot(`App [ width = 200, height = 100, scrolls = y,
       top: View [ y = 10,  width = 200, height = 20 ],
       mid: View [ y = 360, width = 200, height = 20 ]
       ]`);
@@ -112,8 +112,8 @@ await test("a point from inspect() resolves back through the introspection at()"
   app.discard();
 });
 
-await test("find: dotted paths resolve names and indices; misses are null", () => {
-  const app = boot(APP);
+await test("find: dotted paths resolve names and indices; misses are null", async () => {
+  const app = await boot(APP);
   assert.equal(find(app, "app.panel.lbl").text, "hello");
   assert.equal(find(app, "panel.lbl").text, "hello", "leading 'app' optional");
   assert.equal(find(app, "app.panel.2").width, 5, "index addressing");
@@ -121,8 +121,8 @@ await test("find: dotted paths resolve names and indices; misses are null", () =
   app.discard();
 });
 
-await test("explain: provenance — literal vs wired constraint (label + static deps) vs spring", () => {
-  const app = boot(APP);
+await test("explain: provenance — literal vs wired constraint (label + static deps) vs spring", async () => {
+  const app = await boot(APP);
   const lit = explain(find(app, "app.panel"), "x");
   assert.equal(lit.value, 20);
   assert.equal(lit.constraint, null, "a literal has no owning constraint");
@@ -137,9 +137,9 @@ await test("explain: provenance — literal vs wired constraint (label + static 
   app.discard();
 });
 
-await test("driven clock: step() advances motion deterministically; settleMotion() lands it", () => {
+await test("driven clock: step() advances motion deterministically; settleMotion() lands it", async () => {
   clock.manual();
-  const app = boot(APP);
+  const app = await boot(APP);
   const ball = find(app, "app.ball");
   // The FIRST target is a declaration, not a destination (spring.ts): the
   // slot snaps there on the first tick — a boot never animates. Motion means
@@ -160,8 +160,8 @@ await test("driven clock: step() advances motion deterministically; settleMotion
   clock.auto();
 });
 
-await test("stats: node and owned-slot counts", () => {
-  const app = boot(APP);
+await test("stats: node and owned-slot counts", async () => {
+  const app = await boot(APP);
   const s = stats(app);
   assert.equal(s.nodes, 7, "App + panel + 3 + ball + spring");
   assert.ok(s.ownedSlots >= 2, "wired width + spring target are owned");

@@ -184,7 +184,7 @@ App [ width = 240, height = 160, fill = #20242C,
   sum: Text [ x = 136, y = 12, textColor = #FFE28A, fontSize = 14, fontFamily = "Arial",
     text = { "sum " + (a.count + b.count) } ],
   ]`;
-const r6Compiled = compile(R6_RAW);
+const r6Compiled = await compile(R6_RAW);
 if (r6Compiled.errors.length > 0 || r6Compiled.warnings.length > 0) {
   throw new Error("R6 program did not compile clean:\n" +
     [...r6Compiled.errors, ...r6Compiled.warnings].map((e) => `  ${e.message}`).join("\n"));
@@ -227,7 +227,7 @@ App [ width = 240, height = 160, fill = #20242C,
     s3: View [ width = 80, height = 18, fill = #91C499 ],
     ],
   ]`;
-const r7Compiled = compile(R7_RAW);
+const r7Compiled = await compile(R7_RAW);
 if (r7Compiled.errors.length > 0 || r7Compiled.warnings.length > 0) {
   throw new Error("R7 program did not compile clean:\n" +
     [...r7Compiled.errors, ...r7Compiled.warnings].map((e) => `  ${e.message}`).join("\n"));
@@ -260,7 +260,7 @@ App [ width = 240, height = 160, fill = #20242C,
     foot: View [ width = 120, height = 6, fill = #3FA34D ],
     ],
   ]`;
-const r8Compiled = compile(R8_RAW);
+const r8Compiled = await compile(R8_RAW);
 if (r8Compiled.errors.length > 0 || r8Compiled.warnings.length > 0) {
   throw new Error("R8 program did not compile clean:\n" +
     [...r8Compiled.errors, ...r8Compiled.warnings].map((e) => `  ${e.message}`).join("\n"));
@@ -296,7 +296,7 @@ const R9_RAW = `App [ width=240, height=160, fill=#20242C,
     layout: SimpleLayout [ axis=y, spacing=4 ],
     s1: View [ width=70, height=14, fill=#91C499 ],
     s2: View [ width=50%, height=10, fill=#C0C0C0 ] ] ]`;
-const r9Compiled = compile(R9_RAW);
+const r9Compiled = await compile(R9_RAW);
 if (r9Compiled.errors.length > 0 || r9Compiled.warnings.length > 0) {
   throw new Error("R9 program did not compile clean:\n" +
     [...r9Compiled.errors, ...r9Compiled.warnings].map((e) => `  ${e.message}`).join("\n"));
@@ -343,7 +343,7 @@ App [ width=240, height=160, fill=#20242C, stylesheet = Base,
     label: Text [ x=16, y=104, text="Styled", textShadow = shadow(1, 1, 0, #000000) ],
     sub: Text [ x=16, y=130, text="follows the app", fontSize=11, fontWeight=normal ],
   ]`;
-const r10Compiled = compile(R10_RAW);
+const r10Compiled = await compile(R10_RAW);
 if (r10Compiled.errors.length > 0 || r10Compiled.warnings.length > 0) {
   throw new Error("R10 program did not compile clean:\n" +
     [...r10Compiled.errors, ...r10Compiled.warnings].map((e) => `  ${e.message}`).join("\n"));
@@ -684,7 +684,7 @@ const ANIM_RAW = `App [ width=240, height=160, fill=#20242C,
   box: View [ x=20, y=60, width=40, height=40, fill=#4FC3F7,
     slide: Animator [ attribute=x, to=140, duration=600, motion=easeBoth, started=false ] ],
   chaser: View [ x={ box.x }, y=112, width=40, height=36, fill=#E9C46A ] ]`;
-const animCompiled = compile(ANIM_RAW);
+const animCompiled = await compile(ANIM_RAW);
 if (animCompiled.errors.length > 0 || animCompiled.warnings.length > 0) {
   throw new Error("animation program did not compile clean:\n" +
     [...animCompiled.errors, ...animCompiled.warnings].map((e) => `  ${e.message}`).join("\n"));
@@ -736,7 +736,7 @@ const ANIM2_RAW = `App [ width=240, height=160, fill=#20242C,
     a: Animator [ attribute=x, relative=true, to=80, duration=600, motion=linear, started=false ],
     b: Animator [ attribute=x, relative=true, to=40, duration=600, motion=linear, started=false ] ],
   chaser: View [ x={ box.x }, y=112, width=40, height=36, fill=#E9C46A ] ]`;
-const anim2Compiled = compile(ANIM2_RAW);
+const anim2Compiled = await compile(ANIM2_RAW);
 if (anim2Compiled.errors.length > 0 || anim2Compiled.warnings.length > 0) {
   throw new Error("A2 composition program did not compile clean:\n" +
     [...anim2Compiled.errors, ...anim2Compiled.warnings].map((e) => `  ${e.message}`).join("\n"));
@@ -849,7 +849,7 @@ function serveDist() {
     // (docs/system-design/capabilities.md §5), verified against Node byte-for-byte.
     "/extract-identity": `<!doctype html><meta charset="utf-8"><body><script type="module">
       import { extractStatic } from "/bundles/declare-compiler.js";
-      window.__extract = (src) => { const o = extractStatic(src); return JSON.stringify({ html: o.html, report: o.report }); };
+      window.__extract = async (src) => { const o = await extractStatic(src); return JSON.stringify({ html: o.html, report: o.report }); };
       window.__ready = true;
     </script>`,
   };
@@ -2727,7 +2727,7 @@ try {
     for (const src of cases) {
       const { transport, json } = await page.evaluate((s) => window.__run(s), src);
       assert.equal(transport, "worker", "Chrome supports module workers — the worker transport must win");
-      const r = compileNode(src, {});
+      const r = await compileNode(src, {});
       const expected = JSON.stringify({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
       assert.equal(json, expected, "worker output diverges from Node for: " + src.slice(0, 40));
     }
@@ -2758,7 +2758,7 @@ try {
     ];
     for (const src of cases) {
       const json = await page.evaluate((s) => window.__extract(s), src);
-      const o = extractNode(src);
+      const o = await extractNode(src);
       const expected = JSON.stringify({ html: o.html, report: o.report });
       assert.equal(json, expected, "browser extraction diverges from Node for: " + src.slice(0, 40));
     }

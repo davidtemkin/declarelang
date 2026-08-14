@@ -294,7 +294,7 @@ function classBlock(scaffold, name) {
   return lines.slice(start, end + 1).join("\n");
 }
 
-await test("a schema readOnly slot is `readonly` in the typed surface too", () => {
+await test("a schema readOnly slot is `readonly` in the typed surface too", async () => {
   // checkAttr refused `hovered = true` written as an ATTRIBUTE, but an
   // assignment inside a { } body is TypeScript's to catch — and it could not,
   // because the scaffold emitted a plain mutable member. So
@@ -303,17 +303,17 @@ await test("a schema readOnly slot is `readonly` in the typed surface too", () =
   // into its schema: that class had been accidentally covered by hand-written
   // `readonly` lines in the EXTRAS table, and moving it to the honest mechanism
   // dropped the cover — which is how a general hole surfaced.
-  const errs = (src) => (compile(src, {}).errors ?? []).map((e) => e.message).join("\n");
+  const errs = async (src) => ((await compile(src, {})).errors ?? []).map((e) => e.message).join("\n");
   for (const [what, body] of [
     ["View.hovered", "v: View [ ], onClick() { this.v.hovered = true }"],
     ["View.contentWidth", "v: View [ ], onClick() { this.v.contentWidth = 5 }"],
     ["DataSource.loaded", 'd: DataSource [ url = "/x" ], onClick() { this.d.loaded = true }'],
   ]) {
-    assert.match(errs(`App [ width = 1, height = 1, ${body} ]`), /read-only property/,
+    assert.match(await errs(`App [ width = 1, height = 1, ${body} ]`), /read-only property/,
       `${what} must be readonly in the scaffold`);
   }
   // and a normal slot is still assignable
-  assert.deepEqual(errs(`App [ width = 1, height = 1, v: View [ ], onClick() { this.v.width = 5 } ]`), "");
+  assert.deepEqual(await errs(`App [ width = 1, height = 1, v: View [ ], onClick() { this.v.width = 5 } ]`), "");
 });
 
 summarize("scaffold");

@@ -521,16 +521,6 @@ var DeclareMac = (() => {
       throw new DeclareErrors(p.errors);
     return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, root };
   }
-  function parseLibrary(source) {
-    const p = new Parser(tokenize(source));
-    const decls = parseTopDecls(p);
-    if (p.peek().kind !== "eof") {
-      throw Diag.strayRoot("an included file is a library of definitions \u2014 it declares classes, stylesheets, and styles, not an App/root", p.peek().pos);
-    }
-    if (p.errors.length > 0)
-      throw new DeclareErrors(p.errors);
-    return decls;
-  }
   var isDigit, isIdentStart, isIdentPart, isHex, Parser;
   var init_parser = __esm({
     "runtime/dist/parser.js"() {
@@ -3393,87 +3383,10 @@ var DeclareMac = (() => {
   });
 
   // runtime/dist/include.js
-  function exciseSpans(source, spans) {
-    let out = source;
-    for (const s of [...spans].sort((a, b) => b.start - a.start)) {
-      out = out.slice(0, s.start) + out.slice(s.end);
-    }
-    return out;
-  }
-  function resolveIncludes(program, host2, originDir) {
-    const errors = [];
-    const classes = [...program.classes];
-    const stylesheets = [...program.stylesheets];
-    const styles = [...program.styles];
-    const fonts = [...program.fonts];
-    const uses = [...program.uses];
-    const scripts = [...program.scripts];
-    const sources = [];
-    const MAIN = "the app";
-    const origin = /* @__PURE__ */ new Map();
-    for (const c of program.classes)
-      origin.set(c.name, MAIN);
-    for (const s of program.stylesheets)
-      origin.set(s.name, MAIN);
-    for (const s of program.styles)
-      origin.set(s.name, MAIN);
-    for (const f of program.fonts)
-      origin.set(f.name, MAIN);
-    const visited = /* @__PURE__ */ new Set();
-    const fold = (name, pos, from) => {
-      const prev = origin.get(name);
-      if (prev !== void 0) {
-        errors.push(Diag.includeCollision(`'${name}' is declared twice \u2014 in "${from}" and "${prev}"`, pos));
-        return false;
-      }
-      origin.set(name, from);
-      return true;
-    };
-    const walk = (includes, fromDir) => {
-      for (const inc of includes) {
-        const resolved = host2.resolve(fromDir, inc.path);
-        if (resolved === null) {
-          errors.push(Diag.missingInclude(inc.path, inc.pos));
-          continue;
-        }
-        if (visited.has(resolved.canonical))
-          continue;
-        visited.add(resolved.canonical);
-        let lib;
-        try {
-          lib = parseLibrary(resolved.source);
-        } catch (e) {
-          if (e instanceof DeclareError) {
-            errors.push(e);
-            continue;
-          }
-          throw e;
-        }
-        walk(lib.includes, resolved.dir);
-        const from = inc.path;
-        for (const c of lib.classes)
-          if (fold(c.name, c.pos, from))
-            classes.push(c);
-        for (const s of lib.stylesheets)
-          if (fold(s.name, s.pos, from))
-            stylesheets.push(s);
-        for (const s of lib.styles)
-          if (fold(s.name, s.pos, from))
-            styles.push(s);
-        for (const f of lib.fonts)
-          if (fold(f.name, f.pos, from))
-            fonts.push(f);
-        uses.push(...lib.uses);
-        scripts.push(...lib.scripts);
-        sources.push(exciseSpans(resolved.source, lib.includeSpans));
-      }
-    };
-    walk(program.includes, originDir);
+  function resolveIncludesHostless(program) {
     return {
-      program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
-      sources,
-      errors,
-      visited
+      program: { ...program, includes: [], includeSpans: [] },
+      errors: program.includes.map((inc) => Diag.missingInclude(inc.path, inc.pos))
     };
   }
   function autoIncludableNames() {
@@ -16368,6 +16281,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   }
 
   // runtime/dist/index.js
+  init_diagnostics();
   init_include();
   init_view();
   init_font();
@@ -17096,7 +17010,10 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   // runtime/dist/index.js
   function build(source, opts = {}) {
     const parsed = parseProgram(source);
-    const { program, errors: incErrors } = resolveIncludes(parsed, opts.host ?? NO_INCLUDES, opts.originDir ?? "");
+    if (opts.host !== void 0 && opts.host !== NO_INCLUDES) {
+      throw new DeclareErrors([Diag.structure("build() resolves no includes \u2014 compile the source first (compile() folds every include into one self-contained program, which is what build() runs)")]);
+    }
+    const { program, errors: incErrors } = resolveIncludesHostless(parsed);
     const errors = [...incErrors, ...check(program)];
     errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
     if (errors.length > 0)
@@ -18218,7 +18135,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     const src = await (await fetch(programUrl)).text();
     await ensureLibrary(origin);
     const dir = programUrl.replace(/[^/]*$/, "");
-    const out = globalThis.__declareCompiler.compile(src, { originDir: dir });
+    const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
     if (!out.source) throw new Error(out.report || "compile failed");
     log("boot: client compile");
     return { source: out.source, deps: out.deps ?? {}, base: programUrl };
@@ -18401,7 +18318,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     await ensureLibrary(origin);
     try {
       const dir = main.replace(/[^/]*$/, "");
-      const out = globalThis.__declareCompiler.compile(src, { originDir: dir });
+      const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
       return out.source ? { source: out.source, deps: out.deps ?? {} } : { report: out.report || "compile failed" };
     } catch (e) {
       return { report: e && e.message ? e.message : String(e) };

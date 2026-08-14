@@ -286,7 +286,7 @@ export interface CompileOptions {
  *  merged text, not its own file. This is the v1 reading §1 already defers
  *  (multi-file `Pos`); it keeps the emit path drift-free — one source feeds
  *  check, the Resolver, and the output, so their offsets cannot disagree. */
-export function compile(source: string, opts: CompileOptions = {}): Compiled {
+export async function compile(source: string, opts: CompileOptions = {}): Promise<Compiled> {
   let main: Program;
   try {
     main = parseProgram(source);
@@ -299,7 +299,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
     throw e;
   }
   const host = opts.host ?? NO_INCLUDES;
-  const resolved = resolveIncludes(main, host, opts.originDir ?? "");
+  const resolved = await resolveIncludes(main, host, opts.originDir ?? "");
   if (resolved.errors.length > 0) {
     return { source: null, errors: resolved.errors, warnings: [], ...diagnose(resolved.errors, [], "module") };
   }
@@ -308,7 +308,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   // tags (`Bar [ … ]` with no `include`, no inline class) — after explicit
   // includes, sharing their visited set so the two dedup. A no-op on a host
   // without the manifest (single-file compiles stay byte-identical).
-  const auto = resolveAutoIncludes(resolved.program, main.root, host, resolved.visited);
+  const auto = await resolveAutoIncludes(resolved.program, main.root, host, resolved.visited);
   if (auto.errors.length > 0) {
     return { source: null, errors: auto.errors, warnings: [], ...diagnose(auto.errors, [], "module") };
   }

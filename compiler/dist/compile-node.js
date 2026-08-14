@@ -69,7 +69,7 @@ export function diskDataResolver(originDir) {
 /** `compile` with the filesystem include+auto-include host and (when `typecheck`
  *  is set) the real typechecker injected. Drop-in for the previous `compile`
  *  import. */
-export function compile(source, opts = {}) {
+export async function compile(source, opts = {}) {
     return compileCore(source, {
         ...opts,
         host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT),
@@ -81,11 +81,11 @@ export function compile(source, opts = {}) {
  *  feed it to isUpToDate()/contentTag() for a disk or HTTP cache, or to fs.watch
  *  for live reload. The disk/browser CACHE layers (get/put, 304s) build on this
  *  and land with the deploy / in-browser-compile paths that need them. */
-export function compileTracked(source, opts = {}) {
+export async function compileTracked(source, opts = {}) {
     const tracker = new DiskTracker();
     if (opts.mainId !== undefined)
         tracker.file(opts.mainId);
-    const result = compileCore(source, {
+    const result = await compileCore(source, {
         ...opts,
         host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT, tracker),
     });

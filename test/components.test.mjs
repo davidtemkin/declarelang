@@ -16,8 +16,8 @@ provideMeasurer(approximateMeasurer());
 
 const KEY = (key, mods = {}) => ({ key, shift: false, ctrl: false, alt: false, meta: false, repeat: false, code: key, ...mods });
 
-function boot(src) {
-  const b = compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
+async function boot(src) {
+  const b = await compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
   const app = instantiate(b.program);
   settle();
@@ -37,8 +37,8 @@ const COMBO = `App [ width = 400, height = 300,
   ],
 ]`;
 
-await test("Combobox: the matches are a derivation — typing filters, the count rides along", () => {
-  const app = boot(COMBO);
+await test("Combobox: the matches are a derivation — typing filters, the count rides along", async () => {
+  const app = await boot(COMBO);
   const c = app.c;
   assert.equal(c.matchCount, 3, "unfiltered: the whole list");
   c.query = "AL";
@@ -57,8 +57,8 @@ await test("Combobox: the matches are a derivation — typing filters, the count
   assert.equal(c.matchCount, 3, "a pick clears filtering — the full list returns");
 });
 
-await test("Combobox: picking delivers the MEMBER, echoes the label, closes the list", () => {
-  const app = boot(COMBO);
+await test("Combobox: picking delivers the MEMBER, echoes the label, closes the list", async () => {
+  const app = await boot(COMBO);
   const c = app.c;
   c.open();
   settle();
@@ -73,8 +73,8 @@ await test("Combobox: picking delivers the MEMBER, echoes the label, closes the 
   assert.equal(c.list.shown, false, "pick closes");
 });
 
-await test("Combobox: a use-site input() owns the value (press-never-writes)", () => {
-  const app = boot(`App [ width = 400, height = 300,
+await test("Combobox: a use-site input() owns the value (press-never-writes)", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
     chosen: object = null,
     c: Combobox [ x = 20, y = 20, items = { [({ id: "a", label: "Alpha" })] },
       input(v: object) { app.chosen = v },
@@ -89,7 +89,7 @@ await test("Combobox: a use-site input() owns the value (press-never-writes)", (
 // ── ContextMenu ───────────────────────────────────────────────────────────
 
 await test("ContextMenu: open(v, e) anchors at the pointer; pick delivers and closes", async () => {
-  const app = boot(`App [ width = 500, height = 400,
+  const app = await boot(`App [ width = 500, height = 400,
     last: string = "",
     m: ContextMenu [ items = { [({ id: "cut", label: "Cut" }), ({ id: "copy", label: "Copy" })] },
       picked(id: string) { app.last = id },
@@ -113,8 +113,8 @@ await test("ContextMenu: open(v, e) anchors at the pointer; pick delivers and cl
   assert.equal(app.m.shown, false, "…and closed");
 });
 
-await test("ContextMenu: a serving view inside a SCROLLED pane anchors where the user sees it", () => {
-  const app = boot(`App [ width = 500, height = 400,
+await test("ContextMenu: a serving view inside a SCROLLED pane anchors where the user sees it", async () => {
+  const app = await boot(`App [ width = 500, height = 400,
     m: ContextMenu [ items = { [({ id: "a", label: "A" })] } ],
     sc: View [ x = 0, y = 50, width = 500, height = 300, scrolls = y, clip = true,
       tall: View [ width = 500, height = 2000,
@@ -136,7 +136,7 @@ await test("ContextMenu: a serving view inside a SCROLLED pane anchors where the
 
 await test("Menu: viewport-aware — a list that won't fit below emerges ABOVE; nav keys are claimed while open", async () => {
   const { Keys } = await import("../runtime/dist/keys.js");
-  const app = boot(`App [ width = 400, height = 300,
+  const app = await boot(`App [ width = 400, height = 300,
     m: Menu [ items = { [({ id: "a", label: "A" }), ({ id: "b", label: "B" }), ({ id: "c", label: "C" })] } ],
     btn: View [ x = 50, y = 240, width = 120, height = 30 ],
   ]`);
@@ -151,8 +151,8 @@ await test("Menu: viewport-aware — a list that won't fit below emerges ABOVE; 
   assert.equal(Keys.navClaimed(), false, "closed releases the claim");
 });
 
-await test("Menu: a long list caps at the viewport and its body scrolls (the rover reveals)", () => {
-  const app = boot(`App [ width = 400, height = 260,
+await test("Menu: a long list caps at the viewport and its body scrolls (the rover reveals)", async () => {
+  const app = await boot(`App [ width = 400, height = 260,
     m: Menu [ items = { Array.from({ length: 40 }, (_, i) => ({ id: "" + i, label: "Item " + i })) } ],
     btn: View [ x = 50, y = 10, width = 120, height = 30 ],
   ]`);
@@ -163,12 +163,12 @@ await test("Menu: a long list caps at the viewport and its body scrolls (the rov
   assert.ok(app.m.panel.body.contentHeight > app.m.panel.body.height, "content overflows into the scroll");
 });
 
-await test("Menu: the ruled COLUMN model — check space always, icon column iff icons, ONE text edge", () => {
+await test("Menu: the ruled COLUMN model — check space always, icon column iff icons, ONE text edge", async () => {
   // icons present: check col 7.., icon col 25.., every label at 50
   // `icon` names an ICON CLASS now, not a text glyph — the three mechanisms the
   // row used to carry (glyph, the "lightbulb" special case, iconKind) collapsed
   // into one when the drawn set landed. A computed name needs `use [ … ]`.
-  const app = boot(`use [ CheckIcon ]
+  const app = await boot(`use [ CheckIcon ]
   App [ width = 400, height = 400,
     m: Menu [ items = { [
       ({ id: "a", label: "Light", icon: "CheckIcon", checked: true }),
@@ -186,7 +186,7 @@ await test("Menu: the ruled COLUMN model — check space always, icon column iff
   app.m.close();
   // no icons anywhere: the icon column does not exist — text at 24, but the
   // CHECK column is still reserved (no row text ever starts at the inset)
-  const app2 = boot(`App [ width = 400, height = 400,
+  const app2 = await boot(`App [ width = 400, height = 400,
     m: Menu [ items = { [({ id: "a", label: "One" }), ({ id: "b", label: "Two", checked: true })] } ],
     btn: View [ x = 40, y = 10, width = 100, height = 24 ],
   ]`);
@@ -198,8 +198,8 @@ await test("Menu: the ruled COLUMN model — check space always, icon column iff
   app2.m.close();
 });
 
-await test("Combobox: the list lives at the APP layer — it paints over the combobox's later siblings", () => {
-  const app = boot(COMBO);
+await test("Combobox: the list lives at the APP layer — it paints over the combobox's later siblings", async () => {
+  const app = await boot(COMBO);
   const c = app.c;
   assert.equal(c.list, null, "dormant until first open — zero views");
   c.open();
@@ -235,8 +235,8 @@ const ROWS = (n) =>
 const gridRows = (g) => g.children.filter((c) => c.isGridRow === true);
 const cellTexts = (row) => row.cells.children.filter((c) => c.t).map((c) => c.t.text);
 
-await test("DataGrid: columns are written members — cells generate from the model, offsets run", () => {
-  const app = boot(GRID);
+await test("DataGrid: columns are written members — cells generate from the model, offsets run", async () => {
+  const app = await boot(GRID);
   app.d.value = { rows: ROWS(3) };
   settle();
   const cols = app.g.colData.value.cols;
@@ -249,8 +249,8 @@ await test("DataGrid: columns are written members — cells generate from the mo
   assert.equal(rows[0].y, 0, "rows start at the box top — the scroll region is rows only");
 });
 
-await test("DataGrid: header click is a SORT DELIVERY — it names a derivation, data stays the truth", () => {
-  const app = boot(GRID);
+await test("DataGrid: header click is a SORT DELIVERY — it names a derivation, data stays the truth", async () => {
+  const app = await boot(GRID);
   app.d.value = { rows: ROWS(3) };
   settle();
   app.g.headerClick("title");
@@ -262,8 +262,8 @@ await test("DataGrid: header click is a SORT DELIVERY — it names a derivation,
   assert.deepEqual([app.g.sortOn, app.g.sortDir], ["state", "asc"], "a new column starts ascending");
 });
 
-await test("DataGrid: reorder and resize are value-pattern state — deliveries an app may own", () => {
-  const app = boot(GRID);
+await test("DataGrid: reorder and resize are value-pattern state — deliveries an app may own", async () => {
+  const app = await boot(GRID);
   app.d.value = { rows: ROWS(2) };
   settle();
   // drag "id" so its center passes "title"'s midpoint → the insertion bar
@@ -284,7 +284,7 @@ await test("DataGrid: reorder and resize are value-pattern state — deliveries 
   assert.deepEqual(cols.map((c) => [c.id, c.x]), [["title", 0], ["id", 150], ["state", 220]],
     "a width override reflows every offset");
   // an app override owns the state
-  const app2 = boot(`App [ width = 700, height = 400,
+  const app2 = await boot(`App [ width = 700, height = 400,
     got: array = null,
     d: Dataset { { "rows": [] } },
     g: DataGrid [ x = 10, y = 10, width = 600, height = 300, datapath = { d.value },
@@ -304,8 +304,8 @@ await test("DataGrid: reorder and resize are value-pattern state — deliveries 
   assert.equal(app2.g.order, null, "…and the slot stayed the app's (press-never-writes)");
 });
 
-await test("DataGrid: the Table contract rides along — selection over grid rows", () => {
-  const app = boot(GRID);
+await test("DataGrid: the Table contract rides along — selection over grid rows", async () => {
+  const app = await boot(GRID);
   app.d.value = { rows: ROWS(4) };
   settle();
   const rows = gridRows(app.g);
@@ -319,7 +319,7 @@ await test("DataGrid: the Table contract rides along — selection over grid row
 });
 
 await test("DataGrid: cell KINDS — an editor, a checkbox, and a select all write the RECORD", async () => {
-  const app = boot(`App [ width = 700, height = 400,
+  const app = await boot(`App [ width = 700, height = 400,
     d: Dataset { { "rows": [ { "id": 1, "title": "One", "state": "open", "done": false } ] } },
     g: DataGrid [ x = 10, y = 10, width = 650, height = 300, datapath = { d.value },
       Column [ title = "ID", field = "id", width = 60 ],
@@ -355,8 +355,8 @@ await test("DataGrid: cell KINDS — an editor, a checkbox, and a select all wri
   assert.equal(app.g.selMenu.shown, false);
 });
 
-await test("DataGrid: windowing composes — the header offsets the window (the leading anchor)", () => {
-  const app = boot(`App [ width = 700, height = 400,
+await test("DataGrid: windowing composes — the header offsets the window (the leading anchor)", async () => {
+  const app = await boot(`App [ width = 700, height = 400,
     d: Dataset { { "rows": [] } },
     g: DataGrid [ x = 10, y = 10, width = 600, height = 300, datapath = { d.value },
       Column [ title = "ID", field = "id", width = 70 ],
@@ -376,7 +376,7 @@ await test("DataGrid: windowing composes — the header offsets the window (the 
 
 await test("DataGrid: a FOCUSED cell's row is never recycled — focus is touch (D5 focus-as-touched)", async () => {
   const { Focus } = await import("../runtime/dist/focus.js");
-  const app = boot(`App [ width = 700, height = 400,
+  const app = await boot(`App [ width = 700, height = 400,
     d: Dataset { { "rows": [] } },
     g: DataGrid [ x = 10, y = 10, width = 650, height = 300, datapath = { d.value },
       Column [ title = "ID", field = "id", width = 60 ],
@@ -407,7 +407,7 @@ await test("DataGrid: a FOCUSED cell's row is never recycled — focus is touch 
 
 await test("Segmented: every segment is a STOP — tab to an inactive choice, Space picks; arrows rove", async () => {
   const { Focus } = await import("../runtime/dist/focus.js");
-  const app = boot(`App [ width = 500, height = 200,
+  const app = await boot(`App [ width = 500, height = 200,
     page: string = "a",
     s: Segmented [ x = 20, y = 20,
       value = { app.page },

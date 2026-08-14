@@ -36,11 +36,11 @@ const projectTracked = (r) => ({ ...project(r), closure: r.closure });
 async function handle(m) {
   switch (m.type) {
     case "compile":
-      return project(compile(m.source, m.opts ?? {}));
+      return project(await compile(m.source, m.opts ?? {}));
     case "compileTracked":
-      return projectTracked(compileTracked(m.source, m.opts ?? {}));
+      return projectTracked(await compileTracked(m.source, m.opts ?? {}));
     case "extract": {
-      const compiled = compile(m.source, { originDir: m.originDir });
+      const compiled = await compile(m.source, { originDir: m.originDir });
       if (compiled.source === null) return { ok: false, report: compiled.report };
       const ex = await crawlExtract(compiled.source, {
         deps: compiled.deps, links: compiled.links, registry: compiled.linkRegistry, warm: true, data: diskDataResolver(m.originDir),

@@ -31,14 +31,14 @@ const reply = (status, body, type = "json") => Promise.resolve({
 });
 
 /** A one-source program, compiled and built. */
-function app(attrs = `url = "/api/thing"`) {
-  const r = compile(`App [ width=1, height=1, ds: DataSource [ ${attrs} ] ]`);
+async function app(attrs = `url = "/api/thing"`) {
+  const r = await compile(`App [ width=1, height=1, ds: DataSource [ ${attrs} ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), []);
   return build(r.source);
 }
 
 await test("a refusal keeps its BODY — the part that says why", async () => {
-  const a = app();
+  const a = await app();
   const prev = provideTransport(() => reply(422, { error: "invalid", field: "email" }));
   try {
     await a.ds.fetch();
@@ -51,7 +51,7 @@ await test("a refusal keeps its BODY — the part that says why", async () => {
 });
 
 await test("a non-JSON refusal is handed back as TEXT, not swallowed", async () => {
-  const a = app();
+  const a = await app();
   const prev = provideTransport(() => reply(503, "upstream down, retry after 30s", "text"));
   try {
     await a.ds.fetch();
@@ -62,7 +62,7 @@ await test("a non-JSON refusal is handed back as TEXT, not swallowed", async () 
 
 await test("an EMPTY refusal body is null, not the empty string", async () => {
   // "" would read in a constraint as if something had been said
-  const a = app();
+  const a = await app();
   const prev = provideTransport(() => reply(404, "", "text"));
   try {
     await a.ds.fetch();
@@ -72,7 +72,7 @@ await test("an EMPTY refusal body is null, not the empty string", async () => {
 });
 
 await test("a SUCCESS leaves the failure slots clear", async () => {
-  const a = app();
+  const a = await app();
   const prev = provideTransport(() => reply(200, { ok: 1 }));
   try {
     await a.ds.fetch();
@@ -86,7 +86,7 @@ await test("a SUCCESS leaves the failure slots clear", async () => {
 await test("a retry after a refusal RESETS the failure slots", async () => {
   // stale failure state is worse than none: a constraint reading `.statusCode`
   // must not still see the last 500 while the next request is in flight
-  const a = app();
+  const a = await app();
   const prev = provideTransport(() => reply(500, { error: "boom" }));
   try {
     await a.ds.fetch();
@@ -106,7 +106,7 @@ await test("a retry after a refusal RESETS the failure slots", async () => {
 await test("the message names the address that was REQUESTED, not the current one", async () => {
   // the url re-settles while the request is in flight — the exact shape of a
   // reactive address (`url = { app.selected ? … : "" }`) landing mid-fetch
-  const a = app();
+  const a = await app();
   let asked = null;
   const prev = provideTransport((u) => {
     asked = u;
@@ -131,7 +131,7 @@ await test("an UNREADABLE body does not replace the real failure", async () => {
     { ok: false, status: 404, text: () => Promise.reject(new Error("aborted")) },
     { ok: false, status: 404, text: () => { throw new Error("consumed"); } },
   ]) {
-    const a = app();
+    const a = await app();
     const prev = provideTransport(() => Promise.resolve(res));
     try {
       await a.ds.fetch();
@@ -144,7 +144,7 @@ await test("an UNREADABLE body does not replace the real failure", async () => {
 
 await test("a transport that never reaches a server leaves statusCode 0", async () => {
   // there is no reply to report, and 0 says that — distinct from any real code
-  const a = app();
+  const a = await app();
   const prev = provideTransport(() => Promise.reject(new Error("network unreachable")));
   try {
     await a.ds.fetch();
@@ -154,21 +154,21 @@ await test("a transport that never reaches a server leaves statusCode 0", async 
   } finally { provideTransport(prev); }
 });
 
-await test("the lifecycle is DECLARED surface: readable, refused on assignment", () => {
+await test("the lifecycle is DECLARED surface: readable, refused on assignment", async () => {
   // findings 2026-08-04: DataSource declared only its five settable attrs, so
   // its whole lifecycle reached no generated reference — declare-model.json
   // denied attributes declare.md §7 and guide/09-data.md teach. The stated
   // reason was a comment saying read-only means omit, which is false for every
   // other class in the file: `readOnly` exists so a computed slot can be BOTH
   // declared and unsettable, exactly as View.hovered and Stream.status are.
-  const errs = (src) => (compile(src, {}).errors ?? []).map((e) => e.message).join("\n");
+  const errs = async (src) => ((await compile(src, {})).errors ?? []).map((e) => e.message).join("\n");
   for (const slot of ["status", "loaded", "failed", "idle", "loading", "error", "statusCode", "errorBody"]) {
-    const m = errs(`App [ width=1, height=1, d: DataSource [ url = "/x", ${slot} = 1 ] ]`);
+    const m = await errs(`App [ width=1, height=1, d: DataSource [ url = "/x", ${slot} = 1 ] ]`);
     assert.match(m, new RegExp(`DataSource\\.${slot} is read-only`), `${slot} must refuse assignment`);
   }
-  assert.match(errs(`App [ width=1, height=1, s: Dataset [ value = 1 ] ]`), /Dataset\.value is read-only/);
+  assert.match(await errs(`App [ width=1, height=1, s: Dataset [ value = 1 ] ]`), /Dataset\.value is read-only/);
   // …and every one of them still READS clean
-  assert.deepEqual(errs(`App [ width=1, height=1, d: DataSource [ url = "/x" ],
+  assert.deepEqual(await errs(`App [ width=1, height=1, d: DataSource [ url = "/x" ],
       t: Text [ text = { "" + d.status + d.idle + d.loading + d.loaded + d.failed
                           + d.error + d.statusCode + JSON.stringify(d.errorBody) + JSON.stringify(d.value) } ] ]`), "");
 });

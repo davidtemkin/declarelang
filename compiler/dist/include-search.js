@@ -13,13 +13,22 @@
 // (`../x`) still resolves against `fromDir` first, so existing programs are
 // unaffected — the search path only ADDS fallbacks for a bare name.
 /** Resolve `path` by trying `[fromDir, ...roots]` in order; the first directory
- *  whose `resolveAt` returns a file wins, else null. */
-export function searchIncludePath(fromDir, path, roots, resolveAt) {
-    const here = resolveAt(fromDir, path);
+ *  whose `resolveAt` returns a file wins, else null.
+ *
+ *  `resolveAt` may answer with a value (a filesystem read, a map lookup) or a
+ *  PROMISE (a fetch) — the one search serves both, which is the whole point of
+ *  defining it once. The directories are therefore tried STRICTLY IN SEQUENCE,
+ *  never raced: "first hit wins" is an ORDERING guarantee, and a parallel probe
+ *  would let the library root beat the including file's own directory whenever
+ *  it answered sooner — silently changing which file an `include` names. The
+ *  cost is real (a miss on the app's dir is a round trip before the library is
+ *  tried) and deliberately paid. */
+export async function searchIncludePath(fromDir, path, roots, resolveAt) {
+    const here = await resolveAt(fromDir, path);
     if (here !== null)
         return here;
     for (const root of roots) {
-        const hit = resolveAt(root, path);
+        const hit = await resolveAt(root, path);
         if (hit !== null)
             return hit;
     }

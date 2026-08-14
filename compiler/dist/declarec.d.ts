@@ -53,4 +53,4 @@ export declare function usedComponentNames(program: Program): string[];
  *  parse the resolved source into the program the runtime's `renderProgram`
  *  consumes. On any error, `program` is null and `errors` carries every
  *  diagnostic (nothing is emitted). */
-export declare function compileProgram(source: string, opts?: DeclarecOptions): ProgramBuild;
+export declare function compileProgram(source: string, opts?: DeclarecOptions): Promise<ProgramBuild>;

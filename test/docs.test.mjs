@@ -52,8 +52,8 @@ for (const rel of COVERED) {
 
   for (const [i, src] of programs.entries()) {
     const head = src.trim().split("\n")[0].slice(0, 56);
-    await test(`${rel} program ${i + 1}: ${head}`, () => {
-      const out = compile(src, {});
+    await test(`${rel} program ${i + 1}: ${head}`, async () => {
+      const out = await compile(src, {});
       if (out.errors.length) {
         throw new Error(out.errors.map((e) => e.message).join("\n      "));
       }

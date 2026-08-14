@@ -13,8 +13,8 @@ let pass = 0, fail = 0;
 function test(name, fn) { try { fn(); pass++; console.log("  ok —", name); } catch (e) { fail++; console.log("  FAIL —", name, "\n     ", e.message); } }
 
 // compile → resolve → ANNOTATE deps → instantiate (the static path is active).
-function run(src) {
-  const r = compile(src, {});
+async function run(src) {
+  const r = await compile(src, {});
   if (!r.source) throw new Error("compile: " + r.errors.map((e) => e.message).join("; "));
   const prog = parseProgram(r.source);
   const { errors } = annotateProgram(prog);
@@ -40,22 +40,22 @@ function fakeScheduler() {
 
 console.log("static-constraint");
 
-test("annotated constraints are actually on the STATIC path (not falling back)", () => {
-  const app = run(`App [ n: number = 3, v: View [ width = { app.n * 10 } ] ]`);
+test("annotated constraints are actually on the STATIC path (not falling back)", async () => {
+  const app = await run(`App [ n: number = 3, v: View [ width = { app.n * 10 } ] ]`);
   const k = owner(app.v, "width");
   assert.ok(k, "width should be constraint-owned");
   assert.equal(k.isStatic, true, "constraint should be wired on the static path");
   assert.equal(app.v.width, 30, "initial value computed");
 });
 
-test("a static constraint recomputes when its dep changes", () => {
-  const app = run(`App [ n: number = 3, v: View [ width = { app.n * 10 } ] ]`);
+test("a static constraint recomputes when its dep changes", async () => {
+  const app = await run(`App [ n: number = 3, v: View [ width = { app.n * 10 } ] ]`);
   app.n = 7; settle();
   assert.equal(app.v.width, 70, "static edge propagated the change");
 });
 
-test("interprocedural static constraint tracks deps read INSIDE the method", () => {
-  const app = run(`App [ a: number = 1, b: number = 2,
+test("interprocedural static constraint tracks deps read INSIDE the method", async () => {
+  const app = await run(`App [ a: number = 1, b: number = 2,
       v: View [ width = { app.sum() } ],
       sum() { return this.a + this.b } ]`);
   assert.equal(owner(app.v, "width").isStatic, true);
@@ -64,8 +64,8 @@ test("interprocedural static constraint tracks deps read INSIDE the method", () 
   app.b = 20; settle(); assert.equal(app.v.width, 30, "change to the other propagates");
 });
 
-test("precision — a NON-dependency change does not perturb the value", () => {
-  const app = run(`App [ n: number = 3, other: number = 0, v: View [ width = { app.n * 10 } ] ]`);
+test("precision — a NON-dependency change does not perturb the value", async () => {
+  const app = await run(`App [ n: number = 3, other: number = 0, v: View [ width = { app.n * 10 } ] ]`);
   let applied = 0;
   const k = owner(app.v, "width");
   const realApply = k.run.bind(k);
@@ -73,8 +73,8 @@ test("precision — a NON-dependency change does not perturb the value", () => {
   assert.equal(app.v.width, 30, "unrelated slot change left the value untouched");
 });
 
-test("ternary branch-union — both branches are wired, so either dep updates it", () => {
-  const app = run(`App [ pick: boolean = true, px: number = 1, py: number = 2,
+test("ternary branch-union — both branches are wired, so either dep updates it", async () => {
+  const app = await run(`App [ pick: boolean = true, px: number = 1, py: number = 2,
       v: View [ width = { app.pick ? app.px * 100 : app.py * 100 } ] ]`);
   assert.equal(app.v.width, 100);
   app.pick = false; settle(); assert.equal(app.v.width, 200, "switched branch");
@@ -84,8 +84,8 @@ test("ternary branch-union — both branches are wired, so either dep updates it
   app.pick = true; settle(); assert.equal(app.v.width, 500, "px is still wired — switching back works (5*100)");
 });
 
-test("datapath static constraint updates on an in-place edit", () => {
-  const app = run(`App [ rec: Dataset { { "title": "hi", "n": 5 } },
+test("datapath static constraint updates on an in-place edit", async () => {
+  const app = await run(`App [ rec: Dataset { { "title": "hi", "n": 5 } },
       card: View [ datapath = { app.rec.value },
         w: View [ width = { :n } ] ] ]`);
   assert.equal(app.card.w.width, 5);
@@ -93,8 +93,8 @@ test("datapath static constraint updates on an in-place edit", () => {
   assert.equal(app.card.w.width, 42, "datapath edge propagated the region edit");
 });
 
-test("chained recompute — a static constraint feeding another still cascades", () => {
-  const app = run(`App [ n: number = 2,
+test("chained recompute — a static constraint feeding another still cascades", async () => {
+  const app = await run(`App [ n: number = 2,
       a: View [ width = { app.n * 3 } ],
       b: View [ width = { app.a.width + 1 } ] ]`);
   assert.equal(app.b.width, 7);
@@ -106,13 +106,13 @@ test("chained recompute — a static constraint feeding another still cascades",
 // ── the DEV source-string channel: serializeDeps (server) → applyDeps (browser) ──
 console.log("─ dev channel: serialize → apply alignment ─");
 
-test("serializeDeps → applyDeps round-trips onto the identical constraints (no misalignment)", () => {
-  const src = compile(`App [ n: number = 1, m: number = 2, k: number = 3,
+test("serializeDeps → applyDeps round-trips onto the identical constraints (no misalignment)", async () => {
+  const src = (await compile(`App [ n: number = 1, m: number = 2, k: number = 3,
       a: View [ width = { app.n + app.m } ],
       b: View [ width = { app.k * 2 } ],
       grid: Dataset { { "rows": [] } },
       list: View [ datapath = { app.grid.value }, w: View [ width = { :rows.length } ] ],
-      c: View [ height = { app.n } ] ]`, {}).source;
+      c: View [ height = { app.n } ] ]`, {})).source;
   // reference: annotate a parse directly (inline path, what prod uses)
   const p1 = parseProgram(src); annotateProgram(p1);
   const ref = []; forEachCodeValue(p1, (v) => ref.push([v.src.trim(), (v.deps ?? []).join("|")]));
@@ -123,8 +123,8 @@ test("serializeDeps → applyDeps round-trips onto the identical constraints (no
   assert.deepEqual(got, ref, "applied deps landed on different constraints than they were extracted from");
 });
 
-test("dev path (build with opts.deps) takes the static path and stays reactive", () => {
-  const src = compile(`App [ n: number = 4, v: View [ width = { app.n * 5 } ] ]`, {}).source;
+test("dev path (build with opts.deps) takes the static path and stays reactive", async () => {
+  const src = (await compile(`App [ n: number = 4, v: View [ width = { app.n * 5 } ] ]`, {})).source;
   const p = parseProgram(src); annotateProgram(p);
   const deps = serializeDeps(p);
   const app = build(src, { deps });          // ← exactly what renderAsync does in the browser
@@ -142,8 +142,8 @@ test("dev path (build with opts.deps) takes the static path and stays reactive",
 // live at boot and permanently misses cells read in the default's other branches.
 // (This broke calendar day/week paging: the focus targets r0To/c0To and the period
 // title read `anchorKey` only in a non-boot branch, so stepping never updated them.)
-test("reader of a computed { } default inlines its branch-union deps — conditional reactivity", () => {
-  const app = run(`App [
+test("reader of a computed { } default inlines its branch-union deps — conditional reactivity", async () => {
+  const app = await run(`App [
       mode: string = "a", alpha: number = 1, beta: number = 2,
       pick: number = { app.mode == "a" ? app.alpha : app.beta },
       v: View [ width = { app.pick } ] ]`);
@@ -155,10 +155,10 @@ test("reader of a computed { } default inlines its branch-union deps — conditi
   assert.equal(app.v.width, 9, "a dep read only in the default's non-boot branch still propagates");
 });
 
-test("computed default whose BOOT branch reads no cell still wires the other branch's dep", () => {
+test("computed default whose BOOT branch reads no cell still wires the other branch's dep", async () => {
   // Mirrors the focus targets: `r0To = { app.mode==\"week\" ? app.aRow : 0 }` — at boot
   // the ternary is false, so it returns 0 without reading aRow at all.
-  const app = run(`App [
+  const app = await run(`App [
       on: boolean = false, val: number = 5,
       gate: number = { app.on ? app.val : 0 },
       v: View [ width = { app.gate } ] ]`);
@@ -168,8 +168,8 @@ test("computed default whose BOOT branch reads no cell still wires the other bra
   app.val = 12; settle(); assert.equal(app.v.width, 12, "val (read only when on) propagates on the static path");
 });
 
-test("computed-default inlining is transitive (default → default → method → cell)", () => {
-  const app = run(`App [
+test("computed-default inlining is transitive (default → default → method → cell)", async () => {
+  const app = await run(`App [
       k: string = "z",
       idx(s: object) { return s == "z" ? this.base : 0 },
       base: number = 3,
@@ -199,8 +199,8 @@ test("computed-default inlining is transitive (default → default → method �
 // sibling State had briefly applied at boot (its gate read `app.width < 480`,
 // true before the viewport landed).
 
-test("a wired constraint stays reactive after a State override displaces and pops it", () => {
-  const app = run(`App [ width = 100, height = 100,
+test("a wired constraint stays reactive after a State override displaces and pops it", async () => {
+  const app = await run(`App [ width = 100, height = 100,
       flag: boolean = false, gate: boolean = false,
       p: View [ width = 10, height = 10,
           visible = { app.flag },
@@ -216,11 +216,11 @@ test("a wired constraint stays reactive after a State override displaces and pop
   assert.equal(app.p.visible, true, "the resumed base still wakes on its dep — edges re-armed, not severed");
 });
 
-test("a wired constraint stays reactive after an Animator displaces and completes", () => {
+test("a wired constraint stays reactive after an Animator displaces and completes", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   try {
-    const app = run(`App [ width = 400, height = 100,
+    const app = await run(`App [ width = 400, height = 100,
         prog: number = 0,
         v: View [ height = 10, width = { 50 + app.prog },
             a: Animator [ attribute = width, to = 150, duration = 100, motion = linear ] ] ]`);

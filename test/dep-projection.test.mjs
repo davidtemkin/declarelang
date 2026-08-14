@@ -25,8 +25,8 @@ import { test, summarize } from "./harness.mjs";
 /** Every wired dep-path in a one-constraint program, flattened. `deps` is a list
  *  per constraint and `source` is the whole program, so with a single constraint
  *  under test the flat set is the exact thing to assert against. */
-function depsOf(src) {
-  const r = compile(src, { originDir: process.cwd() });
+async function depsOf(src) {
+  const r = await compile(src, { originDir: process.cwd() });
   assert.equal(r.errors?.length ?? 0, 0, `compile failed:\n${(r.errors ?? []).map((e) => e.message).join("\n")}`);
   const out = [];
   const walk = (o) => {
@@ -40,7 +40,7 @@ function depsOf(src) {
 }
 
 await test("a returned node's attribute is wired, not just the node", async () => {
-  const deps = depsOf(`App [
+  const deps = await depsOf(`App [
       box: View [ width = 100 ],
       pickBox(): View { return this.box },
       t: Text [ text = { "" + app.pickBox().width } ] ]`);
@@ -51,7 +51,7 @@ await test("a returned node's attribute is wired, not just the node", async () =
 await test("a deeper tail is carried whole", async () => {
   // the return TYPE has to declare the member being read, or the typechecker
   // stops it before the extractor is reached
-  const deps = depsOf(`class Outer extends View [ inner: View [ width = 10 ] ]
+  const deps = await depsOf(`class Outer extends View [ inner: View [ width = 10 ] ]
     App [
       outer: Outer [ ],
       pick(): Outer { return this.outer },
@@ -63,7 +63,7 @@ await test("a deeper tail is carried whole", async () => {
 await test("a conditional return wires BOTH arms", async () => {
   // over-approximating on purpose: an extra dependency costs a recomputation,
   // a missing one costs correctness
-  const deps = depsOf(`App [
+  const deps = await depsOf(`App [
       flag: boolean = true,
       a: View [ width = 10 ], b: View [ width = 20 ],
       which(): View { return app.flag ? this.a : this.b },
@@ -76,7 +76,7 @@ await test("the derived-value shape is UNCHANGED", async () => {
   // `issuesOf(rev).length` — the tracker's shape, ~15 call sites. The returned
   // list is built from what the body read, so those reads already cover the
   // projection. Nothing extra should appear, and nothing should be lost.
-  const deps = depsOf(`App [
+  const deps = await depsOf(`App [
       n: number = 3,
       listOf(k: number): array { return [1, 2, 3].slice(0, k) },
       t: Text [ text = { "" + app.listOf(app.n).length } ] ]`);
@@ -88,7 +88,7 @@ await test("the derived-value shape is UNCHANGED", async () => {
 await test("a runtime-picked node still REFUSES", async () => {
   // which node it is depends on state, so there is no static path — this must
   // stay a blocking error rather than wire something untrue
-  const r = compile(`App [
+  const r = await compile(`App [
       box: View [ width = 10 ],
       pick(): View { return this.childViews.filter((c) => c.width > 5)[0] as View },
       t: Text [ text = { "" + app.pick().width } ] ]`, { originDir: process.cwd() });
@@ -96,7 +96,7 @@ await test("a runtime-picked node still REFUSES", async () => {
 });
 
 await test("a call whose result is NOT read through is untouched", async () => {
-  const deps = depsOf(`App [
+  const deps = await depsOf(`App [
       box: View [ width = 100 ],
       pickBox(): View { return this.box },
       t: Text [ text = { app.pickBox() == null ? "none" : "some" } ] ]`);
@@ -108,7 +108,7 @@ await test("a returned PARAMETER resolves against the argument", async () => {
   // the callee says "I hand back parameter 0"; the call site knows that was
   // `app.a`. Finite candidates, so it wires rather than refuses — this is the
   // case the old gate called "not knowable here"
-  const deps = depsOf(`App [
+  const deps = await depsOf(`App [
       a: View [ width = 10 ], b: View [ width = 20 ],
       pick(x: View, y: View): View { return x },
       t: Text [ text = { "" + app.pick(app.a, app.b).width } ] ]`);
@@ -121,7 +121,7 @@ await test("an array's own properties reach no cell, so nothing is refused", asy
   // an array reach no cell whatever the array holds. Treating `array` as
   // suspicious refused four correct sites in the tracker and calendar.
   for (const tail of ["length", "map(x => x)", "find(x => true)"]) {
-    const r = compile(`App [ n: number = 3,
+    const r = await compile(`App [ n: number = 3,
         listOf(k: number): array { return [1,2,3].slice(0,k) },
         t: Text [ text = { "" + app.listOf(app.n).${tail} } ] ]`, { originDir: process.cwd() });
     assert.equal(r.errors?.length ?? 0, 0,
@@ -130,7 +130,7 @@ await test("an array's own properties reach no cell, so nothing is refused", asy
 });
 
 await test("the refusal explains DETERMINABILITY, not types", async () => {
-  const r = compile(`App [ i: number = 0, box: View [ width = 10 ],
+  const r = await compile(`App [ i: number = 0, box: View [ width = 10 ],
       pick(): View { return this.childViews[app.i] as View },
       t: Text [ text = { "" + app.pick().width } ] ]`, { originDir: process.cwd() });
   const msg = (r.errors ?? []).map((e) => e.message).join("\n");
@@ -148,7 +148,7 @@ await test("a language method registered as PURE when it is not switches analysi
   //
   // The repair was a DELETION, not a case: absence makes it a §3 residue and the
   // general path refuses it. Nothing about rootOrigin is special-cased anywhere.
-  const r = compile(`App [ width = 200, height = 100,
+  const r = await compile(`App [ width = 200, height = 100,
       pane: View [ y = 10, width = 200, height = 100, scrolls = y, clip = true,
           b: View [ y = 300, width = 50, height = 20 ] ],
       probe: Text [ text = { "y=" + app.pane.b.rootOrigin().y } ] ]`,
@@ -162,7 +162,7 @@ await test("the same call in a HANDLER is untouched — a snapshot is correct th
   // Menu.openAt and FocusRing anchor an overlay at gesture time; the position
   // wanted is the one at the moment of the gesture, which is what a snapshot IS.
   // The split falls out of the residue rule; it is not written anywhere.
-  const r = compile(`App [ width = 200, height = 100,
+  const r = await compile(`App [ width = 200, height = 100,
       pane: View [ y = 10, width = 200, height = 100,
           b: View [ y = 30, width = 50, height = 20 ] ],
       at: number = 0,

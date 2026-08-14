@@ -19,7 +19,8 @@ import { check } from "./check.js";
 import { instantiate } from "./instantiate.js";
 import { applyDeps } from "./deps.js";
 import { applyLinks, type SerializedLink } from "./links.js";
-import { resolveIncludes, NO_INCLUDES, type IncludeHost } from "./include.js";
+import { Diag } from "./diagnostics.js";
+import { resolveIncludesHostless, NO_INCLUDES, type IncludeHost } from "./include.js";
 import { App } from "./view.js";
 import { fontFacesOf } from "./font.js";
 import type { RenderBackend } from "./backend.js";
@@ -53,7 +54,15 @@ export interface BuildOptions {
  *  once (include-resolution + type). */
 export function build(source: string, opts: BuildOptions = {}): App {
   const parsed = parseProgram(source);
-  const { program, errors: incErrors } = resolveIncludes(parsed, opts.host ?? NO_INCLUDES, opts.originDir ?? "");
+  // The runtime is HOSTLESS by construction: a compiled program arrives
+  // self-contained, so there is nothing to fetch and build() stays synchronous.
+  // Include resolution that actually READS files is a compile-time job, riding an
+  // async seam (include.ts) precisely so a browser host can fetch.
+  if (opts.host !== undefined && opts.host !== NO_INCLUDES) {
+    throw new DeclareErrors([Diag.structure(
+      "build() resolves no includes — compile the source first (compile() folds every include into one self-contained program, which is what build() runs)")]);
+  }
+  const { program, errors: incErrors } = resolveIncludesHostless(parsed);
   const errors = [...incErrors, ...check(program)];
   errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
   if (errors.length > 0) throw new DeclareErrors(errors);

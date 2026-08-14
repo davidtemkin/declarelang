@@ -18,7 +18,7 @@ const rows = (n) => Array.from({ length: n }, (_, i) => ({ n: i, label: "row " +
 /** Compile + build the standard fixture: a scroller over a windowed block.
  *  `policy` is the virtualize attr's value; rows arrive imperatively so one
  *  fixture serves every tier. */
-function makeApp(policy, n = 1000) {
+async function makeApp(policy, n = 1000) {
   const src = `App [ width = 400, height = 400,
     counter: number = 0,
     d: Dataset { { "rows": [] } },
@@ -32,7 +32,7 @@ function makeApp(policy, n = 1000) {
       ],
     ],
   ]`;
-  const r = compile(src);
+  const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
   const app = build(r.source);
   app.d.value = { rows: rows(n) };
@@ -43,8 +43,8 @@ function makeApp(policy, n = 1000) {
 const block = (app) => blocksOf(app.sc.content)[0];
 const texts = (app) => block(app).realized().map((w) => ({ index: w.index, text: w.view.t.text }));
 
-await test("windowed: only the window materializes; the parent extent reads N × unit", () => {
-  const app = makeApp("true", 1000);
+await test("windowed: only the window materializes; the parent extent reads N × unit", async () => {
+  const app = await makeApp("true", 1000);
   const info = materializationInfo(app.sc.content);
   assert.equal(info.windowed, true, "policy true engages");
   assert.equal(info.logical, 1000);
@@ -58,8 +58,8 @@ await test("windowed: only the window materializes; the parent extent reads N ×
   }
 });
 
-await test("windowed: scrolling moves the window; instances land at logical y", () => {
-  const app = makeApp("true", 1000);
+await test("windowed: scrolling moves the window; instances land at logical y", async () => {
+  const app = await makeApp("true", 1000);
   app.sc.scrollY = 15000; // row 500's neighborhood
   settle();
   const w = block(app).realized();
@@ -71,8 +71,8 @@ await test("windowed: scrolling moves the window; instances land at logical y", 
   }
 });
 
-await test("membership-anchored onInit (D5): once per membership, never per reconstruction", () => {
-  const app = makeApp("true", 1000);
+await test("membership-anchored onInit (D5): once per membership, never per reconstruction", async () => {
+  const app = await makeApp("true", 1000);
   const afterBoot = app.counter;
   // Init fires once per member EVER materialized: the estimate-then-correct
   // boot may briefly materialize a few beyond the corrected window, so the
@@ -99,8 +99,8 @@ await test("membership-anchored onInit (D5): once per membership, never per reco
   assert.equal(app.counter, afterCycle, "the second identical round trip refires NOTHING");
 });
 
-await test("divergence retention + RECYCLING (D5 + the scrub bench): touched rows retain; clean leavers RE-POINT", () => {
-  const app = makeApp("true", 1000);
+await test("divergence retention + RECYCLING (D5 + the scrub bench): touched rows retain; clean leavers RE-POINT", async () => {
+  const app = await makeApp("true", 1000);
   const w = block(app).realized();
   const touched = w.find(({ index }) => index === 3).view;
   const neighbor = w.find(({ index }) => index === 4).view;
@@ -133,20 +133,20 @@ await test("divergence retention + RECYCLING (D5 + the scrub bench): touched row
 // indistinguishable from a whole one. Virtualization is explicit at the source
 // now, and `virtualized` makes it legible at runtime — so the subset is a
 // readable fact rather than a trap, and the read answers.
-await test("childViews is transparent on a virtualized block, and `virtualized` says so", () => {
-  const app = makeApp("true", 1000);
+await test("childViews is transparent on a virtualized block, and `virtualized` says so", async () => {
+  const app = await makeApp("true", 1000);
   const kids = app.sc.content.childViews;
   assert.ok(Array.isArray(kids), "it answers rather than throwing");
   assert.ok(kids.length > 0 && kids.length < 100,
     `the instances that exist — a window, not 1000 (got ${kids.length})`);
   assert.equal(app.sc.content.virtualized, true, "and the flag makes the subset legible");
 
-  const small = makeApp("false", 20);
+  const small = await makeApp("false", 20);
   assert.equal(small.sc.content.childViews.length, 20, "a full block answers with everything");
   assert.equal(small.sc.content.virtualized, false, "…and reports itself unvirtualized");
 });
 
-await test("`virtualized` is TRACKED: a constraint on it follows engage/disengage", () => {
+await test("`virtualized` is TRACKED: a constraint on it follows engage/disengage", async () => {
   const src = `App [ width = 400, height = 400,
     big: boolean = false,
     d: Dataset { { "rows": [] } },
@@ -154,7 +154,7 @@ await test("`virtualized` is TRACKED: a constraint on it follows engage/disengag
       content: View [ width = 300, datapath = { d.value },
         View [ datapath = :rows[], virtualize = { app.big }, width = 300, height = 30 ] ] ],
     flag: boolean = { app.sc.content.virtualized } ]`;
-  const r = compile(src);
+  const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), []);
   const app = build(r.source);
   app.d.value = { rows: rows(400) };
@@ -166,8 +166,8 @@ await test("`virtualized` is TRACKED: a constraint on it follows engage/disengag
   assert.equal(app.flag, false, "…and again when it disengages");
 });
 
-await test("navigate-to-logical-record (§3.5): the destination materializes on arrival", () => {
-  const app = makeApp("true", 1000);
+await test("navigate-to-logical-record (§3.5): the destination materializes on arrival", async () => {
+  const app = await makeApp("true", 1000);
   block(app).navigateTo(800);
   settle();
   const w = block(app).realized();
@@ -180,7 +180,7 @@ await test("navigate-to-logical-record (§3.5): the destination materializes on 
 // program. This is why the slot is a boolean rather than an enum — every other
 // boolean in the language takes a constraint, and this one had to as well or
 // it would be a boolean that lies about being one.
-await test("the policy is REACTIVE: `virtualize = { … }` engages and disengages", () => {
+await test("the policy is REACTIVE: `virtualize = { … }` engages and disengages", async () => {
   const src = `App [ width = 400, height = 400,
     big: boolean = false,
     d: Dataset { { "rows": [] } },
@@ -188,7 +188,7 @@ await test("the policy is REACTIVE: `virtualize = { … }` engages and disengage
       content: View [ width = 300, datapath = { d.value },
         View [ datapath = :rows[], virtualize = { app.big }, width = 300, height = 30,
           t: Text [ text = :label ] ] ] ] ]`;
-  const r = compile(src);
+  const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), [], "a { } policy compiles");
   const app = build(r.source);
   app.d.value = { rows: rows(400) };
@@ -206,11 +206,11 @@ await test("the policy is REACTIVE: `virtualize = { … }` engages and disengage
   assert.equal(app.sc.content.childViews.length, 400, "every record is present again");
 });
 
-await test("the policy slot: a boolean, and honest fallbacks", () => {
-  const off = makeApp("false", 2000);
+await test("the policy slot: a boolean, and honest fallbacks", async () => {
+  const off = await makeApp("false", 2000);
   assert.equal(materializationInfo(off.sc.content).windowed, false, "the default is full materialization at any size");
   assert.equal(off.sc.content.childViews.length, 2000, "…and semantically untouched");
-  const on = makeApp("true", 50);
+  const on = await makeApp("true", 50);
   assert.equal(materializationInfo(on.sc.content).windowed, true, "true virtualizes regardless of count — no threshold");
   // A VERTICAL SimpleLayout COMPOSES (the layout-aware window's first case):
   // the pass suspends, its spacing folds into the unit, rows sit at logical
@@ -224,7 +224,7 @@ await test("the policy slot: a boolean, and honest fallbacks", () => {
       ],
     ],
   ]`;
-  const r = compile(src);
+  const r = await compile(src);
   assert.deepEqual(r.errors, []);
   const app = build(r.source);
   app.d.value = { rows: rows(1500) };
@@ -244,7 +244,7 @@ await test("the policy slot: a boolean, and honest fallbacks", () => {
       ],
     ],
   ]`;
-  const xr = compile(xsrc);
+  const xr = await compile(xsrc);
   assert.deepEqual(xr.errors, []);
   const xapp = build(xr.source);
   xapp.d.value = { rows: rows(1500) };
@@ -254,7 +254,7 @@ await test("the policy slot: a boolean, and honest fallbacks", () => {
   assert.match(xinfo.fallback, /windowing cannot predict/);
 });
 
-await test("membership init also governs keyed re-derivation (the ruling is general, not windowing-only)", () => {
+await test("membership init also governs keyed re-derivation (the ruling is general, not windowing-only)", async () => {
   const src = `App [ width = 200, height = 200,
     counter: number = 0,
     raw: Dataset { { "rows": [ { "id": "a" }, { "id": "b" } ] } },
@@ -265,7 +265,7 @@ await test("membership init also governs keyed re-derivation (the ruling is gene
       ],
     ],
   ]`;
-  const r = compile(src);
+  const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), []);
   const app = build(r.source);
   settle();
@@ -286,7 +286,7 @@ await test("membership init also governs keyed re-derivation (the ruling is gene
 // ── The semantic differ (§8 item 4): virtualization on vs off, one script,
 //    identical observable state ────────────────────────────────────────────
 
-await test("THE DIFFER: the same interaction script, windowed vs full, projects identically", () => {
+await test("THE DIFFER: the same interaction script, windowed vs full, projects identically", async () => {
   const N = 1200;
   const probes = [0, 3, 250, 599, 600, 601, 1199];
   /** The observable projection: the data itself, plus each probed record's
@@ -311,8 +311,8 @@ await test("THE DIFFER: the same interaction script, windowed vs full, projects 
     app.d.set("/rows/-", { n: N, label: "APPENDED" }); settle();
     app.sc.scrollY = 0; settle();
   };
-  const windowed = makeApp("true", N);
-  const full = makeApp("false", N);
+  const windowed = await makeApp("true", N);
+  const full = await makeApp("false", N);
   script(windowed);
   script(full);
   const pw = project(windowed);
@@ -339,7 +339,7 @@ await test("structural-equality fallback (B6 early): a keyless derived recompute
       ],
     ],
   ]`;
-  const r = compile(src);
+  const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), []);
   const app = build(r.source);
   settle();
@@ -357,8 +357,8 @@ await test("structural-equality fallback (B6 early): a keyless derived recompute
   assert.equal(app.counter, 3, "only the genuinely-changed record re-fired construct-side work");
 });
 
-await test("onRetire (D5 semantics, D8 name): departure fires it; window eviction never does", () => {
-  const src = compile(`App [ width = 400, height = 400,
+await test("onRetire (D5 semantics, D8 name): departure fires it; window eviction never does", async () => {
+  const src = await compile(`App [ width = 400, height = 400,
     retired: number = 0,
     d: Dataset { { "rows": [] } },
     sc: View [ scrolls = y, width = 300, height = 300,
@@ -402,7 +402,7 @@ await test("onRetire (D5 semantics, D8 name): departure fires it; window evictio
   assert.equal(app.retired, 2);
 });
 
-await test("VARIABLE extents (the measured ladder): per-row heights place exactly; the extent converges", () => {
+await test("VARIABLE extents (the measured ladder): per-row heights place exactly; the extent converges", async () => {
   // heights cycle 20/35/50/65/80 (mean 50) — the Tracker's mixed-height shape
   const src = `App [ width = 400, height = 400,
     d: Dataset { { "rows": [] } },
@@ -415,7 +415,7 @@ await test("VARIABLE extents (the measured ladder): per-row heights place exactl
       ],
     ],
   ]`;
-  const r = compile(src);
+  const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
   const app = build(r.source);
   const hs = Array.from({ length: 1000 }, (_, i) => 20 + (i % 5) * 15);
@@ -449,8 +449,8 @@ await test("VARIABLE extents (the measured ladder): per-row heights place exactl
   }
 });
 
-await test("PREPEND anchoring (criterion 2): inserts above the window never yank the viewport", () => {
-  const app = makeApp("true", 1000);
+await test("PREPEND anchoring (criterion 2): inserts above the window never yank the viewport", async () => {
+  const app = await makeApp("true", 1000);
   app.sc.scrollY = 15000;
   settle();
   const win = blocksOf(app.sc.content)[0].realized().filter((w) => w.view.visible);

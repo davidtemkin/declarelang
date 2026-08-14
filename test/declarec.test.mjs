@@ -42,28 +42,28 @@ function hasPosKey(node) {
 
 console.log("declarec");
 
-await test("compiles a source to a non-null program with no errors", () => {
-  const r = compileProgram(SRC);
+await test("compiles a source to a non-null program with no errors", async () => {
+  const r = await compileProgram(SRC);
   assert.equal(r.errors.length, 0, "unexpected errors: " + r.errors.map((e) => e.message).join("; "));
   assert.ok(r.program !== null, "program should not be null");
 });
 
-await test("program is JSON-serializable and round-trips byte-stable", () => {
-  const r = compileProgram(SRC);
+await test("program is JSON-serializable and round-trips byte-stable", async () => {
+  const r = await compileProgram(SRC);
   const a = JSON.stringify(r.program);
   const b = JSON.stringify(JSON.parse(a));
   assert.equal(a, b, "program is not JSON round-trip stable");
 });
 
-await test("stripPos (default) removes every source-offset field", () => {
-  const stripped = compileProgram(SRC);
+await test("stripPos (default) removes every source-offset field", async () => {
+  const stripped = await compileProgram(SRC);
   assert.equal(hasPosKey(stripped.program), false, "pos keys survived the default strip");
-  const kept = compileProgram(SRC, { stripPos: false });
+  const kept = await compileProgram(SRC, { stripPos: false });
   assert.equal(hasPosKey(kept.program), true, "stripPos:false should retain pos");
 });
 
-await test("runtime instantiates the round-tripped program (no parser/checker)", () => {
-  const r = compileProgram(SRC);
+await test("runtime instantiates the round-tripped program (no parser/checker)", async () => {
+  const r = await compileProgram(SRC);
   const program = JSON.parse(JSON.stringify(r.program)); // simulate ship + boot
   const root = instantiate(program);
   assert.ok(root instanceof App, "root should be an App");
@@ -71,8 +71,8 @@ await test("runtime instantiates the round-tripped program (no parser/checker)",
   assert.ok(root.children.length >= 1, "App should have its declared child");
 });
 
-await test("a broken source reports errors and emits no program", () => {
-  const r = compileProgram(`App [ box: View [ fill = { nonexistent.thing } ] ]`.replace("App [", "NotApp ["));
+await test("a broken source reports errors and emits no program", async () => {
+  const r = await compileProgram(`App [ box: View [ fill = { nonexistent.thing } ] ]`.replace("App [", "NotApp ["));
   assert.ok(r.program === null, "program should be null on error");
   assert.ok(r.errors.length > 0, "should carry at least one error");
 });

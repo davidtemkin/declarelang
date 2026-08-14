@@ -33,12 +33,12 @@ function stubStreams() {
   };
 }
 
-function compile(src) {
-  return compileProgram(src, { stripPos: false });
+async function compile(src) {
+  return await compileProgram(src, { stripPos: false });
 }
 
-function build(src) {
-  const r = compile(src);
+async function build(src) {
+  const r = await compile(src);
   assert.equal(r.errors.length, 0, "compile errors: " + r.errors.map((e) => e.message).join("; "));
   const app = instantiate(r.program);
   settle();
@@ -63,9 +63,9 @@ App [
     out: Text [ text = { app.feed.last } ],
     ]`;
 
-await test("a declared EventStream dials at init and reads 'connecting'", () =>
-  withStubs((s) => {
-    const app = build(CHAT);
+await test("a declared EventStream dials at init and reads 'connecting'", async () =>
+  await withStubs(async (s) => {
+    const app = await build(CHAT);
     assert.equal(s.conns.length, 1);
     assert.equal(s.last().kind, "es");
     assert.equal(s.last().url, "https://x.test/stream");
@@ -74,9 +74,9 @@ await test("a declared EventStream dials at init and reads 'connecting'", () =>
     app.discard();
   }));
 
-await test("open → status 'open', the boolean view agrees, error clears", () =>
-  withStubs((s) => {
-    const app = build(CHAT);
+await test("open → status 'open', the boolean view agrees, error clears", async () =>
+  await withStubs(async (s) => {
+    const app = await build(CHAT);
     s.last().cb.open();
     settle();
     assert.equal(app.feed.status, "open");
@@ -85,9 +85,9 @@ await test("open → status 'open', the boolean view agrees, error clears", () =
     app.discard();
   }));
 
-await test("a message lands in `last`, the handler accumulates, bindings follow", () =>
-  withStubs((s) => {
-    const app = build(CHAT);
+await test("a message lands in `last`, the handler accumulates, bindings follow", async () =>
+  await withStubs(async (s) => {
+    const app = await build(CHAT);
     s.last().cb.open();
     s.last().cb.message({ data: "Hel", type: "message", id: "" });
     s.last().cb.message({ data: "lo", type: "message", id: "" });
@@ -98,9 +98,9 @@ await test("a message lands in `last`, the handler accumulates, bindings follow"
     app.discard();
   }));
 
-await test("an empty url is detached; a url arriving connects (reactive address)", () =>
-  withStubs((s) => {
-    const app = build(`
+await test("an empty url is detached; a url arriving connects (reactive address)", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`
       App [
           addr: string = "",
           feed: EventStream [ url = { app.addr } ],
@@ -114,9 +114,9 @@ await test("an empty url is detached; a url arriving connects (reactive address)
     app.discard();
   }));
 
-await test("a url change closes and reopens at the new address", () =>
-  withStubs((s) => {
-    const app = build(`
+await test("a url change closes and reopens at the new address", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`
       App [
           addr: string = "https://x.test/a",
           feed: EventStream [ url = { app.addr } ],
@@ -131,9 +131,9 @@ await test("a url change closes and reopens at the new address", () =>
     app.discard();
   }));
 
-await test("active is the gate: false closes, true reopens", () =>
-  withStubs((s) => {
-    const app = build(`
+await test("active is the gate: false closes, true reopens", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`
       App [
           on: boolean = true,
           feed: EventStream [ url = "https://x.test/live", active = { app.on } ],
@@ -149,9 +149,9 @@ await test("active is the gate: false closes, true reopens", () =>
     app.discard();
   }));
 
-await test("`listenTo` reaches the factory as the named-event list", () =>
-  withStubs((s) => {
-    const app = build(`
+await test("`listenTo` reaches the factory as the named-event list", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`
       App [
           feed: EventStream [ url = "https://x.test/ai", listenTo = ["content_block_delta", "message_stop"] ],
           ]`);
@@ -159,15 +159,15 @@ await test("`listenTo` reaches the factory as the named-event list", () =>
     app.discard();
   }));
 
-await test("a non-plain item in a bare listenTo list is a pointed compile error", () => {
-  const r = compile(`App [ feed: EventStream [ url = "x", listenTo = [hovered] ] ]`);
+await test("a non-plain item in a bare listenTo list is a pointed compile error", async () => {
+  const r = await compile(`App [ feed: EventStream [ url = "x", listenTo = [hovered] ] ]`);
   assert.notEqual(r.errors.length, 0);
   assert.match(r.errors[0].message, /bare list holds plain values/);
 });
 
-await test("SSE platform retry (non-final end): 'retrying', error channel quiet", () =>
-  withStubs((s) => {
-    const app = build(`
+await test("SSE platform retry (non-final end): 'retrying', error channel quiet", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`
       App [
           errs: number = 0,
           feed: EventStream [ url = "https://x.test/live",
@@ -185,9 +185,9 @@ await test("SSE platform retry (non-final end): 'retrying', error channel quiet"
     app.discard();
   }));
 
-await test("terminal failure without retry: 'failed', reason in error, onError+onClose fire", () =>
-  withStubs((s) => {
-    const app = build(`
+await test("terminal failure without retry: 'failed', reason in error, onError+onClose fire", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`
       App [
           errs: number = 0, closes: number = 0,
           feed: EventStream [ url = "https://x.test/live",
@@ -206,9 +206,9 @@ await test("terminal failure without retry: 'failed', reason in error, onError+o
     app.discard();
   }));
 
-await test("retry = seconds: a terminal loss schedules the reconnect", () =>
-  withStubs(async (s) => {
-    const app = build(`
+await test("retry = seconds: a terminal loss schedules the reconnect", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`
       App [
           sock: Socket [ url = "wss://x.test/live", retry = 0.01 ],
           ]`);
@@ -227,9 +227,9 @@ await test("retry = seconds: a terminal loss schedules the reconnect", () =>
     app.discard();
   }));
 
-await test("active = false cancels a pending retry", () =>
-  withStubs(async (s) => {
-    const app = build(`
+await test("active = false cancels a pending retry", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`
       App [
           on: boolean = true,
           sock: Socket [ url = "wss://x.test/live", retry = 0.01, active = { app.on } ],
@@ -247,9 +247,9 @@ await test("active = false cancels a pending retry", () =>
     app.discard();
   }));
 
-await test("Socket.send reaches the wire when open; when not, a reported error", () =>
-  withStubs((s) => {
-    const app = build(`
+await test("Socket.send reaches the wire when open; when not, a reported error", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`
       App [
           errs: number = 0,
           sock: Socket [ url = "wss://x.test/live",
@@ -268,9 +268,9 @@ await test("Socket.send reaches the wire when open; when not, a reported error",
     app.discard();
   }));
 
-await test("discard closes the connection, quietly", () =>
-  withStubs((s) => {
-    const app = build(`
+await test("discard closes the connection, quietly", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`
       App [
           closes: number = 0,
           feed: EventStream [ url = "https://x.test/live",
@@ -283,14 +283,14 @@ await test("discard closes the connection, quietly", () =>
     assert.equal(s.last().closed, true, "node removal closes the connection");
   }));
 
-await test("a synchronous factory throw is structural: 'failed', no retry loop", () =>
-  withStubs(async () => {
+await test("a synchronous factory throw is structural: 'failed', no retry loop", async () =>
+  await withStubs(async () => {
     const prev = provideStreams({
       eventSource: (url) => { throw new Error(`network unavailable headless — ${url}`); },
       socket: (url) => { throw new Error(`network unavailable headless — ${url}`); },
     });
     try {
-      const app = build(`
+      const app = await build(`
         App [
             errs: number = 0,
             feed: EventStream [ url = "https://x.test/live", retry = 0.01,
@@ -309,24 +309,24 @@ await test("a synchronous factory throw is structural: 'failed', no retry loop",
 
 console.log("\nstreams — the checked surface");
 
-await test("the lifecycle intrinsics are read-only: assigning one is a compile error", () => {
+await test("the lifecycle intrinsics are read-only: assigning one is a compile error", async () => {
   for (const attr of [`status = "open"`, `open = true`, `last = "x"`, `error = "y"`]) {
-    const r = compile(`App [ feed: EventStream [ url = "https://x.test", ${attr} ] ]`);
+    const r = await compile(`App [ feed: EventStream [ url = "https://x.test", ${attr} ] ]`);
     assert.notEqual(r.errors.length, 0, `\`${attr}\` should not compile`);
     assert.match(r.errors[0].message, /read-only/, attr);
   }
 });
 
-await test("Stream is the abstract base: instantiating it is a pointed error", () => {
-  const r = compile(`App [ s: Stream [ url = "https://x.test" ] ]`);
+await test("Stream is the abstract base: instantiating it is a pointed error", async () => {
+  const r = await compile(`App [ s: Stream [ url = "https://x.test" ] ]`);
   assert.notEqual(r.errors.length, 0);
   assert.match(r.errors[0].message, /abstract base.*EventStream.*Socket/s);
 });
 
-await test("send is Socket's alone: a handler calling feed.send is a type error elsewhere", () => {
+await test("send is Socket's alone: a handler calling feed.send is a type error elsewhere", async () => {
   // EventStream is receive-only — its class carries no send; the runtime has
   // none to call. Guarded at the model level: the member simply is not there.
-  const r = compile(`App [ feed: EventStream [ url = "https://x.test" ] ]`);
+  const r = await compile(`App [ feed: EventStream [ url = "https://x.test" ] ]`);
   assert.equal(r.errors.length, 0);
   const app = instantiate(r.program);
   settle();
@@ -334,8 +334,8 @@ await test("send is Socket's alone: a handler calling feed.send is a type error 
   app.discard();
 });
 
-await test("a stream declares no attributes of its own", () => {
-  const r = compile(`App [ feed: EventStream [ url = "https://x.test", extra: number = 1 ] ]`);
+await test("a stream declares no attributes of its own", async () => {
+  const r = await compile(`App [ feed: EventStream [ url = "https://x.test", extra: number = 1 ] ]`);
   assert.notEqual(r.errors.length, 0);
   assert.match(r.errors[0].message, /declares no attributes/);
 });

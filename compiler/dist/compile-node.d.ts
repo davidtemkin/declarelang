@@ -20,7 +20,7 @@ export declare function diskDataResolver(originDir: string): (url: string) => un
 /** `compile` with the filesystem include+auto-include host and (when `typecheck`
  *  is set) the real typechecker injected. Drop-in for the previous `compile`
  *  import. */
-export declare function compile(source: string, opts?: CompileOptions): Compiled;
+export declare function compile(source: string, opts?: CompileOptions): Promise<Compiled>;
 export interface TrackedOptions extends CompileOptions {
     /** The main source's own path (absolute) — recorded as a closure entry so an
      *  edit to the app file itself busts the cache. Omit for an unsaved buffer. */
@@ -35,6 +35,6 @@ export interface TrackedOptions extends CompileOptions {
  *  feed it to isUpToDate()/contentTag() for a disk or HTTP cache, or to fs.watch
  *  for live reload. The disk/browser CACHE layers (get/put, 304s) build on this
  *  and land with the deploy / in-browser-compile paths that need them. */
-export declare function compileTracked(source: string, opts?: TrackedOptions): Compiled & {
+export declare function compileTracked(source: string, opts?: TrackedOptions): Promise<Compiled & {
     closure: Closure;
-};
+}>;

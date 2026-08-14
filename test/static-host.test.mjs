@@ -7,9 +7,11 @@
 // app itself — and the two paths resolve `include` by entirely different
 // machinery. Nothing tested the second one, and the difference shipped: an app
 // that includes a file beside it compiled on the dev server and failed on the
-// deployed site with DECLARE5002, because the browser's include host reads a
-// synchronous map that only ever held the LIBRARY (compiler-client
-// fetchAppIncludes now fills in the app's own).
+// deployed site with DECLARE5002, because the browser's include host read a
+// SYNCHRONOUS map that only ever held the LIBRARY. The include seam is async
+// now, so the browser host FETCHES what the walk reaches (compile-browser
+// fetchHost) — the same thing the Node host does with the filesystem, through
+// the same shared search path. This suite is what keeps the two honest.
 //
 // So this suite serves the tree the way a static host does — files, an
 // index.html for a directory, 404 for the rest, and nothing else — and asserts
@@ -103,7 +105,7 @@ for (const app of ["weather", "lzx-dashboard"]) {
     // "it didn't render" is the symptom of many things and this one is exact.
     assert.equal(r.error, null,
       `${app} failed to compile on a static host — if this names an include, the browser's ` +
-      `include host did not receive the app's own files (compiler-client fetchAppIncludes): ${r.error}`);
+      `fetch host (compile-browser fetchHost) did not read the app's own files: ${r.error}`);
     assert.ok(r.nodes > 200, `${app} compiled but rendered almost nothing (${r.nodes} nodes)`);
   });
 }

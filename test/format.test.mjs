@@ -144,7 +144,7 @@ const isLibrarySource = (src) => {
 for (const file of corpus) {
   const rel = file.slice(ROOT.length + 1);
   const isLibrary = isLibrarySource(readFileSync(file, "utf8"));
-  await test(`compiles to the same program: ${rel}`, () => {
+  await test(`compiles to the same program: ${rel}`, async () => {
     const src = readFileSync(file, "utf8");
     const out = formattedOf.get(file) ?? formatSource(src);
     if (isLibrary) {
@@ -154,8 +154,8 @@ for (const file of corpus) {
       return;
     }
     const opts = { originDir: dirname(file), typecheck: false };
-    const a = compile(src, opts);
-    const b = compile(out, opts);
+    const a = await compile(src, opts);
+    const b = await compile(out, opts);
     if (a.errors.length) throw new Error(`original does not compile: ${a.errors[0].message}`);
     if (b.errors.length) throw new Error(`FORMATTED does not compile: ${b.errors[0].message}`);
     assertTokensEqual(a.source, b.source, "emitted source");

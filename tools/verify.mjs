@@ -110,7 +110,7 @@ if (flags.wrap && !/^\s*App\s*\[/m.test(bare)) {
 // boot-static all pass it). Missing here until apps/weather grew an art
 // include (2026-08-08) and verify alone could not find a file sitting beside
 // the program.
-const out = compile(source, { typecheck: flags.typecheck, originDir: dirname(resolve(file)) });
+const out = await compile(source, { typecheck: flags.typecheck, originDir: dirname(resolve(file)) });
 const failing = out.diagnostics.filter((d) => d.severity === "error");
 const warnings = out.diagnostics.filter((d) => d.severity === "warning");
 let failedRung = failing.length ? Math.min(...failing.map((d) => rungOf(d.phase))) : null;

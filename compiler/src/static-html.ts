@@ -239,8 +239,8 @@ export interface Extracted {
 /** The one-call form: compile a source through THE compiler API (typecheck
  *  and all), then extract. The dual-form rule holds — structured diagnostics
  *  plus the rendered report ride the result. */
-export function extractStatic(source: string, opts: ExtractOptions = {}): Extracted {
-  const compiled = compile(source, opts);
+export async function extractStatic(source: string, opts: ExtractOptions = {}): Promise<Extracted> {
+  const compiled = await compile(source, opts);
   return { html: extractFromCompiled(compiled, opts.env), diagnostics: compiled.diagnostics, report: compiled.report };
 }
 

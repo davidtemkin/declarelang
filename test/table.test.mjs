@@ -11,7 +11,7 @@ import { settle } from "../runtime/dist/index.js";
 
 const KEY = (key, mods = {}) => ({ key, shift: false, ctrl: false, alt: false, meta: false, repeat: false, code: key, ...mods });
 
-function makeApp(extra = "", n = 6, tableAttrs = "") {
+async function makeApp(extra = "", n = 6, tableAttrs = "") {
   const src = `App [ width = 400, height = 500,
     delivered: object = null,
     d: Dataset { { "rows": [] } },
@@ -23,7 +23,7 @@ function makeApp(extra = "", n = 6, tableAttrs = "") {
     ],
     ${extra}
   ]`;
-  const b = compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
+  const b = await compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
   const app = instantiate(b.program);
   app.d.value = { rows: Array.from({ length: n }, (_, i) => ({ id: i, label: "row " + i })) };
@@ -33,8 +33,8 @@ function makeApp(extra = "", n = 6, tableAttrs = "") {
 
 const rowsOf = (t) => t.children.filter((c) => c.isTableRow === true);
 
-await test("click selects; the selection holds RECORDS; row visuals derive from the value", () => {
-  const app = makeApp();
+await test("click selects; the selection holds RECORDS; row visuals derive from the value", async () => {
+  const app = await makeApp();
   const rows = rowsOf(app.t);
   rows[2].onClick();
   settle();
@@ -45,8 +45,8 @@ await test("click selects; the selection holds RECORDS; row visuals derive from 
   assert.equal(app.t.active, app.d.value.rows[2], "click lands the keyboard position too");
 });
 
-await test("the protocol: toggle, range from the anchor, single-mode replace", () => {
-  const app = makeApp();
+await test("the protocol: toggle, range from the anchor, single-mode replace", async () => {
+  const app = await makeApp();
   const m = (i) => app.d.value.rows[i];
   app.t.rowClick(1, m(1), false, false);          // plain: anchor at 1
   app.t.rowClick(4, m(4), false, true);           // shift: range 1..4
@@ -59,7 +59,7 @@ await test("the protocol: toggle, range from the anchor, single-mode replace", (
   settle();
   assert.deepEqual(app.t.selection.map((r) => r.id), [5]);
   // single mode
-  const s = makeApp("", 4, "");
+  const s = await makeApp("", 4, "");
   s.t.selects = "single";
   s.t.rowClick(1, s.d.value.rows[1], false, false);
   s.t.rowClick(3, s.d.value.rows[3], false, true); // shift is inert in single
@@ -67,8 +67,8 @@ await test("the protocol: toggle, range from the anchor, single-mode replace", (
   assert.deepEqual(s.t.selection.map((r) => r.id), [3], "single: one member, ranges don't apply");
 });
 
-await test("keyboard: arrows move-and-select, shift extends, the ⌘-walk + Space builds discontiguous", () => {
-  const app = makeApp();
+await test("keyboard: arrows move-and-select, shift extends, the ⌘-walk + Space builds discontiguous", async () => {
+  const app = await makeApp();
   const t = app.t;
   t.onKeyDown(KEY("ArrowDown"));                  // → row 0, selected
   settle();
@@ -91,8 +91,8 @@ await test("keyboard: arrows move-and-select, shift extends, the ⌘-walk + Spac
   assert.equal(t.active.id, 5, "End jumps the position");
 });
 
-await test("the delivery seam: a use-site input() owns the value; the default writes the slots", () => {
-  const app = makeApp("", 6, 'input(sel: object) { app.delivered = sel },');
+await test("the delivery seam: a use-site input() owns the value; the default writes the slots", async () => {
+  const app = await makeApp("", 6, 'input(sel: object) { app.delivered = sel },');
   const rows = rowsOf(app.t);
   rows[1].onClick();
   settle();
@@ -100,8 +100,8 @@ await test("the delivery seam: a use-site input() owns the value; the default wr
   assert.equal(app.t.selection, null, "…and did NOT write the slot — the override redirected it (press-never-writes)");
 });
 
-await test("selection is record-anchored: it survives data reorder", () => {
-  const app = makeApp();
+await test("selection is record-anchored: it survives data reorder", async () => {
+  const app = await makeApp();
   const rec = app.d.value.rows[1];
   app.t.rowClick(1, rec, false, false);
   settle();
@@ -112,7 +112,7 @@ await test("selection is record-anchored: it survives data reorder", () => {
   assert.equal(nowAt, 4, "the visual follows the record to its new place");
 });
 
-await test("windowed: ranges cross the window and arrow travel materializes the destination", () => {
+await test("windowed: ranges cross the window and arrow travel materializes the destination", async () => {
   const src = `App [ width = 400, height = 500,
     d: Dataset { { "rows": [] } },
     t: Table [ x = 10, y = 10, width = 300, height = 150, datapath = { d.value },
@@ -122,7 +122,7 @@ await test("windowed: ranges cross the window and arrow travel materializes the 
       ],
     ],
   ]`;
-  const b = compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
+  const b = await compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
   const app = instantiate(b.program);
   app.d.value = { rows: Array.from({ length: 1000 }, (_, i) => ({ id: i, label: "row " + i })) };
@@ -145,8 +145,8 @@ await test("windowed: ranges cross the window and arrow travel materializes the 
   assert.equal(inst.selected, true);
 });
 
-await test("rows are never tab stops: a row press focuses the TABLE (the one-stop policy)", () => {
-  const app = makeApp();
+await test("rows are never tab stops: a row press focuses the TABLE (the one-stop policy)", async () => {
+  const app = await makeApp();
   const rows = rowsOf(app.t);
   assert.equal(rows[0].focusable, false, "a row is not a stop");
   assert.equal(app.t.focusable, true, "the table is THE stop");
@@ -156,7 +156,7 @@ await test("rows are never tab stops: a row press focuses the TABLE (the one-sto
   assert.equal(rows[2].focused, false);
 });
 
-await test("written members: rows ARE the members (the RadioGroup practice); selection holds the views", () => {
+await test("written members: rows ARE the members (the RadioGroup practice); selection holds the views", async () => {
   const src = `App [ width = 400, height = 300,
     t: Table [ x = 10, y = 10, width = 300, height = 200,
       selects = "multi",
@@ -165,7 +165,7 @@ await test("written members: rows ARE the members (the RadioGroup practice); sel
       c: TableRow [ height = 30, lab: Text [ x = 8, y = 8, text = "Gamma" ] ],
     ],
   ]`;
-  const b = compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
+  const b = await compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
   const app = instantiate(b.program);
   settle();

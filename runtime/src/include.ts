@@ -42,14 +42,37 @@ export function exciseSpans(source: string, spans: readonly Span[]): string {
  *  what include-once dedups on, so it must be stable per file (an absolute
  *  path on the fs host). */
 export interface IncludeHost {
-  resolve(fromDir: string, path: string): { canonical: string; dir: string; source: string } | null;
+  resolve(fromDir: string, path: string): Resolved | null | Promise<Resolved | null>;
 }
+
+/** What a host hands back for one file. Named so the filesystem host and the
+ *  fetch host state the same shape, and so `resolve` can say "or later". */
+export interface Resolved { canonical: string; dir: string; source: string }
 
 /** A host that resolves nothing — the default in the zero-dependency graph
  *  (index.ts): a source with no `include`s never calls it, so behavior is
  *  unchanged; a source WITH includes but no real host reports each as
  *  unresolvable rather than importing a filesystem into the runtime graph. */
 export const NO_INCLUDES: IncludeHost = { resolve: () => null };
+
+/** The HOSTLESS case, synchronously — the RUNTIME's path.
+ *
+ *  `compile()` emits one self-contained program (the walk splices every library's
+ *  source ahead of the excised main), so at runtime there is nothing left to
+ *  resolve: build() runs with NO_INCLUDES over an already-empty include list.
+ *  Keeping that case here, sync, is what lets the seam above be async without
+ *  making the runtime's build()/render() async for I/O nobody performs.
+ *
+ *  A source that still carries `include`s and has no host is the honest error the
+ *  walk produced — one `missingInclude` per directive, same diagnostic, same order. */
+export function resolveIncludesHostless(
+  program: Program
+): { program: Program; errors: DeclareError[] } {
+  return {
+    program: { ...program, includes: [], includeSpans: [] },
+    errors: program.includes.map((inc) => Diag.missingInclude(inc.path, inc.pos)),
+  };
+}
 
 /** Resolve a program's `include`s (composition.md §1): recursively parse each
  *  included library relative to the including file, fold every library's
@@ -65,11 +88,11 @@ export const NO_INCLUDES: IncludeHost = { resolve: () => null };
  *  emitted only after the libraries it includes, so a base is always declared
  *  above its subclass. compile() concatenates `sources` ahead of the excised
  *  main source to emit ONE self-contained program the hostless runtime runs. */
-export function resolveIncludes(
+export async function resolveIncludes(
   program: Program,
   host: IncludeHost,
   originDir: string
-): { program: Program; sources: string[]; errors: DeclareError[]; visited: Set<string> } {
+): Promise<{ program: Program; sources: string[]; errors: DeclareError[]; visited: Set<string> }> {
   const errors: DeclareError[] = [];
   const classes: ClassDecl[] = [...program.classes];
   const stylesheets: TopDecl[] = [...program.stylesheets];
@@ -108,9 +131,17 @@ export function resolveIncludes(
     return true;
   };
 
-  const walk = (includes: readonly { path: string; pos: DeclareError["pos"] }[], fromDir: string): void => {
+  // SEQUENTIAL, now that a host may answer later. The walk is order-dependent in
+  // three ways a parallel fan-out would silently break: include-once dedups through
+  // `visited` as it goes, collisions are reported in resolve order, and `sources`
+  // must come out dependency-first (post-order) so a base is declared above its
+  // subclass. A tracker recording the closure therefore sees the same sequence for
+  // the same program, which is what keeps a compile-cache key stable. Awaiting one
+  // file at a time costs latency on a fetch host and buys all four properties; any
+  // faster shape has to preserve them to be correct.
+  const walk = async (includes: readonly { path: string; pos: DeclareError["pos"] }[], fromDir: string): Promise<void> => {
     for (const inc of includes) {
-      const resolved = host.resolve(fromDir, inc.path);
+      const resolved = await host.resolve(fromDir, inc.path);
       if (resolved === null) {
         errors.push(Diag.missingInclude(inc.path, inc.pos));
         continue;
@@ -127,7 +158,7 @@ export function resolveIncludes(
       // DEPENDENCY-FIRST: resolve the library's OWN includes before folding /
       // emitting the library itself, so an included base is declared above the
       // subclass that extends it (post-order, relative to the library's dir).
-      walk(lib.includes, resolved.dir);
+      await walk(lib.includes, resolved.dir);
       // The file is named by the path it was included as — the spelling the
       // author reads in the `include` directive (composition.md §1's collision
       // message form).
@@ -143,7 +174,7 @@ export function resolveIncludes(
       sources.push(exciseSpans(resolved.source, lib.includeSpans));
     }
   };
-  walk(program.includes, originDir);
+  await walk(program.includes, originDir);
 
   return {
     program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
@@ -170,7 +201,7 @@ export function autoIncludableNames(): readonly string[] { return autoIncludable
  *  auto-include is a no-op there (single-file compiles stay byte-identical). */
 export interface AutoIncludeHost extends IncludeHost {
   autoincludes(): Record<string, string>;
-  resolveLibrary(path: string): { canonical: string; dir: string; source: string } | null;
+  resolveLibrary(path: string): Resolved | null | Promise<Resolved | null>;
 }
 
 /** The component TAGS a tree references — every child element's tag (named and
@@ -217,12 +248,12 @@ export function referencedComponentNames(program: Program): string[] {
  *
  *  Backends without the auto-include methods (NO_INCLUDES, a plain fs host)
  *  make this a no-op returning the program unchanged. */
-export function resolveAutoIncludes(
+export async function resolveAutoIncludes(
   program: Program,
   root: Element,
   host: IncludeHost,
   visited: Set<string>
-): { program: Program; sources: string[]; errors: DeclareError[] } {
+): Promise<{ program: Program; sources: string[]; errors: DeclareError[] }> {
   const auto = host as Partial<AutoIncludeHost>;
   if (typeof auto.autoincludes !== "function" || typeof auto.resolveLibrary !== "function") {
     return { program, sources: [], errors: [] };
@@ -273,11 +304,11 @@ export function resolveAutoIncludes(
   // a self/mutual reference does not re-pull. The ROOT's own tag is pulled too
   // (referencedTags walks children only) — a root-position library tag then
   // reports its precise misplacement, not "unknown component".
-  const pull = (tag: string, pos: Element["pos"]): void => {
+  const pull = async (tag: string, pos: Element["pos"]): Promise<void> => {
     if (origin.has(tag)) return;
     const path = manifest[tag];
     if (path === undefined) return; // not a magic tag → unknownComponent, post-merge
-    const resolved = auto.resolveLibrary!(path);
+    const resolved = await auto.resolveLibrary!(path);
     if (resolved === null) {
       errors.push(Diag.missingInclude(path, pos));
       origin.set(tag, path); // don't re-report per reference
@@ -291,7 +322,7 @@ export function resolveAutoIncludes(
     const mine: ClassDecl[] = [];
     for (const c of lib.classes) if (foldOne(c.name, c.pos, path)) mine.push(c);
     // dependency-first: pull what this library references, then emit it
-    for (const r of referencedTags(null, lib.classes)) pull(r.tag, r.pos);
+    for (const r of referencedTags(null, lib.classes)) await pull(r.tag, r.pos);
     for (const c of mine) classes.push(c);
     for (const s of lib.stylesheets) if (foldOne(s.name, s.pos, path)) stylesheets.push(s);
     for (const s of lib.styles) if (foldOne(s.name, s.pos, path)) styles.push(s);
@@ -301,8 +332,8 @@ export function resolveAutoIncludes(
     sources.push(exciseSpans(resolved.source, lib.includeSpans));
   };
 
-  for (const r of referencedTags(root, program.classes)) pull(r.tag, r.pos);
-  pull(root.tag, root.pos);
+  for (const r of referencedTags(root, program.classes)) await pull(r.tag, r.pos);
+  await pull(root.tag, root.pos);
   // The keep-list is a reference too: `use [ Bar ]` pulls Bar's library even with
   // no static tag (the escape hatch for by-name construction). A built-in or
   // unknown name isn't in the manifest, so pull() no-ops — the checker validates
@@ -310,7 +341,7 @@ export function resolveAutoIncludes(
   // a pulled library can CONTRIBUTE uses (line ~139), and those pull too —
   // a component that `use`s what it createView's (Combobox → Menu) keeps its
   // dependency even when no static tag references it.
-  for (let i = 0; i < uses.length; i++) pull(uses[i], program.root.pos);
+  for (let i = 0; i < uses.length; i++) await pull(uses[i], program.root.pos);
 
   return {
     // `uses` is the FOLDED list — the root's plus every included library's

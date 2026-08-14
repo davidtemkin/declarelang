@@ -83,21 +83,21 @@ function stripPos(node) {
  *  parse the resolved source into the program the runtime's `renderProgram`
  *  consumes. On any error, `program` is null and `errors` carries every
  *  diagnostic (nothing is emitted). */
-export function compileProgram(source, opts = {}) {
+export async function compileProgram(source, opts = {}) {
     // 1) The full compile: bare-name resolution + include/auto-include inlining
     //    + the tsc-over-bodies typecheck (a phase of THE compile, on by default
     //    — compile.ts runs the checker directly; `typecheck: false` is the
     //    caller's explicit opt-out). The runtime schema `check()` below remains
     //    the always-on structural gate.
     const { mainId, props, stripPos: strip, ...compileOpts } = opts;
-    const c = compileTracked(source, { ...compileOpts, mainId, props });
+    const c = await compileTracked(source, { ...compileOpts, mainId, props });
     if (c.source === null) {
         return { program: null, errors: c.errors, warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedComponents: [] };
     }
     // 2) Parse the resolved source into a program. Includes are already inlined,
     //    so NO_INCLUDES is a guard, not a resolver.
     const parsed = parseProgram(c.source);
-    const { program, errors: incErrors } = resolveIncludes(parsed, NO_INCLUDES, "");
+    const { program, errors: incErrors } = await resolveIncludes(parsed, NO_INCLUDES, "");
     // 3) Belt-and-suspenders: typecheck the program we will actually ship (the
     //    resolved re-parse), so the emitted artifact is provably valid. A failure
     //    here is OUR bug (compile() accepted what the re-check rejects), so the

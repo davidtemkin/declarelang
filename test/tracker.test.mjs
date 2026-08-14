@@ -19,8 +19,8 @@ provideMeasurer(approximateMeasurer());
 
 const SRC = readFileSync(new URL("../apps/tracker/tracker.declare", import.meta.url), "utf8");
 
-function boot(n = 10000) {
-  const b = compileProgram(SRC, { originDir: process.cwd() + "/library", stripPos: false });
+async function boot(n = 10000) {
+  const b = await compileProgram(SRC, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
   const app = instantiate(b.program);
   app.width = 1200;
@@ -33,8 +33,8 @@ function boot(n = 10000) {
 
 const listRows = (app) => app.list.children.filter((c) => c.isTableRow === true);
 
-await test("boot: the projection stands, the counts add up, the list windows (10k)", () => {
-  const app = boot(10000);
+await test("boot: the projection stands, the counts add up, the list windows (10k)", async () => {
+  const app = await boot(10000);
   assert.equal(app.issuesOf(app.rev).length, 10000);
   assert.equal(app.shownTotal, 10000);
   const c = app.counts;
@@ -43,8 +43,8 @@ await test("boot: the projection stands, the counts add up, the list windows (10
   assert.ok(app.list.children.length > 5, "rows materialized");
 });
 
-await test("criterion 1: mixed-height rows scroll both directions fast — placement exact among measured", () => {
-  const app = boot(10000);
+await test("criterion 1: mixed-height rows scroll both directions fast — placement exact among measured", async () => {
+  const app = await boot(10000);
   const el = app.shown.value.rows;
   // deep jump then return; rows land at ledger offsets with true heights
   app.list.scrollY = 120000;
@@ -63,8 +63,8 @@ await test("criterion 1: mixed-height rows scroll both directions fast — place
   assert.equal(top.length, 1, "back at the top, row 0 stands");
 });
 
-await test("criterion 2: insert at top while scrolled deep — the viewport holds still", () => {
-  const app = boot(10000);
+await test("criterion 2: insert at top while scrolled deep — the viewport holds still", async () => {
+  const app = await boot(10000);
   app.list.scrollY = 60000;
   settle(); settle();
   const anchor = listRows(app).filter((r) => r.visible).find((r) => r.y >= app.list.scrollY);
@@ -81,8 +81,8 @@ await test("criterion 2: insert at top while scrolled deep — the viewport hold
     "…at the same place on screen (the prepend anchored)");
 });
 
-await test("criterion 3: edit an unmaterialized row from the detail panel; scroll back; it is right", () => {
-  const app = boot(10000);
+await test("criterion 3: edit an unmaterialized row from the detail panel; scroll back; it is right", async () => {
+  const app = await boot(10000);
   // select row 0, open the draft, then scroll far away (the row dematerializes)
   const rec = app.shown.value.rows[0];
   app.takeSelection([rec]);
@@ -107,8 +107,8 @@ await test("criterion 3: edit an unmaterialized row from the detail panel; scrol
   assert.equal(row.title.text, "edited far away", "…showing the committed edit");
 });
 
-await test("criterion 4: a filter narrows 10k to a handful under a deep scroll — position lands sane", () => {
-  const app = boot(10000);
+await test("criterion 4: a filter narrows 10k to a handful under a deep scroll — position lands sane", async () => {
+  const app = await boot(10000);
   app.list.scrollY = 100000;
   settle();
   app.fAssignee = "Hedy";
@@ -122,8 +122,8 @@ await test("criterion 4: a filter narrows 10k to a handful under a deep scroll �
   assert.ok(vis.length > 0, "rows are on screen");
 });
 
-await test("criterion 5: sort flip with selection held — same records selected, viewport follows", () => {
-  const app = boot(10000);
+await test("criterion 5: sort flip with selection held — same records selected, viewport follows", async () => {
+  const app = await boot(10000);
   const rows = app.shown.value.rows;
   app.takeSelection([rows[3], rows[5], rows[9]]);
   const ids = app.selection.map((r) => r.id).sort();
@@ -135,8 +135,8 @@ await test("criterion 5: sort flip with selection held — same records selected
   assert.deepEqual((app.selection ?? []).map((r) => r.id).sort(), ids, "…through another flip");
 });
 
-await test("criterion 6: search NARROWS the projection; Enter/arrows walk the matches", () => {
-  const app = boot(10000);
+await test("criterion 6: search NARROWS the projection; Enter/arrows walk the matches", async () => {
+  const app = await boot(10000);
   const before = app.shownTotal;
   app.query = "rollback";
   settle();
@@ -161,8 +161,8 @@ await test("criterion 6: search NARROWS the projection; Enter/arrows walk the ma
   assert.equal(app.shownTotal, before, "clearing restores everything");
 });
 
-await test("criterion 7: bulk status over a cross-window selection — all 200 move", () => {
-  const app = boot(10000);
+await test("criterion 7: bulk status over a cross-window selection — all 200 move", async () => {
+  const app = await boot(10000);
   const rows = app.shown.value.rows;
   const picks = rows.filter((r) => r.status !== "closed").slice(0, 200);
   app.takeSelection(picks);
@@ -174,8 +174,8 @@ await test("criterion 7: bulk status over a cross-window selection — all 200 m
   assert.equal(moved.length, 200, "every selected record moved, materialized or not");
 });
 
-await test("criterion 8: undo a delete — the records return; counts and selection recover", () => {
-  const app = boot(10000);
+await test("criterion 8: undo a delete — the records return; counts and selection recover", async () => {
+  const app = await boot(10000);
   const rows = app.shown.value.rows;
   const picks = [rows[0], rows[1], rows[2]];
   app.takeSelection(picks);
@@ -193,8 +193,8 @@ await test("criterion 8: undo a delete — the records return; counts and select
   assert.equal(app.toast.shown, false);
 });
 
-await test("criterion 9: ragged data renders — nothing throws, defaults apply", () => {
-  const app = boot(4000);
+await test("criterion 9: ragged data renders — nothing throws, defaults apply", async () => {
+  const app = await boot(4000);
   // the generator salts nulls, unicode, and the absurd token by construction;
   // walk a few windows over it
   for (const y of [0, 30000, 80000, 0]) {
@@ -207,8 +207,8 @@ await test("criterion 9: ragged data renders — nothing throws, defaults apply"
   assert.ok(true, "walked four windows without a throw");
 });
 
-await test("criterion 10 (the testable half): AT hears logical position and count", () => {
-  const app = boot(10000);
+await test("criterion 10 (the testable half): AT hears logical position and count", async () => {
+  const app = await boot(10000);
   // the kernel publishes aria-rowcount/rowindex through the Surface seam —
   // headless surfaces don't exist, so assert the DIAGNOSTIC facts it feeds
   const info = materializationInfo(app.list);
@@ -216,7 +216,7 @@ await test("criterion 10 (the testable half): AT hears logical position and coun
   assert.equal(info.logical, 10000, "the AT count is the LOGICAL count");
 });
 
-await test("criterion 12: the differ — the same script, windowed vs full, identical observable state", () => {
+await test("criterion 12: the differ — the same script, windowed vs full, identical observable state", async () => {
   const script = (app) => {
     const out = [];
     app.query = "cache";
@@ -265,10 +265,10 @@ await test("criterion 12: the differ — the same script, windowed vs full, iden
   // belongs to criteria 1–11, which still boot at 10,000 against the windowed
   // path, the one that ships.
   const N = 500;
-  const a = boot(N);
+  const a = await boot(N);
   const wa = script(a);
   const SRC_ALL = SRC.replace("virtualize = true ]", "virtualize = false ]");
-  const b = compileProgram(SRC_ALL, { originDir: process.cwd() + "/library", stripPos: false });
+  const b = await compileProgram(SRC_ALL, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0);
   const appB = instantiate(b.program);
   appB.width = 1200; appB.height = 800;
@@ -279,8 +279,8 @@ await test("criterion 12: the differ — the same script, windowed vs full, iden
   assert.deepEqual(wa, wb, "identical observable state with virtualization forced off");
 });
 
-await test("grouped view: headers count, collapse works, a status edit MOVES the issue", () => {
-  const app = boot(4000);
+await test("grouped view: headers count, collapse works, a status edit MOVES the issue", async () => {
+  const app = await boot(4000);
   app.groupBy = "status";
   settle();
   const rows = app.shown.value.rows;
@@ -303,8 +303,8 @@ await test("grouped view: headers count, collapse works, a status edit MOVES the
   assert.equal(hdrs2.find((h) => h.status === "open").count, openCount - 1, "left its group");
 });
 
-await test("the working copy is honest: cancel discards, save commits, dirty gates the button", () => {
-  const app = boot(2000);
+await test("the working copy is honest: cancel discards, save commits, dirty gates the button", async () => {
+  const app = await boot(2000);
   const rec = app.shown.value.rows[0];
   app.takeSelection([rec]);
   app.openDetail();
@@ -321,8 +321,8 @@ await test("the working copy is honest: cancel discards, save commits, dirty gat
   assert.equal(app.issuesOf(app.rev).find((it) => it.id === rec.id).title, rec.title, "the truth never moved");
 });
 
-await test("create lands at the top of its sort; the rail derives from the same truth", () => {
-  const app = boot(2000);
+await test("create lands at the top of its sort; the rail derives from the same truth", async () => {
+  const app = await boot(2000);
   const openBefore = app.counts.open;
   app.newIssue();
   app.draft.set(["it", "title"], "brand new issue");

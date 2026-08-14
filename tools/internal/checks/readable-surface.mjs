@@ -44,7 +44,7 @@ const counts = { fence: 0, fragment: 0, source: 0, docstring: 0, mislabeled: 0 }
 // root appended; or a member list belonging inside an App body. Only an excerpt
 // that fails ALL THREE is broken — anything else is a fence-label question, and
 // the report must not conflate the two.
-function tryCompile(src, originDir) {
+async function tryCompile(src, originDir) {
   // Order matters, and not for speed: whichever form is tried first is the one
   // whose error gets reported, so the excerpt's shape has to decide. An excerpt
   // opening `rows: array = …` is a MEMBER; reporting the whole-program parse's
@@ -59,7 +59,7 @@ function tryCompile(src, originDir) {
   let best = null;
   for (const [form, text] of forms) {
     let out;
-    try { out = compile(text, { originDir }); } catch (e) { best ??= String(e?.message ?? e); continue; }
+    try { out = await compile(text, { originDir }); } catch (e) { best ??= String(e?.message ?? e); continue; }
     if (!out.errors.length) return { ok: true, form };
     best ??= out.errors.slice(0, 3).map((e) => `${e.message}${e.line ? ` (line ${e.line})` : ""}`).join(" | ");
   }
@@ -83,7 +83,7 @@ for (const f of files.filter((f) => f.endsWith(".md"))) {
     counts.fence++;
     const src = m[1];
     const head = src.trim().split("\n")[0].slice(0, 60);
-    const v = tryCompile(src, dirname(f));
+    const v = await tryCompile(src, dirname(f));
     if (v.ok) { if (v.form !== "program") counts.mislabeled++; continue; }
     note("fence", f, `fence ${i + 1}: ${head}`, v.detail, ILLUSTRATIVE.test(src) ? "illustrative" : "broken");
   }
@@ -111,7 +111,7 @@ for (const f of files.filter((f) => f.endsWith(".declare"))) {
   const isComponent = !/^\s*App\s*\[/m.test(src);
   let out;
   try {
-    out = compile(isComponent ? `${src}\nApp [ ]\n` : src, { originDir: dirname(f) });
+    out = await compile(isComponent ? `${src}\nApp [ ]\n` : src, { originDir: dirname(f) });
   } catch (e) {
     // A THROW is not a diagnostic: the compiler fell over instead of reporting.
     // That is a worse finding than a broken example and gets its own severity.
@@ -133,7 +133,7 @@ for (const f of files.filter((f) => f.endsWith(".declare"))) {
     const body = block[1];
     const lines = body.split("\n");
     let buf = [];
-    const flush = () => {
+    const flush = async () => {
       if (!buf.length) return;
       const text = buf.join("\n");
       buf = [];
@@ -146,7 +146,7 @@ for (const f of files.filter((f) => f.endsWith(".declare"))) {
       // so compile the file's source ahead of the excerpt, the way a reader
       // would use it. This is the C3 blind spot: covered by nothing today.
       const asRoot = /^\s*App\s*\[/.test(text);
-      const v = tryCompile(asRoot ? `${src}\n\n${text}` : `${src}\n\nApp [\n${text.trimEnd()}\n]`, dirname(f));
+      const v = await tryCompile(asRoot ? `${src}\n\n${text}` : `${src}\n\nApp [\n${text.trimEnd()}\n]`, dirname(f));
       if (v.ok) return;
       // An example reading `app.d.value` is not broken — it is shorthand for
       // "your dataset here", and a reader supplies the context. Only errors
@@ -162,9 +162,9 @@ for (const f of files.filter((f) => f.endsWith(".declare"))) {
     for (const ln of lines) {
       if (/^\s{4,}\S/.test(ln)) buf.push(ln.replace(/^\s{4}/, ""));
       else if (ln.trim() === "" && buf.length) buf.push("");
-      else flush();
+      else await flush();
     }
-    flush();
+    await flush();
   }
 }
 

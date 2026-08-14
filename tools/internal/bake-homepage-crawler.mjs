@@ -43,7 +43,7 @@ const HEND = "<!--declare-head:end-->";
 const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 const src = readFileSync(HOMEPAGE, "utf8");
-const compiled = compile(src, { originDir: path.dirname(HOMEPAGE) });
+const compiled = await compile(src, { originDir: path.dirname(HOMEPAGE) });
 if (compiled.source === null) {
   console.error("bake-homepage-crawler: homepage did not compile:\n" + compiled.report);
   process.exit(1);

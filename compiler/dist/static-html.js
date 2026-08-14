@@ -270,8 +270,8 @@ export function extractFromCompiled(compiled, env) {
 /** The one-call form: compile a source through THE compiler API (typecheck
  *  and all), then extract. The dual-form rule holds — structured diagnostics
  *  plus the rendered report ride the result. */
-export function extractStatic(source, opts = {}) {
-    const compiled = compile(source, opts);
+export async function extractStatic(source, opts = {}) {
+    const compiled = await compile(source, opts);
     return { html: extractFromCompiled(compiled, opts.env), diagnostics: compiled.diagnostics, report: compiled.report };
 }
 /** The fragment as a complete crawler-facing document (`?extract`, and the

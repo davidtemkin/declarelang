@@ -22,7 +22,7 @@ function test(name, fn) {
   try { const r = fn(); if (r instanceof Promise) return r.then(() => { pass++; console.log("  ok —", name); }, (e) => { fail++; console.log("  FAIL —", name, "\n     ", e.message); }); pass++; console.log("  ok —", name); }
   catch (e) { fail++; console.log("  FAIL —", name, "\n     ", e.message); }
 }
-const used = (src) => { const b = compileProgram(src, { stripPos: false }); assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; ")); return new Set(b.usedComponents); };
+const used = async (src) => { const b = await compileProgram(src, { stripPos: false }); assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; ")); return new Set(b.usedComponents); };
 
 // ── the `use` directive ──────────────────────────────────────────────────────
 test("use [ … ] parses into program.uses", () => {
@@ -46,24 +46,24 @@ test("a non-identifier use entry is a parse error", () => {
 });
 
 // ── the used-set ─────────────────────────────────────────────────────────────
-test("used-set: a static tag is detected", () => assert.ok(used(`App [ Markdown [ text = "x" ] ]`).has("Markdown")));
-test("used-set: a class base is detected", () => assert.ok(used(`class C extends HTMLText [ ]\nApp [ C [ html = "<p>x</p>" ] ]`).has("HTMLText")));
-test("used-set: the root's own tag (App) is always present", () => assert.ok(used(`App [ Text [ text = "x" ] ]`).has("App")));
-test("used-set: a component-valued member (layout/data/animator) is detected", () => {
-  const u = used(`App [ layout: SimpleLayout [ axis = y ], ds: DataSource [ url = "x" ], Text [ text = "x" ] ]`);
+test("used-set: a static tag is detected", async () => assert.ok((await used(`App [ Markdown [ text = "x" ] ]`)).has("Markdown")));
+test("used-set: a class base is detected", async () => assert.ok((await used(`class C extends HTMLText [ ]\nApp [ C [ html = "<p>x</p>" ] ]`)).has("HTMLText")));
+test("used-set: the root's own tag (App) is always present", async () => assert.ok((await used(`App [ Text [ text = "x" ] ]`)).has("App")));
+test("used-set: a component-valued member (layout/data/animator) is detected", async () => {
+  const u = await used(`App [ layout: SimpleLayout [ axis = y ], ds: DataSource [ url = "x" ], Text [ text = "x" ] ]`);
   assert.ok(u.has("SimpleLayout") && u.has("DataSource"));
 });
-test("used-set: a no-prose app does NOT include rich text", () => {
-  const u = used(`App [ Text [ text = "x" ] ]`);
+test("used-set: a no-prose app does NOT include rich text", async () => {
+  const u = await used(`App [ Text [ text = "x" ] ]`);
   assert.ok(!u.has("Markdown") && !u.has("HTMLText"));
 });
-test("used-set: use[] adds a name with no static reference", () => assert.ok(used(`use [ Markdown ]\nApp [ Text [ text = "x" ] ]`).has("Markdown")));
-test("used-set: a declared stream member is detected", () => {
-  const u = used(`App [ feed: EventStream [ url = "x" ], Text [ text = "y" ] ]`);
+test("used-set: use[] adds a name with no static reference", async () => assert.ok((await used(`use [ Markdown ]\nApp [ Text [ text = "x" ] ]`)).has("Markdown")));
+test("used-set: a declared stream member is detected", async () => {
+  const u = await used(`App [ feed: EventStream [ url = "x" ], Text [ text = "y" ] ]`);
   assert.ok(u.has("EventStream") && !u.has("Socket"));
 });
-test("used-set: a stream-free app ships no stream classes (streams.md §4 slim discipline)", () => {
-  const u = used(`App [ Text [ text = "x" ] ]`);
+test("used-set: a stream-free app ships no stream classes (streams.md §4 slim discipline)", async () => {
+  const u = await used(`App [ Text [ text = "x" ] ]`);
   assert.ok(!u.has("EventStream") && !u.has("Socket"));
 });
 

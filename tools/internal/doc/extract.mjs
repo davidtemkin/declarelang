@@ -74,15 +74,15 @@ const DEMOS = path.join(ROOT, "apps/docs/demos");         // generated islands l
 // `app.demoSources[<id>]` exactly like the homepage demos, and the model records the
 // prose as an ordered segment list the app renders (Markdown text, or an island).
 const genFiles = {};                                          // id → source, written to DEMOS at the end
-function compilesOK(src) { try { return !compile(src, {}).errors?.length; } catch { return false; } }
-function runnableForm(block) {
+async function compilesOK(src) { try { return !(await compile(src, {})).errors?.length; } catch { return false; } }
+async function runnableForm(block) {
   // A program needs an `App` root. If the block already has a top-level `App [` (a whole
   // program, or `class … App […]`), use it as written. Otherwise it's a view fragment —
   // wrap it in `App [ … ]` so it actually RUNS (a bare `View […]` compiles but has no root
   // and throws at runtime). Only forms that compile become islands; the rest stay static.
-  if (/^App\s*\[/m.test(block)) return compilesOK(block) ? block : null;
+  if (/^App\s*\[/m.test(block)) return await compilesOK(block) ? block : null;
   const wrapped = "App [\n" + block.split("\n").map((l) => "    " + l).join("\n") + "\n]";
-  return compilesOK(wrapped) ? wrapped : null;
+  return await compilesOK(wrapped) ? wrapped : null;
 }
 // slug → a filesystem/slot-safe id
 function slug(s) { return s.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, ""); }
@@ -93,12 +93,12 @@ function slug(s) { return s.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "
 // representative island width and read the settled content extent — the docs app
 // sizes each stage from this. Floor 200 (small demos keep the house frame), cap 560
 // (a runaway demo scrolls rather than swallowing the page), +24 breathing room.
-function measureStage(src, floor = 200) {
+async function measureStage(src, floor = 200) {
   try {
     // settleHeadless takes a compile()'s OUTPUT (headless.ts) — the ONE compile
     // resolves auto-includes (Slider/Button/…) and extracts deps; core build alone
     // would reject any island that uses the standard library.
-    const out = compile(src, {});
+    const out = await compile(src, {});
     if (out.errors?.length) return floor;
     const app = settleHeadless(out.source, { deps: out.deps, env: { hostWidth: 640, hostHeight: floor } });
     // A fixed-size app's DECLARED height wins over its settled content extent —
@@ -113,7 +113,7 @@ function measureStage(src, floor = 200) {
 // split prose Markdown into ordered segments: { md } for text/static-code, or
 // { md:"", code:[{id, source, lines, stageH}] } for a runnable island (0-or-1 array so
 // the app constructs the island by datapath replication). Merges runs of plain text.
-function segmentize(md, idBase) {
+async function segmentize(md, idBase) {
   if (!md) return [];
   const segs = [];
   const pushMd = (t) => {
@@ -127,11 +127,11 @@ function segmentize(md, idBase) {
     const m = part.match(/^```declare\n([\s\S]*?)```$/);
     if (!m) { pushMd(part); continue; }
     const block = m[1].replace(/\n+$/, "");
-    const run = runnableForm(block);
+    const run = await runnableForm(block);
     if (run) {
       const id = "seg_" + slug(idBase) + "_" + n++;
       genFiles[id] = run;
-      segs.push({ md: "", code: [{ id, source: run, lines: run.split("\n").length, stageH: measureStage(run) }] });
+      segs.push({ md: "", code: [{ id, source: run, lines: run.split("\n").length, stageH: await measureStage(run) }] });
     } else {
       pushMd(part);                                          // non-runnable → render as static code
     }
@@ -381,12 +381,12 @@ const RUNTIME_NAME = {};                                // doc id → runtime cl
 // line count (to size the source panel). The LIVE PREVIEW is mounted separately by
 // the host from `app.demoSources[<Class>]`, which the server fills from this same
 // demos dir (server/index.mjs reads apps/<page>/demos/*).
-function readExample(name) {
+async function readExample(name) {
   const rel = `apps/docs/demos/${name}.declare`;
   const abs = path.join(ROOT, rel);
   if (!existsSync(abs)) return [];
   const source = readFileSync(abs, "utf8").replace(/\n$/, "");
-  return [{ name, lines: source.split("\n").length, source, stageH: measureStage(source, 250) }];
+  return [{ name, lines: source.split("\n").length, source, stageH: await measureStage(source, 250) }];
 }
 
 for (const name of TARGETS) {
@@ -411,7 +411,7 @@ for (const name of TARGETS) {
     const d = decor[attr];
     nodes[id] = {
       id, name: attr, kind: "attribute",
-      doc, docSegs: segmentize(doc, id), api: doc !== null,
+      doc, docSegs: await segmentize(doc, id), api: doc !== null,
       source: d ? { file: d.file, line: d.line } : { file: "runtime/src/schema.ts", line: 0 },
       parent: clsId, seeAlso: [],
       type: renderType(schema.attrs[attr]),
@@ -435,7 +435,7 @@ for (const name of TARGETS) {
     const id = `${clsId}.method.${cname}`;
     nodes[id] = {
       id, name: cname, kind: "method",
-      doc, docSegs: segmentize(doc, id), api: true,      // in the check block ⇒ callable ⇒ API
+      doc, docSegs: await segmentize(doc, id), api: true,      // in the check block ⇒ callable ⇒ API
       source: { file: "compiler/src/scaffold.ts", line: 0 },
       parent: clsId, seeAlso: [], signature: c.signature, returns: null,
       ...(c.isStatic ? { isStatic: true } : {}),
@@ -448,7 +448,7 @@ for (const name of TARGETS) {
     const id = `${clsId}.method.${mname}`;
     nodes[id] = {
       id, name: mname, kind: "method",
-      doc, docSegs: segmentize(doc, id),
+      doc, docSegs: await segmentize(doc, id),
       // Prose describes a member; it does not decide whether the member exists.
       // Membership in the check block does — everything else stays structural-only.
       api: doc !== null || callable.has(mname),
@@ -477,7 +477,7 @@ for (const name of TARGETS) {
       ?? (schema.attrs?.[ev] === undefined ? prose.members[ev] ?? null : null);
     nodes[id] = {
       id, name: ev, kind: "event",
-      doc, docSegs: segmentize(doc, id), api: doc !== null,
+      doc, docSegs: await segmentize(doc, id), api: doc !== null,
       source: { file: "runtime/src/schema.ts", line: 0 },
       parent: clsId, seeAlso: [],
       // the payload rides the signature — the model must advertise what a
@@ -496,7 +496,7 @@ for (const name of TARGETS) {
 
   nodes[clsId] = {
     id: clsId, name, kind: "class",
-    doc: prose.class, docSegs: segmentize(prose.class, clsId), api: prose.class !== null,
+    doc: prose.class, docSegs: await segmentize(prose.class, clsId), api: prose.class !== null,
     source: { file: "runtime/src/schema.ts", line: 0 },
     parent: null, seeAlso: [],
     extends: baseName,
@@ -504,7 +504,7 @@ for (const name of TARGETS) {
     subclasses: [],                                     // filled below
     origin: "ts",
     attributes, methods, events,
-    example: readExample(clsId),
+    example: await readExample(clsId),
   };
   roots.push(clsId);
 }
@@ -585,7 +585,7 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   for (const d of cls.body.decls) {
     const id = `${tag}.${d.name}`;
     const pd = prose.members[d.name] ?? null;
-    nodes[id] = { id, name: d.name, kind: "attribute", doc: pd, docSegs: segmentize(pd, id),
+    nodes[id] = { id, name: d.name, kind: "attribute", doc: pd, docSegs: await segmentize(pd, id),
       api: !prose.internal.has(d.name), internal: prose.internal.has(d.name),
       source: { file: rel, line: 0 }, parent: tag, seeAlso: [],
       type: d.type, default: renderDefault(d.def),
@@ -605,7 +605,7 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
     const evName = isEvent ? m.name[2].toLowerCase() + m.name.slice(3) : m.name;
     const id = `${tag}.${isEvent ? "event" : "method"}.${evName}`;
     const pm = prose.methods[m.name] ?? prose.members[m.name] ?? null;
-    nodes[id] = { id, name: evName, kind: isEvent ? "event" : "method", doc: pm, docSegs: segmentize(pm, id),
+    nodes[id] = { id, name: evName, kind: isEvent ? "event" : "method", doc: pm, docSegs: await segmentize(pm, id),
       api: !prose.internal.has(m.name), internal: prose.internal.has(m.name),
       source: { file: rel, line: 0 }, parent: tag, seeAlso: [],
       signature: `${m.name}(${(m.params ?? []).map((p) => p.name ?? p).join(", ")})` };
@@ -614,7 +614,7 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   const baseName = cls.base ?? null;
   if (baseName) (subclassIndex[baseName] ??= []).push(tag);
   nodes[tag] = { id: tag, name: tag, kind: "class",
-    doc: prose.class, docSegs: segmentize(prose.class, tag), api: true,
+    doc: prose.class, docSegs: await segmentize(prose.class, tag), api: true,
     source: { file: rel, line: 0 }, parent: null, seeAlso: [],
     extends: baseName, subclasses: [], origin: "library",
     attributes, methods, events, example: [] };
@@ -670,7 +670,7 @@ const tree = roots.map((id) => {
 // them (openDocLink answers the Markdown's onLink); any remaining raw file-path
 // link is flattened to its text (nothing in-app can open a bare path). `guide`
 // is the flat list the detail pane renders; `guideParts` groups it by Part.
-function readGuide() {
+async function readGuide() {
   const dir = path.join(ROOT, "docs/guide");
   if (!existsSync(dir)) return { guide: [], guideParts: [] };
   // Parts group by chapter number: <20 Orientation, <30 Fundamentals, <90 In
@@ -678,7 +678,7 @@ function readGuide() {
   // framework API, deliberately last and clearly labelled).
   const partOf = (num) => (num < 20 ? "Orientation" : num < 30 ? "Fundamentals" : num < 90 ? "In Depth" : "Internals");
   const files = readdirSync(dir).filter((f) => /^\d+-.+\.md$/.test(f)).sort();
-  const guide = files.map((f) => {
+  const guide = await Promise.all(files.map(async (f) => {
     const num = parseInt(f, 10);
     let md = readFileSync(path.join(dir, f), "utf8");
     const title = (md.match(/^#\s+(.+)$/m)?.[1] ?? f).trim();
@@ -690,7 +690,7 @@ function readGuide() {
     const partm = md.match(/<!--\s*part:\s*(.+?)\s*-->/);
     let demo = [];
     const dm = md.match(/<!--\s*demo:\s*(\w+)\s*-->/);
-    if (dm) { demo = readExample(dm[1]); md = md.replace(dm[0], ""); }
+    if (dm) { demo = await readExample(dm[1]); md = md.replace(dm[0], ""); }
     md = md
       .replace(/<!--[\s\S]*?-->/g, "")                       // drop any remaining HTML comments
       .replace(/\[([^\]]+)\]\((?!https?:|declare-docs:)[^)]*\)/g, "$1")   // flatten raw path links; keep http + declare-docs:
@@ -698,8 +698,8 @@ function readGuide() {
       .trim();
     const short = navm ? navm[1] : title.split("—")[0].trim();   // rail label: nav marker, else text before the em-dash
     const id = f.replace(/\.md$/, "");
-    return { id, num, title, short, part: partm ? partm[1] : partOf(num), segs: segmentize(md, "ch_" + id), demo };
-  });
+    return { id, num, title, short, part: partm ? partm[1] : partOf(num), segs: await segmentize(md, "ch_" + id), demo };
+  }));
   const guideParts = [];
   for (const ch of guide) {
     let g = guideParts.find((p) => p.part === ch.part);
@@ -708,7 +708,7 @@ function readGuide() {
   }
   return { guide, guideParts };
 }
-const { guide, guideParts } = readGuide();
+const { guide, guideParts } = await readGuide();
 
 // ── the tenets — the language's commitments (docs/tenets/*.md) ──
 // The interpretively-distilled promises the platform holds itself to (see
@@ -716,18 +716,18 @@ const { guide, guideParts } = readGuide();
 // model (they are small) so any reader has them whole: the docs app, or an LLM
 // writing Declare that wants the language's intent alongside the reference. Files
 // are `NN Word.md`; the leading number orders them, the Word is an opaque label.
-function readTenets() {
+async function readTenets() {
   const dir = path.join(ROOT, "docs/tenets");
   if (!existsSync(dir)) return [];
-  return readdirSync(dir).filter((f) => /^\d+ .+\.md$/.test(f)).sort().map((f) => {
+  return await Promise.all(readdirSync(dir).filter((f) => /^\d+ .+\.md$/.test(f)).sort().map(async (f) => {
     const num = parseInt(f, 10);
     let md = readFileSync(path.join(dir, f), "utf8");
     const title = (md.match(/^#\s+(.+)$/m)?.[1] ?? f).trim();
     md = md.replace(/<!--[\s\S]*?-->/g, "").replace(/\n{3,}/g, "\n\n").trim();
-    return { id: "tenet-" + num, num, title, name: f.replace(/\.md$/, ""), segs: segmentize(md, "tenet_" + num) };
-  });
+    return { id: "tenet-" + num, num, title, name: f.replace(/\.md$/, ""), segs: await segmentize(md, "tenet_" + num) };
+  }));
 }
-const tenets = readTenets();
+const tenets = await readTenets();
 
 // write the generated inline-example demo files (the server/host seed them by filename),
 // cleaning stale `seg_*` from a prior run first so nothing orphans. Hand-authored demos
