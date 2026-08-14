@@ -314,6 +314,12 @@ export async function compile(source, opts = {}) {
         const elUsesAttr = (el, name, onBase) => (el.attrs.some((a) => a.name === name) && (onBase === null || tagDescendsFrom(el.tag, onBase))) ||
             el.children.some((ch) => elUsesAttr(ch, name, onBase));
         const attrUsed = (name, onBase) => elUsesAttr(main.root, name, onBase) || auto.program.classes.some((c) => elUsesAttr(c.body, name, onBase));
+        // The host's own type, not a convenient re-description of it. This cast used
+        // to declare `resolveLibrary` SYNCHRONOUS — and when the include seam went
+        // async the compiler believed the cast: `lib` became a Promise, `lib.canonical`
+        // undefined, and `libSources.push(lib.source)` pushed undefined, so a
+        // $provide'd component was silently never spliced. tsc could not object,
+        // because the lie was written here. Reuse AutoIncludeHost's shape instead.
         const autoHost = host;
         if (typeof autoHost.autoincludes === "function" && typeof autoHost.resolveLibrary === "function") {
             const manifest = autoHost.autoincludes();
@@ -335,7 +341,7 @@ export async function compile(source, opts = {}) {
                     if (byName.has(cls) || treeHas(main.root, cls))
                         continue; // the program provides its own
                     const path = manifest[cls];
-                    const lib = typeof path === "string" ? autoHost.resolveLibrary(path) : null;
+                    const lib = typeof path === "string" ? await autoHost.resolveLibrary(path) : null;
                     if (lib === null || lib === undefined || resolved.visited.has(lib.canonical))
                         continue;
                     libSources.push(lib.source);

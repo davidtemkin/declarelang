@@ -98,7 +98,7 @@ import { freeIdentifiers, hexColor8Literals } from "./free-idents.js";
 import { fillDatapaths, scanDatapaths, splitPath } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
-import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES, type IncludeHost } from "../../runtime/dist/include.js";
+import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES, type IncludeHost, type AutoIncludeHost } from "../../runtime/dist/include.js";
 import { typecheckBodies } from "./typecheck.js";
 import { Diag, toDiagnostic, renderReport, type Diagnostic, type DiagPhase } from "../../runtime/dist/diagnostics.js";
 
@@ -386,7 +386,13 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
       el.children.some((ch) => elUsesAttr(ch, name, onBase));
     const attrUsed = (name: string, onBase: string | null): boolean =>
       elUsesAttr(main.root, name, onBase) || auto.program.classes.some((c) => elUsesAttr(c.body, name, onBase));
-    const autoHost = host as { autoincludes?: () => Record<string, unknown>; resolveLibrary?: (p: string) => { source: string; canonical: string } | null };
+    // The host's own type, not a convenient re-description of it. This cast used
+    // to declare `resolveLibrary` SYNCHRONOUS — and when the include seam went
+    // async the compiler believed the cast: `lib` became a Promise, `lib.canonical`
+    // undefined, and `libSources.push(lib.source)` pushed undefined, so a
+    // $provide'd component was silently never spliced. tsc could not object,
+    // because the lie was written here. Reuse AutoIncludeHost's shape instead.
+    const autoHost = host as Partial<Pick<AutoIncludeHost, "autoincludes" | "resolveLibrary">>;
     if (typeof autoHost.autoincludes === "function" && typeof autoHost.resolveLibrary === "function") {
       const manifest = autoHost.autoincludes();
       const rules = manifest["$provide"];
@@ -404,7 +410,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
           if (!triggered) continue;
           if (byName.has(cls) || treeHas(main.root, cls)) continue; // the program provides its own
           const path = manifest[cls];
-          const lib = typeof path === "string" ? autoHost.resolveLibrary(path) : null;
+          const lib = typeof path === "string" ? await autoHost.resolveLibrary!(path) : null;
           if (lib === null || lib === undefined || resolved.visited.has(lib.canonical)) continue;
           libSources.push(lib.source);
           const comment = typeof r.comment === "string" ? r.comment : `${cls} — provided with the component library`;

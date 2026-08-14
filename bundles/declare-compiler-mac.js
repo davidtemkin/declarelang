@@ -100732,7 +100732,7 @@ ${U.join(`
           if (M_ === null) continue;
           let Qm = oa.when ?? {};
           if (!(typeof Qm.baseUsed == "string" && B.program.classes.some((Dk) => Ya(Dk.name, Qm.baseUsed)) || typeof Qm.attributeUsed == "string" && is(Qm.attributeUsed, typeof Qm.onBase == "string" ? Qm.onBase : null)) || br.has(M_) || Yn(T.root, M_)) continue;
-          let lD = Wl[M_], Hi = typeof lD == "string" ? vn.resolveLibrary(lD) : null;
+          let lD = Wl[M_], Hi = typeof lD == "string" ? await vn.resolveLibrary(lD) : null;
           if (Hi == null || P.visited.has(Hi.canonical)) continue;
           se.push(Hi.source);
           let by = typeof oa.comment == "string" ? oa.comment : `${M_} \u2014 provided with the component library`;

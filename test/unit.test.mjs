@@ -6441,6 +6441,47 @@ await test("include resolution agrees across hosts: a `..` path names the SAME f
   }
 });
 
+await test("$provide reaches the fetch host: a Control program compiles in-browser, FocusRing and all", async () => {
+  // The $provide rules (library/autoincludes.json) splice a component the program
+  // never names: FocusRing whenever anything descends from Control, Tooltip
+  // whenever `tip` is used. compile.ts reached the host for those through a LOCAL
+  // CAST that declared resolveLibrary synchronous — so when the include seam went
+  // async the cast lied, `lib` was a Promise, `lib.canonical` undefined, and
+  // `libSources.push(lib.source)` pushed undefined. The component was silently
+  // never spliced and the compile died with the self-contradicting
+  // "unknown component 'FocusRing' — did you mean 'FocusRing'?".
+  //
+  // It survived the whole conversion because the NODE host answers
+  // synchronously — every Node test and every prewarmed artifact was unaffected —
+  // and no test had ever compiled a Control-using program through the FETCH host.
+  // This is that test.
+  const { compile, setDefaultLibrary } = await import("../bundles/declare-compiler.js");
+  const { readFileSync, existsSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const root = new URL("../", import.meta.url);           // the distro root, as a URL
+  const asked = [];
+  // the distro, read off disk — the transport swapped, nothing else
+  const diskFetch = async (url) => {
+    const rel = String(url).replace("https://distro/", "");
+    asked.push(rel);
+    const abs = fileURLToPath(new URL(rel, root));
+    if (!existsSync(abs)) return { ok: false };
+    return { ok: true, text: async () => readFileSync(abs, "utf8") };
+  };
+  setDefaultLibrary({
+    manifest: JSON.parse(readFileSync(fileURLToPath(new URL("library/autoincludes.json", root)), "utf8")),
+    origins: { distro: "https://distro/" }, fetchImpl: diskFetch,
+  });
+  try {
+    const r = await compile(`App [ width = 200, height = 100, s: Switch [ ] ]`, { typecheck: false });
+    assert.notEqual(r.source, null, "a Switch program must compile through the fetch host: " + r.report);
+    assert.match(r.source, /class FocusRing/, "$provide spliced FocusRing's source, not `undefined`");
+    assert.ok(asked.includes("library/focusring.declare"), `the host actually read it (asked: ${asked.join(", ")})`);
+  } finally {
+    setDefaultLibrary({ manifest: {} });                 // don't leak the default into later tests
+  }
+});
+
 // ── subscriptions: `member(params) <- Source { body }` (language §8) ────────
 
 const KEY_DOWN_ARROW = { code: "ArrowDown", key: "ArrowDown", shift: false, ctrl: false, alt: false, meta: false, repeat: false };
