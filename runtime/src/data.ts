@@ -345,6 +345,14 @@ export function provideTransport(fn: Transport): Transport {
  *  derive from `.loading`/`.loaded`/`.failed` with ordinary constraints
  *  instead of imperative show/hide. One arrival is one write burst in one
  *  turn: value + status settle together, ahead of one frame. */
+/** Declare token → the Fetch API's own spelling. `same-origin` cannot be a
+ *  token (the hyphen is subtraction), so the language spells it camelCase and
+ *  the translation happens here — the same shape `blend` uses for CSS's
+ *  hyphenated blend modes (colorDodge → color-dodge). */
+const FETCH_CREDENTIALS: Record<string, RequestCredentials> = {
+  omit: "omit", sameOrigin: "same-origin", include: "include",
+};
+
 export class DataSource extends Dataset {
   declare url: string;
   /** What the bytes ARE: "json" (the default — parsed, `:path` navigable) or
@@ -422,11 +430,11 @@ export class DataSource extends Dataset {
   private seq = 0;
 
   /** The fetch init from `method`/`body`/`credentials`. A GET with
-   *  `credentials` unset (or "same-origin", its own default) sends neither —
+   *  `credentials` unset (or `sameOrigin`, its own default) sends neither —
    *  a bare url, unchanged from before `credentials` existed. A non-GET
    *  carries `body`: an object/array is JSON-encoded with a JSON
    *  `Content-Type`; a string is sent verbatim. `credentials` is added
-   *  whenever it differs from the fetch-default "same-origin", GET or not,
+   *  whenever it differs from `sameOrigin` (the fetch default), GET or not,
    *  since it's independent of the verb. */
   private requestInit(): RequestInit | undefined {
     const method = (this.method || "GET").toUpperCase();
