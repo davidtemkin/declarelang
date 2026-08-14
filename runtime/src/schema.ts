@@ -825,6 +825,9 @@ const DataSourceSchema: ComponentSchema = {
     // auto-fetch on url arrival/change (data.ts maybeAuto) — the opt-in for
     // REACTIVE addresses; explicit fetch() stays the default discipline.
     auto: { kind: "boolean" },
+    // "same-origin" (default) or "include" or "omit" - how to handle auth, 
+    // matches the Browser's Fetch API's credentials modes,
+    credentials: { kind: "string" },
     // ── the lifecycle, read-only (see the note above DatasetSchema) ────────
     // One fact, four spellings: `status` is the state and the booleans derive
     // from it, so they can never disagree. Constraints read these — an entry

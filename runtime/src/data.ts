@@ -360,6 +360,17 @@ export class DataSource extends Dataset {
    *  JSON-encoded (with a JSON `Content-Type`); a string is sent verbatim (the
    *  caller's own encoding); null = no body. Ignored for a GET. */
   declare body: unknown;
+  /** The credentials mode controls how the browser handles cookies, TLS client
+   *  certificates, and HTTP authentication headers during network requests
+   *  (the three values match the Browser's Fetch API)
+   *  "same-origin" — the default, send only when `url` shares page's origin;
+   *  "include" — sends cross-origin too, allowing app to carry a session
+   *              cookie/header/cert to a separately-hosted authenticated API,
+   *              and only takes effect if that origin's CORS response allows
+   *              credentials explicitly;
+   * "omit" — never send credentials in request
+   */
+  declare credentials: "omit" | "same-origin" | "include";
   /** The lifecycle, as one fact; the four doc-named booleans derive below. */
   declare status: "idle" | "loading" | "loaded" | "failed";
   declare error: string | null;
@@ -409,19 +420,26 @@ export class DataSource extends Dataset {
    *  (the Image loader's sequence discipline). */
   private seq = 0;
 
-  /** The fetch init from `method`/`body`. A GET (the default) sends no body — a
-   *  bare url, unchanged. A non-GET carries `body`: an object/array is
-   *  JSON-encoded with a JSON `Content-Type`; a string is sent verbatim. */
+  /** The fetch init from `method`/`body`/`credentials`. A GET with
+   *  `credentials` unset (or "same-origin", its own default) sends neither —
+   *  a bare url, unchanged from before `credentials` existed. A non-GET
+   *  carries `body`: an object/array is JSON-encoded with a JSON
+   *  `Content-Type`; a string is sent verbatim. `credentials` is added
+   *  whenever it differs from the fetch-default "same-origin", GET or not,
+   *  since it's independent of the verb. */
   private requestInit(): RequestInit | undefined {
     const method = (this.method || "GET").toUpperCase();
-    if (method === "GET") return undefined;
-    const init: RequestInit = { method };
-    const body = this.body;
-    if (body != null) {
-      if (typeof body === "string") init.body = body;
-      else { init.body = JSON.stringify(body); init.headers = { "Content-Type": "application/json" }; }
+    const init: RequestInit = {};
+    if (method !== "GET") {
+      init.method = method;
+      const body = this.body;
+      if (body != null) {
+        if (typeof body === "string") init.body = body;
+        else { init.body = JSON.stringify(body); init.headers = { "Content-Type": "application/json" }; }
+      }
     }
-    return init;
+    if (this.credentials && this.credentials !== "same-origin") init.credentials = this.credentials;
+    return Object.keys(init).length > 0 ? init : undefined;
   }
 
   /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen

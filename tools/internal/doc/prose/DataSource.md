@@ -66,6 +66,20 @@ string (sent as-is). Ignored on a GET. Like `url` it can be a `{ }` constraint, 
 payload re-derives from live state; also like `url`, changing it sends nothing until the
 next `fetch()`.
 
+## credentials
+How to handle cookies, TLS client certificates, and authentication headers
+- "same-origin" — the default, send only when `url` shares page's origin;
+- "omit" — never send credentials or cookies in request
+- "include" — sends cross-origin too, allowing app to carry a session 
+   cookie/header/cert to a separately-hosted authenticated API; this only takes 
+   effect if that origin's CORS response allows credentials explicitly — a 
+   wildcard `Access-Control-Allow-Origin: *` cannot combine with it,
+   the response must echo back the specific requesting origin instead. 
+
+```declare-fragment
+notes: DataSource [ url = "https://api.example.com/notes", credentials = "include" ]
+```
+
 ## onLoad
 Fires when a fetch settles successfully, after `value` and the flags are consistent — a
 handler reading `value` sees the arrived data, never the previous one. Failures do not fire
