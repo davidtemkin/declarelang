@@ -142,8 +142,16 @@ export interface FetchOrigins {
  *  gated by it — that is why library reads stay out of app closures), so one
  *  fetch per file serves the life of the page. App sources are NOT: they are
  *  what the author is editing, so they are re-read every compile exactly as the
- *  Node host re-reads them from disk. */
-const LIB_CACHE = new Map<string, string | null>();
+ *  Node host re-reads them from disk.
+ *
+ *  SUCCESSES ONLY. A failure is not an answer worth keeping — the same rule
+ *  compiler-client's loadCompiler states and for the same reason. Caching a miss
+ *  here made ONE blocked or dropped request permanent for the life of the page:
+ *  every later compile re-read the null, the component stayed unresolvable, and
+ *  a live-edit loop kept failing with no retry and nothing to explain it. The
+ *  cost of not caching a miss is re-asking for a file that is genuinely absent,
+ *  which is rare and cheap; the cost of caching one is unbounded. */
+const LIB_CACHE = new Map<string, string>();
 
 /** An IncludeHost that reads over HTTP, falling back to `files` for anything
  *  already in hand (tests and callers that pass an explicit map keep working,
@@ -159,7 +167,8 @@ export function fetchHost(opts: BrowserFiles & { origins: FetchOrigins }): AutoI
     const held = files[canonical];
     if (held !== undefined) return held;
     const isLib = canonical.startsWith(libPrefix);
-    if (isLib && LIB_CACHE.has(canonical)) return LIB_CACHE.get(canonical) ?? null;
+    const cached = isLib ? LIB_CACHE.get(canonical) : undefined;
+    if (cached !== undefined) return cached;
     let text: string | null = null;
     try {
       // ONE base for every canonical — they are all deploy-relative. The library
@@ -174,7 +183,7 @@ export function fetchHost(opts: BrowserFiles & { origins: FetchOrigins }): AutoI
       /* offline, blocked, or genuinely absent — a MISS, reported by the compiler
          as DECLARE5002 with the path named, exactly like a missing file on disk */
     }
-    if (isLib) LIB_CACHE.set(canonical, text);
+    if (isLib && text !== null) LIB_CACHE.set(canonical, text);
     return text;
   };
 

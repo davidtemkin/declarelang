@@ -6482,6 +6482,43 @@ await test("$provide reaches the fetch host: a Control program compiles in-brows
   }
 });
 
+await test("the fetch host never memoizes a MISS: one blocked request does not poison the page", async () => {
+  // Library sources are cached for the life of the page (immutable under
+  // BUILD_ID). Caching a FAILURE the same way made one dropped request permanent:
+  // every later compile re-read the null, the component stayed unresolvable, and
+  // a live-edit loop kept failing with no retry and nothing on screen to explain
+  // it. Same rule as compiler-client's loadCompiler — a failure is not an answer
+  // worth keeping.
+  const { compile, setDefaultLibrary, clearLibraryCache } = await import("../bundles/declare-compiler.js");
+  const { readFileSync, existsSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const root = new URL("../", import.meta.url);
+  clearLibraryCache();     // the cache is page-lifetime state; an earlier test may have warmed it
+  let blockOnce = true;                                  // one blip, then the network is fine
+  const fetchImpl = async (url) => {
+    const rel = String(url).replace("https://distro/", "");
+    if (rel.endsWith("switch.declare") && blockOnce) { blockOnce = false; return { ok: false }; }
+    const abs = fileURLToPath(new URL(rel, root));
+    if (!existsSync(abs)) return { ok: false };
+    return { ok: true, text: async () => readFileSync(abs, "utf8") };
+  };
+  setDefaultLibrary({
+    manifest: JSON.parse(readFileSync(fileURLToPath(new URL("library/autoincludes.json", root)), "utf8")),
+    origins: { distro: "https://distro/" }, fetchImpl,
+  });
+  try {
+    const src = `App [ width = 200, height = 100, s: Switch [ ] ]`;
+    const first = await compile(src, { typecheck: false });
+    assert.equal(first.source, null, "the blocked request really did fail the first compile");
+    const second = await compile(src, { typecheck: false });
+    assert.notEqual(second.source, null,
+      "the NEXT compile must recover — a cached miss would keep failing forever: " + second.report);
+  } finally {
+    clearLibraryCache();
+    setDefaultLibrary({ manifest: {} });
+  }
+});
+
 // ── subscriptions: `member(params) <- Source { body }` (language §8) ────────
 
 const KEY_DOWN_ARROW = { code: "ArrowDown", key: "ArrowDown", shift: false, ctrl: false, alt: false, meta: false, repeat: false };
