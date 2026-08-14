@@ -345,6 +345,14 @@ export function provideTransport(fn: Transport): Transport {
  *  derive from `.loading`/`.loaded`/`.failed` with ordinary constraints
  *  instead of imperative show/hide. One arrival is one write burst in one
  *  turn: value + status settle together, ahead of one frame. */
+/** Declare token → the Fetch API's own spelling. `same-origin` cannot be a
+ *  token (the hyphen is subtraction), so the language spells it camelCase and
+ *  the translation happens here — the same shape `blend` uses for CSS's
+ *  hyphenated blend modes (colorDodge → color-dodge). */
+const FETCH_CREDENTIALS: Record<string, RequestCredentials> = {
+  omit: "omit", sameOrigin: "same-origin", include: "include",
+};
+
 export class DataSource extends Dataset {
   declare url: string;
   /** What the bytes ARE: "json" (the default — parsed, `:path` navigable) or
@@ -360,6 +368,18 @@ export class DataSource extends Dataset {
    *  JSON-encoded (with a JSON `Content-Type`); a string is sent verbatim (the
    *  caller's own encoding); null = no body. Ignored for a GET. */
   declare body: unknown;
+  /** How the browser handles cookies, TLS client certificates and HTTP auth
+   *  headers on this request — the Fetch API's three modes, as tokens:
+   *    `sameOrigin` — the default; send only when `url` shares the page's origin
+   *    `include`    — send cross-origin too, so the app can carry a session
+   *                   cookie/header/cert to a separately-hosted authenticated
+   *                   API. Takes effect only if that origin's CORS response
+   *                   allows credentials explicitly.
+   *    `omit`       — never send credentials
+   *  `sameOrigin` is the camelCase spelling of the wire's `same-origin` (a
+   *  hyphen is subtraction, so it cannot be a token); FETCH_CREDENTIALS maps it
+   *  back, as `blend` does for CSS's color-dodge. */
+  declare credentials: "omit" | "sameOrigin" | "include";
   /** The lifecycle, as one fact; the four doc-named booleans derive below. */
   declare status: "idle" | "loading" | "loaded" | "failed";
   declare error: string | null;
@@ -409,19 +429,26 @@ export class DataSource extends Dataset {
    *  (the Image loader's sequence discipline). */
   private seq = 0;
 
-  /** The fetch init from `method`/`body`. A GET (the default) sends no body — a
-   *  bare url, unchanged. A non-GET carries `body`: an object/array is
-   *  JSON-encoded with a JSON `Content-Type`; a string is sent verbatim. */
+  /** The fetch init from `method`/`body`/`credentials`. A GET with
+   *  `credentials` unset (or `sameOrigin`, its own default) sends neither —
+   *  a bare url, unchanged from before `credentials` existed. A non-GET
+   *  carries `body`: an object/array is JSON-encoded with a JSON
+   *  `Content-Type`; a string is sent verbatim. `credentials` is added
+   *  whenever it differs from `sameOrigin` (the fetch default), GET or not,
+   *  since it's independent of the verb. */
   private requestInit(): RequestInit | undefined {
     const method = (this.method || "GET").toUpperCase();
-    if (method === "GET") return undefined;
-    const init: RequestInit = { method };
-    const body = this.body;
-    if (body != null) {
-      if (typeof body === "string") init.body = body;
-      else { init.body = JSON.stringify(body); init.headers = { "Content-Type": "application/json" }; }
+    const init: RequestInit = {};
+    if (method !== "GET") {
+      init.method = method;
+      const body = this.body;
+      if (body != null) {
+        if (typeof body === "string") init.body = body;
+        else { init.body = JSON.stringify(body); init.headers = { "Content-Type": "application/json" }; }
+      }
     }
-    return init;
+    if (this.credentials && this.credentials !== "sameOrigin") init.credentials = FETCH_CREDENTIALS[this.credentials];
+    return Object.keys(init).length > 0 ? init : undefined;
   }
 
   /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen

@@ -66,6 +66,27 @@ string (sent as-is). Ignored on a GET. Like `url` it can be a `{ }` constraint, 
 payload re-derives from live state; also like `url`, changing it sends nothing until the
 next `fetch()`.
 
+## credentials
+How to handle cookies, TLS client certificates, and authentication headers — the
+Fetch API's three modes, spelled as tokens.
+- `sameOrigin` — the default, send only when `url` shares the page's origin
+- `omit` — never send credentials or cookies with the request
+- `include` — send cross-origin too, so an app can carry a session
+  cookie/header/cert to a separately-hosted authenticated API. This only takes
+  effect if that origin's CORS response allows credentials explicitly — a
+  wildcard `Access-Control-Allow-Origin: *` cannot combine with it; the response
+  must echo back the specific requesting origin instead.
+
+`sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is
+subtraction, so it cannot be a token) — the same translation `blend` makes for
+CSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends
+credentials wherever that expression resolves: keep the address under your own
+control.
+
+```declare-fragment
+notes: DataSource [ url = "https://api.example.com/notes", credentials = include ]
+```
+
 ## onLoad
 Fires when a fetch settles successfully, after `value` and the flags are consistent — a
 handler reading `value` sees the arrived data, never the previous one. Failures do not fire

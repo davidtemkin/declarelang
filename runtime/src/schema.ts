@@ -834,6 +834,12 @@ const DataSourceSchema: ComponentSchema = {
     // auto-fetch on url arrival/change (data.ts maybeAuto) — the opt-in for
     // REACTIVE addresses; explicit fetch() stays the default discipline.
     auto: { kind: "boolean" },
+    // How the browser handles cookies, TLS client certs and auth headers —
+    // the Fetch API's three credentials modes. Tokens are camelCase, and
+    // data.ts maps `sameOrigin` to the wire's `same-origin`, exactly as `blend`
+    // maps colorDodge → color-dodge: a hyphen cannot be a token (it is
+    // subtraction), and the language spells closed sets as tokens, not strings.
+    credentials: enumType("Credentials", "omit", "sameOrigin", "include"),
     // ── the lifecycle, read-only (see the note above DatasetSchema) ────────
     // One fact, four spellings: `status` is the state and the booleans derive
     // from it, so they can never disagree. Constraints read these — an entry
