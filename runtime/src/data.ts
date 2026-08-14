@@ -439,7 +439,7 @@ export class DataSource extends Dataset {
         else { init.body = JSON.stringify(body); init.headers = { "Content-Type": "application/json" }; }
       }
     }
-    if (this.credentials && this.credentials !== "same-origin") init.credentials = this.credentials;
+    if (this.credentials && this.credentials !== "sameOrigin") init.credentials = FETCH_CREDENTIALS[this.credentials];
     return Object.keys(init).length > 0 ? init : undefined;
   }
 
