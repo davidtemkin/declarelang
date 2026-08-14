@@ -360,17 +360,18 @@ export class DataSource extends Dataset {
    *  JSON-encoded (with a JSON `Content-Type`); a string is sent verbatim (the
    *  caller's own encoding); null = no body. Ignored for a GET. */
   declare body: unknown;
-  /** The credentials mode controls how the browser handles cookies, TLS client
-   *  certificates, and HTTP authentication headers during network requests
-   *  (the three values match the Browser's Fetch API)
-   *  "same-origin" — the default, send only when `url` shares page's origin;
-   *  "include" — sends cross-origin too, allowing app to carry a session
-   *              cookie/header/cert to a separately-hosted authenticated API,
-   *              and only takes effect if that origin's CORS response allows
-   *              credentials explicitly;
-   * "omit" — never send credentials in request
-   */
-  declare credentials: "omit" | "same-origin" | "include";
+  /** How the browser handles cookies, TLS client certificates and HTTP auth
+   *  headers on this request — the Fetch API's three modes, as tokens:
+   *    `sameOrigin` — the default; send only when `url` shares the page's origin
+   *    `include`    — send cross-origin too, so the app can carry a session
+   *                   cookie/header/cert to a separately-hosted authenticated
+   *                   API. Takes effect only if that origin's CORS response
+   *                   allows credentials explicitly.
+   *    `omit`       — never send credentials
+   *  `sameOrigin` is the camelCase spelling of the wire's `same-origin` (a
+   *  hyphen is subtraction, so it cannot be a token); FETCH_CREDENTIALS maps it
+   *  back, as `blend` does for CSS's color-dodge. */
+  declare credentials: "omit" | "sameOrigin" | "include";
   /** The lifecycle, as one fact; the four doc-named booleans derive below. */
   declare status: "idle" | "loading" | "loaded" | "failed";
   declare error: string | null;
