@@ -3074,6 +3074,12 @@ var DeclareMac = (() => {
           // auto-fetch on url arrival/change (data.ts maybeAuto) — the opt-in for
           // REACTIVE addresses; explicit fetch() stays the default discipline.
           auto: { kind: "boolean" },
+          // How the browser handles cookies, TLS client certs and auth headers —
+          // the Fetch API's three credentials modes. Tokens are camelCase, and
+          // data.ts maps `sameOrigin` to the wire's `same-origin`, exactly as `blend`
+          // maps colorDodge → color-dodge: a hyphen cannot be a token (it is
+          // subtraction), and the language spells closed sets as tokens, not strings.
+          credentials: enumType("Credentials", "omit", "sameOrigin", "include"),
           // ── the lifecycle, read-only (see the note above DatasetSchema) ────────
           // One fact, four spellings: `status` is the state and the booleans derive
           // from it, so they can never disagree. Constraints read these — an entry
@@ -9540,7 +9546,7 @@ var DeclareMac = (() => {
         return def;
     }
   }
-  var CELLS, TAGS, isContainer, wake, wakeAll, getOwn, showPath, Dataset, transport, DataSource;
+  var CELLS, TAGS, isContainer, wake, wakeAll, getOwn, showPath, Dataset, transport, FETCH_CREDENTIALS, DataSource;
   var init_data = __esm({
     "runtime/dist/data.js"() {
       "use strict";
@@ -9715,6 +9721,11 @@ var DeclareMac = (() => {
         } }
       });
       transport = (url, init) => globalThis.fetch(url, init);
+      FETCH_CREDENTIALS = {
+        omit: "omit",
+        sameOrigin: "same-origin",
+        include: "include"
+      };
       DataSource = class extends Dataset {
         // Tracked reads of `status`, so a constraint on `.loaded` wakes exactly
         // when the lifecycle moves (all four share the one status cell — they are
@@ -9747,24 +9758,31 @@ var DeclareMac = (() => {
         /** Discards a superseded request: only the latest fetch/clear may land
          *  (the Image loader's sequence discipline). */
         seq = 0;
-        /** The fetch init from `method`/`body`. A GET (the default) sends no body — a
-         *  bare url, unchanged. A non-GET carries `body`: an object/array is
-         *  JSON-encoded with a JSON `Content-Type`; a string is sent verbatim. */
+        /** The fetch init from `method`/`body`/`credentials`. A GET with
+         *  `credentials` unset (or `sameOrigin`, its own default) sends neither —
+         *  a bare url, unchanged from before `credentials` existed. A non-GET
+         *  carries `body`: an object/array is JSON-encoded with a JSON
+         *  `Content-Type`; a string is sent verbatim. `credentials` is added
+         *  whenever it differs from `sameOrigin` (the fetch default), GET or not,
+         *  since it's independent of the verb. */
         requestInit() {
           const method = (this.method || "GET").toUpperCase();
-          if (method === "GET")
-            return void 0;
-          const init = { method };
-          const body = this.body;
-          if (body != null) {
-            if (typeof body === "string")
-              init.body = body;
-            else {
-              init.body = JSON.stringify(body);
-              init.headers = { "Content-Type": "application/json" };
+          const init = {};
+          if (method !== "GET") {
+            init.method = method;
+            const body = this.body;
+            if (body != null) {
+              if (typeof body === "string")
+                init.body = body;
+              else {
+                init.body = JSON.stringify(body);
+                init.headers = { "Content-Type": "application/json" };
+              }
             }
           }
-          return init;
+          if (this.credentials && this.credentials !== "sameOrigin")
+            init.credentials = FETCH_CREDENTIALS[this.credentials];
+          return Object.keys(init).length > 0 ? init : void 0;
         }
         /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
          *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the

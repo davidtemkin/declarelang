@@ -69,11 +69,6 @@ type Transport = (url: string, init?: RequestInit) => Promise<Response>;
 /** Swap the transport (headless installs a refuser; tests install stubs).
  *  Returns the PREVIOUS transport so a scoped caller can restore it. */
 export declare function provideTransport(fn: Transport): Transport;
-/** A DataSource is a Dataset whose value arrives over HTTP (language §9): a
- *  reactive remote resource whose LIFECYCLE is reactive state — screens
- *  derive from `.loading`/`.loaded`/`.failed` with ordinary constraints
- *  instead of imperative show/hide. One arrival is one write burst in one
- *  turn: value + status settle together, ahead of one frame. */
 export declare class DataSource extends Dataset {
     url: string;
     /** What the bytes ARE: "json" (the default — parsed, `:path` navigable) or
@@ -89,6 +84,18 @@ export declare class DataSource extends Dataset {
      *  JSON-encoded (with a JSON `Content-Type`); a string is sent verbatim (the
      *  caller's own encoding); null = no body. Ignored for a GET. */
     body: unknown;
+    /** How the browser handles cookies, TLS client certificates and HTTP auth
+     *  headers on this request — the Fetch API's three modes, as tokens:
+     *    `sameOrigin` — the default; send only when `url` shares the page's origin
+     *    `include`    — send cross-origin too, so the app can carry a session
+     *                   cookie/header/cert to a separately-hosted authenticated
+     *                   API. Takes effect only if that origin's CORS response
+     *                   allows credentials explicitly.
+     *    `omit`       — never send credentials
+     *  `sameOrigin` is the camelCase spelling of the wire's `same-origin` (a
+     *  hyphen is subtraction, so it cannot be a token); FETCH_CREDENTIALS maps it
+     *  back, as `blend` does for CSS's color-dodge. */
+    credentials: "omit" | "sameOrigin" | "include";
     /** The lifecycle, as one fact; the four doc-named booleans derive below. */
     status: "idle" | "loading" | "loaded" | "failed";
     error: string | null;
@@ -116,9 +123,13 @@ export declare class DataSource extends Dataset {
     /** Discards a superseded request: only the latest fetch/clear may land
      *  (the Image loader's sequence discipline). */
     private seq;
-    /** The fetch init from `method`/`body`. A GET (the default) sends no body — a
-     *  bare url, unchanged. A non-GET carries `body`: an object/array is
-     *  JSON-encoded with a JSON `Content-Type`; a string is sent verbatim. */
+    /** The fetch init from `method`/`body`/`credentials`. A GET with
+     *  `credentials` unset (or `sameOrigin`, its own default) sends neither —
+     *  a bare url, unchanged from before `credentials` existed. A non-GET
+     *  carries `body`: an object/array is JSON-encoded with a JSON
+     *  `Content-Type`; a string is sent verbatim. `credentials` is added
+     *  whenever it differs from `sameOrigin` (the fetch default), GET or not,
+     *  since it's independent of the verb. */
     private requestInit;
     /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
      *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the

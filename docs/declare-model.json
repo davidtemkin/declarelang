@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "4adf66198125",
+  "buildId": "4568e4201479",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -404,6 +404,7 @@
      "method": "string",
      "body": "object",
      "auto": "boolean",
+     "credentials": "enum(omit|sameOrigin|include)",
      "status": "enum(idle|loading|loaded|failed)",
      "idle": "boolean",
      "loading": "boolean",
@@ -2058,6 +2059,11 @@
     "both",
     "cover",
     "contain"
+   ],
+   "Credentials": [
+    "omit",
+    "sameOrigin",
+    "include"
    ],
    "DataStatus": [
     "idle",
@@ -3873,6 +3879,11 @@
    "DataSource.body": {
     "path": "docs/declare-model.json",
     "title": "DataSource.body",
+    "kind": "reference"
+   },
+   "DataSource.credentials": {
+    "path": "docs/declare-model.json",
+    "title": "DataSource.credentials",
     "kind": "reference"
    },
    "DataSource.error": {
@@ -13504,6 +13515,30 @@
    "readOnly": false,
    "inheritedFrom": null
   },
+  "DataSource.credentials": {
+   "id": "DataSource.credentials",
+   "name": "credentials",
+   "kind": "attribute",
+   "doc": "How to handle cookies, TLS client certificates, and authentication headers — the\nFetch API's three modes, spelled as tokens.\n- `sameOrigin` — the default, send only when `url` shares the page's origin\n- `omit` — never send credentials or cookies with the request\n- `include` — send cross-origin too, so an app can carry a session\n  cookie/header/cert to a separately-hosted authenticated API. This only takes\n  effect if that origin's CORS response allows credentials explicitly — a\n  wildcard `Access-Control-Allow-Origin: *` cannot combine with it; the response\n  must echo back the specific requesting origin instead.\n\n`sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is\nsubtraction, so it cannot be a token) — the same translation `blend` makes for\nCSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends\ncredentials wherever that expression resolves: keep the address under your own\ncontrol.\n\n```declare-fragment\nnotes: DataSource [ url = \"https://api.example.com/notes\", credentials = include ]\n```",
+   "docSegs": [
+    {
+     "md": "How to handle cookies, TLS client certificates, and authentication headers — the\nFetch API's three modes, spelled as tokens.\n- `sameOrigin` — the default, send only when `url` shares the page's origin\n- `omit` — never send credentials or cookies with the request\n- `include` — send cross-origin too, so an app can carry a session\n  cookie/header/cert to a separately-hosted authenticated API. This only takes\n  effect if that origin's CORS response allows credentials explicitly — a\n  wildcard `Access-Control-Allow-Origin: *` cannot combine with it; the response\n  must echo back the specific requesting origin instead.\n\n`sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is\nsubtraction, so it cannot be a token) — the same translation `blend` makes for\nCSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends\ncredentials wherever that expression resolves: keep the address under your own\ncontrol.\n\n```declare-fragment\nnotes: DataSource [ url = \"https://api.example.com/notes\", credentials = include ]\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "DataSource",
+   "seeAlso": [],
+   "type": "omit | sameOrigin | include",
+   "default": null,
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
   "DataSource.status": {
    "id": "DataSource.status",
    "name": "status",
@@ -13705,7 +13740,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 378
+    "line": 398
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -13723,7 +13758,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 379
+    "line": 399
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -13741,7 +13776,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 380
+    "line": 400
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -13759,7 +13794,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 381
+    "line": 401
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -13777,7 +13812,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 392
+    "line": 412
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -13798,7 +13833,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 430
+    "line": 457
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -13819,7 +13854,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 489
+    "line": 516
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -13874,6 +13909,7 @@
     "DataSource.method",
     "DataSource.body",
     "DataSource.auto",
+    "DataSource.credentials",
     "DataSource.status",
     "DataSource.idle",
     "DataSource.loading",
@@ -31422,6 +31458,30 @@
      "inheritedFrom": null
     },
     {
+     "id": "DataSource.credentials",
+     "name": "credentials",
+     "kind": "attribute",
+     "doc": "How to handle cookies, TLS client certificates, and authentication headers — the\nFetch API's three modes, spelled as tokens.\n- `sameOrigin` — the default, send only when `url` shares the page's origin\n- `omit` — never send credentials or cookies with the request\n- `include` — send cross-origin too, so an app can carry a session\n  cookie/header/cert to a separately-hosted authenticated API. This only takes\n  effect if that origin's CORS response allows credentials explicitly — a\n  wildcard `Access-Control-Allow-Origin: *` cannot combine with it; the response\n  must echo back the specific requesting origin instead.\n\n`sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is\nsubtraction, so it cannot be a token) — the same translation `blend` makes for\nCSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends\ncredentials wherever that expression resolves: keep the address under your own\ncontrol.\n\n```declare-fragment\nnotes: DataSource [ url = \"https://api.example.com/notes\", credentials = include ]\n```",
+     "docSegs": [
+      {
+       "md": "How to handle cookies, TLS client certificates, and authentication headers — the\nFetch API's three modes, spelled as tokens.\n- `sameOrigin` — the default, send only when `url` shares the page's origin\n- `omit` — never send credentials or cookies with the request\n- `include` — send cross-origin too, so an app can carry a session\n  cookie/header/cert to a separately-hosted authenticated API. This only takes\n  effect if that origin's CORS response allows credentials explicitly — a\n  wildcard `Access-Control-Allow-Origin: *` cannot combine with it; the response\n  must echo back the specific requesting origin instead.\n\n`sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is\nsubtraction, so it cannot be a token) — the same translation `blend` makes for\nCSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends\ncredentials wherever that expression resolves: keep the address under your own\ncontrol.\n\n```declare-fragment\nnotes: DataSource [ url = \"https://api.example.com/notes\", credentials = include ]\n```",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "DataSource",
+     "seeAlso": [],
+     "type": "omit | sameOrigin | include",
+     "default": null,
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
      "id": "DataSource.status",
      "name": "status",
      "kind": "attribute",
@@ -31651,7 +31711,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 430
+      "line": 457
      },
      "parent": "DataSource",
      "seeAlso": [],
@@ -31672,7 +31732,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 489
+      "line": 516
      },
      "parent": "DataSource",
      "seeAlso": [],
@@ -42206,7 +42266,7 @@
        "subtitle": "extends Dataset",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# DataSource\n\n*Built-in element — [Dataset](declare-docs:Dataset) → [Node](declare-docs:Node)*\n\nA `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load** (`auto = true` is a\ndeliberate opt-in for reactive addresses, not the default). Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The\nresponse is parsed JSON by default; `format = \"text\"` fetches textual material instead —\na Markdown article, a source file — as one string (see `format`).\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `format` | string |  |  |\n| `method` | string |  |  |\n| `body` | object |  |  |\n| `auto` | boolean |  |  |\n| `status` | idle | loading | loaded | failed |  | read-only |\n| `idle` | boolean |  | read-only |\n| `loading` | boolean |  | read-only |\n| `loaded` | boolean |  | read-only |\n| `failed` | boolean |  | read-only |\n| `error` | string |  | read-only |\n| `statusCode` | number |  | read-only |\n| `errorBody` | object |  | read-only |\n\n**`url`** — The resource URL — a literal or a `{ }` constraint, so the source **re-points reactively**:\nchange a dependency (a zip, a filter) and the *next* `fetch()` hits the new URL. Setting\n`url` does not load on its own — fetching stays explicit unless you opt into `auto`.\n\n**`format`** — What the fetched bytes **are**: `\"json\"` (the default) parses the response and tags it for\n`:path` navigation; `\"text\"` delivers the raw bytes as **one string** in `.value`. Text is\na first-class material, not a detail — it is how an authored Markdown file is loaded\n*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || \"\" }`.\nA string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,\n`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,\n`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML\ncomments in the file are annotation, and annotation never renders.\n\n```declare-fragment\narticle: DataSource [ url = \"guide.md\", format = \"text\" ],\ndoc: Markdown [ visible = { article.loaded }, text = { article.value || \"\" } ]\n```\n\n**`method`** — The HTTP verb — `\"GET\"` by default. A body-carrying verb (`\"POST\"`, `\"PUT\"`, `\"PATCH\"`)\nsends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.\n\n**`body`** — The payload for a non-GET `method` — an object or array (JSON-encoded on the way out), or a\nstring (sent as-is). Ignored on a GET. Like `url` it can be a `{ }` constraint, so the\npayload re-derives from live state; also like `url`, changing it sends nothing until the\nnext `fetch()`.\n\n**`auto`** — Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.\n**Off by default, and the default is the discipline** — explicit loading is what stops a\nsource firing requests nobody asked for as unrelated dependencies settle. Turn it on when\nthe address *is* the reactive thing: a detail pane whose `url` derives from the current\nselection, where \"the URL changed\" and \"load it\" are the same event. With `auto` off,\nchanging `url` arms the next `fetch()` and does nothing else.\n\n```declare-fragment\ndetail: DataSource [ auto = true, url = { \"/api/issue/\" + app.selectedId } ]\n```\n\n**`status`** — The lifecycle as one fact: `\"idle\"` before anything is asked, `\"loading\"` in flight, then\n`\"loaded\"` or `\"failed\"`. Read-only — `fetch()` and `clear()` move it. The four booleans\nbelow derive from it, so they can never disagree with it or with each other.\n\n**`idle`** — Nothing has been asked for yet, or `clear()` returned it here. `= { status == \"idle\" }`.\n\n**`loading`** — A request is in flight. `= { status == \"loading\" }` — the slot to hang a spinner on.\n\n**`loaded`** — The value arrived and validated. `= { status == \"loaded\" }`. This is the usual one: a\nscreen derives from it (`visible = { data.loaded }`) rather than being toggled by hand.\n\n**`failed`** — The request, or the schema check, refused. `= { status == \"failed\" }`. Read `error` for\nthe one-line reason, `statusCode` and `errorBody` for what the server actually said.\n\n**`error`** — Why the last fetch failed, as one line — an HTTP status, a transport message, or the\nschema mismatch with its pointed path. `null` when nothing has gone wrong. It is the\n*message*; the server's own account is `errorBody`.\n\n**`statusCode`** — The HTTP status of the last reply — `404`, `422`, `200`. **`0` means no reply arrived**:\nnothing asked yet, or the request never reached a server at all. That distinction is the\npoint of the slot, since it separates \"retry\" from \"report\" without parsing `error`.\n\n**`errorBody`** — What the server said when it refused — parsed if it was JSON, the raw text otherwise,\n`null` if the body was empty. This is the part that names *which* field failed or *when*\nthe rate limit resets; a refusal reported as a status number alone throws it away.\n`value` is untouched by a failure, so the last good data is still there.\n\n## Events\n\n- `onLoad()` — Fires when a fetch settles successfully, after `value` and the flags are consistent — a\nhandler reading `value` sees the arrived data, never the previous one. Failures do not fire\nit; they set `failed` and `error`. **You usually do not need this**: any binding reading\n`.value` or a `:path` beneath it already updates on arrival, which is the entire reactive\npoint. Reach for `onLoad` only when arrival must cause something a binding cannot express —\nfocusing the first result, chaining a follow-up fetch, announcing to a screen reader.\n\n## Methods\n\n- `fetch(): Promise<void>` — Loads (or reloads) the resource from the current `url`, then settles `value` and the status\nflags **together**, a frame ahead. Loading is a verb you call, not something that happens\nto you, so you decide *when* (usually in `onInit`, or on a user action). Calling it again\nre-fetches; change `url`'s dependencies first to fetch a new address. Returns a `Promise`\nyou can `await`, but the reactive flags are the idiomatic path.\n- `clear(): void` — Returns the source to the idle state — drops `value`, `error`, and the loaded/failed flags,\nas if it had never fetched. For resetting a search field's results, or releasing a large\nresponse you no longer need.\n\n## Inherited from [Dataset](declare-docs:Dataset)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `contents` | object |  |  |\n| `schema` | dataschema |  |  |\n| `value` | object |  | read-only |\n\n**`contents`** — Makes the `Dataset` **derived**: a `{ }` constraint (in place of a JSON body) that computes\nthe value from other reactive state — `matches: Dataset [ contents = { app.filter() } ]`. It\nrecomputes exactly when what it reads changes, dep-gated like any constraint. Pair a derived\nlist with `key = :field` on its replicated child so a recompute reconciles by that stable\nfield (O(changed) instances) instead of by object identity (rebuild-all).\n\n**`schema`** — The optional data shape (`schema = [ city: string, rows[]: [ id: string, n?: number ] ]`):\narrivals validate against it at the boundary (a malformed response lands in `.failed` with\nthe pointed path; an embedded body fails at build), and every `:path` under a direct cursor\nis checked statically against it. Validation only — identity is not declared here or\nanywhere: a record's `id` field is its identity by convention (`key = :field` overrides an\nunconventional name). Presence is the only switch; the `:path` surface never changes.\n\n**`value`** — The parsed data. `contents` is the slot you *write* (or a JSON body, or a fetch); this is\nthe one you read, and it is read-only — a dataset changes through the structural verbs\n(`set`, `insert`, `removeAt`, `move`) or by a `DataSource` fetch landing, never by\nassignment. `:path` reads resolve against it, and a write wakes exactly the bindings that\nread the region that changed.\n\n### Methods\n\n- `read(path: string | readonly (string | number)[]): unknown` — Tracked region read: `data.read([ \"cols\" ])` returns the value at that path AND subscribes\nthe caller to it, so a derivation (or any constraint) that reads through `read` re-runs on an\nin-place `.set` edit to that region — the granular counterpart to reading `.value` (which\ntracks only a wholesale replacement).\n- `set(path: string | readonly (string | number)[], v: unknown): void` — Writes `v` at a path inside the value, waking exactly the readers of that place — the\nsurgical alternative to swapping the whole `.value`. A path is a **segments array**\n(`data.set([\"cols\", 0, \"label\"], \"Mon\")` — numbers welcome, no escaping ever) or an\n**RFC 6901 pointer** string (`data.set(\"/cols/0/label\", \"Mon\")`; against an array, the\nfinal token `-` appends: `set(\"/rows/-\", v)`). The path's containers must exist (a\npointed error names the first missing step); the final field may be new.\n- `insert(path: string | readonly (string | number)[], index: number, v: unknown): void` — Splices `v` into the array at `path`, at `index` — every replicated view bound to that array\n(`:arr[]`) gains one instance in the same settle, no manual list bookkeeping.\n- `removeAt(path: string | readonly (string | number)[], index: number): unknown` — Removes and returns the element at `index` of the array at `path`; the replicated instance\nfor it is torn down in the same settle.\n- `move(path: string | readonly (string | number)[], from: number, to: number): void` — Reorders the array at `path`, moving the element at `from` to `to` — the replicated views\nfollow the new order (a reorder, not a destroy-and-rebuild), so their state rides along.\n",
+       "doc": "# DataSource\n\n*Built-in element — [Dataset](declare-docs:Dataset) → [Node](declare-docs:Node)*\n\nA `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load** (`auto = true` is a\ndeliberate opt-in for reactive addresses, not the default). Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The\nresponse is parsed JSON by default; `format = \"text\"` fetches textual material instead —\na Markdown article, a source file — as one string (see `format`).\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `format` | string |  |  |\n| `method` | string |  |  |\n| `body` | object |  |  |\n| `auto` | boolean |  |  |\n| `credentials` | omit | sameOrigin | include |  |  |\n| `status` | idle | loading | loaded | failed |  | read-only |\n| `idle` | boolean |  | read-only |\n| `loading` | boolean |  | read-only |\n| `loaded` | boolean |  | read-only |\n| `failed` | boolean |  | read-only |\n| `error` | string |  | read-only |\n| `statusCode` | number |  | read-only |\n| `errorBody` | object |  | read-only |\n\n**`url`** — The resource URL — a literal or a `{ }` constraint, so the source **re-points reactively**:\nchange a dependency (a zip, a filter) and the *next* `fetch()` hits the new URL. Setting\n`url` does not load on its own — fetching stays explicit unless you opt into `auto`.\n\n**`format`** — What the fetched bytes **are**: `\"json\"` (the default) parses the response and tags it for\n`:path` navigation; `\"text\"` delivers the raw bytes as **one string** in `.value`. Text is\na first-class material, not a detail — it is how an authored Markdown file is loaded\n*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || \"\" }`.\nA string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,\n`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,\n`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML\ncomments in the file are annotation, and annotation never renders.\n\n```declare-fragment\narticle: DataSource [ url = \"guide.md\", format = \"text\" ],\ndoc: Markdown [ visible = { article.loaded }, text = { article.value || \"\" } ]\n```\n\n**`method`** — The HTTP verb — `\"GET\"` by default. A body-carrying verb (`\"POST\"`, `\"PUT\"`, `\"PATCH\"`)\nsends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.\n\n**`body`** — The payload for a non-GET `method` — an object or array (JSON-encoded on the way out), or a\nstring (sent as-is). Ignored on a GET. Like `url` it can be a `{ }` constraint, so the\npayload re-derives from live state; also like `url`, changing it sends nothing until the\nnext `fetch()`.\n\n**`auto`** — Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.\n**Off by default, and the default is the discipline** — explicit loading is what stops a\nsource firing requests nobody asked for as unrelated dependencies settle. Turn it on when\nthe address *is* the reactive thing: a detail pane whose `url` derives from the current\nselection, where \"the URL changed\" and \"load it\" are the same event. With `auto` off,\nchanging `url` arms the next `fetch()` and does nothing else.\n\n```declare-fragment\ndetail: DataSource [ auto = true, url = { \"/api/issue/\" + app.selectedId } ]\n```\n\n**`credentials`** — How to handle cookies, TLS client certificates, and authentication headers — the\nFetch API's three modes, spelled as tokens.\n- `sameOrigin` — the default, send only when `url` shares the page's origin\n- `omit` — never send credentials or cookies with the request\n- `include` — send cross-origin too, so an app can carry a session\n  cookie/header/cert to a separately-hosted authenticated API. This only takes\n  effect if that origin's CORS response allows credentials explicitly — a\n  wildcard `Access-Control-Allow-Origin: *` cannot combine with it; the response\n  must echo back the specific requesting origin instead.\n\n`sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is\nsubtraction, so it cannot be a token) — the same translation `blend` makes for\nCSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends\ncredentials wherever that expression resolves: keep the address under your own\ncontrol.\n\n```declare-fragment\nnotes: DataSource [ url = \"https://api.example.com/notes\", credentials = include ]\n```\n\n**`status`** — The lifecycle as one fact: `\"idle\"` before anything is asked, `\"loading\"` in flight, then\n`\"loaded\"` or `\"failed\"`. Read-only — `fetch()` and `clear()` move it. The four booleans\nbelow derive from it, so they can never disagree with it or with each other.\n\n**`idle`** — Nothing has been asked for yet, or `clear()` returned it here. `= { status == \"idle\" }`.\n\n**`loading`** — A request is in flight. `= { status == \"loading\" }` — the slot to hang a spinner on.\n\n**`loaded`** — The value arrived and validated. `= { status == \"loaded\" }`. This is the usual one: a\nscreen derives from it (`visible = { data.loaded }`) rather than being toggled by hand.\n\n**`failed`** — The request, or the schema check, refused. `= { status == \"failed\" }`. Read `error` for\nthe one-line reason, `statusCode` and `errorBody` for what the server actually said.\n\n**`error`** — Why the last fetch failed, as one line — an HTTP status, a transport message, or the\nschema mismatch with its pointed path. `null` when nothing has gone wrong. It is the\n*message*; the server's own account is `errorBody`.\n\n**`statusCode`** — The HTTP status of the last reply — `404`, `422`, `200`. **`0` means no reply arrived**:\nnothing asked yet, or the request never reached a server at all. That distinction is the\npoint of the slot, since it separates \"retry\" from \"report\" without parsing `error`.\n\n**`errorBody`** — What the server said when it refused — parsed if it was JSON, the raw text otherwise,\n`null` if the body was empty. This is the part that names *which* field failed or *when*\nthe rate limit resets; a refusal reported as a status number alone throws it away.\n`value` is untouched by a failure, so the last good data is still there.\n\n## Events\n\n- `onLoad()` — Fires when a fetch settles successfully, after `value` and the flags are consistent — a\nhandler reading `value` sees the arrived data, never the previous one. Failures do not fire\nit; they set `failed` and `error`. **You usually do not need this**: any binding reading\n`.value` or a `:path` beneath it already updates on arrival, which is the entire reactive\npoint. Reach for `onLoad` only when arrival must cause something a binding cannot express —\nfocusing the first result, chaining a follow-up fetch, announcing to a screen reader.\n\n## Methods\n\n- `fetch(): Promise<void>` — Loads (or reloads) the resource from the current `url`, then settles `value` and the status\nflags **together**, a frame ahead. Loading is a verb you call, not something that happens\nto you, so you decide *when* (usually in `onInit`, or on a user action). Calling it again\nre-fetches; change `url`'s dependencies first to fetch a new address. Returns a `Promise`\nyou can `await`, but the reactive flags are the idiomatic path.\n- `clear(): void` — Returns the source to the idle state — drops `value`, `error`, and the loaded/failed flags,\nas if it had never fetched. For resetting a search field's results, or releasing a large\nresponse you no longer need.\n\n## Inherited from [Dataset](declare-docs:Dataset)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `contents` | object |  |  |\n| `schema` | dataschema |  |  |\n| `value` | object |  | read-only |\n\n**`contents`** — Makes the `Dataset` **derived**: a `{ }` constraint (in place of a JSON body) that computes\nthe value from other reactive state — `matches: Dataset [ contents = { app.filter() } ]`. It\nrecomputes exactly when what it reads changes, dep-gated like any constraint. Pair a derived\nlist with `key = :field` on its replicated child so a recompute reconciles by that stable\nfield (O(changed) instances) instead of by object identity (rebuild-all).\n\n**`schema`** — The optional data shape (`schema = [ city: string, rows[]: [ id: string, n?: number ] ]`):\narrivals validate against it at the boundary (a malformed response lands in `.failed` with\nthe pointed path; an embedded body fails at build), and every `:path` under a direct cursor\nis checked statically against it. Validation only — identity is not declared here or\nanywhere: a record's `id` field is its identity by convention (`key = :field` overrides an\nunconventional name). Presence is the only switch; the `:path` surface never changes.\n\n**`value`** — The parsed data. `contents` is the slot you *write* (or a JSON body, or a fetch); this is\nthe one you read, and it is read-only — a dataset changes through the structural verbs\n(`set`, `insert`, `removeAt`, `move`) or by a `DataSource` fetch landing, never by\nassignment. `:path` reads resolve against it, and a write wakes exactly the bindings that\nread the region that changed.\n\n### Methods\n\n- `read(path: string | readonly (string | number)[]): unknown` — Tracked region read: `data.read([ \"cols\" ])` returns the value at that path AND subscribes\nthe caller to it, so a derivation (or any constraint) that reads through `read` re-runs on an\nin-place `.set` edit to that region — the granular counterpart to reading `.value` (which\ntracks only a wholesale replacement).\n- `set(path: string | readonly (string | number)[], v: unknown): void` — Writes `v` at a path inside the value, waking exactly the readers of that place — the\nsurgical alternative to swapping the whole `.value`. A path is a **segments array**\n(`data.set([\"cols\", 0, \"label\"], \"Mon\")` — numbers welcome, no escaping ever) or an\n**RFC 6901 pointer** string (`data.set(\"/cols/0/label\", \"Mon\")`; against an array, the\nfinal token `-` appends: `set(\"/rows/-\", v)`). The path's containers must exist (a\npointed error names the first missing step); the final field may be new.\n- `insert(path: string | readonly (string | number)[], index: number, v: unknown): void` — Splices `v` into the array at `path`, at `index` — every replicated view bound to that array\n(`:arr[]`) gains one instance in the same settle, no manual list bookkeeping.\n- `removeAt(path: string | readonly (string | number)[], index: number): unknown` — Removes and returns the element at `index` of the array at `path`; the replicated instance\nfor it is torn down in the same settle.\n- `move(path: string | readonly (string | number)[], from: number, to: number): void` — Reorders the array at `path`, moving the element at `from` to `to` — the replicated views\nfollow the new order (a reorder, not a destroy-and-rebuild), so their state rides along.\n",
        "preview": "A Dataset whose value arrives over HTTP — a reactive remote resource. The one thing to know: fetch() is explicit — a DataSource does not auto-load (auto = true is a deliberate opt-in for reactive addresses, not the default). Call it when th…"
       },
       {
@@ -42686,7 +42746,7 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Enums\n\n*The language's fixed token sets — write the token itself, never a CSS-style value.*\n\n**Blend** — `normal` · `multiply` · `screen` · `overlay` · `darken` · `lighten` · `colorDodge` · `colorBurn` · `hardLight` · `softLight` · `difference` · `exclusion` · `hue` · `saturation` · `color` · `luminosity` · `plusLighter`\n\n**Scrolls** — `none` · `y` · `x` · `both`\n\n**Claim** — `both` · `x` · `y`\n\n**FontWeight** — `thin` · `extralight` · `light` · `regular` · `normal` · `medium` · `semibold` · `bold` · `extrabold` · `black`\n\n**Edges** — `safe` · `cover`\n\n**TextAlign** — `left` · `center` · `right`\n\n**Stretch** — `none` · `width` · `height` · `both` · `cover` · `contain`\n\n**DataStatus** — `idle` · `loading` · `loaded` · `failed`\n\n**Process** — `sequential` · `simultaneous`\n\n**StreamStatus** — `closed` · `connecting` · `open` · `retrying` · `failed`\n\n**Motion** — `linear` · `ease` · `easeIn` · `easeOut` · `easeBoth` · `sineIn` · `sineOut` · `sineBoth` · `quadIn` · `quadOut` · `quadBoth` · `cubicIn` · `cubicOut` · `cubicBoth` · `quartIn` · `quartOut` · `quartBoth` · `quintIn` · `quintOut` · `quintBoth` · `expoIn` · `expoOut` · `expoBoth` · `circIn` · `circOut` · `circBoth` · `backIn` · `backOut` · `backBoth` · `laszloIn` · `laszloOut` · `laszloBoth`\n",
+     "doc": "# Enums\n\n*The language's fixed token sets — write the token itself, never a CSS-style value.*\n\n**Blend** — `normal` · `multiply` · `screen` · `overlay` · `darken` · `lighten` · `colorDodge` · `colorBurn` · `hardLight` · `softLight` · `difference` · `exclusion` · `hue` · `saturation` · `color` · `luminosity` · `plusLighter`\n\n**Scrolls** — `none` · `y` · `x` · `both`\n\n**Claim** — `both` · `x` · `y`\n\n**FontWeight** — `thin` · `extralight` · `light` · `regular` · `normal` · `medium` · `semibold` · `bold` · `extrabold` · `black`\n\n**Edges** — `safe` · `cover`\n\n**TextAlign** — `left` · `center` · `right`\n\n**Stretch** — `none` · `width` · `height` · `both` · `cover` · `contain`\n\n**Credentials** — `omit` · `sameOrigin` · `include`\n\n**DataStatus** — `idle` · `loading` · `loaded` · `failed`\n\n**Process** — `sequential` · `simultaneous`\n\n**StreamStatus** — `closed` · `connecting` · `open` · `retrying` · `failed`\n\n**Motion** — `linear` · `ease` · `easeIn` · `easeOut` · `easeBoth` · `sineIn` · `sineOut` · `sineBoth` · `quadIn` · `quadOut` · `quadBoth` · `cubicIn` · `cubicOut` · `cubicBoth` · `quartIn` · `quartOut` · `quartBoth` · `quintIn` · `quintOut` · `quintBoth` · `expoIn` · `expoOut` · `expoBoth` · `circIn` · `circOut` · `circBoth` · `backIn` · `backOut` · `backBoth` · `laszloIn` · `laszloOut` · `laszloBoth`\n",
      "preview": "The language's fixed token sets — write the token itself, never a CSS-style value. Blend — normal · multiply · screen · overlay · darken · lighten · colorDodge · colorBurn · hardLight · softLight · difference · exclusion · hue · saturation…"
     },
     {

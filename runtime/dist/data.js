@@ -311,6 +311,13 @@ export function provideTransport(fn) {
  *  derive from `.loading`/`.loaded`/`.failed` with ordinary constraints
  *  instead of imperative show/hide. One arrival is one write burst in one
  *  turn: value + status settle together, ahead of one frame. */
+/** Declare token → the Fetch API's own spelling. `same-origin` cannot be a
+ *  token (the hyphen is subtraction), so the language spells it camelCase and
+ *  the translation happens here — the same shape `blend` uses for CSS's
+ *  hyphenated blend modes (colorDodge → color-dodge). */
+const FETCH_CREDENTIALS = {
+    omit: "omit", sameOrigin: "same-origin", include: "include",
+};
 export class DataSource extends Dataset {
     // Tracked reads of `status`, so a constraint on `.loaded` wakes exactly
     // when the lifecycle moves (all four share the one status cell — they are
@@ -340,24 +347,31 @@ export class DataSource extends Dataset {
     /** Discards a superseded request: only the latest fetch/clear may land
      *  (the Image loader's sequence discipline). */
     seq = 0;
-    /** The fetch init from `method`/`body`. A GET (the default) sends no body — a
-     *  bare url, unchanged. A non-GET carries `body`: an object/array is
-     *  JSON-encoded with a JSON `Content-Type`; a string is sent verbatim. */
+    /** The fetch init from `method`/`body`/`credentials`. A GET with
+     *  `credentials` unset (or `sameOrigin`, its own default) sends neither —
+     *  a bare url, unchanged from before `credentials` existed. A non-GET
+     *  carries `body`: an object/array is JSON-encoded with a JSON
+     *  `Content-Type`; a string is sent verbatim. `credentials` is added
+     *  whenever it differs from `sameOrigin` (the fetch default), GET or not,
+     *  since it's independent of the verb. */
     requestInit() {
         const method = (this.method || "GET").toUpperCase();
-        if (method === "GET")
-            return undefined;
-        const init = { method };
-        const body = this.body;
-        if (body != null) {
-            if (typeof body === "string")
-                init.body = body;
-            else {
-                init.body = JSON.stringify(body);
-                init.headers = { "Content-Type": "application/json" };
+        const init = {};
+        if (method !== "GET") {
+            init.method = method;
+            const body = this.body;
+            if (body != null) {
+                if (typeof body === "string")
+                    init.body = body;
+                else {
+                    init.body = JSON.stringify(body);
+                    init.headers = { "Content-Type": "application/json" };
+                }
             }
         }
-        return init;
+        if (this.credentials && this.credentials !== "sameOrigin")
+            init.credentials = FETCH_CREDENTIALS[this.credentials];
+        return Object.keys(init).length > 0 ? init : undefined;
     }
     /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
      *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the

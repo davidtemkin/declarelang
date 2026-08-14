@@ -157,4 +157,47 @@ await test("windowed retention keys by INFERRED identity across wholesale replac
 // the kernel window API without a second import block.)
 import * as awaitedReplicate from "../runtime/dist/replicate.js";
 
+await test("DataSource.credentials — a token surface, the Fetch API's spelling on the wire", async () => {
+  // The three Fetch credentials modes, as a closed set. `same-origin` cannot be
+  // a token (the hyphen is subtraction), so the language spells it `sameOrigin`
+  // and data.ts maps it back — exactly as `blend` maps colorDodge → color-dodge.
+  const src = (v) => `App [ width = 10, height = 10, d: DataSource [ url = "/x"${v} ] ]`;
+  for (const tok of ["omit", "sameOrigin", "include"]) {
+    const r = await compile(src(`, credentials = ${tok}`), { typecheck: false });
+    assert.notEqual(r.source, null, `credentials = ${tok} must compile: ${r.report}`);
+  }
+  // a miss is a COMPILE error naming the legal set, not a TypeError from fetch
+  const bad = await compile(src(", credentials = sameorigin"), { typecheck: false });
+  assert.equal(bad.source, null, "a misspelled mode must not reach fetch");
+  assert.match(bad.report, /one of omit \| sameOrigin \| include/);
+
+  // and what actually reaches fetch(url, init)
+  const seen = [];
+  const prev = provideTransport((url, init) => { seen.push(init); return jsonResponse({ ok: 1 }); });
+  try {
+    const cases = [
+      ["", undefined],                                     // unset → bare url, as before credentials existed
+      [", credentials = sameOrigin", undefined],           // fetch's OWN default: nothing to say
+      [", credentials = include", { credentials: "include" }],
+      [", credentials = omit", { credentials: "omit" }],
+    ];
+    for (const [decl, want] of cases) {
+      seen.length = 0;
+      const app = build(src(decl));
+      app.d.fetch();
+      await new Promise((r) => setTimeout(r, 20));
+      assert.deepEqual(seen[0], want, `init for '${decl || "(unset)"}'`);
+    }
+    // orthogonal to the verb: a POST carries body, headers AND credentials
+    seen.length = 0;
+    const app = build(src(`, method = "POST", body = { { a: 1 } }, credentials = include`));
+    app.d.fetch();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(seen[0], { method: "POST", body: '{"a":1}',
+      headers: { "Content-Type": "application/json" }, credentials: "include" });
+  } finally {
+    provideTransport(prev);
+  }
+});
+
 summarize("dataschema");
