@@ -22,7 +22,7 @@
 //     (.derive/manifest.json, untracked); a doc edit runs the doc rules and a
 //     commit touching neither runs nearly nothing. The gates remain the
 //     backstop for a wrongly-narrow input list: assemble --check, the prewarm
-//     freshness gate and dist-freshness all verify content independently.
+//     freshness gate all verify content independently.
 //
 //   · TWO AUTHORS, ONE FILE. extract and assemble both wrote
 //     docs/declare-model.json; a bare extract deleted assemble's half. Now
@@ -84,16 +84,6 @@ const run = (cmd, args) => execFileSync(cmd, args, {
   timeout: RULE_TIMEOUT_MS, killSignal: "SIGKILL",
 });
 
-/** The committed production builds, discovered rather than listed — a new app
- *  with a dist should not need this file edited. */
-function distApps() {
-  const appsDir = join(ROOT, "apps");
-  if (!existsSync(appsDir)) return [];
-  return readdirSync(appsDir)
-    .filter((a) => existsSync(join(appsDir, a, "dist", "BUILD.json")))
-    .map((a) => ({ app: a, out: `apps/${a}/dist`, src: `apps/${a}/${a}.declare` }));
-}
-
 // ── the rules ────────────────────────────────────────────────────────────────
 // Input/output specs: a string is a file or a directory (recursive); an object
 // is a filtered walk { dir, ext?, exclude?: [dir names], pre?/notPre?: basename
@@ -153,40 +143,6 @@ const RULES = [
     outputs: [".derive/docs-extract.json", "apps/docs/chapters", "apps/docs/search-index.json",
               { dir: "apps/docs/demos", pre: "seg_" }],         // the generated islands, and only those
     run: () => run("node", ["tools/internal/doc/extract.mjs"]),
-  },
-  {
-    name: "dist",                    // the committed production builds (embed stats.json; crawl fetches declare.md)
-    // INPUTS DISCOVERED THE SAME WAY THE OUTPUTS ARE. This rule used to declare
-    // `apps/homepage` alone while its outputs came from distApps(), so the moment a
-    // SECOND app grew a dist (weather) the rule went asymmetric: editing
-    // apps/weather/weather.declare marked nothing stale, `derive --dry` reported all
-    // current, pre-push passed, and the committed weather dist stayed stale forever.
-    // Exactly the omission derivation.md §5.1 names — found by editing weather.declare
-    // and watching derive do nothing. Discovering both halves from one source is what
-    // keeps them in step, per distApps()'s own promise that a new app with a dist
-    // should not need this file edited.
-    inputs: ["tools/declarec.mjs", "compiler/dist", "runtime/dist", "browser", "library",
-             { dir: "bundles", exclude: ["cache", "version.json"] }, "docs/declare.md",
-             ...distApps().map((d) => ({ dir: `apps/${d.app}`, exclude: ["dist", "index.html"] }))],
-    outputs: distApps().map((d) => d.out),
-    // `--crawler` (the baked static document) is only for the INDEXED surfaces
-    // (David's ruling, 2026-08-08) — today that means HOMEPAGE alone. Every
-    // other app's dist is a plain production build: crawling it buys nothing a
-    // search engine reads, and it executes the app's own code at build time —
-    // surface area no app should get by merely having a dist. Docs is indexed
-    // in principle but deliberately NOT crawled yet (ruled 2026-08-08): its
-    // crawl went from ~1 min to 15–20 min when the 2026-08-05 backlink pass
-    // made the full 356-class reference reachable (each cold boot also pays
-    // the app's whole-corpus prefetch, ~2.7s). Enabling it needs a design —
-    // a warm crawl (crawlAll's warm: true), or projecting the static document
-    // from declare-model.json directly, since the reference pages are
-    // generated from it anyway.
-    run: () => {
-      const CRAWLED = new Set(["homepage"]);
-      for (const d of distApps()) {
-        run("node", ["tools/declarec.mjs", d.src, "-o", d.out, ...(CRAWLED.has(d.app) ? ["--crawler"] : [])]);
-      }
-    },
   },
   {
     name: "bake-crawler",            // the root page's static extraction (runs the homepage itself)

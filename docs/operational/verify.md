@@ -115,7 +115,7 @@ Two suites, split at the browser boundary — and one more split by *subject*, b
 | `npm run test:all` | `npm test` + the ladder | |
 
 **The derived tier** (`docs`, `schema-completeness`, `declare-help`, `prewarm`,
-`dist-freshness`, `ops`) tests committed artifacts against the tree that produced them, so
+`ops`) tests committed artifacts against the tree that produced them, so
 it answers nothing on a tree that has not been derived — it would be reporting on
 yesterday's artifact. That is why it is a separate command and not a slower part of
 `npm test`, and why the rule is *derive immediately before*.

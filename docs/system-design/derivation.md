@@ -161,7 +161,7 @@ skipping build system is always the same: silence that reads as health.
    only; a generator that quietly grows a new read (exactly how the buildId cycle
    began) skips when it shouldn't. *Backstops:* the content gates verify
    independently of the manifest (`assemble --check`, `links --check`,
-   dist-freshness, prewarm's freshness gate, format); a fresh clone always runs
+   prewarm's freshness gate, format); a fresh clone always runs
    everything; and the discipline is that **editing a generator's reads means
    editing its rule** — the rule is now the natural place a reviewer looks.
 2. **A suite's input map can be too narrow**, silently skipping a genuinely affected

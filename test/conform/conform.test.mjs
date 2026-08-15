@@ -204,6 +204,65 @@ await test("conform: a press resolves to the same view on every renderer", async
   console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
 });
 
+// ── transforms ──────────────────────────────────────────────────────────────
+// Until 2026-08-14 nothing in this corpus set `scale` or `rotation`, so the one
+// gate that holds three renderers together never asked whether they agree about
+// a TRANSFORMED hit. That gap was not theoretical: the same day, moving a DOM
+// box's position into its transform left `throughTransforms` inverting scale and
+// rotation but not the new translate, and every localized point came out short
+// by posX/k. A single desktop-input assertion caught it, and only because that
+// window happened to sit at a non-zero position.
+//
+// The points below are chosen so that a backend which IGNORES the transform
+// gives a DIFFERENT answer, not merely a less precise one — an axis-aligned
+// bounding-box test hits where the rotated shape does not, and vice versa.
+// `test/probe/rotation.declare` supplies the geometry: `turn` is 100x100 at
+// (40,60) turned 30° about its centre; `unit` is the same box at (180,60)
+// scaled 0.8 AND turned 45°, carrying a child at (25,25) 50x50.
+
+await test("conform: a rotated view's own hit shape agrees on every renderer", async () => {
+  // (90,110) is the pivot — inside under any reading, so this pins that the
+  // rotated view is reachable at all before the sharper question below.
+  const r = await conform("test/probe/rotation.declare", [],
+    `__declare.explainHit(90, 110).hit`, "rotated view: centre");
+  assert.equal(r.answers[0].value, "app.turn", "the turned square takes its own centre");
+  console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
+});
+
+await test("conform: a point inside the AABB but outside the TURN misses, everywhere", async () => {
+  // The discriminating one. (25,45) sits inside the turned square's axis-aligned
+  // bounding box (21.7,41.7)-(158.3,178.3) and outside the square itself —
+  // inverse-rotating it lands at x=1.2, well left of the view's own box. A
+  // backend testing the AABB reports `app.turn`; one that honours the rotation
+  // reports the App. Both are self-consistent, which is exactly why only a
+  // cross-renderer comparison finds the disagreement.
+  const r = await conform("test/probe/rotation.declare", [],
+    `__declare.explainHit(25, 45).hit`, "rotated view: AABB corner");
+  assert.equal(r.answers[0].value, "app",
+    "a corner of the bounding box is NOT inside the turned square");
+});
+
+await test("conform: a hit descends through a scaled AND rotated parent, everywhere", async () => {
+  // `unit` composes both terms, so this catches an inverse that undoes one and
+  // forgets the other — the shape of the bug fixed on the DOM side. (230,127)
+  // is the child's own (245,125) carried forward through scale 0.8 then 45°.
+  const r = await conform("test/probe/rotation.declare", [],
+    `__declare.explainHit(230, 127).hit`, "scaled+rotated parent: child");
+  assert.match(String(r.answers[0].value), /^app\.unit\b/,
+    "the point resolves INTO the transformed subtree, not to the App behind it");
+});
+
+await test("conform: the transform actually MOVES the hit shape, everywhere", async () => {
+  // (195,75) is inside `unit`'s box as authored and outside it once scaled and
+  // turned. A backend that never applied the transform to its hit geometry —
+  // the exact failure the native host had for `ignoreScroll`, found by absence —
+  // answers `app.unit` here. Every renderer must answer the App.
+  const r = await conform("test/probe/rotation.declare", [],
+    `__declare.explainHit(195, 75).hit`, "scaled+rotated parent: vacated point");
+  assert.equal(r.answers[0].value, "app",
+    "the untransformed box is vacated — nothing is there once the view is scaled and turned");
+});
+
 await test("conform: a DECLARED scroll offset lands identically on every renderer", async () => {
   // The offset is the program's, not the platform's: `scrollY = 120` must put
   // the same content in the same place whether a browser scroller, a canvas

@@ -35,11 +35,11 @@ recovery for when something moved after the derive — is one page:
 [`docs/operational/shipping.md`](docs/operational/shipping.md).
 
 **Derive stages what it owns.** A derive produces three kinds of change — files rewritten,
-files created under NEW NAMES (`apps/homepage/dist/app.<hash>.js`), and files pruned — and
+files created under NEW NAMES (`apps/docs/demos/seg_*.declare`), and files pruned — and
 only the first is something `git commit -a` would pick up. So derive reconciles the index
 for its OWN outputs itself (`git add -A` over each output pathspec) and reports
-`· outputs staged`; that is why `dist-freshness` inside `test:derived` can trust that every
-asset the published page references is in the tree. Two boundaries it keeps: **stamped**
+`· outputs staged`; that is why the suites inside `test:derived` can trust that every
+generated artifact they check is in the tree. Two boundaries it keeps: **stamped**
 files (README, `docs/declare.md`, `index.html` — hand-authored around their markers) are
 never staged wholesale, since that would sweep up prose you were still writing — those stay
 yours to stage; and it stages **unconditionally**, not only when this run rewrote something,

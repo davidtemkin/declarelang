@@ -121,7 +121,6 @@ const SUITE_INPUTS = {
   "toolchain-realm": ["tools", "server"],
   "hydrate": ["browser", "server", "bundles", "apps/homepage"],
   "prod-parity": ["tools", "browser", "server", "bundles", "apps/homepage"],
-  "dist-freshness": ["apps/homepage/dist", "tools", "apps/homepage/stats.json"],
 };
 
 // ── The iOS advisory (David, 2026-08-06) ────────────────────────────────────
