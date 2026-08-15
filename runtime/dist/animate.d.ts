@@ -85,6 +85,7 @@ export interface FrameScheduler {
  *  this module under Node (the unit suite) never touches a missing global;
  *  the runtime overrides it explicitly at startup anyway. */
 export declare const browserScheduler: FrameScheduler;
+export declare function inAnimationFrame(): boolean;
 /** The one shared animation clock (animation.md §2 "The clock", §4.1 "one
  *  shared clock"). Pay-per-use and idle-zero: no live frame loop until a
  *  ticker is added, and the loop stops the moment the set empties. */

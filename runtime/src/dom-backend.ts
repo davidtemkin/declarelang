@@ -301,7 +301,7 @@ const CARVED = new Map<HTMLElement, DomSurface>();
 // router rides the same path through its rootEl, which is how an island inside
 // a rotated host window hears honest coordinates. Zero live transforms —
 // almost every app, almost all the time — is the untouched fast path.
-const TRANSFORMS = new WeakMap<HTMLElement, { k: number; deg: number; ox: number; oy: number }>();
+const TRANSFORMS = new WeakMap<HTMLElement, { k: number; deg: number; ox: number; oy: number; tx: number; ty: number }>();
 let liveTransforms = 0;
 
 // The scroll offset each marked scroller was last TOLD to hold — the model's
@@ -379,13 +379,16 @@ function throughTransforms(el: HTMLElement, cx: number, cy: number): { x: number
   }
   const t = TRANSFORMS.get(el);
   if (t !== undefined) {
-    // Forward is scale-then-rotate about (ox, oy) — uniform, so they commute
-    // and one inverse rotation over the descaled offset undoes both.
+    // Forward is TRANSLATE-then-scale-then-rotate about (ox, oy): a transformed
+    // box carries its position in the transform (setX/setY pin left/top to 0),
+    // so the layout offset subtracted above is 0 and the translation is undone
+    // HERE instead. Scale and rotation are uniform, so they commute and one
+    // inverse rotation over the descaled offset undoes both.
     const rad = (-t.deg * Math.PI) / 180;
     const c = Math.cos(rad);
     const s = Math.sin(rad);
-    const dx = (x - t.ox) / t.k;
-    const dy = (y - t.oy) / t.k;
+    const dx = (x - t.tx - t.ox) / t.k;
+    const dy = (y - t.ty - t.oy) / t.k;
     x = t.ox + dx * c - dy * s;
     y = t.oy + dx * s + dy * c;
   }
@@ -744,8 +747,23 @@ class DomSurface implements Surface {
     this.element = el;
   }
 
-  setX(v: number): void { this.element.style.left = v + "px"; }
-  setY(v: number): void { this.element.style.top = v + "px"; }
+  // Position rides the TRANSFORM whenever this box is already transformed, and
+  // `left`/`top` otherwise. Mixing them is the bug: `left`/`top` are layout
+  // properties the compositor cannot animate, so a box whose scale changes on
+  // the transform while its position changes in layout has the two halves of
+  // one pose travelling different pipelines with no guarantee they land in the
+  // same presented frame. Untransformed boxes keep the plain layout path.
+  private posX = 0;
+  private posY = 0;
+  setX(v: number): void { this.posX = v; this.placeSelf(); }
+  setY(v: number): void { this.posY = v; this.placeSelf(); }
+  private placeSelf(): void {
+    if (this.scaleK !== 1 || this.rotationDeg !== 0) this.applyTransform(this.pivotXCache, this.pivotYCache);
+    else {
+      this.element.style.left = this.posX + "px";
+      this.element.style.top = this.posY + "px";
+    }
+  }
 
   setWidth(v: number): void {
     this.frameW = v;
@@ -925,6 +943,8 @@ class DomSurface implements Surface {
   // here is never half-updated.
   private scaleK = 1;
   private rotationDeg = 0;
+  private pivotXCache = 0;
+  private pivotYCache = 0;
   setScale(scale: number, pivotX: number, pivotY: number): void {
     this.scaleK = scale;
     this.applyTransform(pivotX, pivotY);
@@ -940,17 +960,25 @@ class DomSurface implements Surface {
     // pays nothing. Scale-then-rotate about the shared pivot (the documented
     // order — commutative for uniform scale, so the CSS right-to-left
     // application changes nothing).
+    this.pivotXCache = pivotX;
+    this.pivotYCache = pivotY;
     if (this.scaleK === 1 && this.rotationDeg === 0) {
       this.element.style.transform = "";
       this.element.style.transformOrigin = "";
+      this.element.style.left = this.posX + "px";   // hand position back to layout
+      this.element.style.top = this.posY + "px";
       if (TRANSFORMS.delete(this.element)) liveTransforms--;
       return;
     }
+    this.element.style.left = "0px";
+    this.element.style.top = "0px";
     if (!TRANSFORMS.has(this.element)) liveTransforms++;
-    TRANSFORMS.set(this.element, { k: this.scaleK, deg: this.rotationDeg, ox: pivotX, oy: pivotY });
+    TRANSFORMS.set(this.element, { k: this.scaleK, deg: this.rotationDeg, ox: pivotX, oy: pivotY,
+                                   tx: this.posX, ty: this.posY });
     this.element.style.transformOrigin = pivotX + "px " + pivotY + "px";
     this.element.style.transform =
-      (this.scaleK !== 1 ? "scale(" + this.scaleK + ")" : "") +
+      "translate(" + this.posX + "px," + this.posY + "px)" +
+      (this.scaleK !== 1 ? " scale(" + this.scaleK + ")" : "") +
       (this.rotationDeg !== 0 ? " rotate(" + this.rotationDeg + "deg)" : "");
   }
 

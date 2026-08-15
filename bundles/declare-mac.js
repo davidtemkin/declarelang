@@ -1458,7 +1458,7 @@ var DeclareMac = (() => {
       return { k: "laszlo", beginPole: 0.25, endPole: 0.25 };
     return null;
   }
-  var DEFAULT_MOTION, BACK_DEFAULT, backIn, DIR_SUFFIX, FAMILIES, MOTION_TOKENS, browserScheduler, Clock, sharedClock;
+  var DEFAULT_MOTION, BACK_DEFAULT, backIn, DIR_SUFFIX, FAMILIES, MOTION_TOKENS, browserScheduler, framePhase, Clock, sharedClock;
   var init_animate = __esm({
     "runtime/dist/animate.js"() {
       "use strict";
@@ -1487,6 +1487,7 @@ var DeclareMac = (() => {
             cancelAnimationFrame(h);
         }
       };
+      framePhase = false;
       Clock = class {
         tickers = /* @__PURE__ */ new Set();
         /** The pending frame handle; null = no loop running (idle). */
@@ -1570,6 +1571,7 @@ var DeclareMac = (() => {
          *  is included in the next frame, not this one — iteration is over a
          *  snapshot so the same-`now` invariant holds for exactly this frame's set. */
         frame(now) {
+          framePhase = true;
           this.handle = null;
           this.ticking = true;
           try {
@@ -1580,6 +1582,9 @@ var DeclareMac = (() => {
             }
           } finally {
             this.ticking = false;
+            queueMicrotask(() => {
+              framePhase = false;
+            });
           }
           if (this.tickers.size > 0)
             this.handle = this.sched.request(this.frame);
@@ -4116,6 +4121,8 @@ var DeclareMac = (() => {
     const uses = /* @__PURE__ */ new Map();
     const collect = (el, into) => {
       for (const child of el.children) {
+        if (manyPathOf(child, schemas) !== null)
+          continue;
         if (uses.has(child.tag))
           into.add(child.tag);
         collect(child, into);
@@ -16705,8 +16712,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       const rad = -t.deg * Math.PI / 180;
       const c = Math.cos(rad);
       const s = Math.sin(rad);
-      const dx = (x - t.ox) / t.k;
-      const dy = (y - t.oy) / t.k;
+      const dx = (x - t.tx - t.ox) / t.k;
+      const dy = (y - t.ty - t.oy) / t.k;
       x = t.ox + dx * c - dy * s;
       y = t.oy + dx * s + dy * c;
     }
@@ -16986,6 +16993,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
 
   // runtime/dist/canvas-backend.js
   init_errors();
+  init_animate();
   init_value();
   init_measure();
   init_draw();

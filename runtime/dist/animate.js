@@ -175,6 +175,14 @@ export const browserScheduler = {
             cancelAnimationFrame(h);
     },
 };
+/** True from the moment a frame's ticks begin until the settle they queued has
+ *  drained — the window in which a backend can still paint INTO this frame. A
+ *  backend that books its own rAF instead lands on the NEXT frame, and its
+ *  pending-handle guard then swallows the following frame's request, so the
+ *  paint cadence halves: measured at 31 painted frames for 61 ticks during a
+ *  zoom. Motion drawn at half the rate it is computed is visible judder. */
+let framePhase = false;
+export function inAnimationFrame() { return framePhase; }
 /** The one shared animation clock (animation.md §2 "The clock", §4.1 "one
  *  shared clock"). Pay-per-use and idle-zero: no live frame loop until a
  *  ticker is added, and the loop stops the moment the set empties. */
@@ -262,6 +270,7 @@ export class Clock {
      *  is included in the next frame, not this one — iteration is over a
      *  snapshot so the same-`now` invariant holds for exactly this frame's set. */
     frame(now) {
+        framePhase = true; // opened here, closed after the ticks below
         this.handle = null;
         this.ticking = true;
         try {
@@ -273,6 +282,11 @@ export class Clock {
         }
         finally {
             this.ticking = false;
+            // Close the window only AFTER the settle this frame's writes queued: the
+            // ticks ran first, so their settle microtask is already ahead of this one
+            // — a backend invalidating during that settle still sees the window open
+            // and paints into THIS frame instead of booking the next.
+            queueMicrotask(() => { framePhase = false; });
         }
         if (this.tickers.size > 0)
             this.handle = this.sched.request(this.frame);

@@ -386,13 +386,16 @@ function throughTransforms(el, cx, cy) {
     }
     const t = TRANSFORMS.get(el);
     if (t !== undefined) {
-        // Forward is scale-then-rotate about (ox, oy) — uniform, so they commute
-        // and one inverse rotation over the descaled offset undoes both.
+        // Forward is TRANSLATE-then-scale-then-rotate about (ox, oy): a transformed
+        // box carries its position in the transform (setX/setY pin left/top to 0),
+        // so the layout offset subtracted above is 0 and the translation is undone
+        // HERE instead. Scale and rotation are uniform, so they commute and one
+        // inverse rotation over the descaled offset undoes both.
         const rad = (-t.deg * Math.PI) / 180;
         const c = Math.cos(rad);
         const s = Math.sin(rad);
-        const dx = (x - t.ox) / t.k;
-        const dy = (y - t.oy) / t.k;
+        const dx = (x - t.tx - t.ox) / t.k;
+        const dy = (y - t.ty - t.oy) / t.k;
         x = t.ox + dx * c - dy * s;
         y = t.oy + dx * s + dy * c;
     }
@@ -734,8 +737,24 @@ class DomSurface {
         s.pointerEvents = "none";
         this.element = el;
     }
-    setX(v) { this.element.style.left = v + "px"; }
-    setY(v) { this.element.style.top = v + "px"; }
+    // Position rides the TRANSFORM whenever this box is already transformed, and
+    // `left`/`top` otherwise. Mixing them is the bug: `left`/`top` are layout
+    // properties the compositor cannot animate, so a box whose scale changes on
+    // the transform while its position changes in layout has the two halves of
+    // one pose travelling different pipelines with no guarantee they land in the
+    // same presented frame. Untransformed boxes keep the plain layout path.
+    posX = 0;
+    posY = 0;
+    setX(v) { this.posX = v; this.placeSelf(); }
+    setY(v) { this.posY = v; this.placeSelf(); }
+    placeSelf() {
+        if (this.scaleK !== 1 || this.rotationDeg !== 0)
+            this.applyTransform(this.pivotXCache, this.pivotYCache);
+        else {
+            this.element.style.left = this.posX + "px";
+            this.element.style.top = this.posY + "px";
+        }
+    }
     setWidth(v) {
         this.frameW = v;
         this.element.style.width = v + "px";
@@ -909,6 +928,8 @@ class DomSurface {
     // here is never half-updated.
     scaleK = 1;
     rotationDeg = 0;
+    pivotXCache = 0;
+    pivotYCache = 0;
     setScale(scale, pivotX, pivotY) {
         this.scaleK = scale;
         this.applyTransform(pivotX, pivotY);
@@ -924,19 +945,27 @@ class DomSurface {
         // pays nothing. Scale-then-rotate about the shared pivot (the documented
         // order — commutative for uniform scale, so the CSS right-to-left
         // application changes nothing).
+        this.pivotXCache = pivotX;
+        this.pivotYCache = pivotY;
         if (this.scaleK === 1 && this.rotationDeg === 0) {
             this.element.style.transform = "";
             this.element.style.transformOrigin = "";
+            this.element.style.left = this.posX + "px"; // hand position back to layout
+            this.element.style.top = this.posY + "px";
             if (TRANSFORMS.delete(this.element))
                 liveTransforms--;
             return;
         }
+        this.element.style.left = "0px";
+        this.element.style.top = "0px";
         if (!TRANSFORMS.has(this.element))
             liveTransforms++;
-        TRANSFORMS.set(this.element, { k: this.scaleK, deg: this.rotationDeg, ox: pivotX, oy: pivotY });
+        TRANSFORMS.set(this.element, { k: this.scaleK, deg: this.rotationDeg, ox: pivotX, oy: pivotY,
+            tx: this.posX, ty: this.posY });
         this.element.style.transformOrigin = pivotX + "px " + pivotY + "px";
         this.element.style.transform =
-            (this.scaleK !== 1 ? "scale(" + this.scaleK + ")" : "") +
+            "translate(" + this.posX + "px," + this.posY + "px)" +
+                (this.scaleK !== 1 ? " scale(" + this.scaleK + ")" : "") +
                 (this.rotationDeg !== 0 ? " rotate(" + this.rotationDeg + "deg)" : "");
     }
     setBlend(mode) {

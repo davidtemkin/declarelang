@@ -164,8 +164,15 @@ export function programSchemas(classes) {
         build(decl);
     // Containment cycles: DFS over "class → user classes used in its body".
     const uses = new Map();
+    // A child carrying a MANY-datapath is a LAZY edge: it never constructs during
+    // expansion (the parent gets a Replicator; instances materialize one per record,
+    // and an empty match is the base case), so recursion through it is data-bounded
+    // and terminates. Only a cycle whose every edge is EAGER can never finish
+    // instantiating — that is the shape this walk exists to reject.
     const collect = (el, into) => {
         for (const child of el.children) {
+            if (manyPathOf(child, schemas) !== null)
+                continue;
             if (uses.has(child.tag))
                 into.add(child.tag);
             collect(child, into);

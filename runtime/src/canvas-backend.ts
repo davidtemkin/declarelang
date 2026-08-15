@@ -28,6 +28,8 @@
 // so the hit walk tells the truth about a turned or scaled surface).
 
 import { DeclareError } from "./errors.js";
+import { inAnimationFrame } from "./animate.js";
+const MICROTASK_PAINT = -1;
 import type { Bitmap, EditableSpec, InputSink, RenderBackend, Stretch, Surface, InputWants } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Stroke } from "./value.js";
@@ -427,6 +429,18 @@ class Compositor {
    *  idle or unattached tree costs nothing. */
   invalidate(): void {
     if (this.frame !== 0 || this.ctx === null) return;
+    // Inside an animation frame, paint into THIS frame — a microtask, so it runs
+    // after the settle has quiesced but before the browser's render step —
+    // rather than booking the next one, which halves the cadence.
+    if (inAnimationFrame()) {
+      this.frame = MICROTASK_PAINT;
+      queueMicrotask(() => {
+        if (this.frame !== MICROTASK_PAINT) return;
+        this.frame = 0;
+        this.paint();
+      });
+      return;
+    }
     this.frame = requestAnimationFrame(this.paint);
   }
 
