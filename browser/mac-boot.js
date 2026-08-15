@@ -80,10 +80,21 @@ async function fromServer(programUrl) {
   return { source: j.source, deps: j.deps ?? {}, base: programUrl };
 }
 
+/** WHERE THE DISTRO IS for a given program — the base its LIBRARY and the
+ *  compiler are read from. Two sources, one notion: a program served over http
+ *  is served BY a distro, so the origin is it; a `.declare` opened from disk is
+ *  not in any distro, so the host's stamp names one (Bridge.distroBase). This is
+ *  the only thing the file: path needs that the http path does not. */
+function distroFor(programUrl) {
+  if (/^file:/i.test(programUrl)) return H.distro || "";
+  return new URL("/", programUrl).href;
+}
+
 let compilerLoaded = false;
-async function loadCompiler(origin) {
+async function loadCompiler(distro) {
   if (compilerLoaded) return true;
-  const url = new URL("/bundles/declare-compiler-mac.js", origin).href;
+  if (!distro) { log("no distro: cannot load the compiler (set DECLARE_ROOT or stamp the app)"); return false; }
+  const url = new URL("bundles/declare-compiler-mac.js", distro).href;
   const res = await fetch(url);
   if (!res.ok) return false;
   const src = await res.text();
@@ -99,34 +110,29 @@ async function loadCompiler(origin) {
  *  bare tag. The live-edit channel compiles in this same context, and when boot
  *  took the server tier this had never run — so the workbench reported ten
  *  unknown components for a file that compiles clean. */
-async function ensureLibrary(origin) {
+async function ensureLibrary(distro) {
   if (globalThis.__declareLibLoaded) return;
+  if (!distro) return;
   try {
-    const manifest = await (await fetch(new URL("/library/autoincludes.json", origin).href)).json();
-    const names = [...new Set(Object.values(manifest).filter((v) => typeof v === "string"))];
-    // ⚠ SHAPE MATTERS, in three ways that all fail the same silent way
-    // ("unknown component 'Button'" on every bare tag):
-    //   • setDefaultLibrary takes BrowserFiles — { files, manifest, libraryRoot }
-    //     — NOT a flat filename→source map.
-    //   • `files` keys are CANONICAL paths, so "library/button.declare", not
-    //     "button.declare".
-    //   • the MANIFEST (tag → path) has to ride along; without it nothing maps a
-    //     bare tag to a file, however many sources are registered.
-    const files = {};
-    await Promise.all(names.map(async (f) => {
-      const r = await fetch(new URL("/library/" + f, origin).href);
-      if (r.ok) files["library/" + f] = await r.text();
-    }));
-    globalThis.__declareCompiler.setDefaultLibrary({ files, manifest, libraryRoot: "library" });
+    const manifest = await (await fetch(new URL("library/autoincludes.json", distro).href)).json();
+    // The MANIFEST is what must be in hand: the auto-include pass needs the
+    // tag→file table to know WHICH components a program names. The sources are
+    // NOT prefetched — `origins` hands the compiler a fetch host, so it reads the
+    // handful a program actually reaches, from the distro, during the walk. (The
+    // web dropped its equivalent preload the same way. It also could not have
+    // worked here: a program opened from disk has no origin to prefetch from.)
+    globalThis.__declareCompiler.setDefaultLibrary({ manifest, libraryRoot: "library", origins: { distro } });
     globalThis.__declareLibLoaded = true;
   } catch (e) { log("client compile: library fetch failed — " + e.message); }
 }
 
 async function fromClient(programUrl) {
-  const origin = new URL(programUrl).origin;
-  if (!(await loadCompiler(origin))) return null;
+  const distro = distroFor(programUrl);
+  if (!(await loadCompiler(distro))) return null;
   const src = await (await fetch(programUrl)).text();
-  await ensureLibrary(origin);
+  await ensureLibrary(distro);
+  // The program's OWN directory, absolute — which is what makes its includes
+  // resolve beside IT while the library still resolves against the distro.
   const dir = programUrl.replace(/[^/]*$/, "");
   const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
   if (!out.source) throw new Error(out.report || "compile failed");
@@ -140,7 +146,11 @@ async function resolveProgram(url) {
     const p = await fromProduction(url.endsWith("/") ? url : url.replace(/program\.json$/, ""));
     if (p) return p;
   }
-  try {
+  // A file: document has no server to ask. Without this the rung still
+  // "worked" — Swift's URL.path ignores the ?program query, so it read the
+  // .declare SOURCE, failed to parse it as JSON, and fell through — but it read
+  // the whole file to discard it and logged a line that reads like a fault.
+  if (!/^file:/i.test(url)) try {
     const s = await fromServer(url);
     if (s) return s;
   } catch (e) {
@@ -396,8 +406,8 @@ async function compileLive(src) {
       return r.source ? { source: r.source, deps: r.deps ?? {} } : { report: r.report || "compile failed" };
     }
   } catch (e) { log("live compile: " + e.message); }
-  if (!(await loadCompiler(origin))) return null;
-  await ensureLibrary(origin);
+  if (!(await loadCompiler(distroFor(main)))) return null;
+  await ensureLibrary(distroFor(main));
   try {
     const dir = main.replace(/[^/]*$/, "");
     const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
@@ -494,7 +504,11 @@ function mountCompiled(surfaceId, compiled, env) {
 // ── host → JS entry points ──────────────────────────────────────────────────
 
 globalThis.__declareBoot = (url) => macBoot(url).catch((e) => {
-  H.log("error", "boot failed: " + (e && e.stack || e));
+  // MESSAGE FIRST, then the stack. A compile failure throws with the compiler's
+  // whole rendered report as its message — naming the file, line and fix — and
+  // logging `e.stack` alone threw that away, leaving a bundle offset
+  // ("fromClient@…declare-mac.js:18168:37") as the entire diagnosis.
+  H.log("error", "boot failed: " + ((e && e.message) || e) + (e && e.stack ? "\n  at " + e.stack : ""));
   H.bootFailed(String(e && e.message || e));
 });
 globalThis.__declareScroll = (x, y, dy, dx) => macScroll(x, y, dy, dx || 0);

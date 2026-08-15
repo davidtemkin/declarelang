@@ -176,6 +176,8 @@ export function fetchHost(opts: BrowserFiles & { origins: FetchOrigins }): AutoI
       // REVALIDATES rather than skipping the HTTP cache: a 304 is the cheap
       // answer for a file that has not changed, and the strong validator is the
       // same one the closure probe compares.
+      // an absolute canonical is already the address; a relative one is
+      // deploy-relative and reads against the distro
       const url = new URL(canonical, opts.origins.distro);
       const res = await doFetch(url, { cache: "no-cache" });
       if (res.ok) text = await res.text();
@@ -193,7 +195,23 @@ export function fetchHost(opts: BrowserFiles & { origins: FetchOrigins }): AutoI
       ? null
       : { canonical, dir: canonical.split("/").slice(0, -1).join("/"), source };
   };
-  const resolveAt = (dir: string, path: string) => at(normalizePath(dir + "/" + path));
+  // A canonical is normally DEPLOY-RELATIVE ("apps/weather/art.declare") and read
+  // against the distro. But a program can live OUTSIDE any distro — a `.declare`
+  // opened from disk by the native host, whose own includes sit beside it while
+  // its LIBRARY still comes from the distro. No single base spells both, so an
+  // ABSOLUTE `originDir` (one carrying a scheme) yields absolute canonicals:
+  // `new URL(abs, anything)` is `abs`, so both kinds share one key space and
+  // `read` needs no branch. The library root stays relative either way, which is
+  // what keeps it pointing at the distro rather than at the document's directory.
+  //
+  // normalizePath must NOT see an absolute dir: it drops empty segments, so
+  // "file:///Users/x/" collapses to "file:/Users/x" — which Node's URL parser
+  // quietly repairs and JavaScriptCore's does not, so the mistake reads as
+  // "cannot find include" on the native host alone.
+  const absolute = (d: string) => /^[a-z][a-z0-9+.-]*:/i.test(d);
+  const resolveAt = (dir: string, path: string) =>
+    at(absolute(dir) ? new URL(path, dir.endsWith("/") ? dir : dir + "/").href
+                     : normalizePath(dir + "/" + path));
   const roots = [srcDir];
   return {
     resolve: (fromDir, path) => searchIncludePath(fromDir, path, roots, resolveAt),

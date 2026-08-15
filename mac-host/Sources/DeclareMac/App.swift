@@ -374,6 +374,14 @@ final class DeclareView: NSView {
 // ── the shell ───────────────────────────────────────────────────────────────
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    /// The document the Finder handed us, held until there is something to open it
+    /// WITH. AppKit delivers `application(_:open:)` BEFORE
+    /// applicationDidFinishLaunching on a double-click launch, so `window` and
+    /// `bridge` are still nil then — opening immediately crashed on the implicit
+    /// unwrap (EXC_BREAKPOINT inside AppDelegate.open). Held here, the launch
+    /// handler uses it as the start URL; once running, a second document opens
+    /// straight away.
+    private var pendingOpen: String?
     var window: NSWindow!
     var control: ControlChannel?
     var view: DeclareView!
@@ -426,7 +434,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         syncSize()
-        let start = ProcessInfo.processInfo.environment["DECLARE_URL"]
+        // A document the Finder handed us wins over every default: it is what the
+        // user actually asked for.
+        let start = pendingOpen
+            ?? ProcessInfo.processInfo.environment["DECLARE_URL"]
             ?? CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") })
             ?? UserDefaults.standard.string(forKey: "lastURL")
             ?? "http://127.0.0.1:8260/apps/desktop/desktop.declare"
@@ -451,6 +462,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // request is a no-op — this is one of the host events whose frame they
     // are promised.
     @objc func appearanceChanged() { bridge.call("__declareEnvChanged", []) ; bridge.needsFrame() }
+
+    /// The FINDER path: double-clicking a .declare, or dropping one on the app.
+    func application(_ app: NSApplication, open urls: [URL]) {
+        guard let u = urls.first else { return }
+        if window == nil { pendingOpen = u.absoluteString; return }   // pre-launch: hold it
+        open(u.absoluteString)
+    }
 
     func open(_ url: String) {
         currentURL = url

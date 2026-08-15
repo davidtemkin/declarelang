@@ -47,6 +47,11 @@ mac-host/.build/
 # helper is per-machine (win.mjs rebuilds it on demand) — same split as pointer.
 mac-host/winb
 
+# the assembled native host (mac-host/bundle.sh). Its sources are tracked; the
+# .app is a per-machine build product, and it lands here so it self-locates the
+# tree it was built from (Bridge.distroRoot).
+mac-host/Declare Mac.app/
+
 # derive's rule manifest + intermediates (tools/internal/derive.mjs): per-clone
 # skip state and the extract→assemble handoff — regenerated, never committed.
 .derive/

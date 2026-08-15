@@ -18128,10 +18128,18 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     log("boot: server compile" + (etag ? " (cached for next time)" : ""));
     return { source: j.source, deps: j.deps ?? {}, base: programUrl };
   }
+  function distroFor(programUrl) {
+    if (/^file:/i.test(programUrl)) return H.distro || "";
+    return new URL("/", programUrl).href;
+  }
   var compilerLoaded = false;
-  async function loadCompiler(origin) {
+  async function loadCompiler(distro) {
     if (compilerLoaded) return true;
-    const url = new URL("/bundles/declare-compiler-mac.js", origin).href;
+    if (!distro) {
+      log("no distro: cannot load the compiler (set DECLARE_ROOT or stamp the app)");
+      return false;
+    }
+    const url = new URL("bundles/declare-compiler-mac.js", distro).href;
     const res = await fetch(url);
     if (!res.ok) return false;
     const src = await res.text();
@@ -18139,27 +18147,22 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     compilerLoaded = typeof globalThis.__declareCompiler === "object";
     return compilerLoaded;
   }
-  async function ensureLibrary(origin) {
+  async function ensureLibrary(distro) {
     if (globalThis.__declareLibLoaded) return;
+    if (!distro) return;
     try {
-      const manifest = await (await fetch(new URL("/library/autoincludes.json", origin).href)).json();
-      const names = [...new Set(Object.values(manifest).filter((v) => typeof v === "string"))];
-      const files = {};
-      await Promise.all(names.map(async (f) => {
-        const r = await fetch(new URL("/library/" + f, origin).href);
-        if (r.ok) files["library/" + f] = await r.text();
-      }));
-      globalThis.__declareCompiler.setDefaultLibrary({ files, manifest, libraryRoot: "library" });
+      const manifest = await (await fetch(new URL("library/autoincludes.json", distro).href)).json();
+      globalThis.__declareCompiler.setDefaultLibrary({ manifest, libraryRoot: "library", origins: { distro } });
       globalThis.__declareLibLoaded = true;
     } catch (e) {
       log("client compile: library fetch failed \u2014 " + e.message);
     }
   }
   async function fromClient(programUrl) {
-    const origin = new URL(programUrl).origin;
-    if (!await loadCompiler(origin)) return null;
+    const distro = distroFor(programUrl);
+    if (!await loadCompiler(distro)) return null;
     const src = await (await fetch(programUrl)).text();
-    await ensureLibrary(origin);
+    await ensureLibrary(distro);
     const dir = programUrl.replace(/[^/]*$/, "");
     const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
     if (!out.source) throw new Error(out.report || "compile failed");
@@ -18171,7 +18174,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       const p = await fromProduction(url.endsWith("/") ? url : url.replace(/program\.json$/, ""));
       if (p) return p;
     }
-    try {
+    if (!/^file:/i.test(url)) try {
       const s = await fromServer(url);
       if (s) return s;
     } catch (e) {
@@ -18340,8 +18343,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     } catch (e) {
       log("live compile: " + e.message);
     }
-    if (!await loadCompiler(origin)) return null;
-    await ensureLibrary(origin);
+    if (!await loadCompiler(distroFor(main))) return null;
+    await ensureLibrary(distroFor(main));
     try {
       const dir = main.replace(/[^/]*$/, "");
       const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
@@ -18416,7 +18419,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     return child;
   }
   globalThis.__declareBoot = (url) => macBoot(url).catch((e) => {
-    H.log("error", "boot failed: " + (e && e.stack || e));
+    H.log("error", "boot failed: " + (e && e.message || e) + (e && e.stack ? "\n  at " + e.stack : ""));
     H.bootFailed(String(e && e.message || e));
   });
   globalThis.__declareScroll = (x, y, dy, dx) => macScroll(x, y, dy, dx || 0);

@@ -40,6 +40,22 @@ final class Bridge {
     var onTitle: ((String) -> Void)?
     var onBootFailed: ((String) -> Void)?
 
+    /// The ONE network session, deliberately cache-LESS. URLSession's own disk
+    /// cache is not merely redundant here, it is wrong: fetch() already refuses
+    /// it (`.reloadIgnoringLocalCacheData`, see the note there) because it once
+    /// handed boot a stale `?program` body, and the compile cache below owns
+    /// revalidation where the etag is. Leaving the shared session in place for
+    /// images meant the OS cache filled up anyway — and under TWO identities,
+    /// since Foundation keys it by executable name when the bare binary runs and
+    /// by bundle id when the .app does (~/Library/Caches/DeclareMac and
+    /// …/com.davidtemkin.declare.host, a megabyte each). One cache, ours.
+    static let net: URLSession = {
+        let c = URLSessionConfiguration.ephemeral
+        c.urlCache = nil
+        c.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: c)
+    }()
+
     /// Where the platform's own files live (the client compile cache).
     private lazy var cacheDir: URL = {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -221,6 +237,12 @@ final class Bridge {
             self?.ctx.evaluateScript(src, withSourceURL: URL(string: url))
         } as @convention(block) (String, String) -> Void, forKeyedSubscript: "evaluate")
 
+        // WHERE THE DISTRO IS, as a file:// base the JS side can resolve against.
+        // A program opened from disk lives anywhere; its LIBRARY and the compiler
+        // still come from a Declare tree, and this names that tree. Same notion the
+        // http path gets from the serving origin — one concept, two sources.
+        host.setObject(Self.distroBase(), forKeyedSubscript: "distro")
+
         ctx.setObject(host, forKeyedSubscript: "__declareMacHost" as NSString)
     }
 
@@ -299,6 +321,25 @@ final class Bridge {
             if FileManager.default.fileExists(atPath: u.path) { return u }
         }
         return nil
+    }
+
+    /// The stamped distro as a `file://` base (trailing slash), or "" when none
+    /// can be found. DECLARE_ROOT wins (a developer saying "run the tree I am
+    /// editing"), then the Info.plist stamp bundle.sh bakes in, then the walk up
+    /// from the executable. An env var alone is not enough: a Finder launch
+    /// inherits launchd's environment, not a shell's, so a double-clicked app
+    /// would see nothing at all.
+    static func distroBase() -> String {
+        if let stamp = Bundle.main.object(forInfoDictionaryKey: "DeclareDistroRoot") as? String,
+           !stamp.isEmpty,
+           ProcessInfo.processInfo.environment["DECLARE_ROOT"] == nil,
+           FileManager.default.fileExists(atPath: stamp + "/bundles/declare-mac.js") {
+            return URL(fileURLWithPath: stamp, isDirectory: true).absoluteString
+        }
+        let r = distroRoot()
+        guard FileManager.default.fileExists(atPath: r.appendingPathComponent("bundles/declare-mac.js").path)
+        else { return "" }
+        return r.absoluteString.hasSuffix("/") ? r.absoluteString : r.absoluteString + "/"
     }
 
     static func distroRoot() -> URL {
@@ -586,7 +627,7 @@ final class Bridge {
         // Header pass-through for the cache revalidation tier.
         if let hdrs = pendingHeaders[id] { for (k, v) in hdrs { req.setValue(v, forHTTPHeaderField: k) } }
         pendingHeaders[id] = nil
-        URLSession.shared.dataTask(with: req) { [weak self] data, resp, _ in
+        Self.net.dataTask(with: req) { [weak self] data, resp, _ in
             let http = resp as? HTTPURLResponse
             let status = http?.statusCode ?? -1
             let text = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
@@ -616,7 +657,7 @@ final class Bridge {
         if url.isFileURL {
             finish(Self.decode(try? Data(contentsOf: url))); return
         }
-        URLSession.shared.dataTask(with: url) { data, _, _ in finish(Self.decode(data)) }.resume()
+        Self.net.dataTask(with: url) { data, _, _ in finish(Self.decode(data)) }.resume()
     }
 
     static func decode(_ data: Data?) -> CGImage? {

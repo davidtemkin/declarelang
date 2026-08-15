@@ -12,7 +12,15 @@
 set -e
 cd "$(dirname "$0")"
 ROOT="$(cd .. && pwd)"
-OUT="${1:-$HOME/Desktop}/Declare Mac.app"
+# Default: BESIDE ITS SOURCES, in the tree. Same split as mac-host/winb — the
+# .swift is tracked, the built thing is per-machine and gitignored. Two reasons
+# for here rather than anywhere else: `bundles/` is a BUILD_ID input, so an app
+# there would bump every deploy's cache-buster on each mac build; and an app at
+# this depth SELF-LOCATES — Bridge.distroRoot() walks up from the executable
+# looking for bundles/declare-mac.js and finds the tree five levels up, so a
+# dev build needs no stamp at all. Pass a directory to put it elsewhere
+# (`bundle.sh ~/Applications`), which is when the Info.plist stamp earns its keep.
+OUT="${1:-$ROOT/mac-host}/Declare Mac.app"
 
 swift build -c release >/dev/null
 rm -rf "$OUT"
@@ -56,9 +64,39 @@ cat > "$OUT/Contents/Info.plist" <<'PLIST'
     <key>NSAllowsLocalNetworking</key><true/>
     <key>NSAllowsArbitraryLoads</key><true/>
   </dict>
+  <!-- A .declare is a document this app opens: the Finder claim, and the type
+       itself, since no one else declares it. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key><string>Declare program</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Owner</string>
+      <key>LSItemContentTypes</key><array><string>com.davidtemkin.declare.source</string></array>
+    </dict>
+  </array>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>com.davidtemkin.declare.source</string>
+      <key>UTTypeDescription</key><string>Declare program</string>
+      <key>UTTypeConformsTo</key><array><string>public.source-code</string></array>
+      <key>UTTypeTagSpecification</key>
+      <dict><key>public.filename-extension</key><array><string>declare</string></array></dict>
+    </dict>
+  </array>
+  <!-- WHERE THE DISTRO IS. A program opened from disk gets its library and the
+       compiler from a Declare tree; this names the one this app was built from.
+       Stamped rather than read from the environment because a Finder launch
+       inherits launchd's environment, not a shell's — DECLARE_ROOT works from a
+       terminal and would be silently absent on a double-click. DECLARE_ROOT
+       still wins when it IS set (Bridge.distroBase). -->
+  <key>DeclareDistroRoot</key><string>__DISTRO_ROOT__</string>
 </dict>
 </plist>
 PLIST
+# the stamp is the tree this app was built from
+/usr/bin/sed -i '' "s|__DISTRO_ROOT__|$ROOT|" "$OUT/Contents/Info.plist"
 
 # Sign with the JIT entitlement. This is NOT cosmetic: without
 # com.apple.security.cs.allow-jit (plus the hardened runtime) JavaScriptCore
