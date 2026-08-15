@@ -12,15 +12,28 @@
 set -e
 cd "$(dirname "$0")"
 ROOT="$(cd .. && pwd)"
-# Default: BESIDE ITS SOURCES, in the tree. Same split as mac-host/winb — the
-# .swift is tracked, the built thing is per-machine and gitignored. Two reasons
-# for here rather than anywhere else: `bundles/` is a BUILD_ID input, so an app
-# there would bump every deploy's cache-buster on each mac build; and an app at
-# this depth SELF-LOCATES — Bridge.distroRoot() walks up from the executable
-# looking for bundles/declare-mac.js and finds the tree five levels up, so a
-# dev build needs no stamp at all. Pass a directory to put it elsewhere
-# (`bundle.sh ~/Applications`), which is when the Info.plist stamp earns its keep.
-OUT="${1:-$ROOT/mac-host}/Declare Mac.app"
+# WHERE IT LANDS. An installed app is the point — LaunchServices only claims the
+# .declare extension for an app in an Applications directory, so a double-click
+# reaches nothing until it lives in one. Best writable wins:
+#
+#   /Applications    the real install, visible to every user
+#   ~/Applications   when /Applications needs an admin this shell does not have
+#   mac-host/        last resort, in the tree beside its sources — always writable,
+#                    and at that depth it SELF-LOCATES (Bridge.distroRoot walks up
+#                    from the executable and finds the tree five levels above)
+#
+# Not bundles/: that is a BUILD_ID input, so an app there would bump every deploy's
+# cache-buster on each mac build. An explicit argument overrides the cascade.
+if [ -n "$1" ]; then
+  DEST="$1"
+elif [ -w /Applications ]; then
+  DEST="/Applications"
+elif mkdir -p "$HOME/Applications" 2>/dev/null && [ -w "$HOME/Applications" ]; then
+  DEST="$HOME/Applications"
+else
+  DEST="$ROOT/mac-host"
+fi
+OUT="$DEST/Declare Mac.app"
 
 swift build -c release >/dev/null
 rm -rf "$OUT"
@@ -85,6 +98,13 @@ cat > "$OUT/Contents/Info.plist" <<'PLIST'
       <dict><key>public.filename-extension</key><array><string>declare</string></array></dict>
     </dict>
   </array>
+  <!-- WHICH PLATFORM this app was assembled from: the distro's BUILD_ID at bundle
+       time (a content hash of runtime + compiler bundle + web client + library).
+       The app carries its own declare-mac.js but reads the COMPILER from the tree,
+       so the two can drift apart the moment the tree moves under it — an old
+       runtime paired with a new compiler is exactly the staleness that cost a
+       whole misdiagnosis on 2026-08-01. Stamped so the mismatch can be seen. -->
+  <key>DeclareToolchain</key><string>__TOOLCHAIN__</string>
   <!-- WHERE THE DISTRO IS. A program opened from disk gets its library and the
        compiler from a Declare tree; this names the one this app was built from.
        Stamped rather than read from the environment because a Finder launch
@@ -97,6 +117,8 @@ cat > "$OUT/Contents/Info.plist" <<'PLIST'
 PLIST
 # the stamp is the tree this app was built from
 /usr/bin/sed -i '' "s|__DISTRO_ROOT__|$ROOT|" "$OUT/Contents/Info.plist"
+TOOLCHAIN="$(/usr/bin/sed -n 's/.*"build" *: *"\([^"]*\)".*/\1/p' "$ROOT/bundles/version.json" 2>/dev/null)"
+/usr/bin/sed -i '' "s|__TOOLCHAIN__|${TOOLCHAIN:-unstamped}|" "$OUT/Contents/Info.plist"
 
 # Sign with the JIT entitlement. This is NOT cosmetic: without
 # com.apple.security.cs.allow-jit (plus the hardened runtime) JavaScriptCore

@@ -342,6 +342,27 @@ final class Bridge {
         return r.absoluteString.hasSuffix("/") ? r.absoluteString : r.absoluteString + "/"
     }
 
+    /// Warn when this app was assembled from a DIFFERENT platform than the tree
+    /// it is now reading. The app carries its own declare-mac.js but fetches the
+    /// COMPILER from the distro, so a tree that moved on pairs an old runtime
+    /// with a new compiler — silent, and the exact shape of the 2026-08-01
+    /// misdiagnosis. Advisory only: a dev tree moves constantly and refusing to
+    /// launch would be worse than saying so.
+    static func checkToolchain() {
+        guard let stamped = Bundle.main.object(forInfoDictionaryKey: "DeclareToolchain") as? String,
+              !stamped.isEmpty, stamped != "unstamped" else { return }
+        let base = distroBase()
+        guard !base.isEmpty, let u = URL(string: base + "bundles/version.json"),
+              let data = try? Data(contentsOf: u),
+              let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let current = j["build"] as? String else { return }
+        if current != stamped {
+            NSLog("[Declare] ⚠︎ this app was built from platform %@; the tree now reads %@. "
+                  + "Re-run mac-host/bundle.sh — its bundled runtime and the tree's compiler may disagree.",
+                  stamped, current)
+        }
+    }
+
     static func distroRoot() -> URL {
         if let env = ProcessInfo.processInfo.environment["DECLARE_ROOT"] { return URL(fileURLWithPath: env) }
         // …/mac/.build/<cfg>/DeclareMac → the distro two levels above `mac/`

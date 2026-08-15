@@ -18,8 +18,8 @@ compiler disagree, the compiler is right. Status: pre-1.0, under active design (
 
 | where | what is there | go when |
 |---|---|---|
-| [**`declare-help`**](operational/help.md) | **ask the platform for one exact fact** — `node tools/declare-help.mjs <name>` takes any dotted name, class, attribute, concept, enum, or diagnostic code and answers in the compiler's register, did-you-mean included. A true miss exits 1 and says what it searched, so silence is trustworthy. Reading for a name costs more than asking for it | you need a name, a type, a signature, or what a code means |
-| [`declare-model.json`](declare-model.json) | what `declare-help` reads: every component, attribute, type, method, event and diagnostic — generated from source, keyed `Class.attr` under `reference`. A class's page carries its own members and then each ancestor's, so everything reachable on it is on one page | you want to browse the whole surface rather than ask one question |
+| [**`declare-help`**](operational/help.md) | **ask the platform for one exact fact** — `node tools/declare-help.mjs <name>` takes any dotted name, class, attribute, concept, enum, or diagnostic code and answers in the compiler's register, did-you-mean included; a true miss exits 1 and says what it searched, so silence is trustworthy | you need a name, a type, a signature, or what a code means |
+| [`declare-model.json`](declare-model.json) | what `declare-help` reads: every component, attribute, type, method, event and diagnostic, generated from source; a class's page carries its ancestors' members too, so everything reachable on it is on one page | you want to browse the whole surface rather than ask one question |
 | `library/` | the standard components — controls, structure, layouts, embedding, and the `Control` base your own controls extend — written in Declare | you want to know what ships, or to read how one is built |
 | `apps/` | complete programs; `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->840<!--/stat--> lines) is the reference, and `apps/birds/birds.declare` is the worked example of `location` + `waypoint` | you want the idiom at full scale |
 | [`docs/guide/`](guide/01-thinking-in-declare.md) | a narrative course, chapter by chapter | you want the reasoning, or you are learning rather than looking up |
@@ -68,9 +68,6 @@ applied to structure, space, data, style, and time.
 
 ### Six differences
 
-Stated against what you already know, because that is the shortest true form. Each is developed
-where it belongs.
-
 1. **`{ }` is TypeScript, and only TypeScript.** Bare slots have their own literal vocabulary,
    and it stops at the brace: `width = { 100% }` is a syntax error, and a color inside braces is
    `0x4169E1`, not `royalblue` or `#4169E1`. (§2)
@@ -107,9 +104,7 @@ A value slot accepts four things, and the spelling tells you which:
 | a **`:`-prefixed** path | a read from bound data — a **datapath** | `text = :title` |
 
 A bare literal is the value itself, so a `script { }` constant is *not* one: `tint = SEAT_FREE`
-reads the bare slot's own vocabulary and fails ("not a CSS color name"). Reach a constant
-through a constraint — `tint = { SEAT_FREE }` — which is where identifiers mean what
-TypeScript says they mean.
+fails in a bare slot. Reach a constant through braces — `tint = { SEAT_FREE }`.
 
 ### The vocabulary stops at the brace
 
@@ -131,10 +126,8 @@ A body is TypeScript at full expression strength: ternaries, template literals, 
 closures, and casts (`x as T`, `x!`), which are type-checked and then stripped. Two limits, each
 a compile error naming the rewrite. **A value body is a single expression** — statements live in
 methods. **Type annotations do not live in bodies** — a declared type belongs on the attribute,
-as `name: type = …`. That covers local bindings and lambda parameters too, not just
-attributes: `const xs: number[] = …` inside a method is refused; narrow with `x as T`
-instead. (A top-level `script { }` is different — it is plain TypeScript and takes
-annotations everywhere, so the same line is legal there and illegal in a body.)
+as `name: type = …`; that covers locals and lambda parameters too — narrow with `x as T`.
+(A top-level `script { }` is plain TypeScript and exempt.)
 
 **A `:path` may also appear inside a `{ }` body**, and this is central rather than exotic: it is
 how anything conditional over replicated data gets written. `text = { :on ? :title : "—" }` reads
@@ -176,9 +169,8 @@ Text [ text = "OK" ]                  // a CHILD, anonymous
 
 **`draw(d: Draw)` is a first-class member, not an escape hatch.** It records a display list of plain
 ops that every renderer replays, and it is a *tracked computation* like any constraint: it re-runs
-when what it read changes, never per frame. The library draws with it — a `Checkbox`'s tick is a
-recorded path, not a glyph. `d` takes the Canvas2D drawing calls (`fillStyle`, `beginPath`,
-`moveTo`, `stroke`, …).
+when what it read changes, never per frame. `d` takes the Canvas2D drawing calls (`fillStyle`,
+`beginPath`, `moveTo`, `stroke`, …).
 
 **`name = value` sets an attribute that exists; `name: Type = value` declares a new one.**
 Declaring is how reactive state enters a program; setting is how it is wired. A declaration's
@@ -199,8 +191,8 @@ app-wide keyboard handling regardless of focus. There is no subscription syntax 
 unregister: a source is a child, so it lives and dies with the node that declares it.
 
 **Members are separated by commas** — the separator is required, and the compiler names the
-spot when one is missing. A *trailing* comma before a closing `]` is legal to write; house
-style omits it, and the formatter removes it.
+spot when one is missing. A *trailing* comma before a closing `]` is legal; the formatter
+(§12) removes it.
 
 ### What a name reaches
 
@@ -208,10 +200,9 @@ style omits it, and the formatter removes it.
 are the scope exactly as they are the tree. Each `[ ]` you are nested inside is a level whose
 surface is that component's whole member set, and the nearest level owning the name wins. The
 compiler rewrites the read to an explicit path, so this is lexical and settled at compile time,
-not a lookup that walks anything at runtime. Two consequences: every view carries the built-in
-attributes, so a bare `width` always means *this* node's `width` and built-ins never resolve
-outward; and a user-declared name shadowed by a nearer one is a warning that names the qualified
-spelling.
+not a lookup that walks anything at runtime. One consequence to hold on to: every view carries
+the built-in attributes, so a bare `width` always means *this* node's `width` — built-ins never
+resolve outward.
 
 Three reserved words say it explicitly, and nothing else may take their names: **`this`** (the
 node the code is written on), **`parent`**, and **`app`** (the running application, from any depth
@@ -250,19 +241,16 @@ Besides `class`, the top level holds `script`, `include`, `use`, `font`, `style`
 helpers; a constraint may call one and the compiler reads through it (§5). **`include
 [ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
 a component the build would otherwise drop, for when your code constructs it by name at runtime
-(`createView`, §7). **`font Name [ … ]`** declares a font family (`Face` children carry web-font files; a use
-site picks with `fontFamily = [Name, "system-ui"]`), and `style` and `stylesheet`
-are style constructs (§9).
+(`createView`, §7). **`font Name [ … ]`** declares a font family (a use site picks with
+`fontFamily = [Name, "system-ui"]`), and `style` and `stylesheet` are style constructs (§9).
 
 ### `classroot`
 
-**`classroot` is legal only inside the body of a `class` you are defining, and nowhere else.**
-It is a tool for *authoring a component*, not for navigating a tree; if you are not writing
-`class Name extends Base [ … ]`, you do not want it.
-
-Inside a class definition, a bare name already reaches the class's own attributes. Reach for
-`classroot` when the reach is less direct — a handler, or a subview several levels down, acting
-on **the component itself**.
+**`classroot` is legal only inside the body of a `class` you are defining, and nowhere else** —
+if you are not writing `class Name extends Base [ … ]`, you do not want it. It names **the
+component instance itself**, from any depth inside the class: the reach for a handler or a deep
+subview acting on the component, and the explicit spelling when a nearer child shadows a bare
+name.
 
 ```declare-fragment
 class WeatherTab extends View [ selected: boolean = false,
@@ -274,9 +262,6 @@ class WeatherTab extends View [ selected: boolean = false,
         ]
     ]
 ```
-
-It reaches that instance from any depth inside the class, and it is also the explicit spelling
-when a nearer child shadows a bare name.
 
 ### Layout is an attribute
 
@@ -318,30 +303,23 @@ bound to it; there is no bypass. Reads are symmetric — a bare read **is** the 
 
 ### What owns a cell
 
-A `{ }` can appear on either kind of member from §3 — one that **sets** an attribute, or one that
-**declares** a new one — and the two behave differently in one mechanical way: whether the slot
-gets a cell of its own. Everything else follows from that, so it is the distinction to learn first.
-
-**A set attribute owns a cell.** `width = { … }`, on an attribute that already exists, installs a
-standing constraint: reading the slot subscribes to the slot, and the runtime keeps it current. It
-also guards it — a direct write is refused, with a message naming the fix — so a standing
-relationship cannot be overwritten by accident.
-
-**A computed default is a formula.** `segIndex: number = { … }` — a *declaration* whose default is
-an expression — has no cell. Reading it inlines the expression, so its dependencies become the
-reader's; and with no cell to guard, an assignment simply replaces it. That is what makes it the
-right tool for a value you intend to take over later, and it is why `TextInput` offers
-`initial = { … }`, the editable twin of a read-only `text = { … }`. A library control's `input(v)`
-(§11) is the same idea.
+A `{ }` can appear on either member kind from §3 — **setting** an existing attribute, or
+**declaring** a new one — and one mechanical difference decides everything: whether the slot gets
+a cell of its own. A **set** attribute owns a cell: a standing constraint the runtime keeps
+current, and guards — a direct write is refused, with a message naming the fix. A **computed
+default** (`segIndex: number = { … }`, a *declaration* whose default is an expression) is a
+formula with no cell: reading it inlines the expression, and an assignment simply replaces it —
+the right tool for a value you may take over later, which is why `TextInput` offers
+`initial = { … }`, the editable twin of a read-only `text = { … }` (a control's `input(v)`, §11,
+is the same idea).
 
 | you wrote | owns a cell? | reading it | assigning to it | reach for it when |
 |---|---|---|---|---|
 | `width = { … }` — **set** an existing attribute | yes | subscribes to the slot | **refused** at runtime | the value is simply derived and should stay that way |
 | `segIndex: number = { … }` — **declare** with a default | no | inlines the expression, so its deps become yours | lands, and the formula is gone | you may want to take the value over later |
 
-Use both; know which you wrote. The formula is the one an assignment replaces, which is the whole
-reason for a single rule that covers every case: **derived state is never assigned — change its
-inputs instead.**
+Use both; know which you wrote. One rule covers every case: **derived state is never assigned —
+change its inputs instead.**
 
 One mechanism takes over a cell-owning slot without assigning to it. An `Animator`, a `Spring`, or
 a `State` override **suspends** the driver and **resumes it, re-evaluated,** on completion — the
@@ -369,12 +347,10 @@ attribute. Handler code is under none of these rules — it is unrestricted Type
 genuinely dynamic work belongs there or in the framework's own primitives.
 
 Only declared reactive attributes participate at all, so locals and plain objects in
-`script { }` cost nothing. Reads are prewired at link time, and writes batch into one cascade.
+`script { }` cost nothing.
 
-You never have to guess what a constraint is wired to: `__declare.explain(path, attr)` answers it
-on the running program — the expression, the read-paths it was bound to, and their live values
-(§12). It is dev tooling, present when you run from the dev server and in a `declarec --debug`
-build; a production build ships a stub.
+You never have to guess what a constraint is wired to — `__declare.explain` answers it on the
+running program (§12).
 
 ## 6. Space
 
@@ -430,8 +406,8 @@ why: View [ shows = "why",
 strips its own trailing `@name`), and the compiler gains a **registry**: every literal reference
 is checked at build — a typo'd `#stroy` is a compile error naming the real names — and
 data-driven references (`link = { :to }`) are checked when the crawl evaluates them. A linked
-view realizes a REAL `<a href>` (hover preview, ⌘-click, copy-link, a keyboard stop, the
-crawler's edge); `link = ""` is not a link at all. `replace = true` beside a link overwrites the
+view realizes a REAL `<a href>` (⌘-click, copy-link, the crawler's edge); `link = ""` is not a
+link at all. `replace = true` beside a link overwrites the
 history entry — fine-grained movement within a place (a deck's arrows) must not bury Back.
 
 Every arrival — a link, a prose href, a pasted URL, back/forward — reduces to one operation,
@@ -451,26 +427,21 @@ every registry destination and traverses the links each render emits — which i
 deep link indexable, and why the crawl fails loudly on a reference naming nothing.
 
 **Location is the app's shareable coordinates** — what a recipient should see when handed the
-URL, nothing more. A chapter, a selected item, a map position belong in it; a draft, a
-selection, a session's accumulated working values are ordinary attributes and never reach the
-URL. (The fragment is also never sent to the server — location stays client-side by
-construction.)
+URL, nothing more; a draft or a session's working values are ordinary attributes. (The fragment
+never reaches the server — location stays client-side by construction.)
 
-State that the Back button *should* undo but a stranger should never see — the turns
-of a search, which page of a wizard — is the third kind, and it has its own attribute: **`waypoint`**,
-`location`'s twin with the opposite visibility. One two-way reactive string, grammar the
-app's own, carried in the History entry itself and never in the URL. A history entry is the
-pair *(location, waypoint)*: one entry per settle in which either changed — both changing
-together is one entry, and one Back restores the pair atomically, so back/forward can work
-over a URL that never moves. Both halves are coordinates on the entry, not storage: a
-**traversal** brings the step back, while an **arrival** rebuilds the app from the URL — so a
-reload, exactly like a pasted URL, starts at the declared initial step. The dividing
-test, applicable in five seconds: *would you hand the value to a stranger?* Yes → `location`.
-No, but Back should undo it → `waypoint`. Neither → an ordinary attribute. Waypoints are
-coordinates, never data (derive the data; keep the string small); they pass no `onFollow`
-(nothing can arrive from outside — every restored value is one the app wrote); and the crawl
-never sees them — content that should be indexed derives from `location`, because crawlable
-and shareable are the same property.
+State that the Back button *should* undo but a stranger should never see — the turns of a
+search, which page of a wizard — is the third kind, and it has its own attribute:
+**`waypoint`**, `location`'s twin with the opposite visibility. One two-way reactive string,
+grammar the app's own, carried in the History entry itself and never in the URL. A history
+entry is the pair *(location, waypoint)* — one entry per settle in which either changed, and
+one Back restores the pair atomically — so back/forward can work over a URL that never moves,
+while a reload, exactly like a pasted URL, rebuilds from `location` alone at the declared
+initial step. The dividing test, applicable in five seconds: *would you hand the value to a
+stranger?* Yes → `location`. No, but Back should undo it → `waypoint`. Neither → an ordinary
+attribute. Waypoints are coordinates, never data (derive the data; keep the string small);
+they pass no `onFollow`; and the crawl never sees them — crawlable and shareable are the same
+property, and both belong to `location`.
 
 → `link`/`shows`/`anchor`/`replace`, `App.follow`/`onFollow`/`revealInset`: the model reference
 
@@ -542,18 +513,16 @@ read the changed region.
 
 **Large collections virtualize on one word.** `virtualize = true` on a replicated node builds
 only the rows near the viewport and leaves the rest logical — same records, same paths, same
-behaviour, reconstructed indistinguishably as you scroll. It is a boolean, **off by
-default** — full materialization keeps browser find working over every record — and it takes a `{ }` constraint like any other boolean, engaging and disengaging
-as the answer changes. There is nothing else to write: no row heights, no scroll wiring,
-no keys.
+behaviour, reconstructed indistinguishably as you scroll. It is a boolean, **off by default** —
+full materialization keeps browser find working over every record. There is nothing else to
+write: no row heights, no scroll wiring, no keys.
 
 **When structure is genuinely imperative**, build it from a handler:
 `parent.createView(tag, props)` instantiates a component by name into the receiver — a full
 citizen, and the parent's arrangement and auto-size take it in on arrival. Its pair is
 `view.discard()`: one verb unlinks the view, retires its whole subtree, and re-packs what it
 leaves behind. Reach for replication first — it reconciles, keys, and tears down for you — but
-the imperative door is open, and `use [ Name ]` (§4) is how you keep a component the build would
-otherwise drop when you name it only as a string.
+the imperative door is open (`use [ Name ]`, §4, keeps a string-named component in the build).
 
 **Data that keeps arriving is a stream** — `EventStream` and `Socket`, connected exactly while
 `active` and a `url` say so, delivering `onMessage` and a reactive `last`. Same lifecycle shape as
@@ -603,16 +572,14 @@ claims every finger (the app then owes its own zoom), `onWheel` claims the wheel
 pinch included, arriving with `e.pinch` true — and a scrolling view is the opposite move,
 delegating its panning to the browser. Claim the least you need, on the smallest view that needs
 it; claiming at the App is legitimate exactly when the app *is* the surface — a map, a canvas, a
-game taking **full gesture control** — and while such an app holds focus in a text field, the
-runtime also suspends the mobile browser's focus auto-zoom, whose mid-gesture viewport shift would
-shear the coordinates a gesture engine integrates.
+game taking **full gesture control**.
 
 ### Opacity is paint; `visible` is presence
 
 A view at `opacity = 0` is invisible but entirely present — it holds its layout space and still
 takes clicks, subtree included, exactly as CSS opacity does. That is a tool, not a trap: a fully
-transparent view is the natural press-catcher — a scrim that swallows clicks behind a modal, a
-drag surface over a chart, a hit target larger than the mark it serves.
+transparent view is the natural press-catcher — a scrim behind a modal, a hit target larger than
+the mark it serves.
 
 `visible = false` is the other tool, and it is the stronger one: it removes the view from input
 *and* from its parent's layout and auto-extent. So a fade that should end in absence is
@@ -769,8 +736,8 @@ standalone, where the control owns its state and you read it by name; **app-owne
 and delivering up**; or data-owned, `<->`, editors only. The second is a *pair*, and splitting it
 is the §5 rule biting. A control's default `input` writes its **own** attribute, so a one-way
 `checked = { app.muted }` with no `input` override makes the control's own edit an assignment to a
-cell-owning slot — refused at runtime, with the same message §5 describes. Override `input` and the
-edit goes where the value actually lives.
+cell-owning slot — refused (§5). Override `input` and the edit goes where the value actually
+lives.
 
 ```declare-fragment
 Checkbox [ label = "Mute", checked = { app.muted },
@@ -784,9 +751,7 @@ Slider   [ value = { app.volume },
 
 **What a component arranges, it takes as records.** If the component arranges it — menu items, a
 dialog's buttons — it takes plain record arrays and hands the choice back through a method. If
-*you* arrange it, it is not a component feature at all: it is views, a layout, and replication. A
-component that owns its arrangement owns its rendition too, and can change either without any use
-site noticing; hand it children and you have frozen its internals into your source.
+*you* arrange it, it is not a component feature at all: it is views, a layout, and replication.
 
 → what ships and how it is built: `library/` · each component's attributes: the model reference
 
@@ -796,18 +761,16 @@ site noticing; hand it children and you have frozen its internals into your sour
    its path. Apps are typically one file, grown with `include` (§4).
 2. **Run it at its URL.** The program URL *is* the app's address: with the dev server up,
    navigating to `…/<name>.declare` compiles on request and renders. The same address takes
-   modifiers for the canvas renderer (`?render=canvas`), the in-browser editor, and the
-   crawler's document — and the same file runs unchanged in a native Mac host, held to the
-   browser renderers by a conformance suite. Typechecking of every `{ }` body is part of
-   every compile; there is no flag.
+   modifiers — `?render=canvas`, the in-browser editor, the crawler's document (the full list:
+   `docs/operational/`). Typechecking of every `{ }` body is part of every compile; there is
+   no flag.
 3. **Read the error.** Every diagnostic carries a code, a line and column, and the fix. Apply
    exactly the named fix, change nothing else, recompile. All independent errors in a phase are
    reported together.
-4. **Ask the platform.** When what you need is a fact rather than a failure — an attribute's
-   name, an enum's tokens, a signature, what a diagnostic code means, what a library component
-   carries — `node tools/declare-help.mjs <name>` answers it in one shot rather than sending you
-   reading. It is the cheapest step in this list, and the one that keeps a guess from becoming a
-   compile error.
+4. **Ask the platform.** When what you need is a fact rather than a failure — a name, a
+   signature, an enum's tokens, a diagnostic code — `node tools/declare-help.mjs <name>`
+   answers it in one shot (the map). It is the cheapest step in this list, and the one that
+   keeps a guess from becoming a compile error.
 5. **Ask the running program.** A clean compile means the checker found nothing, not that nothing
    is wrong: layout, fonts, paint, and input routing do not exist until the program runs. When
    something compiles yet misbehaves, stop re-reading the source. `__declare.explain(path, attr)`

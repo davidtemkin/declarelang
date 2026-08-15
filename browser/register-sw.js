@@ -8,9 +8,9 @@
 // So registration is GATED on a server-injected marker, exactly like OL5's index.html
 // (`if (COMPILE==="server") return` before it registers): the dev server injects
 // `<script>window.__declareServer=true</script>` into every HTML page it serves (see
-// server/index.mjs), so boot-uniform's registerServiceWorker() short-circuits under the
-// server and registers only on a dumb static host, which serves the page verbatim with
-// no marker. No host-probing (localhost sniffing) — the presence of the server IS the
+// server/index.mjs), so boot-uniform's registerServiceWorker() evicts any lingering
+// worker under the server and registers only on a dumb static host, which serves the
+// page verbatim with no marker. No host-probing (localhost sniffing) — the presence of the server IS the
 // signal, expressed as a variable.
 //
 // The worker lives at the distro ROOT (../service-worker.js from here), giving it root scope so
@@ -18,7 +18,23 @@
 // module's URL, so it all adapts to the origin root or a project subpath with no build step.
 
 export async function registerServiceWorker() {
-  if (typeof window !== "undefined" && window.__declareServer) return;  // under the Node server → the SW is redundant (see header)
+  // Under the Node server the SW is redundant (see header) — and declining to
+  // register is not enough to keep it away. An origin is scheme+host+port, so a
+  // worker registered when this port was ever served STATICALLY (a build preview,
+  // `python3 -m http.server`) persists into every later dev session and intercepts
+  // every request — swapping the server's POST /compile for the static-host path,
+  // which over a dirty working tree is silently stale. So the marker branch EVICTS:
+  // any registration in scope is removed, and the next navigation reaches the
+  // server unmediated. (Pages the worker generates itself carry no marker, so this
+  // branch never runs there — the server's self-evicting stub at /service-worker.js
+  // covers that session; see server/create.mjs.)
+  if (typeof window !== "undefined" && window.__declareServer) {
+    if ("serviceWorker" in navigator)
+      navigator.serviceWorker.getRegistrations()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => {});                        // eviction is best-effort — the page works regardless
+    return;
+  }
   if (!("serviceWorker" in navigator)) return;   // an enhancement — the page still works without it
   const swUrl = new URL("../service-worker.js", import.meta.url);
   const scope = new URL("./", swUrl).pathname;    // the distro root == the worker's own directory

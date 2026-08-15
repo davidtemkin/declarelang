@@ -23,6 +23,12 @@ final class DeclareView: NSView {
         super.init(frame: frame)
         wantsLayer = true
         layer = CALayer()
+        // AFTER the layer is installed — this flag configures the backing
+        // layer, so setting it first and then replacing the layer loses it.
+        // Core Image filters on layers — specifically `backgroundFilters`, the
+        // frost (LayerTree, case 36) — do nothing at all without it. Silently:
+        // no warning, no effect, just an unblurred wash.
+        layerUsesCoreImageFilters = true
         layer?.isGeometryFlipped = true                 // manual sublayers: top-left
         layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
     }
@@ -434,6 +440,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         syncSize()
+        Bridge.checkToolchain()
         // A document the Finder handed us wins over every default: it is what the
         // user actually asked for.
         let start = pendingOpen

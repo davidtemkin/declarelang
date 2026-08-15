@@ -186,6 +186,30 @@ export function createDeclareServer(config = {}) {
     return s + SERVER_MARKER;
   }
 
+  // ── the SW eviction stub ───────────────────────────────────────────────────
+  // The marker keeps a worker from REGISTERING under this server; it cannot
+  // remove one already controlling the origin — registered when this port was
+  // served statically — and such a worker generates its own markerless run
+  // pages, so register-sw's eviction branch never executes in a session that
+  // only browses .declare URLs. The one channel the browser guarantees into
+  // that session is its update re-fetch of the registered script URL. So the
+  // server answers /service-worker.js with a worker whose only job is to
+  // remove itself: changed bytes → install → activate drops the caches and
+  // unregisters. A static host serves the real file verbatim; this divergence
+  // exists only where the server — which makes the worker redundant — does.
+  const KILL_WORKER = `// Served by the Declare dev server IN PLACE of service-worker.js: a
+// self-evicting stub (see server/create.mjs). Under the dev server no worker
+// should control this origin; one that does is a leftover from a static serve
+// of the same port, and this is the update channel telling it to leave.
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil((async () => {
+  for (const k of await caches.keys()) await caches.delete(k);
+  await self.registration.unregister();
+  // Open pages keep their current controller until they navigate — the
+  // no-auto-reload rule holds even for eviction.
+})()));
+`;
+
   // ── DIAG(probe) — TEMPORARY, REMOVE ────────────────────────────────────────
   // Gesture diagnostics for the phone/iPad pinch-zoom-scroll investigation:
   // a `?probe` query injects tools/internal/measure/probe.js into the served
@@ -449,6 +473,15 @@ bootHost(cfg);
     if (/^\/(index\.html)?$|\/index\.html$/.test(p) && new URL(req.url, "http://x").searchParams.has("clear")) {
       if (COMPILE_CACHE.size > 0) console.log(`  ?clear — dropped ${COMPILE_CACHE.size} cached compile(s)`);
       COMPILE_CACHE.clear();
+    }
+
+    // The SW eviction stub (defined above, beside the marker it completes) —
+    // matched at the distro root and at the platform mount, before any static
+    // file handling can serve the real worker's bytes. `no-cache` so the
+    // browser's update check always sees the stub, never an HTTP-cached copy.
+    if (p === "/service-worker.js" || p === PLAT + "service-worker.js") {
+      res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" });
+      return res.end(KILL_WORKER);
     }
 
     // DIAG(probe) — TEMPORARY, REMOVE: short aliases for the latch experiment

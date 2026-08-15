@@ -785,86 +785,68 @@ App [ tagline: string = "a UI language for you and your AI",
         ] },
 
     // the closing enumeration's content, as DATA — so the section is a shape
-    // written once rather than eight hand-built rows. A Dataset's literal body
+    // written once rather than six hand-built rows. A Dataset's literal body
     // is strict JSON (language §7), which is why the quoting is fussy here.
+    //
+    // Only what is NEW at this point in the scroll: the demos above already
+    // showed constraints, replication, and springs, and the pull quote made
+    // the type-checking argument — so those lines don't repeat here. Two
+    // honest limits ride in the list on purpose (accessibility depth; the
+    // Mac host not yet being a desktop-app platform).
 
     features: Dataset {
         {
                 "rows": [
                         {
-                                "cap": "The language",
+                                "cap": "Still a web page",
                                 "items": [
-                                        "One tree — structure, style, behavior, data",
-                                        "Constraints, not re-renders",
-                                        "TypeScript inside { }",
-                                        "Type-checked every compile",
-                                        "No CSS, no cascade",
-                                        "The standard library is written in Declare"
+                                        "Find-in-page, real selection, native fields",
+                                        "Back button, deep links",
+                                        "Real HTML for crawlers — no server, no hydration",
+                                        "Embeds in any page — React included",
+                                        "Accessibility past native text and fields — a known gap"
                                 ]
                         },
                         {
                                 "cap": "Data",
                                 "items": [
-                                        "Load JSON, bind to it",
-                                        "Views replicate over data — no loop, no keys",
-                                        "Two-way edits with <->",
+                                        "Load JSON, bind to it — edits write back",
                                         "SSE and WebSocket streams",
                                         "A million rows — virtualize on one word"
                                 ]
                         },
                         {
-                                "cap": "Motion and modes",
-                                "items": [
-                                        "Springs on any attribute",
-                                        "Named modes, reversible",
-                                        "Layout is a value you set"
-                                ]
-                        },
-                        {
-                                "cap": "Input and touch",
+                                "cap": "Touch",
                                 "items": [
                                         "The browser keeps every gesture you don't claim",
                                         "A card that drags still pinch-zooms",
-                                        "Drag from a hold, so a quick swipe still pans",
                                         "No stuck hovers, no ghost clicks"
                                 ]
                         },
                         {
-                                "cap": "Still a web page",
-                                "items": [
-                                        "Find-in-page and real selection",
-                                        "Native fields, caret, IME",
-                                        "Back button, deep links",
-                                        "Real HTML for crawlers",
-                                        "Markdown and rich text built in"
-                                ]
-                        },
-                        {
-                                "cap": "Debugging",
-                                "items": [
-                                        "Ask any value where it came from",
-                                        "Type Declare at a running program",
-                                        "Verify boots it headlessly",
-                                        "The Inspector is a Declare app"
-                                ]
-                        },
-                        {
-                                "cap": "Hosts",
+                                "cap": "One program, four hosts",
                                 "items": [
                                         "Browser — DOM",
-                                        "Browser — canvas",
-                                        "Headless",
-                                        "Mac native (prototype)"
+                                        "Browser — canvas, verified pixel-for-pixel",
+                                        "Mac native, browser-free — full desktop integration still to come",
+                                        "Headless — where the crawls and tests run"
                                 ]
                         },
                         {
-                                "cap": "For LLMs",
+                                "cap": "What ships",
                                 "items": [
-                                        "The whole language in one file",
-                                        "~10k tokens — the spec fits in context",
+                                        "Buttons to data grids — a library written in Declare",
+                                        "Markdown and rich text built in",
+                                        "Themes, swappable live — no CSS, no cascade"
+                                ]
+                        },
+                        {
+                                "cap": "For you and your AI",
+                                "items": [
+                                        "The whole language in one file — ~10k tokens",
                                         "Diagnostics that name the rewrite",
-                                        "An installable agent skill",
-                                        "Evals that feed back into the language"
+                                        "Ask any value where it came from",
+                                        "An installable agent skill, with evals behind it"
                                 ]
                         }
                 ]
@@ -1238,8 +1220,8 @@ App [ tagline: string = "a UI language for you and your AI",
                     to = { app.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 34 ],
 
-                // TWO COLUMNS, by slicing the same data twice: `:rows[0:4][]` and
-                // `:rows[4:8][]` replicate the first and second halves, so each
+                // TWO COLUMNS, by slicing the same data twice: `:rows[0:3][]` and
+                // `:rows[3:6][]` replicate the first and second halves, so each
                 // column reads top-to-bottom (a wrapping flow would read across,
                 // pairing unrelated categories). One list, two slices, no split
                 // copy to keep in sync.
@@ -1258,11 +1240,11 @@ App [ tagline: string = "a UI language for you and your AI",
 
                     colA: View [ datapath = { app.features.value },
                         layout: SimpleLayout [ axis = y, spacing = 28 ],
-                        FeatureRow [ datapath = :rows[0:4][] ]
+                        FeatureRow [ datapath = :rows[0:3][] ]
                         ],
                     colB: View [ datapath = { app.features.value },
                         layout: SimpleLayout [ axis = y, spacing = 28 ],
-                        FeatureRow [ datapath = :rows[4:8][] ]
+                        FeatureRow [ datapath = :rows[3:6][] ]
                         ]
                     ]
                 ],

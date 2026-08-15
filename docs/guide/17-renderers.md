@@ -109,13 +109,52 @@ IME, autofill, and selection inside a field are the platform's own. The Mac
 host holds the same discipline with the platform's own field machinery.
 Text selection *outside* editables (a Markdown page) is native in DOM only.
 
-**Islands are DOM-only.** `DOMIsland` — and therefore `AppIsland` — needs a
-real element interior to hand the tenant, which a sealed canvas and a native
-layer tree do not have. An app that embeds foreign DOM or a child Declare app
-renders those boxes empty under the other renderers. The desktop demo is the
-honest example: its dock, windows, menus, and wallpaper are fully
-canvas-capable (the magnification sweep holds the same ~120 fps), while a
-window that hosts an embedded app shows its frame without its tenant.
+**Islands split by what they host.** `AppIsland` embeds a child Declare
+program; `DOMIsland`, which it extends, embeds foreign web content. The first
+needs only a place to put a view tree, and the second needs a real browser.
+
+| | a child Declare app (`AppIsland`) | foreign web content (`DOMIsland`) |
+|---|---|---|
+| DOM | yes | yes |
+| Mac | **yes** | no — the native host embeds no web engine |
+| canvas | no | no |
+
+The desktop demo shows both halves. Its dock, windows, menus, and wallpaper are
+fully canvas-capable (the magnification sweep holds the same ~120 fps), and on
+the Mac host opening Calendar from the dock renders the whole app inside its
+window — a child program, its own reactive graph, hosted natively with no DOM
+anywhere. On canvas that same window paints its frame, title bar and shadow
+around an empty interior: nothing there can take a tenant yet. That is an
+unbuilt path rather than an impossible one — the Mac host proves a tenant needs
+no element, and what canvas lacks is the mounting seam, not the capability.
+
+
+### Getting the Mac host
+
+It is not shipped with this repo and not committed to it — the Swift sources are
+tracked, the built application is a per-machine artifact. You build it:
+
+```bash
+bash mac-host/bundle.sh
+```
+
+It installs to `/Applications` when that is writable, else `~/Applications`, else
+beside its sources in `mac-host/`. An Applications directory is what lets macOS
+offer it as a document handler, so that is where a double-click starts working.
+
+Once installed it opens a program three ways: a URL served by the dev server (the
+server compiles, nothing is downloaded), a directory holding a built artifact, or
+a `.declare` file **anywhere on disk** — double-clicked, dropped on the app, or
+`open`ed from a shell. A file outside the tree still resolves its own `include`s
+beside itself and its library components from the Declare tree the app was
+stamped with, so you can copy a program's folder to the Desktop and run it.
+
+What it is not is a way to *ship* an application. It runs Declare programs with
+the whole language and the standard library, but it is a runtime environment, not
+a packaging story: no standalone signed app with its own identity, no system
+integration, no per-program installer. `declarec --render mac` refuses for that
+reason. The full operational detail — stamps, `DECLARE_ROOT`, the gates — is in
+[`operational/mac-host.md`](../operational/mac-host.md).
 
 **Overlay effects are at parity.** Frosted surfaces — a menu's panel, a
 dock shelf, translucent chrome — are the `backdrop` attribute

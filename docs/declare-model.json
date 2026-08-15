@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "806e9a34dab3",
+  "buildId": "d3e61aade63e",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -6789,6 +6789,11 @@
    "operational:introspection": {
     "path": "docs/operational/introspection.md",
     "title": "Introspection — asking a running program about itself",
+    "kind": "operational"
+   },
+   "operational:mac-host": {
+    "path": "docs/operational/mac-host.md",
+    "title": "The Mac host",
     "kind": "operational"
    },
    "operational:shipping": {
@@ -41528,8 +41533,8 @@
    "short": "Renderers & hosts",
    "part": "Where it runs",
    "teaches": {
-    "AppIsland": 1,
-    "DOMIsland": 1,
+    "AppIsland": 2,
+    "DOMIsland": 2,
     "Markdown": 1,
     "Text": 1,
     "TextInput": 1
@@ -42867,6 +42872,14 @@
      "label": "Markdown file",
      "path": "docs/operational/introspection.md",
      "preview": "A running Declare app can be queried as data: its tree, each node's geometry, every slot's live value, and — the payoff of static dependency extraction — why a slot has the value it has. One vocabulary serves three consumers: verify(declare…"
+    },
+    {
+     "name": "The Mac host",
+     "subtitle": "",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/operational/mac-host.md",
+     "preview": "A native macOS application that runs Declare programs — the same language, the same standard library, the same compiler. It is a third renderer (AppKit layers instead of DOM nodes or a canvas), not a different platform: nothing in a program…"
     },
     {
      "name": "Shipping a change",
