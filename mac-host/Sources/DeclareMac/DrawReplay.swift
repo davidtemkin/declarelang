@@ -43,6 +43,73 @@ enum DrawReplay {
         var blend: CGBlendMode = .normal
     }
 
+
+    /// The PATH-CONSTRUCTION ops, shared by both consumers of a recording: the
+    /// rasterizer here and `LayerDescribe`. ONE implementation on purpose — two
+    /// would let a rounded corner or an ellipse sweep mean different things
+    /// depending on which path a drawing happened to take, and that divergence
+    /// is invisible until someone diffs pixels.
+    ///
+    /// `transform` is baked into each point as it is added. The rasterizer
+    /// passes `.identity` because it concatenates the CTM into the context
+    /// instead; the describer has no context and passes the live CTM.
+    static func pathOp(_ o: [String: Any], _ path: inout CGMutablePath,
+                       _ cur: inout CGPoint, _ start: inout CGPoint,
+                       transform m: CGAffineTransform) -> Bool {
+        func d(_ k: String) -> CGFloat { CGFloat((o[k] as? NSNumber)?.doubleValue ?? 0) }
+        let t = m
+        switch (o["op"] as? String) ?? "" {
+        case "beginPath": path = CGMutablePath()
+        case "closePath": path.closeSubpath(); cur = start
+        case "moveTo": cur = CGPoint(x: d("x"), y: d("y")); start = cur; path.move(to: cur, transform: t)
+        case "lineTo": cur = CGPoint(x: d("x"), y: d("y")); path.addLine(to: cur, transform: t)
+        case "bezierCurveTo":
+            cur = CGPoint(x: d("x"), y: d("y"))
+            path.addCurve(to: cur, control1: CGPoint(x: d("cp1x"), y: d("cp1y")),
+                          control2: CGPoint(x: d("cp2x"), y: d("cp2y")), transform: t)
+        case "quadraticCurveTo":
+            cur = CGPoint(x: d("x"), y: d("y"))
+            path.addQuadCurve(to: cur, control: CGPoint(x: d("cpx"), y: d("cpy")), transform: t)
+        case "arc":
+            // The recorder's angle keys are a0/a1 (draw.ts). Reading them as
+            // "start"/"end" silently produced a ZERO-LENGTH arc at angle 0 —
+            // every rounded corner in the app collapsed to its own start point,
+            // which is why the dock's folder came out as a chevron.
+            //
+            // Canvas's flag is `counterclockwise` and CGPath's is `clockwise`,
+            // but both mean "increasing angle" when false, and the path is built
+            // in the recording's own numeric coordinates, so the flag passes
+            // through.
+            path.addArc(center: CGPoint(x: d("x"), y: d("y")), radius: d("r"),
+                        startAngle: d("a0"), endAngle: d("a1"),
+                        clockwise: (o["ccw"] as? NSNumber)?.boolValue ?? false, transform: t)
+        case "arcTo":
+            path.addArc(tangent1End: CGPoint(x: d("x1"), y: d("y1")),
+                        tangent2End: CGPoint(x: d("x2"), y: d("y2")), radius: d("r"), transform: t)
+        case "ellipse":
+            let e = CGAffineTransform(translationX: d("x"), y: d("y"))
+                .rotated(by: d("rot"))
+                .scaledBy(x: max(d("rx"), 0.0001), y: max(d("ry"), 0.0001))
+            let a0 = d("a0"), a1 = d("a1")
+            let ccw = (o["ccw"] as? NSNumber)?.boolValue ?? false
+            // Canvas's normalisation: sweep in the requested direction, and a
+            // wrap of more than a full turn is clamped to a full turn.
+            var delta = a1 - a0
+            if ccw { if delta > 0 { delta -= 2 * .pi }; delta = max(delta, -2 * .pi) }
+            else { if delta < 0 { delta += 2 * .pi }; delta = min(delta, 2 * .pi) }
+            path.addRelativeArc(center: .zero, radius: 1, startAngle: a0,
+                                delta: delta, transform: e.concatenating(t))
+        case "rect":
+            path.addRect(CGRect(x: d("x"), y: d("y"), width: d("w"), height: d("h")), transform: t)
+        case "roundRect":
+            let r = roundRadii(o["radii"])
+            path.addPath(roundedPath(CGRect(x: d("x"), y: d("y"), width: d("w"), height: d("h")), r),
+                         transform: t)
+        default: return false
+        }
+        return true
+    }
+
     /// `geom` is the raster's own frame in the recording's user space
     /// (origin + size + backing scale) — a filter layer must be built with the
     /// SAME setup so its pixels line up when composited back.
@@ -302,51 +369,9 @@ enum DrawReplay {
                 }
             case "setLineDash":
                 st.dash = ((o["segments"] as? [NSNumber]) ?? []).map { CGFloat($0.doubleValue) }
-            case "beginPath": path = CGMutablePath()
-            case "closePath": path.closeSubpath(); cur = start
-            case "moveTo": cur = CGPoint(x: d(o, "x"), y: d(o, "y")); start = cur; path.move(to: cur)
-            case "lineTo": cur = CGPoint(x: d(o, "x"), y: d(o, "y")); path.addLine(to: cur)
-            case "bezierCurveTo":
-                cur = CGPoint(x: d(o, "x"), y: d(o, "y"))
-                path.addCurve(to: cur, control1: CGPoint(x: d(o, "cp1x"), y: d(o, "cp1y")),
-                              control2: CGPoint(x: d(o, "cp2x"), y: d(o, "cp2y")))
-            case "quadraticCurveTo":
-                cur = CGPoint(x: d(o, "x"), y: d(o, "y"))
-                path.addQuadCurve(to: cur, control: CGPoint(x: d(o, "cpx"), y: d(o, "cpy")))
-            case "arc":
-                // The recorder's angle keys are a0/a1 (draw.ts). Reading them as
-                // "start"/"end" silently produced a ZERO-LENGTH arc at angle 0 —
-                // every rounded corner in the app collapsed to its own start
-                // point, which is why the dock's folder came out as a chevron.
-                //
-                // Canvas's flag is `counterclockwise` and CGPath's is
-                // `clockwise`, but both mean "increasing angle" when false, and
-                // the path is built in the recording's own numeric coordinates,
-                // so the flag passes through.
-                path.addArc(center: CGPoint(x: d(o, "x"), y: d(o, "y")), radius: d(o, "r"),
-                            startAngle: d(o, "a0"), endAngle: d(o, "a1"),
-                            clockwise: (o["ccw"] as? NSNumber)?.boolValue ?? false)
-            case "arcTo":
-                path.addArc(tangent1End: CGPoint(x: d(o, "x1"), y: d(o, "y1")),
-                            tangent2End: CGPoint(x: d(o, "x2"), y: d(o, "y2")), radius: d(o, "r"))
-            case "ellipse":
-                var t = CGAffineTransform(translationX: d(o, "x"), y: d(o, "y"))
-                    .rotated(by: d(o, "rot"))
-                    .scaledBy(x: max(d(o, "rx"), 0.0001), y: max(d(o, "ry"), 0.0001))
-                let a0 = d(o, "a0"), a1 = d(o, "a1")
-                let ccw = (o["ccw"] as? NSNumber)?.boolValue ?? false
-                // Canvas's normalisation: sweep in the requested direction, and
-                // a wrap of more than a full turn is clamped to a full turn.
-                var delta = a1 - a0
-                if ccw { if delta > 0 { delta -= 2 * .pi }; delta = max(delta, -2 * .pi) }
-                else { if delta < 0 { delta += 2 * .pi }; delta = min(delta, 2 * .pi) }
-                path.addRelativeArc(center: .zero, radius: 1, startAngle: a0,
-                                    delta: delta, transform: t)
-            case "rect":
-                path.addRect(CGRect(x: d(o, "x"), y: d(o, "y"), width: d(o, "w"), height: d(o, "h")))
-            case "roundRect":
-                let r = roundRadii(o["radii"])
-                path.addPath(roundedPath(CGRect(x: d(o, "x"), y: d(o, "y"), width: d(o, "w"), height: d(o, "h")), r))
+            case "beginPath", "closePath", "moveTo", "lineTo", "bezierCurveTo", "quadraticCurveTo",
+                 "arc", "arcTo", "ellipse", "rect", "roundRect":
+                _ = pathOp(o, &path, &cur, &start, transform: .identity)
             case "fill":
                 paint { t in
                     applyShadow(t); setFillPaint(t)

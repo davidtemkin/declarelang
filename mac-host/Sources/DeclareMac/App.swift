@@ -379,20 +379,27 @@ final class DeclareView: NSView {
 
 // ── the shell ───────────────────────────────────────────────────────────────
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The document the Finder handed us, held until there is something to open it
     /// WITH. AppKit delivers `application(_:open:)` BEFORE
-    /// applicationDidFinishLaunching on a double-click launch, so `window` and
-    /// `bridge` are still nil then — opening immediately crashed on the implicit
-    /// unwrap (EXC_BREAKPOINT inside AppDelegate.open). Held here, the launch
-    /// handler uses it as the start URL; once running, a second document opens
-    /// straight away.
+    /// applicationDidFinishLaunching on a double-click launch, so there is no
+    /// window yet — opening immediately crashed on the implicit unwrap
+    /// (EXC_BREAKPOINT inside AppDelegate.open). Held here, the launch handler
+    /// uses it as the start URL; once running, a second document opens straight
+    /// away, in its own window.
     private var pendingOpen: String?
-    var window: NSWindow!
+    private(set) var windows: [ProgramWindow] = []
     var control: ControlChannel?
-    var view: DeclareView!
-    var bridge: Bridge!
-    var currentURL = ""
+    /// Has `applicationDidFinishLaunching` run? A Finder document that arrives
+    /// before it has nowhere to go yet.
+    private var launched = false
+
+    /// The window everything global addresses: the control channel, the menu
+    /// actions, the published geometry. Key first, then the most recent — a
+    /// harness that just opened a window has not necessarily focused it.
+    var front: ProgramWindow? {
+        windows.first { $0.window.isKeyWindow } ?? windows.last
+    }
 
     func applicationDidFinishLaunching(_ n: Notification) {
         // Pin the theme when asked, so a parity run measures the program rather
@@ -410,51 +417,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let icns = dir.appendingPathComponent("Declare.icns")
             if let img = NSImage(contentsOf: icns) { NSApp.applicationIconImage = img; break }
         }
-        let frame = NSRect(x: 0, y: 0, width: 1280, height: 800)
-        window = NSWindow(contentRect: frame,
-                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                          backing: .buffered, defer: false)
-        window.title = "Declare"
-        window.center()
-        window.delegate = self
-        view = DeclareView(frame: frame)
-        window.contentView = view
-        bridge = Bridge(view: view)
-        view.bridge = bridge
-        bridge.onTitle = { [weak self] t in self?.window.title = t.isEmpty ? "Declare" : t }
-        bridge.onBootFailed = { [weak self] msg in self?.showError(msg) }
+        launched = true
         buildMenu()
+        Bridge.checkToolchain()
+
         // DECLARE_CONTROL opens the injection channel (Control.swift), so tests
         // drive the app without posting system events — the machine stays usable
         // while they run, and the events cannot land in someone else's window.
+        // It addresses whichever window is front, so it outlives any one of them.
         if ProcessInfo.processInfo.environment["DECLARE_CONTROL"] != nil {
-            control = ControlChannel(bridge: bridge)
-            control?.view = view
+            control = ControlChannel(target: { [weak self] in self?.front })
             control?.start()
         }
-        window.makeKeyAndOrderFront(nil)
-        window.makeFirstResponder(view)
-        // Don't seize the foreground when we're only being driven by tests.
-        if ProcessInfo.processInfo.environment["DECLARE_CONTROL"] == nil {
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        if !Launch.isAutomated { NSApp.activate(ignoringOtherApps: true) }
 
-        syncSize()
-        Bridge.checkToolchain()
         // A document the Finder handed us wins over every default: it is what the
         // user actually asked for.
-        let start = pendingOpen
+        let explicit = pendingOpen
             ?? ProcessInfo.processInfo.environment["DECLARE_URL"]
             ?? CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") })
-            ?? UserDefaults.standard.string(forKey: "lastURL")
-            ?? "http://127.0.0.1:8260/apps/desktop/desktop.declare"
-        open(start)
+        if let start = explicit {
+            newWindow().open(start)
+        } else if Launch.isAutomated {
+            // A rig that named no program still expects a window to talk to.
+            newWindow().open(UserDefaults.standard.string(forKey: "lastURL")
+                             ?? "http://127.0.0.1:8260/apps/desktop/desktop.declare")
+        } else {
+            // Launched by hand with nothing to show — ask, rather than guessing
+            // at a program the person may not want.
+            showLaunchChooser()
+        }
 
         if let benchOut = ProcessInfo.processInfo.environment["DECLARE_BENCH"] {
             // after the app has settled, measure and quit
             let delay = Double(ProcessInfo.processInfo.environment["DECLARE_BENCH_DELAY"] ?? "6") ?? 6
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                self?.bridge.runBenchmarks(to: benchOut)
+                self?.front?.bridge.runBenchmarks(to: benchOut)
                 NSApp.terminate(nil)
             }
         }
@@ -468,59 +466,79 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // follow, title mirror) ride on real frames, and pump() without a pending
     // request is a no-op — this is one of the host events whose frame they
     // are promised.
-    @objc func appearanceChanged() { bridge.call("__declareEnvChanged", []) ; bridge.needsFrame() }
+    @objc func appearanceChanged() { windows.forEach { $0.appearanceChanged() } }
 
-    /// The FINDER path: double-clicking a .declare, or dropping one on the app.
+    // ── windows ─────────────────────────────────────────────────────────────
+
+    /// A new window, cascaded off the front one so a second program does not
+    /// land exactly on top of the first.
+    private var cascade = NSPoint.zero
+
+    @discardableResult
+    func newWindow(frame: NSRect? = nil) -> ProgramWindow {
+        let w = ProgramWindow(frame: frame ?? NSRect(x: 0, y: 0, width: 1280, height: 800), owner: self)
+        if frame == nil {
+            if windows.isEmpty { w.window.center() }
+            cascade = w.window.cascadeTopLeft(from: cascade)
+        }
+        windows.append(w)
+        sessionChanged()
+        return w
+    }
+
+    /// Where a program should open: a window that has never loaded anything is
+    /// an empty slot, not a document, so reuse it rather than stranding it.
+    func windowForOpening() -> ProgramWindow {
+        if let empty = windows.first(where: { !$0.loaded }) { return empty }
+        return newWindow()
+    }
+
+    func windowClosed(_ w: ProgramWindow) {
+        windows.removeAll { $0 === w }
+        sessionChanged()
+    }
+
+    /// Persist what is open. Cheap enough to call on every change, which is why
+    /// it is called on every change — the alternative is a session that is only
+    /// correct after a clean quit.
+    func sessionChanged() { SessionStore.save(windows.compactMap { $0.sessionEntry }) }
+
+    func applicationWillTerminate(_ n: Notification) { sessionChanged() }
+
+    /// Closing the last window does NOT quit: this host can sit with no windows
+    /// while the chooser or the File menu decides what comes next.
+    func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { false }
+
+    // ── the launch chooser ──────────────────────────────────────────────────
+
+    /// Double-clicked with no document. Three ways forward, and the third is
+    /// offered only when there is in fact something to restore.
+    func showLaunchChooser() {
+        let saved = SessionStore.load()
+        switch LaunchChooser.run(canRestore: !saved.isEmpty) {
+        case .openFile: openFile()
+        case .openURL: promptForLocation(into: nil)
+        case .restore: restore(saved)
+        case .cancel: break
+        }
+    }
+
+    private func restore(_ saved: [SessionStore.Entry]) {
+        for e in saved {
+            // A window saved on a display that is now gone would open offscreen.
+            let onscreen = NSScreen.screens.contains { $0.visibleFrame.intersects(e.frame) }
+            newWindow(frame: onscreen ? e.frame : nil).open(e.url)
+        }
+    }
+
+    // ── the Finder path ─────────────────────────────────────────────────────
+
+    /// Double-clicking a .declare, or dropping one on the app. Each document
+    /// gets its own window, which is what a person means by opening a second.
     func application(_ app: NSApplication, open urls: [URL]) {
         guard let u = urls.first else { return }
-        if window == nil { pendingOpen = u.absoluteString; return }   // pre-launch: hold it
-        open(u.absoluteString)
-    }
-
-    func open(_ url: String) {
-        currentURL = url
-        UserDefaults.standard.set(url, forKey: "lastURL")
-        window.title = "Loading…"
-        bridge.boot(url: url)
-    }
-
-    /// The fidelity harness needs the exact content rect inside the window
-    /// image; publishing it removes the guesswork (and a 32pt error).
-    func publishGeometry() {
-        let wf = window.frame
-        let cf = window.contentView!.frame
-        let chrome = wf.height - cf.height
-        let line = "\(Int(wf.width)) \(Int(wf.height)) \(Int(cf.width)) \(Int(cf.height)) \(Int(chrome)) \(Int(view.bounds.height))"
-        try? line.write(toFile: "/tmp/declare-geom.txt", atomically: true, encoding: .utf8)
-    }
-
-    func syncSize() {
-        publishGeometry()
-        let s = view.bounds.size
-        bridge.call("__declareResize", [Double(s.width), Double(s.height), Double(window.backingScaleFactor)])
-        bridge.call("__declareSettle", [])
-        bridge.pump()
-        // The root app is already resized and flushed by the two calls above;
-        // the frame request is for the observers that follow one frame behind
-        // (an island's tenant re-deriving from its box's new size).
-        bridge.needsFrame()
-    }
-
-    func windowDidResize(_ n: Notification) { syncSize(); view.repositionOverlays() }
-    func windowDidChangeBackingProperties(_ n: Notification) { syncSize() }
-    func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
-
-    /// A dead end is unhelpful: offer the location prompt, since the usual
-    /// cause is simply that the dev server is not running on this port.
-    func showError(_ msg: String) {
-        window.title = "Declare"
-        let a = NSAlert()
-        a.messageText = "Could not load this program"
-        a.informativeText = msg + "\n\nIs the Declare dev server running?\n  npm start  (or: PORT=8260 node server/index.mjs)"
-        a.alertStyle = .warning
-        a.addButton(withTitle: "Open Location…")
-        a.addButton(withTitle: "Cancel")
-        if a.runModal() == .alertFirstButtonReturn { openLocation() }
+        guard launched else { pendingOpen = u.absoluteString; return }   // pre-launch: hold it
+        windowForOpening().open(u.absoluteString)
     }
 
     // ── menus ───────────────────────────────────────────────────────────────
@@ -539,9 +557,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let fileItem = NSMenuItem()
         let fileMenu = NSMenu(title: "File")
-        fileMenu.addItem(withTitle: "Open Location…", action: #selector(openLocation), keyEquivalent: "l").target = self
+        fileMenu.addItem(withTitle: "Open Location…", action: #selector(openLocationInNewWindow), keyEquivalent: "l").target = self
         fileMenu.addItem(withTitle: "Open File…", action: #selector(openFile), keyEquivalent: "o").target = self
         fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileMenu.addItem(withTitle: "Reload", action: #selector(reload), keyEquivalent: "r").target = self
         fileItem.submenu = fileMenu
         main.addItem(fileItem)
@@ -580,34 +599,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func about() {
         let a = NSAlert()
         a.messageText = "Declare — native host"
-        a.informativeText = "A Declare program rendered by Core Animation.\n\n\(currentURL)"
+        a.informativeText = "A Declare program rendered by Core Animation.\n\n\(front?.currentURL ?? "")"
         a.runModal()
     }
 
-    @objc func openLocation() {
+    /// Ask for a URL. `into` names the window to load it in — the one that just
+    /// failed, when this is an error retry; otherwise a fresh one.
+    func promptForLocation(into target: ProgramWindow?) {
         let a = NSAlert()
         a.messageText = "Open Location"
         a.informativeText = "URL of a .declare program (or a built app directory)."
         let f = NSTextField(frame: NSRect(x: 0, y: 0, width: 420, height: 24))
-        f.stringValue = currentURL
+        f.stringValue = target?.currentURL ?? front?.currentURL ?? ""
         a.accessoryView = f
         a.addButton(withTitle: "Open")
         a.addButton(withTitle: "Cancel")
         a.window.initialFirstResponder = f
-        if a.runModal() == .alertFirstButtonReturn, !f.stringValue.isEmpty { open(f.stringValue) }
+        guard a.runModal() == .alertFirstButtonReturn, !f.stringValue.isEmpty else { return }
+        (target ?? windowForOpening()).open(f.stringValue)
     }
+
+    @objc func openLocationInNewWindow() { promptForLocation(into: nil) }
 
     @objc func openFile() {
         let p = NSOpenPanel()
         p.allowedContentTypes = []
         p.allowsOtherFileTypes = true
         p.canChooseDirectories = true
-        if p.runModal() == .OK, let u = p.url {
-            open(u.hasDirectoryPath ? u.absoluteString : u.absoluteString)
-        }
+        if p.runModal() == .OK, let u = p.url { windowForOpening().open(u.absoluteString) }
     }
 
-    @objc func reload() { open(currentURL) }
+    @objc func reload() { front?.reload() }
 }
 
 @main

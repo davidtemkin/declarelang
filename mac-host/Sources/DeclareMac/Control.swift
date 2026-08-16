@@ -25,10 +25,15 @@ final class ControlChannel {
     private let inPath = "/tmp/declare-ctl.in"
     private let outPath = "/tmp/declare-ctl.out"
     private var timer: Timer?
-    private unowned let bridge: Bridge
-    weak var view: DeclareView?
+    /// The channel outlives any one window, so it addresses the FRONT one at
+    /// the moment a command arrives rather than holding a program hostage.
+    /// A rig that opens a second window talks to the second window, which is
+    /// what "the app" means from the outside.
+    private let target: () -> ProgramWindow?
+    private var bridge: Bridge! { target()?.bridge }
+    private var view: DeclareView? { target()?.view }
 
-    init(bridge: Bridge) { self.bridge = bridge }
+    init(target: @escaping () -> ProgramWindow?) { self.target = target }
 
     func start() {
         try? "".write(toFile: inPath, atomically: true, encoding: .utf8)
@@ -67,6 +72,12 @@ final class ControlChannel {
     private func run(_ cmd: String) -> String {
         let a = cmd.split(separator: " ").map(String.init)
         guard let verb = a.first else { return "empty" }
+        // Almost every verb below reaches through `bridge`/`view` into a window.
+        // With none open there is nothing to address, and answering plainly
+        // beats trapping on an implicit unwrap inside a test run. The few verbs
+        // that are ABOUT windows rather than about a program still work.
+        let windowless = ["ping", "windows", "newwindow", "closewindow", "menukey", "activate"]
+        guard target() != nil || windowless.contains(verb) else { return "no window" }
         func num(_ i: Int) -> Double { i < a.count ? (Double(a[i]) ?? 0) : 0 }
 
         switch verb {
@@ -201,6 +212,73 @@ final class ControlChannel {
                 lines.append("  \(type(of: sub)) hidden=\(sub.isHidden) frame=\(NSStringFromRect(sub.frame))")
             }
             return lines.joined(separator: "\n")
+        case "activate":
+            // Automation deliberately does NOT seize the foreground, but a key
+            // equivalent needs somewhere to go: `performClose:` and friends are
+            // sent to a nil target and resolved through the key window's
+            // responder chain, and an INACTIVE app has no key window. So a test
+            // of ⌘W must first put the app where a person pressing ⌘W would
+            // have it. Ask for that explicitly rather than making every rig
+            // reach for System Events and accessibility permission.
+            NSApp.activate(ignoringOtherApps: true)
+            return "ok"
+        case "menukey":
+            // `menukey w cmd` — dispatch a key equivalent through the REAL menu,
+            // the same call AppKit makes for a keystroke. Not a keystroke
+            // simulation: System Events needs accessibility permission and the
+            // app to be frontmost, neither of which a test should require.
+            // Answers whether the menu claimed it, so "⌘W is wired" is a fact a
+            // test can assert rather than infer from a side effect.
+            //
+            // ⚠ "handled" means the MENU matched the item, not that anything
+            // happened. Items with a nil target reach their action through the
+            // key window's responder chain, so in an inactive app ⌘W reports
+            // handled and closes nothing. Send `activate` first.
+            let ch = a.count > 1 ? a[1] : ""
+            guard !ch.isEmpty else { return "usage: menukey <char> [cmd|shift|alt|ctrl]…" }
+            var flags: NSEvent.ModifierFlags = []
+            for m in a.dropFirst(2) {
+                switch m {
+                case "cmd", "meta": flags.insert(.command)
+                case "shift": flags.insert(.shift)
+                case "alt", "option": flags.insert(.option)
+                case "ctrl": flags.insert(.control)
+                default: break
+                }
+            }
+            guard let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags,
+                                           timestamp: ProcessInfo.processInfo.systemUptime,
+                                           windowNumber: NSApp.keyWindow?.windowNumber ?? 0,
+                                           context: nil, characters: ch,
+                                           charactersIgnoringModifiers: ch, isARepeat: false, keyCode: 0)
+            else { return "bad event" }
+            return NSApp.mainMenu?.performKeyEquivalent(with: e) == true ? "handled" : "unhandled"
+        case "windows":
+            // Which windows exist, front first — the order every other verb
+            // resolves against.
+            guard let app = NSApp.delegate as? AppDelegate else { return "no app" }
+            if app.windows.isEmpty { return "(none)" }
+            return app.windows.map {
+                ($0 === app.front ? "* " : "  ") + "#\($0.window.windowNumber) "
+                + "\(Int($0.window.frame.width))x\(Int($0.window.frame.height)) \($0.currentURL)"
+            }.joined(separator: "\n")
+        case "newwindow":
+            // `newwindow [url]` — a second program, in its own window and its
+            // own runtime. Without this the multi-window path has no probe.
+            guard let app = NSApp.delegate as? AppDelegate else { return "no app" }
+            let url = a.dropFirst().joined(separator: " ")
+            let w = app.newWindow()
+            if !url.isEmpty { w.open(url) }
+            return "ok windows=\(app.windows.count)"
+        case "closewindow":
+            guard let app = NSApp.delegate as? AppDelegate else { return "no app" }
+            guard let w = app.front else { return "no window" }
+            w.window.performClose(nil)
+            return "ok windows=\(app.windows.count)"
+        case "lasterror":
+            // What a person would have been shown in a dialog. "-" means the
+            // program loaded; anything else is the failure, verbatim.
+            return bridge.lastError ?? "-"
         case "statsreset":
             bridge.resetStats()
             return "ok"
@@ -329,6 +407,9 @@ final class ControlChannel {
             return "\(css) -> face=\(f.fontName) raw asc=\(f.ascender) desc=\(-f.descender)"
                  + " leading=\(f.leading) | reported asc=\(m[1]) desc=\(m[2]) sum=\(m[1] + m[2])"
                  + " width(\(sample.count) chars)=\(m[0])"
+                 + { let ink = TextEngine.inkBounds(text: sample, font: css, letterSpacing: 0)
+                     return String(format: " | ink x=%.2f..%.2f (overhang left=%.2f right=%.2f)",
+                                   ink.minX, ink.maxX, max(0, -ink.minX), max(0, ink.maxX - m[0])) }()
         case "owns":
             // Evaluate the REAL press path's gate at a model point, and name what
             // claims it. Injected input never reaches overlayOwns(), so a bug that

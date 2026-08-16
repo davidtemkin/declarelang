@@ -42918,7 +42918,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/system-design/adaptive-draw-cache.md",
-     "preview": "Status: proposal, 2026-07-20. Nothing built. Motivated by the dock-magnification paint cost (a hot draw() re-rasterizing 9 illustrations per frame dragged Safari's rAF from 60 → ~25fps; see the manual fix in apps/desktop/desktop.declare). T…"
+     "preview": "Status: REJECTED, 2026-08-16, on measurement. The caching mechanism below does not survive; the analysis it rests on does, and is reused by what replaces it. Superseded by re-description (see \"What replaces it\"). Why it fails, in one line:…"
     },
     {
      "name": "Animation",

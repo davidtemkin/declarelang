@@ -39,6 +39,11 @@ final class Bridge {
     let startedAt = CFAbsoluteTimeGetCurrent()
     var onTitle: ((String) -> Void)?
     var onBootFailed: ((String) -> Void)?
+    /// The last load or compile failure, kept whether or not it was ever shown.
+    /// Under the control channel nothing is shown (see `showError`), so this is
+    /// how a harness learns that a program failed rather than merely rendered
+    /// nothing — read it with `lasterror`.
+    private(set) var lastError: String?
 
     /// The ONE network session, deliberately cache-LESS. URLSession's own disk
     /// cache is not merely redundant here, it is wrong: fetch() already refuses
@@ -175,6 +180,7 @@ final class Bridge {
         } as @convention(block) (String) -> Void, forKeyedSubscript: "setTitle")
 
         host.setObject({ [weak self] (msg: String) in
+            self?.lastError = msg
             self?.onBootFailed?(msg)
         } as @convention(block) (String) -> Void, forKeyedSubscript: "bootFailed")
 
@@ -445,7 +451,10 @@ final class Bridge {
         lastCommitAt = 0; linkTicks = 0; pumps = 0
         geomGaps.removeAll(); lastGeomCommitAt = 0
         tickLog.removeAll(); firstCommits.removeAll(); statsTracing = true
-        tree.opHist.removeAll(); tree.rasterCount = 0; tree.drawNodes.removeAll(); tree.rasterMsTotal = 0; tree.overlayMsTotal = 0; tree.opMs.removeAll(); tree.caCommitMsTotal = 0; tree.richLayoutCount = 0; tree.richLayoutMs = 0; tree.richLayoutBytes = 0; tree.richParseMs = 0; RichOverlay.RichStats.reset()
+        tree.opHist.removeAll(); tree.rasterCount = 0; tree.drawNodes.removeAll(); tree.rasterMsTotal = 0; tree.overlayMsTotal = 0; tree.opMs.removeAll(); tree.caCommitMsTotal = 0; tree.caCommitCpuMsTotal = 0; tree.richLayoutCount = 0; tree.richLayoutMs = 0; tree.richLayoutBytes = 0; tree.richParseMs = 0; RichOverlay.RichStats.reset()
+        tree.rasterMsNodes.removeAll(); tree.rasterPxNodes.removeAll()
+        tree.describedN = 0; tree.rasterizedN = 0
+        tree.skippedRasterN = 0; tree.revealedRasterN = 0; tree.revealedRasterMs = 0
         TextLayer.drawCount = 0; TextLayer.drawMs = 0; TextLayer.buildCount = 0; TextLayer.statsOn = true
         RichOverlay.redrawCount = 0; RichOverlay.redrawMP = 0; RichOverlay.redrawMs = 0; RichOverlay.statsOn = true; tree.statsOn = true
         statsStart = CFAbsoluteTimeGetCurrent()
@@ -479,7 +488,9 @@ final class Bridge {
           + "\n  ticks: " + tickLog.map { "\($0.0)@\(Int($0.1))ms\($0.2 ? "✓\($0.3)b" : "·")" }.joined(separator: " ")
           + "  worstGapAtCommit=" + (g.firstIndex(where: { $0 > budget * 1.5 }).map { String($0 + 1) } ?? "-") + "/\(commitCount)"
           + String(format: "\n  rasters=%d  rasterMs total=%.1f avg=%.2f (%.0f%% of commit) overlayMs total=%.1f (%.0f%% of commit)   ops: ", tree.rasterCount, tree.rasterMsTotal, tree.rasterCount > 0 ? tree.rasterMsTotal / Double(tree.rasterCount) : 0, commitMsTotal > 0 ? 100 * tree.rasterMsTotal / commitMsTotal : 0, tree.overlayMsTotal, commitMsTotal > 0 ? 100 * tree.overlayMsTotal / commitMsTotal : 0) + opNames()
-          + String(format: "\n  CATransaction.commit total=%.0fms (%.0f%% of commit)", tree.caCommitMsTotal, commitMsTotal > 0 ? 100 * tree.caCommitMsTotal / commitMsTotal : 0)
+          + String(format: "\n  CATransaction.commit total=%.0fms (%.0f%% of commit)  of which CPU=%.0fms, WAITING=%.0fms",
+                   tree.caCommitMsTotal, commitMsTotal > 0 ? 100 * tree.caCommitMsTotal / commitMsTotal : 0,
+                   tree.caCommitCpuMsTotal, max(0, tree.caCommitMsTotal - tree.caCommitCpuMsTotal))
           + String(format: "\n  TextLayer.draw n=%d total=%.0fms (%.0f%% of commit) lineBuilds=%d", TextLayer.drawCount, TextLayer.drawMs, commitMsTotal > 0 ? 100 * TextLayer.drawMs / commitMsTotal : 0, TextLayer.buildCount)
           + String(format: "\n  RichOverlay.redraw n=%d %.1f Mpx %.0fms", RichOverlay.redrawCount, RichOverlay.redrawMP, RichOverlay.redrawMs)
           + String(format: "\n  richLayout n=%d %.0fms %.0f KB", tree.richLayoutCount, tree.richLayoutMs, Double(tree.richLayoutBytes) / 1024)
@@ -500,6 +511,20 @@ final class Bridge {
                    RichOverlay.RichStats.ensureMs)
           + "\n  opMs: " + tree.opMs.sorted { $0.value > $1.value }.prefix(6).map { String(format: "%@=%.0fms", opName($0.key), $0.value) }.joined(separator: " ")
           + "\n  redrawn: " + drawnNames()
+          // WHOSE raster, and how many pixels of it. "888 rasters" is not a
+          // plan until you know whether it is one huge surface forty times or
+          // eight hundred cheap ones — the two want opposite fixes.
+          + "\n  rasterMs by node: " + tree.rasterMsNodes.sorted { $0.value > $1.value }.prefix(8).map {
+                let box = tree.node($0.key)?.box ?? .zero
+                let mp = (tree.rasterPxNodes[$0.key] ?? 0) / 1_000_000
+                return String(format: "#%d=%.0fms/%.1fMpx[%dx%d]", $0.key, $0.value, mp, Int(box.width), Int(box.height))
+            }.joined(separator: " ")
+          + String(format: "\n    LAYERS: described=%d  rasterized=%d", tree.describedN, tree.rasterizedN)
+          + String(format: "\n    hidden: skipped=%d  paid back on reveal=%d (%.0fms)  still owed=%d",
+                   tree.skippedRasterN, tree.revealedRasterN, tree.revealedRasterMs, tree.deferredCount)
+          + String(format: "\n    (top node is %.0f%% of all raster time; %d nodes rastered)",
+                   tree.rasterMsTotal > 0 ? 100 * (tree.rasterMsNodes.values.max() ?? 0) / tree.rasterMsTotal : 0,
+                   tree.rasterMsNodes.count)
     }
 
     /// The views that re-rastered, most first, with their box — so a per-frame

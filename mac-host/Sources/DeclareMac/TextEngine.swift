@@ -179,6 +179,20 @@ enum TextEngine {
         return out
     }
 
+    /// The INK box of a run, in the same space as `measure`'s advance width.
+    /// Ink is not the advance: a glyph may paint outside the box its advance
+    /// reserves (an overshooting `°`, an italic tail, a swash), and where the
+    /// advance decides layout, the ink decides what a bitmap must hold to show
+    /// the run whole.
+    static func inkBounds(text: String, font: String, letterSpacing: Double) -> CGRect {
+        guard !text.isEmpty else { return .zero }
+        let f = nsFont(parse(font))
+        var attrs: [NSAttributedString.Key: Any] = [.font: f]
+        if letterSpacing != 0 { attrs[.kern] = letterSpacing }
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attrs))
+        return CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+    }
+
     /// An attributed string for a run, matching what the measurer promised.
     static func attributed(_ text: String, style: TextStyleSpec) -> NSAttributedString {
         let f = nsFont(parse(style.fontCSS))

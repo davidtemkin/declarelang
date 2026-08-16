@@ -121,7 +121,44 @@ final class LayerTree {
     private(set) var root: Node?
     /// Surfaces whose drawing must be re-rasterized after a geometry change.
     private var pendingDraw = Set<Int>()
+    /// Surfaces whose recording arrived while nothing could see them. Their
+    /// bitmap is missing or stale ON PURPOSE; `flushDeferred` owes them a raster
+    /// the moment they are shown. See the raster loop in `apply` for why.
+    private var deferredDraw = Set<Int>()
+    /// Outstanding debt, for the stats window.
+    var deferredCount: Int { deferredDraw.count }
     private var dumped = false
+
+    /// Pay what the hidden-skip owes: raster any deferred surface that can now
+    /// be seen, in the same commit that reveals it, so nothing is ever shown
+    /// blank or stale for a frame.
+    ///
+    /// Checked once per commit rather than hooked onto the VISIBLE op, because
+    /// a surface re-enters rendering by several routes — its own flag, an
+    /// ancestor's, a reparent into a shown tree, a new root — and one uniform
+    /// check at the end cannot miss one. It costs a parent walk per owed node,
+    /// against a raster that is milliseconds.
+    private func flushDeferred() {
+        guard !deferredDraw.isEmpty else { return }
+        var paid: [Int] = []
+        for id in deferredDraw {
+            // Gone, or its recording was cleared while it was away: nothing owed.
+            guard let n = nodes[id], n.drawList != nil else { paid.append(id); continue }
+            if hiddenAnywhere(n) { continue }
+            let t0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
+            rasterize(n)
+            if statsOn {
+                let dt = (CFAbsoluteTimeGetCurrent() - t0) * 1000
+                rasterCount += 1
+                rasterMsTotal += dt
+                rasterMsNodes[id, default: 0] += dt
+                revealedRasterN += 1
+                revealedRasterMs += dt
+            }
+            paid.append(id)
+        }
+        for id in paid { deferredDraw.remove(id) }
+    }
 
     /// Model box vs where the layer actually lands (converted back into model
     /// coordinates) — the two must agree, and any node where they don't is a
@@ -190,9 +227,31 @@ final class LayerTree {
             for id in pendingDraw { drawNodes[id, default: 0] += 1 }
         }
         let rt0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
-        for id in pendingDraw { nodes[id].map { rasterize($0) } }
+        for id in pendingDraw {
+            guard let n = nodes[id] else { continue }
+            // A hidden subtree is OUT of rendering — `visible=false` is the DOM
+            // backend's display:none — so a bitmap made for it now is a bitmap
+            // nobody can see. Owe it instead, and pay on the way back in.
+            //
+            // This is where resize was going: a parked CityView holds a DRAWN
+            // sky, and a resize re-records it (the art bakes in d.w/d.h) at full
+            // window size every step. Measured on weather's 40-step sweep: 580
+            // of 888 rasters and 1872 of 1916ms — 98% of all raster time — for
+            // a sky that is `visible=false` and sitting at x=-1100. WSky's own
+            // doc names the hazard; making photographic skies record nothing
+            // only ever fixed it for the photographs.
+            if hiddenAnywhere(n) {
+                deferredDraw.insert(id)
+                if statsOn { skippedRasterN += 1 }
+                continue
+            }
+            let t0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
+            rasterize(n)
+            if statsOn { rasterMsNodes[id, default: 0] += (CFAbsoluteTimeGetCurrent() - t0) * 1000 }
+        }
         if statsOn { rasterMsTotal += (CFAbsoluteTimeGetCurrent() - rt0) * 1000 }
         pendingDraw.removeAll()
+        flushDeferred()
         // Geometry is final now — this is the first moment a flow's band is
         // worth rastering, and it is still inside the transaction below.
         flushBands()
@@ -202,9 +261,19 @@ final class LayerTree {
         // happen to notice (compositing.md §5.2: a frost invalidates on
         // under-content change, never on its own state — which is now the
         // window server's invariant to keep rather than ours to re-walk).
+        // WALL and CPU, because they answer different questions. Core Animation's
+        // commit both does work (layout, calling back into dirty layers) and
+        // WAITS (handing the transaction to the render server). Only the first
+        // is ours to fix, and `commit ms` cannot tell them apart — a commit that
+        // is 34ms wall and 2ms CPU is the window server pacing us, not the host
+        // being slow.
         let ct0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
+        let cc0 = statsOn ? clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) : 0
         CATransaction.commit()
-        if statsOn { caCommitMsTotal += (CFAbsoluteTimeGetCurrent() - ct0) * 1000 }
+        if statsOn {
+            caCommitMsTotal += (CFAbsoluteTimeGetCurrent() - ct0) * 1000
+            caCommitCpuMsTotal += Double(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - cc0) / 1_000_000
+        }
         let ro0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
         view?.repositionOverlays()
         if statsOn { overlayMsTotal += (CFAbsoluteTimeGetCurrent() - ro0) * 1000 }
@@ -233,6 +302,15 @@ final class LayerTree {
     var drawNodes: [Int: Int] = [:]
     /// Wall time spent re-rastering display lists in the window.
     var rasterMsTotal = 0.0
+    /// Wall time spent rasterizing each node, and the pixels it cost.
+    var rasterMsNodes: [Int: Double] = [:]
+    var rasterPxNodes: [Int: Double] = [:]
+    /// Rasters NOT spent, because the node was hidden — and the ones paid later
+    /// when it was revealed. The second number is the honest price of the first:
+    /// deferring is only a win if far fewer are ever actually shown.
+    var skippedRasterN = 0
+    var revealedRasterN = 0
+    var revealedRasterMs = 0.0
     /// Time in repositionOverlays (visibleRect + occluders + bands) per window.
     var overlayMsTotal = 0.0
     /// Wall time per opcode — which op is actually costing the frame.
@@ -240,6 +318,8 @@ final class LayerTree {
     /// Time inside CATransaction.commit — where Core Animation does the layout
     /// and calls back into every dirty layer's draw(in:).
     var caCommitMsTotal = 0.0
+    /// CPU time inside that commit. Wall minus this is time spent WAITING.
+    var caCommitCpuMsTotal = 0.0
     /// Synchronous AppKit text layout — one per setRichContent, on the settle path.
     var richLayoutCount = 0
     var richLayoutMs = 0.0
@@ -429,6 +509,13 @@ final class LayerTree {
             if a(0) == nil || a(0) is NSNull {
                 n.draw?.removeFromSuperlayer(); n.draw = nil; n.drawList = nil
             } else {
+                // NOT worth a content check. The obvious cheap fix for a resize
+                // storm is to notice the recording did not change and skip the
+                // raster — measured on weather's 40-step sweep, it does not:
+                // of 888 arrivals, 82 were identical, 0 differed only in
+                // `bounds`, and 806 differed in their ops. Draw bodies bake
+                // d.w/d.h into what they record, so a resize genuinely produces
+                // new art and a hash buys 9%.
                 n.drawList = a(0) as? [String: Any]
                 pendingDraw.insert(id)
             }
@@ -848,6 +935,26 @@ final class LayerTree {
 
     /// A TextStyle payload → the spec. Shared by TEXTSTYLE and by EDIT, which
     /// carries a style of its own (as the DOM's EditableSpec does).
+    /// The language's whole weight vocabulary, as numbers.
+    ///
+    /// ⚠ This MUST agree with the runtime's `WEIGHT_CSS` (runtime/src/measure.ts,
+    /// mirrored in font.ts's FONT_WEIGHTS) — because the two are used on
+    /// opposite sides of the SAME text. The runtime asks the measurer for a
+    /// width using its own spelling of the weight, and this table decides what
+    /// the host then RENDERS with. A keyword missing here does not merely draw
+    /// the wrong weight: it draws a weight the box was not measured for, and
+    /// the surplus is clipped by the layer's bounds.
+    ///
+    /// That is exactly what `thin` did. It was absent, fell to the `400`
+    /// default, and weather's 34px city temperatures were measured as
+    /// UltraLight (advance 50.7) but drawn as Regular (55.0) — so the degree
+    /// sign lost 4pt off its right edge in every row of the list.
+    private static let cssWeights: [String: String] = [
+        "thin": "100", "extralight": "200", "light": "300",
+        "regular": "400", "normal": "400", "medium": "500",
+        "semibold": "600", "bold": "700", "extrabold": "800", "black": "900",
+    ]
+
     private func parseTextStyle(_ s: [String: Any]) -> TextStyleSpec {
         var st = TextStyleSpec()
         let family = s["family"] as? String ?? "system-ui"
@@ -855,7 +962,10 @@ final class LayerTree {
         let weight = s["weight"]
         let weightStr: String = {
             if let n = weight as? NSNumber { return String(n.intValue) }
-            if let t = weight as? String { return t == "bold" ? "700" : t == "semibold" ? "600" : t == "medium" ? "500" : t == "light" ? "300" : "400" }
+            if let t = weight as? String {
+                if let n = Int(t) { return String(n) }          // already numeric
+                return LayerTree.cssWeights[t.lowercased()] ?? "400"
+            }
             return "400"
         }()
         let italic = (s["italic"] as? NSNumber)?.boolValue ?? false
@@ -1081,7 +1191,41 @@ final class LayerTree {
 
     // ── drawings ────────────────────────────────────────────────────────────
 
+    /// ON by default. A recording the describer refuses still rasterizes, so
+    /// this only ever changes what it can express — 82% of the corpus at load —
+    /// and `describedN`/`rasterizedN` say how much that is for any given run.
+    /// `DECLARE_NO_LAYERS` forces the old path, which is how the two are diffed.
+    static let layersOn = ProcessInfo.processInfo.environment["DECLARE_NO_LAYERS"] == nil
+    var describedN = 0, rasterizedN = 0
+
+    /// Hand the compositor a DESCRIPTION rather than pixels, when we can.
+    /// Returns false if this recording is not expressible.
+    private func describe(_ n: Node) -> Bool {
+        guard let list = n.drawList,
+              let out = LayerDescribe.describe(list, scale: scale) else { return false }
+        let host: CALayer
+        if let e = n.draw, e is CAShapeLayer == false, e.name == "described" { host = e; e.sublayers?.forEach { $0.removeFromSuperlayer() } }
+        else {
+            n.draw?.removeFromSuperlayer()
+            let l = CALayer()
+            l.name = "described"
+            l.anchorPoint = .zero
+            l.actions = ["position": NSNull(), "bounds": NSNull(), "sublayers": NSNull()]
+            n.draw = l
+            host = l
+            restack(n)
+        }
+        host.contentsScale = scale
+        host.bounds = CGRect(x: 0, y: 0, width: out.w, height: out.h)
+        host.position = CGPoint(x: out.bx, y: n.box.height - out.by - out.h)
+        for l in out.layers { host.addSublayer(l) }
+        describedN += 1        // unconditional: two ints, and coverage is only
+        return true            // legible if it counts the LOAD, not just a gesture
+    }
+
     private func rasterize(_ n: Node) {
+        if LayerTree.layersOn, describe(n) { return }
+        rasterizedN += 1
         guard let list = n.drawList else { return }
         if ProcessInfo.processInfo.environment["DECLARE_DEBUG_DRAW"] != nil {
             let opsList = (list["ops"] as? [[String: Any]]) ?? []
@@ -1104,6 +1248,7 @@ final class LayerTree {
                                  bytesPerRow: 0, space: cs,
                                  bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
         else { return }
+        if statsOn { rasterPxNodes[n.id, default: 0] += Double(Int(w * s) * Int(h * s)) }
         cg.scaleBy(x: s, y: s)
         // Flip into the model's y-down space, then shift so the recording's
         // own origin lands at the raster's corner.
@@ -1472,6 +1617,7 @@ final class LayerTree {
         n.layer.removeFromSuperlayer()
         pendingBand.remove(n.id)
         pendingDraw.remove(n.id)
+        deferredDraw.remove(n.id)
         nodes.removeValue(forKey: n.id)
     }
 
@@ -1486,6 +1632,7 @@ final class LayerTree {
             tearDown(n, recurse: false)   // the loop already visits every dead id
         }
         pendingDraw.formIntersection(live)
+        deferredDraw.formIntersection(live)
     }
 
     /// Bring a flow's rastered band up to date for where it is RIGHT NOW.

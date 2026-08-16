@@ -1,5 +1,67 @@
 # Adaptive draw caching — hot `draw()` views without manual bitmaps
 
+> **Status: REJECTED, 2026-08-16, on measurement.** The caching mechanism below
+> does not survive; the *analysis* it rests on does, and is reused by what
+> replaces it. Superseded by re-description (see "What replaces it").
+>
+> **Why it fails, in one line: a drawing is hot precisely because it re-records
+> every frame, and it re-records because it reads its own size — so every frame
+> is a new size and a cache keyed on size can never hit.**
+>
+> Only an EXACT-SIZE cache is pixel-accurate. Downscaling from a high-water
+> cache is not: rendering at size B computes antialias coverage against B's
+> pixel grid, whereas downsampling from A resamples an image already
+> antialiased against A's grid — double-filtered edges, and features that would
+> land on a pixel boundary at B get smeared. So this document's claim that
+> cache-and-scale is "exact and permanent — no quality loss ever" is wrong, and
+> the motion-time approximation for the size-dependent class is a torn frame:
+> it shows pixels the program never described.
+>
+> Measured hit rates for an exact-size memo (hash of display list + backing
+> scale), Mac host, 2026-08-16:
+>
+> | workload | rasters | memo hits | time saved |
+> |---|---|---|---|
+> | weather, 40-step resize | 888 | ~9% | negligible |
+> | weather, scroll + view switches | 64 | 64% | **6ms of 46ms (13%)** |
+> | desktop, dock magnification | 242 | **0%** | 0 of 311ms |
+>
+> The 64% is the trap: it hits often and saves nothing, because the hits are all
+> CHEAP recordings. The expensive pair never repeats.
+>
+> ## What replaces it: re-describe, don't resample
+>
+> Hand the compositor a DESCRIPTION rather than pixels — `CAGradientLayer` for
+> gradient fills, `CAShapeLayer` for paths. Nothing is cached, nothing goes
+> stale, and a size change is re-rendered exactly at the new size instead of
+> resampled. Critically, a transform on a CAShapeLayer is **not** a bitmap
+> resample: the render server rasterizes the path under the transform, so vector
+> art stays crisp at any scale — which is an exact answer to dock magnification,
+> the very case this document was written for.
+>
+> The cardinality worry (one layer per mark) is unfounded. A CAShapeLayer holds
+> a COMPOUND path, so consecutive marks sharing paint state merge. Measured:
+>
+> | recording | marks | layers needed |
+> |---|---|---|
+> | desktop dock strip (97% of its app's raster time) | 242 strokes | **2** |
+> | weather sky (96%) | 2 gradient fills | **2** |
+> | weather's most ornate icon | 160 | 14 |
+>
+> ## What survives from this document
+>
+> The dep-graph partition of a draw's reads into **size** vs **content** (below)
+> is the durable insight and the precondition for re-description: it is what
+> lets the runtime know that only the size changed. This document spent that
+> knowledge on resampling; re-description spends it better and trades no
+> fidelity at all. The settle invariant then becomes unnecessary rather than
+> load-bearing, because there is no approximation to settle out of.
+>
+> Also still true: a cache would help where an identical (recording, size) pair
+> recurs — a remount, a reveal after hiding, an animation returning to a size it
+> already visited. Measured at 13% of raster time in a churn workload. Real, but
+> not what costs.
+
 **Status:** proposal, 2026-07-20. Nothing built. Motivated by the dock-magnification
 paint cost (a hot `draw()` re-rasterizing 9 illustrations per frame dragged Safari's
 rAF from 60 → ~25fps; see the
