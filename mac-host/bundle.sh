@@ -125,5 +125,20 @@ TOOLCHAIN="$(/usr/bin/sed -n 's/.*"build" *: *"\([^"]*\)".*/\1/p' "$ROOT/bundles
 # silently runs its interpreter, and the whole runtime is ~16x slower —
 # measured 437ms vs 27ms on the shared engine bench. An mmap(MAP_JIT) probe
 # reports success either way, so the only honest check is a benchmark.
-codesign --force --deep --sign - --options runtime --entitlements "$(dirname "$0")/jit.entitlements" "$OUT" 2>/dev/null ||   codesign --force --deep --sign - "$OUT" 2>/dev/null || true
+# ⚠ `jit.entitlements`, NOT "$(dirname "$0")/jit.entitlements" — line 13 already
+# cd'd into this directory, so the $0-relative form resolved to
+# mac-host/mac-host/jit.entitlements and codesign failed. With the error
+# suppressed and a fallback that signs WITHOUT the entitlement, every app built
+# by the documented invocation (`bash mac-host/bundle.sh`, run from the repo
+# root) silently shipped an interpreter-only JavaScriptCore. Measured on the
+# 20M-iteration engine bench: 837ms against node's 19ms.
+#
+# So the failure is LOUD now. A silent fallback here costs 40x and looks like a
+# slow app, not a broken build step.
+if ! codesign --force --deep --sign - --options runtime \
+       --entitlements jit.entitlements "$OUT"; then
+  echo "⚠︎  could not apply the JIT entitlement — JavaScriptCore will run its" >&2
+  echo "    INTERPRETER and everything JS will be ~40x slower." >&2
+  codesign --force --deep --sign - "$OUT" || true
+fi
 echo "built $OUT"

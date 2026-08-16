@@ -1266,7 +1266,14 @@ final class LayerTree {
             }
         }
         let l: CALayer
-        if let e = n.draw { l = e } else {
+        // ⚠ NOT a described container. `describe` leaves shape/gradient
+        // SUBLAYERS on n.draw; reusing that as a bitmap host sets `contents`
+        // underneath them and paints the drawing TWICE — once as vectors, once
+        // as the image. A recording flips this way whenever it becomes
+        // inexpressible (it gains text, an image, a focal radial), which is
+        // ordinary for a program whose art changes with its state.
+        if let e = n.draw, e.name != "described" { l = e } else {
+            n.draw?.removeFromSuperlayer()
             l = CALayer(); l.anchorPoint = .zero
             l.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull()]
             n.draw = l; restack(n)

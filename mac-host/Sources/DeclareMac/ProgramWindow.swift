@@ -59,6 +59,7 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         // that: a gate run booted an empty window off a stale test port.
         if !Launch.isAutomated { UserDefaults.standard.set(url, forKey: "lastURL") }
         window.title = "Loading…"
+        bridge.mark("open()", url)
         bridge.boot(url: url)
         owner?.sessionChanged()
     }
@@ -83,9 +84,24 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     func syncSize() {
         publishGeometry()
         let s = view.bounds.size
+        // ⚠ `commit ms` measures tree.apply() ONLY — the HOST half. Everything
+        // above it here is the runtime re-laying out in JS, on this same
+        // thread, and it was invisible in every resize number measured so far.
+        let t0 = CFAbsoluteTimeGetCurrent()
         bridge.call("__declareResize", [Double(s.width), Double(s.height), Double(window.backingScaleFactor)])
+        let t1 = CFAbsoluteTimeGetCurrent()
         bridge.call("__declareSettle", [])
+        let t2 = CFAbsoluteTimeGetCurrent()
         bridge.pump()
+        let t3 = CFAbsoluteTimeGetCurrent()
+        if bridge.tree?.statsOn == true {
+            bridge.resizeN += 1
+            bridge.resizeMs += (t3 - t0) * 1000
+            bridge.resizeJsMs += (t1 - t0) * 1000
+            bridge.resizeSettleMs += (t2 - t1) * 1000
+            bridge.resizePumpMs += (t3 - t2) * 1000
+            bridge.resizeMaxMs = max(bridge.resizeMaxMs, (t3 - t0) * 1000)
+        }
         // The root app is already resized and flushed by the two calls above;
         // the frame request is for the observers that follow one frame behind
         // (an island's tenant re-deriving from its box's new size).

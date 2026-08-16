@@ -33,12 +33,28 @@ final class Bridge {
     /// Gaps between commits that actually carried geometry.
     var geomGaps: [Double] = []
     var lastGeomCommitAt: CFAbsoluteTime = 0
+    /// The WHOLE resize path, not just the commit: __declareResize +
+    /// __declareSettle (the runtime re-laying out) and then the pump that
+    /// carries the ops down. All on the main thread, all in one gesture.
+    var resizeN = 0
+    var resizeMs = 0.0, resizeJsMs = 0.0, resizeSettleMs = 0.0, resizePumpMs = 0.0, resizeMaxMs = 0.0
     var linkTicks = 0
     var pumps = 0
     var firstCommitAt: CFAbsoluteTime = 0
     let startedAt = CFAbsoluteTimeGetCurrent()
     var onTitle: ((String) -> Void)?
     var onBootFailed: ((String) -> Void)?
+    /// A BOOT TIMELINE, on `DECLARE_BOOTLOG=1`. Startup is a ladder — evaluate
+    /// the runtime, maybe fetch and evaluate a 5.9MB compiler, fetch the
+    /// library, compile, instantiate, commit — and a single "2.4s" says nothing
+    /// about which rung costs what. Every mark is elapsed-since-process-start,
+    /// so the log reads as a timeline rather than a set of durations to add up.
+    static let bootLog = ProcessInfo.processInfo.environment["DECLARE_BOOTLOG"] != nil
+    func mark(_ label: String, _ detail: String = "") {
+        guard Bridge.bootLog else { return }
+        NSLog("[boot] %7.0fms  %@ %@", (CFAbsoluteTimeGetCurrent() - startedAt) * 1000, label, detail)
+    }
+
     /// The last load or compile failure, kept whether or not it was ever shown.
     /// Under the control channel nothing is shown (see `showError`), so this is
     /// how a harness learns that a program failed rather than merely rendered
@@ -76,8 +92,10 @@ final class Bridge {
             NSLog("[Declare] JS exception: %@", e?.toString() ?? "?")
             if let stack = e?.objectForKeyedSubscript("stack")?.toString() { NSLog("[Declare]   %@", stack) }
         }
+        mark("ctx created")
         install()
         loadScripts()
+        mark("runtime scripts evaluated")
         startDisplayLink()
     }
 
@@ -129,7 +147,7 @@ final class Bridge {
                 self.lastGeomCommitAt = CFAbsoluteTimeGetCurrent()
             }
             self.lastCommitAt = CFAbsoluteTimeGetCurrent()
-            if self.firstCommitAt == 0 { self.firstCommitAt = CFAbsoluteTimeGetCurrent() }
+            if self.firstCommitAt == 0 { self.firstCommitAt = CFAbsoluteTimeGetCurrent(); self.mark("FIRST COMMIT") }
         } as @convention(block) (String) -> Void, forKeyedSubscript: "commit")
 
         host.setObject({ [weak self] (text: String, font: String, ls: Double) -> [Double] in
@@ -240,7 +258,11 @@ final class Bridge {
 
         // The client-compile tier loads the compiler INTO this same context.
         host.setObject({ [weak self] (src: String, url: String) in
+            let t0 = CFAbsoluteTimeGetCurrent()
             self?.ctx.evaluateScript(src, withSourceURL: URL(string: url))
+            self?.mark("H.evaluate", String(format: "%d KB in %.0fms  %@", src.utf8.count / 1024,
+                                            (CFAbsoluteTimeGetCurrent() - t0) * 1000,
+                                            (url as NSString).lastPathComponent))
         } as @convention(block) (String, String) -> Void, forKeyedSubscript: "evaluate")
 
         // WHERE THE DISTRO IS, as a file:// base the JS side can resolve against.
@@ -451,6 +473,7 @@ final class Bridge {
         lastCommitAt = 0; linkTicks = 0; pumps = 0
         geomGaps.removeAll(); lastGeomCommitAt = 0
         tickLog.removeAll(); firstCommits.removeAll(); statsTracing = true
+        resizeN = 0; resizeMs = 0; resizeJsMs = 0; resizeSettleMs = 0; resizePumpMs = 0; resizeMaxMs = 0
         tree.opHist.removeAll(); tree.rasterCount = 0; tree.drawNodes.removeAll(); tree.rasterMsTotal = 0; tree.overlayMsTotal = 0; tree.opMs.removeAll(); tree.caCommitMsTotal = 0; tree.caCommitCpuMsTotal = 0; tree.richLayoutCount = 0; tree.richLayoutMs = 0; tree.richLayoutBytes = 0; tree.richParseMs = 0; RichOverlay.RichStats.reset()
         tree.rasterMsNodes.removeAll(); tree.rasterPxNodes.removeAll()
         tree.describedN = 0; tree.rasterizedN = 0
@@ -484,6 +507,9 @@ final class Bridge {
           + String(format: "\n  MOTION gap ms p50=%.2f p95=%.2f max=%.2f  over=%d  (n=%d)",
                     pct(geomGaps, 0.5), pct(geomGaps, 0.95), geomGaps.max() ?? 0,
                     geomGaps.filter { $0 > budget * 1.5 }.count, geomGaps.count)
+          + String(format: "\n  RESIZE path n=%d  total=%.1fms  avg=%.2f max=%.2f   of which __declareResize=%.1fms  __declareSettle=%.1fms  pump+apply=%.1fms",
+                   resizeN, resizeMs, resizeN > 0 ? resizeMs / Double(resizeN) : 0, resizeMaxMs,
+                   resizeJsMs, resizeSettleMs, resizePumpMs)
           + "\n  first commits:\n    " + firstCommits.joined(separator: "\n    ")
           + "\n  ticks: " + tickLog.map { "\($0.0)@\(Int($0.1))ms\($0.2 ? "✓\($0.3)b" : "·")" }.joined(separator: " ")
           + "  worstGapAtCommit=" + (g.firstIndex(where: { $0 > budget * 1.5 }).map { String($0 + 1) } ?? "-") + "/\(commitCount)"
@@ -653,10 +679,18 @@ final class Bridge {
             call("__declareFetchDone", [id, -1, "", ""]); return
         }
         if url.isFileURL {
+            let r0 = CFAbsoluteTimeGetCurrent()
             let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
             let ok = !text.isEmpty || FileManager.default.fileExists(atPath: url.path)
+            let readMs = (CFAbsoluteTimeGetCurrent() - r0) * 1000
             DispatchQueue.main.async { [weak self] in
-                self?.call("__declareFetchDone", [id, ok ? 200 : 404, text, ""]); self?.needsFrame()
+                self?.mark("file \(ok ? 200 : 404)", String(format: "%4d KB read %.0fms  %@",
+                                                            text.utf8.count / 1024, readMs,
+                                                            (urlStr as NSString).lastPathComponent))
+                let c0 = CFAbsoluteTimeGetCurrent()
+                self?.call("__declareFetchDone", [id, ok ? 200 : 404, text, ""])
+                self?.mark("  └ JS handled it", String(format: "%.0fms", (CFAbsoluteTimeGetCurrent() - c0) * 1000))
+                self?.needsFrame()
             }
             return
         }
@@ -673,13 +707,19 @@ final class Bridge {
         // Header pass-through for the cache revalidation tier.
         if let hdrs = pendingHeaders[id] { for (k, v) in hdrs { req.setValue(v, forHTTPHeaderField: k) } }
         pendingHeaders[id] = nil
+        let fetchT0 = CFAbsoluteTimeGetCurrent()
         Self.net.dataTask(with: req) { [weak self] data, resp, _ in
             let http = resp as? HTTPURLResponse
             let status = http?.statusCode ?? -1
             let text = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
             let ctype = http?.value(forHTTPHeaderField: "content-type") ?? ""
+            let ms = (CFAbsoluteTimeGetCurrent() - fetchT0) * 1000
             DispatchQueue.main.async {
+                self?.mark("fetch \(status)", String(format: "%4d KB in %.0fms  %@",
+                                                     text.utf8.count / 1024, ms, urlStr))
+                let c0 = CFAbsoluteTimeGetCurrent()
                 self?.call("__declareFetchDone", [id, status, text, ctype])
+                self?.mark("  └ JS handled it", String(format: "%.0fms", (CFAbsoluteTimeGetCurrent() - c0) * 1000))
                 self?.needsFrame()
             }
         }.resume()
