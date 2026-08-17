@@ -33,6 +33,7 @@
 
 import AppKit
 import CoreImage
+import Metal
 
 extension LayerTree {
 
@@ -203,7 +204,141 @@ extension LayerTree {
             guard let out = f.outputImage else { return nil }
             ci = out.cropped(to: extent)
         }
-        return ciCtx.createCGImage(ci, from: extent)
+        // Tagged sRGB EXPLICITLY. The bare `createCGImage` on an unmanaged
+        // context returns DeviceRGB — displayed unconverted, i.e. sRGB bytes
+        // shown raw on a P3 panel. The canvas bytes are sRGB; say so, and CA
+        // color-matches this layer exactly as it matches Chrome's output. The
+        // GPU surface carries the same tag (IOSurfaceColorSpace), which is what
+        // lets the two paths land pixel-identical glass.
+        guard let cs = CGColorSpace(name: CGColorSpace.sRGB) else {
+            return ciCtx.createCGImage(ci, from: extent)
+        }
+        return ciCtx.createCGImage(ci, from: extent, format: .BGRA8, colorSpace: cs)
+    }
+
+    // ── the same filter, blurred on the GPU ─────────────────────────────────
+    //
+    // `createCGImage` above is the expensive shape of readback — measured at
+    // ~6.5ms of an ~14ms walk for weather's three radii, the single biggest
+    // term once the capture was fixed. Here the IDENTICAL chain (same
+    // CIGaussianBlur, same CSS saturate matrix, same unmanaged working space —
+    // proven byte-identical in isolation) renders into a private Metal texture,
+    // and one locked memcpy brings the ~420KB back as an IMMUTABLE CGImage.
+    //
+    // ⚠ A CGImage, DELIBERATELY — not the texture's IOSurface as layer
+    // contents. That purer-looking route was built and then torn out: CA does
+    // not honour an IOSurfaceColorSpace attachment (the glass rendered
+    // oversaturated against the byte-identical CPU path), it scans surface rows
+    // in the opposite order from a CGImage, and above all the contents were
+    // MUTABLE — any reuse of a surface still held by WindowServer, or by a
+    // frost that had not re-landed, changed pixels under a displayed frame and
+    // flickered. Every one of those failure modes exists only because the
+    // compositor was handed a live buffer. An immutable image cannot flicker,
+    // and it lands through exactly the code path the CPU blur already proved.
+
+    static let mtlDevice = MTLCreateSystemDefaultDevice()
+    static let mtlQueue = mtlDevice?.makeCommandQueue()
+    static let ciMetal: CIContext? = mtlDevice.map {
+        CIContext(mtlDevice: $0, options: [.workingColorSpace: NSNull()])
+    }
+    /// Scratch render target per size — never shown, never shared, so one is
+    /// enough and its reuse needs no lifetime reasoning.
+    private static var blurScratch: [String: MTLTexture] = [:]
+
+    /// `DECLARE_FROST_CPU=1` forces the CPU chain — the A/B lever for verifying
+    /// the GPU path against the reference on a LIVE scene (weather's sky
+    /// drifts, so two screenshots minutes apart cannot be compared).
+    static let forceCPUBlur = ProcessInfo.processInfo.environment["DECLARE_FROST_CPU"] != nil
+
+    /// The blur chain as a CIImage — the same filters as `blur`, unexecuted.
+    private static func blurChain(_ input: CIImage, radius: CGFloat, saturate: CGFloat) -> CIImage? {
+        var image = input
+        let extent = image.extent
+        if radius > 0.01, let f = CIFilter(name: "CIGaussianBlur") {
+            f.setValue(image.clampedToExtent(), forKey: kCIInputImageKey)
+            f.setValue(radius, forKey: kCIInputRadiusKey)
+            guard let out = f.outputImage else { return nil }
+            image = out.cropped(to: extent)
+        }
+        if abs(saturate - 1) > 0.001, let f = CIFilter(name: "CIColorMatrix") {
+            let s = saturate
+            f.setValue(image, forKey: kCIInputImageKey)
+            f.setValue(CIVector(x: 0.213 + 0.787 * s, y: 0.715 - 0.715 * s, z: 0.072 - 0.072 * s, w: 0), forKey: "inputRVector")
+            f.setValue(CIVector(x: 0.213 - 0.213 * s, y: 0.715 + 0.285 * s, z: 0.072 - 0.072 * s, w: 0), forKey: "inputGVector")
+            f.setValue(CIVector(x: 0.213 - 0.213 * s, y: 0.715 - 0.715 * s, z: 0.072 + 0.928 * s, w: 0), forKey: "inputBVector")
+            f.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+            guard let out = f.outputImage else { return nil }
+            image = out.cropped(to: extent)
+        }
+        return image
+    }
+
+    /// EVERY radius the group needs, one command buffer, ONE wait. The
+    /// per-call synchronous version measured ~1.7ms per radius, most of it the
+    /// GPU round trip — batched, weather's three radii cost roughly one.
+    /// Returns nil when Metal is unavailable; caller falls back per-key to the
+    /// CPU chain.
+    static func blurManyOnGPU(_ img: CGImage,
+                              specs: [(radius: CGFloat, saturate: CGFloat)]) -> [CGImage]? {
+        guard !forceCPUBlur, !specs.isEmpty, let device = mtlDevice, let ci = ciMetal,
+              let queue = mtlQueue, let cmd = queue.makeCommandBuffer() else { return nil }
+        let w = img.width, h = img.height
+        let input = CIImage(cgImage: img)
+        let extent = input.extent
+        var targets: [MTLTexture] = []
+        for i in specs.indices {
+            let key = "\(w)x\(h)/\(i)"
+            if let hit = blurScratch[key] {
+                targets.append(hit)
+            } else {
+                let desc = MTLTextureDescriptor.texture2DDescriptor(
+                    pixelFormat: .bgra8Unorm, width: w, height: h, mipmapped: false)
+                desc.usage = [.shaderWrite, .shaderRead]
+                desc.storageMode = .shared
+                guard let made = device.makeTexture(descriptor: desc) else { return nil }
+                // Sizes churn with window resizes; drop stale sizes rather
+                // than accumulate one scratch set per size ever seen.
+                if blurScratch.count >= 12 { blurScratch.removeAll() }
+                blurScratch[key] = made
+                targets.append(made)
+            }
+        }
+        for (i, spec) in specs.enumerated() {
+            guard var image = blurChain(input, radius: spec.radius, saturate: spec.saturate)
+            else { return nil }
+            // Core Image renders y-up; flip so the copied-out rows read
+            // top-down, making the result a normal CGImage — same orientation,
+            // same contentsRect math, same draw-back as the CPU chain.
+            image = image.transformed(by: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: extent.height))
+            // The colorSpace argument is ignored by an unmanaged context
+            // (measured; sRGB/linear/device all byte-identical) — raw bytes.
+            ci.render(image, to: targets[i], commandBuffer: cmd, bounds: extent,
+                      colorSpace: img.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!)
+        }
+        cmd.commit()
+        cmd.waitUntilCompleted()
+
+        // One copy out per radius; each CGImage owns its bytes from here.
+        var out: [CGImage] = []
+        let bpr = w * 4
+        guard let cs = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        for tex in targets {
+            var data = Data(count: bpr * h)
+            data.withUnsafeMutableBytes { p in
+                tex.getBytes(p.baseAddress!, bytesPerRow: bpr,
+                             from: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0)
+            }
+            guard let provider = CGDataProvider(data: data as CFData),
+                  let made = CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32,
+                                     bytesPerRow: bpr, space: cs,
+                                     bitmapInfo: CGBitmapInfo(rawValue: CGBitmapInfo.byteOrder32Little.rawValue
+                                                              | CGImageAlphaInfo.premultipliedFirst.rawValue),
+                                     provider: provider, decode: nil, shouldInterpolate: true,
+                                     intent: .defaultIntent)
+            else { return nil }
+            out.append(made)
+        }
+        return out
     }
 
     // ── when to re-sample ───────────────────────────────────────────────────
@@ -255,6 +390,9 @@ extension LayerTree {
         /// kernel then samples the real backdrop continuing past each frost's
         /// edge instead of a cropped copy of it.
         var blurred: [String: (gen: Int, img: CGImage)] = [:]
+        /// Every distinct (blur, saturate) in the group, so a fresh snapshot
+        /// can batch all of them into one GPU submission.
+        var specs: [(blur: CGFloat, saturate: CGFloat)] = []
         /// Suffix unions of the capture rects still to come, in paint order —
         /// "can anything drawn here still reach a frost?"
         var remaining: [CGRect] = []
@@ -338,7 +476,13 @@ extension LayerTree {
             }
             if reach.intersects(c.reach) {
                 let tn = CFAbsoluteTimeGetCurrent()
-                drawOwnPaint(node, into: c.ctx, clip: c.rect)
+                // Cull each aux layer against what a remaining frost can still
+                // SAMPLE, not against the whole canvas. The node-level test above
+                // is generous by design (±80 for halos), and weather's cards sit
+                // close enough that nearly every node passes it — measured at
+                // 1,395 of 1,423 nodes painted per walk, almost all of them text
+                // layers CPU-rendered for crops no frost would ever read.
+                drawOwnPaint(node, into: c.ctx, clip: c.reach.intersection(c.rect))
                 let dt = (CFAbsoluteTimeGetCurrent() - tn) * 1000
                 if dt > 0.05 { frostNodeMs[node.id, default: 0] += dt }
                 frostPainted += 1
@@ -382,16 +526,35 @@ extension LayerTree {
         guard let snap = c.snapshot else { return }
 
         // ONE BLUR PER RADIUS, over the whole canvas — not one per frost. Every
-        // frost then just windows into it, which is free.
+        // frost then just windows into it, which is free. The blur itself runs
+        // on the GPU when Metal is there; the CPU chain is the fallback and the
+        // reference.
         let key = String(format: "%.2f/%.2f", spec.blur, spec.saturate)
         var img: CGImage
         if let hit = c.blurred[key], hit.gen == c.gen {
             img = hit.img
         } else {
             let tb = CFAbsoluteTimeGetCurrent()
-            img = Self.blur(snap, radius: spec.blur * c.scale, saturate: spec.saturate) ?? snap
+            // THE FIRST snapshot of a walk computes every radius the group uses
+            // in one GPU submission — the round-trip wait dominates a single
+            // blur, so three-in-one costs about the same as one. LATER gens
+            // (a draw-back invalidated the snapshot) usually serve one straggler
+            // frost, so they compute only the key asked for — batching all
+            // radii per gen was measured SLOWER than not batching at all.
+            let wanted = c.blurred.isEmpty
+                ? c.specs : [(blur: spec.blur, saturate: spec.saturate)]
+            if let batch = Self.blurManyOnGPU(snap, specs: wanted.map { ($0.blur * c.scale, $0.saturate) }) {
+                for (i, s) in wanted.enumerated() {
+                    c.blurred[String(format: "%.2f/%.2f", s.blur, s.saturate)] = (c.gen, batch[i])
+                }
+            }
+            if let hit = c.blurred[key], hit.gen == c.gen {
+                img = hit.img
+            } else {
+                img = Self.blur(snap, radius: spec.blur * c.scale, saturate: spec.saturate) ?? snap
+                c.blurred[key] = (c.gen, img)
+            }
             frostBlurMs += (CFAbsoluteTimeGetCurrent() - tb) * 1000
-            c.blurred[key] = (c.gen, img)
         }
 
         CATransaction.begin()
@@ -431,19 +594,14 @@ extension LayerTree {
 
     /// ⚠ DORMANT BY DEFAULT — `DECLARE_FROST=1` turns it on.
     ///
-    /// Everything below works and is measured (5fps → 49fps over seven steps; see
-    /// memory project-mac-draw-framerate), but the composite it produces is still
-    /// WRONG: `ctl frostdump` shows the whole UI over a dark ground with NO SKY,
-    /// so most of weather's cards sample darkness and render flat dark where
-    /// Chrome shows a light frosted panel. Shipping that on by default would make
-    /// weather look worse than it does now.
-    ///
-    /// It ships anyway, switched off, for two reasons. The dead
-    /// `backgroundFilters` call it replaces was costing ~2x WindowServer CPU for
-    /// a frost this OS no longer draws (64% → 22% idle with it gone), so OFF here
-    /// is already better than what came before — same invisible frost, none of
-    /// the tax. And the `ctl frost*` diagnostics that come with it are what the
-    /// next pass needs. Flip the flag to continue.
+    /// The composite is CORRECT now — the no-sky bug was the veil's group
+    /// opacity painted at full alpha, fixed in the walk — and the GPU-blurred
+    /// glass is pixel-identical to the CPU reference (A/B: 0.000% differing).
+    /// What keeps the flag is FRAME RATE: weather's continuous scroll re-frosts
+    /// every commit and holds ~55–60Hz against 120Hz with the frost off. The
+    /// walk's CG paint (~7ms) and the blur submission latency are the two
+    /// remaining terms; until they fit the 8.3ms budget, on-by-default would
+    /// trade correct glass for dropped frames. Flip the flag to continue.
     static let frostEnabled = ProcessInfo.processInfo.environment["DECLARE_FROST"] != nil
 
     func refreshFrosts() -> (n: Int, ms: Double) {
@@ -481,7 +639,14 @@ extension LayerTree {
             // commit for weather's three radii, became the dominant term the
             // moment the rendition cache fixed the capture).
             var minBlur = CGFloat.greatestFiniteMagnitude
-            forEachNode { if group.set.contains(ObjectIdentifier($0)), let b = $0.backdrop { minBlur = min(minBlur, b.blur) } }
+            var specs: [(blur: CGFloat, saturate: CGFloat)] = []
+            forEachNode {
+                guard group.set.contains(ObjectIdentifier($0)), let b = $0.backdrop else { return }
+                minBlur = min(minBlur, b.blur)
+                if !specs.contains(where: { $0.blur == b.blur && $0.saturate == b.saturate }) {
+                    specs.append((b.blur, b.saturate))
+                }
+            }
             let scale: CGFloat = max(0.2, min(0.5, 4.0 / max(1, minBlur)))
             frostCanvasScale = scale
             let pw = Int((rect.width * scale).rounded()), ph = Int((rect.height * scale).rounded())
@@ -502,6 +667,7 @@ extension LayerTree {
             ctx.interpolationQuality = .low
 
             let canvas = Canvas(ctx: ctx, scale: scale, rect: rect)
+            canvas.specs = specs
             let (n, ms) = compositeFrosts(floor: group.floor, frosts: group.set, into: canvas)
             // Only when someone has asked for it: `makeImage()` on every
             // commit is a full canvas copy retained per frame, for a diagnostic.
