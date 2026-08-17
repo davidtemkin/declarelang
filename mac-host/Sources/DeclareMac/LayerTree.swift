@@ -231,6 +231,10 @@ final class LayerTree {
     var frostLastCanvas: CGImage?
     /// Set by `ctl frostdump`; nothing is captured until it is.
     static var frostDumpWanted = false
+    /// `ctl frostafter <id>` — snapshot the canvas right after this node's own
+    /// paint lands, instead of at the end of the pass. The discriminator for
+    /// "painted then covered" vs "never painted where we look".
+    static var frostDumpAfterNode: Int?
     var frostTotalN = 0
 
     func apply(_ json: String) {

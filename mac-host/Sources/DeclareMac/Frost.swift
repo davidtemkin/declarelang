@@ -89,46 +89,18 @@ extension LayerTree {
             let f = aux.frame
             let at = CGRect(x: o.x + f.origin.x, y: o.y + f.origin.y, width: f.width, height: f.height)
             guard at.intersects(clip) else { continue }
-            renderMaybeCached(aux, at: at.origin, into: ctx, scale: frostCanvasScale)
-        }
-    }
-
-    /// A subtree that is entirely beneath the frosted node.
-    ///
-    /// ⚠ DESCEND — do not hand the whole subtree to `render(in:)`. That was the
-    /// first version, and it quietly reintroduced the very cost this design
-    /// exists to avoid: weather's cards sit under a sibling whose subtree is
-    /// most of the app, so "one render of the preceding sibling" WAS the
-    /// whole-tree render. Measured at 14.4ms per frost, 94% of it here — 5fps.
-    /// Recursing with an intersection test at each level draws only what can
-    /// actually reach the sample, which for a card is the sky and nothing else.
-    private func drawSubtree(_ c: Node, into ctx: CGContext, clip: CGRect) {
-        guard !c.layer.isHidden, c.layer.opacity > 0 else { return }
-        let o = absOrigin(c)
-        let clips = c.boxClip || c.clipPath != nil || c.isRoot || c.isEmbedHost
-        let box = CGRect(origin: o, size: c.box.size)
-        // A CLIPPING node cannot paint outside its box, so its box is the exact
-        // test. A non-clipping one can (a halo, a shadow, an overflowing label),
-        // so it is only skipped when even a generous margin cannot reach.
-        guard (clips ? box : box.insetBy(dx: -80, dy: -80)).intersects(clip) else { return }
-
-        // A leaf is one render; there is nothing to descend into.
-        if c.children.isEmpty {
-            renderMaybeCached(c.layer, at: o, into: ctx, scale: frostCanvasScale)
-            return
-        }
-        ctx.saveGState()
-        if clips {
-            if c.radius > 0 {
-                ctx.addPath(CGPath(roundedRect: box, cornerWidth: c.radius, cornerHeight: c.radius, transform: nil))
+            // A layer's own opacity is a COMPOSITING attribute — `render(in:)`
+            // draws the receiver's content at full alpha and leaves its opacity
+            // to whoever composites it, which here is us.
+            if aux.opacity < 1 {
+                ctx.saveGState()
+                ctx.setAlpha(CGFloat(aux.opacity))
+                renderMaybeCached(aux, at: at.origin, into: ctx, scale: frostCanvasScale)
+                ctx.restoreGState()
             } else {
-                ctx.addRect(box)
+                renderMaybeCached(aux, at: at.origin, into: ctx, scale: frostCanvasScale)
             }
-            ctx.clip()
         }
-        drawOwnPaint(c, into: ctx, clip: clip)
-        for k in c.children { drawSubtree(k, into: ctx, clip: clip) }
-        ctx.restoreGState()
     }
 
     /// Draw a layer into the canvas, reusing a cached rendition where the layer's
@@ -347,6 +319,23 @@ extension LayerTree {
                 } else { c.ctx.addRect(box) }
                 c.ctx.clip()
             }
+            // ⚠ GROUP OPACITY, or the sky disappears. `opacity` is a compositing
+            // attribute: CA applies it when the subtree lands on what is beneath,
+            // and nothing on the render path — not `render(in:)`, certainly not a
+            // bare background fill — applies it for us. Weather's veil made this
+            // vivid: a full-window box at opacity 0.10 over the sky, a subtle
+            // dimming on screen, painted here at FULL alpha — an opaque wall
+            // between the sky and every frost that follows it. A transparency
+            // layer is the exact semantic (the subtree composites internally at
+            // full alpha, then lands as a group), not a per-fill multiply.
+            // The FLOOR's own opacity is deliberately not applied: an opacity<1
+            // group is a backdrop root, and a sample inside it sees the group's
+            // content, not the group's own landing.
+            let group = node !== floor && node.layer.opacity < 1
+            if group {
+                c.ctx.setAlpha(CGFloat(node.layer.opacity))
+                c.ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+            }
             if reach.intersects(c.reach) {
                 let tn = CFAbsoluteTimeGetCurrent()
                 drawOwnPaint(node, into: c.ctx, clip: c.rect)
@@ -355,7 +344,11 @@ extension LayerTree {
                 frostPainted += 1
                 c.dirty = c.dirty.union(box)
             }
+            if let want = LayerTree.frostDumpAfterNode, want == node.id {
+                frostLastCanvas = c.ctx.makeImage()
+            }
             for k in node.children { walk(k) }
+            if group { c.ctx.endTransparencyLayer() }
             c.ctx.restoreGState()
         }
         walk(floor)

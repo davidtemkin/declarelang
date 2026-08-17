@@ -309,6 +309,15 @@ enum LayerDescribe {
         default:
             return nil
         }
+        // ⚠ A mask contributes ALPHA, but it still has to DRAW. A stroke run
+        // reaches here with fillColor forced nil and strokeColor at its default
+        // — which is ALSO nil — so the mask rendered nothing and masked the
+        // whole gradient away. Weather made it visible: the 10-day range bars
+        // and the AQI spectrum are gradient-painted strokes, and each one
+        // "described" into a perfectly valid, perfectly invisible layer — the
+        // one partial-description shape the all-or-nothing guard cannot see,
+        // because nothing failed.
+        if p.isStroke { shape.strokeColor = CGColor.black } else { shape.fillColor = CGColor.black }
         grad.mask = shape
         grad.opacity = Float(p.alpha)
         return grad

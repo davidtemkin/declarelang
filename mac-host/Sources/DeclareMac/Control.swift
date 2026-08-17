@@ -451,6 +451,17 @@ final class ControlChannel {
             else { return "could not write" }
             CGImageDestinationAddImage(dest, img, nil)
             return CGImageDestinationFinalize(dest) ? "wrote \(path) (\(img.width)x\(img.height))" : "write failed"
+        case "frostafter":
+            // frostafter <id> — snapshot the composite RIGHT AFTER this node's
+            // own paint, so frostdump then shows the canvas at that moment.
+            // `frostafter off` returns to end-of-pass dumping.
+            if a.count > 1, a[1] == "off" {
+                LayerTree.frostDumpAfterNode = nil
+                return "off"
+            }
+            LayerTree.frostDumpAfterNode = Int(num(1))
+            bridge.tree?.frostLastCanvas = nil
+            return "armed after #\(Int(num(1))) — run a frame, then frostdump"
         case "frostreset":
             bridge.tree?.frostTotalN = 0; bridge.tree?.frostTotalMs = 0
             bridge.tree?.frostPaintMs = 0; bridge.tree?.frostImageMs = 0; bridge.tree?.frostBlurMs = 0
