@@ -424,6 +424,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         launched = true
         buildMenu()
         Bridge.checkToolchain()
+        Bridge.checkPlatformFreshness()
         // Before anything is compiled or laid out: is this engine actually
         // compiling? A signing slip costs 40x and presents as "the app is slow",
         // which is the least diagnosable thing a host can be.

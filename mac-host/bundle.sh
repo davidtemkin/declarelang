@@ -44,6 +44,25 @@ mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 cp .build/release/DeclareMac "$OUT/Contents/MacOS/Declare Mac"
 cp "$ROOT/browser/mac-env.js" "$OUT/Contents/Resources/"
 cp "$ROOT/bundles/declare-mac.js" "$OUT/Contents/Resources/"
+
+# THE PLATFORM, BAKED. The app used to carry only its runtime and read the
+# COMPILER and the LIBRARY from a Declare tree at run time — so a copy handed to
+# anyone else could not compile anything ("no distro: cannot load the compiler"),
+# and a copy kept beside a moving tree ran a frozen runtime against a live
+# compiler, which is the mixture Bridge.checkToolchain exists to warn about.
+# Both go away if the app carries the whole platform.
+#
+# ⚠ THE RELATIVE SHAPE IS THE INTERFACE. Every consumer already addresses these
+# as `bundles/…` and `library/…` against a base — CompileService.resolve is a
+# plain URL join, the compiler's library origin is a fetch host, and the host's
+# fetch already reads file: URLs. Reproduce the tree's layout under Resources
+# and Bridge.platformBase() can simply name Resources as the base: no loader, no
+# special case, the same joins resolving somewhere else.
+mkdir -p "$OUT/Contents/Resources/bundles"
+cp "$ROOT/bundles/declare-compiler-mac.js" "$OUT/Contents/Resources/bundles/"
+cp "$ROOT/bundles/version.json" "$OUT/Contents/Resources/bundles/"   # the toolchain id, readable with no tree
+cp -R "$ROOT/library" "$OUT/Contents/Resources/"                     # components, icons and themes — all .declare source
+find "$OUT/Contents/Resources/library" -name '.DS_Store' -delete     # Finder litter has no business inside a signed bundle
 # The icon is GENERATED from the desktop's own Declare Viewer glyph — see
 # make-icon.mjs, which instantiates the real AppGlyph and screenshots it, so the
 # app icon cannot drift from the one the program draws. Regenerate with

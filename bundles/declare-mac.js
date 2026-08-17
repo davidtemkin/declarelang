@@ -18251,6 +18251,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     }
   }
   function distroFor(programUrl) {
+    if (H.platform) return H.platform;
     if (/^file:/i.test(programUrl)) return H.distro || "";
     return new URL("/", programUrl).href;
   }

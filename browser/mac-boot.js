@@ -69,6 +69,14 @@ async function fromProduction(dirUrl) {
  *  not in any distro, so the host's stamp names one (Bridge.distroBase). This is
  *  the only thing the file: path needs that the http path does not. */
 function distroFor(programUrl) {
+  // A BAKED PLATFORM ANSWERS FIRST, and answers the same for every program:
+  // the compiler and library this app carries are the ones it was built with,
+  // so a program opened from disk on a machine with no Declare tree compiles
+  // (it could not before), and one served by a tree cannot pair that tree's
+  // compiler with this app's older runtime. Empty when the app carries no
+  // platform, or when DECLARE_ROOT elects the tree — then the two rules below,
+  // unchanged, still name a distro.
+  if (H.platform) return H.platform;
   if (/^file:/i.test(programUrl)) return H.distro || "";
   return new URL("/", programUrl).href;
 }

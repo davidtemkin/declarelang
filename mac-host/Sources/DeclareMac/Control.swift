@@ -296,6 +296,13 @@ final class ControlChannel {
             // What a person would have been shown in a dialog. "-" means the
             // program loaded; anything else is the failure, verbatim.
             return bridge.lastError ?? "-"
+        case "platform":
+            // Where the compiler and library are being read from, and whether
+            // this app is behind the tree beside it — the question a rig must
+            // be able to ask before it trusts a measurement.
+            let base = Bridge.platformBase()
+            return "platform=" + (base.isEmpty ? "(tree: " + Bridge.distroBase() + ")" : base)
+                 + "\n  stale: " + (Bridge.staleWarning.isEmpty ? "no" : Bridge.staleWarning)
         case "statsreset":
             bridge.resetStats()
             return "ok"
