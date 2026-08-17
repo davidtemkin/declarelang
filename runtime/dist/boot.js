@@ -460,21 +460,35 @@ export function reflectAppName(app, served, reflected) {
     document.title = app.appName || served;
     return app.appName;
 }
-/** Drive reflectAppName from the frame loop, for hosts with no settle loop of
- *  their own (the AOT entry). Top-level apps only: an embedded child app must
- *  never retitle the page, which is why this is wired into renderProgram* — the
- *  production page entry — and never into mountApp, which islands also use. */
+/** Drive reflectAppName — and the retained `@name` reveal intent — from the
+ *  frame loop, for hosts with no settle loop of their own (the AOT entry).
+ *  resolveReveal was the dev host's alone before, so on production builds a
+ *  cold deep link into data-built content (a DataSource-fed heading) armed an
+ *  intent nothing ever pumped: the page simply never landed on its anchor.
+ *  Same pump, same per-frame retry, and the user's first wheel/touch cancels
+ *  the held intent exactly as the dev host does (location.md §0.5.5 — a
+ *  reference SEEDS the scroll position, it never owns it). Top-level apps
+ *  only: an embedded child app must never retitle the page, which is why this
+ *  is wired into renderProgram* — the production page entry — and never into
+ *  mountApp, which islands also use. */
 function startTitleMirror(app, host) {
     if (typeof document === "undefined" || typeof requestAnimationFrame === "undefined")
         return;
     const served = document.title;
     let reflected = "";
+    const onUserScroll = () => { app.cancelReveal(); };
+    window.addEventListener("wheel", onUserScroll, { passive: true });
+    window.addEventListener("touchstart", onUserScroll, { passive: true });
     const tick = () => {
         // Self-retiring on a detached host, the same liveness rule the input
         // router uses — a page app never detaches, so this costs one check a frame.
-        if (!host.isConnected)
+        if (!host.isConnected) {
+            window.removeEventListener("wheel", onUserScroll);
+            window.removeEventListener("touchstart", onUserScroll);
             return;
+        }
         reflected = reflectAppName(app, served, reflected);
+        app.resolveReveal();
         requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);

@@ -451,7 +451,19 @@ const AppSchema = {
     // cold URL, back/forward — before routing. Return the reference to proceed
     // with; "" vetoes. Declared as an EVENT so the checker admits the handler;
     // unlike the pointer family it is called BY follow and returns a value.
-    events: ["follow"],
+    //
+    // `onReady()` — fired once, on the App only, when the first settle has
+    // closed (tree standing, constraints wired, geometry computed) and before
+    // anything presents: what it does is in the first frame the user sees. Boot
+    // is the one transaction with no app handler in it, so its close is
+    // DELIVERED; a handler's own change asks inline with afterSettle instead.
+    //
+    // `onArrive(target)` — the landing to onFollow's door (location.md §0.5.3-5):
+    // the view the followed address names, delivered once it exists and has its
+    // geometry — immediately if standing, or settles later when data builds it.
+    // Declaring it replaces the built-in scroll landing; `reveal(target)` is
+    // that default, callable from the handler.
+    events: ["follow", "ready", "arrive"],
 };
 // Text (R3): a text run sized by native browser metrics when width/height
 // aren't given. Its style — textColor/fontSize/fontFamily/fontWeight — lives
@@ -838,13 +850,13 @@ const AnimatorSchema = {
         relative: { kind: "boolean" },
         started: { kind: "boolean" },
         paused: { kind: "boolean" },
-        // ARRIVAL as a reactive fact (animator.ts) — the animation twin of a
+        // AT REST as a reactive fact (animator.ts) — the animation twin of a
         // DataSource's .loaded: true only at an uninterrupted destination.
-        settled: { kind: "boolean" },
+        atRest: { kind: "boolean" },
     },
     // The animator computes arrival; a program write would be overwritten by the
-    // very next tick. Start/stop are the verbs; `settled` is the fact.
-    readOnly: ["settled"],
+    // very next tick. Start/stop are the verbs; `atRest` is the fact.
+    readOnly: ["atRest"],
     // Bare event names (like View's ["click", …]); handlerName() prefixes `on`,
     // so these answer the onStart / onStop / onRepeat handlers (animation.md §1).
     events: ["start", "stop", "repeat"],
@@ -1113,12 +1125,13 @@ export const EVENT_PAYLOAD = {
     navClaim: "boolean", // Keys: an overlay took/released the nav keys
     link: "string", // RichText: the href
     follow: "string", // App: the reference being followed (onFollow returns the one to proceed with; "" vetoes)
+    arrive: "View", // App: the landed-on view — the destination the followed address names, measured
     frame: "number", // Heartbeat: dt, in SECONDS
     focusChange: "View", // Focus: the newly focused view
     geometry: "FocusGeometry",
     tip: "TipEvent",
     message: "StreamMessage", // Stream: data/type/id (streams.ts)
-    // payload-free: focus, blur, escapeFocus, init, enter, load,
+    // payload-free: focus, blur, escapeFocus, init, enter, load, ready,
     // start, stop, repeat, apply, remove, open, close, error
 };
 /** The payload TYPE NAMES, for "is this a legal written signature type?".

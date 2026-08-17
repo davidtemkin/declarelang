@@ -27,6 +27,9 @@ import { setKeysFocusProbe, Keys } from "./keys.js";
 import { Themes } from "./themes.js";
 import { Focus } from "./focus.js";
 import { Inspect } from "./inspect-service.js";
+import { afterSettle } from "./reactive.js";
 
-setBodyServices({ Focus, Keys, Themes, Inspect });
+// afterSettle is a FUNCTION, not a service object — the one body-scope name
+// that is a verb: "finish after your change has taken effect" (language §7).
+setBodyServices({ Focus, Keys, Themes, Inspect, afterSettle });
 setKeysFocusProbe(() => Focus.getFocus() !== null);

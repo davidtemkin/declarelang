@@ -12,7 +12,7 @@ import { DeclareError } from "./errors.js";
 import { Constraint } from "./reactive.js";
 import { followedValue, markPercent, own, setBound } from "./attributes.js";
 import { compileExpr } from "./expr.js";
-import { View, inheritedCursor } from "./view.js";
+import { View, inheritedCursor, withCursorDefining } from "./view.js";
 import { coerceData, toCursor } from "./data.js";
 import { splitPath } from "./datapath.js";
 /** Bind `name = { src }`: compile, install as the slot's owner, evaluate
@@ -101,7 +101,10 @@ export function bindDatapath(view, path) {
 /** Bind `datapath = { expr }`: the expression yields a value from a
  *  dataset (`weatherData.value.rss.channel` — plain TS dereferences), and
  *  toCursor turns it back into a *place*, inside the tracked compute so the
- *  cursor stands on its whole chain (a structural change along it re-runs). */
+ *  cursor stands on its whole chain (a structural change along it re-runs).
+ *  The compute runs under withCursorDefining: a `:path` island in the body
+ *  (`datapath = { :detail }`) resolves against the INHERITED cursor, never
+ *  the slot this constraint defines — the same rule bindDatapath states. */
 export function bindCursor(view, src, pos, classroot) {
     const c = compileExpr(src);
     if ("error" in c) {
@@ -109,7 +112,7 @@ export function bindCursor(view, src, pos, classroot) {
     }
     const fn = c.fn;
     const label = `${view.constructor.name}.datapath`;
-    const k = new Constraint(label, () => toCursor(fn.call(view, view.parent, classroot), label), (v) => setBound(view, "datapath", v));
+    const k = new Constraint(label, () => withCursorDefining(view, () => toCursor(fn.call(view, view.parent, classroot), label)), (v) => setBound(view, "datapath", v));
     own(view, "datapath", k);
     k.run();
 }

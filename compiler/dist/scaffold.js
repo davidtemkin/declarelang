@@ -210,6 +210,13 @@ declare const Inspect: {
   evaluate(path: string, src: string): { ok: boolean; input: string; text: string; verb: string; temporary?: boolean };
   clock: { manual(): void; auto(): void; step(ms?: number): void; settleMotion(maxMs?: number): boolean; now(): number };
 };
+/** Run \`step\` exactly once, at the close of the current settle — your
+ *  handler's writes applied, views real, placed, and sized, nothing painted
+ *  yet. What it writes lands in the same frame as the change itself. Reach
+ *  for a constraint first; afterSettle is for work that is irreducibly a
+ *  READING of the new geometry (aiming a camera at a view your write just
+ *  caused to exist), never for waiting. */
+declare function afterSettle(step: () => void): void;
 declare function setTimeout(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearTimeout(id: number): void;
 declare function setInterval(fn: (...args: any[]) => void, ms?: number): number;
@@ -376,6 +383,11 @@ export const LANGUAGE_API = {
         // runtime's own trailing `@name`; apps never hand-write that split.
         `  follow(ref: string, replace?: boolean): void;`,
         `  destinationOf(loc: string): string;`,
+        // The DEFAULT landing, exposed (view.ts App.reveal): scroll the target
+        // into view, revealInset honored — what an arrival does when no onArrive
+        // is declared. An onArrive that wants the scroll AND more composes it
+        // back by calling this (the tabOrder()/tabDefault() move).
+        `  reveal(target: View): void;`,
         // The Inspector service action (view.ts App.inspect): a button calls
         // `app.inspect("run:<slot>")` to open the Inspector on an embedded app, or
         // `app.inspect()` for this one. Rides the same host-polled channel shape as

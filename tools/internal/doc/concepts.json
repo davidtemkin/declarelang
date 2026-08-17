@@ -403,6 +403,17 @@
     "shadowing root"
    ],
    "answer": "`root` and `children` are STRUCTURAL members the scaffold declares on every View — not scope nouns, not schema attributes, but not free either:\n  root      — the node reference `app` compiles to (`app` is `this.root`)\n  children  — the node's own child list\nA child, method or declared attribute of either name is refused at typecheck. `root` is the sharp one: shadowing it makes every `{ app.… }` in the SAME class resolve against the shadow, and the error surfaces at some unrelated binding."
+  },
+  {
+   "terms": [
+    "settle",
+    "the settle",
+    "after settle",
+    "when do writes take effect",
+    "update transaction",
+    "write batching"
+   ],
+   "answer": "The SETTLE is the unit in which anything happens at all: a handler's writes are applied together when it returns — constraints re-derive, views appear and retire where data now says so, layout places, sizes update — one indivisible step, run to completion. Nothing paints in the middle of one, and no time passes inside one; motion is many small settles (one per frame), never one long one. (An Animator standing at its destination reads `atRest` — a different fact, on a different clock.)\nTo finish after your own change has taken effect — aim a camera at a view your write just created — register one step at this settle's close: `afterSettle(app.step)`. Constraint first, afterSettle second, never for waiting. Boot's close is delivered instead: `onReady()`, on the App only.\ndocs/declare.md §5 \"The settle\"; the guide teaches it in ch 3 (relationships)."
   }
  ]
 }

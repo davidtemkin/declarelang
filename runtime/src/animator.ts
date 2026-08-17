@@ -122,13 +122,15 @@ export class Animator extends Node implements Animatable {
   declare started: boolean;
   /** Freeze in place; resume continues (LZX). */
   declare paused: boolean;
-  /** ARRIVAL as a reactive fact — the animation twin of a DataSource's
+  /** AT REST as a reactive fact — the animation twin of a DataSource's
    *  `.loaded`: true only after a run completes NATURALLY at its destination;
    *  false while running, after a mid-flight stop(), and before any run.
-   *  `visible = { open.settled }` says "this exists only at the settled
+   *  `visible = { open.atRest }` says "this exists only at the resting
    *  end-state" — no onStop bookkeeping, no interruption guards: a restart
-   *  clears it, an interrupted stop never sets it. */
-  declare settled: boolean;
+   *  clears it, an interrupted stop never sets it. (Named for the physical
+   *  fact — motion at rest — because "the settle" names the update
+   *  transaction, language §7; the two are different clocks.) */
+  declare atRest: boolean;
 
   // ── Per-run state: set by start(), read by tick(), cleared by end(). All
   //    the driving inputs are SAMPLED at start (animation.md §1) so writing
@@ -289,7 +291,7 @@ export class Animator extends Node implements Animatable {
     // step() moved nothing (GitHub #17's Animator readout).
     this.lastNow = sharedClock.now();
     this.running = true;
-    setBound(this, "settled", false);   // a new journey un-settles (see `settled`)
+    setBound(this, "atRest", false);   // a new journey leaves rest (see `atRest`)
     // A start under `paused = true` arms without enrolling — frozen at `from`,
     // zero frames until the resume push re-anchors and enrolls (pausedChanged).
     if (!this.grouped && !this.paused) sharedClock.add(this);
@@ -344,7 +346,7 @@ export class Animator extends Node implements Animatable {
     const t = this.runDuration > 0 ? Math.min(this.elapsed / this.runDuration, 1) : 1;
     if (t >= 1) {
       this.releaseSlot(true); // natural completion: land the full delta / exact expected
-      setBound(this, "settled", true); // arrived — BEFORE onStop, so its handler reads the settled truth
+      setBound(this, "atRest", true); // arrived — BEFORE onStop, so its handler reads the resting truth
       this.end(); // resumes a displaced owner (when last) + fires onStop, which MAY restart us
       return this.running; // an onStop that called start() keeps the ticker alive; else false → dropped
     }
@@ -421,7 +423,7 @@ defineAttributes(Animator, {
   repeat: { def: 1 },
   started: { def: false, push: (s: Animator, v: boolean) => s.startedChanged(v) },
   paused: { def: false, push: (s: Animator, v: boolean) => s.pausedChanged(v) },
-  settled: { def: false },
+  atRest: { def: false },
 });
 
 /** AnimatorGroup — coordinates several animators (or nested groups) in

@@ -551,6 +551,7 @@ export declare class View extends Node {
      *    - false / null   → no clip. */
     applyClip(clip: string | boolean | null): void;
 }
+export declare function withCursorDefining<T>(view: View, fn: () => T): T;
 /** The cursor in effect at `node`: the nearest ancestor-or-self datapath
  *  (language §9 — "descendants read fields relative to it"). Each level's
  *  slot is a tracked read, so a cursor appearing, changing, or clearing
@@ -562,6 +563,16 @@ export declare function fireEvent(view: View, event: string, arg?: unknown): voi
  *  `<canvas>`). R0 treats it as the root View; it fills its host by default and
  *  carries the app's reactive environment (host extent, scroll, pointer). */
 export declare class App extends View {
+    /** onReady — the boot transaction's close, DELIVERED (schema.ts App
+     *  events): boot is the one settle with no app handler anywhere in it, so
+     *  its close cannot be asked for inline (afterSettle) and must arrive as an
+     *  event. Registered at attach — the join point of every render path
+     *  (mounted, headless, native) — and fired at the close of the FIRST settle
+     *  after it: tree standing, constraints wired, geometry computed, nothing
+     *  painted, so what the handler writes is in the first frame the user sees.
+     *  Once per App instance; an embedded island's App gets its own. */
+    private readyDelivered;
+    attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** `hostWidth`/`hostHeight` — the App's enclosing extent (the window at top
      *  level, the container element when embedded), fed by the runtime at mount
      *  (index.ts). READ-ONLY intrinsics (schema.ts marks them so; a set is a
@@ -738,6 +749,21 @@ export declare class App extends View {
      *  splits at the surface seam (DOM scrollIntoView / canvas scroll clamp). Returns
      *  the name it revealed this call (else null) — the host ignores it; tests read it. */
     resolveReveal(): string | null;
+    /** Is an `onArrive` handler declared? (Installed by instantiate like every
+     *  language member; a TS subclass may simply define one.) Its presence is
+     *  the policy switch: declared, the app owns the landing. */
+    private hasArrive;
+    /** The view an anchorless location lands on: the destination view (`shows`
+     *  === the location's destination), or the App itself when no view declares
+     *  it (a computed-location family, or the bare ""). Resolved at dispatch
+     *  time, off the settled tree. */
+    private destinationView;
+    /** The DEFAULT landing, exposed — what the platform does with an arrival
+     *  when no `onArrive` is declared: scroll the target into view, honoring
+     *  `revealInset` (the App itself starts at its top). A document app that
+     *  declares `onArrive` for the extra work composes the scroll back by
+     *  calling this — the same move as `tabOrder()` composing `tabDefault()`. */
+    reveal(target: View): void;
     /** Re-arm the reveal intent for the CURRENT location — follow's no-dead-click
      *  rule (§0.5): re-following `#why@story` while already there re-runs the
      *  reveal, which resolveReveal's location-change guard would otherwise skip. */

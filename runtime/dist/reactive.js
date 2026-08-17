@@ -279,23 +279,56 @@ function enqueue(c) {
         queueMicrotask(settle);
     }
 }
+/** Steps registered by `afterSettle`, drained at the close of the settle. */
+const after = [];
+/** The outer-loop guard — AFTER_LIMIT passes means a step (transitively)
+ *  re-registers itself every pass, the afterSettle spelling of a cycle. */
+const AFTER_LIMIT = 100;
+/** Run `step` exactly once, at the close of the current settle — constraints
+ *  quiescent, replication reconciled, layout placed, sizes derived, nothing
+ *  painted yet (language §7: the settle is a microtask, ahead of the
+ *  backends' paint). The far side of the landing: a handler's writes take
+ *  effect at the settle, so a step registered inside a handler reads the
+ *  world *after* that handler's change. Writes made in a step fold into the
+ *  same settle (the drain loops back to quiescence), so a correction lands
+ *  in the same frame as the change it corrects. Registered outside any
+ *  pending settle, the step gets a settle of its own. */
+export function afterSettle(step) {
+    after.push(step);
+    if (!scheduled && !flushing) {
+        scheduled = true;
+        queueMicrotask(settle);
+    }
+}
 /** Re-evaluate everything invalidated, to quiescence: all value constraints
  *  (phase 0), then draw re-records (phase 1) — looping back if a draw body
- *  wrote reactive state. Runs automatically as a microtask after any write;
- *  exported so tests (and later, tooling) can force a deterministic settle.
- *  Throws DeclareError on a constraint cycle. */
+ *  wrote reactive state. Then drain the afterSettle steps, looping back to
+ *  quiescence again if a step wrote (each pass under a fresh cycle stamp, so
+ *  CYCLE_LIMIT keeps meaning "within one wave"). Runs automatically as a
+ *  microtask after any write; exported so tests (and later, tooling) can
+ *  force a deterministic settle. Throws DeclareError on a constraint cycle. */
 export function settle() {
     scheduled = false;
     if (flushing)
         return;
     flushing = true;
-    stamp++;
     try {
-        for (;;) {
-            const phase = heads[0] < queues[0].length ? 0 : heads[1] < queues[1].length ? 1 : null;
-            if (phase === null)
+        for (let passes = 0;;) {
+            stamp++;
+            for (;;) {
+                const phase = heads[0] < queues[0].length ? 0 : heads[1] < queues[1].length ? 1 : null;
+                if (phase === null)
+                    break;
+                queues[phase][heads[phase]++].runQueued(stamp);
+            }
+            if (after.length === 0)
                 break;
-            queues[phase][heads[phase]++].runQueued(stamp);
+            if (++passes > AFTER_LIMIT) {
+                throw new DeclareError(`afterSettle: steps re-armed ${AFTER_LIMIT} times in one settle — a step (transitively) registers itself again`);
+            }
+            const batch = after.splice(0);
+            for (const step of batch)
+                step();
         }
     }
     finally {
@@ -308,6 +341,9 @@ export function settle() {
             queues[phase].length = 0;
             heads[phase] = 0;
         }
+        // Steps too: a throw (a cycle, a step that threw) must not leak the
+        // remainder into whatever unrelated settle comes next.
+        after.length = 0;
     }
 }
 //# sourceMappingURL=reactive.js.map

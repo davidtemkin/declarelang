@@ -29,7 +29,7 @@ OL has no `oncreate` and no `onshow`. The real surface:
 | `oninit` | after `init()`, children first | `onInit` — children-first, after constraints are installed and evaluated once, before first paint | same construct, kept |
 | `oninited` | immediately after `oninit` | — | era artifact |
 | `ondestroy` | just before destruction | **nothing authorable** (`discard()`/`onDiscard` exist in the runtime, unexposed) | **gap — §5.2** |
-| `canvas oninit` | once, when the *whole app* has constructed and initialized | App `onInit` | dissolved: OL needed a separate settled event because instantiation was an async, queued, trickling process (`initstage`, `percentcreated`, `lz.Instantiator`); Declare builds synchronously, so App `onInit` *is* the settled moment |
+| `canvas oninit` | once, when the *whole app* has constructed and initialized | App `onReady` | kept, but as ONE event: OL's version metastasized (`initstage`, `percentcreated`, `onafterinit`, `lz.Instantiator`) because instantiation was an async, queued, trickling process. Declare builds synchronously — but App `onInit` runs BEFORE attach and layout (view.ts), so the *measured* moment still needed a name: `onReady` fires at the close of the first settle, before first paint. One app, one first settle, one event |
 | `canvas onafterinit` | after canvas `oninit` | — | era artifact |
 | `on{attr}` (every attribute change) | on `setAttribute` | constraints; `State` `onApply`/`onRemove` is the sanctioned effect-on-change hook | answered differently, by design |
 

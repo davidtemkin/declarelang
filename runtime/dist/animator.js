@@ -221,7 +221,7 @@ export class Animator extends Node {
         // step() moved nothing (GitHub #17's Animator readout).
         this.lastNow = sharedClock.now();
         this.running = true;
-        setBound(this, "settled", false); // a new journey un-settles (see `settled`)
+        setBound(this, "atRest", false); // a new journey leaves rest (see `atRest`)
         // A start under `paused = true` arms without enrolling — frozen at `from`,
         // zero frames until the resume push re-anchors and enrolls (pausedChanged).
         if (!this.grouped && !this.paused)
@@ -279,7 +279,7 @@ export class Animator extends Node {
         const t = this.runDuration > 0 ? Math.min(this.elapsed / this.runDuration, 1) : 1;
         if (t >= 1) {
             this.releaseSlot(true); // natural completion: land the full delta / exact expected
-            setBound(this, "settled", true); // arrived — BEFORE onStop, so its handler reads the settled truth
+            setBound(this, "atRest", true); // arrived — BEFORE onStop, so its handler reads the resting truth
             this.end(); // resumes a displaced owner (when last) + fires onStop, which MAY restart us
             return this.running; // an onStop that called start() keeps the ticker alive; else false → dropped
         }
@@ -357,7 +357,7 @@ defineAttributes(Animator, {
     repeat: { def: 1 },
     started: { def: false, push: (s, v) => s.startedChanged(v) },
     paused: { def: false, push: (s, v) => s.pausedChanged(v) },
-    settled: { def: false },
+    atRest: { def: false },
 });
 /** AnimatorGroup — coordinates several animators (or nested groups) in
  *  `sequential` or `simultaneous` order (animation.md §1, LzAnimatorGroup.lzs).

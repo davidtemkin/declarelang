@@ -54,6 +54,15 @@ time-based sibling for the rare clock-shaped case, and `AnimatorGroup` runs seve
 in step when a sequence genuinely has to be choreographed rather than derived;
 springs are the house idiom.)
 
+When something should happen only once motion has genuinely landed — a detail panel
+revealed after its container finishes opening — that is not a completion handler
+either; it is a *fact*, and springs and animators expose it: **`atRest`** is true
+only at an uninterrupted destination. `visible = { open.atRest }` sequences off the
+landing with no bookkeeping, and a mid-flight retarget un-rests it exactly as you'd
+hope. (Distinct from *the settle*, the update transaction from
+[Relationships](declare-docs:guide:relationships) — a spring comes to rest across
+many settles.)
+
 > **From SwiftUI:** `withAnimation` animates the *transaction* — changes made inside
 > the block. A `Spring` here is a standing declaration on the attribute itself:
 > nothing is wrapped, and any write to the target, from anywhere, moves the ball.

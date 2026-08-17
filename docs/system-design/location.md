@@ -161,6 +161,12 @@ an unavailable action is a disabled control, not a dead link.
 Source requests, runtime delivers, destination decides. A raw
 `app.location =` write remains the uninspected floor beneath all of this.
 
+Steps 3–5 fix the *resolution* and the *moment*; the final act — scrolling —
+is only the default **landing policy**. An app whose space shows things some
+other way (a zooming canvas, a panning map) declares `App.onArrive(target)`
+and the same pipeline delivers the measured target view to it instead; see
+the closed ruling in §11 and the reference entry `App.event.arrive`.
+
 ### 0.6 `App.onFollow` — the escape hatch, bounded
 
 ```declare-fragment
@@ -271,9 +277,18 @@ ruling the two silently disagree on anchor arrivals).
   forecloses `shows = { :slug }` detail routing; computed locations are the
   offered answer.
 - **Pending DT ruling — no disabled links in v1** (§0.4).
-- **Open — per-destination arrival hook.** `onFollow` is app-scoped;
-  `onInit` fires at boot for always-mounted views, so it is NOT route-enter.
-  A `State` apply-edge is the candidate construct; undesigned.
+- **CLOSED (2026-08-16) — arrival hook: `App.onArrive(target)`.** `onFollow`
+  is app-scoped; `onInit` fires at boot for always-mounted views, so it is
+  NOT route-enter. The `State` apply-edge candidate lost to an app-scoped
+  event paired with `onFollow` — the door holds a string, the landing holds
+  the measured target `View` — because only the location watcher can wait
+  for a target data has yet to build, and the apply-edge has no view to
+  hand over. Declaring `onArrive` replaces the built-in scroll landing
+  (both arms: the anchorless top-of-destination and the `@name` reveal, the
+  same resolution + measurement-veto pipeline either way); `App.reveal(
+  target)` exposes the default for composition (the tabOrder/tabDefault
+  move). Delivered per follow, dispatched from resolveReveal's success edge
+  (anchored) or the close of the follow's settle (anchorless).
 - **Open — the pinned reveal contract.** `test/unit.test.mjs:6578` asserts
   first-call resolution; restate as veto-based (headless settles
   synchronously with synthetic metrics, so headless remains first-call) when

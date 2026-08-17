@@ -134,7 +134,7 @@ export type { StreamMessage, StreamFactories, StreamHandle, StreamCallbacks } fr
 export { Tip } from "./tip.js";
 export { Animator, AnimatorGroup } from "./animator.js";
 export type { Cursor } from "./data.js";
-export { settle } from "./reactive.js";
+export { settle, afterSettle } from "./reactive.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export type { InspectNode, Provenance } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";

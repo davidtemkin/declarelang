@@ -141,9 +141,11 @@ navigation is three lines of exactly that. One discipline makes all of it free, 
 you already know it from [Relationships](declare-docs:guide:relationships): **derived
 state is never assigned.** Links write `location`; everything else derives.
 
-When you need code in the path, it's there: `onClick` beside a `link` runs first
-(close the menu, then go); a handler may compute and call `app.follow(ref)` itself;
-and one app-scoped hook sees every arrival — click, prose, pasted URL, back/forward:
+Sometimes a link alone is not enough and you want code to run around an arrival.
+Three hooks cover it, from narrowest to widest. `onClick` beside a `link` runs first
+— close the menu, then go. A handler may compute its destination and call
+`app.follow(ref)` itself. And one app-scoped hook sees every arrival — a click, a
+prose link, a pasted URL, Back and Forward alike:
 
 ```declare-fragment
 onFollow(ref: string) -> string {
@@ -156,6 +158,35 @@ On a cold arrival it runs before any data loads — so don't gate access here. G
 the destination, where a raw URL cannot walk around it: two views sharing one `shows`
 name, split on `visible = { app.authed }`, and the login screen renders with the
 location preserved — finishing auth lands the user where they aimed.
+
+`onFollow` meets the arrival at the door: the reference is still a string, and
+nothing has moved yet. There is also a hook for the other end. **`onArrive`**
+delivers the same arrival *landed*: its argument is the view the reference names —
+the destination view, or the anchored view inside it — handed to your handler once
+it exists and has its real place and size. If the address names something your data
+has not built yet, the platform holds the arrival and delivers when it exists; the
+waiting is never your code's.
+
+Most apps never write it, because the built-in landing is already right for a page
+that scrolls: an arrival starts at the top, an anchor waits for its prose to measure
+and scrolls into view. `onArrive` is for the app where scrolling is *not* how you
+show something — a canvas the camera zooms across, a map that pans. Declaring the
+handler replaces the built-in scroll entirely; showing the target is now yours:
+
+```declare-fragment
+onArrive(target: View) { app.flyTo(target) }   // fly the camera instead of scrolling
+```
+
+A document that wants the scroll *plus* something more — a highlight pulse on the
+anchored view, say — composes the default back in: `app.reveal(target)` is exactly
+the scroll the platform would have done, `revealInset` honored.
+
+Two details make it dependable. It fires per *follow*, not per change of address:
+following the reference you already stand at arrives again — no dead clicks — and
+Back and Forward pass through the same door, so a camera flight written here answers
+them too. And it never waits for motion: the target arrives when it exists and has
+geometry, even if it is still gliding toward how it will look. "When the glide
+lands" is a fact motion itself exposes (`atRest`, next chapter), not an arrival.
 
 > **From React:** this section replaced the router. No route table, no `<Link>`
 > component, no guards, no history listener — and the "router state vs app state"

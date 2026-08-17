@@ -25,5 +25,5 @@ The moving mass — heavier trails more slowly, for a looser, longer follow (a l
 dot).
 
 ## epsilon
-The rest threshold: how close to `to` counts as settled, at which point the spring **sleeps**
+The rest threshold: how close to `to` counts as at rest, at which point the spring **sleeps**
 (and stops costing anything). Larger = sleeps sooner, at the price of stopping a hair short.

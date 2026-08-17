@@ -301,6 +301,47 @@ collects *potential* reads, not observed ones: `{ a ? b : c }` depends on all th
 **Assignment is the setter.** `count = count + 1` updates the value and notifies everything
 bound to it; there is no bypass. Reads are symmetric — a bare read **is** the tracked read.
 
+### The settle
+
+A handler's writes do not take effect one at a time. When it returns, everything it changed
+is applied **together** — constraints re-derive, views appear and retire where data now says
+so, layout places, sizes update — one indivisible step, run to completion, called the
+**settle**. Nothing paints in the middle of one, and no time passes inside one: a fetch or a
+glide cannot be *in* a settle, only cause the next. This is why the world is never
+half-updated, and why history can count "one entry per settle" (§6). Animation is a user of
+it, not an exception: a Spring writes its attribute once per frame, and each frame's writes
+get a settle of their own — motion is many small settles, never one long one. (The physical
+sense is a different fact with its own name: an Animator that reached its destination reads
+`atRest = true`, across however many settles the journey took.)
+
+Inside a handler, the world you read is the world *before* your writes land. Almost always
+the right response is no response: state what should be true with a constraint, and it is
+true after this settle and every one after it. But some work is irreducibly a *reading* of
+the new geometry — aiming a camera at a view your write just caused to exist, measuring
+where something landed. For that, leave one named step on the far side:
+
+```declare-fragment
+addItem() {
+    app.d.set(["items", 0], { label: "new" })
+    afterSettle(app.showNewest)                   // runs once, at THIS settle's close
+    },
+showNewest() { app.frameOn(app.list.first) }      // the new row is real, placed, sized
+```
+
+The step runs exactly once, when the settle your handler triggered has closed — and before
+it presents, so what the step writes lands in the same frame as the change itself. It is
+tied to your change, not to a clock: no interval, no frame callback, nothing standing
+afterward. Constraint first, `afterSettle` second, and never for waiting — anything later
+than this settle's close is a value changing, and values changing is what constraints are
+for.
+
+Boot is the one settle with no handler inside it, so its close is **delivered** instead:
+`onReady()` fires once, on the App only, when the first settle has completed — tree
+standing, geometry computed, before anything presents, so what it does is in the first
+frame the user sees. Ask first whether you need it at all — readiness is usually a value —
+and keep it for the genuinely once-and-imperative: seed the camera, start the tour, open
+the socket.
+
 ### What owns a cell
 
 A `{ }` can appear on either member kind from §3 — **setting** an existing attribute, or
@@ -420,6 +461,18 @@ account: View [ shows = "account", visible = { app.authed } ],
 login:   View [ shows = "account", visible = { !app.authed } ]   // location preserved
 ```
 
+`onFollow` holds the arrival while it is still a string — the door. **`onArrive(target)`** is
+the landing: the same arrival, delivered as the view the reference names, once it exists and
+has its geometry — immediately if already standing, or as soon as data builds it; the waiting
+is the platform's. Undeclared, the landing is the built-in scroll: an arrival starts at the
+top, an `@name` anchor scrolls into view once its prose has measured, `revealInset` honored.
+Declaring it **replaces** that policy — write it where your space's idea of *showing* is a
+camera or a pan (`onArrive(target: View) { app.frameOn(target) }`), and compose the scroll
+back with `app.reveal(target)` when you want both. It runs per follow — arriving where you
+already are arrives again — and Back and Forward come through the same door, so a motion
+answered here answers them too. Motion is never waited for: the target arrives when it
+structurally exists, even if still gliding into how it looks.
+
 For computed families the grammar after `#` is the app's own (`#deck/q3/47` — parse it from
 `app.location`, derive everything). Never assign the derived state — that displaces its
 constraint (§5) and disconnects the back button. The build's crawler boots the app headless at
@@ -443,7 +496,7 @@ attribute. Waypoints are coordinates, never data (derive the data; keep the stri
 they pass no `onFollow`; and the crawl never sees them — crawlable and shareable are the same
 property, and both belong to `location`.
 
-→ `link`/`shows`/`anchor`/`replace`, `App.follow`/`onFollow`/`revealInset`: the model reference
+→ `link`/`shows`/`anchor`/`replace`, `App.follow`/`onFollow`/`onArrive`/`reveal`/`revealInset`: the model reference
 
 ## 7. Data
 
@@ -714,7 +767,8 @@ slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping 
 `Animator` is the time-based sibling for the cases that want a clock, and `Heartbeat` is the raw
 per-frame heartbeat for when the app integrates motion itself. Springs are the house idiom.
 Deferred work is plain TypeScript — `setTimeout` behaves in a handler as it always does — but
-unlike a source member, a timer does not die with its node, so cancel it yourself.
+unlike a source member, a timer does not die with its node, so cancel it yourself. (Finishing
+after your own change has landed is not deferred work — that is `afterSettle`, §5.)
 
 Because states, springs, and layout all sit on one reactive core, *arrangement* animates: spring
 a few geometry scalars and every constraint derived from them moves in lock-step.

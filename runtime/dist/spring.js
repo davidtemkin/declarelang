@@ -57,8 +57,8 @@ export class Spring extends Animator {
         this.springRunning = true;
         // leaving rest: arrival is no longer true (Animator's start() does the
         // same for the timed half)
-        if (this.settled)
-            setBound(this, "settled", false);
+        if (this.atRest)
+            setBound(this, "atRest", false);
         // Seed the baseline NOW rather than on the first tick: enrollment is the
         // moment motion begins, so the first tick integrates a real dt. With a null
         // seed the first tick only recorded a baseline — invisible at 60Hz, but
@@ -193,17 +193,17 @@ export class Spring extends Animator {
         if (Math.abs(to - pos) < eps && Math.abs(this.vel) < eps * 60) {
             // Landed: assign the exact target, zero the velocity, and sleep — then
             // ANNOUNCE it. A spring integrates its own tick rather than running
-            // Animator's timed path, so nothing else was ever going to: `settled`
+            // Animator's timed path, so nothing else was ever going to: `atRest`
             // stayed false forever and `onStop` never fired, on the half of the
             // family you would actually sequence off ("read it to sequence what
             // should happen after motion instead of guessing with a timer" — the
-            // reference entry, describing something that did not happen). Settled
+            // reference entry, describing something that did not happen). Rest
             // lands BEFORE the handler, so a handler reads the arrived truth.
             drive(target, attr, to);
             this.vel = 0;
             this.springRunning = false;
             sharedClock.remove(this);
-            setBound(this, "settled", true);
+            setBound(this, "atRest", true);
             this.fire("onStop");
             return false;
         }

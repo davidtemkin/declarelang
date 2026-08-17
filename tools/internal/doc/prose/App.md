@@ -86,10 +86,41 @@ reduce to `app.follow(ref)`. The reference passes through `onFollow` once; an ex
 reference leaves through `navigate`; a `#…` reference writes `location` — a bare anchor
 name (`"#story"`) first derives its destination from the tree, so the author never writes
 a compound. An anchored arrival is not finished until the target is rendered, **measured**,
-and in the viewport (`revealInset` honored); an anchorless one starts at the top. You
+and in the viewport (`revealInset` honored); an anchorless one starts at the top — unless
+the app declares `onArrive`, which replaces that landing with the app's own. You
 rarely call this yourself — `link` calls it for you — but a handler that computes its
 destination may: `app.follow(picked)`. `follow(ref, true)` replaces the current history
 entry instead of pushing (the `replace` attribute's path).
+
+## onArrive
+The landing to `onFollow`'s door — the same arrival, delivered at the other end. Where
+`onFollow` holds the reference as a string, `onArrive(target: View)` holds the destination:
+the view the reference names — the `shows` view, the anchored view, or the view hosting an
+anchored heading — delivered once it exists and has its geometry. Immediately if it is
+already standing; settles later if the address named something data had yet to build. The
+waiting (and the measurement veto rendered prose needs) is the platform's, never yours.
+Declaring the handler **replaces** the built-in scroll landing: write it where your space's
+idea of *showing* something is a camera or a pan (`onArrive(target: View) {
+app.flyTo(target) }`), and compose the scroll back with `reveal(target)` when you want
+both. Fires per follow, not per change of address — arriving where you already are arrives
+again — and Back/Forward come through the same door. It never waits for motion: "the glide
+landed" is `atRest`, a fact, not an arrival.
+
+## onReady
+Fires once, on the App only, when the app's **first settle** has completed — the tree
+standing, constraints wired, geometry computed — and before anything presents, so what the
+handler does is in the first frame the user sees (answered by `onReady`). Boot is the one
+settle with no app handler inside it, which is why its close is delivered as an event; a
+handler's own change asks inline with `afterSettle` instead. Ask first whether you need it
+at all: readiness is usually a value some binding derives from. Keep it for the genuinely
+once-and-imperative — seed the camera, start the tour, open the socket.
+
+## reveal()
+The **default landing, exposed**: `reveal(target)` scrolls the target into view exactly as
+an arrival would have — `revealInset` honored, the App itself starting at its top. Exists
+so an `onArrive` that wants the scroll *and* more can compose the default back in as its
+last step — the same move as `tabOrder()` composing `tabDefault()`. Without a declared
+`onArrive` you never call it; the platform already does.
 
 ## destinationOf()
 The destination part of a location: strips the runtime's own trailing `@name` —

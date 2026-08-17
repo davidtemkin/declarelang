@@ -266,11 +266,6 @@ declare class MacSurface implements Surface {
     /** Walk the tree the way hit() does, narrating each step. */
     trace(px: number, py: number, depth?: number): void;
     private insideClip;
-    /** Does this surface contain the point (its clip respected)? A wheel
-     *  belongs to the topmost surface under the pointer and then to ITS
-     *  ancestors — never to an occluded sibling, which is what let a scroll
-     *  over the front window drive a scroller in the window behind it. */
-    private ownsPoint;
     /** The wheel CLAIM walk (canvas-backend wheelTo, mirrored): descend to the
      *  view under the point and answer with the nearest `onWheel` CLAIMANT or
      *  the nearest scroller — whichever is deeper wins, the DOM's delegation

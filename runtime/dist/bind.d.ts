@@ -35,7 +35,10 @@ export declare function bindDatapath(view: View, path: string | readonly string[
 /** Bind `datapath = { expr }`: the expression yields a value from a
  *  dataset (`weatherData.value.rss.channel` — plain TS dereferences), and
  *  toCursor turns it back into a *place*, inside the tracked compute so the
- *  cursor stands on its whole chain (a structural change along it re-runs). */
+ *  cursor stands on its whole chain (a structural change along it re-runs).
+ *  The compute runs under withCursorDefining: a `:path` island in the body
+ *  (`datapath = { :detail }`) resolves against the INHERITED cursor, never
+ *  the slot this constraint defines — the same rule bindDatapath states. */
 export declare function bindCursor(view: View, src: string, pos: Pos, classroot: View | null): void;
 /** Bind `name = p%` as the runtime constraint described above. The root has
  *  no parent to resolve against — that is an instantiation-context fact, not

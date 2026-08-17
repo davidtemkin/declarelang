@@ -19,7 +19,7 @@ export function provideViewCreator(fn) {
     viewCreator = fn;
 }
 import { record } from "./draw.js";
-import { Constraint, Cell } from "./reactive.js";
+import { Constraint, Cell, afterSettle } from "./reactive.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin } from "./interaction.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { handlerName } from "./schema.js";
@@ -970,13 +970,30 @@ defineAttributes(View, {
     // The cursor is model state: bindings read it (tracked), nothing renders it.
     datapath: { def: null },
 });
+/** The view whose `datapath = { }` compute is currently running, if any. A
+ *  `:path` island in that body reads through the walk below — and must
+ *  resolve against the cursor the slot EXTENDS, never the one it defines
+ *  (bindDatapath's rule, applied to the island form). Without the skip,
+ *  `datapath = { :detail }` reads its own half-written cursor on re-run and
+ *  oscillates (null ↔ cursor) until the cycle guard trips. */
+let cursorDefining = null;
+export function withCursorDefining(view, fn) {
+    const prev = cursorDefining;
+    cursorDefining = view;
+    try {
+        return fn();
+    }
+    finally {
+        cursorDefining = prev;
+    }
+}
 /** The cursor in effect at `node`: the nearest ancestor-or-self datapath
  *  (language §9 — "descendants read fields relative to it"). Each level's
  *  slot is a tracked read, so a cursor appearing, changing, or clearing
  *  ANYWHERE on the chain wakes exactly the reads below it. */
 export function inheritedCursor(node) {
     for (let n = node; n !== null; n = n.parent) {
-        if (n instanceof View) {
+        if (n instanceof View && n !== cursorDefining) {
             const dp = n.datapath;
             if (dp !== null)
                 return dp;
@@ -1054,13 +1071,13 @@ function findAnchor(root, name) {
         if (n instanceof View) {
             if (n.anchor !== "") {
                 const v = n;
-                views.push({ base: v.anchor, fire: () => { if (v.surface === null)
+                views.push({ base: v.anchor, view: v, fire: () => { if (v.surface === null)
                         return false; v.scrollIntoView("start", false, inset); return true; } });
             }
             const flow = n;
             if (typeof flow.anchorSlugs === "function" && typeof flow.revealAnchor === "function") {
                 for (const s of flow.anchorSlugs())
-                    slugs.push({ base: s, fire: () => flow.revealAnchor(s, inset) });
+                    slugs.push({ base: s, view: n, fire: () => flow.revealAnchor(s, inset) });
             }
         }
         for (const c of n.children)
@@ -1073,7 +1090,7 @@ function findAnchor(root, name) {
         seen.set(c.base, n);
         const key = n === 1 ? c.base : `${c.base}-${n}`;
         if (key === name)
-            return c.fire;
+            return { view: c.view, fire: c.fire };
     }
     return null;
 }
@@ -1081,6 +1098,22 @@ function findAnchor(root, name) {
  *  `<canvas>`). R0 treats it as the root View; it fills its host by default and
  *  carries the app's reactive environment (host extent, scroll, pointer). */
 export class App extends View {
+    /** onReady — the boot transaction's close, DELIVERED (schema.ts App
+     *  events): boot is the one settle with no app handler anywhere in it, so
+     *  its close cannot be asked for inline (afterSettle) and must arrive as an
+     *  event. Registered at attach — the join point of every render path
+     *  (mounted, headless, native) — and fired at the close of the FIRST settle
+     *  after it: tree standing, constraints wired, geometry computed, nothing
+     *  painted, so what the handler writes is in the first frame the user sees.
+     *  Once per App instance; an embedded island's App gets its own. */
+    readyDelivered = false;
+    attach(backend, parentSurface, before = null) {
+        super.attach(backend, parentSurface, before);
+        if (!this.readyDelivered) {
+            this.readyDelivered = true;
+            afterSettle(() => fireEvent(this, "ready"));
+        }
+    }
     /** app→host navigation channel: `navigate(to)` sets it, the host (host-client.js
      *  / a backend) polls it, opens the URL, and clears it to "". A plain field, not
      *  a reactive attribute — nothing in the tree renders from it, and no Declare
@@ -1155,10 +1188,18 @@ export class App extends View {
         this.location = loc;
         // Anchorless: the destination starts at its top — the scroll must not
         // inherit the previous view's offset (the toTop discipline, now follow's).
+        // With `onArrive` declared, the handler owns that landing instead: the
+        // destination view is delivered at the close of this follow's settle —
+        // real, placed, sized, nothing painted — resolved then, off the settled
+        // tree. Per FOLLOW, not per change of address (§0.5.5, no dead clicks).
         // Anchored: resolveReveal owns the landing (its intent re-arms on the
         // location CHANGE; a same-reference re-follow re-arms it here).
-        if (loc.indexOf("@") < 0)
-            this.scrollIntoView("start");
+        if (loc.indexOf("@") < 0) {
+            if (this.hasArrive())
+                afterSettle(() => fireEvent(this, "arrive", this.destinationView()));
+            else
+                this.scrollIntoView("start");
+        }
         else if (same)
             this.rearmReveal();
     }
@@ -1239,15 +1280,68 @@ export class App extends View {
         // pinned first-call contract) are untouched.
         if (anyRichPending(this))
             return null;
-        const fire = findAnchor(this, name);
+        const hit = findAnchor(this, name);
+        if (hit === null)
+            return null;
+        // A declared onArrive REPLACES the built-in landing (the scroll): the
+        // platform still resolves the name and waits out data and measurement —
+        // only what "showing" means is the handler's. Same readiness gate as the
+        // scroll thunk's own (attached surface), same hold-and-retry.
+        if (this.hasArrive()) {
+            if (hit.view.surface === null)
+                return null;
+            this.pendingAnchor = null;
+            fireEvent(this, "arrive", hit.view);
+            return name;
+        }
         // Clear the intent only when the reveal ACTUALLY landed — the name being present
         // in `content` before its element is attached/rendered (the cold-deep-link race)
         // returns false, so we hold and retry next frame.
-        if (fire !== null && fire()) {
+        if (hit.fire()) {
             this.pendingAnchor = null;
             return name;
         }
         return null;
+    }
+    /** Is an `onArrive` handler declared? (Installed by instantiate like every
+     *  language member; a TS subclass may simply define one.) Its presence is
+     *  the policy switch: declared, the app owns the landing. */
+    hasArrive() {
+        return typeof this.onArrive === "function";
+    }
+    /** The view an anchorless location lands on: the destination view (`shows`
+     *  === the location's destination), or the App itself when no view declares
+     *  it (a computed-location family, or the bare ""). Resolved at dispatch
+     *  time, off the settled tree. */
+    destinationView() {
+        const dest = this.destinationOf(this.location);
+        if (dest === "")
+            return this;
+        let found = null;
+        const walk = (n) => {
+            if (found !== null)
+                return;
+            if (n instanceof View && n.shows === dest) {
+                found = n;
+                return;
+            }
+            for (const c of n.children)
+                walk(c);
+        };
+        walk(this);
+        return found ?? this;
+    }
+    /** The DEFAULT landing, exposed — what the platform does with an arrival
+     *  when no `onArrive` is declared: scroll the target into view, honoring
+     *  `revealInset` (the App itself starts at its top). A document app that
+     *  declares `onArrive` for the extra work composes the scroll back by
+     *  calling this — the same move as `tabOrder()` composing `tabDefault()`. */
+    reveal(target) {
+        if (target === this) {
+            this.scrollIntoView("start");
+            return;
+        }
+        target.scrollIntoView("start", false, this.revealInset);
     }
     /** Re-arm the reveal intent for the CURRENT location — follow's no-dead-click
      *  rule (§0.5): re-following `#why@story` while already there re-runs the

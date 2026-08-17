@@ -242,5 +242,45 @@ test("the A2 message names the write-back that exists on THAT component", async 
   assert.ok(!/plus 'input\(v: …\)/.test(editor), "it must not offer the Control spelling here");
 });
 
+// Re-anchoring: a `:path` island inside `datapath = { }` resolves against the
+// cursor the slot EXTENDS, never the one it defines. Before the
+// withCursorDefining fix, the compute read its own half-written cursor on
+// re-run and oscillated (null ↔ cursor) until "constraint cycle: …
+// re-evaluated 100 times" — triggered by the first Dataset mutation, with or
+// without a replication beneath (the field repro's PaneB).
+test("datapath = { :detail } re-anchor + nested replication survives settle and mutation", async () => {
+  const app = await build(`
+    App [
+      db: Dataset { { "v": { "detail": { "details": [
+        { "label": "Colour", "value": "Black" }, { "label": "Size", "value": "L" } ] } } } },
+      host: View [ datapath = { app.db.value.v },
+        det: View [ datapath = { :detail },
+          Text [ datapath = :details[], key = :label, width = 220,
+            text = { (:label || "") + ": " + (:value || "") } ],
+        ],
+      ],
+    ]`); // the first settle threw the cycle before the fix
+  const texts = app.host.det.children.filter((c) => c.text !== undefined).map((c) => c.text);
+  assert.deepEqual(texts, ["Colour: Black", "Size: L"], "the re-anchored replication built");
+  app.db.set(["v", "detail", "details", "2"], { label: "Fit", value: "Slim" });
+  settle(); // and every mutation threw it again
+  const after = app.host.det.children.filter((c) => c.text !== undefined).map((c) => c.text);
+  assert.deepEqual(after, ["Colour: Black", "Size: L", "Fit: Slim"], "mutation reconciles, no cycle");
+});
+
+test("datapath = { :detail } re-anchor cycles even WITHOUT a replication beneath (fixed)", async () => {
+  const app = await build(`
+    App [
+      db: Dataset { { "v": { "detail": { "name": "Ada" } } } },
+      host: View [ datapath = { app.db.value.v },
+        det: View [ datapath = { :detail }, t: Text [ text = { "" + (:name || "") } ] ],
+      ],
+    ]`);
+  assert.equal(app.host.det.t.text, "Ada", "the island anchored at the INHERITED cursor");
+  app.db.set(["v", "detail", "name"], "Grace");
+  settle();
+  assert.equal(app.host.det.t.text, "Grace", "leaf mutation flows through the re-anchor");
+});
+
 console.log(`\ndatabinding: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

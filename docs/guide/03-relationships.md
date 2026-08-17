@@ -133,10 +133,55 @@ The cost model is worth one paragraph, because it is the whole discipline. Only
 **declared reactive attributes** participate: locals, loop counters, and plain objects
 in `script { }` code carry zero reactive overhead. Tracked reads are prewired, so they
 cost a field access. And writes **batch**: a tight loop that writes a reactive
-attribute a thousand times is a thousand cheap sets and *one* cascade at the flush.
+attribute a thousand times is a thousand cheap sets and *one* cascade at the settle.
 The rule that falls out — reactive attributes for UI state you want to propagate,
 plain values for hot inner computation — will cover every performance question you
 have for a long time.
+
+## The settle — when your writes take effect
+
+That word "settle" names the one timing fact the model asks you to hold. A handler's
+writes do not take effect as you make them: while your handler runs, every read
+answers with the world as it was when the handler started. When it returns,
+everything it changed is applied *together* — constraints re-derive, views appear
+and retire where data now says so, layout places, sizes update — one indivisible
+step, run to completion, called the **settle**. Nothing paints in the middle of
+one, which is why the interface is never half-updated, no matter how many
+attributes one handler writes. Animation is not an exception but a user of it: a
+spring writes its attribute once per frame, and each frame's writes get a settle
+of their own — motion is many small settles, never one long one.
+
+Almost always the right response to "I need to react to my own change" is: don't.
+State what should be true with a constraint, and it is true after this settle and
+every settle after it. But occasionally the work is irreducibly a *reading* of the
+world your write creates — you added a row and need to aim a camera at where it
+*landed*, a place only layout knows. For that, hand one step across the boundary:
+
+```declare-fragment
+addItem() {
+    app.d.set(["items", 0], { label: "new" })
+    afterSettle(app.showNewest)              // one step, on the far side of the landing
+    },
+showNewest() {
+    app.frameOn(app.list.first)              // the new row is real, placed, and sized
+    },
+```
+
+`afterSettle(step)` runs the step exactly once, when the settle your handler
+triggered has closed — and before that state reaches the screen, so anything the
+step writes lands in the same frame as the change itself; the user never sees the
+in-between. It is tied to your change, not to a clock: no interval, no frame
+callback, nothing left standing afterward. And if you catch yourself wanting it to
+wait for something more — data arriving, motion finishing — stop: those are values
+changing (`data.loaded`, `open.atRest`), and values changing is what constraints
+are for.
+
+One settle has no handler anywhere inside it: the first, when the program boots.
+Its close is *delivered* instead — **`onReady()`**, an event on the App only, fires
+once when the tree is standing and measured, before the first paint, so what it
+does is in the first frame the user sees. Most apps never need it — readiness is
+usually a value some binding derives from — so keep it for the genuinely
+once-and-imperative: seed a camera, start a tour, open a socket.
 
 ## The one rule constraints obey
 

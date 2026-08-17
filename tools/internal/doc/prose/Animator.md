@@ -40,7 +40,7 @@ When true, `to`/`from` are **offsets** from the current value rather than absolu
 Set true to run it — the declarative `start()`. Drive it from a constraint to gate playback
 on state: every change drives the run — true starts, false stops in place, and a fresh true
 is a fresh run from the top. `started` is the **request**, not a status readback: a run that
-completes (or is `stop()`ed) leaves it reading whatever was asked, so ask `settled` or
+completes (or is `stop()`ed) leaves it reading whatever was asked, so ask `atRest` or
 `onStop` for arrival, never `started`.
 
 ## paused
@@ -67,9 +67,10 @@ Halts the run where it is and leaves the attribute at its current value — it d
 snap back to `from`. Pair with `start()` for handler-driven control, or drive `started`
 reactively instead.
 
-## settled
-**Read-only.** Arrival as a reactive fact: true only at an uninterrupted destination — the
-animation twin of a `DataSource`'s `.loaded`. The animator computes it; `start()` and
-`stop()` are what move it. Read it to sequence what should happen *after* motion
-(revealing a detail panel once its container has finished opening) instead of guessing
-with a timer that a retarget would invalidate.
+## atRest
+**Read-only.** Motion at rest, as a reactive fact: true only at an uninterrupted
+destination — the animation twin of a `DataSource`'s `.loaded`. The animator computes it;
+`start()` and `stop()` are what move it. Read it to sequence what should happen *after*
+motion (revealing a detail panel once its container has finished opening) instead of
+guessing with a timer that a retarget would invalidate. (Not to be confused with **the
+settle**, the update transaction — a spring comes to rest across many settles.)

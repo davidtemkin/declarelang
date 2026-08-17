@@ -107,7 +107,7 @@ export { Media } from "./media.js";
 export { provideStreams } from "./stream-seam.js";
 export { Tip } from "./tip.js";
 export { Animator, AnimatorGroup } from "./animator.js";
-export { settle } from "./reactive.js";
+export { settle, afterSettle } from "./reactive.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";
 export { buildFonts, collectFaces, fontFacesOf, FONT_WEIGHTS } from "./font.js";

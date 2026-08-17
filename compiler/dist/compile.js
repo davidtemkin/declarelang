@@ -191,8 +191,9 @@ const BROWSER_GLOBALS = new Set([
     "sessionStorage", "alert", "confirm", "prompt",
 ]);
 // The runtime services in body scope (expr.ts setBodyServices): bare `Focus`
-// in a handler is the service, never a member to resolve.
-const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Themes", "Inspect"]);
+// in a handler is the service, never a member to resolve. `afterSettle` is the
+// one function-shaped entry — "finish after your change has taken effect".
+const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Themes", "Inspect", "afterSettle"]);
 const isKnownGlobal = (name) => name in globalThis || BROWSER_GLOBALS.has(name) || RUNTIME_SERVICES.has(name);
 /** Compile a Declare source: full diagnostics (include resolve + check + scope
  *  resolution), and a SELF-CONTAINED resolved source the zero-dependency

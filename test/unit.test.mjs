@@ -7375,3 +7375,112 @@ await test("Heartbeat: `running` gates the heartbeat — a live slot, and dt nev
   sched.frame(60116);
   assert.ok(app.biggest <= 1 / 15 + 1e-9, `dt clamped to the max step, got ${app.biggest}`);
 });
+
+// ── the settle's close, exposed (language §7: afterSettle / onReady / onArrive) ──
+
+await test("afterSettle: the step runs at the close, after the handler's writes took effect", async () => {
+  const r = await compile(`App [ width = 200, height = 200,
+    n: number = 1,
+    grew: View [ width = { app.n * 10 }, height = 10 ],
+    seenWidth: number = -1,
+    bump() { app.n = 5; afterSettle(app.measure) },
+    measure() { app.seenWidth = app.grew.width },
+  ]`);
+  assert.equal(r.errors.length, 0, "afterSettle is in body scope and typechecks: " + (r.errors[0]?.message ?? ""));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.grew.width, 10);
+    app.bump();
+    settle();
+    // the step read the world AFTER the write landed — and its own write
+    // (seenWidth) folded into the SAME settle (the drain loops to quiescence)
+    assert.equal(app.seenWidth, 50, "the step saw the re-derived geometry");
+  } finally { app.discard(); }
+});
+
+await test("afterSettle: a step that re-arms itself forever is caught with its own diagnostic", async () => {
+  const r = await compile(`App [ width = 100, height = 100,
+    n: number = 0,
+    loop() { app.n = app.n + 1; afterSettle(app.loop) },
+    kick() { afterSettle(app.loop) },
+  ]`);
+  assert.equal(r.errors.length, 0);
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    app.kick();
+    assert.throws(() => settle(), /afterSettle: steps re-armed \d+ times in one settle/,
+      "the outer-loop guard names afterSettle, not a constraint");
+  } finally { app.discard(); }
+});
+
+await test("onReady: fires once, at the close of the first settle, after geometry", async () => {
+  const r = await compile(`App [ width = 300, height = 100,
+    col: View [ width = { app.width / 3 }, height = 10 ],
+    readyWidth: number = -1,
+    readies: number = 0,
+    onReady() { app.readyWidth = app.col.width; app.readies = app.readies + 1 },
+  ]`);
+  assert.equal(r.errors.length, 0, "onReady is an admitted App event: " + (r.errors[0]?.message ?? ""));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.readyWidth, 100, "the handler read computed geometry, not defaults");
+    assert.equal(app.readies, 1);
+    app.width = 600; settle();
+    assert.equal(app.readies, 1, "later settles do not re-fire it");
+  } finally { app.discard(); }
+});
+
+await test("onArrive: the landing to onFollow's door — anchorless, per follow, replaces the scroll", async () => {
+  const r = await compile(`App [ width = 400, height = 400, location = "",
+    home: View [ shows = "", width = 10, height = 10 ],
+    detail: View [ shows = "detail", width = 20, height = 20 ],
+    landedOn: string = "",
+    arrivals: number = 0,
+    onArrive(target: View) { app.landedOn = target.shows; app.arrivals = app.arrivals + 1 },
+  ]`);
+  assert.equal(r.errors.length, 0, "onArrive(target: View) is an admitted App event: " + (r.errors[0]?.message ?? ""));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    app.follow("#detail");
+    settle();
+    assert.equal(app.landedOn, "detail", "the handler was handed the destination VIEW");
+    assert.equal(app.arrivals, 1);
+    app.follow("#detail"); // arriving where you already are arrives again (§0.5.5)
+    settle();
+    assert.equal(app.arrivals, 2, "per FOLLOW, not per change of address");
+  } finally { app.discard(); }
+});
+
+await test("onArrive: anchored — same waiting as the reveal, the measured view delivered", async () => {
+  const r = await compile(`App [ width = 400, height = 400, location = "home",
+    md: Markdown [ width = 380, text = "# Intro\\n\\nbody\\n\\n## Fine Details\\n\\nmore" ],
+    got: string = "",
+    onArrive(target: View) { app.got = "arrived" },
+  ]`);
+  assert.equal(r.errors.length, 0);
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    app.location = "home@fine-details"; settle();
+    assert.equal(app.resolveReveal(), "fine-details", "resolution still reports the landing");
+    assert.equal(app.got, "arrived", "the handler replaced the scroll as the landing");
+    assert.equal(app.resolveReveal(), null, "the intent cleared — once per arrival");
+    // an unknown anchor is HELD exactly as before — the waiting is the platform's
+    app.location = "home@missing"; settle();
+    app.got = "";
+    assert.equal(app.resolveReveal(), null);
+    assert.equal(app.got, "", "no dispatch while the target does not exist");
+  } finally { app.discard(); }
+});
+
+await test("app.reveal(target): the default landing stays callable from a handler", async () => {
+  const r = await compile(`App [ width = 400, height = 400, location = "",
+    detail: View [ shows = "detail", width = 20, height = 20 ],
+    onArrive(target: View) { app.reveal(target) },
+  ]`);
+  assert.equal(r.errors.length, 0, "reveal(target) typechecks in body scope: " + (r.errors[0]?.message ?? ""));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    app.follow("#detail");
+    settle(); // headless: the scroll is a no-op — composing it back must not throw
+  } finally { app.discard(); }
+});

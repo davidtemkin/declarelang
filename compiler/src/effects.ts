@@ -50,6 +50,14 @@ export const LANGUAGE_METHOD_EFFECTS: ReadonlyMap<string, readonly string[]> = n
   // app-scoped onFollow hook runs inside it imperatively, never as a tracked
   // read). The LINK relation itself is authored (`link =`), not inferred here.
   ["follow", []],
+  // App.reveal(target) (view.ts) — the default landing, exposed: an ACTION
+  // that scrolls and reads no reactive cell the caller must wire. PURE.
+  ["reveal", []],
+  // afterSettle(step) (runtime/src/reactive.ts) — the body-scope FUNCTION that
+  // registers a step for the close of the current settle. An ACTION: it reads
+  // no reactive cell (the step's own reads happen later, untracked, outside
+  // any constraint) → PURE for dependency analysis.
+  ["afterSettle", []],
   // View.bounds() (runtime/src/view.ts) — the transformed footprint: the AABB
   // of the frame under scale-then-rotate about the pivot, in parent
   // coordinates. Its reads are all receiver-relative slots, so they are
