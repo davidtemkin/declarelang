@@ -497,17 +497,23 @@ export class DomBackend {
         watchPinchZoom(host.ownerDocument);
         // The ROOT's scroll regime is the page (applyScrollStyle's root branch) —
         // but attach ran before the declareApp stamp, so the element still wears
-        // the PANE realization. Re-apply now that root-ness is knowable, and
-        // resolve any ignoreScroll children that found no context during attach
-        // (their nearest regime is this root — the page).
+        // the PANE realization. Re-apply now that root-ness is knowable.
         root.applyScrollStyle();
-        rootEl.querySelectorAll("[data-declare-ignorescroll]").forEach((el) => realizeIgnoreScroll(el));
         // NOTE the frame does NOT clip here: an app larger than its host scrolls
         // natively — "exterior" scrolling, the browser over the app object — and
         // that stays expressible. An app designed as a fixed window (everything
         // in-frame, no browser scrolling — the calendar) declares `clip = true`
         // on its App, whose box-clip is true CONTAINMENT (setBoxClip below).
         host.appendChild(rootEl);
+        // Resolve ignoreScroll children AFTER the append, never before: the
+        // fixed-vs-stay-put arm reads the ROOT's OWN ancestry to ask "is this app
+        // embedded?", and a detached root has no ancestry — every island child
+        // then read as top-level and its chrome landed `position: fixed` against
+        // the HOST page's viewport (measured: a hosted app's header painting over
+        // the desktop's menu bar at the screen origin, its own window nowhere in
+        // sight). With the root parented first, a top-level app still resolves to
+        // the page regime and an island's chrome stays put in its box.
+        rootEl.querySelectorAll("[data-declare-ignorescroll]").forEach((el) => realizeIgnoreScroll(el));
         // Paint the page BEHIND the app with the app's own background — so Safari's
         // rubber-band overscroll and any sub-pixel edge match the app instead of
         // flashing white. Automatic for any TOP-LEVEL app: we read the root's realized
