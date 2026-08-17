@@ -24,7 +24,22 @@ mkdirSync(OUT, { recursive: true });
 
 const kb = (n) => (n / 1024).toFixed(0) + " KB";
 
-async function bundle(entry, outfile, globalName) {
+// MINIFIED, like every other shipped bundle. This was missing, and it cost
+// more than whitespace: the compiler entry imports the ALREADY-MINIFIED
+// bundles/declare-compiler.js, so esbuild re-parsed it and PRETTY-PRINTED it
+// back out — 4.20 MB of input leaving as 5.73 MB. Measured, both bundles:
+//
+//     declare-mac.js        736 KB → 298 KB   (gz 193 → 96 KB)
+//     declare-compiler-mac  5.73 MB → 4.20 MB (gz 1.26 → 1.14 MB)
+//
+// It is also the ONLY lever on download size. Any container (dmg, zip, pkg)
+// compresses in transit, so shipping compressed bytes on disk saves nothing
+// there; minification removes content rather than redundancy, so its ~10% off
+// the gzipped figure is the part that actually survives the trip.
+//
+// Safe by precedent: build-boot.mjs and build-compiler.mjs both minify, so
+// every browser user already runs this runtime and this compiler mangled.
+async function bundle(entry, outfile, globalName, { keepNames = false } = {}) {
   const r = await build({
     entryPoints: [entry],
     bundle: true,
@@ -34,6 +49,16 @@ async function bundle(entry, outfile, globalName) {
     target: ["safari17"],
     outfile,
     write: true,
+    minify: true,
+    // ⚠ KEEP CLASS NAMES IN THE RUNTIME. The runtime labels constraints and
+    // diagnostics with `this.constructor.name` (view.ts `.draw`, markdown.ts
+    // `.render`, state.ts's gated-state error, …), and unlike the web — where
+    // dev loads runtime/dist unminified and only production ships the bundle —
+    // the Mac host ALWAYS runs this bundle. Mangling here would degrade every
+    // introspection answer the host can give, permanently. Measured cost: 10 KB.
+    // Nothing keys a LOOKUP on a JS name (every `.name` in the runtime is a
+    // parsed-program field), so this is legibility, not correctness.
+    keepNames,
     legalComments: "none",
     logLevel: "silent",
   });
@@ -51,6 +76,10 @@ globalThis.__declareCompiler = { compile, compileTracked, setDefaultLibrary, hig
 `);
 
 console.log("build-mac:");
-await bundle(path.join(ROOT, "browser/mac-boot.js"), path.join(OUT, "declare-mac.js"), "DeclareMac");
+await bundle(path.join(ROOT, "browser/mac-boot.js"), path.join(OUT, "declare-mac.js"), "DeclareMac",
+             { keepNames: true });
+// No keepNames for the compiler: its input is the web bundle, already minified
+// without them, so there are no original names left to preserve — asking would
+// cost 220 KB to pin identifiers esbuild had already mangled upstream.
 await bundle(COMPILER_ENTRY, path.join(OUT, "declare-compiler-mac.js"), "DeclareCompilerMac");
 console.log("  (mac-env.js is served as-is — it must run BEFORE the bundle)");
