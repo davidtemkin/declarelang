@@ -93,6 +93,11 @@ declare class MacSurface implements Surface {
     private boxClip;
     scrollsX: boolean;
     scrollXOffset: number;
+    /** The extent last PUBLISHED to the host, per axis — what its scrollbar is
+     *  currently sized from. `-1` is "never published", so the first sweep after
+     *  a scroller appears always states its range. */
+    publishedExtent: number;
+    publishedExtentX: number;
     /** Set when this surface hosts native rich content: its height is answered
      *  by the host's text layout, and its hit region is the box (the overlay
      *  owns interior selection). */

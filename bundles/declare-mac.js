@@ -17240,9 +17240,34 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     flushScheduled = false;
     if (ops.length === 0)
       return;
+    reclampScrollers();
     const json = JSON.stringify(ops);
     ops.length = 0;
     host().commit(json);
+  }
+  var scrollers = /* @__PURE__ */ new Set();
+  function reclampScrollers() {
+    for (const sc of scrollers) {
+      if (sc.scrolls) {
+        const ext = sc.contentExtent();
+        const next = Math.min(Math.max(0, ext - sc.height), Math.max(0, sc.scrollOffset));
+        if (next !== sc.scrollOffset || ext !== sc.publishedExtent) {
+          sc.publishedExtent = ext;
+          if (next !== sc.scrollOffset)
+            sc.setScrollOffset(next);
+          emit(OP.SCROLLPOS, sc.id, next, ext);
+        }
+      }
+      if (sc.scrollsX) {
+        const extX = sc.contentExtentXPublic();
+        const nextX = Math.min(Math.max(0, extX - sc.width), Math.max(0, sc.scrollXOffset));
+        if (nextX !== sc.scrollXOffset || extX !== sc.publishedExtentX) {
+          sc.publishedExtentX = extX;
+          sc.scrollXOffset = nextX;
+          emit(OP.SCROLLXPOS, sc.id, nextX, extX);
+        }
+      }
+    }
   }
   var nextId = 1;
   var MacSurface = class {
@@ -17273,6 +17298,11 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     boxClip = false;
     scrollsX = false;
     scrollXOffset = 0;
+    /** The extent last PUBLISHED to the host, per axis — what its scrollbar is
+     *  currently sized from. `-1` is "never published", so the first sweep after
+     *  a scroller appears always states its range. */
+    publishedExtent = -1;
+    publishedExtentX = -1;
     /** Set when this surface hosts native rich content: its height is answered
      *  by the host's text layout, and its hit region is the box (the overlay
      *  owns interior selection). */
@@ -17439,6 +17469,10 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       this.onScrollCb = on ? onScroll : null;
       if (!on)
         this.scrollOffset = 0;
+      if (on || this.scrollsX)
+        scrollers.add(this);
+      else
+        scrollers.delete(this);
       emit(OP.SCROLL, this.id, on ? 1 : 0);
     }
     /** Horizontal scroll is not yet realized natively (code blocks clip). */
@@ -17446,6 +17480,10 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       if (this.appRoot && on)
         return;
       this.scrollsX = on;
+      if (on || this.scrolls)
+        scrollers.add(this);
+      else
+        scrollers.delete(this);
       emit(OP.SCROLLX, this.id, on ? 1 : 0);
     }
     /** The widest a child reaches — the horizontal twin of contentExtent().
@@ -17715,6 +17753,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
           this.parent.children.splice(i, 1);
         this.parent = null;
       }
+      scrollers.delete(this);
       richCallbacks.delete(this.id);
       editCallbacks.delete(this.id);
       surfaces.delete(this.id);

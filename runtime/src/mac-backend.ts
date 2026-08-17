@@ -87,10 +87,66 @@ export function peekOps(): number { return JSON.stringify(ops).length; }
 
 export function flushOps(): void {
   flushScheduled = false;
+  // LAYOUT HAS SETTLED — re-clamp every scroller before the ops cross. An
+  // empty buffer means nothing moved, so there is nothing to re-clamp.
   if (ops.length === 0) return;
+  reclampScrollers();
   const json = JSON.stringify(ops);
   ops.length = 0;
   host().commit(json);
+}
+
+/** Every live scrolling surface, so the post-settle sweep can find them
+ *  without walking the tree. Membership follows setScroll/setScrollX. */
+const scrollers = new Set<MacSurface>();
+
+/** The browser's half of the scroll contract, which this backend has to do by
+ *  hand: WHEN THE CONTENT OR THE BOX CHANGES, THE OFFSET IS RE-CLAMPED AND THE
+ *  RANGE RE-PUBLISHED.
+ *
+ *  A DOM scroller gets this free — shrink the content under a scrolled element
+ *  and the browser pulls `scrollTop` back to the new maximum, fires `scroll`,
+ *  and resizes the bar. Here both halves were missing, and a resize is exactly
+ *  when both bite:
+ *
+ *    • THE STRANDED OFFSET. Scroll weather's pane to the bottom at 900x568
+ *      (offset 1144), then widen to 1280x900: the content re-flows shorter and
+ *      the viewport grows, so the real maximum collapses — but the offset
+ *      stayed at 1144 and the pane rendered past the end of its own content,
+ *      two-thirds of the window empty. That is the "grey areas".
+ *    • THE STALE RANGE. The host learns a scroller's extent ONLY from
+ *      SCROLLPOS, i.e. only when someone scrolls. Until then its scrollbar is
+ *      sized from the pre-resize content, so the thumb is the wrong length and
+ *      a drag maps to the wrong place — "won't scroll far enough". The wheel
+ *      looked fine because that path recomputes the extent on every event; it
+ *      is everything driven by the PUBLISHED extent that was wrong.
+ *
+ *  Runs at flush, not in the geometry setters: extent is a property of the
+ *  whole subtree, so it is only knowable once the settle that moved things has
+ *  finished. Publishing on an extent change (not just an offset change) is what
+ *  fixes the scrollbar; `setScrollOffset` notifies the view so `scrollY` agrees,
+ *  exactly as the DOM's scroll event does. */
+function reclampScrollers(): void {
+  for (const sc of scrollers) {
+    if (sc.scrolls) {
+      const ext = sc.contentExtent();
+      const next = Math.min(Math.max(0, ext - sc.height), Math.max(0, sc.scrollOffset));
+      if (next !== sc.scrollOffset || ext !== sc.publishedExtent) {
+        sc.publishedExtent = ext;
+        if (next !== sc.scrollOffset) sc.setScrollOffset(next);
+        emit(OP.SCROLLPOS, sc.id, next, ext);
+      }
+    }
+    if (sc.scrollsX) {
+      const extX = sc.contentExtentXPublic();
+      const nextX = Math.min(Math.max(0, extX - sc.width), Math.max(0, sc.scrollXOffset));
+      if (nextX !== sc.scrollXOffset || extX !== sc.publishedExtentX) {
+        sc.publishedExtentX = extX;
+        sc.scrollXOffset = nextX;
+        emit(OP.SCROLLXPOS, sc.id, nextX, extX);
+      }
+    }
+  }
 }
 
 let nextId = 1;
@@ -128,6 +184,11 @@ class MacSurface implements Surface {
   private boxClip = false;
   scrollsX = false;
   scrollXOffset = 0;
+  /** The extent last PUBLISHED to the host, per axis — what its scrollbar is
+   *  currently sized from. `-1` is "never published", so the first sweep after
+   *  a scroller appears always states its range. */
+  publishedExtent = -1;
+  publishedExtentX = -1;
   /** Set when this surface hosts native rich content: its height is answered
    *  by the host's text layout, and its hit region is the box (the overlay
    *  owns interior selection). */
@@ -271,6 +332,7 @@ class MacSurface implements Surface {
     this.scrolls = on;
     this.onScrollCb = on ? onScroll : null;
     if (!on) this.scrollOffset = 0;
+    if (on || this.scrollsX) scrollers.add(this); else scrollers.delete(this);
     emit(OP.SCROLL, this.id, on ? 1 : 0);
   }
   /** Horizontal scroll is not yet realized natively (code blocks clip). */
@@ -281,6 +343,7 @@ class MacSurface implements Surface {
     // element's native one, which reveals on both axes. With this unimplemented
     // a newly opened column simply never slid into view.
     this.scrollsX = on;
+    if (on || this.scrolls) scrollers.add(this); else scrollers.delete(this);
     emit(OP.SCROLLX, this.id, on ? 1 : 0);
   }
 
@@ -531,6 +594,7 @@ class MacSurface implements Surface {
       if (i >= 0) this.parent.children.splice(i, 1);
       this.parent = null;
     }
+    scrollers.delete(this);       // a destroyed scroller must not be swept
     richCallbacks.delete(this.id);
     editCallbacks.delete(this.id);
     surfaces.delete(this.id);
