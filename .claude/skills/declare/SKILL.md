@@ -65,7 +65,7 @@ to learn it, or jump to the chapter your task needs:
 | your task touches | read |
 |---|---|
 | program shape, the two brackets | `docs/guide/02-two-brackets.md` |
-| a constraint that won't update; setter rules | `docs/guide/03-relationships.md` |
+| a constraint that won't update; setter rules; the settle, `afterSettle`, `onReady` | `docs/guide/03-relationships.md` |
 | scope — `this` / `parent` / `classroot` / `app`, classes, composition | `docs/guide/04-tree.md` |
 | layout, sizing, position, responsiveness, scrolling, fixed chrome (`ignoreScroll`) | `docs/guide/05-space.md` |
 | color, type, borders, shadows, themes | `docs/guide/06-style.md` |
@@ -75,7 +75,7 @@ to learn it, or jump to the chapter your task needs:
 | big collections, `virtualize`, selection, `DataGrid` | `docs/guide/10-scale.md` |
 | your own component, control, icon, or layout | `docs/guide/11-make-your-own.md` |
 | menus, dialogs, popovers, tooltips — anything over the flow | `docs/guide/12-above-the-flow.md` |
-| deep links, the URL, `location`, `waypoint`, history, crawlability | `docs/guide/13-location.md` |
+| deep links, the URL, `location`, `waypoint`, history, crawlability, `onFollow`/`onArrive` | `docs/guide/13-location.md` |
 | states, springs, animation, `Heartbeat` | `docs/guide/14-motion-and-states.md` |
 | whole arrangements moving as one — the sprung-scalar idiom | `docs/guide/15-arrangement.md` |
 | touch, gesture ownership, pinch/wheel zoom | `docs/guide/16-gestures.md` |

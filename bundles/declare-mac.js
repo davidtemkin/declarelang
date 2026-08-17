@@ -507,15 +507,15 @@ var DeclareMac = (() => {
     const p = new Parser(tokenize(source));
     const before = parseTopDecls(p);
     const root = p.parseElement();
-    const after = parseTopDecls(p);
-    const classes = [...before.classes, ...after.classes];
-    const stylesheets = [...before.stylesheets, ...after.stylesheets];
-    const styles = [...before.styles, ...after.styles];
-    const fonts = [...before.fonts, ...after.fonts];
-    const includes = [...before.includes, ...after.includes];
-    const includeSpans = [...before.includeSpans, ...after.includeSpans];
-    const uses = [...before.uses, ...after.uses];
-    const scripts = [...before.scripts, ...after.scripts];
+    const after2 = parseTopDecls(p);
+    const classes = [...before.classes, ...after2.classes];
+    const stylesheets = [...before.stylesheets, ...after2.stylesheets];
+    const styles = [...before.styles, ...after2.styles];
+    const fonts = [...before.fonts, ...after2.fonts];
+    const includes = [...before.includes, ...after2.includes];
+    const includeSpans = [...before.includeSpans, ...after2.includeSpans];
+    const uses = [...before.uses, ...after2.uses];
+    const scripts = [...before.scripts, ...after2.scripts];
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
       throw new DeclareErrors(p.errors);
@@ -855,8 +855,8 @@ var DeclareMac = (() => {
               return this.parsePath(t.pos);
             case "lbracket": {
               if (this.peek().kind === "ident") {
-                const after = this.peekAt(1).kind;
-                if (after === "colon" || after === "query" || after === "bang" || after === "lbracket" && this.peekAt(2).kind === "rbracket") {
+                const after2 = this.peekAt(1).kind;
+                if (after2 === "colon" || after2 === "query" || after2 === "bang" || after2 === "lbracket" && this.peekAt(2).kind === "rbracket") {
                   return { kind: "schema", shape: this.parseShapeFields(), pos: t.pos };
                 }
               }
@@ -2829,7 +2829,19 @@ var DeclareMac = (() => {
         // cold URL, back/forward — before routing. Return the reference to proceed
         // with; "" vetoes. Declared as an EVENT so the checker admits the handler;
         // unlike the pointer family it is called BY follow and returns a value.
-        events: ["follow"]
+        //
+        // `onReady()` — fired once, on the App only, when the first settle has
+        // closed (tree standing, constraints wired, geometry computed) and before
+        // anything presents: what it does is in the first frame the user sees. Boot
+        // is the one transaction with no app handler in it, so its close is
+        // DELIVERED; a handler's own change asks inline with afterSettle instead.
+        //
+        // `onArrive(target)` — the landing to onFollow's door (location.md §0.5.3-5):
+        // the view the followed address names, delivered once it exists and has its
+        // geometry — immediately if standing, or settles later when data builds it.
+        // Declaring it replaces the built-in scroll landing; `reveal(target)` is
+        // that default, callable from the handler.
+        events: ["follow", "ready", "arrive"]
       };
       TextSchema = {
         name: "Text",
@@ -3120,13 +3132,13 @@ var DeclareMac = (() => {
           relative: { kind: "boolean" },
           started: { kind: "boolean" },
           paused: { kind: "boolean" },
-          // ARRIVAL as a reactive fact (animator.ts) — the animation twin of a
+          // AT REST as a reactive fact (animator.ts) — the animation twin of a
           // DataSource's .loaded: true only at an uninterrupted destination.
-          settled: { kind: "boolean" }
+          atRest: { kind: "boolean" }
         },
         // The animator computes arrival; a program write would be overwritten by the
-        // very next tick. Start/stop are the verbs; `settled` is the fact.
-        readOnly: ["settled"],
+        // very next tick. Start/stop are the verbs; `atRest` is the fact.
+        readOnly: ["atRest"],
         // Bare event names (like View's ["click", …]); handlerName() prefixes `on`,
         // so these answer the onStart / onStop / onRepeat handlers (animation.md §1).
         events: ["start", "stop", "repeat"]
@@ -3304,6 +3316,8 @@ var DeclareMac = (() => {
         // RichText: the href
         follow: "string",
         // App: the reference being followed (onFollow returns the one to proceed with; "" vetoes)
+        arrive: "View",
+        // App: the landed-on view — the destination the followed address names, measured
         frame: "number",
         // Heartbeat: dt, in SECONDS
         focusChange: "View",
@@ -3312,7 +3326,7 @@ var DeclareMac = (() => {
         tip: "TipEvent",
         message: "StreamMessage"
         // Stream: data/type/id (streams.ts)
-        // payload-free: focus, blur, escapeFocus, init, enter, load,
+        // payload-free: focus, blur, escapeFocus, init, enter, load, ready,
         // start, stop, repeat, apply, remove, open, close, error
       };
       PAYLOAD_TYPE_NAMES = /* @__PURE__ */ new Set([
@@ -5223,18 +5237,35 @@ var DeclareMac = (() => {
       queueMicrotask(settle);
     }
   }
+  function afterSettle(step) {
+    after.push(step);
+    if (!scheduled && !flushing) {
+      scheduled = true;
+      queueMicrotask(settle);
+    }
+  }
   function settle() {
     scheduled = false;
     if (flushing)
       return;
     flushing = true;
-    stamp++;
     try {
-      for (; ; ) {
-        const phase = heads[0] < queues[0].length ? 0 : heads[1] < queues[1].length ? 1 : null;
-        if (phase === null)
+      for (let passes = 0; ; ) {
+        stamp++;
+        for (; ; ) {
+          const phase = heads[0] < queues[0].length ? 0 : heads[1] < queues[1].length ? 1 : null;
+          if (phase === null)
+            break;
+          queues[phase][heads[phase]++].runQueued(stamp);
+        }
+        if (after.length === 0)
           break;
-        queues[phase][heads[phase]++].runQueued(stamp);
+        if (++passes > AFTER_LIMIT) {
+          throw new DeclareError(`afterSettle: steps re-armed ${AFTER_LIMIT} times in one settle \u2014 a step (transitively) registers itself again`);
+        }
+        const batch = after.splice(0);
+        for (const step of batch)
+          step();
       }
     } finally {
       flushing = false;
@@ -5244,9 +5275,10 @@ var DeclareMac = (() => {
         queues[phase].length = 0;
         heads[phase] = 0;
       }
+      after.length = 0;
     }
   }
-  var active, Cell, CYCLE_LIMIT, Constraint, queues, heads, scheduled, flushing, stamp;
+  var active, Cell, CYCLE_LIMIT, Constraint, queues, heads, scheduled, flushing, stamp, after, AFTER_LIMIT;
   var init_reactive = __esm({
     "runtime/dist/reactive.js"() {
       "use strict";
@@ -5455,6 +5487,8 @@ var DeclareMac = (() => {
       scheduled = false;
       flushing = false;
       stamp = 0;
+      after = [];
+      AFTER_LIMIT = 100;
     }
   });
 
@@ -6906,9 +6940,18 @@ var DeclareMac = (() => {
         fireInitTree(c);
     }
   }
+  function withCursorDefining(view, fn) {
+    const prev = cursorDefining;
+    cursorDefining = view;
+    try {
+      return fn();
+    } finally {
+      cursorDefining = prev;
+    }
+  }
   function inheritedCursor(node) {
     for (let n = node; n !== null; n = n.parent) {
-      if (n instanceof View) {
+      if (n instanceof View && n !== cursorDefining) {
         const dp = n.datapath;
         if (dp !== null)
           return dp;
@@ -6957,7 +7000,7 @@ var DeclareMac = (() => {
       if (n instanceof View) {
         if (n.anchor !== "") {
           const v = n;
-          views.push({ base: v.anchor, fire: () => {
+          views.push({ base: v.anchor, view: v, fire: () => {
             if (v.surface === null)
               return false;
             v.scrollIntoView("start", false, inset);
@@ -6967,7 +7010,7 @@ var DeclareMac = (() => {
         const flow = n;
         if (typeof flow.anchorSlugs === "function" && typeof flow.revealAnchor === "function") {
           for (const s of flow.anchorSlugs())
-            slugs.push({ base: s, fire: () => flow.revealAnchor(s, inset) });
+            slugs.push({ base: s, view: n, fire: () => flow.revealAnchor(s, inset) });
         }
       }
       for (const c of n.children)
@@ -6980,11 +7023,11 @@ var DeclareMac = (() => {
       seen.set(c.base, n);
       const key = n === 1 ? c.base : `${c.base}-${n}`;
       if (key === name)
-        return c.fire;
+        return { view: c.view, fire: c.fire };
     }
     return null;
   }
-  var viewCreator, INSTALLED, WINDOWED_BLOCKS, WINDOWED_CELLS, windowedCell, EVICTING, RETIRED, EXTENT, AXIS_OF, View, pushTransform, pushScrolls, focusDiscardHook, App, EMPTY_ENV2, DOMIsland;
+  var viewCreator, INSTALLED, WINDOWED_BLOCKS, WINDOWED_CELLS, windowedCell, EVICTING, RETIRED, EXTENT, AXIS_OF, View, pushTransform, pushScrolls, cursorDefining, focusDiscardHook, App, EMPTY_ENV2, DOMIsland;
   var init_view = __esm({
     "runtime/dist/view.js"() {
       "use strict";
@@ -7808,8 +7851,25 @@ var DeclareMac = (() => {
         // The cursor is model state: bindings read it (tracked), nothing renders it.
         datapath: { def: null }
       });
+      cursorDefining = null;
       focusDiscardHook = null;
       App = class _App extends View {
+        /** onReady — the boot transaction's close, DELIVERED (schema.ts App
+         *  events): boot is the one settle with no app handler anywhere in it, so
+         *  its close cannot be asked for inline (afterSettle) and must arrive as an
+         *  event. Registered at attach — the join point of every render path
+         *  (mounted, headless, native) — and fired at the close of the FIRST settle
+         *  after it: tree standing, constraints wired, geometry computed, nothing
+         *  painted, so what the handler writes is in the first frame the user sees.
+         *  Once per App instance; an embedded island's App gets its own. */
+        readyDelivered = false;
+        attach(backend2, parentSurface, before = null) {
+          super.attach(backend2, parentSurface, before);
+          if (!this.readyDelivered) {
+            this.readyDelivered = true;
+            afterSettle(() => fireEvent(this, "ready"));
+          }
+        }
         /** app→host navigation channel: `navigate(to)` sets it, the host (host-client.js
          *  / a backend) polls it, opens the URL, and clears it to "". A plain field, not
          *  a reactive attribute — nothing in the tree renders from it, and no Declare
@@ -7879,9 +7939,12 @@ var DeclareMac = (() => {
             this.pendingHistoryVerb = "replace";
           const same = this.location === loc;
           this.location = loc;
-          if (loc.indexOf("@") < 0)
-            this.scrollIntoView("start");
-          else if (same)
+          if (loc.indexOf("@") < 0) {
+            if (this.hasArrive())
+              afterSettle(() => fireEvent(this, "arrive", this.destinationView()));
+            else
+              this.scrollIntoView("start");
+          } else if (same)
             this.rearmReveal();
         }
         /** The destination gating an anchored view: walk the tree for `anchor ===
@@ -7957,12 +8020,61 @@ var DeclareMac = (() => {
             return null;
           if (anyRichPending(this))
             return null;
-          const fire = findAnchor(this, name);
-          if (fire !== null && fire()) {
+          const hit = findAnchor(this, name);
+          if (hit === null)
+            return null;
+          if (this.hasArrive()) {
+            if (hit.view.surface === null)
+              return null;
+            this.pendingAnchor = null;
+            fireEvent(this, "arrive", hit.view);
+            return name;
+          }
+          if (hit.fire()) {
             this.pendingAnchor = null;
             return name;
           }
           return null;
+        }
+        /** Is an `onArrive` handler declared? (Installed by instantiate like every
+         *  language member; a TS subclass may simply define one.) Its presence is
+         *  the policy switch: declared, the app owns the landing. */
+        hasArrive() {
+          return typeof this.onArrive === "function";
+        }
+        /** The view an anchorless location lands on: the destination view (`shows`
+         *  === the location's destination), or the App itself when no view declares
+         *  it (a computed-location family, or the bare ""). Resolved at dispatch
+         *  time, off the settled tree. */
+        destinationView() {
+          const dest = this.destinationOf(this.location);
+          if (dest === "")
+            return this;
+          let found = null;
+          const walk = (n) => {
+            if (found !== null)
+              return;
+            if (n instanceof View && n.shows === dest) {
+              found = n;
+              return;
+            }
+            for (const c of n.children)
+              walk(c);
+          };
+          walk(this);
+          return found ?? this;
+        }
+        /** The DEFAULT landing, exposed — what the platform does with an arrival
+         *  when no `onArrive` is declared: scroll the target into view, honoring
+         *  `revealInset` (the App itself starts at its top). A document app that
+         *  declares `onArrive` for the extra work composes the scroll back by
+         *  calling this — the same move as `tabOrder()` composing `tabDefault()`. */
+        reveal(target) {
+          if (target === this) {
+            this.scrollIntoView("start");
+            return;
+          }
+          target.scrollIntoView("start", false, this.revealInset);
         }
         /** Re-arm the reveal intent for the CURRENT location — follow's no-dead-click
          *  rule (§0.5): re-following `#why@story` while already there re-runs the
@@ -8308,7 +8420,7 @@ var DeclareMac = (() => {
           this.elapsed = 0;
           this.lastNow = sharedClock.now();
           this.running = true;
-          setBound(this, "settled", false);
+          setBound(this, "atRest", false);
           if (!this.grouped && !this.paused)
             sharedClock.add(this);
           this.fire("onStart");
@@ -8362,7 +8474,7 @@ var DeclareMac = (() => {
           const t = this.runDuration > 0 ? Math.min(this.elapsed / this.runDuration, 1) : 1;
           if (t >= 1) {
             this.releaseSlot(true);
-            setBound(this, "settled", true);
+            setBound(this, "atRest", true);
             this.end();
             return this.running;
           }
@@ -8433,7 +8545,7 @@ var DeclareMac = (() => {
         repeat: { def: 1 },
         started: { def: false, push: (s, v) => s.startedChanged(v) },
         paused: { def: false, push: (s, v) => s.pausedChanged(v) },
-        settled: { def: false }
+        atRest: { def: false }
       });
       AnimatorGroup = class extends Node2 {
         running = false;
@@ -8992,8 +9104,8 @@ var DeclareMac = (() => {
           if (this.attribute === "" || this.resolveTarget() === null)
             return;
           this.springRunning = true;
-          if (this.settled)
-            setBound(this, "settled", false);
+          if (this.atRest)
+            setBound(this, "atRest", false);
           this.springLastNow = sharedClock.now();
           sharedClock.add(this);
         }
@@ -9112,7 +9224,7 @@ var DeclareMac = (() => {
             this.vel = 0;
             this.springRunning = false;
             sharedClock.remove(this);
-            setBound(this, "settled", true);
+            setBound(this, "atRest", true);
             this.fire("onStop");
             return false;
           }
@@ -9919,7 +10031,7 @@ var DeclareMac = (() => {
     }
     const fn = c.fn;
     const label = `${view.constructor.name}.datapath`;
-    const k = new Constraint(label, () => toCursor(fn.call(view, view.parent, classroot), label), (v) => setBound(view, "datapath", v));
+    const k = new Constraint(label, () => withCursorDefining(view, () => toCursor(fn.call(view, view.parent, classroot), label)), (v) => setBound(view, "datapath", v));
     own(view, "datapath", k);
     k.run();
   }
@@ -10861,11 +10973,11 @@ var DeclareMac = (() => {
           const viewRows = Math.ceil(viewH / estRow);
           const lead = deltaRows > viewRows ? BUFFER_ROWS : Math.min(30, BUFFER_ROWS + 3 * deltaRows);
           const before = delta >= 0 ? BUFFER_ROWS : lead;
-          const after = delta >= 0 ? lead : BUFFER_ROWS;
+          const after2 = delta >= 0 ? lead : BUFFER_ROWS;
           const firstIdx = this.ledger.indexAt(rel);
           const lastIdx = this.ledger.indexAt(rel + viewH);
           const start = Math.max(0, Math.min(logical, firstIdx - before));
-          const count = Math.max(0, Math.min(logical - start, lastIdx - firstIdx + 1 + before + after));
+          const count = Math.max(0, Math.min(logical - start, lastIdx - firstIdx + 1 + before + after2));
           this.anchorId = arr.length > 0 ? this.idOf(arr[Math.min(arr.length - 1, firstIdx)]) : void 0;
           this.anchorDelta = rel - this.ledger.offset(Math.min(Math.max(0, arr.length - 1), firstIdx));
           const nodes = [];
@@ -15353,9 +15465,9 @@ Select a view under a 'datapath' (a replicated row) to read ':' paths.`;
           j++;
         const word = src.slice(i, j);
         const prev = out.replace(/\s+$/, "").slice(-1);
-        const after = src.slice(j).replace(/^\s+/, "").slice(0, 1);
+        const after2 = src.slice(j).replace(/^\s+/, "").slice(0, 1);
         const member = prev === "." || prev === "?";
-        const key = after === ":";
+        const key = after2 === ":";
         if (!member && !key && !KEYWORDS.has(word)) {
           if (word === "app")
             out += "this.root";
@@ -17030,7 +17142,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   // runtime/dist/services.js
   init_focus();
   init_inspect_service();
-  setBodyServices({ Focus, Keys, Themes, Inspect });
+  init_reactive();
+  setBodyServices({ Focus, Keys, Themes, Inspect, afterSettle });
   setKeysFocusProbe(() => Focus.getFocus() !== null);
 
   // runtime/dist/index.js
@@ -17768,20 +17881,11 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         return pointInPath(this.clipData, lx, ly);
       return lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
     }
-    /** Does this surface contain the point (its clip respected)? A wheel
-     *  belongs to the topmost surface under the pointer and then to ITS
-     *  ancestors — never to an occluded sibling, which is what let a scroll
-     *  over the front window drive a scroller in the window behind it. */
-    ownsPoint(px, py) {
-      if (!this.visible || this.opacity <= 0)
-        return false;
-      let lx = px - this.x;
-      let ly = py - this.y;
-      [lx, ly] = this.invertTransform(lx, ly);
-      if (this.clipData !== null || this.boxClip)
-        return this.insideClip(lx, ly);
-      return lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-    }
+    // (`ownsPoint` lived here: scrollByX's "the topmost child containing the
+    // point owns the gesture" rule. It had the right instinct about the leak and
+    // the wrong test — a Declare window's chrome sits ABOVE its content, so
+    // "contains the point" stops at a press catcher. Replaced by `scrollClaimed`,
+    // which asks about scrollers instead, and now used by BOTH axes.)
     /** The wheel CLAIM walk (canvas-backend wheelTo, mirrored): descend to the
      *  view under the point and answer with the nearest `onWheel` CLAIMANT or
      *  the nearest scroller — whichever is deeper wins, the DOM's delegation
@@ -17829,13 +17933,13 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       const cy = this.scrolls ? ly + this.scrollOffset : ly;
       const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
       for (let i = this.children.length - 1; i >= 0; i--) {
-        const c = this.children[i];
-        if (!c.ownsPoint(cx, cy))
-          continue;
-        if (c.scrollByX(cx, cy, dx))
+        if (this.children[i].scrollByX(cx, cy, dx))
           return true;
-        break;
+        if (scrollClaimed)
+          break;
       }
+      if ((this.scrolls || this.scrollsX) && inBox)
+        scrollClaimed = true;
       if (this.scrollsX && inBox) {
         const max = Math.max(0, this.contentExtentX() - this.width);
         const next = Math.min(max, Math.max(0, this.scrollXOffset + dx));
@@ -17864,6 +17968,12 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       for (let i = this.children.length - 1; i >= 0; i--) {
         if (this.children[i].scrollBy(cx, cy, dy))
           return true;
+        if (scrollClaimed)
+          break;
+      }
+      if (this.scrolls || this.scrollsX) {
+        if (inBox)
+          scrollClaimed = true;
       }
       if (this.scrolls && inBox) {
         const max = Math.max(0, this.contentExtent() - this.height);
@@ -18042,17 +18152,22 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     console.log(`[trace] === hit walk at ${x},${y} -> ` + (t === null ? "NOTHING" : `id ${t.key.id} cursor=${t.cursor ?? "-"}`) + ` (cursorAt="${macRoot?.cursorAt(x, y) ?? ""}") ===`);
     macRoot?.trace(x, y);
   }
+  var scrollClaimed = false;
   function macScroll(x, y, dy, dx = 0) {
+    scrollClaimed = false;
     if (dy !== 0)
       macRoot?.scrollBy(x, y, dy);
+    scrollClaimed = false;
     if (dx !== 0)
       macRoot?.scrollByX(x, y, dx);
     flushOps();
   }
   function macWheel(x, y, dx, dy, pinch) {
     if (macRoot?.wheelTo(x, y, dx, dy, pinch) !== "claimed") {
+      scrollClaimed = false;
       if (dy !== 0)
         macRoot?.scrollBy(x, y, dy);
+      scrollClaimed = false;
       if (dx !== 0)
         macRoot?.scrollByX(x, y, dx);
     }
@@ -18084,7 +18199,6 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   provideMeasurer(globalThis.__declareMeasurer);
   provideHitPath((d, x, y) => H.pathHit(d, x, y));
   provideTransport((url, opts) => fetch(new URL(url, globalThis.__declareBase || "http://localhost/").href, opts));
-  var CACHE_NS = "programs";
   async function fromProduction(dirUrl) {
     try {
       const res = await fetch(new URL("program.json", dirUrl).href);
@@ -18096,37 +18210,6 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     } catch {
       return null;
     }
-  }
-  async function fromServer(programUrl) {
-    const u = new URL(programUrl);
-    u.search = (u.search ? u.search + "&" : "?") + "program&render=mac";
-    const key = CACHE_NS + ":" + programUrl;
-    let cached = null;
-    try {
-      const raw = H.cacheGet(key);
-      if (raw) cached = JSON.parse(raw);
-    } catch {
-      cached = null;
-    }
-    const headers = cached && cached.etag ? { "if-none-match": cached.etag } : void 0;
-    const res = await fetch(u.href, headers ? { headers } : void 0);
-    if (res.status === 304 && cached) {
-      log("boot: client cache (304, revalidated)");
-      return { source: cached.source, deps: cached.deps ?? {}, base: programUrl };
-    }
-    if (!res.ok) return null;
-    const j = await res.json();
-    if (!j || !j.source) {
-      if (j && j.report) throw new Error(j.report);
-      return null;
-    }
-    const etag = j.etag ?? null;
-    try {
-      H.cacheSet(key, JSON.stringify({ source: j.source, deps: j.deps ?? {}, etag }));
-    } catch {
-    }
-    log("boot: server compile" + (etag ? " (cached for next time)" : ""));
-    return { source: j.source, deps: j.deps ?? {}, base: programUrl };
   }
   function distroFor(programUrl) {
     if (/^file:/i.test(programUrl)) return H.distro || "";
@@ -18158,27 +18241,47 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       log("client compile: library fetch failed \u2014 " + e.message);
     }
   }
+  var compileSeq = 1;
+  var compilesPending = /* @__PURE__ */ new Map();
+  globalThis.__declareCompileDone = (id, ok2, source, depsJson, report, origin, ms) => {
+    const p = compilesPending.get(id);
+    if (!p) return;
+    compilesPending.delete(id);
+    let deps = {};
+    try {
+      deps = depsJson ? JSON.parse(depsJson) : {};
+    } catch {
+    }
+    p.resolve({ source: ok2 ? source : "", deps, report, origin, ms });
+  };
+  function compileSource(url, src, dir, distro) {
+    if (typeof H.compile === "function") {
+      return new Promise((resolve) => {
+        const id = compileSeq++;
+        compilesPending.set(id, { resolve });
+        H.compile(id, url, src, dir, distro);
+      });
+    }
+    return (async () => {
+      if (!await loadCompiler(distro)) return { source: "", deps: {}, report: "no compiler" };
+      await ensureLibrary(distro);
+      const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
+      return { source: out.source ?? "", deps: out.deps ?? {}, report: out.report ?? "", origin: "in-context" };
+    })();
+  }
   async function fromClient(programUrl) {
     const distro = distroFor(programUrl);
-    if (!await loadCompiler(distro)) return null;
     const src = await (await fetch(programUrl)).text();
-    await ensureLibrary(distro);
     const dir = programUrl.replace(/[^/]*$/, "");
-    const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
+    const out = await compileSource(programUrl, src, dir, distro);
     if (!out.source) throw new Error(out.report || "compile failed");
-    log("boot: client compile");
+    log("boot: " + (out.origin === "cache" ? "compile cache hit" : "compiled") + (out.ms != null ? " (" + Math.round(out.ms) + "ms)" : ""));
     return { source: out.source, deps: out.deps ?? {}, base: programUrl };
   }
   async function resolveProgram(url) {
     if (url.endsWith("/") || url.endsWith("program.json")) {
       const p = await fromProduction(url.endsWith("/") ? url : url.replace(/program\.json$/, ""));
       if (p) return p;
-    }
-    if (!/^file:/i.test(url)) try {
-      const s = await fromServer(url);
-      if (s) return s;
-    } catch (e) {
-      log("server compile unavailable (" + e.message + ") \u2014 trying the client tier");
     }
     const c = await fromClient(url);
     if (c) return c;
@@ -18325,29 +18428,10 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   }
   async function compileLive(src) {
     const main = globalThis.__declareMain || "";
-    let origin = "";
+    const distro = distroFor(main);
+    const dir = main.replace(/[^/]*$/, "");
     try {
-      origin = new URL(main).origin;
-    } catch {
-      return null;
-    }
-    try {
-      const res = await fetch(
-        new URL("/compile?main=" + encodeURIComponent(main), origin).href,
-        { method: "POST", body: src }
-      );
-      if (res.ok) {
-        const r = await res.json();
-        return r.source ? { source: r.source, deps: r.deps ?? {} } : { report: r.report || "compile failed" };
-      }
-    } catch (e) {
-      log("live compile: " + e.message);
-    }
-    if (!await loadCompiler(distroFor(main))) return null;
-    await ensureLibrary(distroFor(main));
-    try {
-      const dir = main.replace(/[^/]*$/, "");
-      const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
+      const out = await compileSource("", src, dir, distro);
       return out.source ? { source: out.source, deps: out.deps ?? {} } : { report: out.report || "compile failed" };
     } catch (e) {
       return { report: e && e.message ? e.message : String(e) };
