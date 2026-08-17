@@ -20,6 +20,8 @@
 //   geom        (window id and content box) ping
 
 import AppKit
+import CoreImage
+import ImageIO
 
 final class ControlChannel {
     private let inPath = "/tmp/declare-ctl.in"
@@ -76,13 +78,28 @@ final class ControlChannel {
         // With none open there is nothing to address, and answering plainly
         // beats trapping on an implicit unwrap inside a test run. The few verbs
         // that are ABOUT windows rather than about a program still work.
-        let windowless = ["ping", "windows", "newwindow", "closewindow", "menukey", "activate"]
+        let windowless = ["ping", "windows", "newwindow", "closewindow", "menukey", "activate", "jit",
+                          "compilecache"]
         guard target() != nil || windowless.contains(verb) else { return "no window" }
         func num(_ i: Int) -> Double { i < a.count ? (Double(a[i]) ?? 0) : 0 }
 
         switch verb {
         case "ping":
             return "ok"
+        case "jit":
+            // Is JavaScriptCore compiling? The measured answer, so a test can
+            // assert it — the entitlement went missing for weeks precisely
+            // because nothing outside a benchmark could tell.
+            return Bridge.jit.line
+        case "compilecache":
+            // `compilecache` reports; `compilecache clear` empties it. A cache
+            // you cannot inspect or drop is one you end up mistrusting, and a
+            // stale-compile hunt should start by ruling this out in one command.
+            if a.count > 1, a[1] == "clear" {
+                CompileService.shared.clearCache()
+                return "cleared"
+            }
+            return CompileService.shared.cacheReport()
         case "geom":
             let b = view?.bounds ?? .zero
             return "content \(Int(b.width))x\(Int(b.height))"
@@ -317,6 +334,128 @@ final class ControlChannel {
             guard let v = bridge.ctx.evaluateScript(src) else { return "(no value)" }
             if let ex = bridge.ctx.exception { bridge.ctx.exception = nil; return "EXCEPTION: \(ex)" }
             return v.isUndefined ? "undefined" : (v.toString() ?? "(unprintable)")
+        case "frost":
+            // Is the frost actually ON? Four things have to line up and any one
+            // of them fails silently, invisibly, and looks like "the blur is
+            // gone": the BACKDROP op arriving, a frost layer being made, the
+            // CIFilter chain landing on it, and the hosting view having
+            // `layerUsesCoreImageFilters` (without which backgroundFilters is
+            // accepted and ignored — no warning, just an unblurred wash).
+            guard let t = bridge.tree else { return "no tree" }
+            var specs = 0, layers = 0, filtered = 0, attached = 0, sized = 0
+            var sample = ""
+            t.forEachNode { n in
+                guard let s = n.backdrop else { return }
+                specs += 1
+                guard let fl = n.frostLayer else { return }
+                layers += 1
+                if !(fl.backgroundFilters as? [CIFilter] ?? []).isEmpty { filtered += 1 }
+                if fl.superlayer != nil { attached += 1 }
+                if fl.bounds.width > 0, fl.bounds.height > 0 { sized += 1 }
+                if sample.isEmpty {
+                    sample = String(format: "#%d blur=%.1f sat=%.2f filters=%d bounds=%@ hidden=%@",
+                                    n.id, s.blur, s.saturate,
+                                    (fl.backgroundFilters as? [CIFilter] ?? []).count,
+                                    NSStringFromRect(fl.bounds), fl.isHidden ? "y" : "n")
+                }
+            }
+            let ciOK = view?.layerUsesCoreImageFilters == true
+            return "backdrop specs=\(specs)  frostLayers=\(layers)  withFilters=\(filtered)"
+                 + "  inTree=\(attached)  nonEmptyBounds=\(sized)"
+                 + "  layerUsesCoreImageFilters=\(ciOK ? "YES" : "NO ⚠ (filters are ignored without it)")"
+                 + (sample.isEmpty ? "" : "\n  e.g. " + sample)
+        case "frostbench":
+            // What would a REBUILT frost cost? `backgroundFilters` is dead on
+            // this OS (frostprobe: eight configurations, zero blur, still ~2x
+            // WindowServer CPU), so the frost has to be produced from a captured
+            // backdrop — and the only unknown in that design is the capture.
+            //
+            // The old CPU sampler did one full-resolution `render(in:)` PER
+            // FROSTED NODE PER COMMIT and ran weather at 0.45fps. This measures
+            // the two things that change that: doing it ONCE for the whole
+            // window, and doing it at reduced resolution (a 14pt blur does not
+            // need 1:1 pixels). `frostbench [scale] [reps]`.
+            guard let v = view, let vroot = v.layer else { return "no view" }
+            let scale = a.count > 1 ? num(1) : 0.25
+            let reps = a.count > 2 ? Int(num(2)) : 5
+            // An optional NODE to render instead of the whole tree. The whole
+            // tree is what the old sampler did; the point of the rebuild is that
+            // a frost only needs the handful of layers actually BENEATH it, so
+            // this is how we find out what that costs.
+            let root: CALayer = a.count > 3 ? (bridge.tree?.node(Int(num(3)))?.layer ?? vroot) : vroot
+            func countLayers(_ l: CALayer) -> Int {
+                1 + (l.sublayers ?? []).reduce(0) { $0 + countLayers($1) }
+            }
+            let subtree = countLayers(root)
+            let box = v.bounds
+            let w = Int(box.width * scale), h = Int(box.height * scale)
+            guard w > 0, h > 0, let cs = CGColorSpace(name: CGColorSpace.sRGB) else { return "bad scale" }
+            var renderMs: [Double] = [], blurMs: [Double] = []
+            var img: CGImage?
+            for _ in 0..<reps {
+                guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8,
+                                          bytesPerRow: 0, space: cs,
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { break }
+                ctx.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
+                let t0 = CFAbsoluteTimeGetCurrent()
+                root.render(in: ctx)                       // the capture
+                renderMs.append((CFAbsoluteTimeGetCurrent() - t0) * 1000)
+                guard let snap = ctx.makeImage() else { break }
+                let t1 = CFAbsoluteTimeGetCurrent()
+                let ci = CIImage(cgImage: snap)
+                if let f = CIFilter(name: "CIGaussianBlur") {
+                    f.setValue(ci.clampedToExtent(), forKey: kCIInputImageKey)
+                    f.setValue(14.0 * scale, forKey: kCIInputRadiusKey)
+                    if let out = f.outputImage?.cropped(to: ci.extent) {
+                        img = ControlChannel.ciContext.createCGImage(out, from: ci.extent)
+                    }
+                }
+                blurMs.append((CFAbsoluteTimeGetCurrent() - t1) * 1000)
+            }
+            func best(_ xs: [Double]) -> Double { xs.min() ?? -1 }
+            func med(_ xs: [Double]) -> Double { xs.isEmpty ? -1 : xs.sorted()[xs.count / 2] }
+            return String(format: "capture %dx%d (scale %.2f), %d reps, %d layers in the rendered subtree (window has %d)\n"
+                          + "  render(in:)  best=%.2fms med=%.2fms\n"
+                          + "  blur once    best=%.2fms med=%.2fms\n"
+                          + "  TOTAL/frame  %.2fms   (display budget 8.33ms)   image=%@",
+                          w, h, scale, reps, subtree, bridge.tree?.layerCount() ?? -1,
+                          best(renderMs), med(renderMs), best(blurMs), med(blurMs),
+                          best(renderMs) + best(blurMs), img == nil ? "FAILED" : "ok")
+        case "froststats":
+            guard let t = bridge.tree else { return "no tree" }
+            var total = 0
+            t.forEachNode { if $0.backdrop != nil { total += 1 } }
+            return String(format: "frosts declared=%d  last commit: resampled=%d in %.2fms"
+                          + "   session: %d resamples, %.0fms total, %.2fms each",
+                          total, t.frostLastN, t.frostLastMs,
+                          t.frostTotalN, t.frostTotalMs,
+                          t.frostTotalN > 0 ? t.frostTotalMs / Double(t.frostTotalN) : 0)
+                 + String(format: "\n  of which: paint=%.0fms  makeImage=%.0fms  blur=%.0fms   nodesPainted=%d",
+                          t.frostPaintMs, t.frostImageMs, t.frostBlurMs, t.frostPainted)
+                 + "\n  costliest nodes: " + t.frostNodeMs.sorted { $0.value > $1.value }.prefix(6).map {
+                       let nd = t.node($0.key)
+                       return String(format: "#%d=%.0fms[%dx%d%@]", $0.key, $0.value,
+                                     Int(nd?.box.width ?? 0), Int(nd?.box.height ?? 0),
+                                     nd?.image != nil ? ",img" : (nd?.draw != nil ? ",draw" : ""))
+                   }.joined(separator: " ")
+        case "frostdump":
+            // Arming is what makes the capture happen; otherwise every commit
+            // would retain a full canvas copy for a verb nobody ran.
+            guard let img = bridge.tree?.frostLastCanvas else {
+                LayerTree.frostDumpWanted = true
+                return "armed — run a frame (scroll), then ask again"
+            }
+            let path = a.count > 1 ? a[1] : "/tmp/frost-canvas.png"
+            let url = URL(fileURLWithPath: path) as CFURL
+            guard let dest = CGImageDestinationCreateWithURL(url, "public.png" as CFString, 1, nil)
+            else { return "could not write" }
+            CGImageDestinationAddImage(dest, img, nil)
+            return CGImageDestinationFinalize(dest) ? "wrote \(path) (\(img.width)x\(img.height))" : "write failed"
+        case "frostreset":
+            bridge.tree?.frostTotalN = 0; bridge.tree?.frostTotalMs = 0
+            bridge.tree?.frostPaintMs = 0; bridge.tree?.frostImageMs = 0; bridge.tree?.frostBlurMs = 0
+            bridge.tree?.frostNodeMs.removeAll(); bridge.tree?.frostPainted = 0
+            return "ok"
         case "occl":
             return bridge.tree?.explainOccluders(Int(num(1))) ?? "no tree"
         case "dragsweep":
@@ -424,6 +563,10 @@ final class ControlChannel {
             return "unknown: \(verb)"
         }
     }
+
+    /// One CIContext, built once — constructing one per call would dominate any
+    /// measurement made with it (35ms on the first, sub-ms after).
+    static let ciContext = CIContext(options: [.workingColorSpace: NSNull()])
 
     private var buttons = 0
 

@@ -228,7 +228,16 @@ class Window extends View [ width = 560, height = 400, clip = true,
             let oy = bornFrom.height / 2
             let n = bornFrom
             let top = null
-            while (n != null) { ox += n.x || 0; oy += n.y || 0; top = n; n = n.parent }
+            // same walk as app.originOf — scroll offsets included (see the note
+            // there); the return trip has to land where the open came from
+            while (n != null) {
+                ox += n.x || 0
+                oy += n.y || 0
+                top = n
+                const p = n.parent
+                if (p != null) { ox -= p.scrollX || 0; oy -= p.scrollY || 0 }
+                n = p
+                }
             // the walk reaching app proves the origin view is still attached;
             // its result is app coords — shift into this window's frame
             if (top == app) { bornX = ox - this.x; bornY = oy - this.y - app.menuBarH }
@@ -852,6 +861,7 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
         : this.forApp == "markdown" ? "Renders the real files, and reference pages synthesized from the model."
         : this.forApp == "declareviewer" ? "Reader, source, and live editor over any Declare program — here, hosted as an embedded app."
         : this.forApp == "calendar" ? "The actual apps/calendar, running as an embedded child app in this window's island."
+        : this.forApp == "sampler" ? "The actual apps/sampler — the library's controls, live — hosted as an embedded app."
         : this.forApp == "jots" ? "Small paper notes with their own window chrome — built into this program."
         : "A Mac desktop, declared. Windows, dock, and menus are views and records, all drawn — no bitmaps, no borrowed art." },
 
@@ -864,6 +874,7 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
                     : classroot.forApp == "files" ? gradient(0x59B0F6, 0x1D6FD1)
                     : classroot.forApp == "calendar" ? gradient(0xFFFFFF, 0xEFEFF2)
                     : classroot.forApp == "declareviewer" ? gradient(0x2E6FE0, 0x12A594)
+                    : classroot.forApp == "sampler" ? gradient(0xF49B45, 0xC96B1D)
                     : classroot.forApp == "jots" ? gradient(0xFCF4A7, 0xF3E27E)
                     : gradient(0x4AA8E8, 0x35C4B5) },
 
@@ -1046,10 +1057,17 @@ class FilesWindow extends Window [ forApp = "files",
     // source; a hydrated page (`doc`, assembled by the model) opens whole. Same
     // Markdown window either way; the browser special-cases nothing.
 
-    openLeaf(leaf: object) {
+    // `v` is the view the open CAME FROM — the row, the Open button — and it is
+    // what the new window zooms out of. It used to pass `this`, which in a
+    // classroot method is the whole FilesWindow, so opening a file zoomed out of
+    // the middle of the browser rather than out of the file. The folder path
+    // beside it always passed its row (`openFolderWindow(…, this)`), which is
+    // why a folder looked right and a file did not.
+
+    openLeaf(leaf: object, v: View?) {
         const d = "" + (leaf.doc || ""), p = "" + (leaf.path || "")
-        if (d != "") { app.openDoc(d, "" + leaf.name, this); return }
-        if (p != "") app.openViewer("../../" + p, "" + leaf.name, this)
+        if (d != "") { app.openDoc(d, "" + leaf.name, v); return }
+        if (p != "") app.openViewer("../../" + p, "" + leaf.name, v)
         },
 
     // File → Open (⌘O) on this window's current selection: a document opens in the
@@ -1059,7 +1077,7 @@ class FilesWindow extends Window [ forApp = "files",
         if (this.selPath == "") return
         const cols = this.columnData(this.selPath, app.docsModel.value, this.rootPath)
         const last = cols[cols.length - 1]
-        if (last != null && last.leaf != null) this.openLeaf(last.leaf)
+        if (last != null && last.leaf != null) this.openLeaf(last.leaf, null)
         else app.openFolderWindow("" + this.selPath, this)
         },
 
@@ -1144,7 +1162,7 @@ class FilesWindow extends Window [ forApp = "files",
                             if (classroot.pendingAt != "" && it != null && near) {
                                 classroot.pendingAt = ""
                                 if (it.hasKids) app.openFolderWindow("" + it.at, this)
-                                else classroot.openLeaf(it)
+                                else classroot.openLeaf(it, this)
                             }
                             },
                         inner: View [ x = 0, y = 6, width = { parent.width }, height = { this.contentHeight + 12 },
@@ -1166,7 +1184,7 @@ class FilesWindow extends Window [ forApp = "files",
                                     if (classroot.pendingAt != "" && it != null && near) {
                                         classroot.pendingAt = ""
                                         if (it.hasKids) app.openFolderWindow("" + it.at, this)
-                                        else classroot.openLeaf(it)
+                                        else classroot.openLeaf(it, this)
                                     }
                                     else {
                                         classroot.pendingAt = at
@@ -1201,7 +1219,7 @@ class FilesWindow extends Window [ forApp = "files",
                         dp: Text [ fontSize = 12, wrap = true, width = { parent.width },
                             textColor = { theme.text }, text = { "" + :leaf.preview } ],
                         Button [ width = 92, label = "Open", primary = true, visible = { :leaf.path != "" || :leaf.doc != "" },
-                            onClick() { classroot.openLeaf(:leaf) }
+                            onClick() { classroot.openLeaf(:leaf, this) }
                             ]
                         ],
 
@@ -1930,6 +1948,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     nameOf(a: string) -> string {
         return a == "markdown" ? "Markdown" : a == "calendar" ? "Declare Calendar"
             : a == "declareviewer" ? "Declare Viewer"
+            : a == "sampler" ? "Sampler"
             : a == "jots" ? "Jots"
             : a == "desktop" ? "Declare Desktop" : "Files"
         },
@@ -1943,11 +1962,12 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     sourceRel(a: string) -> string {
         return a == "calendar" ? "../calendar/calendar.declare"
             : a == "declareviewer" ? "../viewer/viewer.declare"
+            : a == "sampler" ? "../sampler/sampler.declare"
             : "desktop.declare"
         },
 
     openSource(a: string) {
-        this.openApp("../../viewer/viewer", "Declare Viewer", null, "program=" + this.sourceRel(a))
+        this.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=" + this.sourceRel(a))
         },
 
     // ── the command seam: the menu bar, the dock, and keys all route here ──
@@ -1955,13 +1975,15 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     command(id: string) {
         if (id == "new") {
             if (activeApp == "markdown") this.openViewer("../../docs/declare.md", "declare.md")
-            else if (activeApp == "calendar") this.openApp("../../calendar/calendar", "Calendar", null, "base=../calendar/")
-            else if (activeApp == "declareviewer") this.openApp("../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
+            else if (activeApp == "calendar") this.openApp("calendar", "../../calendar/calendar", "Calendar", null, "base=../calendar/")
+            else if (activeApp == "declareviewer") this.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
+            else if (activeApp == "sampler") this.openApp("sampler", "../../sampler/sampler", "Sampler", null, "")
             else if (activeApp == "jots") this.newJot("", null)
             else this.newFiles()
             }
         else if (id == "open") {
-            if (activeApp == "declareviewer") this.openApp("../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
+            if (activeApp == "declareviewer") this.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
+            else if (activeApp == "sampler") this.openApp("sampler", "../../sampler/sampler", "Sampler", null, "")
             else if (activeApp == "jots") this.newJot("", null)
             else if (activeApp == "files" && frontWin != null) (frontWin as FilesWindow).openSelection()
             else this.openViewer("../../docs/declare.md", "declare.md")
@@ -1990,6 +2012,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         if (a == "markdown") mdRunning = false
         else if (a == "calendar") calRunning = false
         else if (a == "declareviewer") dvRunning = false
+        else if (a == "sampler") smpRunning = false
         else if (a == "jots") jotRunning = false
         },
 
@@ -2290,12 +2313,24 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // With no origin (a menu, the dock, ⌘O) a window zooms gently from its own
     // center. originOf resolves that center in app coords by walking the parents.
 
+    // ⚠ SCROLL OFFSETS COUNT. A row's `y` is its position in its column's
+    // CONTENT, and the column scrolls — so summing the chain without subtracting
+    // each scroller's offset gives where the row would be if nothing had ever
+    // been scrolled. Scroll a file list halfway down and the window then zooms
+    // out of a point off past the bottom of the screen.
+
     originOf(v: View?) -> object {
         if (v == null) return null
         let ox = v.width / 2
         let oy = v.height / 2
         let n = v
-        while (n != null) { ox += n.x || 0; oy += n.y || 0; n = n.parent }
+        while (n != null) {
+            ox += n.x || 0
+            oy += n.y || 0
+            const p = n.parent
+            if (p != null) { ox -= p.scrollX || 0; oy -= p.scrollY || 0 }
+            n = p
+            }
         return ({ x: ox, y: oy })
         },
 
@@ -2345,6 +2380,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     calCount: number = 0,
     dvCount: number = 0,
+    smpCount: number = 0,
 
     // running is per application and survives its windows: set when a launch
     // completes, cleared only by Quit — the dock dots read exactly these
@@ -2352,22 +2388,35 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     mdRunning: boolean = false,
     calRunning: boolean = false,
     dvRunning: boolean = false,
+    smpRunning: boolean = false,
     jotRunning: boolean = false,
 
     calLaunching: boolean = false,               // calendar mid-launch-bounce
     dvLaunching: boolean = false,                // Declare Viewer mid-launch-bounce
+    smpLaunching: boolean = false,               // Sampler mid-launch-bounce
     mdLaunching: boolean = false,                // markdown mid-launch-bounce
     jotLaunching: boolean = false,                // Jots mid-launch-bounce
 
-    openApp(p: string, nm: string, v: View?, envExtra: string?) {
-        const isCal = ("" + p).indexOf("calendar") >= 0
+    // `a` is the APPLICATION KEY ("calendar" | "declareviewer" | "sampler"),
+    // passed rather than sniffed. It used to be derived from the path — `isCal =
+    // p.indexOf("calendar") >= 0`, with "not the calendar" meaning the Declare
+    // Viewer — which quietly hard-limited this to exactly two hosted apps and
+    // would have made a third open under the second's name, dot and icon. The
+    // key is also what `forApp` becomes, so `appOf`, Quit and the dock's
+    // running dot all agree by construction.
+
+    openApp(a: string, p: string, nm: string, v: View?, envExtra: string?) {
+        const isCal = a == "calendar"
+        const isSmp = a == "sampler"
         // the launch gate: flags move inside go(), so the running dot appears
         // when the app has launched (mid-second-bounce), not at the click —
         // the mid-launch flag guards a double-click during the bounce
-        const first = !(isCal ? calRunning : dvRunning) && !(isCal ? calLaunching : dvLaunching)
-        if (first) { if (isCal) calLaunching = true; else dvLaunching = true }
+        const first = !(isCal ? calRunning : isSmp ? smpRunning : dvRunning)
+                   && !(isCal ? calLaunching : isSmp ? smpLaunching : dvLaunching)
+        if (first) { if (isCal) calLaunching = true; else if (isSmp) smpLaunching = true; else dvLaunching = true }
         const go = () => {
             if (isCal) { calLaunching = false; calRunning = true; calCount = calCount + 1 }
+            else if (isSmp) { smpLaunching = false; smpRunning = true; smpCount = smpCount + 1 }
             else { dvLaunching = false; dvRunning = true; dvCount = dvCount + 1 }
             this.dismissAbouts()
             winCount = winCount + 1
@@ -2387,14 +2436,14 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
                 wx = Math.round((this.width - ww) / 2)
                 }
             const o = this.originOf(v)
-            const w = this.wins.createView("AppWindow", ({ appPath: "" + p, appTitle: "" + nm, forApp: isCal ? "calendar" : "declareviewer", wx: wx, wy: wy,
+            const w = this.wins.createView("AppWindow", ({ appPath: "" + p, appTitle: "" + nm, forApp: a, wx: wx, wy: wy,
                 width: ww, height: wh,
                 extraEnv: envExtra != null ? envExtra : "",
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
                 bornFrom: v != null ? v : null }))
             this.frontOpen(w)
             }
-        if (first) { (isCal ? this.dock.row.calIcon : this.dock.row.dvIcon).poke(); setTimeout(go, 900) }
+        if (first) { (isCal ? this.dock.row.calIcon : isSmp ? this.dock.row.smpIcon : this.dock.row.dvIcon).poke(); setTimeout(go, 900) }
         else go()
         },
 
@@ -2811,7 +2860,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
             dvIcon: DockIcon [ ix = 2, name = "Declare Viewer", glyph = "[  ]", gsize = 0.42,
                 hue1 = #2E6FE0, hue2 = #12A594,   // the brand's blue→teal accent thread
                 running = { app.dvRunning },
-                onClick() { app.dockOpen("declareviewer", () => app.openApp("../../viewer/viewer", "Declare Viewer", this, "program=desktop.declare")) }
+                onClick() { app.dockOpen("declareviewer", () => app.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", this, "program=desktop.declare")) }
                 ],
 
             // A plausible set of applications — enough icons for the
@@ -2819,18 +2868,20 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
             calIcon: DockIcon [ ix = 3, name = "Calendar", kind = "calendar", hue1 = #FFFFFF, hue2 = #EFEFF2,
                 running = { app.calRunning },
-                onClick() { app.dockOpen("calendar", () => app.openApp("../../calendar/calendar", "Calendar", this, "base=../calendar/")) }
+                onClick() { app.dockOpen("calendar", () => app.openApp("calendar", "../../calendar/calendar", "Calendar", this, "base=../calendar/")) }
                 ],
             jotIcon: DockIcon [ ix = 4, name = "Jots", kind = "jots", hue1 = #FCF4A7, hue2 = #F3E27E,
                 running = { app.jotRunning },
                 onClick() { app.dockOpen("jots", () => app.newJot("", this)) }
                 ],
 
-            // "Write" — an inert placeholder (a pencil), to the right of
-            // Jots; does nothing when clicked
+            // "Write" — the pencil, to the right of Jots. A third hosted app:
+            // apps/sampler, running as an embedded child in a desktop window,
+            // exactly as Calendar and the Declare Viewer do.
 
-            DockIcon [ ix = 5, name = "Write", kind = "pencil", hue1 = #F49B45, hue2 = #C96B1D,
-                onClick() { app.notImpl("No.", "Write", "pencil", "", 0.42, 0xF49B45, 0xC96B1D) }
+            smpIcon: DockIcon [ ix = 5, name = "Write", kind = "pencil", hue1 = #F49B45, hue2 = #C96B1D,
+                running = { app.smpRunning },
+                onClick() { app.dockOpen("sampler", () => app.openApp("sampler", "../../sampler/sampler", "Sampler", this, "")) }
                 ],
             DockIcon [ ix = 6, name = "Mail", kind = "mail", hue1 = #1E8CFB, hue2 = #1667D9,
                 onClick() { app.notImpl("Nope.", "Mail", "mail", "", 0.42, 0x1E8CFB, 0x1667D9) }

@@ -1,19 +1,29 @@
 // mac-boot — the native client's boot ladder and app host.
 //
-// The web client's ladder (boot-uniform.js) has three tiers: a committed
-// prewarm artifact, a validated cache, then an in-browser compile. The native
-// client keeps the same shape, so nothing about "how a program reaches a
-// screen" is renderer-specific:
+// TWO TIERS, and the second one does the work:
 //
 //   PRODUCTION  a built artifact (declarec --render mac) — program JSON
 //               beside its assets, loaded from disk. No compiler, no server.
-//   CACHE       a previously fetched program, revalidated with the HTTP stack
-//               itself (If-None-Match against the server's compile ETag): one
-//               cheap conditional request, 304 = run what we have.
-//   SERVER      `<url>?program&render=mac` — the dev server compiles (in its
-//               toolchain realm, with its own build cache) and answers JSON.
-//   CLIENT      the compiler bundle, loaded into JSC, compiling the fetched
-//               source locally — the native peer of in-browser compilation.
+//   CLIENT      the compiler, compiling the fetched source locally — on the
+//               host's compile thread, behind a source-hash cache.
+//
+// THE DEV SERVER IS NOT A TIER ANY MORE. It used to be, and it made the native
+// client's performance a property of something else's process: `?program&render=mac`
+// missed the server's own COMPILE_CACHE entirely (which only the `POST /compile`
+// handler reads or writes), so every single boot paid a cold server recompile —
+// 330–580ms of "slow fetch" that was neither slow nor a fetch. Meanwhile the
+// client tier, which is the one a shipped app must use anyway, was the path
+// least exercised and the only one with no cache at all.
+//
+// So the native client compiles natively, always, and caches what it compiled.
+// One path, exercised on every boot, and the same one a program opened from
+// disk with no server in sight has always taken. The dev server keeps its OTHER
+// job — serving the distro: the library, the compiler bundle, the program.
+//
+// WHERE THE COMPILE HAPPENS is the host's business, not this file's: `H.compile`
+// hands the source to a worker thread with its own JSContext and answers with
+// compiled JS (see CompileService.swift). The in-context compiler below stays as
+// the fallback for a host too old to have it.
 //
 // Mounting is the ordinary runtime call: build() → mountApp() with the mac
 // backend. Because the runtime's environment probes are shimmed (mac-env.js),
@@ -41,8 +51,6 @@ provideTransport((url, opts) => fetch(new URL(url, globalThis.__declareBase || "
 
 // ── the ladder ──────────────────────────────────────────────────────────────
 
-const CACHE_NS = "programs";
-
 async function fromProduction(dirUrl) {
   // A built artifact: program.json beside its assets (declarec --render mac).
   try {
@@ -53,31 +61,6 @@ async function fromProduction(dirUrl) {
     log("boot: production artifact");
     return { source: j.source, deps: j.deps ?? {}, base: dirUrl };
   } catch { return null; }
-}
-
-async function fromServer(programUrl) {
-  const u = new URL(programUrl);
-  u.search = (u.search ? u.search + "&" : "?") + "program&render=mac";
-  const key = CACHE_NS + ":" + programUrl;
-  let cached = null;
-  try { const raw = H.cacheGet(key); if (raw) cached = JSON.parse(raw); } catch { cached = null; }
-
-  const headers = cached && cached.etag ? { "if-none-match": cached.etag } : undefined;
-  const res = await fetch(u.href, headers ? { headers } : undefined);
-  if (res.status === 304 && cached) {
-    log("boot: client cache (304, revalidated)");
-    return { source: cached.source, deps: cached.deps ?? {}, base: programUrl };
-  }
-  if (!res.ok) return null;
-  const j = await res.json();
-  if (!j || !j.source) {
-    if (j && j.report) throw new Error(j.report);
-    return null;
-  }
-  const etag = j.etag ?? null;
-  try { H.cacheSet(key, JSON.stringify({ source: j.source, deps: j.deps ?? {}, etag })); } catch {}
-  log("boot: server compile" + (etag ? " (cached for next time)" : ""));
-  return { source: j.source, deps: j.deps ?? {}, base: programUrl };
 }
 
 /** WHERE THE DISTRO IS for a given program — the base its LIBRARY and the
@@ -126,17 +109,56 @@ async function ensureLibrary(distro) {
   } catch (e) { log("client compile: library fetch failed — " + e.message); }
 }
 
+// ── the compile call ────────────────────────────────────────────────────────
+//
+// `H.compile` is the host's compile thread (CompileService.swift): its own
+// JSContext on its own JSVirtualMachine, a source-hash cache in front of it, and
+// neither on this thread. It is the whole reason a cold compile no longer stalls
+// the window it is opening.
+//
+// The in-context path below it is a genuine fallback, not dead code: a host
+// binary older than this bundle has no `H.compile`, and the two must agree about
+// what a compile MEANS — so they call the same compiler with the same options.
+
+let compileSeq = 1;
+const compilesPending = new Map();
+globalThis.__declareCompileDone = (id, ok, source, depsJson, report, origin, ms) => {
+  const p = compilesPending.get(id);
+  if (!p) return;
+  compilesPending.delete(id);
+  let deps = {};
+  try { deps = depsJson ? JSON.parse(depsJson) : {}; } catch {}
+  p.resolve({ source: ok ? source : "", deps, report, origin, ms });
+};
+
+/** Compile a source string. `url` identifies the program to the cache; `dir` is
+ *  where its own includes resolve from. Answers `{source, deps, report}`. */
+function compileSource(url, src, dir, distro) {
+  if (typeof H.compile === "function") {
+    return new Promise((resolve) => {
+      const id = compileSeq++;
+      compilesPending.set(id, { resolve });
+      H.compile(id, url, src, dir, distro);
+    });
+  }
+  return (async () => {
+    if (!(await loadCompiler(distro))) return { source: "", deps: {}, report: "no compiler" };
+    await ensureLibrary(distro);
+    const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
+    return { source: out.source ?? "", deps: out.deps ?? {}, report: out.report ?? "", origin: "in-context" };
+  })();
+}
+
 async function fromClient(programUrl) {
   const distro = distroFor(programUrl);
-  if (!(await loadCompiler(distro))) return null;
   const src = await (await fetch(programUrl)).text();
-  await ensureLibrary(distro);
   // The program's OWN directory, absolute — which is what makes its includes
   // resolve beside IT while the library still resolves against the distro.
   const dir = programUrl.replace(/[^/]*$/, "");
-  const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
+  const out = await compileSource(programUrl, src, dir, distro);
   if (!out.source) throw new Error(out.report || "compile failed");
-  log("boot: client compile");
+  log("boot: " + (out.origin === "cache" ? "compile cache hit" : "compiled")
+      + (out.ms != null ? " (" + Math.round(out.ms) + "ms)" : ""));
   return { source: out.source, deps: out.deps ?? {}, base: programUrl };
 }
 
@@ -145,22 +167,6 @@ async function resolveProgram(url) {
   if (url.endsWith("/") || url.endsWith("program.json")) {
     const p = await fromProduction(url.endsWith("/") ? url : url.replace(/program\.json$/, ""));
     if (p) return p;
-  }
-  // A file: document has no server to ask. Without this the rung still
-  // "worked" — Swift's URL.path ignores the ?program query, so it read the
-  // .declare SOURCE, failed to parse it as JSON, and fell through — but it read
-  // the whole file to discard it and logged a line that reads like a fault.
-  if (!/^file:/i.test(url)) try {
-    const s = await fromServer(url);
-    if (s) return s;
-  } catch (e) {
-    // FALL THROUGH, don't rethrow. A host that does not implement `?program`
-    // answers with the .declare source instead of JSON, so this tier THROWS on
-    // exactly the hosts the client tier exists for — and rethrowing here killed
-    // boot outright ("JSON Parse error: Unrecognized token '/'") instead of
-    // trying the next rung. The docstring above always said the ladder falls
-    // through on absence; only the code disagreed.
-    log("server compile unavailable (" + e.message + ") — trying the client tier");
   }
   const c = await fromClient(url);
   if (c) return c;
@@ -385,33 +391,31 @@ function watchLive(app, scopeBox) {
   }).catch(() => liveSigs.delete(app));
 }
 
-/** Compile a SOURCE STRING (not a URL).
+/** Compile a SOURCE STRING (not a URL) — the editing surface's channel.
  *
- *  `POST /compile?main=<program url>` — the SAME delegate the web client uses
- *  (host-client.js `cfg.compile`), so a live edit is compiled by the same
- *  compiler that served boot and resolves includes and auto-includes against the
- *  same program. Doing it with the in-context client compiler instead reported
- *  ten `unknown component` errors for a file that compiles clean, because
- *  `?main=` is what tells the compiler where the program lives.
- *  The client tier stays as the fallback for a server that has no /compile. */
+ *  This used to `POST /compile?main=…` to the dev server, for one real reason:
+ *  `?main=` is what tells the compiler where the program lives, and without it
+ *  the in-context path reported ten `unknown component` errors for a file that
+ *  compiles clean. That reason is gone — `originDir` says the same thing, and
+ *  `ensureLibrary`/the worker's own `setDefaultLibrary` supply the auto-include
+ *  manifest a bare tag needs — so a live edit now compiles exactly where boot
+ *  does, and a `.declare` opened from disk (no server, no origin at all) gets a
+ *  working Edit tab for the first time.
+ *
+ *  NOT CACHED, and deliberately: the whole point of the buffer is that it is
+ *  different from what is on disk on every keystroke, so every compile is a
+ *  miss. It still runs on the compile thread, which is what keeps typing smooth
+ *  in the editor above it. */
 async function compileLive(src) {
   const main = globalThis.__declareMain || "";
-  let origin = "";
-  try { origin = new URL(main).origin; } catch { return null; }
+  const distro = distroFor(main);
+  const dir = main.replace(/[^/]*$/, "");
   try {
-    const res = await fetch(new URL("/compile?main=" + encodeURIComponent(main), origin).href,
-                            { method: "POST", body: src });
-    if (res.ok) {
-      const r = await res.json();
-      return r.source ? { source: r.source, deps: r.deps ?? {} } : { report: r.report || "compile failed" };
-    }
-  } catch (e) { log("live compile: " + e.message); }
-  if (!(await loadCompiler(distroFor(main)))) return null;
-  await ensureLibrary(distroFor(main));
-  try {
-    const dir = main.replace(/[^/]*$/, "");
-    const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
-    return out.source ? { source: out.source, deps: out.deps ?? {} } : { report: out.report || "compile failed" };
+    // "" as the cache key: nothing to cache against, and the host skips the
+    // cache entirely for an empty url.
+    const out = await compileSource("", src, dir, distro);
+    return out.source ? { source: out.source, deps: out.deps ?? {} }
+                      : { report: out.report || "compile failed" };
   } catch (e) {
     return { report: e && e.message ? e.message : String(e) };
   }

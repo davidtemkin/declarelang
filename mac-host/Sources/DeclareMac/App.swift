@@ -380,6 +380,10 @@ final class DeclareView: NSView {
 // ── the shell ───────────────────────────────────────────────────────────────
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// The one delegate, reachable from the Bridge's compile callbacks (which
+    /// have no window in hand and are asking an APP-level question: is anything
+    /// still starting up?).
+    static var current: AppDelegate? { NSApp.delegate as? AppDelegate }
     /// The document the Finder handed us, held until there is something to open it
     /// WITH. AppKit delivers `application(_:open:)` BEFORE
     /// applicationDidFinishLaunching on a double-click launch, so there is no
@@ -420,6 +424,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         launched = true
         buildMenu()
         Bridge.checkToolchain()
+        // Before anything is compiled or laid out: is this engine actually
+        // compiling? A signing slip costs 40x and presents as "the app is slow",
+        // which is the least diagnosable thing a host can be.
+        Bridge.assertJIT()
 
         // DECLARE_CONTROL opens the injection channel (Control.swift), so tests
         // drive the app without posting system events — the machine stays usable
@@ -429,13 +437,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             control = ControlChannel(target: { [weak self] in self?.front })
             control?.start()
         }
-        if !Launch.isAutomated { NSApp.activate(ignoringOtherApps: true) }
-
         // A document the Finder handed us wins over every default: it is what the
         // user actually asked for.
         let explicit = pendingOpen
             ?? ProcessInfo.processInfo.environment["DECLARE_URL"]
             ?? CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") })
+        // ACTIVATE WHEN THERE IS SOMETHING TO SHOW. Taking the foreground first
+        // and then compiling for a second puts an empty window in front of
+        // whatever the person was doing — and, because an active app's dock icon
+        // does not bounce, it also throws away the one indicator the platform
+        // has for "still starting". Deferred when a program is on its way; the
+        // chooser is itself something to show, so that path activates now.
+        if !Launch.isAutomated {
+            if explicit != nil { activateWhenReady = true } else { NSApp.activate(ignoringOtherApps: true) }
+        }
         if let start = explicit {
             newWindow().open(start)
         } else if Launch.isAutomated {
@@ -467,6 +482,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // request is a no-op — this is one of the host events whose frame they
     // are promised.
     @objc func appearanceChanged() { windows.forEach { $0.appearanceChanged() } }
+
+    // ── still starting: the dock bounce ─────────────────────────────────────
+    //
+    // A Mac app's launch bounce ends when the app looks launched, and this host
+    // used to look launched a whole compile before it was: the icon went quiet
+    // and an empty "Loading…" rectangle sat there instead.
+    //
+    // WHAT ACTUALLY CONTROLS THE BOUNCE is ProgramWindow.present() — ordering a
+    // window front is the signal — so the fix lives there, and this counts how
+    // many windows are still starting so it knows when to stop.
+    //
+    // ⚠ `requestUserAttention(.criticalRequest)` is NOT that mechanism, though
+    // it reads like it. Called during launch it returns 0 and does nothing at
+    // all (measured: token=0 with the app inactive). It is kept below because it
+    // IS right for the other case — a second document opened while the app sits
+    // in the background — where it bounces until cancelled.
+    //
+    // The activation is deferred alongside: an app that has drawn nothing has no
+    // business taking the foreground, and would pull the person out of what they
+    // were doing to look at an empty window.
+    //
+    // Never under automation: a rig deliberately stays in the background, and a
+    // bouncing icon in a test run is noise on someone's actual screen.
+
+    /// Windows that have asked for a program and not yet got one on screen.
+    private var starting = 0
+    private var attention: Int?
+    /// Interactive launch defers its activation until there is a program to
+    /// show; this remembers that one is owed.
+    private var activateWhenReady = false
+
+    /// A window began loading a program.
+    ///
+    /// Scoped to a WINDOW's load, not to a compile: the compile service also
+    /// runs for islands (opening the desktop's Calendar mounts a child app), and
+    /// bouncing the dock because a window that is already on screen is filling
+    /// in a pane would be nonsense. A window's load spans its compile anyway.
+    func beginStarting() {
+        starting += 1
+        guard !Launch.isAutomated, attention == nil else { return }
+        attention = NSApp.requestUserAttention(.criticalRequest)
+    }
+
+    /// A window finished — painted, or failed. Either way it is no longer
+    /// "starting", and a failure especially must not leave the icon bouncing
+    /// forever.
+    func endStarting() {
+        starting = max(0, starting - 1)
+        guard starting == 0 else { return }
+        if let a = attention { NSApp.cancelUserAttentionRequest(a); attention = nil }
+        if activateWhenReady {
+            activateWhenReady = false
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
 
     // ── windows ─────────────────────────────────────────────────────────────
 

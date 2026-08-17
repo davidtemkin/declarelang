@@ -686,18 +686,11 @@ class MacSurface implements Surface {
     return lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
   }
 
-  /** Does this surface contain the point (its clip respected)? A wheel
-   *  belongs to the topmost surface under the pointer and then to ITS
-   *  ancestors — never to an occluded sibling, which is what let a scroll
-   *  over the front window drive a scroller in the window behind it. */
-  private ownsPoint(px: number, py: number): boolean {
-    if (!this.visible || this.opacity <= 0) return false;
-    let lx = px - this.x;
-    let ly = py - this.y;
-    [lx, ly] = this.invertTransform(lx, ly);
-    if (this.clipData !== null || this.boxClip) return this.insideClip(lx, ly);
-    return lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-  }
+  // (`ownsPoint` lived here: scrollByX's "the topmost child containing the
+  // point owns the gesture" rule. It had the right instinct about the leak and
+  // the wrong test — a Declare window's chrome sits ABOVE its content, so
+  // "contains the point" stops at a press catcher. Replaced by `scrollClaimed`,
+  // which asks about scrollers instead, and now used by BOTH axes.)
 
   /** The wheel CLAIM walk (canvas-backend wheelTo, mirrored): descend to the
    *  view under the point and answer with the nearest `onWheel` CLAIMANT or
@@ -741,11 +734,10 @@ class MacSurface implements Surface {
     const cy = this.scrolls ? ly + this.scrollOffset : ly;
     const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
     for (let i = this.children.length - 1; i >= 0; i--) {
-      const c = this.children[i];
-      if (!c.ownsPoint(cx, cy)) continue;
-      if (c.scrollByX(cx, cy, dx)) return true;
-      break;                    // the point is this child's; siblings behind it never see it
+      if (this.children[i].scrollByX(cx, cy, dx)) return true;
+      if (scrollClaimed) break;             // see `scrollClaimed`
     }
+    if ((this.scrolls || this.scrollsX) && inBox) scrollClaimed = true;
     if (this.scrollsX && inBox) {
       const max = Math.max(0, this.contentExtentX() - this.width);
       const next = Math.min(max, Math.max(0, this.scrollXOffset + dx));
@@ -772,6 +764,12 @@ class MacSurface implements Surface {
     const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
     for (let i = this.children.length - 1; i >= 0; i--) {
       if (this.children[i].scrollBy(cx, cy, dy)) return true;
+      // A SCROLLER UNDER THE POINT ENDS THE SIBLING SEARCH, whether or not it
+      // could use this delta. See `scrollClaimed`.
+      if (scrollClaimed) break;
+    }
+    if (this.scrolls || this.scrollsX) {
+      if (inBox) scrollClaimed = true;      // this gesture is ours, siblings behind
     }
     if (this.scrolls && inBox) {
       const max = Math.max(0, this.contentExtent() - this.height);
@@ -1052,8 +1050,44 @@ export function macTraceHit(x: number, y: number): void {
   macRoot?.trace(x, y);
 }
 
+/** Did the walk pass a scroller that CONTAINS the point — whether or not it
+ *  could use this delta?
+ *
+ *  The scroll walks answer one boolean, "did anything move", and that conflated
+ *  two different facts. A subtree that declines a delta is not the same as a
+ *  subtree the gesture was never over, and the sibling loop needs the second:
+ *
+ *    THE LEAK. In the desktop, windows overlap, so one point is inside two of
+ *    them. A horizontal two-finger gesture over the Files column strip scrolled
+ *    the strip sideways — and its small vertical component walked straight past
+ *    the front window (whose only scroller there is horizontal, so it moved
+ *    nothing for a dy) into the window BEHIND, and scrolled that. One gesture,
+ *    two windows. Both scrollers are `inBox`, so the inBox guards cannot catch
+ *    it: the front window is simply visited first and declines.
+ *
+ *    THE FIRST FIX WAS WORSE. Stopping at the topmost child that CONTAINS the
+ *    point looks like the DOM's rule and breaks ordinary scrolling: a Declare
+ *    window carries decorative siblings ABOVE its content — measured in the
+ *    Markdown window as #319 (a full-bleed press catcher over the scroller) and
+ *    #309 (the frame) — so the search stopped at a chrome layer and the pane
+ *    behind it never scrolled at all.
+ *
+ *  So the rule is narrower, and it is about SCROLLERS rather than about
+ *  ownership: the first scroller under the point claims the gesture against
+ *  everything behind it. Chrome with nothing to scroll is passed straight
+ *  through. And because this only ends the SIBLING loop, the delta still chains
+ *  UP through ancestors — which is what keeps a vertical wheel over an X-only
+ *  code block scrolling the page it sits in, exactly as a browser does.
+ *
+ *  Module-level rather than a return value: the walks are synchronous, single
+ *  threaded, and re-entered per gesture, and the two public entries below own
+ *  the reset. */
+let scrollClaimed = false;
+
 export function macScroll(x: number, y: number, dy: number, dx = 0): void {
+  scrollClaimed = false;
   if (dy !== 0) macRoot?.scrollBy(x, y, dy);
+  scrollClaimed = false;
   if (dx !== 0) macRoot?.scrollByX(x, y, dx);
   flushOps();
 }
@@ -1067,7 +1101,11 @@ export function macScroll(x: number, y: number, dy: number, dx = 0): void {
  *  contract; before it, every wheel bypassed `onWheel` entirely. */
 export function macWheel(x: number, y: number, dx: number, dy: number, pinch: boolean): void {
   if (macRoot?.wheelTo(x, y, dx, dy, pinch) !== "claimed") {
+    // Reset per AXIS: each is a separate walk, and a claim made while routing
+    // the vertical half must not cut the horizontal one short.
+    scrollClaimed = false;
     if (dy !== 0) macRoot?.scrollBy(x, y, dy);
+    scrollClaimed = false;
     if (dx !== 0) macRoot?.scrollByX(x, y, dx);
   }
   flushOps();

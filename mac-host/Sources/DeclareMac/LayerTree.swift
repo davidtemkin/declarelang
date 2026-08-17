@@ -64,6 +64,9 @@ final class Node {
     /// in the node's PARENT, immediately below the node's own layer — see
     /// `paint(_:)` for why it cannot be a child of the node it frosts.
     var frostLayer: CALayer?
+    /// The paint epoch this node's frost was captured at. Behind the tree's
+    /// current epoch = something beneath may have moved, so re-sample.
+    var frostEpoch: Int = -1
     var scaleK: CGFloat = 1
     /// Rotation in model degrees (clockwise on screen); folded with scale
     /// into one layer transform by applyScale.
@@ -116,7 +119,7 @@ final class Node {
 
 final class LayerTree {
     private unowned let bridge: Bridge
-    private weak var view: DeclareView?
+    private(set) weak var view: DeclareView?
     private var nodes: [Int: Node] = [:]
     private(set) var root: Node?
     /// Surfaces whose drawing must be re-rasterized after a geometry change.
@@ -203,6 +206,33 @@ final class LayerTree {
 
     // ── the applier ─────────────────────────────────────────────────────────
 
+    /// Bumped by any op that could change what a backdrop sample would see.
+    /// A commit that changed nothing beneath costs the frost nothing.
+    var frostEpoch = 0
+    var frostAppliedEpoch = -1
+    /// How many frosts re-sampled on the last commit, and what it cost —
+    /// `ctl froststats`.
+    var frostLastN = 0
+    var frostLastMs = 0.0
+    var frostTotalMs = 0.0
+    var frostPaintMs = 0.0
+    var frostImageMs = 0.0
+    var frostBlurMs = 0.0
+    /// Which nodes the frost pass actually paints, and what each costs.
+    var frostNodeMs: [Int: Double] = [:]
+    var frostPainted = 0
+    /// Cached per-leaf renditions at canvas scale — see renderMaybeCached.
+    var frostRendition: [ObjectIdentifier: (contents: AnyObject, w: Int, h: Int, img: CGImage)] = [:]
+    /// The scale the frost canvas is currently built at.
+    var frostCanvasScale: CGFloat = 0.5
+    var frostRenditionBytes = 0
+    /// The last composite, for `ctl frostdump` — the only way to SEE what a
+    /// frost actually sampled.
+    var frostLastCanvas: CGImage?
+    /// Set by `ctl frostdump`; nothing is captured until it is.
+    static var frostDumpWanted = false
+    var frostTotalN = 0
+
     func apply(_ json: String) {
         guard let data = json.data(using: .utf8),
               let ops = (try? JSONSerialization.jsonObject(with: data)) as? [[Any]] else { return }
@@ -226,6 +256,13 @@ final class LayerTree {
             // frame" is only a defect once you know whose.
             for id in pendingDraw { drawNodes[id, default: 0] += 1 }
         }
+        // The frost re-samples ONCE per commit, after the ops — never per op,
+        // and never per frosted node per op, which is what made the old CPU
+        // sampler quadratic. See Frost.swift.
+        let fr = refreshFrosts()
+        frostLastN = fr.n; frostLastMs = fr.ms
+        frostTotalN += fr.n; frostTotalMs += fr.ms
+
         let rt0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
         for id in pendingDraw {
             guard let n = nodes[id] else { continue }
@@ -331,6 +368,7 @@ final class LayerTree {
     var sawGeom = false
 
     private func applyOne(_ op: [Any]) {
+        frostEpoch &+= 1
         if let code = op.first as? NSNumber {
             if statsOn { opHist[code.intValue, default: 0] += 1 }
             if code.intValue == 5 { sawGeom = true }
@@ -649,7 +687,7 @@ final class LayerTree {
                     if let p = n.parent { restack(p) }
                 }
                 syncFrost(n)
-                applyFrostFilters(n)
+                n.frostEpoch = -1                       // force a first capture
             }
         case 35: // BLEND — the view-tier compositing operator (compositing.md
             // §4.1). A compositing filter rides the LAYER, not the order:

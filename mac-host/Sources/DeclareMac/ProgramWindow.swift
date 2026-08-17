@@ -43,9 +43,37 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         view.bridge = bridge
         bridge.onTitle = { [weak self] t in self?.window.title = t.isEmpty ? "Declare" : t }
         bridge.onBootFailed = { [weak self] msg in self?.showError(msg) }
-        window.makeKeyAndOrderFront(nil)
+        bridge.onReady = { [weak self] in self?.finishedStarting() }
         window.makeFirstResponder(view)
         syncSize()
+        // ⚠ NOT ordered front yet — see `present()`. A harness is the exception:
+        // it addresses windows the moment it makes them.
+        if Launch.isAutomated { present() }
+    }
+
+    /// Has this window been put on screen?
+    private(set) var presented = false
+
+    /// Put the window on screen. Deferred until the program has something to
+    /// draw, which is the whole dock-bounce mechanism:
+    ///
+    /// macOS bounces a launching app's dock icon until the app looks launched,
+    /// and ORDERING A WINDOW FRONT is what makes it look launched. Doing that
+    /// first and compiling afterwards therefore bought the worst of both — the
+    /// bounce stopped, and what replaced it was an empty rectangle titled
+    /// "Loading…" for the length of a compile. (Asking for the bounce back with
+    /// `requestUserAttention` does not work either: during launch it returns 0
+    /// and does nothing at all. Measured, before this.)
+    ///
+    /// So the window simply waits. The icon goes on bouncing — the platform's
+    /// own "still starting", which is exactly what is true — and the window
+    /// appears already showing the program.
+    func present() {
+        guard !presented else { return }
+        presented = true
+        bridge.mark("WINDOW ON SCREEN")
+        window.makeKeyAndOrderFront(nil)
+        publishGeometry()
     }
 
     func open(_ url: String) {
@@ -59,9 +87,26 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         // that: a gate run booted an empty window off a stale test port.
         if !Launch.isAutomated { UserDefaults.standard.set(url, forKey: "lastURL") }
         window.title = "Loading…"
+        // "This window is starting" — the app keeps its dock icon bouncing (and
+        // holds back its activation) while any window is in this state.
+        // Balanced by finishedStarting, which the bridge calls on the first
+        // commit or on a boot failure, whichever comes first.
+        if !starting { starting = true; owner?.beginStarting() }
         bridge.mark("open()", url)
         bridge.boot(url: url)
         owner?.sessionChanged()
+    }
+
+    /// Has this window got an outstanding `beginStarting`? One at a time: a
+    /// reload while the first load is still in flight must not unbalance the
+    /// app's count.
+    private var starting = false
+
+    private func finishedStarting() {
+        guard starting else { return }
+        starting = false
+        present()
+        owner?.endStarting()
     }
 
     @objc func reload() { if !currentURL.isEmpty { open(currentURL) } }
@@ -140,7 +185,12 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     func windowDidChangeBackingProperties(_ n: Notification) { syncSize() }
     func windowDidMove(_ n: Notification) { owner?.sessionChanged() }
     func windowDidBecomeKey(_ n: Notification) { publishGeometry() }
-    func windowWillClose(_ n: Notification) { owner?.windowClosed(self) }
+    func windowWillClose(_ n: Notification) {
+        // Closed mid-load: the app's "still starting" count must come back down,
+        // or the dock bounces forever and the deferred activation never lands.
+        finishedStarting()
+        owner?.windowClosed(self)
+    }
 
     var sessionEntry: SessionStore.Entry? {
         guard loaded, !currentURL.isEmpty else { return nil }

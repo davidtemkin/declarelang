@@ -44,6 +44,16 @@ final class Bridge {
     let startedAt = CFAbsoluteTimeGetCurrent()
     var onTitle: ((String) -> Void)?
     var onBootFailed: ((String) -> Void)?
+    /// Fired ONCE per `boot()`, when the program first puts something on screen
+    /// or gives up trying. "The window is no longer starting" — which is what
+    /// ends the dock bounce and releases the deferred activation.
+    var onReady: (() -> Void)?
+    private var bootPending = false
+    private func settleBoot() {
+        guard bootPending else { return }
+        bootPending = false
+        onReady?()
+    }
     /// A BOOT TIMELINE, on `DECLARE_BOOTLOG=1`. Startup is a ladder — evaluate
     /// the runtime, maybe fetch and evaluate a 5.9MB compiler, fetch the
     /// library, compile, instantiate, commit — and a single "2.4s" says nothing
@@ -148,6 +158,7 @@ final class Bridge {
             }
             self.lastCommitAt = CFAbsoluteTimeGetCurrent()
             if self.firstCommitAt == 0 { self.firstCommitAt = CFAbsoluteTimeGetCurrent(); self.mark("FIRST COMMIT") }
+            self.settleBoot()                      // something is on screen now
         } as @convention(block) (String) -> Void, forKeyedSubscript: "commit")
 
         host.setObject({ [weak self] (text: String, font: String, ls: Double) -> [Double] in
@@ -199,6 +210,11 @@ final class Bridge {
 
         host.setObject({ [weak self] (msg: String) in
             self?.lastError = msg
+            // settleBoot FIRST: it is what puts the window on screen, and
+            // `onBootFailed` runs a modal for a person — which would otherwise
+            // sit over an invisible window and block the run loop before it
+            // could appear.
+            self?.settleBoot()          // gave up — still no longer "starting"
             self?.onBootFailed?(msg)
         } as @convention(block) (String) -> Void, forKeyedSubscript: "bootFailed")
 
@@ -255,6 +271,21 @@ final class Bridge {
         host.setObject({ [weak self] (id: Int, blocksJson: String, selectable: Bool, width: Double) -> Double in
             self?.tree.richLayout(id: id, blocksJson: blocksJson, selectable: selectable, width: CGFloat(width)) ?? 0
         } as @convention(block) (Int, String, Bool, Double) -> Double, forKeyedSubscript: "richLayout")
+
+        // COMPILE, off this thread (CompileService). The runtime hands over a
+        // source string and hears back a compiled one; everything between —
+        // the cache, the second JSContext, the include walk — happens on
+        // another thread, so the window stays live throughout.
+        host.setObject({ [weak self] (id: Int, url: String, source: String, originDir: String, distro: String) in
+            guard let self else { return }
+            CompileService.shared.compile(url: url, source: source, originDir: originDir, distro: distro) { [weak self] r in
+                guard let self else { return }
+                self.mark("compile \(r.origin)", String(format: "%.0fms  %@", r.ms, (url as NSString).lastPathComponent))
+                self.call("__declareCompileDone",
+                          [id, r.ok, r.source, r.depsJSON, r.report, r.origin, r.ms])
+                self.needsFrame()
+            }
+        } as @convention(block) (Int, String, String, String, String) -> Void, forKeyedSubscript: "compile")
 
         // The client-compile tier loads the compiler INTO this same context.
         host.setObject({ [weak self] (src: String, url: String) in
@@ -595,7 +626,7 @@ final class Bridge {
         return fn.call(withArguments: args)
     }
 
-    func boot(url: String) { call("__declareBoot", [url]); pump() }
+    func boot(url: String) { bootPending = true; call("__declareBoot", [url]); pump() }
 
     /// Run the shared engine bench plus our own pipeline measurements and write
     /// a JSON report. Nothing here touches the renderer's hot path in normal use.
@@ -650,15 +681,134 @@ final class Bridge {
         let t = CFAbsoluteTimeGetCurrent(); body(); return (CFAbsoluteTimeGetCurrent() - t) * 1000
     }
 
-    /// Whether this process may map JIT pages at all — the honest answer to
-    /// "is the runtime interpreted here?" (macOS: yes unless hardened-runtime
-    /// signed without the entitlement; iOS: never, for a third-party engine.)
+    /// Whether this process may map JIT pages at all.
+    ///
+    /// ⚠ THIS PROBE LIES ABOUT THE ONE CASE IT EXISTS TO CATCH. A hardened-runtime
+    /// binary signed WITHOUT `com.apple.security.cs.allow-jit` still gets a
+    /// successful MAP_JIT mapping, and JavaScriptCore still refuses to compile —
+    /// which is exactly how an interpreter-only app shipped for weeks reporting
+    /// `jitEnabled: true` in every benchmark file. Kept because it answers a
+    /// different, real question (iOS, where a third-party engine never JITs);
+    /// use `jit` below for "is this engine compiling".
     static func jitAvailable() -> Bool {
         let size = 4096
         let p = mmap(nil, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0)
         if p == MAP_FAILED { return false }
         munmap(p, size)
         return true
+    }
+
+    // ── the JIT assertion ───────────────────────────────────────────────────
+    //
+    // The entitlement was absent for weeks and nothing said so: `bundle.sh`
+    // passed a path that did not exist, codesign failed into `2>/dev/null ||`,
+    // and the fallback signed without it. Every app built the documented way ran
+    // an interpreter — 44x slower — while every probe we had said it was fine.
+    //
+    // So the check is a BENCHMARK, the only thing that can tell the two apart,
+    // and it runs at startup rather than living in a benchmark script nobody
+    // runs. bundle.sh now also verifies the signature it just produced, so this
+    // is the second of two gates: one on the build, one on the running app.
+
+    /// Iterations for the probe.
+    private static let jitProbeIterations = 3_000_000
+    /// Anything slower than this is not a compiled loop.
+    ///
+    /// CALIBRATED, not guessed — `DECLARE_JITPROBE=1` times six loop shapes, and
+    /// the same app signed both ways gave (JIT → no entitlement):
+    ///
+    ///     imul       0.95ms →  87.21ms   92x     ← the probe
+    ///     closure    1.85ms →  75.90ms   41x
+    ///     int|0      1.36ms →  26.17ms   19x
+    ///     megamorph  8.47ms → 124.54ms   15x
+    ///     props      5.28ms →  58.95ms   11x
+    ///     float      6.19ms →  37.58ms    6x
+    ///
+    /// The shape matters far more than the count: a plain `(s+i*3)|0` loop
+    /// separates the two populations by only 19x and put the interpreter at
+    /// 26ms, which a first attempt at this check waved through under a 30ms
+    /// budget. `Math.imul` is the widest gap AND the cheapest healthy answer, so
+    /// the budget below sits ~10x above a JIT run and ~9x below an interpreted
+    /// one. Neither a loaded machine nor a slower Mac can cross that: both
+    /// populations scale together.
+    private static let jitProbeBudgetMs = 10.0
+
+    struct JITStatus {
+        let compiling: Bool
+        let ms: Double
+        var line: String {
+            String(format: "%@  (%d-iteration probe in %.1fms, budget %.0fms; mmap(MAP_JIT)=%@)",
+                   compiling ? "JIT: compiling" : "JIT: INTERPRETING",
+                   jitProbeIterations, ms, jitProbeBudgetMs, jitAvailable() ? "ok" : "denied")
+        }
+    }
+
+    /// Measured once, on first ask. A `static let` is lazy and its initialiser
+    /// runs exactly once even under contention, which is the whole requirement.
+    static let jit: JITStatus = {
+        let c = JSContext()!
+        // A tight integer loop: the thing a baseline JIT compiles and an
+        // interpreter grinds through. Defined once and CALLED twice — a fresh
+        // `evaluateScript` each time would re-parse and never let the tiers
+        // warm, which measures the parser instead of the engine.
+        c.evaluateScript("globalThis.__jitProbe = function (n) { var s = 0; for (var i = 0; i < n; i++) { s = (s + Math.imul(i, 2654435761)) | 0; } return s; }")
+        guard let fn = c.objectForKeyedSubscript("__jitProbe"), !fn.isUndefined else {
+            return JITStatus(compiling: false, ms: -1)
+        }
+        _ = fn.call(withArguments: [200_000])            // warm the tiers
+        // BEST OF THREE. A JIT run is ~1ms, so a single sample is at the mercy
+        // of one scheduling hiccup during launch; the minimum is the honest
+        // "how fast can this engine run this loop". Costs ~3ms when healthy.
+        var ms = Double.infinity
+        for _ in 0..<3 {
+            let t0 = CFAbsoluteTimeGetCurrent()
+            _ = fn.call(withArguments: [jitProbeIterations])
+            ms = min(ms, (CFAbsoluteTimeGetCurrent() - t0) * 1000)
+        }
+        return JITStatus(compiling: ms < jitProbeBudgetMs, ms: ms)
+    }()
+
+    /// Calibration aid (`DECLARE_JITPROBE=1`): time several candidate loop
+    /// shapes, so the probe's threshold can be set from measurement on both a
+    /// JIT-signed and an entitlement-less build rather than from a guess.
+    static func jitProbeCalibration() {
+        let bodies: [(String, String)] = [
+            ("int|0",      "function(n){var s=0;for(var i=0;i<n;i++){s=(s+i*3)|0;}return s;}"),
+            ("imul",       "function(n){var s=0;for(var i=0;i<n;i++){s=(s+Math.imul(i,2654435761))|0;}return s;}"),
+            ("float",      "function(n){var s=0.5;for(var i=0;i<n;i++){s=s*1.0000001+i*0.5;}return s;}"),
+            ("closure",    "function(n){var f=function(a,b){return a+b*3;};var s=0;for(var i=0;i<n;i++){s=(s+f(i,i))|0;}return s;}"),
+            ("props",      "function(n){var o={x:1,y:2,w:3,h:4};var s=0;for(var i=0;i<n;i++){o.y=o.x+i;s=(s+o.y+o.w)|0;}return s;}"),
+            ("megamorph",  "function(n){var a=[{k:1,g:function(){return this.k;}},{k:2,q:0,g:function(){return this.k;}},{k:3,q:0,r:0,g:function(){return this.k;}},{k:4,q:0,r:0,t:0,g:function(){return this.k;}}];var s=0;for(var i=0;i<n;i++){s=(s+a[i&3].g())|0;}return s;}"),
+        ]
+        let c = JSContext()!
+        for (name, src) in bodies {
+            c.evaluateScript("globalThis.__p = \(src)")
+            guard let fn = c.objectForKeyedSubscript("__p"), !fn.isUndefined else { continue }
+            _ = fn.call(withArguments: [200_000])
+            var best = Double.infinity
+            for _ in 0..<3 {
+                let t0 = CFAbsoluteTimeGetCurrent()
+                _ = fn.call(withArguments: [jitProbeIterations])
+                best = min(best, (CFAbsoluteTimeGetCurrent() - t0) * 1000)
+            }
+            NSLog("[jitprobe] %-10@ %8.2fms  (%d iterations, best of 3)", name, best, jitProbeIterations)
+        }
+    }
+
+    /// Run the assertion and say so. Loud on failure, one quiet line on success
+    /// (so the log can be used to prove the check ran at all).
+    static func assertJIT() {
+        if ProcessInfo.processInfo.environment["DECLARE_JITPROBE"] != nil { jitProbeCalibration() }
+        let s = jit
+        if s.compiling { NSLog("[Declare] %@", s.line); return }
+        NSLog("""
+              [Declare] ⚠︎ JAVASCRIPTCORE IS RUNNING ITS INTERPRETER. %@
+                  Everything JS — compiling, layout, every settle — is ~40x slower.
+                  Cause: this binary is signed with the hardened runtime but WITHOUT
+                  com.apple.security.cs.allow-jit. Check with:
+                    codesign -d --entitlements - "%@"
+                  Fix by rebuilding: bash mac-host/bundle.sh
+              """, s.line, Bundle.main.bundlePath)
     }
 
     static func residentMB() -> Double {

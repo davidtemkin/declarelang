@@ -111,6 +111,38 @@ try {
     assert.equal(await ctl("activate"), "ok");
   });
 
+  // THE REGRESSION THIS PINS: bundle.sh signed the app with a path that did not
+  // exist, codesign failed into a suppressed error, and the fallback signed
+  // WITHOUT com.apple.security.cs.allow-jit. Every app built the documented way
+  // ran an interpreter-only JavaScriptCore — 44x slower — for weeks, and nothing
+  // said so: an mmap(MAP_JIT) probe reports success either way.
+  //
+  // Two halves, because they can fail independently:
+  //   • the ENGINE, measured. `ctl jit` times a Math.imul loop, which separates
+  //     the two populations by ~90x. This covers the bare binary the suite runs.
+  //   • the SIGNATURE of any bundled app on this machine — which is the thing
+  //     that actually broke, and which the bare binary cannot tell us about (it
+  //     is not hardened-runtime signed, so it JITs regardless).
+  await test("JavaScriptCore is compiling, not interpreting", async () => {
+    const line = await ctl("jit");
+    assert.match(line ?? "", /^JIT: compiling/, `the engine is not compiling — ${line}`);
+  });
+
+  await test("a bundled app carries the JIT entitlement", async () => {
+    const apps = ["/Applications/Declare Mac.app", `${process.env.HOME}/Applications/Declare Mac.app`,
+                  path.join(ROOT, "mac-host/Declare Mac.app")].filter((p) => existsSync(p));
+    if (apps.length === 0) { console.log("    (no bundled app on this machine — skipped)"); return; }
+    for (const app of apps) {
+      let ents = "";
+      try {
+        ents = execFileSync("/usr/bin/codesign", ["-d", "--entitlements", "-", app],
+                            { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      } catch (e) { ents = String(e.stdout ?? "") + String(e.stderr ?? ""); }
+      assert.match(ents, /com\.apple\.security\.cs\.allow-jit/,
+                   `${app} is signed without the JIT entitlement — rebuild with mac-host/bundle.sh`);
+    }
+  });
+
   await test("a second program opens in its own window", async () => {
     assert.match(await ctl(`newwindow ${PROBE}`), /^ok windows=2/);
     assert.equal(await countWindows(), 2);

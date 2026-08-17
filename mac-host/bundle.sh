@@ -35,7 +35,9 @@ else
 fi
 OUT="$DEST/Declare Mac.app"
 
-swift build -c release >/dev/null
+# build.sh, not a bare `swift build`: the dev binary needs the JIT entitlement
+# too, and nothing else signs it (see the note there).
+bash ./build.sh >/dev/null
 rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 
@@ -141,4 +143,16 @@ if ! codesign --force --deep --sign - --options runtime \
   echo "    INTERPRETER and everything JS will be ~40x slower." >&2
   codesign --force --deep --sign - "$OUT" || true
 fi
-echo "built $OUT"
+
+# VERIFY WHAT WAS ACTUALLY SIGNED, not what was asked for. The regression above
+# was a codesign invocation that failed for its own reasons — a bad path — so
+# checking the exit status of the call we hoped would work is not the same as
+# checking the app. Ask the bundle. A build that cannot produce a JIT-capable
+# app is a FAILED build: shipping a 40x-slower one silently is what cost weeks.
+if ! codesign -d --entitlements - "$OUT" 2>&1 | grep -q "com.apple.security.cs.allow-jit"; then
+  echo "✗  $OUT is signed WITHOUT com.apple.security.cs.allow-jit." >&2
+  echo "   JavaScriptCore would run its interpreter (~40x slower on every path)." >&2
+  echo "   Inspect with: codesign -d --entitlements - \"$OUT\"" >&2
+  exit 1
+fi
+echo "built $OUT  (JIT entitlement verified)"
