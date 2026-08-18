@@ -572,10 +572,17 @@ before anything is pressed. Meaningful on views that take input — the cursor f
 hit target, so a view with `pointerEvents = "none"` never shows its own.
 
 ## pointerEvents
-Whether this view and its subtree take pointer events: `"auto"` (the default) or `"none"`.
+Whether **this view** takes pointer events: `"auto"` (the default) or `"none"`.
 `"none"` is for a view that is pure decoration over live content — a highlight rectangle,
 a full-viewport chrome overlay — so presses reach what is beneath it. It is the fix for
 the invisible-lid bug: an overlay sized to the frame that silently swallows every click.
+
+It makes the view a **corridor, not a lid**: the press passes through this view, and each
+child still answers for itself. A child carrying a handler keeps taking its own presses,
+and a child may state `"auto"` outright — which is what lets a chrome overlay hold a real
+panel (the Inspector's own window is exactly that) while the rest of it stays transparent.
+So `"none"` on a container is not a way to disable a subtree; put it where the decoration
+is, or gate the handlers.
 
 ## viewAt()
 The tree answers **what is under a root-space point** — the deepest visible view,
