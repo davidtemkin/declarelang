@@ -1124,12 +1124,18 @@ class CanvasSurface implements Surface {
     // considers only `visible`. The gates that mean "not there" are `visible`
     // and `pointerEvents`; this is not one of them.
     if (!this.visible) return null;
-    // The other gate. "none" is SUBTREE-transparent — the model walk
-    // (interaction.ts leafAt) and the reference both state the subtree rule,
-    // and this walk claimed its comment while never consulting the value: a
-    // press-catcher marked pointerEvents = "none" still swallowed presses on
-    // canvas. (DOM realizes the same rule through CSS inheritance.)
-    if (this.pe === "none") return null;
+    // The other gate. "none" is INHERITED, not subtree-final: it makes this
+    // view pointer-transparent; it does NOT seal the subtree. Descend anyway
+    // and let each child answer for itself — which is what the DOM reference
+    // does, because dom-backend gives any view carrying a sink
+    // `pointer-events: auto`, and an explicit value beats an inherited one.
+    // Returning null here skipped the subtree outright, so the documented
+    // "full-viewport chrome overlay" could hold nothing interactive.
+    // MEASURED (transparent root; an `auto` panel and a plain handler-bearing
+    // child, one click each): before DOM 1/101, canvas 0/0, mac 0/0 — after,
+    // all three 1/101. The gate below decides only whether THIS view is the
+    // target.
+
     let lx = px - this.x;
     let ly = py - this.y;
     // Invert the paint transform so the point lands in the subtree's own
@@ -1169,7 +1175,9 @@ class CanvasSurface implements Surface {
       const t = c.hit(lx, cy);
       if (t !== null) return t;
     }
-    if (this.sink !== null && inBox) {
+    // A pointer-transparent view is a corridor, not a target: its children were
+    // already offered the point above, so an `auto` descendant has taken it.
+    if (this.sink !== null && inBox && this.pe !== "none") {
       // the nearest PINCH OWNER up the chain (self included) — the claim
       // covers a subtree, so the gesture belongs to the declaring ancestor
       let pinch: { key: object; sink: InputSink } | undefined;

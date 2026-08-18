@@ -438,6 +438,51 @@ if (!MAC) {
   console.log("  to prove the third renderer too.\n");
 }
 
+summarize("conform");
+
+// ── pointer transparency ────────────────────────────────────────────────────
+// `pointerEvents = "none"` is documented for a full-viewport chrome overlay,
+// and until 2026-08-17 nothing in this corpus put anything INSIDE one. The
+// three hit walks had disagreed for as long as they had existed: the model
+// walk, canvas and mac each returned null at a "none" and never looked inside,
+// so an overlay's own panel was unreachable on two of three renderers (DOM
+// 1/101, canvas 0/0, mac 0/0 on a two-click probe). The rule these pin is
+// "none" makes THAT VIEW transparent and seals nothing.
+
+await test("conform: an `auto` panel inside a transparent overlay takes its press, everywhere", async () => {
+  const r = await conform("test/probe/pointertransparent.declare", [],
+    `__declare.explainHit(160, 120).hit`, "overlay panel");
+  assert.equal(r.answers[0].value, "app.panel", "the panel that states `auto` takes the point");
+  console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
+});
+
+await test("conform: a sink-carrying child of a transparent view takes its press, everywhere", async () => {
+  // States no pointerEvents of its own — the DOM gives it `auto` for carrying a
+  // sink, so an ancestor's "none" does not reach it. This is the case that
+  // makes the rule self-only rather than inherited.
+  const r = await conform("test/probe/pointertransparent.declare", [],
+    `__declare.explainHit(400, 120).hit`, "sink child");
+  assert.equal(r.answers[0].value, "app.sink", "a handler-bearing child takes the point");
+  console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
+});
+
+await test("conform: the transparent view itself never takes a press, everywhere", async () => {
+  // The half of the rule that must not regress: the overlay is a corridor. A
+  // point inside it but in none of its children resolves to whatever is
+  // BENEATH — here nothing, since the overlay is the app root.
+  //
+  // ⚠ Aimed at the overlay, NOT at its decorative child. `explainHit` answers
+  // with the MODEL walk (interaction.ts leafAt), which is geometric and returns
+  // the topmost view whether or not it carries a sink — that is what `hovered`
+  // is built on ("a transparent activation glass suppresses every hover
+  // beneath it"). Press ROUTING in the backends additionally requires a sink.
+  // The two questions are deliberately different, and an assertion that reads
+  // one as the other fails for the wrong reason.
+  const r = await conform("test/probe/pointertransparent.declare", [],
+    `__declare.explainHit(560, 30).hit`, "transparent overlay itself");
+  assert.notEqual(r.answers[0].value, "app", "a pointer-transparent view is not a target");
+  console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
+});
+
 await browser.close();
 if (server?.close) server.close();
-summarize("conform");

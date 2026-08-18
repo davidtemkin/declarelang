@@ -1,0 +1,48 @@
+/*
+# pointertransparent — the chrome-overlay routing probe
+
+`View.pointerEvents = "none"` is documented for "a full-viewport chrome overlay
+— so presses reach what is beneath it". An overlay that can hold nothing
+interactive is a highlight, not chrome, so the rule has to say what happens to
+what is INSIDE the transparent view as well as what is under it.
+
+The answer, which all three renderers now give: **"none" makes THAT VIEW
+transparent and seals nothing.** Each descendant answers for itself — which is
+what the DOM does, because dom-backend gives any view carrying a sink
+`pointer-events: auto`, and an explicit value beats an inherited one.
+
+Nothing in the corpus asked this until 2026-08-17, and the three hit walks had
+quietly disagreed for as long as they had existed: the model walk, the canvas
+backend and the mac backend all returned null at a "none" and never looked
+inside, so on two of three renderers an overlay's own panel was unreachable.
+Measured, before: DOM 1/101, canvas 0/0, mac 0/0.
+
+Every layer here is stacked at the same depth on purpose, so a backend that
+seals the subtree gives a DIFFERENT ANSWER — `app` or nothing — rather than a
+less precise one.
+*/
+
+App [ appName = "Pointer Transparent", pointerEvents = "none",
+    width = 600, height = 300, fill = #FFFFFF,
+
+    // states its own "auto": the overlay's interactive panel (the Inspector's
+    // own window is exactly this view)
+
+    panel: View [ pointerEvents = "auto", x = 60, y = 60, width = 200, height = 120,
+        fill = 0x2E9E4F,
+        onClick() { }
+        ],
+
+    // states nothing, but CARRIES A SINK: the DOM realizes that as
+    // `pointer-events: auto`, so it takes the point too
+
+    sink: View [ x = 300, y = 60, width = 200, height = 120,
+        fill = 0x3366CC,
+        onClick() { }
+        ],
+
+    // states nothing and carries NO sink — pure decoration, and the one thing
+    // in here that must never take a press
+
+    decor: View [ x = 60, y = 200, width = 200, height = 60, fill = 0xCCCCCC ]
+    ]

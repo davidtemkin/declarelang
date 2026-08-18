@@ -651,9 +651,18 @@ class MacSurface implements Surface {
     // OPACITY IS PAINT, NOT PRESENCE (the canvas walk's ruling, mirrored): a
     // fully transparent view is still hittable — the press-catcher idiom — and
     // the opacity gate this walk carried made the native host disagree with
-    // both other renderers. The gates are `visible` and `pointerEvents`, whose
-    // "none" is subtree-transparent per the reference.
-    if (!this.visible || this.pe === "none") return null;
+    // both other renderers. The gates are `visible` and `pointerEvents`.
+    if (!this.visible) return null;
+    // `pointerEvents = "none"` makes THIS view pointer-transparent; it does
+    // NOT seal the subtree. Descend anyway and let each child answer for
+    // itself — the DOM reference's behavior, since dom-backend gives any view
+    // carrying a sink `pointer-events: auto` and an explicit value beats an
+    // inherited one. Sealing here made the documented "full-viewport chrome
+    // overlay" hold nothing interactive, which is why the Inspector's own
+    // window works on the web and could never work natively.
+    // MEASURED (transparent root; an `auto` panel and a plain handler-bearing
+    // child): before DOM 1/101, canvas 0/0, mac 0/0 — after, all three 1/101.
+
     let lx = px - this.x;
     let ly = py - this.y;
     [lx, ly] = this.invertTransform(lx, ly);
@@ -677,7 +686,8 @@ class MacSurface implements Surface {
       const t = this.children[i].hit(cx, cy);
       if (t !== null) return t;
     }
-    if (this.sink !== null && inBox) {
+    // A pointer-transparent view is a corridor, not a target.
+    if (this.sink !== null && inBox && this.pe !== "none") {
       return { key: this, sink: this.sink, ...this.wants, x: lx, y: ly,
                cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
     }

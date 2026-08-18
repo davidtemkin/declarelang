@@ -138,17 +138,28 @@ export function leafAt(v, lx, ly, pierce = false, trace) {
             trace.push({ view: v, why: "skipped — visible = false", x: Math.round(lx), y: Math.round(ly) });
         return null;
     }
-    // "none" makes the subtree pointer-transparent (the overlay rule) — the walk
-    // falls through it exactly as input resolution does. `pierce` is the ONE
-    // caller-visible difference in the whole walk: the Inspector's picker must be
-    // able to select a view the pointer would pass through, because a developer
-    // asking "what is this?" means the thing they can see, not the thing that
-    // would receive a press.
-    if (!pierce && v.pointerEvents === "none") {
-        if (trace !== undefined)
-            trace.push({ view: v, why: 'skipped — pointerEvents = "none" (the subtree is pointer-transparent)', x: Math.round(lx), y: Math.round(ly) });
-        return null;
-    }
+    // `pointerEvents = "none"` makes THIS view pointer-transparent; it does not
+    // seal its subtree. The walk descends through it and a child decides for
+    // itself, which is what the reference renderer actually does: dom-backend
+    // gives any view carrying a sink `pointer-events: auto`, and that overrides
+    // an ancestor's `none` the way CSS lets any explicit value override an
+    // inherited one.
+    //
+    // ⚠ MEASURED, because the three walks disagreed and the docs described a
+    // fourth thing. Probe: transparent root, an `auto` panel and a plain
+    // handler-bearing child, one click each.
+    //
+    //     before      DOM 1 / 101      canvas 0 / 0      mac 0 / 0
+    //     after       DOM 1 / 101      canvas 1 / 101    mac 1 / 101
+    //
+    // Returning null at a "none" sealed the subtree, so the documented
+    // "full-viewport chrome overlay" (View.pointerEvents) could not contain
+    // anything interactive on canvas or native — an overlay that takes no input
+    // is a highlight, not chrome, and it is why the Inspector's own window works
+    // on the web and nowhere else.
+    //
+    // `pierce` still ignores the gate entirely — the Inspector's picker wants
+    // what you can SEE, not what would take a press.
     const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
     // A scroller bounds its subtree at its FRAME — content beyond the frame is
     // out of view by definition, whatever the `clip` attribute says (the canvas
@@ -197,6 +208,14 @@ export function leafAt(v, lx, ly, pierce = false, trace) {
     if (!inside) {
         if (trace !== undefined)
             trace.push({ view: v, why: "missed — the point is outside this view's own box", x: Math.round(lx), y: Math.round(ly) });
+        return null;
+    }
+    // The point is in this view's box — but a pointer-transparent view is not a
+    // target, it is only a corridor. (Its children were already offered the
+    // point above, so an `auto` descendant has taken it by now.)
+    if (!pierce && v.pointerEvents === "none") {
+        if (trace !== undefined)
+            trace.push({ view: v, why: 'skipped — pointerEvents = "none" (this view is transparent; its children decide for themselves)', x: Math.round(lx), y: Math.round(ly) });
         return null;
     }
     if (trace !== undefined)
