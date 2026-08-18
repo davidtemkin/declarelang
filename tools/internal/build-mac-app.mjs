@@ -14,24 +14,28 @@
 // That is not a warning to print, it is a build that should not exist.
 //
 // WHERE THIS SITS IN THE LARGER BUILD. `derive` (tools/internal/derive.mjs) is
-// the tree's build: a rule graph that owns every COMMITTED derived artifact, and
-// its first two rules — `tsc` and `bundles` — plus `stamp-version` are the
-// PLATFORM. This script is not a second build of that; it runs those same steps,
-// through those same tools, and then does the one thing derive does not: package
-// the platform into an app.
+// the tree's build: a rule graph that owns every COMMITTED derived artifact.
+// This is not a second one. It shares derive's first two rules — `tsc` and
+// `bundles`, through the same tools — because those produce what the app bakes,
+// and then does the thing derive does not: package them.
 //
-//     ┌─ derive's platform rules, borrowed verbatim ──────────────────────┐
-//     │ runtime/src, compiler/src  ──tsc──▶ */dist                        │
-//     │ */dist                     ──build-boot/-compiler/-mac──▶ bundles/│
-//     │ the finished platform      ──stamp-version──▶ BUILD_ID            │
-//     └───────────────────────────────────────────────────────────────────┘
-//       mac-host/Sources          ──swift build, codesign──▶ DeclareMac
-//       all of the above          ──here──▶ Declare Mac.app
+//       runtime/src, compiler/src  ──tsc──▶ */dist         ┐ derive's own
+//       */dist                     ──build-*──▶ bundles/   ┘ first two rules
+//       mac-host/Sources           ──swift build, codesign──▶ DeclareMac
+//       all of the above           ──here──▶ Declare Mac.app  + its own BUILD_ID
 //
-// THE DEPENDENCY RUNS ONE WAY. The app is a per-machine artifact, never a
-// committed one, so `derive` neither builds it nor knows about it — a commit
-// must not require a Swift toolchain. This consumes derive's outputs; derive
-// never consumes this.
+// ⚠ THE DEPENDENCY RUNS ONE WAY, AND NOTHING HERE WRITES A COMMITTED FILE.
+// The app is a per-machine artifact, never a committed one, so derive neither
+// builds it nor knows about it — a commit must not require a Swift toolchain.
+// This reads the tree and writes only the .app. (`tsc` and the bundle rebuild do
+// touch tree artifacts, but those are derive's own rules producing derive's own
+// outputs, deterministically; nothing here AUTHORS anything derive would not.)
+//
+// That boundary is easy to lose: the version after the first briefly called
+// `stamp-version.mjs` to keep the baked BUILD_ID honest, which also stamped
+// service-worker.js, index.html and every apps/*/index.html — 21 committed
+// web-facing files written by a mac build. The id is hashed from the baked
+// bytes instead.
 //
 // Every link is walked here, in order, and then the result is VERIFIED rather
 // than assumed — the rule build.sh already applied to the Swift binary, applied
@@ -60,7 +64,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BUNDLES, newestMtime } from "./bundle-freshness.mjs";
+import { BUNDLES, newestMtime, rebuildStale } from "./bundle-freshness.mjs";
 import { SEARCH } from "../../mac-host/app.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -86,9 +90,7 @@ const BAKE = [
     inputs: bundleInputs("bundles/declare-mac.js") },
   { from: "bundles/declare-compiler-mac.js", to: "Contents/Resources/bundles/declare-compiler-mac.js",
     inputs: bundleInputs("bundles/declare-compiler-mac.js") },
-  // The toolchain id, readable with no tree. A STAMP (derive writes it), so it
-  // is carried, not gated — see the note in bundle-freshness's header.
-  { from: "bundles/version.json", to: "Contents/Resources/bundles/version.json" },
+  // NOT bundles/version.json — that one is WRITTEN, not copied. See `toolchain`.
   // Components, icons and themes — all .declare source, compiled on device.
   { from: "library", to: "Contents/Resources/library", dir: true },
   // THE CHROME PROGRAMS are platform too: the Inspector mounts OVER a running
@@ -127,24 +129,20 @@ say("build:mac");
 step("tsc -b", "npx", ["tsc", "-b"], ROOT,
      "tsc failed — the tree does not compile, so there is nothing to bake.");
 
-// 2. The platform: the bundles, and the BUILD_ID hashed over them.
+// 2. The bundles, which are what this app bakes.
 //
-// ⚠ ONE TOOL, NOT TWO. This used to call `rebuildStale` directly and then copy
-// whatever `bundles/version.json` happened to say — so a mac build could bake
-// FRESH bundles alongside a STALE build id. That id is not decoration: it is the
-// first of the three things the compile cache validates against
-// (CompileService "WHAT MAKES A CACHED COMPILE STILL VALID"), a content hash
-// over bundles/ + runtime/dist + browser/ + library/. Bake a stale one and the
-// app happily reuses programs compiled by a different platform.
+// ⚠ ONLY the bundles. This briefly ran `stamp-version.mjs` instead, to be sure
+// the baked BUILD_ID described the baked platform — and that was the right worry
+// with the wrong cure. stamp-version is a DERIVE rule: besides writing
+// bundles/version.json it stamps service-worker.js, index.html and every
+// apps/*/index.html, which are the WEB's cache-busters and no business of a mac
+// build. Running it here made a per-machine app build write 21 committed
+// web-facing files, and inverted the one-way dependency stated above.
 //
-// stamp-version.mjs is exactly this step of `derive` — it rebuilds the stale
-// bundles FIRST and then hashes them, in that order, for that reason — and it is
-// idempotent, so running it here costs nothing when derive already has.
-// Deriving the id is derive's job; this borrows the tool rather than repeating
-// the half of it that matters to the app.
-step("platform (bundles + build id)", process.execPath,
-     [path.join(ROOT, "tools/internal/stamp-version.mjs")], ROOT,
-     "the platform bundles did not rebuild — see the error above.");
+// The id is computed from what was BAKED instead (see `toolchain` below), which
+// is both narrower and more correct.
+const rebuilt = rebuildStale(ROOT, { log: (m) => say("  " + m) });
+if (rebuilt.length === 0) say("  bundles up to date");
 
 // 3. The Swift binary. build.sh owns the JIT entitlement and its own
 //    "did the binary actually move?" check — this does not reimplement either.
@@ -204,18 +202,48 @@ for (const item of BAKE) {
   }
 }
 
-// ── Info.plist ──────────────────────────────────────────────────────────────
+// Content hashing, shared by the toolchain id and the copy check below.
+const hashOf = (f) => createHash("sha256").update(readFileSync(f)).digest("hex");
+function filesUnder(dir, rel = "") {
+  const out = [];
+  for (const e of readdirSync(path.join(dir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
+    if (e.name === ".DS_Store") continue;
+    const r = path.join(rel, e.name);
+    if (e.isDirectory()) out.push(...filesUnder(dir, r));
+    else out.push(r);
+  }
+  return out;
+}
+
+// ── the toolchain id ────────────────────────────────────────────────────────
 //
-// NO DeclareDistroRoot. The app used to stamp the tree it was built from and
-// read its compiler and library back out of it at run time; baking the platform
-// (2121b331) ended the need, and severing the last of it is what makes "which
-// platform is this app running?" a question with one answer. DeclareToolchain
-// stays: it is this app's own IDENTITY, reported by `ctl platform`, not a thing
-// to compare against a tree.
-const toolchain = (() => {
-  try { return JSON.parse(readFileSync(path.join(ROOT, "bundles/version.json"), "utf8")).build; }
-  catch { return "unstamped"; }
-})();
+// A content hash of WHAT THIS APP BAKED, computed here and written only into the
+// app. It is not decoration: `Resources/bundles/version.json` is the first of the
+// three things the compile cache validates against (CompileService, "WHAT MAKES
+// A CACHED COMPILE STILL VALID"), so it answers "does this cached compile come
+// from the platform I am running?".
+//
+// ⚠ THAT IS A QUESTION ABOUT THE APP, NOT ABOUT A TREE — which is why this is no
+// longer the tree's `bundles/version.json`, copied. That file is derive's, and it
+// only describes the app when derive happens to have run since the last edit;
+// copy it on an underived tree and the app reuses programs compiled by a
+// different platform, silently. Hashing the baked bytes makes that impossible by
+// construction rather than by remembering to derive.
+//
+// Stable when the content is: a rebuild that changes nothing keeps the id, and
+// so keeps the compile cache. `ctl platform` reports it.
+const bakedHashes = BAKE.map((item) => {
+  const src = path.join(ROOT, item.from);
+  const one = (f) => `${path.relative(ROOT, f)}:${hashOf(f)}`;
+  return item.dir
+    ? filesUnder(src).filter((f) => !item.only || item.only.test(f))
+                     .map((f) => one(path.join(src, f))).join("\n")
+    : one(src);
+}).join("\n");
+const toolchain = createHash("sha256").update(bakedHashes).digest("hex").slice(0, 12);
+mkdirSync(path.join(OUT, "Contents/Resources/bundles"), { recursive: true });
+writeFileSync(path.join(OUT, "Contents/Resources/bundles/version.json"),
+              JSON.stringify({ build: toolchain }, null, 2) + "\n");
 writeFileSync(path.join(OUT, "Contents/Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -269,17 +297,6 @@ writeFileSync(path.join(OUT, "Contents/Info.plist"), `<?xml version="1.0" encodi
 // ── verify, before signing ──────────────────────────────────────────────────
 //
 // Both halves of the rule. See the header for why neither alone is sufficient.
-const hashOf = (f) => createHash("sha256").update(readFileSync(f)).digest("hex");
-function filesUnder(dir, rel = "") {
-  const out = [];
-  for (const e of readdirSync(path.join(dir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
-    if (e.name === ".DS_Store") continue;
-    const r = path.join(rel, e.name);
-    if (e.isDirectory()) out.push(...filesUnder(dir, r));
-    else out.push(r);
-  }
-  return out;
-}
 
 const stale = [], mismatched = [];
 const manifest = {};

@@ -86,9 +86,30 @@ checkout and it compiles and runs programs.
 The only thing it reads from outside itself is **the program** — which is the document,
 not the platform.
 
-`Info.plist` carries one stamp, `DeclareToolchain`: the `BUILD_ID` of the platform baked
-inside, reported by `ctl platform`. It is an identity, not a comparison — there is nothing
-to compare it against.
+### The toolchain id
+
+The app carries one id, in two places: `Info.plist`'s `DeclareToolchain` and
+`Resources/bundles/version.json`. Both are a **content hash of what this build baked**,
+computed at bake time — not the tree's `bundles/version.json`, copied.
+
+That distinction is load-bearing in exactly one of the two. The `Info.plist` stamp is a
+record: `ctl platform` reports it and nothing branches on it. `version.json` is not — it
+is the first of the three things the compile cache validates against
+(`CompileService.swift`, *"WHAT MAKES A CACHED COMPILE STILL VALID"*), so it answers "does
+this cached compile come from the platform I am running?".
+
+That is a question about **the app**, which is why it is no longer the tree's file. The
+tree's `BUILD_ID` is derive's, and it describes the app only when derive happens to have
+run since the last edit; copy it on an underived tree and the app silently reuses programs
+compiled by a *different* platform. Hashing the baked bytes makes that impossible by
+construction rather than by remembering to derive — and the id is stable when the content
+is, so a rebuild that changes nothing keeps the cache.
+
+It also means **a mac build writes nothing into the tree.** An earlier version of this
+build ran derive's `stamp-version` to keep the id honest, which also stamps
+`service-worker.js`, `index.html` and every `apps/*/index.html` — the *web's*
+cache-busters, twenty-one committed files, written by a per-machine app build. The
+dependency runs one way.
 
 > **`DECLARE_ROOT` is gone.** It used to point a built app at a tree, which meant "which
 > runtime is this app running?" had three possible answers resolved at launch. Both
