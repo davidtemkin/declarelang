@@ -44,6 +44,18 @@ await build({
   platform: "browser",
   target: "es2022",
   minify: true,
+  // ⚠ KEEP CLASS NAMES. The runtime labels constraints and diagnostics with
+  // `this.constructor.name` (view.ts `.draw`, markdown.ts `.render`, state.ts's
+  // gated-state error, stylesheet.ts, editor.ts), and the Inspector shows that
+  // name as a node's type. Minified without this, every one of them collapses
+  // to an esbuild identifier: MEASURED on the calendar, the Inspector's root
+  // row read `n` and its first child `cn`. The tree's other type labels survive
+  // only because they come from parsed-program DATA rather than a JS
+  // identifier — so the degradation is silent and partial, which is worse than
+  // total. Costs ~10 KB. Nothing keys a lookup on a JS name (every `.name` in
+  // the runtime is a parsed-program field), so this buys legibility, not
+  // correctness. The mac bundle carries the same flag for the same reason.
+  keepNames: true,
   sourcemap: process.env.BOOT_SOURCEMAP ? true : false,
   legalComments: "none",
   outfile: OUT,
