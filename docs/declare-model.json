@@ -43112,6 +43112,14 @@
      "preview": "This document supersedes the 13-question motion design proposal (also dated 2026-07-02, written earlier the same day). It is not a proposal — it is the record of the human's ruling, delivered in a live walk-through, on every question that p…"
     },
     {
+     "name": "App packaging",
+     "subtitle": "what travels with a built program",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/app-packaging.md",
+     "preview": "Status: DESIGNED, NOT YET BUILT, 2026-08-18 (David's ruling: \"it's a file, unless there's an https in front of the source, and the files just are considered packaged; http sources — regardless of type, media, datasource, font — are not, eve…"
+    },
+    {
      "name": "What ships, and why it is not worth shrinking further",
      "subtitle": "",
      "kind": "doc",
