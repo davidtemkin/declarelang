@@ -20,7 +20,7 @@ Everything in this section was run, not recalled.
 |---|---|
 | `swift build -c release` | clean in **9.4 s**, warnings only (Swift 6.3.3, `arm64-apple-macosx26.0`, package targets `.macOS(.v14)`) |
 | `tools/internal/build-mac.mjs` | `declare-mac.js` **655 KB raw / 168 KB gzipped**; `declare-compiler-mac.js` 5.8 MB / 1.28 MB gzipped (on-demand) |
-| `mac-host/bundle.sh` | assembles `Declare Mac.app` — Swift shell + `mac-env.js` + the runtime bundle in Resources |
+| `mac-host/bundle.sh` | assembles `Declare Mac.app` — Swift shell + `mac-env.js` + the runtime bundle in Resources (superseded: `tools/internal/build-mac-app.mjs` now bakes the whole platform and verifies it — see `operational/mac-host.md`) |
 | `test/conform/conform.test.mjs --mac` | **7 passed, 0 failed**, three hosts agreeing: `dom`, `canvas`, `mac` |
 | `mac-host/gate.mjs` | **12 programs, 0 failing**, 1 without a baseline (`lzx-weather`) |
 
@@ -117,11 +117,16 @@ running host**. `conform --mac` refuses with the command to start one rather tha
 launching it itself. In full:
 
 ```
-npm run build && node tools/internal/build-mac.mjs
-bash mac-host/bundle.sh /tmp
-DECLARE_CONTROL=1 '/tmp/Declare Mac.app/Contents/MacOS/Declare Mac' &
+npm run build:mac
+DECLARE_CONTROL=1 '/Applications/Declare Mac.app/Contents/MacOS/Declare Mac' &
 node test/conform/conform.test.mjs --mac && node mac-host/gate.mjs
 ```
+
+The harnesses drive the INSTALLED app, not a bare binary — `mac-host/app.mjs` is the
+one place that answers "where is it?". They used to disagree about that: the gates
+drove an installed `.app` while `mac-shell.test.mjs` and `parity.mjs` spawned
+`.build/release/DeclareMac` with `DECLARE_ROOT` set, so half the rigs measured a
+tree-reading configuration that nobody ships.
 
 `DECLARE_CONTROL=1` is what opens the control channel the harness drives; the run
 navigates the host to its own ephemeral server. This is why the Mac gates are not in

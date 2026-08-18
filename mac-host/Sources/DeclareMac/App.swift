@@ -412,19 +412,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.appearance = NSAppearance(named: forced == "dark" ? .darkAqua : .aqua)
         }
         // The brand icon (generated from the desktop's own Declare Viewer glyph
-        // — mac-host/make-icon.mjs). A BUNDLED app gets it from Info.plist, but
-        // the dev loop runs the bare .build/release binary, which macOS gives
-        // the generic executable icon — so set it at runtime from wherever the
-        // icns is findable: the bundle's Resources first, then the checkout.
-        for dir in [Bundle.main.resourceURL,
-                    ProcessInfo.processInfo.environment["DECLARE_ROOT"].map { URL(fileURLWithPath: $0).appendingPathComponent("mac-host") }].compactMap({ $0 }) {
-            let icns = dir.appendingPathComponent("Declare.icns")
-            if let img = NSImage(contentsOf: icns) { NSApp.applicationIconImage = img; break }
-        }
+        // — mac-host/make-icon.mjs). Info.plist names it for the Finder; this
+        // sets it for the running process, from the same baked copy.
+        if let icns = Bundle.main.resourceURL?.appendingPathComponent("Declare.icns"),
+           let img = NSImage(contentsOf: icns) { NSApp.applicationIconImage = img }
         launched = true
         buildMenu()
-        Bridge.checkToolchain()
-        Bridge.checkPlatformFreshness()
+        Bridge.assertPlatform()
         // Before anything is compiled or laid out: is this engine actually
         // compiling? A signing slip costs 40x and presents as "the app is slow",
         // which is the least diagnosable thing a host can be.
@@ -564,6 +558,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return newWindow()
     }
 
+    /// `app.openWindow(url)` — a program asking for a window of its own. Always
+    /// a NEW one, never the empty-slot reuse `windowForOpening` does: the verb's
+    /// whole meaning is "beside what I am, not instead of it".
+    func openInNewWindow(_ url: String) {
+        let w = newWindow()
+        w.open(url)
+        w.present()
+    }
+
     func windowClosed(_ w: ProgramWindow) {
         windows.removeAll { $0 === w }
         sessionChanged()
@@ -653,6 +656,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let viewMenu = NSMenu(title: "View")
         viewMenu.addItem(withTitle: "Actual Size", action: nil, keyEquivalent: "0")
         viewMenu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        viewMenu.addItem(.separator())
+        // The titlebar carries these too, but the menu is where the keyboard
+        // shortcut lives, where Help search finds them, and what VoiceOver
+        // navigates — a control that exists only as a button in the chrome is
+        // invisible to all three.
+        let insp = viewMenu.addItem(withTitle: "Inspector", action: #selector(toggleInspector), keyEquivalent: "i")
+        insp.keyEquivalentModifierMask = [.command, .option]      // ⌥⌘I, the browser convention
+        insp.target = self
+        viewMenu.addItem(withTitle: "Source", action: #selector(toggleViewer), keyEquivalent: "u").target = self
+        viewMenu.addItem(.separator())
+        // ⌘[ / ⌘] — Safari's and the Finder's, not ⌘← (which is line-start in
+        // every text field the Viewer's edit tab puts on screen).
+        viewMenu.addItem(withTitle: "Back", action: #selector(goBack), keyEquivalent: "[").target = self
+        viewMenu.addItem(withTitle: "Forward", action: #selector(goForward), keyEquivalent: "]").target = self
         viewItem.submenu = viewMenu
         main.addItem(viewItem)
 
@@ -701,6 +718,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func reload() { front?.reload() }
+
+    /// ⌥⌘I / the titlebar control — the Inspector over the FRONT window's
+    /// program. A toggle, and per window: the overlay lives in that window's
+    /// own runtime (mac-boot toggleInspector), so two windows can be inspected
+    /// independently and neither knows about the other.
+    @objc func toggleInspector() { front?.toggleInspector() }
+
+    /// ⌘U / the titlebar control — this window becomes a VIEW OF its program:
+    /// the Declare Viewer, showing the source, with the running app under its
+    /// Edit tab. A state of the window rather than a second window, because it
+    /// is another way of looking at the same thing.
+    @objc func toggleViewer() { front?.toggleViewer() }
+
+    /// History is per WINDOW (ProgramWindow.trail), so these address the front
+    /// one exactly as the toggles above do.
+    @objc func goBack() { front?.goBack() }
+    @objc func goForward() { front?.goForward() }
 }
 
 @main

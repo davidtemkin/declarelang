@@ -296,13 +296,31 @@ final class ControlChannel {
             // What a person would have been shown in a dialog. "-" means the
             // program loaded; anything else is the failure, verbatim.
             return bridge.lastError ?? "-"
+        case "chrome":
+            // `chrome inspector|source` — the titlebar toggles, which a rig
+            // cannot reach any other way: `click` speaks the program's MODEL
+            // coordinates, and the title bar is not in them.
+            guard let w = (NSApp.delegate as? AppDelegate)?.front else { return "no window" }
+            switch a.count > 1 ? a[1] : "" {
+            case "inspector": w.toggleInspector()
+            case "source": w.toggleViewer()
+            case "back": w.goBack()
+            case "forward": w.goForward()
+            case "": break
+            default: return "usage: chrome [inspector|source|back|forward]"
+            }
+            return "source=\(w.viewing ? "on" : "off")  inspector=\(w.inspectorOpen ? "on" : "off")"
+                 + "  back=\(w.canGoBack ? "on" : "off")  forward=\(w.canGoForward ? "on" : "off")"
+                 + "  url=\(w.currentURL)"
         case "platform":
-            // Where the compiler and library are being read from, and whether
-            // this app is behind the tree beside it — the question a rig must
-            // be able to ask before it trusts a measurement.
-            let base = Bridge.platformBase()
-            return "platform=" + (base.isEmpty ? "(tree: " + Bridge.distroBase() + ")" : base)
-                 + "\n  stale: " + (Bridge.staleWarning.isEmpty ? "no" : Bridge.staleWarning)
+            // Where the compiler and library are being read from, and WHICH
+            // platform was baked here — the question a rig must be able to ask
+            // before it trusts a measurement. There is no "is it stale?" half
+            // any more: the platform is fixed when the app is built, and
+            // bundle.sh will not assemble a stale one.
+            let stamp = Bundle.main.object(forInfoDictionaryKey: "DeclareToolchain") as? String
+            return "platform=" + Bridge.platformBase()
+                 + "\n  toolchain: " + (stamp.flatMap { $0.isEmpty ? nil : $0 } ?? "unstamped")
         case "statsreset":
             bridge.resetStats()
             return "ok"

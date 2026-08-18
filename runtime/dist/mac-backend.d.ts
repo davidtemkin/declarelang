@@ -327,6 +327,24 @@ export declare function surfaceById(id: number): {
     width: number;
     height: number;
 } | null;
+/** A CHROME surface: host-owned, inserted as the root's last child so it paints
+ *  and hit-tests above everything the running program has.
+ *
+ *  The native answer to the DOM's overlay host (`inspector-boot` appends a
+ *  viewport-covering div beside the app). Nothing in the program declares this
+ *  — it belongs to the host, which is what lets the Inspector be chrome ABOUT a
+ *  program rather than something inside it. An app mounted into it reaches
+ *  input by the ordinary walk, in the ordinary order: topmost first, falling
+ *  through wherever the chrome states `pointerEvents = "none"`.
+ *
+ *  Returns null before a root is attached. `sizeOverlay` keeps it on the
+ *  window; `dropOverlay` removes it. */
+export declare function createOverlaySurface(): Surface | null;
+/** The root's live box — an overlay tracks the window through it. */
+export declare function rootBox(): {
+    width: number;
+    height: number;
+} | null;
 export declare function provideHitPath(fn: (d: string, x: number, y: number) => boolean): void;
 export declare class MacBackend implements RenderBackend {
     root: MacSurface | null;

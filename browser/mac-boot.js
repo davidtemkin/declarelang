@@ -32,10 +32,10 @@
 // native.
 
 import { build, mountApp, settle, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor,
-         Keys, Focus, deliverKeys } from "../runtime/dist/index.js";
+         Keys, Focus, deliverKeys, setInspectionTarget } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScroll, macWheel, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
-         publishChildName, macScrollTo, surfaceOrigin,
+         publishChildName, macScrollTo, surfaceOrigin, createOverlaySurface, rootBox,
          countOps, peekOps, macTraceHit } from "../runtime/dist/mac-backend.js";
 
 const H = globalThis.__declareMacHost;
@@ -47,7 +47,66 @@ provideHitPath((d, x, y) => H.pathHit(d, x, y));
 // Relative data URLs resolve against the PROGRAM's directory — the web
 // client's rule (boot-uniform's `new URL(url, mainDir)`), which is what makes
 // `url = "../../docs/declare-model.json"` mean the same thing in every host.
-provideTransport((url, opts) => fetch(new URL(url, globalThis.__declareBase || "http://localhost/").href, opts));
+provideTransport((url, opts) => {
+  const href = new URL(url, globalThis.__declareBase || "http://localhost/").href;
+  return readerRequest(href) ?? fetch(href, opts);
+});
+
+/** THE READER'S TWO REQUESTS, answered natively.
+ *
+ *  The Viewer reads a program through `<program>?segments` (highlighted spans +
+ *  line metrics) and `<program>?file` (the bytes). Those are DEV SERVER
+ *  endpoints — `server/create.mjs serveSource` — and Source mode on this host
+ *  routinely points at a `file:` program with no server anywhere, where they
+ *  answer nothing and the Viewer shows its chrome over an empty document.
+ *
+ *  So the host answers them itself. It can: `?file` is the read the host already
+ *  does, and `?segments` is `highlight()` on the compiler this app carries. Only
+ *  `file:` URLs are intercepted — an http program still gets the real endpoints
+ *  from the server that is serving it, which is the same answer by construction
+ *  (both sides call the same `highlight`).
+ *
+ *  `metrics` is deliberately absent: it costs a second toolchain entry point,
+ *  and viewer.declare already counts lines locally when the payload omits it
+ *  (`localMetrics`, written for static hosts, which is exactly this case).
+ *
+ *  Returns null when the request is not one of these, so the caller falls
+ *  through to the ordinary fetch. */
+function readerRequest(href) {
+  if (!/^file:/i.test(href)) return null;
+  const q = href.lastIndexOf("?");
+  if (q < 0) return null;
+  const kind = href.slice(q + 1);
+  if (kind !== "file" && kind !== "segments") return null;
+  const path = href.slice(0, q);
+  // ⚠ THE SHIM'S SHAPE, not `new Response`. There is no Response class in this
+  // context — mac-env's fetch resolves a plain object with exactly these
+  // members, and a synthesized reply that does not match it fails wherever a
+  // real one would have worked.
+  const reply = (status, body, type) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    url: href,
+    headers: { get: (k) => (String(k).toLowerCase() === "content-type" ? type : null) },
+    text: () => Promise.resolve(body),
+    json: () => Promise.resolve(JSON.parse(body)),
+  });
+  return (async () => {
+    const res = await fetch(path);
+    if (!res.ok) return reply(404, "not found: " + path, "text/plain");
+    const source = await res.text();
+    if (kind === "file") return reply(200, source, "text/plain");
+    // The compiler is loaded on demand; the reader is often the first thing to
+    // want it in a window that booted from cache.
+    if (!(await loadCompiler(platformBase()))) return reply(503, "no compiler", "text/plain");
+    try {
+      const segments = await globalThis.__declareCompiler.highlight(source);
+      return reply(200, JSON.stringify({ path: path.split("/").pop(), segments }), "application/json");
+    } catch (e) {
+      return reply(500, String((e && e.message) || e), "text/plain");
+    }
+  })();
+}
 
 // ── the ladder ──────────────────────────────────────────────────────────────
 
@@ -63,28 +122,27 @@ async function fromProduction(dirUrl) {
   } catch { return null; }
 }
 
-/** WHERE THE DISTRO IS for a given program — the base its LIBRARY and the
- *  compiler are read from. Two sources, one notion: a program served over http
- *  is served BY a distro, so the origin is it; a `.declare` opened from disk is
- *  not in any distro, so the host's stamp names one (Bridge.distroBase). This is
- *  the only thing the file: path needs that the http path does not. */
-function distroFor(programUrl) {
-  // A BAKED PLATFORM ANSWERS FIRST, and answers the same for every program:
-  // the compiler and library this app carries are the ones it was built with,
-  // so a program opened from disk on a machine with no Declare tree compiles
-  // (it could not before), and one served by a tree cannot pair that tree's
-  // compiler with this app's older runtime. Empty when the app carries no
-  // platform, or when DECLARE_ROOT elects the tree — then the two rules below,
-  // unchanged, still name a distro.
-  if (H.platform) return H.platform;
-  if (/^file:/i.test(programUrl)) return H.distro || "";
-  return new URL("/", programUrl).href;
-}
+/** WHERE THE LIBRARY AND THE COMPILER COME FROM: this app's baked platform,
+ *  for every program, always. `H.platform` is Contents/Resources laid out like
+ *  the tree (Bridge.platformBase), so the same URL joins resolve there.
+ *
+ *  ⚠ THE POINT IS THAT THERE IS NO CHOICE HERE. This used to pick between the
+ *  baked platform, a tree named by the host's stamp, and the serving origin of
+ *  an http program — three answers, resolved per program, at run time. That is
+ *  how an app could pair its own runtime with some other tree's compiler, which
+ *  is the mixture behind both recorded misdiagnoses on this host (2026-08-01
+ *  and 2026-08-17). The platform is now decided when the app is BUILT.
+ *
+ *  A program's OWN includes and assets still resolve beside the program — that
+ *  is the document, and it is a different question from this one. */
+const platformBase = () => H.platform || "";
 
 let compilerLoaded = false;
 async function loadCompiler(distro) {
   if (compilerLoaded) return true;
-  if (!distro) { log("no distro: cannot load the compiler (set DECLARE_ROOT or stamp the app)"); return false; }
+  // Only reachable from a bundle with no Resources, which Bridge.assertPlatform
+  // has already complained about by name.
+  if (!distro) { log("no baked platform: cannot load the compiler — rebuild with mac-host/bundle.sh"); return false; }
   const url = new URL("bundles/declare-compiler-mac.js", distro).href;
   const res = await fetch(url);
   if (!res.ok) return false;
@@ -158,7 +216,7 @@ function compileSource(url, src, dir, distro) {
 }
 
 async function fromClient(programUrl) {
-  const distro = distroFor(programUrl);
+  const distro = platformBase();
   const src = await (await fetch(programUrl)).text();
   // The program's OWN directory, absolute — which is what makes its includes
   // resolve beside IT while the library still resolves against the distro.
@@ -195,6 +253,18 @@ export async function macBoot(url) {
   // program the same way, and it is what resolves a live edit's includes.
   globalThis.__declareMain = base;
   const app = build(source, { deps });
+  // THE BOOT URL'S QUERY IS THE APP'S ENV. On the web a top-level app is reached
+  // by a URL and an EMBEDDED one is handed `env` by its host (host-client's
+  // parseEnv); natively there is no embedder, so the query is the only channel a
+  // window has for "run this program WITH these parameters".
+  //
+  // Source mode is what needed it: the window boots
+  // `apps/viewer/viewer.declare?program=<the program>`, and the Viewer reads
+  // `app.env.program` to know what to read. Without this it came up with its
+  // chrome and an empty document — the program it was pointed at simply never
+  // reached it.
+  const env = envFrom(base);
+  if (env !== null) app.env = env;       // REPLACE, never mutate (view.ts EMPTY_ENV)
   currentApp = app;
   globalThis.__app = app;
   liveApps.set(app, null);       // the root app can publish live edits too
@@ -248,7 +318,56 @@ function hostStub() {
            addEventListener() {}, removeEventListener() {}, isConnected: true, ownerDocument: globalThis.document };
 }
 
-const programName = (u) => (u.split("/").pop() || "app").replace(/\.declare$/, "");
+/** What to call a program that does not name itself: its FILE NAME.
+ *
+ *  ⚠ THE PATH ONLY — no query, no fragment. This used to be a bare
+ *  `split("/").pop()`, so a URL's query rode into the window title and the
+ *  Viewer announced itself as `desktop.declare?render=mac`.
+ *
+ *  Stripped unconditionally rather than by an allowlist, because none of the
+ *  three things a query can carry belongs in a title:
+ *
+ *    · the COMPILE MODIFIERS (`render`, `crawler`) address the host — the same
+ *      document rendered natively is the same document;
+ *    · the REQUEST TYPES (`viewer`, `file`, `segments`, `extract`, `build`,
+ *      `program`) name a representation, and where one is showing, the titlebar
+ *      already says so — the lit "View Source" chip is that statement;
+ *    · anything else is the program's own `env`, and a program that wants the
+ *      title to reflect it has `appName`, which is reactive, formatted, and
+ *      preferred over this.
+ *
+ *  An allowlist would also rot: reqtypes.ts is explicitly extensible ("a new
+ *  artifact slots in as a new REQ value"). "The file name" needs no upkeep.
+ *
+ *  Percent-decoded, so a path with spaces reads as a path and not as %20. */
+const programName = (u) => {
+  const file = u.split(/[?#]/)[0].split("/").pop() || "app";
+  let name = file.replace(/\.declare$/, "");
+  try { name = decodeURIComponent(name); } catch { /* leave it as written */ }
+  return name;
+};
+
+/** The boot URL's query as an `env` record, or null when there is no query.
+ *
+ *  Same coercions as the web's island env (host-client.js parseEnv) so that
+ *  `env.dark` is a boolean and `env.scale` a number in both places — a program
+ *  written against one host must not have to re-parse for the other. The
+ *  RENDER control (`?render=mac`) is dropped: it addresses the host, not the
+ *  program, and every gate URL carries it. */
+function envFrom(url) {
+  const q = url.indexOf("?");
+  if (q < 0) return null;
+  const env = {};
+  let any = false;
+  for (const [k, raw] of new URLSearchParams(url.slice(q + 1))) {
+    if (k === "render") continue;
+    any = true;
+    env[k] = raw === "true" || raw === "1" ? true
+           : raw === "false" || raw === "0" ? false
+           : raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
+  }
+  return any ? env : null;
+}
 
 /** Per-frame work the native host drives: settle-driven title, and the embed
  *  (AppIsland) wiring — the native peer of host-client's mountPreviews.
@@ -266,9 +385,154 @@ function startPumps(app) {
     if (app.appName !== title) { title = app.appName; H.setTitle(title || "Declare"); }
     wireEmbeds();
     liveTick();
+    navTick(app);
+    inspectTick(app);
   });
   H.needFrame();
 }
+
+/** THE TWO NAVIGATION CHANNELS, serviced. `app.navigate(url)` and
+ *  `app.openWindow(url)` are SERVICE ACTIONS (capabilities.md §6): the verb
+ *  writes a plain field, the host polls it on the next frame, acts, and clears
+ *  it. host-client.js does exactly this for the web.
+ *
+ *  ⚠ NOTHING SERVICED THEM HERE. Both fields were written and never read, so
+ *  every link in every program was dead on this host — silently, because a link
+ *  that does nothing looks like a link you missed. Found while adding
+ *  back/forward, which is what made it visible: a history with no way to travel
+ *  has nothing to remember.
+ *
+ *  Resolved against the PROGRAM, not the platform: a link says where it is
+ *  going relative to the file it is written in, the same rule its includes and
+ *  assets already follow. (The web resolves against DISTRO_ROOT because there a
+ *  program and the distro share an origin; here they need not.) */
+function navTick(app) {
+  const base = globalThis.__declareMain || globalThis.__declareBase || "";
+  if (app.pendingNav) {
+    const u = app.pendingNav; app.pendingNav = "";
+    H.navigate(new URL(u, base).href, false);
+  }
+  if (app.pendingOpen) {
+    const u = app.pendingOpen; app.pendingOpen = "";
+    H.navigate(new URL(u, base).href, true);   // true = a window of its own
+  }
+}
+
+// ── the Inspector, as chrome over the running program ───────────────────────
+//
+// `inspect(slot)` sets `pendingInspect` and the HOST decides what that means —
+// the same discipline as navigate() and openWindow(), so a `{ }` body never
+// reaches for a window. On the web `host-client` imports inspector-boot and
+// appends an overlay div; here the overlay is a chrome SURFACE at the top of
+// the layer tree (mac-backend createOverlaySurface) and the Inspector mounts
+// into it exactly as an island tenant does.
+//
+// ⚠ THIS ONLY WORKS BECAUSE `pointerEvents = "none"` STOPPED SEALING SUBTREES
+// (0762f6fb). The Inspector's root is transparent so presses fall through to
+// the program it is inspecting, while its own window states `"auto"` and takes
+// them back. Until that fix the native walk returned null at the transparent
+// root, so this overlay would have rendered perfectly and been completely dead
+// to input.
+
+let inspectorOverlay = null;   // the chrome surface, while the Inspector is up
+let inspectorApp = null;       // the Inspector's own app instance
+let inspectorBusy = false;
+
+function inspectTick(app) {
+  // Keep the overlay on the window: the root's box is the frame, and a resize
+  // moves it without anything else noticing.
+  if (inspectorOverlay !== null) {
+    const r = rootBox();
+    if (r !== null && (inspectorOverlay.width !== r.width || inspectorOverlay.height !== r.height)) {
+      inspectorOverlay.setWidth(r.width);
+      inspectorOverlay.setHeight(r.height);
+      if (inspectorApp !== null) { inspectorApp.hostWidth = r.width; inspectorApp.hostHeight = r.height; }
+    }
+  }
+  if (app.pendingInspect === null || inspectorBusy) return;
+  const slot = app.pendingInspect;
+  app.pendingInspect = null;
+  toggleInspector(app, slot).catch((e) => log("inspector: " + e.message));
+}
+
+/** Open the Inspector over `subject` (or over the child app in `slot`), or —
+ *  called again while it is up — take it down. A toggle, because the titlebar
+ *  control and ⌥⌘I are both toggles and there is one Inspector per window. */
+async function toggleInspector(subject, slot = "") {
+  if (inspectorOverlay !== null) { closeInspector(); return; }
+  inspectorBusy = true;
+  try {
+    // The subject: this app, or the tenant of a named island. An embedded
+    // subject also needs its ORIGIN — every coordinate the Inspector picks or
+    // highlights crosses that boundary (inspect-service), so a demo inside a
+    // panel highlights in the right place.
+    let target = subject, origin = undefined;
+    if (slot) {
+      for (const [child, sid] of childIslands) {
+        const box = surfaceById(sid);
+        if (box && wiredEmbeds.get(sid) === slot) { target = child; origin = surfaceOrigin(sid); break; }
+      }
+    }
+    const compiled = await inspectorProgram();
+    if (compiled === null) { log("inspector: could not load apps/inspector"); return; }
+    const ov = createOverlaySurface();
+    if (ov === null) { log("inspector: no root to overlay"); return; }
+    inspectorOverlay = ov;
+    // ⚠ NAME THE SUBJECT BEFORE THE FIRST SETTLE — the same order, and the same
+    // reason, as inspector-boot on the web. `Inspect.ready()` reads a plain
+    // module variable, not a reactive cell, so a constraint that runs before
+    // the target is set caches its answer and never re-derives: the Inspector
+    // came up with a populated tree and "no subject" in its header, because
+    // different constraints happened to run on different sides of the call.
+    setInspectionTarget(target, origin);
+    inspectorApp = mountCompiled(ov.id, compiled, {});
+    if (inspectorApp === null) { closeInspector(); return; }
+    settle(); flushOps(); H.needFrame();
+    H.inspectorState && H.inspectorState(true);
+    log("inspector: open over " + (slot || "the app"));
+  } finally { inspectorBusy = false; }
+}
+
+function closeInspector() {
+  setInspectionTarget(null);
+  if (inspectorOverlay !== null) {
+    clearEmbed(inspectorOverlay.id);
+    inspectorOverlay.destroy();
+    inspectorOverlay = null;
+  }
+  inspectorApp = null;
+  settle(); flushOps(); H.needFrame();
+  H.inspectorState && H.inspectorState(false);
+  log("inspector: closed");
+}
+
+/** The Inspector's own program. PLATFORM, not one of the apps: it ships inside
+ *  the bundle beside the compiler and the library (bundle.sh), so a host with
+ *  no Declare tree can still open it — the same self-containment the rest of
+ *  the platform now has. Compiled once per process and kept. */
+let inspectorCompiled = null;
+async function inspectorProgram() {
+  if (inspectorCompiled !== null) return inspectorCompiled;
+  // The Inspector is PLATFORM, not an application: it ships inside the app at
+  // the same relative path the tree uses (bundle.sh), so one URL names it.
+  const base = platformBase();
+  if (!base) return null;
+  const url = new URL("apps/inspector/inspector.declare", base).href;
+  try {
+    const src = await (await fetch(url)).text();
+    const dir = url.replace(/[^/]*$/, "");
+    const out = await compileSource(url, src, dir, base);
+    if (!out.source) { log("inspector: " + (out.report || "compile failed")); return null; }
+    inspectorCompiled = { source: out.source, deps: out.deps ?? {} };
+    return inspectorCompiled;
+  } catch (e) { log("inspector: " + e.message); return null; }
+}
+
+/** The host's own entry — what ⌥⌘I and the titlebar control call. */
+globalThis.__declareToggleInspector = () => {
+  if (currentApp) toggleInspector(currentApp).catch((e) => log("inspector: " + e.message));
+};
+globalThis.__declareInspectorOpen = () => inspectorOverlay !== null;
 
 // ── AppIsland: a whole program inside a box, natively ───────────────────────
 //
@@ -416,7 +680,7 @@ function watchLive(app, scopeBox) {
  *  in the editor above it. */
 async function compileLive(src) {
   const main = globalThis.__declareMain || "";
-  const distro = distroFor(main);
+  const distro = platformBase();
   const dir = main.replace(/[^/]*$/, "");
   try {
     // "" as the cache key: nothing to cache against, and the host skips the

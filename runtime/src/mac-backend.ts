@@ -964,6 +964,33 @@ export function surfaceById(id: number): { width: number; height: number } | nul
   return surfaces.get(id) ?? null;
 }
 
+/** A CHROME surface: host-owned, inserted as the root's last child so it paints
+ *  and hit-tests above everything the running program has.
+ *
+ *  The native answer to the DOM's overlay host (`inspector-boot` appends a
+ *  viewport-covering div beside the app). Nothing in the program declares this
+ *  — it belongs to the host, which is what lets the Inspector be chrome ABOUT a
+ *  program rather than something inside it. An app mounted into it reaches
+ *  input by the ordinary walk, in the ordinary order: topmost first, falling
+ *  through wherever the chrome states `pointerEvents = "none"`.
+ *
+ *  Returns null before a root is attached. `sizeOverlay` keeps it on the
+ *  window; `dropOverlay` removes it. */
+export function createOverlaySurface(): Surface | null {
+  if (macRoot === null) return null;
+  const s = new MacSurface();
+  surfaces.set(s.id, s);
+  s.setX(0); s.setY(0);
+  s.setWidth(macRoot.width); s.setHeight(macRoot.height);
+  macRoot.insertChild(s, null);
+  return s;
+}
+
+/** The root's live box — an overlay tracks the window through it. */
+export function rootBox(): { width: number; height: number } | null {
+  return macRoot === null ? null : { width: macRoot.width, height: macRoot.height };
+}
+
 /** Shape-clip point testing. The host owns Core Graphics paths, so it answers
  *  — memoized per (path, point) round to keep the hover walk cheap. */
 let pointInPathImpl: ((d: string, x: number, y: number) => boolean) | null = null;

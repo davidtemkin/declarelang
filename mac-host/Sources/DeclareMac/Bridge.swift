@@ -43,7 +43,12 @@ final class Bridge {
     var firstCommitAt: CFAbsoluteTime = 0
     let startedAt = CFAbsoluteTimeGetCurrent()
     var onTitle: ((String) -> Void)?
+    /// The Inspector's open state, pushed from JS when it changes.
+    var onInspector: ((Bool) -> Void)?
     var onBootFailed: ((String) -> Void)?
+    /// `app.navigate(url)` / `app.openWindow(url)` — the program asking to go
+    /// somewhere. `newWindow` distinguishes the two verbs.
+    var onNavigate: ((String, Bool) -> Void)?
     /// Fired ONCE per `boot()`, when the program first puts something on screen
     /// or gives up trying. "The window is no longer starting" — which is what
     /// ends the dock bounce and releases the deferred activation.
@@ -193,20 +198,29 @@ final class Bridge {
         } as @convention(block) () -> Double, forKeyedSubscript: "scale")
 
         host.setObject({ () -> String in
-            // DECLARE_APPEARANCE pins the answer. A comparison against the DOM is
-            // only a measurement if both sides are in the same theme, and the
-            // native host otherwise follows whatever the machine is set to while
-            // headless Chrome defaults to light — which reads as a huge, entirely
-            // spurious divergence. The harnesses set this; nothing else does.
-            if let forced = ProcessInfo.processInfo.environment["DECLARE_APPEARANCE"] {
-                return forced == "dark" ? "dark" : "light"
-            }
-            return NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? "dark" : "light"
+            Bridge.appearance()
         } as @convention(block) () -> String, forKeyedSubscript: "appearance")
+
+        // NAVIGATION, from the program to the window (mac-boot navTick). The
+        // program says WHERE; the host decides what a window is — which is the
+        // whole point of the channel, and why `newWindow` is the host's word and
+        // not the program's.
+        host.setObject({ [weak self] (url: String, newWindow: Bool) in
+            self?.onNavigate?(url, newWindow)
+        } as @convention(block) (String, Bool) -> Void, forKeyedSubscript: "navigate")
 
         host.setObject({ [weak self] (title: String) in
             self?.onTitle?(title)
         } as @convention(block) (String) -> Void, forKeyedSubscript: "setTitle")
+
+        // The Inspector opened or closed. PUSHED from JS rather than polled:
+        // mounting is async (compile, then mount), so the titlebar control read
+        // `false` if it asked immediately after asking for the toggle — and
+        // polling every frame would mean a Swift→JS call per frame to serve a
+        // button that changes twice a session.
+        host.setObject({ [weak self] (open: Bool) in
+            self?.onInspector?(open)
+        } as @convention(block) (Bool) -> Void, forKeyedSubscript: "inspectorState")
 
         host.setObject({ [weak self] (msg: String) in
             self?.lastError = msg
@@ -296,19 +310,35 @@ final class Bridge {
                                             (url as NSString).lastPathComponent))
         } as @convention(block) (String, String) -> Void, forKeyedSubscript: "evaluate")
 
-        // WHERE THE DISTRO IS, as a file:// base the JS side can resolve against.
-        // A program opened from disk lives anywhere; its LIBRARY and the compiler
-        // still come from a Declare tree, and this names that tree. Same notion the
-        // http path gets from the serving origin — one concept, two sources.
-        host.setObject(Self.distroBase(), forKeyedSubscript: "distro")
-
         // WHERE THE PLATFORM IS — the compiler and the library, as a base to
-        // resolve against. "" when this app carries no baked platform (an app
-        // built before bundle.sh baked one) or when DECLARE_ROOT says to run the
-        // tree; the JS side falls back to `distro` exactly as it always did.
+        // resolve against. Always this app's own Resources: the platform is
+        // chosen at BUILD time and there is no second answer at run time.
         host.setObject(Self.platformBase(), forKeyedSubscript: "platform")
 
         ctx.setObject(host, forKeyedSubscript: "__declareMacHost" as NSString)
+    }
+
+    /// The theme the program is rendering in — "dark" or "light".
+    ///
+    /// DECLARE_APPEARANCE pins the answer. A comparison against the DOM is only
+    /// a measurement if both sides are in the same theme, and the native host
+    /// otherwise follows whatever the machine is set to while headless Chrome
+    /// defaults to light — which reads as a huge, entirely spurious divergence.
+    ///
+    /// ⚠ TRUSTING THE HARNESS TO SET IT IS NOT ENOUGH, which is why this is a
+    /// shared function and not a closure. `gate.mjs` drives an app it did not
+    /// launch, so it cannot set the variable — and on 2026-08-17, run against a
+    /// host on a machine that had gone dark, it reported calendar 99.98%
+    /// differing and desktop 33.27% as REGRESSIONS, deterministic across runs
+    /// and unmoved by stashing the working tree. Two entirely false failures
+    /// that read exactly like a broken renderer. So the window PUBLISHES this
+    /// (`publishGeometry`) and the web side matches it, rather than both sides
+    /// assuming they agree.
+    static func appearance() -> String {
+        if let forced = ProcessInfo.processInfo.environment["DECLARE_APPEARANCE"] {
+            return forced == "dark" ? "dark" : "light"
+        }
+        return NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? "dark" : "light"
     }
 
     static func hash(_ s: String) -> String {
@@ -360,172 +390,58 @@ final class Bridge {
         }
     }
 
-    /// Scripts live beside the distro (dev) or in the app bundle (shipped).
+    /// The host's own scripts (mac-env.js, declare-mac.js), from this app.
+    ///
+    /// ONE SOURCE, and it is the bundle. There used to be a tree fallback and a
+    /// DECLARE_ROOT override in front of it, which meant "which runtime is this
+    /// app running?" had three possible answers resolved at launch. Both
+    /// recorded misdiagnoses on this host are that ambiguity: 2026-08-01, a
+    /// diagnosis made against a bundle when the tree was meant; 2026-08-17, a
+    /// fix written, built, and then debugged for a full cycle against an app
+    /// still running the previous runtime. The platform is now chosen when the
+    /// app is BUILT — bundle.sh cannot bake a stale one — so there is nothing
+    /// left for a run-time switch to disambiguate.
     static func resource(_ name: String) -> URL? {
-        // AN EXPLICIT DECLARE_ROOT WINS over the bundled copy. A shipped
-        // Declare Mac.app carries its own runtime in Contents/Resources and
-        // must keep using it — that self-containment is the point. But a
-        // developer who sets DECLARE_ROOT is saying "run the tree I am
-        // editing", and Bundle.main being consulted first made that a lie:
-        // rebuilding bundles/declare-mac.js changed nothing, the app went on
-        // running whatever bundle.sh had baked into it, and a whole diagnosis
-        // was made against stale code before the discrepancy surfaced
-        // (2026-08-01). Silent staleness in a conformance host is worse than
-        // no host.
-        if ProcessInfo.processInfo.environment["DECLARE_ROOT"] != nil {
-            let root = distroRoot()
-            for sub in ["browser", "bundles"] {
-                let u = root.appendingPathComponent(sub).appendingPathComponent(name)
-                if FileManager.default.fileExists(atPath: u.path) { return u }
-            }
-        }
-        if let b = Bundle.main.url(forResource: name, withExtension: nil) { return b }
-        let root = distroRoot()
-        for sub in ["browser", "bundles"] {
-            let u = root.appendingPathComponent(sub).appendingPathComponent(name)
-            if FileManager.default.fileExists(atPath: u.path) { return u }
-        }
-        return nil
+        Bundle.main.url(forResource: name, withExtension: nil)
     }
-
-    /// The stamped distro as a `file://` base (trailing slash), or "" when none
-    /// can be found. DECLARE_ROOT wins (a developer saying "run the tree I am
-    /// editing"), then the Info.plist stamp bundle.sh bakes in, then the walk up
-    /// from the executable. An env var alone is not enough: a Finder launch
-    /// inherits launchd's environment, not a shell's, so a double-clicked app
-    /// would see nothing at all.
-    static func distroBase() -> String {
-        if let stamp = Bundle.main.object(forInfoDictionaryKey: "DeclareDistroRoot") as? String,
-           !stamp.isEmpty,
-           ProcessInfo.processInfo.environment["DECLARE_ROOT"] == nil,
-           FileManager.default.fileExists(atPath: stamp + "/bundles/declare-mac.js") {
-            return URL(fileURLWithPath: stamp, isDirectory: true).absoluteString
-        }
-        let r = distroRoot()
-        guard FileManager.default.fileExists(atPath: r.appendingPathComponent("bundles/declare-mac.js").path)
-        else { return "" }
-        return r.absoluteString.hasSuffix("/") ? r.absoluteString : r.absoluteString + "/"
-    }
-
-    /// Warn when this app was assembled from a DIFFERENT platform than the tree
-    /// it is now reading. The app carries its own declare-mac.js but fetches the
-    /// COMPILER from the distro, so a tree that moved on pairs an old runtime
-    /// with a new compiler — silent, and the exact shape of the 2026-08-01
-    /// misdiagnosis. Advisory only: a dev tree moves constantly and refusing to
-    /// launch would be worse than saying so.
-    static func checkToolchain() {
-        guard let stamped = Bundle.main.object(forInfoDictionaryKey: "DeclareToolchain") as? String,
-              !stamped.isEmpty, stamped != "unstamped" else { return }
-        let base = distroBase()
-        guard !base.isEmpty, let u = URL(string: base + "bundles/version.json"),
-              let data = try? Data(contentsOf: u),
-              let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let current = j["build"] as? String else { return }
-        if current != stamped {
-            NSLog("[Declare] ⚠︎ this app was built from platform %@; the tree now reads %@. "
-                  + "Re-run mac-host/bundle.sh — its bundled runtime and the tree's compiler may disagree.",
-                  stamped, current)
-        }
-    }
-
-    /// ⚠ THE CHECK ABOVE CANNOT SEE THE COMMON CASE, which is why this exists.
-    /// `DeclareToolchain` is the BUILD_ID, and that only moves when a derive/
-    /// stamp pass runs — so the ordinary edit loop (`npm run build`, i.e. tsc
-    /// into runtime/dist) leaves both sides reading the same id while the baked
-    /// platform is genuinely stale. Measured on 2026-08-17: a fix was written,
-    /// built, and then diagnosed for a full cycle against an app still running
-    /// the previous runtime, with checkToolchain correctly silent throughout.
-    ///
-    /// So use the platform's OWN freshness rule instead of its version stamp:
-    /// mtime, the currency `tools/internal/bundle-freshness.mjs` already gates
-    /// every bundle on. Any input newer than the artifact baked into this app
-    /// means the app is behind the tree beside it. Advisory — a dev tree moves
-    /// constantly — but now it is SAID, and `ctl lasterror` can see it.
-    ///
-    /// Silent under the two conditions that matter: no tree reachable (a
-    /// shipped app on someone else's machine) and DECLARE_ROOT set (the tree is
-    /// being read live, so nothing is frozen to be stale).
-    static func checkPlatformFreshness() {
-        guard ProcessInfo.processInfo.environment["DECLARE_ROOT"] == nil,
-              !platformBase().isEmpty,
-              let res = Bundle.main.resourceURL else { return }
-        let root = distroRoot()
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: root.appendingPathComponent("runtime/dist").path) else { return }
-
-        func mtime(_ u: URL) -> Date? {
-            (try? fm.attributesOfItem(atPath: u.path)[.modificationDate]) as? Date
-        }
-        /// The newest mtime anywhere under a path — the bundle-freshness walk.
-        func newest(_ u: URL) -> Date {
-            guard let vals = try? u.resourceValues(forKeys: [.isDirectoryKey]) else { return .distantPast }
-            if vals.isDirectory != true { return mtime(u) ?? .distantPast }
-            guard let kids = try? fm.contentsOfDirectory(at: u, includingPropertiesForKeys: [.isDirectoryKey])
-            else { return .distantPast }
-            return kids.reduce(Date.distantPast) { max($0, newest($1)) }
-        }
-
-        // Each baked artifact against the tree inputs it is built from — the
-        // same pairing BUNDLES declares, so the two rules cannot drift apart.
-        let checks: [(String, [String])] = [
-            ("declare-mac.js", ["runtime/dist", "browser"]),
-            ("bundles/declare-compiler-mac.js", ["runtime/dist", "compiler/dist"]),
-            ("library", ["library"]),
-        ]
-        var behind: [String] = []
-        for (artifact, inputs) in checks {
-            guard let built = mtime(res.appendingPathComponent(artifact)) else { continue }
-            let newestInput = inputs
-                .map { newest(root.appendingPathComponent($0)) }
-                .reduce(Date.distantPast, max)
-            if newestInput > built { behind.append(artifact) }
-        }
-        guard !behind.isEmpty else { return }
-        let msg = "this app's baked platform is older than the tree at \(root.path) "
-            + "(\(behind.joined(separator: ", "))). Re-run: node tools/internal/build-mac.mjs "
-            + "&& bash mac-host/bundle.sh — or set DECLARE_ROOT to run the tree directly."
-        NSLog("[Declare] ⚠︎ %@", msg)
-        staleWarning = msg
-    }
-
-    /// The freshness complaint, if any — surfaced through `ctl lasterror` so a
-    /// measuring rig can refuse to trust its own numbers.
-    static var staleWarning = ""
 
     /// The BAKED platform — `Contents/Resources/`, laid out like the tree
-    /// (`bundles/…`, `library/…`) — as a `file://` base, or "" when there is
-    /// none to use.
+    /// (`bundles/…`, `library/…`) — as a `file://` base with a trailing slash.
     ///
     /// This is what makes the app independent of a Declare tree: the compiler
     /// and the library resolve against it exactly as they resolved against a
     /// distro, because the shape is the same and every reader was already a URL
     /// join over a fetch host that speaks `file:`.
     ///
-    /// ⚠ DECLARE_ROOT STILL WINS, and it is the whole developer story: with it
-    /// set this returns "" and the compiler, the library and (via
-    /// `resource(_:)`) the runtime all come from the tree being edited. One
-    /// switch moves the entire platform, so the three can never disagree —
-    /// which is the mixture that cost the 2026-08-01 misdiagnosis and cost
-    /// another session on 2026-08-17.
+    /// THERE IS NO SECOND ANSWER. This used to return "" for a tree-elected or
+    /// unbaked app, and every caller carried a fallback to a Declare tree found
+    /// on disk — which is how an app could run its own runtime against some
+    /// other tree's compiler. The platform is chosen when the app is BUILT
+    /// (bundle.sh bakes it and refuses to bake a stale one), so an app that
+    /// reaches here without one is not a dev convenience, it is broken.
     static func platformBase() -> String {
-        if ProcessInfo.processInfo.environment["DECLARE_ROOT"] != nil { return "" }
-        guard let res = Bundle.main.resourceURL,
-              FileManager.default.fileExists(
-                atPath: res.appendingPathComponent("bundles/declare-compiler-mac.js").path)
-        else { return "" }
+        guard let res = Bundle.main.resourceURL else { return "" }
         let s = res.absoluteString
         return s.hasSuffix("/") ? s : s + "/"
     }
 
-    static func distroRoot() -> URL {
-        if let env = ProcessInfo.processInfo.environment["DECLARE_ROOT"] { return URL(fileURLWithPath: env) }
-        // …/mac/.build/<cfg>/DeclareMac → the distro two levels above `mac/`
-        var u = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
-        for _ in 0..<6 {
-            u = u.deletingLastPathComponent()
-            if FileManager.default.fileExists(atPath: u.appendingPathComponent("bundles/declare-mac.js").path) { return u }
+    /// Refuse to run half a platform. Every file bundle.sh bakes is required at
+    /// launch, because the alternative is what this host used to do: start
+    /// anyway, fall back to whatever tree it could find, and fail later as
+    /// "unknown component 'Button'" or "no distro: cannot load the compiler" —
+    /// symptoms that name the program, never the broken app.
+    static func assertPlatform() {
+        guard let res = Bundle.main.resourceURL else { return }
+        let need = ["declare-mac.js", "mac-env.js", "bundles/declare-compiler-mac.js",
+                    "library/autoincludes.json", "apps/inspector/inspector.declare",
+                    "apps/viewer/viewer.declare"]
+        let missing = need.filter {
+            !FileManager.default.fileExists(atPath: res.appendingPathComponent($0).path)
         }
-        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        guard !missing.isEmpty else { return }
+        NSLog("[Declare] ✗ this app's baked platform is incomplete (%@). "
+              + "It was not assembled by mac-host/bundle.sh, or the bundle was modified.",
+              missing.joined(separator: ", "))
     }
 
     // ── frame pump ──────────────────────────────────────────────────────────

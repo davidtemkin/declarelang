@@ -135,12 +135,16 @@ It is not shipped with this repo and not committed to it — the Swift sources a
 tracked, the built application is a per-machine artifact. You build it:
 
 ```bash
-bash mac-host/bundle.sh
+npm run build:mac
 ```
 
 It installs to `/Applications` when that is writable, else `~/Applications`, else
 beside its sources in `mac-host/`. An Applications directory is what lets macOS
 offer it as a document handler, so that is where a double-click starts working.
+
+The built app carries the whole platform — compiler, library, chrome programs — so
+it reads nothing from the tree it came from. Only the *program* comes from
+elsewhere.
 
 Once installed it opens a program three ways: a URL served by the dev server (the
 server compiles, nothing is downloaded), a directory holding a built artifact, or
@@ -153,7 +157,7 @@ What it is not is a way to *ship* an application. It runs Declare programs with
 the whole language and the standard library, but it is a runtime environment, not
 a packaging story: no standalone signed app with its own identity, no system
 integration, no per-program installer. `declarec --render mac` refuses for that
-reason. The full operational detail — stamps, `DECLARE_ROOT`, the gates — is in
+reason. The full operational detail — the build chain, the stamp, the gates — is in
 [`operational/mac-host.md`](../operational/mac-host.md).
 
 **Overlay effects are at parity.** Frosted surfaces — a menu's panel, a

@@ -17,6 +17,21 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     let view: DeclareView
     let bridge: Bridge
     private(set) var currentURL = ""
+    /// The titlebar's two toggles, kept in step with this window's state.
+    private var chrome: WindowChrome!
+    /// The titlebar's back/forward, likewise.
+    private var nav: WindowNav!
+    /// ⚠ CACHED, never queried. Asking JS for the Inspector's state means
+    /// `evaluateScript` on the main context — and `refreshChrome` is called
+    /// from `finishedStarting`, which runs inside a commit. Re-entering the
+    /// context there made the fidelity gate non-deterministic (calendar
+    /// 99.98% differing on one run, clean on the next). The state is PUSHED
+    /// from JS instead (Bridge.onInspector), so this is only ever read.
+    private var inspectorIsOpen = false
+    func refreshChrome() {
+        chrome?.refresh(viewing: viewing, inspecting: inspectorIsOpen)
+        nav?.refresh(canGoBack: canGoBack, canGoForward: canGoForward)
+    }
     /// Did a program ever load here? An empty window is a slot to reuse
     /// rather than a document to preserve.
     private(set) var loaded = false
@@ -44,7 +59,31 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         bridge.onTitle = { [weak self] t in self?.window.title = t.isEmpty ? "Declare" : t }
         bridge.onBootFailed = { [weak self] msg in self?.showError(msg) }
         bridge.onReady = { [weak self] in self?.finishedStarting() }
+        // The Inspector mounts asynchronously (compile, then mount), so the
+        // control cannot read its own effect right after asking for it — the
+        // state arrives here when it is true.
+        bridge.onInspector = { [weak self] open in self?.inspectorIsOpen = open; self?.refreshChrome() }
+        // A link the program followed. `.push`: this IS travel — it is the one
+        // navigation back/forward exist to walk.
+        //
+        // ⚠ NEXT TURN, NOT THIS ONE. navTick runs inside the frame observer, so
+        // this callback is reached from JS, from inside a commit. Booting here
+        // would re-enter the context to tear down and rebuild the very tree
+        // being iterated. Deferring costs one runloop turn and is the same
+        // shape the web has for free (the click's frame ends, then the
+        // navigation happens).
+        bridge.onNavigate = { [weak self] url, newWindow in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if newWindow { self.owner?.openInNewWindow(url) } else { self.open(url) }
+            }
+        }
         window.makeFirstResponder(view)
+        nav = WindowNav(owner: self)
+        window.addTitlebarAccessoryViewController(nav)
+        chrome = WindowChrome(owner: self)
+        window.addTitlebarAccessoryViewController(chrome)
+        refreshChrome()                 // back/forward start out with nowhere to go
         syncSize()
         // ⚠ NOT ordered front yet — see `present()`. A harness is the exception:
         // it addresses windows the moment it makes them.
@@ -76,7 +115,11 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         publishGeometry()
     }
 
-    func open(_ url: String) {
+    /// Load a program here. `history` says what this navigation MEANS: an
+    /// ordinary open is travel (`.push`), a reload or a mode change is not
+    /// (`.stay`), and back/forward are already moving the cursor (`.replay`).
+    func open(_ url: String, history: History = .push) {
+        if history == .push { remember(url) }
         currentURL = url
         loaded = true
         // Same rule as the session file: a harness's throwaway program is not
@@ -106,23 +149,182 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         guard starting else { return }
         starting = false
         present()
+        // Every boot, not just the first: present() is once-only, and a harness
+        // shoots whatever the LAST boot put on screen.
+        publishGeometry()
         owner?.endStarting()
+        inspectorIsOpen = false         // a fresh boot has no Inspector open
+        refreshChrome()
+        if inspectAfterBoot {           // "inspect this" asked for from Source mode
+            inspectAfterBoot = false
+            toggleInspector()
+        }
     }
 
-    @objc func reload() { if !currentURL.isEmpty { open(currentURL) } }
+    @objc func reload() { if !currentURL.isEmpty { open(currentURL, history: .stay) } }
+
+    // ── history ─────────────────────────────────────────────────────────────
+    //
+    // A back/forward stack of PROGRAMS, per window. Per window because history
+    // is about where you have been in THIS window — two windows exploring two
+    // programs share nothing else, and would be actively confusing sharing this.
+    //
+    // WHAT IT DOES NOT HOLD. Source mode is a way of LOOKING at the program you
+    // are on, not a place you went (see `viewing`), and a reload is not travel
+    // either. Both would make Back mean "undo the last thing I clicked" rather
+    // than "the program I was on before", and the difference only shows up when
+    // you are already lost, which is when you reach for Back.
+    //
+    // The shape is the browser's, because it is the one everybody already has:
+    // a cursor into a list; going somewhere new from the middle discards the
+    // forward half.
+    private var trail: [String] = []
+    private var trailAt = -1
+
+    /// What `open` should do to the trail.
+    enum History { case push, stay, replay }
+
+    var canGoBack: Bool { trailAt > 0 }
+    var canGoForward: Bool { trailAt >= 0 && trailAt < trail.count - 1 }
+
+    @objc func goBack() {
+        guard canGoBack else { return }
+        trailAt -= 1
+        travel()
+    }
+
+    @objc func goForward() {
+        guard canGoForward else { return }
+        trailAt += 1
+        travel()
+    }
+
+    /// Go where the cursor now points. Leaves Source mode on the way: the trail
+    /// holds programs, so arriving at one while the window is showing the Viewer
+    /// would land you on the right program in the wrong mode.
+    private func travel() {
+        viewing = false
+        subjectURL = ""
+        // Before the boot, not after it: the arrows describe the TRAIL, which
+        // has already moved, and a compile is long enough for a stale arrow to
+        // be clicked again.
+        refreshChrome()
+        open(trail[trailAt], history: .replay)
+    }
+
+    private func remember(_ url: String) {
+        // Re-opening what is already here (a reload, a re-boot of the same URL)
+        // is not a second visit.
+        if trailAt >= 0 && trail[trailAt] == url { return }
+        if trailAt < trail.count - 1 { trail.removeSubrange((trailAt + 1)...) }
+        trail.append(url)
+        trailAt = trail.count - 1
+    }
+
+    // ── the two ways of looking at this window's program ────────────────────
+
+    /// The Inspector, over whatever is running here. The overlay is built in
+    /// this window's own runtime, so the call is just a nudge across the
+    /// bridge; `open` state is read back the same way for the titlebar.
+    @objc func toggleInspector() {
+        // ONE AT A TIME. Turning the Inspector on while the window is showing
+        // Source means "go back to the program and inspect it" — and since
+        // leaving Source reboots the window, the request has to survive that
+        // boot rather than race it (`inspectAfterBoot`, paid out in onReady).
+        if viewing && !inspectorOpen {
+            inspectAfterBoot = true
+            toggleViewer()
+            return
+        }
+        bridge.ctx.evaluateScript("globalThis.__declareToggleInspector && __declareToggleInspector()")
+        refreshChrome()
+    }
+
+    /// An Inspector asked for while the window was in Source mode.
+    private var inspectAfterBoot = false
+
+    var inspectorOpen: Bool { inspectorIsOpen }
+
+    /// SOURCE MODE: the window stops running the program and starts running the
+    /// Declare Viewer ON it — reader, source, and an Edit tab with the program
+    /// live inside. Toggling back reloads the program itself.
+    ///
+    /// A STATE OF THIS WINDOW, not a second window: it is another way of
+    /// looking at the same thing, and a viewer beside its subject would leave
+    /// you managing two windows to read one program.
+    ///
+    /// ⚠ It does NOT enter history. Back/forward walk PROGRAMS; a mode that
+    /// pushed itself onto that stack would make Back flip the mode instead of
+    /// returning where you came from — confusing exactly when you are lost. So
+    /// `viewing` is remembered per window and survives navigation, while
+    /// `subjectURL` holds what to come back to.
+    private(set) var viewing = false
+    private var subjectURL = ""
+
+    @objc func toggleViewer() {
+        if viewing {
+            viewing = false
+            let back = subjectURL
+            subjectURL = ""
+            // `.stay`: coming back OUT of Source lands on the program you were
+            // already on. It is the same place, seen the usual way.
+            if !back.isEmpty { open(back, history: .stay) }
+        } else {
+            guard !currentURL.isEmpty else { return }
+            // ONE AT A TIME, the other direction. Entering Source replaces the
+            // running program, so an open Inspector would go with it anyway —
+            // closing it first keeps the control honest instead of letting it
+            // read "on" for an overlay that no longer exists.
+            if inspectorOpen {
+                bridge.ctx.evaluateScript("globalThis.__declareToggleInspector && __declareToggleInspector()")
+            }
+            subjectURL = currentURL
+            viewing = true
+            // The Viewer is a program like any other, told what to read through
+            // its env — the same `program=` the desktop's "View & Edit Source"
+            // passes. Relative to the viewer's own directory, as its transport
+            // base expects.
+            // `.stay`: Source is a mode, not a destination (see `trail`).
+            //
+            // ⚠ `?program=` IS A RESERVED REQUEST KEY (reqtypes.ts REQ.PROGRAM:
+            // "the compiled program as JSON"). It is the Viewer's env key — the
+            // desktop passes the same one through island env — and it is safe
+            // HERE only because this URL is a `file:` URL inside the app bundle,
+            // which no server ever classifies. Point Source mode at an http
+            // viewer URL and requestType would answer PROGRAM: the server would
+            // return viewer.declare COMPILED instead of running it.
+            open(Bridge.platformBase() + "apps/viewer/viewer.declare?program=" + (subjectURL.addingPercentEncoding(
+                withAllowedCharacters: .urlQueryAllowed) ?? subjectURL), history: .stay)
+        }
+        refreshChrome()
+    }
 
     /// The fidelity harness needs the exact content rect inside the window
     /// image; publishing it removes the guesswork (and a 32pt error).
     ///
     /// One file for a host that can now have several windows: it describes the
     /// FRONT one, which is the one a harness is shooting.
+    ///
+    /// The last field is the THEME, which is not geometry but belongs here for
+    /// the same reason the chrome height does: it is a property of the shot that
+    /// the shooter cannot see and must not guess (Bridge.appearance).
     func publishGeometry() {
-        guard owner?.front === self else { return }
+        // ⚠ `front` cannot answer for a window the owner has not adopted yet:
+        // newWindow() appends to `windows` AFTER init returns, so the publish in
+        // init — and the one in the automated present() — fell through this
+        // guard and wrote nothing. The remaining callers are a resize and a
+        // focus change, and a gate run does neither: it never resizes, and an
+        // app launched into the background never becomes key. So the file held
+        // whatever the last resize left in /tmp. Found 2026-08-18 holding a line
+        // 21 hours old, which is a stale CHROME HEIGHT (a mis-cropped shot) and,
+        // now that the theme rides along, a stale THEME.
+        let adopted = owner?.windows.contains(where: { $0 === self }) ?? false
+        guard !adopted || owner?.front === self else { return }
         let wf = window.frame
         guard let cv = window.contentView else { return }
         let chrome = wf.height - cv.frame.height
         let line = "\(Int(wf.width)) \(Int(wf.height)) \(Int(cv.frame.width)) \(Int(cv.frame.height))"
-                 + " \(Int(chrome)) \(Int(view.bounds.height))"
+                 + " \(Int(chrome)) \(Int(view.bounds.height)) \(Bridge.appearance())"
         try? line.write(toFile: "/tmp/declare-geom.txt", atomically: true, encoding: .utf8)
     }
 
@@ -153,7 +355,11 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         bridge.needsFrame()
     }
 
-    func appearanceChanged() { bridge.call("__declareEnvChanged", []); bridge.needsFrame() }
+    // Republish: the theme is in the geometry line, and it just changed.
+    func appearanceChanged() {
+        publishGeometry()
+        bridge.call("__declareEnvChanged", []); bridge.needsFrame()
+    }
 
     /// A dead end is unhelpful: offer the location prompt, since the usual
     /// cause is simply that the dev server is not running on this port.

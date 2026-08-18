@@ -31,6 +31,24 @@ const CHROME = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"].
 const TITLEBAR = 28;          // points of window chrome above the content
 const W = 1280, H = 800;      // the content size both sides render at
 
+/** What the host published about the shot it is about to hand over: the window
+ *  chrome to crop off, and the THEME it is rendering in.
+ *
+ *  ⚠ THE THEME IS NOT COSMETIC. The native host follows the machine's
+ *  appearance; headless Chrome always starts light. Compare those directly and
+ *  the number is the theme, not the renderer — measured 2026-08-17, a host on a
+ *  machine that had gone dark reported calendar 99.98% differing and desktop
+ *  33.27% against baselines of 0.62% and 9.09%. Deterministic, reproducible,
+ *  unmoved by stashing the working tree, and entirely false. So the web side is
+ *  told which theme to emulate rather than left to assume. */
+function hostState() {
+  const parts = readFileSync("/tmp/declare-geom.txt", "utf8").trim().split(" ");
+  return {
+    chrome: Number(parts[4] ?? 32),          // the app publishes its own chrome height
+    scheme: parts[6] === "dark" ? "dark" : "light",
+  };
+}
+
 // ── the native side: find the window, capture it, crop off the title bar ────
 function nativeShot(file) {
   const { id, x, y, w, h } = hostWindow();
@@ -39,8 +57,7 @@ function nativeShot(file) {
   // "from the top" — it left the title bar in, which is precisely the 32pt
   // phantom offset that made every early comparison look misaligned. PIL
   // crops from an explicit box, so the geometry is unambiguous.)
-  const geom = readFileSync("/tmp/declare-geom.txt", "utf8").trim().split(" ").map(Number);
-  const chrome = geom[4] ?? 32;               // the app publishes its own chrome height
+  const chrome = hostState().chrome;
   const scale = 2;
   // ALSO convert out of the display profile. screencapture tags its output with
   // the panel's profile ("Color LCD"), while headless Chrome writes untagged
@@ -63,12 +80,14 @@ function nativeShot(file) {
 }
 
 // ── the web side ────────────────────────────────────────────────────────────
-async function webShot(file, render) {
+async function webShot(file, render, scheme) {
   const b = await puppeteer.launch({
     executablePath: CHROME, headless: true, args: ["--no-sandbox", "--force-device-scale-factor=2"],
     defaultViewport: { width: W, height: H, deviceScaleFactor: 2 },
   });
   const p = await b.newPage();
+  // Match the theme the native side is actually in (see hostState).
+  await p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scheme }]);
   const u = URL_ARG + (render === "dom" ? "" : (URL_ARG.includes("?") ? "&" : "?") + "render=" + render);
   await p.goto(u, { waitUntil: "domcontentloaded", timeout: 60000 });
   await p.waitForFunction(() => globalThis.__declare?.find?.("app") != null, { timeout: 40000 }).catch(() => {});
@@ -120,8 +139,9 @@ async function compare(aFile, bFile) {
 const nat = path.join(OUT, "native.png");
 const web = path.join(OUT, "web.png");
 nativeShot(nat);
-await webShot(web, "dom");
+const { scheme } = hostState();
+await webShot(web, "dom", scheme);
 const r = await compare(nat, web);
-console.log(`native vs DOM  ${r.size}  differing ${r.diffPct}%  structural ${r.bigPct}%`);
+console.log(`native vs DOM  ${r.size}  ${scheme}  differing ${r.diffPct}%  structural ${r.bigPct}%`);
 console.log("worst tiles (point coords):", r.worst.join("  "));
 console.log(`  ${nat}\n  ${web}`);

@@ -119,6 +119,10 @@ async function awaitProgram(before) {
 const base = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : {};
 const now = {};
 const rows = [];
+/** Which theme this run measured in — fidelity reads it off the host and makes
+ *  the web side match, so it is a property of the run, recorded with the
+ *  numbers. See the note under the table. */
+let theme = "light";
 
 for (const prog of CORPUS) {
   const name = path.basename(prog, ".declare");
@@ -135,8 +139,9 @@ for (const prog of CORPUS) {
                              { encoding: "utf8", timeout: 180000 });
     const m = out.match(/differing\s+([\d.]+)%\s+structural\s+([\d.]+)%/);
     if (m) { differing = +m[1]; structural = +m[2]; } else err = "no number";
+    theme = out.match(/\b(dark|light)\b/)?.[1] ?? theme;
   } catch (e) { err = (e.message || String(e)).slice(0, 60); }
-  now[name] = { differing, structural };
+  now[name] = { differing, structural, theme };
   rows.push({ name, differing, structural, err });
 }
 
@@ -166,6 +171,26 @@ for (const r of rows) {
 // glyphs, which is more of the text residual that is this comparison's whole
 // noise floor. So the month a baseline was blessed in is recorded with it, and
 // a later run says so rather than letting the drift read as a regression.
+// THE THEME THE RUN MEASURED IN. Both sides are now held to the same one
+// (fidelity reads it off the host and emulates it in Chrome), so a dark run is
+// a real measurement rather than a comparison of two themes — but it is not
+// necessarily the SAME measurement, because light-on-dark text carries a
+// different rasterization residual than dark-on-light. So the theme is recorded
+// with the numbers and a run that changes it says so, rather than letting the
+// difference read as a regression.
+//
+// ⚠ This is what the gate could not see on 2026-08-17: run against a host on a
+// machine that had gone dark while Chrome stayed light, it reported calendar
+// 99.98% differing and desktop 33.27% as REGRESSIONS. Deterministic across
+// runs, unmoved by stashing the whole working tree, and entirely false — the
+// numbers were the theme. Two days of bisecting a renderer that was fine.
+const wasTheme = Object.values(base).map((b) => b.theme).find((t) => t !== undefined);
+if (wasTheme !== undefined && wasTheme !== theme && rows.some((r) => !r.err)) {
+  console.log(`\n  note: this run measured in ${theme.toUpperCase()} — the baseline was blessed in ${wasTheme}.` +
+              `\n        Both sides were held to ${theme}, so the numbers are real; but the text residual` +
+              `\n        differs by theme, so re-bless in one theme rather than reading the delta as a regression.`);
+}
+
 const CLOCKED = { calendar: () => new Date().toISOString().slice(0, 7) };
 for (const [name, stamp] of Object.entries(CLOCKED)) {
   if (now[name] !== undefined) now[name].blessedIn = stamp();
