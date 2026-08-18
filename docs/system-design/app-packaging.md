@@ -67,9 +67,34 @@ A, B and C all fall to **one** mechanism: scan every string literal in the progr
 including inside `{ }` bodies. No dataflow analysis is required — C looks opaque but the
 literal is sitting at the use site one level up.
 
-**D is the hard boundary.** In `apps/docs`, `cid` is bound to `:id`, a datapath into the
-docs model; there are 22 chapter files and the set of ids is *data*. Enumerating it would
-mean reading an app's data file and understanding its schema, which no build tool can do.
+**D is the boundary — but not an absolute one, and an earlier draft overstated it.** It
+claimed enumerating `apps/docs`'s 22 chapters was impossible because the ids live in data.
+That is wrong: the data is *local*, and the chain to it is *declarative*.
+
+```declare
+docs: DataSource [ url = "../../docs/declare-model.json" ]   // local; the build packages
+                                                             // it anyway (§5)
+ChapterDetail [ datapath = :guide[], cid = :id ]             // declarative binding
+url = { "chapters/" + classroot.cid + ".json" }              // template over cid
+```
+
+Resolved by hand, `model.guide`'s 22 ids substituted into that template are an EXACT set
+match for `apps/docs/chapters/*.json`. A build could compute it: read the dataset, follow
+the datapath, substitute.
+
+So the real line is not local-vs-remote data. It is **declarative chain vs JS chain**. The
+desktop's model is equally local (desktop:2563), but its paths come out of
+`columnData(selPath, model, rootPath)` — arbitrary JS walking the model — and following
+that means *executing* user code, for every reachable `selPath`, which is a search rather
+than an enumeration.
+
+⚠ **Dataset resolution is nonetheless NOT part of this design, because it currently buys
+nothing.** In-directory data-bound references are already covered by the sweep (§4);
+the corpus's only out-of-directory one is the desktop's, which is the JS case this cannot
+follow. It is recorded here as the answer-in-waiting: when a declarative binding over a
+local dataset first names files OUTSIDE the program's directory, resolve the dataset —
+do not reach for a glob or invent a `resource` declaration. The program already said
+enough, in data the build already has.
 
 ⚠ **AND D DOES NOT ALWAYS LEAVE FRAGMENTS.** An earlier draft of this design proposed
 reading the literals that bracket the computed part as a shape — `"chapters/" + cid +
