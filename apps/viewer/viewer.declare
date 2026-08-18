@@ -357,7 +357,12 @@ App [ fill = { app.theme.bg },
 
         editor: TextInput [ x = 0, y = 0, width = { parent.width }, height = { parent.editorH },
             multiline = true, spellcheck = false, wrap = false, padding = 14,
-            fontFamily = [Mono, "monospace"], fontSize = 12, textColor = { app.codeFg() },
+
+            // the A stepper drives every pane, this one included — it read as a
+            // dead control here, since the tab it is showing ignored it
+
+            fontFamily = [Mono, "monospace"], fontSize = { 12 * app.fontScale },
+            textColor = { app.codeFg() },
             fill = { app.theme.codeBg },
             initial = { app.demoSources["__raw__"] || app.rawSrc.value || "" },
             onInput() { parent.edited = true; app.liveCard = "__raw__"; app.liveSource = text }
@@ -379,7 +384,8 @@ App [ fill = { app.theme.bg },
                 parent.edited = false
                 app.liveCard = "__raw__"; app.liveSource = raw
                 },
-            lbl: Text [ x = 9, y = 5, fontSize = 11, fontWeight = semibold, wrap = false,
+            lbl: Text [ fontSize = 11, fontWeight = semibold, wrap = false,
+                x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 },
                 textColor = { app.theme.textMuted }, text = "Revert" ]
             ],
 

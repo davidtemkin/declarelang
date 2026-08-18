@@ -316,10 +316,28 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         let h = flowHeight
         guard h > 0 else { return }
         defer { bandDirty = false }
-        // Nothing of this flow is on screen: hold whatever bitmap it already has
-        // (usually none) and spend nothing. This is the gate that keeps a resize
-        // from rastering every flow in the document.
-        if visible.isNull || visible.isEmpty { return }
+        // NOTHING OF THIS FLOW IS ON SCREEN — so drop its bitmap.
+        //
+        // ⚠ This used to "hold whatever bitmap it already has (usually none)".
+        // It is not usually none: scroll once through a document and every flow
+        // has been on screen, so every flow holds a full CGImage of its band and
+        // nothing ever released one. Measured on the Viewer reading
+        // desktop.declare: 42 flows, 526 MB retained, for a window showing about
+        // 12 MB of them.
+        //
+        // That is not merely waste. `redraw()` asks CoreGraphics for a fresh
+        // buffer each time (a 3000pt band at 2x on a wide window is ~72 MB), and
+        // a half-gigabyte of dead bitmaps is exactly what makes that allocation
+        // fail — silently, see below. Releasing here keeps the retained set to
+        // what is actually being shown; the flow re-rasters when it returns,
+        // which is what the band mechanism is for.
+        if visible.isNull || visible.isEmpty {
+            if contentLayer.contents != nil {
+                contentLayer.contents = nil
+                bandH = 0                     // no bitmap ⇒ no band; re-raster on return
+            }
+            return
+        }
         if h <= RichOverlay.bandLimit {
             // Small enough to hold whole; raster once and never again.
             if bandDirty || bandTop != 0 || bandH != h { bandTop = 0; bandH = h; redraw() }
@@ -336,9 +354,27 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         let want = visible.midY
         var top = max(0, want - RichOverlay.bandLimit / 2)
         if top + RichOverlay.bandLimit > h { top = max(0, h - RichOverlay.bandLimit) }
+        let wasTop = bandTop, wasH = bandH
         bandTop = top
         bandH = min(RichOverlay.bandLimit, h - top)
-        redraw()
+        // ⚠ VERIFY THE RASTER, do not assume it. `redraw()` can return without
+        // drawing anything — its CGContext allocation is a guard with a bare
+        // `else { return }`, and a wide window's band is tens of megabytes. When
+        // that happened the band's COORDINATES had already been committed above,
+        // so `placeBand` positioned the layer for a slice that was never drawn:
+        // the flow's own borders and background still painted at full height
+        // while the text inside them was simply absent. That is the "blank areas
+        // once you scroll down a bit" in the reader, and it is the same class of
+        // bug as a build script that reports success for a step that failed.
+        //
+        // Keeping the OLD band on failure is strictly better: it is a slice of
+        // the right document, drawn correctly, merely in the wrong place — and
+        // the next scroll asks again.
+        if !redraw() {
+            bandTop = wasTop; bandH = wasH
+            NSLog("[Declare] ⚠︎ rich flow %.0fpt: could not raster its %.0fpt band — keeping the previous one.",
+                  h, RichOverlay.bandLimit)
+        }
         placeBand(inBox: lastBox)
     }
 
@@ -355,10 +391,13 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     nonisolated(unsafe) static var redrawMs = 0.0
     nonisolated(unsafe) static var statsOn = false
 
-    func redraw() {
+    /// Raster the current band. ANSWERS WHETHER IT DREW — every caller has
+    /// already committed state that is only true if it did (see ensureBand).
+    @discardableResult
+    func redraw() -> Bool {
         let _t0 = RichOverlay.statsOn ? CFAbsoluteTimeGetCurrent() : 0
         defer { if RichOverlay.statsOn { RichOverlay.redrawMs += (CFAbsoluteTimeGetCurrent() - _t0) * 1000 } }
-        guard let lm = text.layoutManager, let tc = text.textContainer else { return }
+        guard let lm = text.layoutManager, let tc = text.textContainer else { return false }
         // Default the band to the whole flow — capped, so the very first raster
         // is a valid bitmap even for a document no single buffer could hold.
         // `ensureBand` refines it as soon as visibility is known.
@@ -371,7 +410,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                                  space: cs,
                                  bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
                                      | CGBitmapInfo.byteOrder32Little.rawValue)
-        else { return }
+        else { return false }
         cg.scaleBy(x: scale, y: scale)
         cg.translateBy(x: 0, y: h)
         cg.scaleBy(x: 1, y: -1)
@@ -394,8 +433,10 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         lm.drawGlyphs(forGlyphRange: glyphs, at: at)
         NSGraphicsContext.restoreGraphicsState()
         contentLayer.contentsScale = scale
-        contentLayer.contents = cg.makeImage()
+        guard let image = cg.makeImage() else { return false }
+        contentLayer.contents = image
         if RichOverlay.statsOn { RichOverlay.redrawCount += 1; RichOverlay.redrawMP += Double(pw * ph) / 1_000_000 }
+        return true
     }
 
     /// How much bitmap this flow is holding. A rich overlay's `contents` is a
@@ -509,6 +550,9 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
         return v
     }()
     private var multiline = false
+    /// Does this editor WRAP? False means long lines run off to the right and
+    /// the scroll view carries them, which is what `wrap = false` asks for.
+    private var wraps = true
     private var padding: CGFloat = 0
     /// The last spec, kept so a LATER text style can be applied to it.
     ///
@@ -548,17 +592,37 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
                 tv.textContainerInset = NSSize(width: padding, height: padding)
                 tv.isAutomaticQuoteSubstitutionEnabled = false
                 tv.isAutomaticDashSubstitutionEnabled = false
+                // GROW WITH THE TEXT. Without this an NSTextView keeps whatever
+                // frame it is given, so the scroll view's document was exactly
+                // its own clip view and there was nothing to scroll — see the
+                // note in `place`. Same setup RichOverlay uses to flow.
+                tv.isVerticallyResizable = true
+                tv.minSize = .zero
+                tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                    height: CGFloat.greatestFiniteMagnitude)
                 sc.drawsBackground = false
                 sc.hasVerticalScroller = true
+                sc.autohidesScrollers = true
                 sc.documentView = tv
                 if clipBox.superview == nil { view.addSubview(clipBox) }
                 clipBox.addSubview(sc)
                 scroll = sc; textView = tv
             }
+            // WRAP, which crossed the bridge and was being dropped. The backend
+            // sends it (mac-backend `wrap: spec.wrap !== false`) and only the
+            // single-line field ever read it, so a `wrap = false` editor wrapped
+            // natively while the web's textarea scrolled sideways — the Viewer's
+            // Edit tab is exactly that editor.
+            let wrapText = (spec["wrap"] as? NSNumber)?.boolValue ?? true
+            if wrapText != wraps { wraps = wrapText }
+            textView?.isHorizontallyResizable = !wrapText
+            textView?.textContainer?.widthTracksTextView = wrapText
+            scroll?.hasHorizontalScroller = !wrapText
             textView?.font = font
             textView?.textColor = style.color ?? .labelColor
             textView?.isContinuousSpellCheckingEnabled = (spec["spellcheck"] as? NSNumber)?.boolValue ?? false
             if textView?.string != value { textView?.string = value }
+            docDirty = true            // new text (or a new style) ⇒ new height
         } else {
             if field == nil {
                 let f = NSTextField()
@@ -616,7 +680,23 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
         let off = CGPoint(x: r.origin.x - vr.origin.x, y: r.origin.y - vr.origin.y)
         if multiline {
             scroll?.frame = CGRect(origin: off, size: r.size)
-            textView?.frame = CGRect(origin: .zero, size: r.size)
+            // ⚠ THE DOCUMENT IS NOT THE VIEWPORT. This used to size the text
+            // view to the scroll view's own size, every frame — which hands
+            // NSScrollView a document exactly as big as its clip view, so there
+            // is nothing to scroll: no scroller, and a wheel over the editor
+            // correctly does nothing because the document already fits. A file
+            // longer than the pane simply ended at the fold, with no way to
+            // reach the rest. (The same editor on the web is a <textarea>, which
+            // scrolls, so this was native-only.)
+            //
+            // The document is sized from its TEXT — but only when something that
+            // could change that height has changed, because this is called on
+            // every commit and laying out 155 KB of source per frame is not free.
+            if docDirty || r.size != lastViewport {
+                lastViewport = r.size
+                docDirty = false
+                sizeDocument(toViewport: r.size)
+            }
         } else {
             let h = (field?.intrinsicContentSize.height ?? r.height)
             field?.frame = CGRect(x: off.x + padding, y: off.y + (r.height - h) / 2,
@@ -634,5 +714,26 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
         if let f = field { return f.frame.contains(p) }
         if let s = scroll { return s.frame.contains(p) }
         return false
+    }
+
+    /// Has anything changed that could change the document's height?
+    private var docDirty = true
+    private var lastViewport: CGSize = .zero
+
+    /// Size the multiline document to its TEXT, which is what gives the scroll
+    /// view something to scroll. At least the viewport, so a short file still
+    /// fills the pane and clicking below the last line lands in the editor.
+    private func sizeDocument(toViewport viewport: CGSize) {
+        guard let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer else { return }
+        let inset = padding * 2
+        // WRAPPING is a property of the container's width: bounded re-wraps to
+        // the pane, unbounded lets long lines run and the scroll view carry them.
+        tc.containerSize = NSSize(width: wraps ? max(1, viewport.width - inset) : CGFloat.greatestFiniteMagnitude,
+                                  height: CGFloat.greatestFiniteMagnitude)
+        if wraps { tv.frame.size.width = viewport.width }
+        lm.ensureLayout(for: tc)
+        let used = lm.usedRect(for: tc)
+        tv.frame.size = NSSize(width: max(viewport.width, ceil(used.width) + inset),
+                               height: max(viewport.height, ceil(used.height) + inset))
     }
 }
