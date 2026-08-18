@@ -20,9 +20,29 @@
 set -e
 cd "$(dirname "$0")"
 
-swift build -c release "$@"
-
 BIN=".build/release/DeclareMac"
+
+# ⚠ CHECK THE BINARY MOVED, not just the exit status. `swift build` can report
+# a COMPILE ERROR and still exit 0 (observed 2026-08-17: "cannot find 'front' in
+# scope" among the warnings, status 0, previous binary left in place). `set -e`
+# therefore did not fire, bundle.sh went on to sign and install the STALE
+# binary, and it printed "built … (JIT entitlement verified)" — so three
+# rebuilds in a row silently shipped code from before the edit, and the new
+# control verb read as "unknown" with no hint why.
+#
+# The fix is the rule this script already applies to codesign one line down:
+# verify what actually happened, never what was asked for. Fail if an input is
+# newer than the artifact.
+BEFORE=$(stat -f %m "$BIN" 2>/dev/null || echo 0)
+swift build -c release "$@"
+NEWEST=$(find Sources -name '*.swift' -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)
+AFTER=$(stat -f %m "$BIN" 2>/dev/null || echo 0)
+if [ "$AFTER" = "0" ] || { [ -n "$NEWEST" ] && [ "$NEWEST" -gt "$AFTER" ]; }; then
+  echo "✗  $BIN is older than its sources — the build did not produce a new binary." >&2
+  echo "   Re-run without the pipe to see the error swift build hid:  swift build -c release" >&2
+  [ "$BEFORE" = "$AFTER" ] && echo "   (the binary did not change at all)" >&2
+  exit 1
+fi
 codesign --force --sign - --options runtime --entitlements jit.entitlements "$BIN"
 
 # Verify what was signed, not what was asked for — the original regression was a

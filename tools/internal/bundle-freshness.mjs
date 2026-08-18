@@ -60,7 +60,7 @@ export const BUNDLES = [
   },
 ];
 
-function newestMtime(root, p) {
+export function newestMtime(root, p) {
   const full = join(root, p);
   if (!existsSync(full)) return 0;
   const st = statSync(full);

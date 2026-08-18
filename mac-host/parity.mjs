@@ -35,6 +35,7 @@
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
 import { hostWindow } from "./win.mjs";
+import { hostBinary, NO_HOST } from "./app.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
@@ -60,13 +61,13 @@ const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 async function relaunchNative() {
   try { execFileSync("/usr/bin/pkill", ["-f", "DeclareMac"]); } catch { /* none running */ }
   await sleep(1);
-  const bin = path.join(HERE, ".build/release/DeclareMac");
+  const bin = hostBinary();
+  if (bin === null) { console.error(NO_HOST); process.exit(1); }
   spawn(bin, [], {
     detached: true, stdio: "ignore",
     env: { ...process.env,
            DECLARE_CONTROL: "1",
            DECLARE_APPEARANCE: APPEARANCE,
-           DECLARE_ROOT: ROOT,
            DECLARE_URL: "http://127.0.0.1:8260/apps/desktop/desktop.declare?render=mac" },
   }).unref();
   await sleep(6);

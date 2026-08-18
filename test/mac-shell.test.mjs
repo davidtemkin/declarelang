@@ -28,14 +28,16 @@ import { existsSync, writeFileSync, readFileSync, unlinkSync, mkdtempSync } from
 import { tmpdir } from "node:os";
 import { test, summarize } from "./harness.mjs";
 import { createDeclareServer } from "../server/create.mjs";
+import { hostBinary, NO_HOST } from "../mac-host/app.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const BIN = path.join(ROOT, "mac-host/.build/release/DeclareMac");
+// THE INSTALLED APP, not a bare binary reading the tree — see mac-host/app.mjs.
+const BIN = hostBinary();
 const IN = "/tmp/declare-ctl.in", OUT = "/tmp/declare-ctl.out";
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
-if (process.platform !== "darwin" || !existsSync(BIN)) {
-  console.log("mac-shell: no native host built — skipped");
+if (process.platform !== "darwin" || BIN === null) {
+  console.log("mac-shell: " + NO_HOST + " — skipped");
   process.exit(0);
 }
 
@@ -58,7 +60,7 @@ const PROBE = `${B}/test/probe/arc.declare`;
 
 const host = spawn(BIN, [], {
   detached: true, stdio: "ignore",
-  env: { ...process.env, DECLARE_CONTROL: "1", DECLARE_ROOT: ROOT, DECLARE_URL: PROBE },
+  env: { ...process.env, DECLARE_CONTROL: "1", DECLARE_URL: PROBE },
 });
 
 async function ctl(cmd, tries = 150) {

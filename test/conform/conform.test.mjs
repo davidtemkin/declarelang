@@ -34,6 +34,7 @@ import { test, summarize } from "../harness.mjs";
 import http from "node:http";
 import { createDeclareServer } from "../../server/create.mjs";
 import { browserDriver, macDriver, macRequested, macLive } from "./driver.mjs";
+import { hostBinary, NO_HOST } from "../../mac-host/app.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 // Port 0 = let the OS pick a free one. A fixed default collides with whatever
@@ -73,7 +74,8 @@ if (!process.env.DECLARE_ORIGIN) {
 // so the message can name the command that fixes it.
 if (MAC && !macLive()) {
   console.error("conform: --mac was requested but no native host is running.\n" +
-    "  DECLARE_CONTROL=1 '/tmp/Declare Mac.app/Contents/MacOS/Declare Mac' &\n" +
+    "  DECLARE_CONTROL=1 '" + (hostBinary() ?? "/Applications/Declare Mac.app/Contents/MacOS/Declare Mac") + "' &\n" +
+    (hostBinary() === null ? "  (" + NO_HOST + ")\n" : "") +
     "  (any origin — the run navigates it to " + ORIGIN + " itself)");
   if (server) server.close();
   process.exit(2);
