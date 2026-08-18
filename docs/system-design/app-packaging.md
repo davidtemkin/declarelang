@@ -71,6 +71,19 @@ literal is sitting at the use site one level up.
 docs model; there are 22 chapter files and the set of ids is *data*. Enumerating it would
 mean reading an app's data file and understanding its schema, which no build tool can do.
 
+⚠ **AND D DOES NOT ALWAYS LEAVE FRAGMENTS.** An earlier draft of this design proposed
+reading the literals that bracket the computed part as a shape — `"chapters/" + cid +
+".json"` ⇒ `chapters/*.json`. The desktop refutes it twice:
+
+```declare
+src: DataSource [ url = { classroot.path } ]     // desktop:1307 — no literal at all
+app.openViewer("../../" + p, …)                  // desktop:1071 — computed AND outside
+```
+
+The first has nothing to glob; `path` arrives from `:path` in a dataset. So the glob is a
+mechanism that works until it silently does not, which is the worst property a packaging
+step can have. It is not part of this design.
+
 This is exactly the boundary OpenLaszlo drew. Their `<resource>` was a **declaration**,
 optionally of a set:
 
@@ -92,41 +105,48 @@ directory**, so a superset costs disk, not correctness.
 That inverts the design pressure. Where they needed an exact declared manifest, we can be
 conservative — which is why this design adds no `resource` construct to the language.
 
-## 4. Collection
+## 4. Collection — placement is the declaration
 
 The collected set is the union of:
 
-1. **Literal references**, extracted statically from the resolved program. This is the new
-   mechanism, and [`declarative-links.md`](declarative-links.md) /
+1. **The program's own directory**, swept, minus a skip-list. Being *there* is what
+   declares a file part of the app.
+2. **Literal references that resolve outside it**, extracted statically from the resolved
+   program, copied in and rewritten (§5). [`declarative-links.md`](declarative-links.md) /
    `compiler/src/links.ts` is the precedent: it already walks the resolved program and
    rides the compile result as a side-list exactly as `deps` do. An `assets` side-list is
    the same shape.
-2. **Globs derived from fragments**, for case D. The literals bracketing the computed part
-   are a statement about shape: `"chapters/" + cid + ".json"` collects `chapters/*.json`.
 
-The second is deliberately **program-derived, not folder-derived**. It is scoped by
-something the program said, which is what distinguishes it from the directory sweep it
-replaces.
+⚠ **THE SWEEP IS THE PART THAT CANNOT BE REPLACED BY ANALYSIS**, and an earlier draft of
+this design got that backwards. It reasoned from the corpus's *literal* references, found
+that scanning literals covers A/B/C, and proposed dropping the sweep. But case D is real
+and irreducible — `apps/docs` selects among 22 chapter files by datapath — and the sweep
+covers it for free, exactly, and with no heuristic, because the files are simply in the
+folder.
 
-### 4a. The directory sweep is removed
+That is also what §3a's principle says when applied honestly: if a package is a directory
+and a superset costs disk rather than correctness, then when in doubt, **include**. A
+precise collector is the wrong instinct here; it buys tidiness and pays in silent misses.
 
-`copyAssets` (`tools/declarec.mjs`) copies every sibling of the `.declare` source minus a
-skip-list. It fails in both directions at once, measured on `apps/docs`:
+What analysis is still needed for is REACH — a literal above the program's own directory,
+which no sweep can see. That is the whole job of (2).
 
-- **It ships what is not the app.** `baselines/` is perceptual-test fixtures;
-  `docs.states.mjs` is a test harness. Both landed in the build.
-- **It misses what is.** `apps/docs` names `url = "../../docs/declare-model.json"`, which
-  is not a sibling — so a built docs app 404s on its primary data file.
+### 4a. The skip-list, and why junk is not an architecture
 
-Literal extraction is strictly better in both directions: it reaches outside the directory
-and it collects only what is named.
+The sweep's real defect is over-inclusion: measured on `apps/docs`, it ships `baselines/`
+(perceptual-test fixtures) and `docs.states.mjs` (a test harness). Neither is the app.
+
+That is a two-entry skip-list, not a reason to redesign collection. The existing list
+(`dist`, `prebuilt`, `node_modules`, `index.html`, dotfiles, `*.declare`) grows by the
+fixture conventions this repo uses. A repository that keeps its test fixtures beside its
+apps pays a small, declared price for it.
 
 ### 4b. Silence must be trustworthy
 
 A packaging step that under-collects silently is the worst possible outcome: it fails
 later, on someone else's machine, as a 404. So the build **reports what it collected and
-names what it could not resolve**, with file and line. A reference that is neither a
-literal nor a fragment pattern is a warning that names itself, never a quiet omission.
+names what it could not resolve**, with file and line. A computed reference that resolves
+to nothing the sweep covers is a warning that names itself, never a quiet omission.
 
 This is the same discipline `declare-help` applies to a miss, and `build-mac-app` to a
 stale input: report what happened, so that quiet means clean.
@@ -163,9 +183,14 @@ this whole mechanism.
 
 ## 7. Deliberately not solved
 
-- **A reference that is both computed and outside the program directory.** Neither literal
-  extraction nor a fragment glob reaches it. Nothing in the corpus does this, and a
-  declaration invented for a case with no instance would be a guess.
+- **Apps that are views onto a tree cannot be packaged, and the build must say so.**
+  `apps/desktop` composes `"../../" + p` from data (desktop:1071) to browse the
+  repository's own documentation, and reaches sibling programs by literal
+  (`"../calendar/calendar.declare"`). No collector can package that: its content IS the
+  serving tree. The honest outcome is a build that names the reference it cannot resolve
+  and refuses to claim the result is detachable — not a directory that 404s on first
+  click. Deciding what that refusal looks like is the first open question, not a
+  mechanism to invent now.
 - **Trimming what is collected but unused at run time.** A superset is correct; shrinking
   it is an optimization, and the directory model means it costs only disk.
 - **Content-addressed asset names.** The web build already hashes the program bundle;
