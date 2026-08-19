@@ -61,6 +61,36 @@
 > recurs — a remount, a reveal after hiding, an animation returning to a size it
 > already visited. Measured at 13% of raster time in a churn workload. Real, but
 > not what costs.
+>
+> ## Where the ruling is not yet kept: the DOM backend
+>
+> Three backends, three positions. **Canvas** keeps the ruling for free — a
+> drawing replays directly into the shared ctx under the composed transform
+> (`canvas-backend.ts:1387`), so a scaled view's recording rasterizes at the size
+> it is seen, carrying no resolution state. **The Mac host** keeps it by
+> description (`LayerDescribe.swift`, landed with this rejection). **The DOM
+> backend does not keep it.** A drawing there replays into its own `<canvas>`
+> element sized to `bounds × devicePixelRatio` (`dom-backend.ts:2118`). Nothing is
+> cached — every invalidation re-replays the whole list — but a *transform* change
+> is not an invalidation, so the element's last-rendered pixels are what CSS then
+> scales. Under a declare `scale` a DOM drawing is stretched, and DOM is the only
+> backend where that is true.
+>
+> One attempt was made and abandoned (2026-08-14, never landed): compose the
+> ancestors' declare scale into the replay factor — quantized UP to quarter steps,
+> the sweep coalesced to one rAF, floored at dpr and capped at 3× over it. It
+> works, and it is this document's rejected bargain in a different costume: between
+> step crossings, and past the 3× cap, CSS stretches the canvas and the view shows
+> pixels the program never described. The quantization was the concession to
+> per-frame replay cost under a springing scale (the desktop zoom egg), which is
+> exactly the concession the ruling above says not to make. The other two backends
+> reach exactness carrying no resolution state at all; a DOM answer that needs a
+> factor to track and a step size to tune is the wrong shape.
+>
+> What a DOM answer must clear: replay at the resolution the view is SEEN at with
+> no quantization, or express the recording as something the browser rasterizes
+> under the transform itself (SVG is the only DOM primitive that does). Open — see
+> `compositing.md` II.1.
 
 **Status:** proposal, 2026-07-20. Nothing built. Motivated by the dock-magnification
 paint cost (a hot `draw()` re-rasterizing 9 illustrations per frame dragged Safari's
