@@ -340,6 +340,27 @@ export function provideTransport(fn: Transport): Transport {
   return prev;
 }
 
+/** PER-APP data bases, keyed by tree root — asset-base.ts's shape, for DATA:
+ *  one page can run programs from different directories at once, and each
+ *  one's relative `url` means "beside MY file" (language §9's sibling rule,
+ *  now per tenant instead of last-boot-wins). A registered base REBASES the
+ *  url and then delegates to the one global transport above — so a headless
+ *  refuser still refuses and a test stub still intercepts; this changes
+ *  which file is named, never who is allowed to fetch it. Absolute urls pass
+ *  through `new URL` untouched. */
+const appDataBases = new WeakMap<object, string>();
+export function setAppDataBase(root: object, base: string | null): void {
+  if (base === null) appDataBases.delete(root);
+  else appDataBases.set(root, base);
+}
+
+/** Resolve a source's url through its app's base (identity when none). */
+function appResolve(root: object, url: string): string {
+  const base = appDataBases.get(root);
+  if (base === undefined) return url;
+  try { return new URL(url, base).href; } catch { return url; }
+}
+
 /** A DataSource is a Dataset whose value arrives over HTTP (language §9): a
  *  reactive remote resource whose LIFECYCLE is reactive state — screens
  *  derive from `.loading`/`.loaded`/`.failed` with ordinary constraints
@@ -467,7 +488,10 @@ export class DataSource extends Dataset {
     // constraint may re-settle it while this request is in flight, and a message
     // that re-read `this.url` after the await named an address that was never
     // requested — the failure reports a different server than it talked to.
-    const url = this.url;
+    // Resolved through THIS APP's data base (setAppDataBase): on a page
+    // running several programs, relative means beside MY file, not the last
+    // booted one's.
+    const url = appResolve(this.root, this.url);
     setBound(this, "status", "loading");
     setBound(this, "error", null);
     setBound(this, "statusCode", 0);

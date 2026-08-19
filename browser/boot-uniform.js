@@ -497,7 +497,7 @@ export default async function boot(cfg) {
     source: program, deps, backend: cfg.backend,
     host: cfg.host,                                                // an explicit mount element — several apps per page, each in its own marked div
     location: cfg.location,
-    mainAssetBase: mainDir.href,                                   // per-app asset base (bitmaps, media, font faces) — N tenants, each its own program dir
+    mainAssetBase: mainDir.href,                                   // per-app asset AND data base — N tenants, each its own program dir
     pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
     seeds, demoBase, compile: liveCompile, prewarm: prewarmChild,
   });

@@ -14,7 +14,7 @@
 //
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
-import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase } from "../runtime/dist/index.js";
+import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase } from "../runtime/dist/index.js";
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -74,14 +74,18 @@ export async function bootHost(cfg) {
   // no home→target flash. Un-fused from renderAsync so the seed lands pre-mount.
   const app = build(cfg.source, { deps: cfg.deps });
   host.__declareApp = app;                            // the per-box handle (an embedder's way in)
-  // The MAIN app's own asset directory (boot-uniform passes the program's dir):
-  // everything asset-base.ts resolves — bitmaps, media, web font faces — reads
-  // "relative means beside MY program". Global provideAssetBase is
-  // last-boot-wins — fine for one app per page, wrong for several. (DATA is
-  // the one resolver still page-global: DataSource urls ride provideTransport,
-  // which the last boot owns — a multi-app page boots its data-fetching app
-  // last, or gives children absolute urls, until that seam goes per-app too.)
-  if (cfg.mainAssetBase) setAppAssetBase(app, cfg.mainAssetBase);
+  // The MAIN app's own directories (boot-uniform passes the program's dir):
+  // ASSETS — everything asset-base.ts resolves: bitmaps, media, web font
+  // faces — and DATA — DataSource urls — both read "relative means beside MY
+  // program", per app. The globals (provideAssetBase / provideTransport)
+  // remain the page defaults for anything unregistered; the per-app data base
+  // rebases and then delegates to the global transport, so a viewer page's
+  // dataBase override (cfg.dataBase, applied globally above) still governs
+  // where the bytes come from.
+  if (cfg.mainAssetBase) {
+    setAppAssetBase(app, cfg.mainAssetBase);
+    setAppDataBase(app, cfg.dataBase ? new URL(cfg.dataBase, document.baseURI).href : cfg.mainAssetBase);
+  }
   if (!embedded) window.__app = app;                  // the page's debug handle — top-level only
   const locationInitial = app.location;               // the declared initial = the default (§3)
   // HOW this document was entered, by the browser's own classification

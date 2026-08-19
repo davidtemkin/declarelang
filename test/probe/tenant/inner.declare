@@ -1,0 +1,9 @@
+// Embedding probe C — the DATA tenant (test/embed.test.mjs): its relative
+// `here.json` must mean the file beside THIS program (test/probe/tenant/),
+// never the decoy at another tenant's base — the per-app data-base pin.
+
+App [ fill = #263238,
+    data: DataSource [ auto = true, url = "here.json" ],
+    who: Text [ x = 16, y = 14, textColor = whitesmoke,
+        text = { "data: " + (data.loaded ? data.value.who : "loading") } ]
+    ]
