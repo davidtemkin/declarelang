@@ -358,7 +358,10 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     // Republish: the theme is in the geometry line, and it just changed.
     func appearanceChanged() {
         publishGeometry()
-        bridge.call("__declareEnvChanged", []); bridge.needsFrame()
+        // ⚠ the name mac-env.js actually defines — this called "__declareEnvChanged"
+        // for a while, which bridge.call nil-guards into silence: live dark-mode
+        // flips never reached the app's media queries (found 2026-08-19).
+        bridge.call("__declareAppearanceChanged", []); bridge.needsFrame()
     }
 
     /// A dead end is unhelpful: offer the location prompt, since the usual
@@ -388,6 +391,19 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     // ── NSWindowDelegate ────────────────────────────────────────────────────
 
     func windowDidResize(_ n: Notification) { syncSize(); view.repositionOverlays() }
+
+    /// The occlusion fact → the app's `pageVisible` slot (runtime schema.ts):
+    /// fully covered by other windows, miniaturized, or on a sleeping display
+    /// all read as hidden — strictly more honest than the browsers' signal
+    /// (Safari cannot see covered-by-window). One boolean across the bridge;
+    /// the app's own constraints do the rest: a Heartbeat gated on the fact
+    /// leaves the shared clock, and an occluded window's program goes truly
+    /// idle instead of integrating motion nobody composites.
+    func windowDidChangeOcclusionState(_ n: Notification) {
+        let visible = window.occlusionState.contains(.visible)
+        bridge.call("__declareVisibilityChanged", [visible])
+        bridge.needsFrame()
+    }
     func windowDidChangeBackingProperties(_ n: Notification) { syncSize() }
     func windowDidMove(_ n: Notification) { owner?.sessionChanged() }
     func windowDidBecomeKey(_ n: Notification) { publishGeometry() }

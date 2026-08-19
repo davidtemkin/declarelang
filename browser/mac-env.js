@@ -254,6 +254,21 @@
   doc.querySelectorAll = () => [];
   doc.getElementById = () => null;
   doc.createTextNode = (t) => ({ textContent: t });
+  // Page Visibility, fed by the WINDOW's occlusion state (ProgramWindow
+  // windowDidChangeOcclusionState → __declareVisibilityChanged): the runtime's
+  // wireVisibility reads `document.visibilityState` and listens for
+  // `visibilitychange`, exactly as in a browser — and the native signal is
+  // strictly better, since AppKit reports covered-by-another-window, which
+  // Safari never does. The app's `pageVisible` fact follows; a Heartbeat
+  // gated on it leaves the clock, and an occluded window goes truly idle.
+  let pageVisible = true;
+  Object.defineProperty(doc, "visibilityState", { get: () => (pageVisible ? "visible" : "hidden") });
+  g.__declareVisibilityChanged = (visible) => {
+    const v = visible === true;
+    if (pageVisible === v) return;
+    pageVisible = v;
+    doc.dispatchEvent({ type: "visibilitychange" });
+  };
   g.document = doc;
   // ⚠ AND on `window`, which is a DISTINCT object here (this context has no
   // `window === globalThis` identity). Code that reaches the DOM as a bare
