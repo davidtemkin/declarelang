@@ -43070,7 +43070,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/operational/shipping.md",
-     "preview": "The whole loop, from edit to push — including the step nearly everyone is surprised by the first time. For what each gate checks, see derive.md(derive.md); this page is the order you do things in, and the pitfalls at each step. (Deploying a…"
+     "preview": "The whole loop, from edit to push — what the scheme is for, the order you do things in, and the pitfalls at each step. For the per-gate contract (what each check reads and writes), see derive.md(derive.md). (Deploying an app you wrote in De…"
     },
     {
      "name": "Verify",

@@ -30,8 +30,9 @@ npm run test:derived           # the artifact gates — only meaningful straight
 npm run test:ladder            # the slow rungs — real input, real pixels, headless Chromium
 ```
 
-The full edit-to-push sequence — one commit when you derive last, and the
-recovery for when something moved after the derive — is one page:
+The full edit-to-push sequence — why **a push is a deploy** (this repo commits its
+built artifacts and Pages serves what lands on `main`), one commit when you derive
+last, and the recovery for when something moved after the derive — is one page:
 [`docs/operational/shipping.md`](docs/operational/shipping.md).
 
 **Derive stages what it owns.** A derive produces three kinds of change — files rewritten,
