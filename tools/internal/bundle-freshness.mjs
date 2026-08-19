@@ -83,8 +83,17 @@ export function isStale(root, bundle) {
 
 /** Rebuild every stale bundle (or only those whose artifact path is in `only`).
  *  Synchronous — callers are a commit hook and an on-demand dev-server request,
- *  both of which WANT to wait for the fresh artifact. Returns what was rebuilt. */
-export function rebuildStale(root, { only = null, log = console.error } = {}) {
+ *  both of which WANT to wait for the fresh artifact. Returns what was rebuilt.
+ *
+ *  `force` rebuilds unconditionally, and exists for ONE caller: the derive rule
+ *  (tools/internal/derive.mjs, "bundles"). Derive schedules by CONTENT HASH
+ *  against its manifest; the mtime test here is a weaker currency that can call
+ *  stale content fresh (git restore hands old bytes new mtimes) — and a body
+ *  that declines to write would have derive record the rule as reconciled over
+ *  bundles that still disagree with their sources. So when derive's hashes say
+ *  run, this runs. The mtime fast path remains right for the other callers
+ *  (the dev server's on-demand rebuild, stamp-version's pre-hash sweep). */
+export function rebuildStale(root, { only = null, log = console.error, force = false } = {}) {
   const rebuilt = [];
   // One script can produce SEVERAL artifacts (build-mac.mjs writes both native
   // bundles), so a pass runs each script at most once — otherwise asking for two
@@ -92,9 +101,9 @@ export function rebuildStale(root, { only = null, log = console.error } = {}) {
   const ran = new Set();
   for (const b of BUNDLES) {
     if (only !== null && !only.includes(b.out)) continue;
-    if (!isStale(root, b)) continue;
+    if (!force && !isStale(root, b)) continue;
     if (ran.has(b.build)) { rebuilt.push(b.out); continue; }
-    log(`bundle-freshness: ${b.out} is stale → node ${b.build}`);
+    log(`bundle-freshness: ${b.out} ${force ? "rebuilt (forced — the scheduler's hashes moved)" : "is stale"} → node ${b.build}`);
     execFileSync(process.execPath, [join(root, b.build)], { cwd: root, stdio: ["ignore", "inherit", "inherit"] });
     ran.add(b.build);
     rebuilt.push(b.out);

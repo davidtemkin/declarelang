@@ -23,7 +23,13 @@ calls `rebuildStale()` — which rebuilds a stale `bundles/declare-*.js`, and `b
 IS a derived output. So a test run on a tree with stale bundles quietly makes them
 fresh, after which the pre-push gate will correctly report them as uncommitted. Left
 as is on purpose: the bundle was stale, nothing could serve until it was rebuilt, and
-`rebuildStale` is hash-based and idempotent.
+`rebuildStale` is idempotent.
+
+(`npm run build:mac` is *not* an exception, though it also runs `tsc` and the bundle
+rebuild: it runs them **through derive** — `derive --only tsc,bundles` — so the
+freshness ledger records them like any other derive. It used to call the rule bodies
+directly, which left the ledger behind after every mac session and got the next push
+refused over work already done.)
 
 ## When what runs — the whole contract
 
@@ -84,6 +90,7 @@ per-clone, always safe to delete; a fresh clone simply runs everything once.
 | `--timing` | per-rule cost, and which rules skipped |
 | `--paths` | print the committed derived paths, stamps included — the list to `git add` |
 | `--outputs` | …only the files a rule authors whole — the narrower list the pre-push gate compares against HEAD |
+| `--only a,b` | run just the named rules — the door for tools that need a subset of the build (`npm run build:mac` runs `--only tsc,bundles`). The point is the ledger, not speed: whoever runs a rule records it, so a later push isn't refused over work already done. A partial run prunes no other rule's record and stages only its own rules' outputs |
 
 Two mistakes are **build errors**, not conventions — the driver refuses the graph
 and names the rule and the file:
@@ -135,6 +142,14 @@ The rules of trust, in order:
 
 ## When something looks wrong
 
+- **"pre-push refused as stale, then `npm run derive` regenerated nothing"** — a
+  rule's inputs changed in a way that didn't move its outputs (the common case: a
+  prose edit under `docs/` re-runs `assemble`, whose projection of most prose is a
+  title line, so the model comes out byte-identical). The refusal was still right —
+  until the rule re-ran, the artifacts were *unverified*, not known-fresh — and the
+  derive run restamped the ledger, so just push again. The refusal names the stale
+  rules; if one keeps appearing for edits that can't affect it, that rule's input
+  list is too coarse.
 - **"derive --check says stale right after a derive"** — a generator is
   non-deterministic; its outputs move on every run. That is a bug in the generator,
   and this is the mechanism making it visible.

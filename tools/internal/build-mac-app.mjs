@@ -15,21 +15,29 @@
 //
 // WHERE THIS SITS IN THE LARGER BUILD. `derive` (tools/internal/derive.mjs) is
 // the tree's build: a rule graph that owns every COMMITTED derived artifact.
-// This is not a second one. It shares derive's first two rules — `tsc` and
-// `bundles`, through the same tools — because those produce what the app bakes,
-// and then does the thing derive does not: package them.
+// This is not a second one. It NEEDS derive's first two rules — `tsc` and
+// `bundles`, which produce what the app bakes — and it gets them by RUNNING
+// DERIVE (`--only tsc,bundles`), not by calling the rule bodies itself. The
+// distinction is the ledger: derive records every rule it runs in
+// .derive/manifest.json, and an earlier version of this script ran the same
+// two tools directly — same artifacts, no record — so after any mac session
+// the ledger trailed the tree, and the next `git push` was refused as "stale"
+// over work this build had already done (`npm run derive` then "fixed" it by
+// regenerating nothing). One builder per artifact, one ledger per builder.
+// Then this does the thing derive does not: package.
 //
-//       runtime/src, compiler/src  ──tsc──▶ */dist         ┐ derive's own
-//       */dist                     ──build-*──▶ bundles/   ┘ first two rules
+//       runtime/src, compiler/src  ──tsc──▶ */dist         ┐ derive --only
+//       */dist                     ──build-*──▶ bundles/   ┘ tsc,bundles
 //       mac-host/Sources           ──swift build, codesign──▶ DeclareMac
 //       all of the above           ──here──▶ Declare Mac.app  + its own BUILD_ID
 //
 // ⚠ THE DEPENDENCY RUNS ONE WAY, AND NOTHING HERE WRITES A COMMITTED FILE.
 // The app is a per-machine artifact, never a committed one, so derive neither
 // builds it nor knows about it — a commit must not require a Swift toolchain.
-// This reads the tree and writes only the .app. (`tsc` and the bundle rebuild do
-// touch tree artifacts, but those are derive's own rules producing derive's own
-// outputs, deterministically; nothing here AUTHORS anything derive would not.)
+// This reads the tree and writes only the .app. (The derive call does touch
+// tree artifacts — that is derive's own rules producing derive's own outputs,
+// deterministically, and staging what it rebuilds, exactly as `npm run derive`
+// would; nothing here AUTHORS anything derive would not.)
 //
 // That boundary is easy to lose: the version after the first briefly called
 // `stamp-version.mjs` to keep the baked BUILD_ID honest, which also stamped
@@ -64,7 +72,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BUNDLES, newestMtime, rebuildStale } from "./bundle-freshness.mjs";
+import { BUNDLES, newestMtime } from "./bundle-freshness.mjs";
 import { SEARCH } from "../../mac-host/app.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -108,9 +116,9 @@ const BAKE = [
 
 // ── the chain, walked ───────────────────────────────────────────────────────
 
-// 1. TypeScript. Always, never conditionally: `tsc -b` is incremental and a
-//    no-op costs ~1s, which is far less than one debugging session spent on a
-//    dist that was one edit behind its src.
+// 1. TypeScript — inside the derive call below; the `tsc` rule is `always`,
+//    never conditional: `tsc -b` is incremental and a no-op costs ~1s, far less
+//    than one debugging session spent on a dist that was one edit behind its src.
 // ⚠ SHOW THE OUTPUT ON FAILURE. Piping a step's output to keep the build tidy and
 // then discarding it in the catch is how build.sh once reported success three
 // times in a row while shipping pre-edit code — the error existed and nobody
@@ -126,23 +134,32 @@ function step(label, cmd, argv, cwd, whenItFails) {
 }
 
 say("build:mac");
-step("tsc -b", "npx", ["tsc", "-b"], ROOT,
-     "tsc failed — the tree does not compile, so there is nothing to bake.");
 
-// 2. The bundles, which are what this app bakes.
+// 2. The bundles, which are what this app bakes — via derive, ONE call with
+//    tsc, so the ledger records both (see the header). When the manifest
+//    proves the inputs unchanged the bundle step skips entirely, a stronger
+//    test than the mtime scan this script once ran itself.
 //
-// ⚠ ONLY the bundles. This briefly ran `stamp-version.mjs` instead, to be sure
-// the baked BUILD_ID described the baked platform — and that was the right worry
-// with the wrong cure. stamp-version is a DERIVE rule: besides writing
-// bundles/version.json it stamps service-worker.js, index.html and every
-// apps/*/index.html, which are the WEB's cache-busters and no business of a mac
-// build. Running it here made a per-machine app build write 21 committed
-// web-facing files, and inverted the one-way dependency stated above.
+// ⚠ ONLY tsc and the bundles. This briefly ran `stamp-version.mjs` too, to be
+// sure the baked BUILD_ID described the baked platform — and that was the right
+// worry with the wrong cure. stamp-version is a derive rule that, besides
+// writing bundles/version.json, stamps service-worker.js, index.html and every
+// apps/*/index.html — the WEB's cache-busters, no business of a mac build.
+// Running it here made a per-machine app build write 21 committed web-facing
+// files, and inverted the one-way dependency stated above.
 //
 // The id is computed from what was BAKED instead (see `toolchain` below), which
 // is both narrower and more correct.
-const rebuilt = rebuildStale(ROOT, { log: (m) => say("  " + m) });
-if (rebuilt.length === 0) say("  bundles up to date");
+say("  derive --only tsc,bundles");
+try {
+  const out = execFileSync(process.execPath,
+    [path.join(ROOT, "tools/internal/derive.mjs"), "--only", "tsc,bundles"],
+    { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  for (const line of out.trim().split("\n")) say("    " + line);
+} catch (e) {
+  process.stderr.write((e.stdout ?? "") + (e.stderr ?? ""));
+  die("tsc or the bundle rebuild failed — the tree does not build, so there is nothing to bake.");
+}
 
 // 3. The Swift binary. build.sh owns the JIT entitlement and its own
 //    "did the binary actually move?" check — this does not reimplement either.

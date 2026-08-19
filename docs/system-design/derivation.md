@@ -194,6 +194,24 @@ skipping build system is always the same: silence that reads as health.
    includes a hash of the rule's own spec, so any change to a rule's declaration
    invalidates its record and forces one rerun. Always safe, occasionally a few
    seconds slower — the correct direction.
+8. **A rule body run outside derive leaves the ledger behind.** The artifacts come
+   out right and the manifest doesn't know, so the next push is refused as "stale"
+   and the prescribed derive regenerates nothing — a refusal that reads as a mystery
+   (lived, 2026-08-19: `build:mac` ran `tsc` + `rebuildStale` directly for its own
+   assembly). *The rule:* whoever runs a rule records it — a tool that needs a
+   subset of the build goes through `derive --only <rules>`, never through the rule
+   bodies. The one deliberate exception is the dev server's on-demand
+   `rebuildStale` (and `npm test` suites that boot it): the edit-refresh loop wants
+   the artifact now and no ledger claim is being made; the next real derive re-runs
+   the rule and restamps.
+9. **A rule body must not second-guess the scheduler.** Derive schedules by content
+   hash; a body with its own weaker freshness test (rebuildStale's mtime scan) could
+   decline to write and still be recorded as reconciled — `git restore bundles/`
+   after a rebuild hands old bytes new mtimes, and the next derive would have
+   restamped the ledger over bundles that disagree with their sources, which `--dry`
+   then *certifies* forever. Closed: the bundles rule passes `force`, so when the
+   hashes say run, everything under the rule rebuilds. The mtime fast path survives
+   only where no ledger claim follows it (the dev server).
 
 ## 6. Open items
 

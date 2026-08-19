@@ -20,8 +20,11 @@
 # derive; this hook only ever says no.
 #
 # THE TWO QUESTIONS, and why one is not enough:
-#   1. `--dry` — are the artifacts ON DISK fresh? (hash compare, ~0.4s, writes
-#      nothing, runs no rule)
+#   1. `--dry` — has every rule RUN since its inputs last changed? (a hash
+#      compare against derive's ledger, ~0.4s, writes nothing, runs no rule.
+#      Note what this does and does not know: inputs moved, so the artifacts
+#      are UNVERIFIED — not necessarily different; re-running may prove them
+#      byte-identical and only restamp the ledger)
 #   2. `git status` on the derived OUTPUTS — is what is on disk what you are
 #      PUBLISHING? `--dry` inspects the working tree; a push publishes HEAD, so
 #      "derived but never committed" passes (1) and still deploys stale files.
@@ -47,16 +50,29 @@
 # Escape hatch: git push --no-verify (you own the consequence — and CI is the
 # net under it).
 
-if ! node tools/internal/derive.mjs --dry >/dev/null 2>&1; then
+# (1) is a verdict about the LEDGER, and the message must not claim more: --dry
+# knows a rule's inputs moved since that rule last ran, not whether re-running
+# it would change a byte (a prose edit under docs/ re-runs `assemble` and often
+# leaves the model identical). Both honesty measures below exist because their
+# absence cost a real debugging session (2026-08-19): the rule names were
+# swallowed by >/dev/null, and the prescribed `git commit` had nothing to
+# commit — so the refusal read as a mystery instead of as "derive, then push".
+DRYOUT=$(node tools/internal/derive.mjs --dry 2>&1)
+if [ $? -ne 0 ]; then
   echo ""
-  echo "pre-push: derived artifacts are STALE — this push would publish a distro"
-  echo "          whose artifacts disagree with its sources. Run:"
+  echo "pre-push: some rules' INPUTS have changed since their artifacts were last"
+  echo "          derived, so what this push would publish is unverified:"
+  echo ""
+  echo "$DRYOUT" | sed 's/^/    /'
   echo ""
   echo "    npm run derive"
-  echo "    git add \$(node tools/internal/derive.mjs --paths)"
-  echo "    git commit -m 'derived artifacts'"
   echo ""
-  echo "  then push again.  (git push --no-verify to override)"
+  echo "  If that regenerates anything it stages its own outputs — commit them"
+  echo "  (git commit -m 'derived artifacts') and push again. If it reports"
+  echo "  '0 derived file(s) regenerated', the artifacts were already current and"
+  echo "  only the ledger was behind — just push again."
+  echo ""
+  echo "  (git push --no-verify to override)"
   echo ""
   exit 1
 fi

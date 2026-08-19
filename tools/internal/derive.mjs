@@ -49,6 +49,14 @@
 //   node tools/internal/derive.mjs --timing       per-rule cost + skip report
 //   node tools/internal/derive.mjs --paths        print the committed derived paths (stamps included)
 //   node tools/internal/derive.mjs --outputs      …only the files a rule authors WHOLE (the pre-push gate's list)
+//   node tools/internal/derive.mjs --only a,b     run just the named rules — the door for OTHER TOOLS
+//                                                 that need a subset of this build (build-mac-app.mjs
+//                                                 runs `--only tsc,bundles`). The point is the MANIFEST,
+//                                                 not speed: whoever runs a rule must record it, or the
+//                                                 ledger trails the tree and the next push is refused
+//                                                 over work that was already done. A partial run prunes
+//                                                 nothing (other rules' records are not its to delete)
+//                                                 and stages only the selected rules' outputs.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -69,6 +77,12 @@ const CHECK = has("--check");
 const DRY = has("--dry");
 const TIMING = has("--timing");
 const ALL = has("--all");
+// --only <a,b> (or --only=a,b): restrict this run to the named rules. Validated
+// against the rule table after it is defined; null = the whole graph.
+const onlyIx = argv.findIndex((a) => a === "--only" || a.startsWith("--only="));
+const ONLY = onlyIx === -1 ? null
+  : new Set((argv[onlyIx].includes("=") ? argv[onlyIx].slice("--only=".length) : argv[onlyIx + 1] ?? "")
+      .split(",").map((s) => s.trim()).filter(Boolean));
 
 // Every rule command runs under a HARD deadline, killed outright on overrun
 // (SIGKILL — no cooperation asked). Several rules execute app code in-process
@@ -105,8 +119,15 @@ const RULES = [
     inputs: ["tools/internal/bundle-freshness.mjs", "tools/internal/build-boot.mjs", "tools/internal/build-compiler.mjs",
              "runtime/dist", "compiler/dist", "browser"],
     outputs: [{ dir: "bundles", exclude: ["cache", "version.json"] }],
+    // force: the rule body may not SECOND-GUESS the scheduler. This driver
+    // decides staleness by content hash against the manifest; rebuildStale's
+    // own test is mtime, a weaker currency that can say "fresh" over stale
+    // content (git restore gives old bytes new mtimes) — and a body that
+    // declines to write would then have this driver record the rule as
+    // reconciled over bundles that still disagree with their sources. When the
+    // hashes say run, everything rebuilds.
     run: () => run("node", ["--input-type=module", "-e",
-      `import { rebuildStale } from "${join(ROOT, "tools/internal/bundle-freshness.mjs")}"; rebuildStale("${ROOT}", { log: console.log });`]),
+      `import { rebuildStale } from "${join(ROOT, "tools/internal/bundle-freshness.mjs")}"; rebuildStale("${ROOT}", { log: console.log, force: true });`]),
   },
   {
     name: "stats",                   // the measured figures (in-memory production builds; no crawl, no prose read)
@@ -243,9 +264,10 @@ function validate() {
 // would fire constantly on the normal state. The residual gap is stated in
 // the hook: a stamp regenerated and then left out of the commit is caught by
 // `--dry` on disk but not by the HEAD comparison.
-function derivedPaths({ outputsOnly = false } = {}) {
+function derivedPaths({ outputsOnly = false, rules = null } = {}) {
   const out = [];
   for (const r of RULES) {
+    if (rules !== null && !rules.has(r.name)) continue;
     for (const s of [...(r.outputs ?? []), ...(outputsOnly ? [] : r.stamps ?? [])]) {
       // A PREFIXED output owns only part of its directory, and flattening it to the
       // bare dir was a real hazard: `apps/docs/demos` holds 84 generated `seg_*`
@@ -272,6 +294,16 @@ if (has("--paths") || has("--outputs")) {
 
 validate();
 
+if (ONLY !== null) {
+  const known = RULES.map((r) => r.name);
+  const bad = [...ONLY].filter((n) => !known.includes(n));
+  if (ONLY.size === 0 || bad.length > 0) {
+    console.error(`derive: --only wants a comma list of rule names${bad.length ? ` — unknown: ${bad.join(", ")}` : ""}.`);
+    console.error(`  rules: ${known.join(", ")}`);
+    process.exit(1);
+  }
+}
+
 const MANIFEST = join(ROOT, ".derive/manifest.json");
 const manifest = existsSync(MANIFEST)
   ? (() => { try { return JSON.parse(readFileSync(MANIFEST, "utf8")); } catch { return {}; } })()
@@ -286,6 +318,7 @@ const movedFiles = [];
 const staleRules = [];
 
 for (const r of RULES) {
+  if (ONLY !== null && !ONLY.has(r.name)) continue;
   const key = `${r.name}:${specKey(r)}`;
   const rec = manifest[key];
   const preOut = new Map([...fileSet(r.outputs)].map((f) => [f, fileHash(join(ROOT, f))]));
@@ -330,9 +363,13 @@ for (const r of RULES) {
   if (TIMING) console.log(`  ${String(Date.now() - s).padStart(6)}ms  ${r.name}`);
 }
 
-// prune manifest entries for renamed/re-specced rules
-for (const k of Object.keys(manifest)) {
-  if (!RULES.some((r) => k === `${r.name}:${specKey(r)}`)) delete manifest[k];
+// prune manifest entries for renamed/re-specced rules — full runs only: a
+// partial (--only) run never saw the other rules, and their records are not
+// its to delete.
+if (ONLY === null) {
+  for (const k of Object.keys(manifest)) {
+    if (!RULES.some((r) => k === `${r.name}:${specKey(r)}`)) delete manifest[k];
+  }
 }
 if (!DRY) {
   mkdirSync(dirname(MANIFEST), { recursive: true });
@@ -377,11 +414,17 @@ if (CHECK) {
   // be false with nothing regenerated at all — a half-staged rename, a file restored
   // after a bad delete, an interrupted run. Gating on `movedFiles` left exactly that
   // state unreconciled, which is what a no-op derive is asked to fix.
-  const specs = derivedPaths({ outputsOnly: true });
+  // On a partial run, reconcile ONLY the selected rules' outputs: `git add -A`
+  // over an unselected rule's pathspec would stage disk state its rule never
+  // vouched for this run.
+  const specs = derivedPaths({ outputsOnly: true, rules: ONLY });
   let staged = false;
-  try { run("git", ["add", "-A", "--", ...specs]); staged = true; }
+  // An empty pathspec list must SKIP the add (`git add -A --` bare means the
+  // whole tree — the exact opposite of "only what derive owns").
+  if (specs.length === 0) staged = true;
+  else try { run("git", ["add", "-A", "--", ...specs]); staged = true; }
   catch (e) { console.error(`derive: could not stage (${String(e.message ?? e).split("\n")[0]}) — stage by hand:\n   git add -A -- ${specs.join(" ")}`); }
   console.log(`derive: ${movedFiles.length} derived file(s) regenerated — ${ran} rule(s) ran, ${skipped} skipped (${total}s)` +
-    (staged ? ` · outputs staged` : ""));
+    (staged ? ` · outputs staged` : "") + (ONLY !== null ? ` · only ${[...ONLY].join(",")}` : ""));
   for (const p of movedFiles.slice(0, 12)) console.log(`   ${p}`);
 }
