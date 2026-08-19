@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "33b73a8178a0",
+  "buildId": "f97eb2a4653d",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -14102,7 +14102,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 419
+    "line": 407
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14120,7 +14120,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 420
+    "line": 408
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14138,7 +14138,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 421
+    "line": 409
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14156,7 +14156,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 422
+    "line": 410
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14174,7 +14174,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 433
+    "line": 421
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14195,7 +14195,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 478
+    "line": 466
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14216,7 +14216,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 540
+    "line": 528
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -32281,7 +32281,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 478
+      "line": 466
      },
      "parent": "DataSource",
      "seeAlso": [],
@@ -32302,7 +32302,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 540
+      "line": 528
      },
      "parent": "DataSource",
      "seeAlso": [],
