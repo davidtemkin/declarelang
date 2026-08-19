@@ -10,6 +10,11 @@ App [ fill = #1B2733, appName = "Probe A",
         text = { "A at " + (app.location == "" ? "(home)" : app.location) } ],
     counter: Text [ x = 16, y = 38, textColor = #9CB2C5, text = { "A clicks " + app.clicks } ],
 
+    // BINDING onScreen is what arms its feed (the fact is pay-per-use); the
+    // test scrolls this box out of the page's viewport and reads the flip.
+
+    seen: Text [ x = 190, y = 14, textColor = #7FA8C9, text = { app.onScreen ? "seen" : "unseen" } ],
+
     move: View [ x = 16, y = 66, width = 150, height = 32, fill = #2E4256, cornerRadius = 6,
         t: Text [ x = 12, y = 7, textColor = whitesmoke, text = "move location" ],
         onClick(e: PointerEvent) { app.clicks = app.clicks + 1; app.location = "moved/" + app.clicks }

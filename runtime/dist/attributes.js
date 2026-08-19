@@ -71,11 +71,18 @@ export function defineAttributes(ctor, specs) {
         const defBinding = spec.defBinding;
         const defOuter = spec.defOuter === true;
         const readOnly = spec.readOnly === true;
+        const onTrack = spec.onTrack;
+        const trackedOnce = onTrack !== undefined ? new WeakSet() : null;
         Object.defineProperty(ctor.prototype, name, {
             get() {
                 const self = this;
-                if (isTracking())
+                if (isTracking()) {
                     cellFor(self, name).track();
+                    if (trackedOnce !== null && !trackedOnce.has(self)) {
+                        trackedOnce.add(self);
+                        onTrack(self);
+                    }
+                }
                 if ((follows || defBinding !== undefined) && !provided(self, name)) {
                     // A prevailing slot with no local provision FOLLOWS the nearest
                     // providing ancestor (styling rung) — `defaults` is the DECLARING

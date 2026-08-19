@@ -363,6 +363,18 @@ export declare class View extends Node {
      *  Pay-per-use: a program that never reads them allocates nothing. */
     get hovered(): boolean;
     get pressed(): boolean;
+    /** Is this view ON SCREEN — inside the viewport, not scrolled away, not in
+     *  a hidden subtree? A COARSE fact that flips at threshold crossings, so
+     *  binding it costs a re-derive only when the answer changes — the cheap
+     *  way for a view to know it can't be seen, without touching geometry per
+     *  frame. Gate ambient work on it: `running = { classroot.onScreen &&
+     *  app.pageVisible }`. Fed by the backend's own visibility machinery (DOM:
+     *  IntersectionObserver, viewport-rooted — an embedded app's box scrolled
+     *  off a foreign page reads false too); armed lazily at the first tracked
+     *  read, so a program that never binds it pays nothing. Backends without
+     *  the machinery (canvas, native — for now) leave it true. Read-only; for
+     *  EXACT geometry ask `rootBounds()` instead. */
+    onScreen: boolean;
     /** The default focus-traversal members of this view: its visible View
      *  children in source order (docs/system-design/input.md, Layer 2). The focus
      *  service descends into each; a view whose `tabOrder()` is not overridden
@@ -434,6 +446,29 @@ export declare class View extends Node {
      *  overlay anchored by it (a menu at a pointer, a popover under a control)
      *  lands where the view is SEEN, at any scroll. Components call this
      *  instead of hand-accumulating ancestor x/y, which is scroll-blind. */
+    /** This view's BOX in root space — rootOrigin()'s sibling for the whole
+     *  frame: the transformed axis-aligned box (ancestor scale/rotation
+     *  composed, every intermediate scroll subtracted; interaction.ts
+     *  rootFrameBox — the hit walk's own math). A one-shot QUERY, deliberately
+     *  not a fact: absolute geometry depends on every ancestor, and a live slot
+     *  would re-derive on each scrolled pixel. Compose with the viewport facts
+     *  for "where am I on screen": `rootBounds().y - app.scrollY` against
+     *  `app.hostHeight`. For the coarse question, bind `onScreen` instead. */
+    rootBounds(): {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+    /** The `onScreen` feed — armed at the FIRST tracked read (AttrSpec.onTrack:
+     *  a fact nobody binds costs nothing), re-armed at attach so a bound view
+     *  that re-attaches keeps its feed. The backend answers with its own
+     *  machinery (DOM: one shared IntersectionObserver); a backend without one
+     *  leaves the fact at its default, true. */
+    private onScreenArmed;
+    /** @internal the attribute table's onTrack calls this (first tracked read). */
+    armOnScreen(): void;
+    private startOnScreen;
     rootOrigin(): {
         x: number;
         y: number;

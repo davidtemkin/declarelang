@@ -651,6 +651,48 @@ export class DomBackend {
         }
     }
 }
+// Scrollbars are the platform's own. An earlier build injected a persistent,
+// space-reserving `::-webkit-scrollbar` (+ `scrollbar-gutter: stable`) so a bar was
+// always visible — but styling `::-webkit-scrollbar` opts Safari OUT of its native
+// overlay bar and into a wide, always-on legacy one — a downgrade from what the
+// platform gives for free. We now inject nothing: `overflow: auto` gives each pane
+// the OS default — an overlay bar where the platform draws one, or the classic
+// bar the OS/user setting dictates elsewhere.
+// ── island slot notifications (the host's registration seam) ─────────────────
+//
+// The host used to DISCOVER islands by scanning `[data-declare-slot]` every
+// frame (host-client's mtick), and a second polling loop here mirrored a
+// mounted child's `appName` up to the island's `childName`. Both questions are
+// answered by events the runtime itself performs: `setEmbed` runs at slot mark
+// AND re-mark (the slot string carries the env segment, so an env change
+// re-marks), so a registered sink hears about every island the moment it
+// exists — no scan, no standing frame. The childName mirror moved to the host
+// (an `observe` on the mounted child's `appName`, host-client renderChild),
+// where the child's lifetime is actually known; the mac backend keeps its own
+// copy of the mirror for its native windows. Registration replays existing
+// slots, so a host that wires up after first render misses nothing.
+// ── the onScreen feed (Surface.watchOnScreen) ────────────────────────────────
+//
+// One shared IntersectionObserver for the whole document — the browser's own
+// off-the-layout-path answer to "is this element in the viewport", built for
+// exactly this. Viewport-rooted (root null), so an embedded app's box scrolled
+// out of a FOREIGN page reports false the same as an in-app scroll; and a
+// display:none subtree (visible = false) reports false too, which is the same
+// answer the fact means. Registered lazily — a page where nothing binds
+// `onScreen` never constructs the observer.
+const ONSCREEN = new Map();
+let onScreenIO = null;
+function observeOnScreen(el, cb) {
+    if (typeof IntersectionObserver === "undefined")
+        return () => { };
+    onScreenIO ??= new IntersectionObserver((entries) => {
+        for (const e of entries)
+            ONSCREEN.get(e.target)?.(e.isIntersecting);
+    });
+    ONSCREEN.set(el, cb);
+    onScreenIO.observe(el);
+    return () => { ONSCREEN.delete(el); onScreenIO?.unobserve(el); };
+}
 const islandSinks = new Set();
 /** Register an island sink — one per booting host, and a page may boot several
  *  apps, so this is a set: every sink hears every slot and scopes itself (the
@@ -2208,8 +2250,16 @@ class DomSurface {
         if (el.dataset.declareIgnorescroll !== undefined)
             realizeIgnoreScroll(el);
     }
+    watchOnScreen(cb) {
+        this.unwatchOnScreen?.();
+        this.unwatchOnScreen = observeOnScreen(this.element, cb);
+        return () => { this.unwatchOnScreen?.(); this.unwatchOnScreen = null; };
+    }
+    unwatchOnScreen = null;
     destroy() {
         this.gone = true; // quiets any armed dpr listener
+        this.unwatchOnScreen?.();
+        this.unwatchOnScreen = null;
         this.richObserver?.disconnect();
         this.onRichResize = undefined;
         CARVED.delete(this.element);

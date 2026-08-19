@@ -59,7 +59,7 @@ export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
 export { Layout } from "./layout.js";
-export { Dataset, DataSource, toCursor, provideTransport } from "./data.js";
+export { Dataset, DataSource, toCursor, provideTransport, setAppDataBase } from "./data.js";
 export { provideAssetBase, setAppAssetBase } from "./asset-base.js";
 export { Video } from "./video.js";
 export { Audio } from "./audio.js";

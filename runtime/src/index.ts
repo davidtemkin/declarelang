@@ -29,6 +29,7 @@ import { DeclareError, DeclareErrors } from "./errors.js";
 // production entry (`renderProgram`) can drop the parser + checker entirely.
 import { mountApp, loadFonts } from "./boot.js";
 import { setAppAssetBase } from "./asset-base.js";
+import { setAppDataBase } from "./data.js";
 
 /** Options for build()/render(): the file-access host `include` resolution
  *  rides and the including file's directory. Both default to a no-op — a
@@ -97,7 +98,13 @@ export function render(source: string, host: HTMLElement, backend: RenderBackend
  *  document they render into belongs to the host page (asset-base.ts). */
 export async function renderAsync(source: string, host: HTMLElement, backend: RenderBackend, opts: BuildOptions & { assetBase?: string | null } = {}): Promise<App> {
   const app = build(source, opts);
-  if (opts.assetBase != null) setAppAssetBase(app, opts.assetBase);
+  if (opts.assetBase != null) {
+    setAppAssetBase(app, opts.assetBase);
+    // Data rides the same rule (the sibling rule, language §9): this app's
+    // relative DataSource urls mean "beside MY program". The base rebases and
+    // then delegates to the global transport, so refusers/stubs still govern.
+    setAppDataBase(app, opts.assetBase);
+  }
   await loadFonts(fontFacesOf(app), opts.assetBase);
   return mountApp(app, host, backend);
 }
@@ -123,7 +130,7 @@ export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
 export { Layout } from "./layout.js";
-export { Dataset, DataSource, toCursor, provideTransport } from "./data.js";
+export { Dataset, DataSource, toCursor, provideTransport, setAppDataBase } from "./data.js";
 export { provideAssetBase, setAppAssetBase } from "./asset-base.js";
 export { Video } from "./video.js";
 export { Audio } from "./audio.js";

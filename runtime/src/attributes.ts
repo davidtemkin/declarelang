@@ -53,6 +53,12 @@ export interface AttrSpec<S, V> {
    *  live and never overridden. checkAttr already refuses a declarative
    *  assignment; this is the runtime backstop for an imperative write. */
   readOnly?: boolean;
+  /** Called ONCE per instance, at the first TRACKED read of this slot — the
+   *  pay-per-use trigger for facts whose FEED costs something to stand up
+   *  (View.onScreen arms a backend visibility watch). An untracked read never
+   *  fires it: a fact nobody binds needs no feeder. Costs one WeakSet probe
+   *  per tracked read, and only on slots that declare it. */
+  onTrack?: (self: S) => void;
 }
 
 type Push = (self: object, v: unknown) => void;
@@ -123,10 +129,15 @@ export function defineAttributes<S extends object>(
     const defBinding = spec.defBinding;
     const defOuter = spec.defOuter === true;
     const readOnly = spec.readOnly === true;
+    const onTrack = spec.onTrack as ((self: object) => void) | undefined;
+    const trackedOnce = onTrack !== undefined ? new WeakSet<object>() : null;
     Object.defineProperty(ctor.prototype, name, {
       get(this: object): unknown {
         const self = this as Carrier;
-        if (isTracking()) cellFor(self, name).track();
+        if (isTracking()) {
+          cellFor(self, name).track();
+          if (trackedOnce !== null && !trackedOnce.has(self)) { trackedOnce.add(self); onTrack!(self); }
+        }
         if ((follows || defBinding !== undefined) && !provided(self, name)) {
           // A prevailing slot with no local provision FOLLOWS the nearest
           // providing ancestor (styling rung) — `defaults` is the DECLARING

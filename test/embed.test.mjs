@@ -129,6 +129,29 @@ await test("the untouched page is IDLE — zero rAF, the polling loops are gone"
   assert.equal(rafs, 0, `expected 0 rAF over 1.2s idle, saw ${rafs}`);
 });
 
+await test("a tenant's relative data resolves beside ITS program, not another's", async () => {
+  // probe C (test/probe/tenant/) fetches "here.json"; a decoy with a
+  // different value sits at the other tenants' base (test/probe/). Per-app
+  // data bases (setAppDataBase) make the relative url mean "beside MY file".
+  await page.waitForFunction(() => {
+    const c = document.getElementById("slot-c").__declareApp;
+    return c && c.data && c.data.loaded === true;
+  }, { timeout: 15000 });
+  const who = await page.evaluate(() => document.getElementById("slot-c").__declareApp.data.value.who);
+  assert.equal(who, "tenant", "the tenant's own here.json answered — not the decoy at another base");
+});
+
+await test("onScreen: a bound view learns it scrolled out of the page's viewport", async () => {
+  const a = () => page.evaluate(() => document.getElementById("slot-a").__declareApp.onScreen);
+  assert.equal(await a(), true, "on screen at boot (the probe binds it, which arms the feed)");
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await sleep(250);
+  assert.equal(await a(), false, "scrolled away — the fact flipped, with no app-side geometry work");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await sleep(250);
+  assert.equal(await a(), true, "and back");
+});
+
 await test("pageVisible reaches embedded apps and flips with the document", async () => {
   const before = await apps();
   assert.equal(before.a.visible, true, "visible at boot");

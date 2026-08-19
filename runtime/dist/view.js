@@ -21,7 +21,7 @@ export function provideViewCreator(fn) {
 import { record } from "./draw.js";
 import { sharedClock } from "./animate.js";
 import { Constraint, Cell, afterSettle } from "./reactive.js";
-import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin } from "./interaction.js";
+import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox } from "./interaction.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
@@ -493,6 +493,9 @@ export class View extends Node {
         // container constructed `selectable = true` realizes its surface now.
         if (this.selectable === true)
             s.setSelectableRegion?.(true);
+        // an armed onScreen feed follows the view onto its (re)attached surface
+        if (this.onScreenArmed)
+            this.startOnScreen();
         s.setX(this.x);
         s.setY(this.y);
         s.setWidth(this.width);
@@ -578,6 +581,36 @@ export class View extends Node {
      *  overlay anchored by it (a menu at a pointer, a popover under a control)
      *  lands where the view is SEEN, at any scroll. Components call this
      *  instead of hand-accumulating ancestor x/y, which is scroll-blind. */
+    /** This view's BOX in root space — rootOrigin()'s sibling for the whole
+     *  frame: the transformed axis-aligned box (ancestor scale/rotation
+     *  composed, every intermediate scroll subtracted; interaction.ts
+     *  rootFrameBox — the hit walk's own math). A one-shot QUERY, deliberately
+     *  not a fact: absolute geometry depends on every ancestor, and a live slot
+     *  would re-derive on each scrolled pixel. Compose with the viewport facts
+     *  for "where am I on screen": `rootBounds().y - app.scrollY` against
+     *  `app.hostHeight`. For the coarse question, bind `onScreen` instead. */
+    rootBounds() {
+        const b = rootFrameBox(this);
+        const r = (this.root ?? this);
+        return { x: b.x + r.scrollX, y: b.y + r.scrollY, width: b.width, height: b.height };
+    }
+    /** The `onScreen` feed — armed at the FIRST tracked read (AttrSpec.onTrack:
+     *  a fact nobody binds costs nothing), re-armed at attach so a bound view
+     *  that re-attaches keeps its feed. The backend answers with its own
+     *  machinery (DOM: one shared IntersectionObserver); a backend without one
+     *  leaves the fact at its default, true. */
+    onScreenArmed = false;
+    /** @internal the attribute table's onTrack calls this (first tracked read). */
+    armOnScreen() {
+        this.onScreenArmed = true;
+        this.startOnScreen();
+    }
+    startOnScreen() {
+        if (!this.onScreenArmed)
+            return;
+        this.surface?.watchOnScreen?.((on) => { if (this.onScreen !== on)
+            this.onScreen = on; });
+    }
     rootOrigin() {
         const o = rootFrameOrigin(this);
         const r = (this.root ?? this);
@@ -863,6 +896,10 @@ defineAttributes(View, {
             if (b)
                 markRichPending(v);
         } },
+    // the on-screen fact (declared above): default true; the FEED arms at the
+    // first tracked read (onTrack — pay-per-use), and only where the backend
+    // offers the machinery (Surface.watchOnScreen)
+    onScreen: { def: true, onTrack: (v) => v.armOnScreen() },
     ignoreLayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View)
             p.childrenMutated(); } },
     ignoreClip: { def: false, push: (v, b) => v.surface?.setIgnoreClip?.(b) },

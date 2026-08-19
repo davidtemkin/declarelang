@@ -167,6 +167,12 @@ const TABLE = {
     mac: true,
     headless: NOT_APPLICABLE,
   },
+  watchOnScreen: {
+    dom: true,
+    canvas: "GAP by design for now (2026-08-19) — the onScreen fact rests at its default (true) on canvas. The honest feed exists in principle (the composite walk knows what it culls); wiring it is the same work as the scroll-cull the sealed surface already does, deliberate rather than forgotten",
+    mac: "GAP by design for now (2026-08-19) — same rest-at-true. The native host's hidden-raster skip already computes exactly this fact per layer; feeding it across the bridge is the follow-on recorded with the occlusion work",
+    headless: NOT_APPLICABLE,
+  },
 };
 
 // ── what the sources actually say ───────────────────────────────────────────
@@ -272,7 +278,7 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 19,
+  assert.equal(members.length, 20,   // +watchOnScreen (2026-08-19): the onScreen fact's feed — resting default true where unimplemented
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);

@@ -665,6 +665,28 @@ export class DomBackend implements RenderBackend {
 // copy of the mirror for its native windows. Registration replays existing
 // slots, so a host that wires up after first render misses nothing.
 
+// ── the onScreen feed (Surface.watchOnScreen) ────────────────────────────────
+//
+// One shared IntersectionObserver for the whole document — the browser's own
+// off-the-layout-path answer to "is this element in the viewport", built for
+// exactly this. Viewport-rooted (root null), so an embedded app's box scrolled
+// out of a FOREIGN page reports false the same as an in-app scroll; and a
+// display:none subtree (visible = false) reports false too, which is the same
+// answer the fact means. Registered lazily — a page where nothing binds
+// `onScreen` never constructs the observer.
+
+const ONSCREEN = new Map<Element, (on: boolean) => void>();
+let onScreenIO: IntersectionObserver | null = null;
+function observeOnScreen(el: Element, cb: (on: boolean) => void): () => void {
+  if (typeof IntersectionObserver === "undefined") return () => {};
+  onScreenIO ??= new IntersectionObserver((entries) => {
+    for (const e of entries) ONSCREEN.get(e.target)?.(e.isIntersecting);
+  });
+  ONSCREEN.set(el, cb);
+  onScreenIO.observe(el);
+  return () => { ONSCREEN.delete(el); onScreenIO?.unobserve(el); };
+}
+
 type IslandSink = (el: HTMLElement) => void;
 const islandSinks = new Set<IslandSink>();
 
@@ -2160,8 +2182,17 @@ class DomSurface implements Surface {
     if (el.dataset.declareIgnorescroll !== undefined) realizeIgnoreScroll(el);
   }
 
+  watchOnScreen(cb: (on: boolean) => void): () => void {
+    this.unwatchOnScreen?.();
+    this.unwatchOnScreen = observeOnScreen(this.element, cb);
+    return () => { this.unwatchOnScreen?.(); this.unwatchOnScreen = null; };
+  }
+  private unwatchOnScreen: (() => void) | null = null;
+
   destroy(): void {
     this.gone = true; // quiets any armed dpr listener
+    this.unwatchOnScreen?.();
+    this.unwatchOnScreen = null;
     this.richObserver?.disconnect();
     this.onRichResize = undefined;
     CARVED.delete(this.element);

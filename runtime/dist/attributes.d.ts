@@ -24,6 +24,12 @@ export interface AttrSpec<S, V> {
      *  live and never overridden. checkAttr already refuses a declarative
      *  assignment; this is the runtime backstop for an imperative write. */
     readOnly?: boolean;
+    /** Called ONCE per instance, at the first TRACKED read of this slot — the
+     *  pay-per-use trigger for facts whose FEED costs something to stand up
+     *  (View.onScreen arms a backend visibility watch). An untracked read never
+     *  fires it: a fact nobody binds needs no feeder. Costs one WeakSet probe
+     *  per tracked read, and only on slots that declare it. */
+    onTrack?: (self: S) => void;
 }
 /** Declare a class's reactive attributes: defaults + pushes, installed as
  *  prototype accessors. Call once per class, at module load, right under the

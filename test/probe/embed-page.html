@@ -15,10 +15,18 @@
   <div id="slot-a" class="box" data-declare-embed></div>
   <p>Prose between the tenants.</p>
   <div id="slot-b" class="box" data-declare-embed></div>
+  <p>A third tenant from a DIFFERENT directory — its relative data must
+  resolve beside its own program, not another tenant's.</p>
+  <div id="slot-c" class="box" data-declare-embed></div>
+  <div style="height: 1200px"><!-- scroll room: the onScreen pin scrolls slot-a away --></div>
 </main>
 <script type="module">
   import boot from "/bundles/declare-boot.js";
   await boot({ main: "/test/probe/embed-a.declare", host: document.getElementById("slot-a") });
+  // probe C boots BETWEEN the others on purpose: if per-app data bases ever
+  // regress to last-boot-wins, its relative url resolves against B's dir and
+  // finds the decoy — the failure is loud, not lucky.
+  await boot({ main: "/test/probe/tenant/inner.declare", host: document.getElementById("slot-c") });
   await boot({ main: "/test/probe/embed-b.declare", host: document.getElementById("slot-b") });
   window.__embedsReady = true;
 </script>
