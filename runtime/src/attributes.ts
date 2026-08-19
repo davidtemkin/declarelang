@@ -437,6 +437,44 @@ export function ownerOf(self: object, name: string): Constraint | null {
   return (self as Carrier).$owners?.[name] ?? null;
 }
 
+// ── author-declaration records (tooling) ─────────────────────────────────────
+//
+// A program-declared slot (`fitS: number = { … }`) is served by a defBinding —
+// a live fallback in the getter, deliberately NOT a standing Constraint — so
+// `ownerOf` has nothing, and until 2026-08-19 the introspection surface went
+// blind exactly at the slots the program is made of: explain() answered with
+// provenance for View.width and null for the author's own derivation, and
+// slots() could not even say the slot existed (found by an agent building
+// against the bridge — a working fact was measured as absent for 1,097 frames
+// because nothing enumerated it). instantiate.ts records every declaration
+// here at class-make time; explain()/slotsOf() read it back.
+
+export interface DeclRecord {
+  /** The `{ }` default's source text, null for a plain (literal) declaration. */
+  source: string | null;
+  pos: { line: number; col: number } | null;
+  /** The compiler's extracted read-paths for the default, when they rode along. */
+  deps: readonly string[] | null;
+}
+const DECLARED = new WeakMap<object, Record<string, DeclRecord>>();
+
+/** Record a class's author declarations (instantiate.ts makeClass). */
+export function recordDeclarations(ctor: object, table: Record<string, DeclRecord>): void {
+  DECLARED.set(ctor, table);
+}
+
+/** Every author-declared slot visible on this instance — the class's own and
+ *  its user superclasses', merged up the prototype chain (runtime base
+ *  classes never register, so View's built-ins stay out of the answer). */
+export function declarationsOf(self: object): Record<string, DeclRecord> {
+  const out: Record<string, DeclRecord> = {};
+  for (let c: unknown = self.constructor; c != null; c = Object.getPrototypeOf(c)) {
+    const t = DECLARED.get(c as object);
+    if (t !== undefined) for (const k of Object.keys(t)) if (!(k in out)) out[k] = t[k];
+  }
+  return out;
+}
+
 /** Tooling reads (inspect.ts): the node's OWN attribute values (writes and
  *  bound results — `$attrs`, the instance overlay over the class defaults),
  *  and the slot names currently owned by constraints. Snapshots, not live. */

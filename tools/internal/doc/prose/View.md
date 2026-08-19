@@ -14,6 +14,11 @@ View [ width = 200, height = 120, fill = white, cornerRadius = 8,
     ]
 ```
 
+Every attribute below can be asked about in a **running** program:
+`window.__declare.explain(path, attr)` returns the live value *and* its provenance
+(the owning constraint, its source, its reads); `__declare.help()` lists the calls.
+See `docs/operational/introspection.md`.
+
 ## width
 The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no
 width set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).
@@ -249,6 +254,36 @@ origin** — `x`/`y` are the lead offsets the transform introduces (0 untransfor
 `width`/`height` the footprint extents. It never reads the view's `x`/`y`, which is why
 a layout's `place()` consumes this form: a strategy must never read the slots it
 writes. Reach for `bounds()` everywhere else.
+## rootBounds()
+This view's transformed box in **root-content space** — every ancestor's position,
+scale, rotation, and scroll composed (the hit walk's own math). A one-shot query for
+handlers, deliberately not a reactive fact: absolute geometry depends on every
+ancestor, and a live slot would re-derive on each scrolled pixel. For the reactive
+question — "am I visible?" — bind `onScreen` or `visibleRect` instead.
+## rootTransform()
+The composed similarity from this view's frame to root space — `{x, y, scale,
+rotation}`. The method tier's exact transform; the visibility facts are its coarse,
+at-rest companions.
+## onScreen
+Is this view **on screen** — inside the viewport, not scrolled away, not in a hidden
+subtree? A coarse reactive fact that flips at threshold crossings, so a binding
+re-derives only when the answer changes: the gate for ambient work
+(`running = { classroot.onScreen && app.pageVisible }`) and for load culling. Fed
+lazily at the first read — a program that never binds it pays nothing. On the DOM the
+feed sees the whole page, so an embedded app's box scrolled off its **host** page
+reads `false` too. Read-only.
+## visibleRect
+What of this view is visible, **in its own coordinates** — `{x, y, width, height}`,
+all zeros when nothing shows. Updates **at rest** (when motion settles and scrolling
+quiets), never per frame of a glide — a tile or rung decision wants the flight's end.
+Cull margins are your arithmetic on the truth, not a platform knob. Read-only.
+## apparentScale
+The composed scale from this view's units to **device pixels** — ancestor scales ×
+devicePixelRatio. The raster-rung fact: an image pyramid picks its tier from it, a
+drawn view its backing density, with no reimplemented transform math and no host
+globals. Exact under Declare's own transforms (rotation does not participate); under
+a non-similar host transform it is the largest axis ratio — the rasterization
+convention. Same at-rest delivery as `visibleRect`. Read-only.
 ## onClick
 Fires when the pointer presses **and** releases on the same view (a true click, not a
 stray press) — answered by an `onClick()` handler. The primary interaction event;

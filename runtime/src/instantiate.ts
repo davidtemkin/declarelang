@@ -67,7 +67,7 @@ import { buildStylesheet, ensureApplier, registerStylesheets, type Stylesheet, t
 import { buildFonts, collectFaces, registerFontFaces, type Font } from "./font.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
 import { coerce, isPercent, isAlign, type AttrType, type Theme } from "./value.js";
-import { defineAttributes, setBound, type AttrSpec } from "./attributes.js";
+import { defineAttributes, recordDeclarations, setBound, type AttrSpec, type DeclRecord } from "./attributes.js";
 import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator, type VirtualizePolicy } from "./replicate.js";
@@ -441,6 +441,7 @@ function synthesize(
   if (body.decls.length > 0) {
     const probe = new B();
     const specs: Record<string, AttrSpec<View, unknown>> = {};
+    const declRecords: Record<string, DeclRecord> = {};
     const defs = defaults();
     for (const d of body.decls) {
       if (d.name in probe) {
@@ -468,10 +469,22 @@ function synthesize(
         defBinding,
         defOuter: outer || undefined,
       };
+      // The tooling record (attributes.ts DECLARED): a defBinding drops the
+      // source at compile, and the introspection surface went blind exactly at
+      // the program's own slots — keep what explain()/slots() need to answer.
+      // (pos is optional-chained throughout: a HYDRATED program — the slim
+      // production artifact — rebuilds the AST from JSON without positions)
+      const at = (d.def?.kind === "code" ? d.def.pos : undefined) ?? d.pos;
+      declRecords[d.name] = {
+        source: d.def?.kind === "code" ? d.def.src : null,
+        pos: at != null && typeof (at as { line?: number }).line === "number" ? { line: (at as { line: number }).line, col: (at as { col?: number }).col ?? 0 } : null,
+        deps: d.def?.kind === "code" ? ((d.def as { deps?: readonly string[] }).deps ?? null) : null,
+      };
     }
     // The static mapped type on defineAttributes serves hand-declared
     // classes; parse-path names are dynamic, hence the cast.
     defineAttributes(cls, specs as never);
+    recordDeclarations(cls, declRecords);
   }
   return cls;
 }

@@ -168,4 +168,44 @@ await test("stats: node and owned-slot counts", async () => {
   app.discard();
 });
 
+// ── the introspection boundary (field report 2026-08-19): the surface must
+// answer for the slots the PROGRAM is made of, not just the platform's ──────
+
+await test("explain: an author declaration's { } default carries full provenance", async () => {
+  const app = await boot(`App [ width = 400, height = 300, n: number = 10,
+      fitS: number = { app.n * 2 + app.width / 100 },
+      ]`);
+  try {
+    const p = explain(app, "fitS");
+    assert.equal(p.value, 24, "the live value");
+    assert.ok(p.constraint, "a declaration default explains itself — not null");
+    assert.equal(p.declaration, true, "and says it is a declaration, not a standing constraint");
+    assert.match(p.constraint.source, /n \* 2/, "the derivation's source text (compiler-qualified)");
+    assert.ok(p.constraint.pos && p.constraint.pos.line >= 1, "with its position");
+  } finally { app.discard(); }
+});
+
+await test("slots: author-declared slots are enumerable — constraints and defaulted plains alike", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
+      timeScale: number = 1,
+      fitS: number = { app.width / 100 },
+      ]`);
+  try {
+    const { slotsOf } = await import("../runtime/dist/index.js");
+    const names = slotsOf(app).map((s) => s.attr);
+    assert.ok(names.includes("fitS"), "a declared constraint slot is discoverable");
+    assert.ok(names.includes("timeScale"), "a plain slot still at its default is discoverable");
+  } finally { app.discard(); }
+});
+
+await test("explain: an unknown slot answers loudly, never with placid nothing", async () => {
+  const app = await boot(`App [ width = 400, height = 300, fitS: number = 1 ]`);
+  try {
+    const p = explain(app, "fitZ");
+    assert.ok(p.error, "the miss is an error, not undefined");
+    assert.match(p.error, /no slot 'fitZ'/);
+    assert.match(p.error, /fitS/, "with the near name suggested");
+  } finally { app.discard(); }
+});
+
 summarize("inspect");

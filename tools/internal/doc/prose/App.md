@@ -18,6 +18,10 @@ App [ fill = white,
     ]
 ```
 
+Every fact below is inspectable in a **running** program — `window.__declare.explain("app", attr)`
+answers with the live value and its provenance, and `__declare.help()` lists the whole
+call surface. See `docs/operational/introspection.md`.
+
 ## hostWidth
 **Read-only.** The width of the App's host — the window at top level, the embedding
 element when embedded. The App's own `width` defaults to it, so read `app.hostWidth` for
@@ -64,6 +68,16 @@ comfortably selectable.
 live as the system theme flips. Theme off it: `theme = { app.dark ? darkTokens() : lightTokens() }`.
 It is only the OS signal; when you offer a Light/Dark/Auto control, keep your own mode
 attribute and read `app.dark` as the "auto" case.
+
+## pageVisible
+**Read-only.** Is the page this app lives on **visible** — `false` when the tab is
+hidden, the window minimized, or the display asleep; `true` again on return (the
+Page Visibility fact; the native host feeds the same slot from its window's occlusion
+state, which also covers covered-by-another-window). Gate ambient motion on it —
+`running = { … && app.pageVisible }` — and the constraint stopping the Heartbeat
+empties the frame clock: a page nobody can see books nothing. A browser window merely
+covered by another window may still read `true` (Safari does not report occlusion;
+Chrome and the native host do). Per-document, so an embedded app inherits its page's.
 
 ## minWidth
 The width below which the app **stops adapting** — in a narrower host it holds this width and

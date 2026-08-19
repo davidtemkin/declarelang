@@ -63,6 +63,13 @@ http.createServer(server.handler)
     console.log("  build cache");
     console.log(`    ${server.buildCache}`);
     if (cfg.configPath) console.log(`\n  config: ${path.relative(process.cwd(), cfg.configPath) || CONFIG_NAME}`);
+    // The one line that makes the running program's introspection findable —
+    // an agent built forty harnesses against a live app without discovering
+    // explain()/slots() because nothing it ran ever said they existed
+    // (field report 2026-08-19). This banner is something everyone runs.
+    console.log("\n  every served app is inspectable while it runs:");
+    console.log("    window.__declare in its console — __declare.help() lists the calls;");
+    console.log("    '?inspector' on the URL (or ⌥⌘D) opens the visual Inspector.");
     console.log("");
   });
 

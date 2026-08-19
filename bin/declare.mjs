@@ -47,6 +47,11 @@ const HELP = `declarelang — the Declare toolchain   (also aliased 'declare')
   declarelang help
       This message.
 
+Inspect a RUNNING program — the failures source-reading can't reach:
+  window.__declare in the page console (explain, slots, at, evaluate, …);
+  __declare.help() lists every call. '?inspector' on any app URL (or ⌥⌘D)
+  opens the visual Inspector. See docs/operational/introspection.md.
+
 Use 'declarelang' in npm scripts — 'declare' is a bash builtin the shell
 intercepts. 'declare' still works interactively and via 'npx declare'.
 
