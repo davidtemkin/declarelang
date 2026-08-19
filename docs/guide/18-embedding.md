@@ -43,9 +43,38 @@ same ladder as any Declare page), and the page around it is none of its
 business: resize the div and the app tracks it reactively through
 `app.hostWidth`/`app.hostHeight`, like any host. Without the marker, the same
 boot treats the page as its own — sizing to the window and painting the page
-background — which is what a dedicated app page wants. One app per page this
-way; for several, give each an iframe, or make the page itself Declare and
-read on.
+background — which is what a dedicated app page wants.
+
+**Several apps, one page.** Pass each boot its element and the page hosts as
+many as it likes — each in its own marked box, each with its own input and
+its own asset directory, none with any page-scoped wiring:
+
+```html
+<div id="a" data-declare-embed style="width: 390px; height: 700px"></div>
+<div id="b" data-declare-embed style="width: 390px; height: 700px"></div>
+
+<script type="module">
+  import boot from "/declare/bundles/declare-boot.js";
+  const a = await boot({ main: "/apps/birds/birds.declare",   host: document.getElementById("a") });
+  await     boot({ main: "/apps/weather/weather.declare",     host: document.getElementById("b") });
+  a.env = { base: "/apps/birds/" };     // the env channel: host → app facts, live
+</script>
+```
+
+The tenancy contract is structural, and it is pinned by test
+(test/embed.test.mjs): an embedded app's `appName` never retitles the page,
+its `location` moves neither the URL nor the page's history, and an untouched
+page books **zero animation frames** — the host is notified when an app
+writes; nothing polls. `boot()` returns the app, and the host element carries
+it too (`el.__declareApp`), which is the embedder's way in:
+
+- **watch state out** — `observe(() => app.total, v => …)` (a runtime export)
+  runs your callback once per settle in which the value changed;
+- **feed facts in** — write `app.env = {…}` and everything bound to it
+  re-derives; the page-visibility fact (`app.pageVisible`) arrives on its own;
+- **intercept the verbs** — replace the app's service table
+  (`app.hostServices = { navigate: to => router.push(to) }`) and a link
+  inside the widget routes through your SPA router instead of the browser.
 
 For where the `/declare/` platform files come from in your project — the
 mounts, the dev server, production builds — see

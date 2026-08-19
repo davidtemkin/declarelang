@@ -1,0 +1,16 @@
+// Embedding probe B — the QUIET tenant beside A (test/embed.test.mjs): proves
+// two apps coexist on one foreign page, input stays inside its own box, and
+// the pageVisible fact reaches an embedded app.
+
+App [ fill = #22303C, appName = "Probe B",
+    clicks: number = 0,
+
+    vis: Text [ x = 16, y = 14, textColor = whitesmoke,
+        text = { app.pageVisible ? "page visible" : "page hidden" } ],
+    counter: Text [ x = 16, y = 38, textColor = #9CB2C5, text = { "B clicks " + app.clicks } ],
+
+    pad: View [ x = 16, y = 66, width = 150, height = 32, fill = #2E4256, cornerRadius = 6,
+        t: Text [ x = 12, y = 7, textColor = whitesmoke, text = "tap me" ],
+        onClick(e: PointerEvent) { app.clicks = app.clicks + 1 }
+        ]
+    ]

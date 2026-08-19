@@ -651,25 +651,17 @@ export class DomBackend {
         }
     }
 }
-let embedMirrorFrame = 0;
-function reflectEmbeddedNames() {
-    const boxes = document.querySelectorAll('[data-declare-slot^="run:"]');
-    for (let i = 0; i < boxes.length; i++) {
-        const box = boxes[i];
-        const view = box.__declareView;
-        if (view === undefined)
-            continue;
-        const name = box.__childApp !== undefined && typeof box.__childApp.appName === "string" ? box.__childApp.appName : "";
-        if (view.childName !== name)
-            view.childName = name;
-    }
-    return boxes.length > 0;
-}
-function ensureEmbeddedNameMirror() {
-    if (embedMirrorFrame !== 0 || typeof requestAnimationFrame === "undefined" || typeof document === "undefined")
-        return;
-    const tick = () => { embedMirrorFrame = reflectEmbeddedNames() ? requestAnimationFrame(tick) : 0; };
-    embedMirrorFrame = requestAnimationFrame(tick);
+const islandSinks = new Set();
+/** Register an island sink — one per booting host, and a page may boot several
+ *  apps, so this is a set: every sink hears every slot and scopes itself (the
+ *  shim filters by containment, exactly the scope its old scan had). Fires for
+ *  every already-marked slot immediately, then per mark/re-mark. Returns the
+ *  unregister (a torn-down host must stop hearing about slots). */
+export function onIslandSlot(cb) {
+    islandSinks.add(cb);
+    if (typeof document !== "undefined")
+        document.querySelectorAll("[data-declare-slot]").forEach((el) => cb(el));
+    return () => islandSinks.delete(cb);
 }
 /** Materialize the inner clip container for a box-clipped element: adopt the
  *  ordinary children (in order), inherit the rounding, move the overflow. Used
@@ -1608,10 +1600,12 @@ class DomSurface {
         }
         else {
             this.element.dataset.declareSlot = id;
-            // the view back-reference the name-mirror writes `childName` onto, plus a
-            // start of that mirror (self-retiring, so it only runs while islands live)
+            // the view back-reference the host's childName mirror writes onto, then
+            // tell the registered host a slot exists here (mark or re-mark — the env
+            // segment rides the slot string, so env changes arrive as re-marks)
             el.__declareView = view;
-            ensureEmbeddedNameMirror();
+            for (const sink of islandSinks)
+                sink(this.element);
             // A live foreign surface, not painted UI: its interior owns hits, so an
             // iframe receives clicks whether or not the View has a sink. Selection
             // inside is already the platform's — boxes carry no `user-select` under

@@ -112,7 +112,8 @@ export { instantiate } from "./instantiate.js";
 export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 export { forEachElement, serializeLinks, applyLinks, type SerializedLink } from "./links.js";
 // Precompiled production entry + render glue (compiler-free) — see boot.ts.
-export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts, reflectAppName } from "./boot.js";
+export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts, reflectAppName, isEmbedded, provideHostServices } from "./boot.js";
+export type { HostServices } from "./boot.js";
 export { Inspect, setInspectionTarget, inspectionTarget } from "./inspect-service.js";
 export { pickAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";
 export type { FontSpec } from "./boot.js";
@@ -134,7 +135,7 @@ export type { StreamMessage, StreamFactories, StreamHandle, StreamCallbacks } fr
 export { Tip } from "./tip.js";
 export { Animator, AnimatorGroup } from "./animator.js";
 export type { Cursor } from "./data.js";
-export { settle, afterSettle } from "./reactive.js";
+export { settle, afterSettle, observe } from "./reactive.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export type { InspectNode, Provenance } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";
@@ -142,7 +143,7 @@ export { buildFonts, collectFaces, fontFacesOf, FONT_WEIGHTS } from "./font.js";
 export type { Font, FontFaceSpec } from "./font.js";
 export { fontString, textWidth, fontMetrics, provideMeasurer } from "./measure.js";
 export { validatePathData } from "./shape.js";
-export { DomBackend } from "./dom-backend.js";
+export { DomBackend, onIslandSlot } from "./dom-backend.js";
 export { CanvasBackend } from "./canvas-backend.js";
 export { HeadlessBackend } from "./headless-backend.js";
 export { SCHEMAS, attrType, descendsFrom, isPrevailing } from "./schema.js";

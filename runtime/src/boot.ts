@@ -17,6 +17,7 @@ import { Keys } from "./keys.js";
 import { Focus, deliverKeys } from "./focus.js";
 import { bridgeFor } from "./inspect.js";
 import { localPoint } from "./dom-backend.js";
+import { observe } from "./reactive.js";
 // Type-only — erased by tsc, so no runtime dependency on the parser.
 import type { Program } from "./parser.js";
 
@@ -97,9 +98,26 @@ export async function loadFonts(fonts: readonly FontSpec[], base?: string | null
  *  app fills the ELEMENT, the page keeps its background and scroll), declared
  *  where the decision lives — on the page, not in a boot flag. `closest`
  *  matches the host itself, so one selector answers both. */
-function isEmbedded(host: HTMLElement): boolean {
+export function isEmbedded(host: HTMLElement): boolean {
   return typeof document !== "undefined" && typeof host.closest === "function"
     && host.closest("[data-declare-app], [data-declare-embed]") !== null;
+}
+
+/** The host's service table for the app→host verbs (App.hostServices): install
+ *  it at mount and `navigate`/`openWindow`/`inspect` call it SYNCHRONOUSLY —
+ *  inside the click's transient user activation — instead of parking intents
+ *  on the pending* channels for a poll that no longer exists. Per-app, so a
+ *  page hosting several apps routes each to its own services, and a FOREIGN
+ *  page embedding a widget can supply its own (route `navigate` into an SPA
+ *  router). The tenancy contract lives here by construction: an embedded app
+ *  simply never gets the page-scoped services installed. */
+export interface HostServices {
+  navigate?: (to: string) => void;
+  openWindow?: (to: string) => void;
+  inspect?: (slot: string) => void;
+}
+export function provideHostServices(app: App, services: HostServices): void {
+  app.hostServices = services;
 }
 
 /** Per-app teardown for an EMBEDDED app's environment listeners (a top-level app
@@ -152,6 +170,20 @@ function wireColorScheme(app: App): () => void {
   const update = () => { app.dark = mq.matches; };
   mq.addEventListener("change", update);
   return () => mq.removeEventListener("change", update);
+}
+
+/** Feed `app.pageVisible` — the Page Visibility fact (schema.ts has the full
+ *  contract and its Safari-occlusion caveat). One listener per app, exactly
+ *  wireColorScheme's shape; visibility is per-DOCUMENT, so an embedded app
+ *  inherits its page's state through the same event. The native host feeds
+ *  the same slot from NSWindow's occlusion signal instead — one fact, one
+ *  feeder per platform. */
+function wireVisibility(app: App): () => void {
+  if (typeof document === "undefined" || document.visibilityState === undefined) return () => {};
+  const update = () => { app.pageVisible = document.visibilityState === "visible"; };
+  update();
+  document.addEventListener("visibilitychange", update);
+  return () => document.removeEventListener("visibilitychange", update);
 }
 
 /** Feed the SAFE-AREA facts (`app.safeTop`…`safeRight`) and honor `edges = cover`.
@@ -275,6 +307,7 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   if (embedded) return wireEnvironmentEmbedded(app, host);
   const w = window;
   wireColorScheme(app);                    // top-level app lives for the page — no teardown needed
+  wireVisibility(app);                     // page visibility fact — likewise page-lived
   wireTouchDevice(app);                    // device pointer kind — likewise page-lived
   wireSafeArea(app, w);                    // notch/home-indicator insets — likewise page-lived
   // The LAYOUT viewport, never the visual one: on iOS/iPadOS `window.inner*`
@@ -383,6 +416,7 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
   };
   const leave = () => { app.hovering = false; app.pointerOverText = false; };
   const unTheme = wireColorScheme(app);    // re-rendered embedded apps must drop the mq listener
+  const unVisible = wireVisibility(app);   // …and the visibilitychange listener
   const unPointer = wireTouchDevice(app);
   const down = (e: PointerEvent) => {
     const p = localPoint(host, e.clientX, e.clientY);
@@ -409,6 +443,7 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
     host.removeEventListener("pointerleave", leave);
     ro?.disconnect();
     unTheme();
+    unVisible();
     unPointer();
   });
 }
@@ -420,6 +455,11 @@ export function mountApp(app: App, host: HTMLElement, backend: RenderBackend, op
   backend.attachRoot(host, app.surface!);
   applyDeclaredScroll(app);
   wireInput(app, host, opts.chrome === true);
+  // The cold-arrival reveal seed: a location carrying `@name` may have been
+  // written BEFORE mount (the host seeds the fragment pre-settle), when its
+  // push armed a pump against a tree with no surface. Re-arm now that the
+  // tree is rooted; a no-anchor location makes this a no-op afterSettle.
+  app.scheduleReveal();
   return app;
 }
 
@@ -461,37 +501,25 @@ export function reflectAppName(app: App, served: string, reflected: string): str
   return app.appName;
 }
 
-/** Drive reflectAppName — and the retained `@name` reveal intent — from the
- *  frame loop, for hosts with no settle loop of their own (the AOT entry).
- *  resolveReveal was the dev host's alone before, so on production builds a
- *  cold deep link into data-built content (a DataSource-fed heading) armed an
- *  intent nothing ever pumped: the page simply never landed on its anchor.
- *  Same pump, same per-frame retry, and the user's first wheel/touch cancels
- *  the held intent exactly as the dev host does (location.md §0.5.5 — a
- *  reference SEEDS the scroll position, it never owns it). Top-level apps
- *  only: an embedded child app must never retitle the page, which is why this
- *  is wired into renderProgram* — the production page entry — and never into
- *  mountApp, which islands also use. */
-function startTitleMirror(app: App, host: HTMLElement): void {
-  if (typeof document === "undefined" || typeof requestAnimationFrame === "undefined") return;
+/** Mirror `app.appName` → document.title for the AOT entry — per SETTLE, not
+ *  per frame: `observe` fires the mirror at the close of any settle that
+ *  changed the name, and an untouched page books nothing (this replaced a
+ *  standing rAF loop that ran for the life of every production page). The
+ *  retained `@name` reveal intent no longer needs a host pump at all — the
+ *  runtime owns it (App.scheduleReveal / the armed-lifetime reveal ticker) —
+ *  this only wires the user's first wheel/touch to cancel a held intent
+ *  (location.md §0.5.5 — a reference SEEDS the scroll position, it never owns
+ *  it). Top-level apps only: an embedded child app must never retitle the
+ *  page, which is why this is wired into renderProgram* — the production page
+ *  entry — and never into mountApp, which islands also use. */
+function startTitleMirror(app: App, _host: HTMLElement): void {
+  if (typeof document === "undefined") return;
   const served = document.title;
-  let reflected = "";
+  let reflected = reflectAppName(app, served, "");
+  observe(() => app.appName, () => { reflected = reflectAppName(app, served, reflected); }, "titleMirror");
   const onUserScroll = (): void => { app.cancelReveal(); };
   window.addEventListener("wheel", onUserScroll, { passive: true });
   window.addEventListener("touchstart", onUserScroll, { passive: true });
-  const tick = (): void => {
-    // Self-retiring on a detached host, the same liveness rule the input
-    // router uses — a page app never detaches, so this costs one check a frame.
-    if (!host.isConnected) {
-      window.removeEventListener("wheel", onUserScroll);
-      window.removeEventListener("touchstart", onUserScroll);
-      return;
-    }
-    reflected = reflectAppName(app, served, reflected);
-    app.resolveReveal();
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
 }
 
 /** Render a PRECOMPILED program (the artifact `declarec` emits) — instantiate

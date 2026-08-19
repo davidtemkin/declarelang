@@ -1,0 +1,22 @@
+// Embedding probe A — the LOUD tenant (test/embed.test.mjs). It names itself,
+// moves its location, and calls the verbs: everything the tenancy contract
+// says must NOT leak into an embedding page's chrome (title, URL, history)
+// is exercised here, so the test can hold the page still and watch.
+
+App [ fill = #1B2733, appName = "Probe A",
+    clicks: number = 0,
+
+    label: Text [ x = 16, y = 14, textColor = whitesmoke,
+        text = { "A at " + (app.location == "" ? "(home)" : app.location) } ],
+    counter: Text [ x = 16, y = 38, textColor = #9CB2C5, text = { "A clicks " + app.clicks } ],
+
+    move: View [ x = 16, y = 66, width = 150, height = 32, fill = #2E4256, cornerRadius = 6,
+        t: Text [ x = 12, y = 7, textColor = whitesmoke, text = "move location" ],
+        onClick(e: PointerEvent) { app.clicks = app.clicks + 1; app.location = "moved/" + app.clicks }
+        ],
+
+    away: View [ x = 16, y = 106, width = 150, height = 32, fill = #40332A, cornerRadius = 6,
+        t: Text [ x = 12, y = 7, textColor = whitesmoke, text = "navigate out" ],
+        onClick(e: PointerEvent) { app.navigate("https://example.com/away") }
+        ]
+    ]

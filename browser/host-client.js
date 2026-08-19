@@ -14,7 +14,7 @@
 //
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
-import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport } from "../runtime/dist/index.js";
+import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase } from "../runtime/dist/index.js";
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -44,7 +44,15 @@ const fragmentOf = () => decodeURIComponent(location.hash.replace(/^#/, ""));
  * }}
  */
 export async function bootHost(cfg) {
-  const host = document.getElementById("host");
+  // The mount point: an explicit element (cfg.host — several apps per page, each
+  // in its own marked div) or the page's #host. TENANCY is decided here, once,
+  // by the DOM itself (runtime isEmbedded): a top-level app owns the page —
+  // title, URL, history, the __app/__declare debug handles; an embedded app
+  // owns its box and gets NONE of the page-scoped wiring below, which is what
+  // the embedding guide promises ("leaves the page's background, scroll, and
+  // title alone") — now structural rather than remembered.
+  const host = cfg.host ?? document.getElementById("host");
+  const embedded = isEmbedded(host);
   // The transport seam (data.ts): on a source page every island runs the VIEWED
   // file, whose relative data urls mean "beside my .declare" — but the document
   // <base> points at the Viewer's own directory. Re-base RELATIVE urls against
@@ -64,7 +72,13 @@ export async function bootHost(cfg) {
   // first paint (docs/system-design/location.md §2): a deep link is just an initial state, so
   // every constraint derives from it as if the user had already navigated there —
   // no home→target flash. Un-fused from renderAsync so the seed lands pre-mount.
-  const app = (window.__app = build(cfg.source, { deps: cfg.deps }));
+  const app = build(cfg.source, { deps: cfg.deps });
+  host.__declareApp = app;                            // the per-box handle (an embedder's way in)
+  // The MAIN app's own asset directory (boot-uniform passes the program's dir).
+  // Global provideAssetBase is last-boot-wins — fine for one app per page, wrong
+  // for several: a per-app base keeps each tenant's relative bitmaps its own.
+  if (cfg.mainAssetBase) setAppAssetBase(app, cfg.mainAssetBase);
+  if (!embedded) window.__app = app;                  // the page's debug handle — top-level only
   const locationInitial = app.location;               // the declared initial = the default (§3)
   // HOW this document was entered, by the browser's own classification
   // (PerformanceNavigationTiming.type). Only "back_forward" is a TRAVERSAL —
@@ -76,7 +90,7 @@ export async function bootHost(cfg) {
   // the Mac bridge furnishes `now()` and nothing else — falls back to "navigate",
   // i.e. an arrival, which is the right default for a host with no history.)
   const arrival = performance.getEntriesByType?.("navigation")?.[0]?.type ?? "navigate";
-  const traversed = arrival === "back_forward";
+  const traversed = !embedded && arrival === "back_forward";
   // Seed the STEP first, then the address, so location-derived constraints see
   // a consistent pair at first settle. A history ENTRY is the pair (URL,
   // waypoint): the URL carries the address in its fragment; the entry's state
@@ -91,7 +105,9 @@ export async function bootHost(cfg) {
   const stepOf = () => (typeof history.state?.declare?.w === "string" ? history.state.declare.w : "");
   const stepSeed = traversed ? stepOf() : "";
   if (stepSeed !== "" && app.waypoint !== stepSeed) app.waypoint = stepSeed;
-  const seedFrag = fragmentOf() || cfg.location;       // the URL fragment wins; else a host override (?view=)
+  // An EMBEDDED app never reads the page's URL — the fragment belongs to the
+  // page (location.md §0.9); only the embedder's explicit initial applies.
+  const seedFrag = embedded ? (cfg.location ?? "") : (fragmentOf() || cfg.location);  // the URL fragment wins; else a host override (?view=)
   if (seedFrag) {
     // A COLD ARRIVAL is a follow (location.md §0.5): the app-scoped onFollow
     // hook applies — at t=0, declared initials, before any data loads (§0.6's
@@ -116,18 +132,32 @@ export async function bootHost(cfg) {
   // in-browser compiler once boot-static.js warm-loads it. Every use below reads
   // the current value, so previews/live-edits become live the moment it lands.
   let compile = cfg.compile ?? (async () => null);
-  app.__setCompile = (fn) => { if (typeof fn === "function") compile = fn; };
+  app.__setCompile = (fn) => {
+    if (typeof fn !== "function") return;
+    compile = fn;
+    // The compiler just became real (static host warm-load): everything that
+    // was waiting on it gets one retry — unwired islands and unburnt edits.
+    // (The old 60Hz loops retried implicitly; this is the explicit moment.)
+    host.querySelectorAll('[data-declare-slot^="run:"]').forEach((box) => { if (!box.dataset.wired) mountPreview(box); });
+    watchLiveAll();
+  };
 
   // Teardown: a static-host stale-recompile re-boots the whole page in-browser, so
-  // this boot's rAF loops + listener + child apps must stop first or they'd fire
-  // against a disposed app. `stopped` short-circuits every tick; teardown cancels
-  // the pending frames, drops the listener, and disposes the preview children.
+  // this boot's observers + listeners + child apps must stop first or they'd fire
+  // against a disposed app. Every wiring below pushes its own undo — there are
+  // no standing frame loops left to cancel (the polling ticks this shim ran for
+  // every page's lifetime are gone; the runtime notifies instead).
   let stopped = false;
-  const raf = {};
-  const onKey = (e) => { if (e.key === "Escape") app.editing = false; };
-  addEventListener("keydown", onKey);
+  const undo = [];
+  if (!embedded) {
+    const onKey = (e) => { if (e.key === "Escape") app.editing = false; };
+    addEventListener("keydown", onKey);
+    undo.push(() => removeEventListener("keydown", onKey));
+  }
 
-  // (app.location, app.waypoint) ⟷ the browser's history. A history ENTRY is
+  // (app.location, app.waypoint) ⟷ the browser's history — PAGE-scoped wiring,
+  // installed for the top-level tenant only: an embedded app's location is its
+  // own state, never the page's URL. A history ENTRY is
   // the PAIR: the URL's fragment carries the address (`location`, §2–3 of
   // docs/system-design/location.md), the entry's STATE OBJECT carries the step
   // (`waypoint` — session state Back retraces but the URL never shows). Mirror
@@ -137,6 +167,8 @@ export async function bootHost(cfg) {
   // ambient-data direction, state re-derives, no popstate handling in app
   // code. Universal and inert when unused: an app that writes neither holds
   // both initials, and nothing pushes.
+  if (!embedded) wirePageLocation();
+  function wirePageLocation() {
   let mirrored = app.location;                          // what the entry currently reflects (seeded above)
   let mirroredW = app.waypoint;
   // The entry's state object. Namespaced under `declare` so nothing else's
@@ -217,18 +249,30 @@ export async function bootHost(cfg) {
   const onUserScroll = () => { if (!stopped && typeof app.cancelReveal === "function") app.cancelReveal(); };
   addEventListener("wheel", onUserScroll, { passive: true });
   addEventListener("touchstart", onUserScroll, { passive: true });
-  // app.appName → document.title, the same mirror-per-settle discipline as
-  // location (the app never touches document; the name rides a declared attr
+  undo.push(() => {
+    removeEventListener("popstate", onPop);
+    removeEventListener("pagehide", stampScroll);
+    removeEventListener("wheel", onUserScroll);
+    removeEventListener("touchstart", onUserScroll);
+  });
+  // app.appName → document.title, the mirror-per-settle discipline made
+  // literal: `observe` runs the mirror at the close of any settle that changed
+  // the name (the app never touches document; the name rides a declared attr
   // the host owns). "" = no opinion — the served title stands. The MAPPING
   // lives once in the runtime (boot.js reflectAppName) — declarec builds drive
-  // the same function from their own frame loop; this host drives it here,
-  // BEFORE the history push below, so back/forward entries are labeled with
-  // the state they represent (the browser snapshots document.title at push).
+  // the same function from their own settle hook; this host drives it here,
+  // and the mirror below re-reflects BEFORE any history push, so back/forward
+  // entries are labeled with the state they represent (the browser snapshots
+  // document.title at push). This and the pair mirror replaced a standing rAF
+  // loop (locTick) that re-asked both questions every frame for the life of
+  // the page; the `@name` reveal pump it also drove is the runtime's own now
+  // (App.scheduleReveal — armed only while an intent is held).
   const servedTitle = document.title;
-  let titled = "";                                      // what document.title currently reflects
-  const locTick = () => {
+  let titled = reflectAppName(app, servedTitle, "");
+  undo.push(observe(() => app.appName, () => { if (!stopped) titled = reflectAppName(app, servedTitle, titled); }, "host:title"));
+  const mirrorPair = () => {
     if (stopped) return;
-    titled = reflectAppName(app, servedTitle, titled);
+    titled = reflectAppName(app, servedTitle, titled);   // the entry's label, before the push snapshots it
     if (app.location !== mirrored || app.waypoint !== mirroredW) {
       // The app moved — one entry per changed settle, for the PAIR: address,
       // step, or both together (a submit that navigates AND records its turn
@@ -237,6 +281,10 @@ export async function bootHost(cfg) {
       // whose link declared `replace = true` armed "replace" — fine-grained
       // movement within a place overwrites instead of burying the Back
       // button. The verb governs the whole pair. Consumed here, exactly once.
+      // (A verb armed by a follow that changed NOTHING — a vetoed or
+      // same-place follow — is consumed by that follow's own syncByReplace or
+      // simply sits until the next mirror; the per-frame disarm this replaced
+      // closed that window a frame sooner, at the cost of running forever.)
       const verb = app.pendingHistoryVerb === "replace" ? "replace" : "push";
       if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
       guardStep();
@@ -250,60 +298,50 @@ export async function bootHost(cfg) {
       }
       mirrored = app.location;
       mirroredW = app.waypoint;
-    } else if (app.pendingHistoryVerb === "replace") {
-      // a same-place follow (or a vetoed one) armed the verb with nothing
-      // to mirror — disarm it, or an unrelated later push would wrongly replace
-      app.pendingHistoryVerb = "push";
     }
-    // The `@name` reveal (docs/system-design/location.md §6) — a retained intent, resolved each
-    // frame so a cold deep link fires once the target (a DataSource-fed heading) is
-    // in the settled tree. Inert with no anchor. Runs post-paint, so DOM headings exist.
-    app.resolveReveal();
-    raf.loc = requestAnimationFrame(locTick);
   };
-  raf.loc = requestAnimationFrame(locTick);
+  undo.push(observe(() => [app.location, app.waypoint], mirrorPair, "host:history"));
+  }  // wirePageLocation
 
   // The Inspector (browser/inspector-boot.js) — ⌥⌘D, or `?inspector` on the URL.
-  // Lazily imported so a page that never opens it pays nothing.
-  import("./inspector-boot.js").then((m) => m.wireInspector(app)).catch(() => {});
+  // Lazily imported so a page that never opens it pays nothing. Page-scoped:
+  // an embedded widget on a foreign page must not grab the page's keys.
+  if (!embedded) import("./inspector-boot.js").then((m) => m.wireInspector(app)).catch(() => {});
 
   app.__teardown = () => {
     stopped = true;
-    for (const k in raf) cancelAnimationFrame(raf[k]);
-    removeEventListener("keydown", onKey);
-    removeEventListener("popstate", onPop);
-    removeEventListener("pagehide", stampScroll);
-    removeEventListener("wheel", onUserScroll);
-    removeEventListener("touchstart", onUserScroll);
+    for (const fn of undo.splice(0)) { try { fn(); } catch {} }
     host.querySelectorAll('[data-declare-slot^="run:"]').forEach((box) => {
       if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
     });
   };
 
-  // app→host navigation: a link/button calls App.navigate(url) (the service action,
-  // capabilities.md §6), which writes the `pendingNav` channel; open it + clear.
-  // Same-document nav (not window.open) so it isn't popup-blocked a frame after the click.
-  const navTick = () => {
-    if (stopped) return;
-    if (app.pendingNav) { const u = app.pendingNav; app.pendingNav = ""; location.href = new URL(u, DISTRO_ROOT).href; }
-    // openWindow's channel: a NEW window/tab. The rAF after the click is still
-    // inside the browser's transient user activation, so this isn't popup-blocked.
-    if (app.pendingOpen) { const u = app.pendingOpen; app.pendingOpen = ""; window.open(new URL(u, DISTRO_ROOT).href, "_blank"); }
+  // app→host VERBS — the service table (runtime provideHostServices), called
+  // SYNCHRONOUSLY inside the verb, still within the click's transient user
+  // activation (which is what window.open needs — the old next-frame poll sat
+  // a frame later, not earlier). This replaced navTick, a 60Hz loop that
+  // re-read three channels for the life of every page. An embedded app gets
+  // navigate/openWindow — a widget's outbound link legitimately navigates the
+  // page, and a foreign embedder can re-provide its own table to intercept —
+  // but never the Inspector, which is the page tenant's tool.
+  const navServices = {
+    navigate: (u) => { if (!stopped) location.href = new URL(u, DISTRO_ROOT).href; },
+    openWindow: (u) => { if (!stopped) window.open(new URL(u, DISTRO_ROOT).href, "_blank"); },
+  };
+  provideHostServices(app, embedded ? navServices : {
+    ...navServices,
     // app.inspect(slot) — open the Inspector on an embedded app (or on this one
     // when the slot is empty). The island's box gives the subject's page origin,
     // which the Inspector needs to pick and highlight in the right place.
-    if (app.pendingInspect !== null) {
-      const slot = app.pendingInspect;
-      app.pendingInspect = null;
+    inspect: (slot) => {
+      if (stopped) return;
       const box = slot ? host.querySelector(`[data-declare-slot="${slot}"]`) : null;
       const child = box && box.__childApp ? box.__childApp : null;
       import("./inspector-boot.js")
         .then((m) => m.openInspector(child ?? app, child && box ? m.originOfElement(box) : undefined))
         .catch((e) => console.error("[Declare] Inspector:", e));
-    }
-    raf.nav = requestAnimationFrame(navTick);
-  };
-  raf.nav = requestAnimationFrame(navTick);
+    },
+  });
 
   const runIsland = (demo) => host.querySelector('[data-declare-slot^="run:' + demo + '"]');   // ^= : the slot may carry an env segment
 
@@ -331,6 +369,7 @@ export async function bootHost(cfg) {
   async function renderChild(box, compiled, name) {
     if (!compiled || !compiled.source) return;           // keep the last good render
     if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
+    for (const fn of box.__childUndo?.splice(0) ?? []) { try { fn(); } catch {} }
     box.innerHTML = "";
     // The island is a viewport: a child that won't fit (a fixed-size app, or a
     // floored one holding its minWidth/minHeight) pans natively inside its box.
@@ -348,7 +387,26 @@ export async function bootHost(cfg) {
       const childApp = await renderAsync(compiled.source, box, backend,
         { deps: compiled.deps, assetBase: childAssetBase(name || "") });
       box.__childApp = childApp;
-      if (childApp) childApp.demoSources = seeds;         // populate a nested copy's own editors
+      if (childApp) {
+        childApp.demoSources = seeds;                     // populate a nested copy's own editors
+        const childUndo = (box.__childUndo = box.__childUndo ?? []);
+        // The child's own wiring, by observation (its lifetime is known HERE):
+        //  • verbs — a child's navigate()/openWindow() were serviced by nobody
+        //    before (every such link was dead); page-level nav is the right
+        //    meaning for a preview's outbound link.
+        provideHostServices(childApp, navServices);
+        //  • appName ↑ childName — the island's name mirror (was a 60Hz page
+        //    scan in dom-backend; now one observe per mounted child).
+        const view = box.__declareView;
+        if (view) {
+          const reflect = () => { const n = typeof childApp.appName === "string" ? childApp.appName : ""; if (view.childName !== n) view.childName = n; };
+          reflect();
+          childUndo.push(observe(() => childApp.appName, reflect, "host:childName"));
+        }
+        //  • live edits published on the child's own channels (an embedded
+        //    Viewer's Edit tab) — same observation as the page app's.
+        childUndo.push(observe(() => [childApp.liveCard, childApp.liveSource], () => watchLive(childApp, box), "host:childLive"));
+      }
     } catch (e) {
       // The island is already marked wired, so a swallowed failure here is a
       // pane that stays blank forever with nothing said. Say it: a preview that
@@ -408,47 +466,66 @@ export async function bootHost(cfg) {
     return env;
   };
 
-  function mountPreviews() {
-    host.querySelectorAll('[data-declare-slot^="run:"]').forEach(async (box) => {
-      const spec = box.dataset.declareSlot.split(":").slice(1).join(":").split("|");
-      const name = spec[0];
-      const env = parseEnv(spec[1]);
-      const ejson = JSON.stringify(env);
-      // live env sync for an already-mounted child
-      if (box.__childApp && box.dataset.envJson !== ejson) {
-        box.dataset.envJson = ejson;
-        box.__childApp.env = env;
-      }
-      if (box.dataset.wired || box.dataset.wiring) return;
-      box.dataset.wiring = "1";                              // in-flight: one compile at a time
-      // precompiled entries are a bare compiled-source string (the legacy static
-      // artifact channel); normalize to the `{ source }` result shape renderChild
-      // takes. A live compile already returns `{ source, deps }`.
-      let compiled = precompiled[name] != null ? { source: precompiled[name] } : null;
-      // The VALIDATED prewarm tier, same as the page boot's (boot-uniform wires
-      // it in): a slot whose program is on the committed prewarm list mounts
-      // with no compiler and no compile; null (absent/stale) falls through.
-      if (compiled == null && typeof cfg.prewarm === "function") {
-        try { compiled = await cfg.prewarm(name); } catch {}
-      }
-      if (compiled == null) {
-        // "__"-named slots are LIVE-EDIT channels (__raw__, __page__), never
-        // fetchable files: unseeded, they mount only when an edit publishes
-        // through watchLive — skip quietly instead of 404-ing every frame.
-        if (name.startsWith("__") && seeds[name] == null) { delete box.dataset.wiring; return; }
-        const src = await sourceFor(name);                  // seed, or fetched on demand
-        compiled = src == null ? null : await compile(src); // src null (fetch failed) ⇒ retry next tick
-      }
-      delete box.dataset.wiring;
-      if (!compiled || !compiled.source) return;             // compiler not warm / source not in yet — retry next tick
-      box.dataset.wired = "1";                               // committed: don't remount
-      renderChild(box, compiled, name).then(() => {
-        if (box.__childApp) { box.dataset.envJson = ejson; box.__childApp.env = env; }
-      });
+  // Wire ONE island box (called per slot event, never per frame — see the
+  // registration below). Idempotent: a wired box only re-syncs env.
+  async function mountPreview(box) {
+    if (stopped || !box.isConnected || !box.dataset.declareSlot?.startsWith("run:")) return;
+    const spec = box.dataset.declareSlot.split(":").slice(1).join(":").split("|");
+    const name = spec[0];
+    const env = parseEnv(spec[1]);
+    const ejson = JSON.stringify(env);
+    // live env sync for an already-mounted child (an env change arrives as a
+    // slot RE-MARK — the invoker's slot is a constraint — so this runs then)
+    if (box.__childApp && box.dataset.envJson !== ejson) {
+      box.dataset.envJson = ejson;
+      box.__childApp.env = env;
+    }
+    if (box.dataset.wired || box.dataset.wiring) return;
+    box.dataset.wiring = "1";                              // in-flight: one compile at a time
+    // precompiled entries are a bare compiled-source string (the legacy static
+    // artifact channel); normalize to the `{ source }` result shape renderChild
+    // takes. A live compile already returns `{ source, deps }`.
+    let compiled = precompiled[name] != null ? { source: precompiled[name] } : null;
+    // The VALIDATED prewarm tier, same as the page boot's (boot-uniform wires
+    // it in): a slot whose program is on the committed prewarm list mounts
+    // with no compiler and no compile; null (absent/stale) falls through.
+    if (compiled == null && typeof cfg.prewarm === "function") {
+      try { compiled = await cfg.prewarm(name); } catch {}
+    }
+    if (compiled == null) {
+      // "__"-named slots are LIVE-EDIT channels (__raw__, __page__), never
+      // fetchable files: unseeded, they mount only when an edit publishes
+      // through watchLive — skip quietly instead of 404-ing on a retry.
+      if (name.startsWith("__") && seeds[name] == null) { delete box.dataset.wiring; return; }
+      const src = await sourceFor(name);                  // seed, or fetched on demand
+      compiled = src == null ? null : await compile(src); // src null (fetch failed) ⇒ retry below
+    }
+    delete box.dataset.wiring;
+    if (!compiled || !compiled.source) { deferPreview(box); return; }  // compiler not warm / fetch missed — retry when it lands
+    box.dataset.wired = "1";                               // committed: don't remount
+    renderChild(box, compiled, name).then(() => {
+      if (box.__childApp) { box.dataset.envJson = ejson; box.__childApp.env = env; }
     });
   }
-  const mtick = () => { if (stopped) return; mountPreviews(); raf.mount = requestAnimationFrame(mtick); };
-  raf.mount = requestAnimationFrame(mtick);
+  // The RETRY path — the one genuine wait in this shim (a compiler still
+  // warm-loading, a fetch that missed). The old loop retried at 60Hz forever;
+  // this holds the pending boxes and retries on a short timer that exists
+  // ONLY while something is pending — idle-zero the rest of the page's life.
+  const pendingPreviews = new Set();
+  let previewTimer = 0;
+  function deferPreview(box) {
+    pendingPreviews.add(box);
+    if (previewTimer !== 0) return;
+    previewTimer = setTimeout(() => {
+      previewTimer = 0;
+      const batch = [...pendingPreviews];
+      pendingPreviews.clear();
+      if (!stopped) for (const b of batch) mountPreview(b);
+    }, 250);
+  }
+  undo.push(() => { clearTimeout(previewTimer); previewTimer = 0; pendingPreviews.clear(); });
+  // (Island DISCOVERY registration sits at the END of bootHost — everything
+  // it can reach must be initialized before the replay fires.)
 
   // Re-render a preview when its Declare editor publishes an edit (or a Revert): recompile
   // the edited text and swap. Debounced; a compile failure keeps the last good render
@@ -461,13 +538,14 @@ export async function bootHost(cfg) {
   // scoped to the child's box so two hosted viewers never cross wires.
   const liveSigs = new WeakMap(), liveTimers = new WeakMap();
   const watchLive = (theApp, scope) => {
-    if (!theApp.liveCard) return;                        // nothing published yet
+    if (stopped || !theApp.liveCard) return;             // nothing published yet
     const sig = theApp.liveCard + "\x00" + theApp.liveSource;
     if (liveSigs.get(theApp) === sig) return;
     const box = scope.querySelector('[data-declare-slot^="run:' + theApp.liveCard + '"]');
     // the island may not be MOUNTED yet (the viewer's edit pane slots its
     // island only in edit mode; the channel can publish first) — don't burn
-    // the signature; retry each tick until the box appears
+    // the signature; the island's own mark event (onIslandSlot above) re-runs
+    // this the moment the box appears
     if (!box) return;
     liveSigs.set(theApp, sig);
     const body = theApp.liveSource;
@@ -475,20 +553,37 @@ export async function bootHost(cfg) {
     clearTimeout(liveTimers.get(theApp));
     liveTimers.set(theApp, setTimeout(async () => {
       const r = await compile(body);
+      if (stopped) return;
       if (r && r.source) { theApp.liveReport = ""; renderChild(box, r, card); }
       else if (r && r.report != null) theApp.liveReport = String(r.report);
-      else liveSigs.delete(theApp);                      // compiler not warm — retry
+      else { liveSigs.delete(theApp); watchLive(theApp, scope); }  // compiler not warm — re-arm (compile resolves only once it loaded)
     }, 180));
   };
-  const liveTick = () => {
-    if (stopped) return;
+  // Watch every app on the page — the page app AND each mounted child — by
+  // OBSERVATION: the publish is a write to that app's liveCard/liveSource, so
+  // the runtime tells us at the settle that carried the edit (this replaced
+  // liveTick, a 60Hz page scan). watchChild is called from renderChild at
+  // child mount; watchLiveAll re-checks everyone after an island appears.
+  function watchLiveAll() {
     watchLive(app, host);
     host.querySelectorAll('[data-declare-slot^="run:"]').forEach((box) => {
       if (box.__childApp) watchLive(box.__childApp, box);
     });
-    raf.live = requestAnimationFrame(liveTick);
-  };
-  raf.live = requestAnimationFrame(liveTick);
+  }
+  undo.push(observe(() => [app.liveCard, app.liveSource], () => watchLive(app, host), "host:live"));
+  watchLive(app, host);
+
+  // Island DISCOVERY is a registration, not a scan: the runtime calls this for
+  // every slot at mark and re-mark (dom-backend setEmbed), replaying slots
+  // that already exist — the mtick that scanned the page per frame is gone.
+  // Containment keeps the scope the scan had (everything under THIS host,
+  // nested children included) while two sibling apps stay out of each other.
+  // Registered LAST: the replay fires synchronously into everything above.
+  undo.push(onIslandSlot((box) => {
+    if (stopped || !host.contains(box)) return;
+    mountPreview(box);
+    watchLiveAll();
+  }));
 
   return app;
 }

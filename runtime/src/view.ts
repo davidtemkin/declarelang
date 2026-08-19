@@ -10,7 +10,7 @@
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
 
-import { Node, runRetire } from "./node.js";
+import { Node, onDiscard, runRetire } from "./node.js";
 import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
@@ -25,6 +25,7 @@ export function provideViewCreator(fn: ViewCreator): void {
   viewCreator = fn;
 }
 import { record, type Draw, type DisplayList } from "./draw.js";
+import { sharedClock } from "./animate.js";
 import { Constraint, Cell, afterSettle } from "./reactive.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, type InteractionView } from "./interaction.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
@@ -1327,6 +1328,14 @@ export class App extends View {
    *  the runtime. Theme an app off it: `fill = { app.dark ? 0x0B141B : 0xFFFFFF }`
    *  or drive a `theme` record from it. Read-only to user code. */
   declare dark: boolean;
+  /** Is the page this app lives on visible? The browser's Page Visibility fact
+   *  (boot.ts wireVisibility feeds it; the native host feeds the same slot from
+   *  its occlusion signal). Ambient motion gates itself on it —
+   *  `running = { … && app.pageVisible }` — and because clock membership is
+   *  constraint-driven, the Heartbeat leaving empties the frame loop: a hidden
+   *  page books nothing. Read-only to user code; schema.ts has the caveats
+   *  (Safari does not report window occlusion). */
+  declare pageVisible: boolean;
   /** "Am I running on a touch device?" — true when the device's primary pointer
    *  is coarse (`pointer: coarse`), a phone or tablet. A stable device fact fed
    *  live by the runtime, distinct from the transient `hovering`: switch mouse-only
@@ -1402,18 +1411,34 @@ export class App extends View {
    *  near the URL, so it is not shareable and not crawlable, by construction.
    *  The app owns the grammar, same as location. Schema attr; default "". */
   declare waypoint: string;
-  /** app→host navigation channel: `navigate(to)` sets it, the host (host-client.js
-   *  / a backend) polls it, opens the URL, and clears it to "". A plain field, not
-   *  a reactive attribute — nothing in the tree renders from it, and no Declare
-   *  source names it: navigation is the CALL, never an observed attribute. */
+  /** app→host navigation channel: `navigate(to)` sets it when no host services
+   *  are installed, and a polling host opens the URL and clears it to "". A plain
+   *  field, not a reactive attribute — nothing in the tree renders from it, and no
+   *  Declare source names it: navigation is the CALL, never an observed attribute.
+   *  The FALLBACK half of the verb — a host that registered `hostServices` is
+   *  called directly instead, and this field never carries. */
   pendingNav = "";
+
+  /** The host's service table — the app→host VERBS' direct line, installed at
+   *  mount by provideHostServices (boot.ts). Per-app, so two embedded apps on
+   *  one page each route to their own host, and a foreign page can supply its
+   *  own (route `navigate` into an SPA router). A registered service is called
+   *  SYNCHRONOUSLY inside the verb — still within the click's transient user
+   *  activation, which is what window.open needs. Null = no host registered:
+   *  the verb parks its intent on the matching pending* channel for a polling
+   *  host. (The mac bridge replaces `navigate` wholesale — Bridge.swift — and
+   *  reads neither.) */
+  hostServices: { navigate?: (to: string) => void; openWindow?: (to: string) => void; inspect?: (slot: string) => void } | null = null;
 
   /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
    *  button calls `app.navigate(url)` in an activation handler; the compiler reads
    *  the call statically (links.ts → `<a href>` in the static extraction), and at
    *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
    *  navigation rides this channel like `editing` — one clear way, analyzable. */
-  navigate(to: string): void { this.pendingNav = to; }
+  navigate(to: string): void {
+    if (this.hostServices?.navigate) { this.hostServices.navigate(to); return; }
+    this.pendingNav = to;
+  }
 
   /** The reference schemes a link may carry (location.md §0.4) — the shared
    *  predicate lives at the render seam (backend.ts allowedRef), because the
@@ -1520,14 +1545,22 @@ export class App extends View {
 
   /** inspect(slot) — the Inspector SERVICE ACTION. `slot` names an embedded
    *  app's island ("run:spring"); omit it to inspect this app. Like navigate(),
-   *  the intent rides a channel the host owns, so a `{ }` body never touches
-   *  the document. */
-  inspect(slot = ""): void { this.pendingInspect = slot; }
+   *  the intent rides the service table (or its channel fallback), so a `{ }`
+   *  body never touches the document. */
+  inspect(slot = ""): void {
+    if (this.hostServices?.inspect) { this.hostServices.inspect(slot); return; }
+    this.pendingInspect = slot;
+  }
 
   /** openWindow(to) — navigate's NEW-WINDOW sibling (a "View Source" that must
    *  not replace the running app). Same discipline: bodies never touch
-   *  `window`, the intent rides a channel the host owns. */
-  openWindow(to: string): void { this.pendingOpen = to; }
+   *  `window`, the intent rides the service table (or its channel fallback).
+   *  A registered service runs synchronously inside the activation, which is
+   *  MORE popup-safe than the old next-frame poll, not less. */
+  openWindow(to: string): void {
+    if (this.hostServices?.openWindow) { this.hostServices.openWindow(to); return; }
+    this.pendingOpen = to;
+  }
 
   /** The reveal intent held from `location`'s trailing `@name` (location.md §6) —
    *  null when the location carries no anchor. Retained across settles until the
@@ -1616,7 +1649,57 @@ export class App extends View {
   /** Re-arm the reveal intent for the CURRENT location — follow's no-dead-click
    *  rule (§0.5): re-following `#why@story` while already there re-runs the
    *  reveal, which resolveReveal's location-change guard would otherwise skip. */
-  rearmReveal(): void { this.lastRevealLocation = null; }
+  rearmReveal(): void { this.lastRevealLocation = null; this.scheduleReveal(); }
+
+  /** The reveal pump — resolveReveal's retry as an ARMED-LIFETIME ticker on the
+   *  shared clock. The hosts used to call resolveReveal once per frame for the
+   *  life of the page (a standing rAF loop on every page, intent or no intent);
+   *  now the runtime owns the wait, because it owns the intent: the pump
+   *  enrolls when an `@name` intent arms and leaves the moment it lands or is
+   *  cancelled, so an app with no deep link pays zero frames. The per-frame
+   *  retry itself is load-bearing — a target's geometry can finish arriving
+   *  via browser-async work (an image decode, a rich flow's measurement) that
+   *  produces no settle to hook. Perpetual (never holds settleMotion open),
+   *  like a Heartbeat. A held intent whose anchor never appears keeps the pump
+   *  alive — exactly the old loops' behavior, now scoped to the one page that
+   *  asked for an anchor. */
+  private pumpOn = false;
+  private readonly revealPump = {
+    perpetual: true as const,
+    tick: (): boolean => {
+      this.resolveReveal();
+      if (this.pendingAnchor !== null) return true;
+      this.pumpOn = false;
+      return false;
+    },
+  };
+
+  /** Stop the pump when the app leaves — a held intent must not keep the
+   *  frame loop alive past the app (registered once, at first arm). */
+  private pumpRetireHooked = false;
+  private hookPumpRetire(): void {
+    if (this.pumpRetireHooked) return;
+    this.pumpRetireHooked = true;
+    onDiscard(this, () => {
+      if (this.pumpOn) { this.pumpOn = false; sharedClock.remove(this.revealPump); }
+    });
+  }
+
+  /** Enroll the pump at the close of the current settle when the location
+   *  carries an `@name`. Armed from `location`'s own push (the write IS the
+   *  event), from rearmReveal, and once at mount for the cold-arrival seed.
+   *  Arms, never resolves: resolution belongs to the pump's frame ticks — and
+   *  to any host or test that calls resolveReveal itself (the pinned
+   *  first-call contract). A no-anchor location makes this a peek and a no-op. */
+  scheduleReveal(): void {
+    afterSettle(() => {
+      if (this.location.indexOf("@") >= 0 && !this.pumpOn) {
+        this.pumpOn = true;
+        this.hookPumpRetire();
+        sharedClock.add(this.revealPump);
+      }
+    });
+  }
 
   /** Cancel a HELD reveal intent — the user's first scroll or touch takes
    *  ownership of the viewport (location.md §0.5.5, the uncontrolled-editor
@@ -1747,6 +1830,9 @@ defineAttributes(App, {
   hovering: { def: false },
   pointerOverText: { def: false },
   dark: { def: false },
+  // page visibility (schema.ts) — true until a host reports otherwise, so
+  // headless and test mounts that never wire it see a visible page
+  pageVisible: { def: true },
   touchDevice: { def: false },
   hasTouch: { def: false },
   hasPointer: { def: true },      // a plain desktop until the profile says otherwise
@@ -1796,8 +1882,10 @@ defineAttributes(App, {
   // slot: the host seeds/writes it (deep link, back/forward), the app writes it to
   // navigate, and `{ }` constraints that read it (`visible = { app.location == … }`)
   // re-derive on every change. Default "" so an app that declares no initial keeps
-  // a clean URL. NOT readOnly — navigation IS a write from app code.
-  location: { def: "" },
+  // a clean URL. NOT readOnly — navigation IS a write from app code. The push arms
+  // the reveal pump: a location carrying `@name` is an intent, and the write is
+  // the moment it arms (scheduleReveal — no host pumps this per frame anymore).
+  location: { def: "", push: (a: App) => a.scheduleReveal() },
   // `waypoint` — the history-carried step (schema.ts has the full contract).
   // A stored reactive slot exactly like location, with the opposite visibility:
   // the host mirrors it into the History entry's STATE OBJECT (never the URL)

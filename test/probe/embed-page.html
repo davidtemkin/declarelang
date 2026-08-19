@@ -1,0 +1,24 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Host Page — not a Declare app</title>
+<!-- A deliberately ORDINARY page (test/embed.test.mjs): no Declare chrome, no
+     #host, its own title and scroll. Two Declare apps live in marked boxes;
+     the tenancy contract says the page keeps everything else. -->
+<style>
+  body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: #F4F5F7; color: #222; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px; }
+  .box { width: 320px; height: 160px; border-radius: 8px; overflow: hidden; }
+</style>
+<main>
+  <h1>An ordinary page</h1>
+  <p>Two Declare apps in marked boxes. The page keeps its own title, URL, and history.</p>
+  <div id="slot-a" class="box" data-declare-embed></div>
+  <p>Prose between the tenants.</p>
+  <div id="slot-b" class="box" data-declare-embed></div>
+</main>
+<script type="module">
+  import boot from "/bundles/declare-boot.js";
+  await boot({ main: "/test/probe/embed-a.declare", host: document.getElementById("slot-a") });
+  await boot({ main: "/test/probe/embed-b.declare", host: document.getElementById("slot-b") });
+  window.__embedsReady = true;
+</script>

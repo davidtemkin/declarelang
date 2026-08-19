@@ -17,3 +17,11 @@ export declare class DomBackend implements RenderBackend {
     createSurface(): Surface;
     attachRoot(host: HTMLElement, root: Surface): void;
 }
+type IslandSink = (el: HTMLElement) => void;
+/** Register an island sink — one per booting host, and a page may boot several
+ *  apps, so this is a set: every sink hears every slot and scopes itself (the
+ *  shim filters by containment, exactly the scope its old scan had). Fires for
+ *  every already-marked slot immediately, then per mark/re-mark. Returns the
+ *  unregister (a torn-down host must stop hearing about slots). */
+export declare function onIslandSlot(cb: IslandSink): () => void;
+export {};

@@ -176,7 +176,14 @@ marked `data-declare-embed` and boot into it:
 ```
 
 The marker is the contract: the app fills the element instead of the window
-and leaves the page's background, scroll, and title alone. The guide's
+and leaves the page's background, scroll, title, URL, and history alone — and
+an untouched page books no animation frames (the host is notified on writes;
+nothing polls). For **several apps on one page**, pass each boot its element
+(`boot({ main, host: element })`); each tenant keeps its own input and asset
+directory. The returned app (also on `element.__declareApp`) is the
+embedder's handle: `observe(() => app.x, cb)` watches state out, `app.env`
+feeds facts in, and replacing `app.hostServices` intercepts `navigate` /
+`openWindow` into your own router. The guide's
 [Crossing boundaries](declare-docs:guide:embedding) chapter walks all three
 embedding directions — app-in-page, page-in-app (`DOMIsland`), and
 app-in-app (`AppIsland`).

@@ -350,3 +350,42 @@ export function settle(): void {
     after.length = 0;
   }
 }
+
+// ── observe — the notification half of the app↔host contract ────────────────
+//
+// A standing watcher over reactive state for JS callers — hosts, shims, a page
+// embedding a Declare app. `read` runs under tracking; whenever a settle
+// changes what it returns, `onChange` runs ONCE, at the close of that settle
+// (constraints quiescent, layout placed, nothing painted — the afterSettle
+// vantage). This replaces the hosts' polling loops: the question "did the app
+// write X?" is answered at the write, not re-asked per frame. Equal results
+// (Object.is; arrays one level shallow, so `() => [app.location, app.waypoint]`
+// reads as the pair it means) coalesce to silence.
+//
+// Not language surface — a `{ }` body needs no subscription because the whole
+// language is the subscription. This is for the JS on the far side of an App.
+export function observe<T>(read: () => T, onChange: (value: T) => void, label = "observe"): () => void {
+  let last: T;
+  let first = true;
+  let armed = false;
+  const c = new Constraint(label, read, (v) => {
+    if (first) { first = false; last = v as T; return; }
+    if (sameResult(last, v)) return;
+    last = v as T;
+    if (armed) return;    // one call per settle, with the settle-final value
+    armed = true;
+    afterSettle(() => { armed = false; onChange(last); });
+  });
+  c.run();
+  return () => c.dispose();
+}
+
+/** observe's result equality: Object.is, plus one level of array shallow-compare. */
+function sameResult(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) {
+    for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
+    return true;
+  }
+  return false;
+}

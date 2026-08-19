@@ -27,6 +27,35 @@ export interface FontSpec {
  *  whole render with it — one missing woff2 and the app never mounted at all,
  *  which is a worse answer than the app in fallback type. */
 export declare function loadFonts(fonts: readonly FontSpec[], base?: string | null): Promise<void>;
+/** Is this mount host EMBEDDED inside another Declare app? A top-level app roots on
+ *  a bare host (document.body's child); an embedded app is rendered into an
+ *  `HTML []` island's box, which lives inside the outer app's marked tree
+ *  (attachRoot stamps every app root `data-declare-app`). The child reads that ONE
+ *  DOM signal to configure itself — no explicit "embedded" flag threads through.
+ *  The mark is on the app ROOT element (a child of `host`), so `closest` from
+ *  `host` sees only ANCESTOR apps, never this app's own just-attached root.
+ *
+ *  A FOREIGN page embedding a Declare app in a sized div of its own has no
+ *  Declare ancestor to signal with — it marks the host itself:
+ *  `<div id="host" data-declare-embed>`. Same semantics as an island box (the
+ *  app fills the ELEMENT, the page keeps its background and scroll), declared
+ *  where the decision lives — on the page, not in a boot flag. `closest`
+ *  matches the host itself, so one selector answers both. */
+export declare function isEmbedded(host: HTMLElement): boolean;
+/** The host's service table for the app→host verbs (App.hostServices): install
+ *  it at mount and `navigate`/`openWindow`/`inspect` call it SYNCHRONOUSLY —
+ *  inside the click's transient user activation — instead of parking intents
+ *  on the pending* channels for a poll that no longer exists. Per-app, so a
+ *  page hosting several apps routes each to its own services, and a FOREIGN
+ *  page embedding a widget can supply its own (route `navigate` into an SPA
+ *  router). The tenancy contract lives here by construction: an embedded app
+ *  simply never gets the page-scoped services installed. */
+export interface HostServices {
+    navigate?: (to: string) => void;
+    openWindow?: (to: string) => void;
+    inspect?: (slot: string) => void;
+}
+export declare function provideHostServices(app: App, services: HostServices): void;
 /** Tear down an embedded app's environment wiring (ResizeObserver + pointer listeners).
  *  Its rendered DOM is removed by the caller (clearing the island box); its input
  *  router self-retires once the root element is disconnected. A no-op for a

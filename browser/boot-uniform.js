@@ -495,6 +495,9 @@ export default async function boot(cfg) {
   const sRender = perfStage("render");
   const app = await bootHost({                                     // render first — nothing below delays first paint
     source: program, deps, backend: cfg.backend,
+    host: cfg.host,                                                // an explicit mount element — several apps per page, each in its own marked div
+    location: cfg.location,
+    mainAssetBase: mainDir.href,                                   // per-app asset base, so N tenants keep their own bitmap dirs
     pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
     seeds, demoBase, compile: liveCompile, prewarm: prewarmChild,
   });

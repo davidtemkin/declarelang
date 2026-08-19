@@ -651,37 +651,33 @@ export class DomBackend implements RenderBackend {
 // the OS default — an overlay bar where the platform draws one, or the classic
 // bar the OS/user setting dictates elsewhere.
 
-// ── embedded-app NAME reflection (the reverse of the `env` channel) ──────────
+// ── island slot notifications (the host's registration seam) ─────────────────
 //
-// A `run:` island's mounted child app publishes its `appName` UP to the host
-// DOMIsland view's `childName`, so a hosting window (the desktop's AppWindow)
-// can title itself by the child — the viewer names its window by the file it is
-// showing, and follows in-app navigation. `setEmbed` links the box → its
-// DOMIsland view (`box.__declareView`); the host mounts the child on the same
-// box (`box.__childApp`, the island-runner convention). ONE rAF loop polls every
-// run-island and writes the name across, self-retiring the moment none remain
-// (idle-zero, exactly like the animation clock).
+// The host used to DISCOVER islands by scanning `[data-declare-slot]` every
+// frame (host-client's mtick), and a second polling loop here mirrored a
+// mounted child's `appName` up to the island's `childName`. Both questions are
+// answered by events the runtime itself performs: `setEmbed` runs at slot mark
+// AND re-mark (the slot string carries the env segment, so an env change
+// re-marks), so a registered sink hears about every island the moment it
+// exists — no scan, no standing frame. The childName mirror moved to the host
+// (an `observe` on the mounted child's `appName`, host-client renderChild),
+// where the child's lifetime is actually known; the mac backend keeps its own
+// copy of the mirror for its native windows. Registration replays existing
+// slots, so a host that wires up after first render misses nothing.
 
-interface NameBox extends HTMLElement {
-  __declareView?: { childName?: string };
-  __childApp?: { appName?: unknown };
-}
-let embedMirrorFrame = 0;
-function reflectEmbeddedNames(): boolean {
-  const boxes = document.querySelectorAll<NameBox>('[data-declare-slot^="run:"]');
-  for (let i = 0; i < boxes.length; i++) {
-    const box = boxes[i];
-    const view = box.__declareView;
-    if (view === undefined) continue;
-    const name = box.__childApp !== undefined && typeof box.__childApp.appName === "string" ? box.__childApp.appName : "";
-    if (view.childName !== name) view.childName = name;
-  }
-  return boxes.length > 0;
-}
-function ensureEmbeddedNameMirror(): void {
-  if (embedMirrorFrame !== 0 || typeof requestAnimationFrame === "undefined" || typeof document === "undefined") return;
-  const tick = (): void => { embedMirrorFrame = reflectEmbeddedNames() ? requestAnimationFrame(tick) : 0; };
-  embedMirrorFrame = requestAnimationFrame(tick);
+type IslandSink = (el: HTMLElement) => void;
+const islandSinks = new Set<IslandSink>();
+
+/** Register an island sink — one per booting host, and a page may boot several
+ *  apps, so this is a set: every sink hears every slot and scopes itself (the
+ *  shim filters by containment, exactly the scope its old scan had). Fires for
+ *  every already-marked slot immediately, then per mark/re-mark. Returns the
+ *  unregister (a torn-down host must stop hearing about slots). */
+export function onIslandSlot(cb: IslandSink): () => void {
+  islandSinks.add(cb);
+  if (typeof document !== "undefined")
+    document.querySelectorAll<HTMLElement>("[data-declare-slot]").forEach((el) => cb(el));
+  return () => islandSinks.delete(cb);
 }
 
 /** Materialize the inner clip container for a box-clipped element: adopt the
@@ -1579,10 +1575,11 @@ class DomSurface implements Surface {
       s.pointerEvents = "none";
     } else {
       this.element.dataset.declareSlot = id;
-      // the view back-reference the name-mirror writes `childName` onto, plus a
-      // start of that mirror (self-retiring, so it only runs while islands live)
+      // the view back-reference the host's childName mirror writes onto, then
+      // tell the registered host a slot exists here (mark or re-mark — the env
+      // segment rides the slot string, so env changes arrive as re-marks)
       el.__declareView = view;
-      ensureEmbeddedNameMirror();
+      for (const sink of islandSinks) sink(this.element);
       // A live foreign surface, not painted UI: its interior owns hits, so an
       // iframe receives clicks whether or not the View has a sink. Selection
       // inside is already the platform's — boxes carry no `user-select` under

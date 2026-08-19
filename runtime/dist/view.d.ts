@@ -602,6 +602,14 @@ export declare class App extends View {
      *  the runtime. Theme an app off it: `fill = { app.dark ? 0x0B141B : 0xFFFFFF }`
      *  or drive a `theme` record from it. Read-only to user code. */
     dark: boolean;
+    /** Is the page this app lives on visible? The browser's Page Visibility fact
+     *  (boot.ts wireVisibility feeds it; the native host feeds the same slot from
+     *  its occlusion signal). Ambient motion gates itself on it —
+     *  `running = { … && app.pageVisible }` — and because clock membership is
+     *  constraint-driven, the Heartbeat leaving empties the frame loop: a hidden
+     *  page books nothing. Read-only to user code; schema.ts has the caveats
+     *  (Safari does not report window occlusion). */
+    pageVisible: boolean;
     /** "Am I running on a touch device?" — true when the device's primary pointer
      *  is coarse (`pointer: coarse`), a phone or tablet. A stable device fact fed
      *  live by the runtime, distinct from the transient `hovering`: switch mouse-only
@@ -674,11 +682,27 @@ export declare class App extends View {
      *  near the URL, so it is not shareable and not crawlable, by construction.
      *  The app owns the grammar, same as location. Schema attr; default "". */
     waypoint: string;
-    /** app→host navigation channel: `navigate(to)` sets it, the host (host-client.js
-     *  / a backend) polls it, opens the URL, and clears it to "". A plain field, not
-     *  a reactive attribute — nothing in the tree renders from it, and no Declare
-     *  source names it: navigation is the CALL, never an observed attribute. */
+    /** app→host navigation channel: `navigate(to)` sets it when no host services
+     *  are installed, and a polling host opens the URL and clears it to "". A plain
+     *  field, not a reactive attribute — nothing in the tree renders from it, and no
+     *  Declare source names it: navigation is the CALL, never an observed attribute.
+     *  The FALLBACK half of the verb — a host that registered `hostServices` is
+     *  called directly instead, and this field never carries. */
     pendingNav: string;
+    /** The host's service table — the app→host VERBS' direct line, installed at
+     *  mount by provideHostServices (boot.ts). Per-app, so two embedded apps on
+     *  one page each route to their own host, and a foreign page can supply its
+     *  own (route `navigate` into an SPA router). A registered service is called
+     *  SYNCHRONOUSLY inside the verb — still within the click's transient user
+     *  activation, which is what window.open needs. Null = no host registered:
+     *  the verb parks its intent on the matching pending* channel for a polling
+     *  host. (The mac bridge replaces `navigate` wholesale — Bridge.swift — and
+     *  reads neither.) */
+    hostServices: {
+        navigate?: (to: string) => void;
+        openWindow?: (to: string) => void;
+        inspect?: (slot: string) => void;
+    } | null;
     /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
      *  button calls `app.navigate(url)` in an activation handler; the compiler reads
      *  the call statically (links.ts → `<a href>` in the static extraction), and at
@@ -728,12 +752,14 @@ export declare class App extends View {
     pendingInspect: string | null;
     /** inspect(slot) — the Inspector SERVICE ACTION. `slot` names an embedded
      *  app's island ("run:spring"); omit it to inspect this app. Like navigate(),
-     *  the intent rides a channel the host owns, so a `{ }` body never touches
-     *  the document. */
+     *  the intent rides the service table (or its channel fallback), so a `{ }`
+     *  body never touches the document. */
     inspect(slot?: string): void;
     /** openWindow(to) — navigate's NEW-WINDOW sibling (a "View Source" that must
      *  not replace the running app). Same discipline: bodies never touch
-     *  `window`, the intent rides a channel the host owns. */
+     *  `window`, the intent rides the service table (or its channel fallback).
+     *  A registered service runs synchronously inside the activation, which is
+     *  MORE popup-safe than the old next-frame poll, not less. */
     openWindow(to: string): void;
     /** The reveal intent held from `location`'s trailing `@name` (location.md §6) —
      *  null when the location carries no anchor. Retained across settles until the
@@ -768,6 +794,31 @@ export declare class App extends View {
      *  rule (§0.5): re-following `#why@story` while already there re-runs the
      *  reveal, which resolveReveal's location-change guard would otherwise skip. */
     rearmReveal(): void;
+    /** The reveal pump — resolveReveal's retry as an ARMED-LIFETIME ticker on the
+     *  shared clock. The hosts used to call resolveReveal once per frame for the
+     *  life of the page (a standing rAF loop on every page, intent or no intent);
+     *  now the runtime owns the wait, because it owns the intent: the pump
+     *  enrolls when an `@name` intent arms and leaves the moment it lands or is
+     *  cancelled, so an app with no deep link pays zero frames. The per-frame
+     *  retry itself is load-bearing — a target's geometry can finish arriving
+     *  via browser-async work (an image decode, a rich flow's measurement) that
+     *  produces no settle to hook. Perpetual (never holds settleMotion open),
+     *  like a Heartbeat. A held intent whose anchor never appears keeps the pump
+     *  alive — exactly the old loops' behavior, now scoped to the one page that
+     *  asked for an anchor. */
+    private pumpOn;
+    private readonly revealPump;
+    /** Stop the pump when the app leaves — a held intent must not keep the
+     *  frame loop alive past the app (registered once, at first arm). */
+    private pumpRetireHooked;
+    private hookPumpRetire;
+    /** Enroll the pump at the close of the current settle when the location
+     *  carries an `@name`. Armed from `location`'s own push (the write IS the
+     *  event), from rearmReveal, and once at mount for the cold-arrival seed.
+     *  Arms, never resolves: resolution belongs to the pump's frame ticks — and
+     *  to any host or test that calls resolveReveal itself (the pinned
+     *  first-call contract). A no-anchor location makes this a peek and a no-op. */
+    scheduleReveal(): void;
     /** Cancel a HELD reveal intent — the user's first scroll or touch takes
      *  ownership of the viewport (location.md §0.5.5, the uncontrolled-editor
      *  rule): a reference SEEDS the scroll position, it never owns it. The host

@@ -362,6 +362,17 @@ const AppSchema: ComponentSchema = {
     // the OS color-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
     // keeps it live as the system theme flips, so an app themes off `app.dark`.
     dark: { kind: "boolean" },
+    // Is the page this app lives on VISIBLE — the browser's Page Visibility
+    // fact (visibilitychange), fed live: false when the tab is hidden, the
+    // window minimized, or the display asleep; true again on return. The
+    // native host feeds the same slot from its own occlusion signal. Ambient
+    // motion gates itself on it — `running = { … && app.pageVisible }` — and
+    // the constraint stopping the Heartbeat empties the clock, so a hidden
+    // page books no frames at all. (A browser window merely COVERED by
+    // another window may still read true — Safari does not report occlusion;
+    // Chrome and the mac host do.) Same fact for an embedded app: visibility
+    // is per-document, so an island inherits its page's.
+    pageVisible: { kind: "boolean" },
     // "am I running on a touch device?" — true when the device's PRIMARY pointer
     // is coarse (`pointer: coarse`), a phone or tablet. A stable device fact (kept
     // live if the input changes), distinct from the transient `hovering`:
@@ -477,7 +488,7 @@ const AppSchema: ComponentSchema = {
   // it would be arguing with its host). `scrollY` here is App's OWN spec
   // (view.ts) — a dead write before this listing: App's spec shadows View's
   // pusher, so assigning it never moved the page anyway.
-  readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText", "env"],
+  readOnly: ["hostWidth", "hostHeight", "dark", "pageVisible", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText", "env"],
   // `onFollow(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
   // follow() applies it ONCE to every arrival — a linked view, a prose href, a
   // cold URL, back/forward — before routing. Return the reference to proceed

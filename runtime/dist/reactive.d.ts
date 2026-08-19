@@ -137,3 +137,4 @@ export declare function afterSettle(step: () => void): void;
  *  microtask after any write; exported so tests (and later, tooling) can
  *  force a deterministic settle. Throws DeclareError on a constraint cycle. */
 export declare function settle(): void;
+export declare function observe<T>(read: () => T, onChange: (value: T) => void, label?: string): () => void;
