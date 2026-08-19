@@ -189,14 +189,31 @@ class WIcon extends View [
 class SkyPhoto extends View [ clip = true,
     source: string = "",
     driftT: number = 0,
+    driftAcc: number = 0,
 
     // The drift is a per-frame handler, so it runs ONLY where it can be seen:
     // a sky that is hidden, or small enough that a 3% pan is invisible, has
     // nothing to animate. Twenty-five list rows each carrying two of these
     // meant fifty handlers ticking forever for no visible motion.
+    //
+    // And it WRITES at ~10Hz, not per frame: the pan crosses ~3% of the width
+    // over minutes — 0.005px per frame at 60Hz — so a per-frame write woke
+    // style/layout/paint sixty times a second to move the sky by less than a
+    // hair. Banking dt and landing it in steps a tenth of a second wide is
+    // visually identical at this speed. (`driftAcc` has no dependents, so its
+    // per-frame write wakes nothing — only the `driftT` write below reaches
+    // the pipeline.) `app.pageVisible` gates the beat too: a page nobody can
+    // see banks nothing, and the constraint re-running on return is what
+    // restarts it — no handler, no listener, the fact does the work.
 
-    beat: Heartbeat [ running = { classroot.visible && classroot.height > 200 },
-        onFrame(dt: number) { classroot.driftT = classroot.driftT + dt }
+    beat: Heartbeat [ running = { classroot.visible && classroot.height > 200 && app.pageVisible },
+        onFrame(dt: number) {
+            classroot.driftAcc = classroot.driftAcc + dt
+            if (classroot.driftAcc >= 0.1) {
+                classroot.driftT = classroot.driftT + classroot.driftAcc
+                classroot.driftAcc = 0
+            }
+            }
         ],
     img: Image [
         source = { classroot.source }, stretches = cover,
