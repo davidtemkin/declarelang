@@ -11,7 +11,7 @@ import { instantiate } from "./instantiate.js";
 import { App, View } from "./view.js";
 import { fontFacesOf } from "./font.js";
 import { assetBaseFor, rebaseAsset, setAppAssetBase } from "./asset-base.js";
-import { setAppDataBase } from "./data-base.js";   // the LEAF — never data.js, or every bundle carries the data machinery
+import { setAppDataBase } from "./data.js";
 import type { RenderBackend } from "./backend.js";
 import { DeclareError } from "./errors.js";
 import { Keys } from "./keys.js";

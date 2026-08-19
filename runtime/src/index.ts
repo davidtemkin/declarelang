@@ -29,7 +29,7 @@ import { DeclareError, DeclareErrors } from "./errors.js";
 // production entry (`renderProgram`) can drop the parser + checker entirely.
 import { mountApp, loadFonts } from "./boot.js";
 import { setAppAssetBase } from "./asset-base.js";
-import { setAppDataBase } from "./data-base.js";
+import { setAppDataBase } from "./data.js";
 
 /** Options for build()/render(): the file-access host `include` resolution
  *  rides and the including file's directory. Both default to a no-op — a
@@ -130,8 +130,7 @@ export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
 export { Layout } from "./layout.js";
-export { Dataset, DataSource, toCursor, provideTransport } from "./data.js";
-export { setAppDataBase } from "./data-base.js";
+export { Dataset, DataSource, toCursor, provideTransport, setAppDataBase } from "./data.js";
 export { provideAssetBase, setAppAssetBase } from "./asset-base.js";
 export { Video } from "./video.js";
 export { Audio } from "./audio.js";

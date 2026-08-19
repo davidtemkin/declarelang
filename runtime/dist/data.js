@@ -306,14 +306,33 @@ export function provideTransport(fn) {
     transport = fn;
     return prev;
 }
-// PER-APP data bases live in data-base.ts — a LEAF on purpose, so boot wiring
-// can register a tenant's data directory without pulling this whole module
-// into a bundle whose program declares no data (the slimming lever). The
-// registered base rebases the url; the delegation to the one global transport
-// above stays here — a headless refuser still refuses, a test stub still
-// intercepts; a base changes which file is named, never who may fetch it.
-import { appResolve, setAppDataBase } from "./data-base.js";
-export { setAppDataBase };
+/** PER-APP data bases, keyed by tree root — asset-base.ts's shape, for DATA:
+ *  one page can run programs from different directories at once, and each
+ *  one's relative `url` means "beside MY file" (language §9's sibling rule,
+ *  now per tenant instead of last-boot-wins). A registered base REBASES the
+ *  url and then delegates to the one global transport above — so a headless
+ *  refuser still refuses and a test stub still intercepts; this changes
+ *  which file is named, never who is allowed to fetch it. Absolute urls pass
+ *  through `new URL` untouched. */
+const appDataBases = new WeakMap();
+export function setAppDataBase(root, base) {
+    if (base === null)
+        appDataBases.delete(root);
+    else
+        appDataBases.set(root, base);
+}
+/** Resolve a source's url through its app's base (identity when none). */
+function appResolve(root, url) {
+    const base = appDataBases.get(root);
+    if (base === undefined)
+        return url;
+    try {
+        return new URL(url, base).href;
+    }
+    catch {
+        return url;
+    }
+}
 /** A DataSource is a Dataset whose value arrives over HTTP (language §9): a
  *  reactive remote resource whose LIFECYCLE is reactive state — screens
  *  derive from `.loading`/`.loaded`/`.failed` with ordinary constraints
