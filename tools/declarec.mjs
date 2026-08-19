@@ -253,6 +253,14 @@ export const Inspect = new Proxy({ ready: () => false }, {
   };
   const programFacts = (() => {
     let themes = false, draw = false, focusKeys = false, tips = false, touch = false, selectors = false, schemas = false;
+    // The LANGUAGE FORMS (data, replication, state, motion, layout) ship
+    // through instantiate.js's own static imports, so the registry never
+    // slims them — an empty widget carried the replicator, the data
+    // machinery, and the animator family it could not name (measured
+    // 2026-08-19: 13.5 + 6.6 + ~10 KB raw of a 55 KB gz floor). Same lever
+    // as the services above: the compiler provably knows which forms the
+    // program contains; the rest become stubs.
+    let dataForm = false, replicateForm = false;
     // A SELECTOR plan (any non-string segment — index/slice/wildcard) in an
     // attribute path or an emitted body plan keeps the evaluator aboard.
     const planful = (v) => v != null && v.kind === "path" && Array.isArray(v.plan) && v.plan.some((s) => typeof s !== "string");
@@ -260,8 +268,14 @@ export const Inspect = new Proxy({ ready: () => false }, {
       for (const a of el.attrs ?? []) {
         if (planful(a.value)) selectors = true;
         if (a.value?.kind === "schema") schemas = true;
+        // ANY path-valued slot is the data form (cursors under it); a MANY
+        // path is the replicator's one entry point.
+        if (a.value?.kind === "path") { dataForm = true; if (a.value.many) replicateForm = true; }
       }
-      for (const d of el.decls ?? []) if (planful(d.def)) selectors = true;
+      for (const d of el.decls ?? []) {
+        if (planful(d.def)) selectors = true;
+        if (d.def?.kind === "path") { dataForm = true; if (d.def.many) replicateForm = true; }
+      }
       for (const c of el.children ?? []) walkSel(c);
     };
     const roots = [built.program.root, ...built.program.classes.map((c) => c.body)];
@@ -304,11 +318,30 @@ export const Inspect = new Proxy({ ready: () => false }, {
         if (/\bTip\b/.test(src)) tips = true;
         // An emitted body plan with a selector segment: $data([…{…]).
         if (/\$data\(\[[^\]]*\{/.test(src)) selectors = true;
+        // Any data-region read at all keeps the data form aboard.
+        if (/\$data\(/.test(src)) dataForm = true;
       });
       walkEl(r);
       walkSel(r);
     }
-    return { usesThemes: themes, usesDraw: draw, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas };
+    // The FORM facts the used-set already carries, read off the manifest's own
+    // tables (never a hand-kept name list): which registry entries the program
+    // reaches, grouped by what they are.
+    const used = new Set(built.usedComponents);
+    const usedIn = (...tables) => REGISTRY_MANIFEST.some((e) => used.has(e.name) && tables.includes(e.table));
+    const usedModule = (mod) => REGISTRY_MANIFEST.some((e) => used.has(e.name) && e.module === mod);
+    if (usedIn("DATA") || used.has("Editor") || usedModule("streams.js")) dataForm = true;
+    const usesState = usedIn("STATES");
+    // Layout machinery: a used layout class, or prose (markdown.js composes on
+    // Layout). The layout base spawns its own tween Animator, and the
+    // replicator's arrival rides spring.js — so motion stays aboard with
+    // either of those forms even when no Animator is declared.
+    const usesLayout = usedIn("LAYOUTS", "LAYOUT_BASES") || usedModule("markdown.js") || usedModule("md.js");
+    const declaredMotion = REGISTRY_MANIFEST.some((e) => used.has(e.name) && (e.table === "ANIMATORS" || e.table === "ANIMATOR_GROUPS") && e.module !== "heartbeat.js");
+    const usesSpring = declaredMotion || replicateForm;
+    const usesAnimator = declaredMotion || replicateForm || usesLayout;
+    return { usesThemes: themes, usesDraw: draw, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas,
+      usesData: dataForm, usesReplication: replicateForm, usesState, usesLayout, usesSpring, usesAnimator };
   })();
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
@@ -411,6 +444,21 @@ export function validateShape() { return null; }
   const themesStub = `export const Themes = Object.freeze({});\n`;
   const viewportStub = `export function lockFocusZoom() {}\n`;
   const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\n`;
+  // ── THE LANGUAGE FORMS (2026-08-19) — replication, data, state, motion,
+  // layout ride instantiate.js's own static imports, so the slim registry
+  // never touches them and an empty widget shipped all five (the 55 KB gz
+  // floor's biggest movable pieces: replicate 13.5 KB + data 6.6 + the
+  // animator family ~10 + layout 3.8 raw). Same rule as every stub here:
+  // the fact comes from the program, provably — never a heuristic. Each stub
+  // exports exactly the names the always-bundled modules import (esbuild
+  // resolves named imports even when the call sites are dead), and the
+  // classes exist so `instanceof` checks stay false rather than throwing.
+  const replicateStub = `export class Replicator { constructor() { throw new Error("Replicator: no datapath in this build (declarec slimmed it — the program declares none)"); } }\n`;
+  const stateStub = `export class State { constructor() { throw new Error("State: not aboard this build (the program declares none)"); } }\n`;
+  const layoutStub = `export class Layout { constructor() { throw new Error("Layout: not aboard this build (the program uses no layout)"); } }\nexport class TweenLayout extends Layout {}\n`;
+  const animatorStub = `export class Animator { constructor() { throw new Error("Animator: not aboard this build (the program declares no motion)"); } }\nexport class AnimatorGroup { constructor() { throw new Error("AnimatorGroup: not aboard this build"); } }\n`;
+  const springStub = `export class Spring { constructor() { throw new Error("Spring: not aboard this build (the program declares no motion)"); } }\nexport function arriveSubtree() {}\n`;
+  const dataStub = `export class Dataset { constructor() { throw new Error("Dataset: not aboard this build (the program declares no data)"); } }\nexport class DataSource extends Dataset {}\nexport function toCursor() { throw new Error("toCursor: no data form in this build"); }\nexport function coerceData(v) { return v; }\nexport function provideTransport(fn) { return fn; }\n`;
   const stubFor = (name, filterRe, contents) => ({
     name,
     setup(build) {
@@ -431,6 +479,13 @@ export function validateShape() { return null; }
     ...(programFacts.claimsTouch ? [] : [stubFor("slim-viewport", /[/\\]viewport-lock\.js$/, viewportStub)]),
     ...(programFacts.usesSelectors ? [] : [stubFor("slim-select", /[/\\]select\.js$/, selectStub)]),
     ...(programFacts.usesSchemas ? [] : [stubFor("slim-dataschema", /[/\\]data-schema\.js$/, dataSchemaStub)]),
+    // the language forms (see the stub block above)
+    ...(programFacts.usesReplication ? [] : [stubFor("slim-replicate", /[/\\]replicate\.js$/, replicateStub)]),
+    ...(programFacts.usesData ? [] : [stubFor("slim-data", /[/\\]data\.js$/, dataStub)]),
+    ...(programFacts.usesState ? [] : [stubFor("slim-state", /[/\\]state\.js$/, stateStub)]),
+    ...(programFacts.usesLayout ? [] : [stubFor("slim-layout", /[/\\]layout\.js$/, layoutStub)]),
+    ...(programFacts.usesAnimator ? [] : [stubFor("slim-animator", /[/\\]animator\.js$/, animatorStub)]),
+    ...(programFacts.usesSpring ? [] : [stubFor("slim-spring", /[/\\]spring\.js$/, springStub)]),
   ];
 
   const result = await esbuild.build({

@@ -267,6 +267,59 @@ if (!CHROME) {
   await test("a service-free app still RENDERS (the stubs satisfy boot's wiring)", async () => {
     await renders(`App [ width = 200, fill = white, Text [ x = 10, y = 10, text = "no services" ] ]`);
   });
+
+  // ── the language forms (2026-08-19): replication, data, state, motion and
+  // layout ride instantiate's own imports, so only these stubs — not the
+  // registry — can shed them. The measured stake: an empty widget fell
+  // 55.1 → 43.6 KB gz when they landed. ──────────────────────────────────────
+
+  await test("the language forms drop from a form-free widget", async () => {
+    const b = await buildProduction(`App [ width = 200, fill = #223344, Text [ x = 10, y = 10, text = "widget" ] ]`, {});
+    const m = modsOf(b);
+    for (const mod of ["replicate.js", "data.js", "state.js", "animator.js", "spring.js", "layout.js"])
+      assert.ok((m[mod] ?? 0) < STUBBED, `${mod} should be stubbed, was ${m[mod]}`);
+    await renders(`App [ width = 200, fill = #223344, Text [ x = 10, y = 10, text = "widget" ] ]`);
+  });
+
+  await test("…and a datapath keeps replication, data, AND the arrival springs", async () => {
+    const b = await buildProduction(`App [ width = 300,
+      d: Dataset { { "rows": [{ "n": "a" }, { "n": "b" }] } },
+      list: View [ datapath = { d.value },
+        Text [ datapath = :rows[], text = { "" + (:n) } ],
+        ],
+      ]`, {});
+    const m = modsOf(b);
+    assert.ok(m["replicate.js"] > STUBBED, "a many-path needs the replicator");
+    assert.ok(m["data.js"] > STUBBED, "…and the data machinery");
+    assert.ok(m["spring.js"] > STUBBED, "…and spring.js (the replicator's arrivals ride it)");
+    assert.ok(m["animator.js"] > STUBBED, "…and Animator (Spring extends it)");
+  });
+
+  await test("…a lone Dataset keeps data but NOT the replicator", async () => {
+    const b = await buildProduction(`App [ width = 200,
+      d: Dataset { { "x": 1 } }, Text [ x = 4, y = 4, text = { "" + d.value.x } ] ]`, {});
+    const m = modsOf(b);
+    assert.ok(m["data.js"] > STUBBED, "Dataset needs data.js");
+    assert.ok((m["replicate.js"] ?? 0) < STUBBED, "no many-path → no replicator");
+  });
+
+  await test("…a State keeps state.js; an Animator keeps the motion pair", async () => {
+    const s = await buildProduction(`App [ width = 200, open: boolean = false,
+      hot: State [ applied = { app.open }, fill = #445566 ], Text [ text = "s" ] ]`, {});
+    assert.ok(modsOf(s)["state.js"] > STUBBED, "a State keeps state.js");
+    const a = await buildProduction(`App [ width = 200, t: number = 0,
+      slide: Animator [ attribute = t, from = 0, to = 1, duration = 100 ], Text [ text = "a" ] ]`, {});
+    assert.ok(modsOf(a)["animator.js"] > STUBBED, "an Animator keeps animator.js");
+  });
+
+  await test("…a layout keeps layout.js AND animator.js (the layout tween is an Animator)", async () => {
+    const b = await buildProduction(`App [ width = 200,
+      col: View [ width = 100, layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ text = "1" ], Text [ text = "2" ] ] ]`, {});
+    const m = modsOf(b);
+    assert.ok(m["layout.js"] > STUBBED, "a used layout keeps the machinery");
+    assert.ok(m["animator.js"] > STUBBED, "…and its tween's Animator");
+  });
 }
 
 console.log(`\nslim: ${pass} passed, ${fail} failed`);

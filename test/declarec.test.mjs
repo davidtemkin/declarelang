@@ -112,6 +112,10 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // is product surface every production app can reach (the facts and the verbs
   // ARE the API; the provenance records are what make a running program
   // explainable), so the weight is carried deliberately rather than shaken.
+  // (The calendar itself is near the ceiling because it uses every language
+  // form; the same day added the FORM stubs — replicate/data/state/motion/
+  // layout slim out of programs that lack them, and the empty-widget floor
+  // fell 55.1 → 43.6 KB gz. This gate watches the flagship, not the floor.)
   const gz = out.sizes.totalGzip;
   assert.ok(gz > 20 * 1024 && gz < 84 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });

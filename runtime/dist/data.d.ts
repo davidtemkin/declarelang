@@ -69,7 +69,8 @@ type Transport = (url: string, init?: RequestInit) => Promise<Response>;
 /** Swap the transport (headless installs a refuser; tests install stubs).
  *  Returns the PREVIOUS transport so a scoped caller can restore it. */
 export declare function provideTransport(fn: Transport): Transport;
-export declare function setAppDataBase(root: object, base: string | null): void;
+import { setAppDataBase } from "./data-base.js";
+export { setAppDataBase };
 export declare class DataSource extends Dataset {
     url: string;
     /** What the bytes ARE: "json" (the default — parsed, `:path` navigable) or
@@ -156,4 +157,3 @@ export declare function toCursor(v: unknown, context: string): Cursor | null;
  *  slot's type or it reads as unresolved. Recorded as an open question —
  *  these rules are language surface. */
 export declare function coerceData(type: AttrType, v: unknown, def: unknown): unknown;
-export {};
