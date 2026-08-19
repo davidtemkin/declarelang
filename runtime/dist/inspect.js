@@ -12,7 +12,7 @@
 import { Node } from "./node.js";
 import { hitAt, traceHitAt, rootFrameOrigin, rootFrameBox } from "./interaction.js";
 import { View } from "./view.js";
-import { isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
+import { declarationsOf, isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
 import { materializationInfo } from "./replicate.js";
 import { sharedClock, browserScheduler } from "./animate.js";
 import { TAGS, LAYOUTS, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
@@ -203,7 +203,31 @@ export function find(root, path) {
     return cur;
 }
 export function explain(node, attr) {
+    // A slot that does not exist answers LOUDLY — an absent key reads
+    // `undefined`, and a harness asking `=== true` is told "no" forever with no
+    // error anywhere (measured: a working feature read as broken for 1,097
+    // frames). Known = a class accessor/own property, or an author declaration.
+    const decls = declarationsOf(node);
+    if (!(attr in node) && decls[attr] === undefined) {
+        const q = attr.toLowerCase();
+        const prefix = (a, b) => { let i = 0; while (i < a.length && i < b.length && a[i] === b[i])
+            i++; return i; };
+        const near = Object.keys(decls).filter((k) => {
+            const c = k.toLowerCase();
+            return c.includes(q) || q.includes(c) || prefix(c, q) >= 3;
+        });
+        return {
+            attr, value: undefined, set: false, constraint: null, spring: null,
+            error: `no slot '${attr}' on ${kindName(node)}${near.length > 0 ? ` — did you mean ${near.slice(0, 3).map((n) => `'${n}'`).join(", ")}?` : ""}`,
+        };
+    }
     const owner = ownerOf(node, attr);
+    // An author DECLARATION's `{ }` default is served by a live defBinding, not
+    // a standing Constraint — its provenance comes from the declaration record
+    // (attributes.ts DECLARED), so the slots the program is made of explain
+    // themselves exactly as the platform's do (they didn't, until 2026-08-19:
+    // View.width had deps/source/pos and the author's fitS had null).
+    const decl = owner === null && decls[attr] !== undefined && decls[attr].source !== null ? decls[attr] : undefined;
     let spring = null;
     for (const c of node.children) {
         const s = c;
@@ -240,7 +264,18 @@ export function explain(node, attr) {
                 source: owner.source,
                 pos: owner.sourcePos,
             }
-            : null,
+            : decl !== undefined
+                ? {
+                    label: `${kindName(node)}.${attr}`,
+                    static: decl.deps !== null,
+                    live: false,
+                    deps: decl.deps,
+                    writer: null,
+                    source: decl.source,
+                    pos: decl.pos,
+                }
+                : null,
+        ...(decl !== undefined ? { declaration: true } : {}),
         spring,
     };
 }
@@ -400,21 +435,44 @@ export function bridgeFor(root) {
         explainHit: (x, y, pierce = false) => explainHit(root, x, y, pierce),
         dependents: (attr) => dependentsOf(root, attr),
         /** Evaluate Declare in the scope of a node — read, set, bind, or add a view.
-         *  The Inspector's strip and an agent hit the same entry point. Once the
-         *  primed service is loaded (which boot arranges), the effect lands
-         *  synchronously inside this call — set-then-step-then-read in one turn
-         *  works; only the promise wrapper remains, for the result value. */
+         *  The Inspector's strip and an agent hit the same entry point. Returns the
+         *  result OBJECT synchronously once the primed service has loaded (boot
+         *  arranges it) — it used to wrap the answer in Promise.resolve
+         *  unconditionally, and JSON.stringify(Promise) is "{}", so any harness
+         *  that serialized the reply read an empty object for everything,
+         *  including `1 + 2` (field report 2026-08-19). Only the never-primed
+         *  first call still returns a promise, for the lazy import. */
         evaluate: (path, src) => {
             if (evalService !== null)
-                return Promise.resolve(evalService.evaluateIn(root, path, src));
+                return evalService.evaluateIn(root, path, src);
             return import("./inspect-service.js").then((m) => {
                 evalService = m;
                 return m.evaluateIn(root, path, src);
             });
         },
+        /** The call table — the bridge describes itself (field report 2026-08-19:
+         *  an agent used two of eleven calls for a whole build because nothing
+         *  here said what existed; anyone who found __declare at all has found
+         *  the one place this answer lands). */
+        help: () => BRIDGE_HELP,
         clock,
     };
 }
+/** One line per bridge call — what it answers and the shape it takes. */
+const BRIDGE_HELP = {
+    inspect: "inspect(path?) — the node as data: kind, attrs summary, children. Start here; paths look like 'app.sidebar.list'",
+    find: "find(path) — the live node object itself (attributes readable/writable directly)",
+    explain: "explain(path, attr) — the slot's value AND its provenance: owning constraint or declaration default, source text, line, extracted deps. THE 'why is this value what it is' call",
+    slots: "slots(path) — every slot on the node: written, constraint-owned, and author-declared (with origin). Enumeration — how you discover what to assert on",
+    expand: "expand(path, attr, trail?) — drill into a record/array/dataset value one level at a time",
+    dependents: "dependents(attr) — every constraint that READS the named app attr (the other direction from explain)",
+    at: "at(x, y, pierce?) — what a press at this point would land on (the router's own answer); pierce=true includes pointer-transparent views",
+    explainHit: "explainHit(x, y, pierce?) — the hit walk's decisions in order: what took the point and what it stepped over",
+    stats: "stats() — node/constraint counts for the whole tree",
+    evaluate: "evaluate(path, src) — run Declare in the node's scope: read ('width'), compute ('1+2'), set ('width = 40'), bind ('width = { parent.width/2 }'). Returns {ok, text, value} synchronously once primed",
+    clock: "clock — the driven clock: manual()/auto()/step(ms)/settleMotion() for deterministic motion in tests",
+    help: "help() — this table",
+};
 /** The dotted address of a live node under `root` — the inverse of find(). */
 function pathOf(root, n) {
     const parts = [];
@@ -604,7 +662,11 @@ function isColorSlot(node, attr) {
 export function slotsOf(node) {
     const out = [];
     const own = ownValues(node);
-    const names = new Set([...Object.keys(own), ...ownedSlots(node)]);
+    // Author-DECLARED slots too — constraints (defBindings), and plain slots
+    // still at their defaults. Without them a slot could be asked for by name
+    // but never discovered, and enumeration is how an agent or verify finds out
+    // what to assert on (field report 2026-08-19).
+    const names = new Set([...Object.keys(own), ...ownedSlots(node), ...Object.keys(declarationsOf(node))]);
     for (const attr of [...names].sort()) {
         const v = node[attr];
         const k = sliceKind(v);

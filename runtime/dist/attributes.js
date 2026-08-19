@@ -374,6 +374,25 @@ export function disown(self, name) {
 export function ownerOf(self, name) {
     return self.$owners?.[name] ?? null;
 }
+const DECLARED = new WeakMap();
+/** Record a class's author declarations (instantiate.ts makeClass). */
+export function recordDeclarations(ctor, table) {
+    DECLARED.set(ctor, table);
+}
+/** Every author-declared slot visible on this instance — the class's own and
+ *  its user superclasses', merged up the prototype chain (runtime base
+ *  classes never register, so View's built-ins stay out of the answer). */
+export function declarationsOf(self) {
+    const out = {};
+    for (let c = self.constructor; c != null; c = Object.getPrototypeOf(c)) {
+        const t = DECLARED.get(c);
+        if (t !== undefined)
+            for (const k of Object.keys(t))
+                if (!(k in out))
+                    out[k] = t[k];
+    }
+    return out;
+}
 /** Tooling reads (inspect.ts): the node's OWN attribute values (writes and
  *  bound results — `$attrs`, the instance overlay over the class defaults),
  *  and the slot names currently owned by constraints. Snapshots, not live. */

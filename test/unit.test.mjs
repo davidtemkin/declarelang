@@ -7294,6 +7294,74 @@ await test("Text metrics are REACTIVE to the effective font — a constraint rid
   assert.ok(Math.abs(a.baseline - (b.y + b.baseline)) < 1e-9, "baselines aligned after the change");
 });
 
+// ── the visibility facts (Aperture report 2026-08-19): onScreen /
+// visibleRect / apparentScale, runtime-computed where the backend has no
+// page context — the CAMERA case is the pin: a world writes ITS OWN scale
+// and the descendant's facts re-derive with no attribute of its changing ──
+
+await test("visibility facts: the camera case — an ancestor's transform re-derives a descendant's facts", async () => {
+  // the facts are consumed the way a real app consumes them — bound into
+  // view attributes (a declaration's defBinding is pull-lazy; an untracked
+  // read arms nothing, which is pay-per-use taken literally)
+  const r = await compile(`App [ width = 400, height = 300,
+      world: View [ x = 0, y = 0, width = 400, height = 300, scale = 1,
+          card: View [ x = 100, y = 100, width = 100, height = 50 ],
+          ],
+      readout: View [ x = 0, y = 0, height = 10,
+          width = { app.world.card.visibleRect.width },
+          opacity = { app.world.card.apparentScale / 8 },
+          visible = { app.world.card.onScreen } ],
+      ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  const seen = () => app.readout.visible;
+  const how = () => app.readout.opacity * 8;
+  const what = () => app.readout.width;
+  try {
+    assert.equal(seen(), true, "on screen at rest");
+    assert.equal(how(), 1, "apparent scale 1 under identity");
+    assert.equal(what(), 100, "fully visible: the whole width");
+    // the camera zooms: ONLY the world's scale changes — no attribute of the
+    // card moves, yet the composed transform pushed it off the right edge
+    // the camera zooms: ONLY the world's scale changes — no attribute of the
+    // card moves, yet its apparent size and visible portion re-derive (at
+    // scale 2.5 the card spans root 250..500 × 250..375 against a 400×300
+    // stage — partly off both edges)
+    app.world.scale = 2.5;
+    settle();
+    assert.equal(how(), 2.5, "apparent scale follows the ancestor");
+    assert.ok(seen(), "still partly on stage");
+    assert.ok(what() > 0 && what() < 100, `partial visibility in LOCAL units (got ${what()})`);
+    // fly the world away: fully off stage
+    app.world.x = -4000;
+    settle();
+    assert.equal(seen(), false, "off screen when the world moves away");
+    assert.equal(what(), 0, "the empty rect");
+    // bring it home
+    app.world.x = 0;
+    app.world.scale = 1;
+    settle();
+    assert.equal(seen(), true, "back on stage");
+    app.world.visible = false;
+    settle();
+    assert.equal(seen(), false, "a hidden ancestor hides the fact");
+  } finally { app.discard(); }
+});
+
+await test("visibility facts: pay-per-use — an unbound view installs no computer", async () => {
+  const r = await compile(`App [ width = 400, height = 300,
+      plain: View [ x = 10, y = 10, width = 50, height = 50 ],
+      ]`, {});
+  assert.equal(r.errors.length, 0);
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    // untracked reads see the resting defaults and arm nothing
+    assert.equal(app.plain.onScreen, true);
+    assert.equal(app.plain.apparentScale, 1);
+    assert.equal(app.plain.visibleRect.width, 0, "the resting empty rect — no feed ever armed");
+  } finally { app.discard(); }
+});
+
 summarize("unit");
 
 // ── the device profile: three independent facts, none of them a guess ───────

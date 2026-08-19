@@ -86,12 +86,25 @@ const ViewSchema: ComponentSchema = {
     // hidden subtree? COARSE by design: it flips at threshold crossings, so a
     // binding re-derives only when the answer changes — the cheap gate for
     // ambient work (`running = { classroot.onScreen && app.pageVisible }`).
-    // Fed lazily by the backend's own visibility machinery (DOM:
+    // Fed lazily at the first read (a program that never reads it pays
+    // nothing): by the backend where it has page context (DOM:
     // IntersectionObserver, viewport-rooted, so it answers for an embedded
-    // app's box on a foreign page too); a program that never reads it pays
-    // nothing, and backends without the machinery (canvas, native — for now)
-    // leave it true. Read-only. For exact geometry, `rootBounds()`.
+    // app's box on a foreign page too), by the runtime's own ancestor walk
+    // everywhere else. Read-only. For exact geometry, `rootBounds()`.
     onScreen: { kind: "boolean" },
+    // What of me is visible, in MY coordinates — {x, y, width, height}, all
+    // zeros when nothing shows. AT-REST delivery: updates when motion settles
+    // and scrolling quiets, never per frame of a glide — a tile/rung decision
+    // wants the flight's end. Margins are the author's arithmetic on the
+    // truth, not a platform knob. Read-only.
+    visibleRect: { kind: "object" },
+    // The composed scale from my units to DEVICE pixels (ancestor scales ×
+    // devicePixelRatio) — the raster-rung fact: pyramids pick tiers from it,
+    // drawn views their backing density. Exact under Declare's own transforms
+    // (a similarity — rotation does not participate); under a non-similar
+    // host transform, the largest axis ratio (the rasterization convention).
+    // Same at-rest delivery as visibleRect. Read-only.
+    apparentScale: { kind: "number" },
     stroke: { kind: "stroke" },
     shadow: { kind: "shadow" },
     visible: { kind: "boolean" },
@@ -327,7 +340,7 @@ const ViewSchema: ComponentSchema = {
   // perceptual probe test/probe/ignorescroll.declare declares an at-rest
   // initial offset (`scrollY = 120`), which a readOnly listing would refuse —
   // it joins when the declared-initial form has a ruled replacement.
-  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed", "onScreen", "scrollX"],
+  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed", "onScreen", "visibleRect", "apparentScale", "scrollX"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle
   // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its

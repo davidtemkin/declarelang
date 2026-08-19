@@ -65,7 +65,7 @@ import { buildStylesheet, ensureApplier, registerStylesheets } from "./styleshee
 import { buildFonts, collectFaces, registerFontFaces } from "./font.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
 import { coerce, isPercent, isAlign } from "./value.js";
-import { defineAttributes, setBound } from "./attributes.js";
+import { defineAttributes, recordDeclarations, setBound } from "./attributes.js";
 import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
@@ -382,6 +382,7 @@ outer = false) {
     if (body.decls.length > 0) {
         const probe = new B();
         const specs = {};
+        const declRecords = {};
         const defs = defaults();
         for (const d of body.decls) {
             if (d.name in probe) {
@@ -407,10 +408,22 @@ outer = false) {
                 defBinding,
                 defOuter: outer || undefined,
             };
+            // The tooling record (attributes.ts DECLARED): a defBinding drops the
+            // source at compile, and the introspection surface went blind exactly at
+            // the program's own slots — keep what explain()/slots() need to answer.
+            // (pos is optional-chained throughout: a HYDRATED program — the slim
+            // production artifact — rebuilds the AST from JSON without positions)
+            const at = (d.def?.kind === "code" ? d.def.pos : undefined) ?? d.pos;
+            declRecords[d.name] = {
+                source: d.def?.kind === "code" ? d.def.src : null,
+                pos: at != null && typeof at.line === "number" ? { line: at.line, col: at.col ?? 0 } : null,
+                deps: d.def?.kind === "code" ? (d.def.deps ?? null) : null,
+            };
         }
         // The static mapped type on defineAttributes serves hand-declared
         // classes; parse-path names are dynamic, hence the cast.
         defineAttributes(cls, specs);
+        recordDeclarations(cls, declRecords);
     }
     return cls;
 }

@@ -399,14 +399,18 @@ export interface Surface {
    *  that must track the view as the page scrolls. No-op off the DOM. */
   setEmbed(id: string, view?: unknown): void;
 
-  /** OPTIONAL: watch whether this surface is on screen — the feed behind the
-   *  `onScreen` fact (view.ts). Coarse and threshold-crossing by design: the
-   *  DOM backend answers with one shared IntersectionObserver (off the layout
+  /** OPTIONAL: watch this surface's visibility — the feed behind the
+   *  `onScreen` / `visibleRect` / `apparentScale` facts (view.ts). The DOM
+   *  backend answers with one shared IntersectionObserver (off the layout
    *  path, viewport-rooted, so a box scrolled out of a FOREIGN page reports
-   *  false too); a backend without the machinery omits this and the fact
-   *  rests at its default (true). Replaces any prior watch on this surface;
-   *  returns the unwatch. */
-  watchOnScreen?(cb: (on: boolean) => void): () => void;
+   *  what the page actually shows); a backend without page context omits
+   *  this, and the runtime computes the facts itself from the ancestor walk
+   *  (exact for everything the language can express). `rect` is the visible
+   *  portion in the VIEW's own coordinates (null when off screen); `scale` is
+   *  device pixels per local unit — under a non-similar host transform, the
+   *  largest axis ratio (the rasterization convention). Replaces any prior
+   *  watch on this surface; returns the unwatch. */
+  watchVisibility?(cb: (v: { on: boolean; rect: { x: number; y: number; width: number; height: number } | null; scale: number }) => void): () => void;
 
   /** The view's recorded drawing (draw.ts); null clears it. The Canvas
    *  backend replays it during the composite walk; the DOM backend

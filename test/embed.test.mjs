@@ -150,6 +150,14 @@ await test("onScreen: a bound view learns it scrolled out of the page's viewport
   await page.evaluate(() => window.scrollTo(0, 0));
   await sleep(250);
   assert.equal(await a(), true, "and back");
+  // the sibling facts ride the same feed (IntersectionObserver-backed): at
+  // rest, the fully-shown app root reports its whole box and the device scale
+  const v = await page.evaluate(() => {
+    const app = document.getElementById("slot-a").__declareApp;
+    return { rect: app.visibleRect, scale: app.apparentScale, dpr: devicePixelRatio };
+  });
+  assert.equal(Math.round(v.rect.width), 320, `the whole box width (got ${JSON.stringify(v.rect)})`);
+  assert.equal(v.scale, v.dpr, "apparentScale is device pixels per local unit");
 });
 
 await test("pageVisible reaches embedded apps and flips with the document", async () => {

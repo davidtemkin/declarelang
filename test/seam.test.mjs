@@ -167,11 +167,11 @@ const TABLE = {
     mac: true,
     headless: NOT_APPLICABLE,
   },
-  watchOnScreen: {
+  watchVisibility: {
     dom: true,
-    canvas: "GAP by design for now (2026-08-19) — the onScreen fact rests at its default (true) on canvas. The honest feed exists in principle (the composite walk knows what it culls); wiring it is the same work as the scroll-cull the sealed surface already does, deliberate rather than forgotten",
-    mac: "GAP by design for now (2026-08-19) — same rest-at-true. The native host's hidden-raster skip already computes exactly this fact per layer; feeding it across the bridge is the follow-on recorded with the occlusion work",
-    headless: NOT_APPLICABLE,
+    canvas: "NOT A GAP — deliberate division of labor (2026-08-19): the runtime computes the visibility facts itself off the ancestor walk (view.ts, the generic feed — exact for everything the language expresses) wherever the backend lacks PAGE context. The backend member exists for backends that can see what the app cannot (a host page's scroll/transform over an embedded box) — on canvas that composition (root-element IO ∩ the walk) is the recorded follow-on for the embedded-canvas case",
+    mac: "NOT A GAP — same runtime-computed feed, and on mac it is exact (an app fills its window; there is no host page). A native feed from the hidden-raster cull would only be an optimization",
+    headless: "runtime-computed too — visibility facts settle headlessly, which is what lets unit tests pin them",
   },
 };
 

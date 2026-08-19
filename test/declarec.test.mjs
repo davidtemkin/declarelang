@@ -103,8 +103,17 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // so file-granular shaking is not what to fix here. On one app a shared
   // component costs more than the bespoke one it replaces; the return is across
   // the corpus and in behavior, and it was taken deliberately.
+  //
+  // 80 → 84 KB (2026-08-19, the always-on runtime surface): measured 79.x → 80.2
+  // as the app↔host contract and the visibility family landed — observe(), the
+  // host service table, the reveal pump, `pageVisible`, the onScreen/visibleRect/
+  // apparentScale facts with the generic ancestor-walk feed, declaration
+  // provenance records, and the bridge's self-describing help table. All of it
+  // is product surface every production app can reach (the facts and the verbs
+  // ARE the API; the provenance records are what make a running program
+  // explainable), so the weight is carried deliberately rather than shaken.
   const gz = out.sizes.totalGzip;
-  assert.ok(gz > 20 * 1024 && gz < 80 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  assert.ok(gz > 20 * 1024 && gz < 84 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
 await test("closure freshness: an edit to an INCLUDED file invalidates the build (the prod-cache rule)", async () => {

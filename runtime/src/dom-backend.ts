@@ -665,26 +665,54 @@ export class DomBackend implements RenderBackend {
 // copy of the mirror for its native windows. Registration replays existing
 // slots, so a host that wires up after first render misses nothing.
 
-// ── the onScreen feed (Surface.watchOnScreen) ────────────────────────────────
+// ── the visibility feed (Surface.watchVisibility) ────────────────────────────
 //
 // One shared IntersectionObserver for the whole document — the browser's own
-// off-the-layout-path answer to "is this element in the viewport", built for
+// off-the-layout-path answer to "what of this element shows", built for
 // exactly this. Viewport-rooted (root null), so an embedded app's box scrolled
-// out of a FOREIGN page reports false the same as an in-app scroll; and a
-// display:none subtree (visible = false) reports false too, which is the same
-// answer the fact means. Registered lazily — a page where nothing binds
-// `onScreen` never constructs the observer.
+// out of a FOREIGN page reports what the page actually shows; and a
+// display:none subtree (visible = false) reports off, which is the same answer
+// the facts mean. One observer delivers all three facts:
+//   on    — isIntersecting
+//   rect  — intersectionRect mapped back into the VIEW's own coordinates via
+//           the bounding/offset ratio (exact under uniform scale; under
+//           rotation the AABB approximates — the honest limit of rect data)
+//   scale — device pixels per local unit: the LARGEST axis ratio of
+//           boundingClientRect to layout size, × devicePixelRatio (the
+//           rasterization convention — CA's contentsScale rule)
+// Registered lazily — a page where nothing binds the facts never constructs
+// the observer.
 
-const ONSCREEN = new Map<Element, (on: boolean) => void>();
-let onScreenIO: IntersectionObserver | null = null;
-function observeOnScreen(el: Element, cb: (on: boolean) => void): () => void {
+type VisibilityCb = (v: { on: boolean; rect: { x: number; y: number; width: number; height: number } | null; scale: number }) => void;
+const VISWATCH = new Map<Element, VisibilityCb>();
+let visIO: IntersectionObserver | null = null;
+function observeVisibility(el: Element, cb: VisibilityCb): () => void {
   if (typeof IntersectionObserver === "undefined") return () => {};
-  onScreenIO ??= new IntersectionObserver((entries) => {
-    for (const e of entries) ONSCREEN.get(e.target)?.(e.isIntersecting);
+  visIO ??= new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const deliver = VISWATCH.get(e.target);
+      if (deliver === undefined) continue;
+      const t = e.target as HTMLElement;
+      const bw = e.boundingClientRect.width, bh = e.boundingClientRect.height;
+      const lw = t.offsetWidth || 1, lh = t.offsetHeight || 1;
+      const rw = bw / lw, rh = bh / lh;                       // per-axis css ratios
+      const dpr = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
+      const scale = Math.max(rw, rh) * dpr;
+      const ir = e.intersectionRect;
+      const rect = e.isIntersecting && rw > 0 && rh > 0
+        ? {
+            x: (ir.x - e.boundingClientRect.x) / rw,
+            y: (ir.y - e.boundingClientRect.y) / rh,
+            width: ir.width / rw,
+            height: ir.height / rh,
+          }
+        : null;
+      deliver({ on: e.isIntersecting, rect, scale });
+    }
   });
-  ONSCREEN.set(el, cb);
-  onScreenIO.observe(el);
-  return () => { ONSCREEN.delete(el); onScreenIO?.unobserve(el); };
+  VISWATCH.set(el, cb);
+  visIO.observe(el);
+  return () => { VISWATCH.delete(el); visIO?.unobserve(el); };
 }
 
 type IslandSink = (el: HTMLElement) => void;
@@ -2182,17 +2210,17 @@ class DomSurface implements Surface {
     if (el.dataset.declareIgnorescroll !== undefined) realizeIgnoreScroll(el);
   }
 
-  watchOnScreen(cb: (on: boolean) => void): () => void {
-    this.unwatchOnScreen?.();
-    this.unwatchOnScreen = observeOnScreen(this.element, cb);
-    return () => { this.unwatchOnScreen?.(); this.unwatchOnScreen = null; };
+  watchVisibility(cb: VisibilityCb): () => void {
+    this.unwatchVisibility?.();
+    this.unwatchVisibility = observeVisibility(this.element, cb);
+    return () => { this.unwatchVisibility?.(); this.unwatchVisibility = null; };
   }
-  private unwatchOnScreen: (() => void) | null = null;
+  private unwatchVisibility: (() => void) | null = null;
 
   destroy(): void {
     this.gone = true; // quiets any armed dpr listener
-    this.unwatchOnScreen?.();
-    this.unwatchOnScreen = null;
+    this.unwatchVisibility?.();
+    this.unwatchVisibility = null;
     this.richObserver?.disconnect();
     this.onRichResize = undefined;
     CARVED.delete(this.element);

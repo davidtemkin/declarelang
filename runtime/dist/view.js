@@ -21,8 +21,8 @@ export function provideViewCreator(fn) {
 import { record } from "./draw.js";
 import { sharedClock } from "./animate.js";
 import { Constraint, Cell, afterSettle } from "./reactive.js";
-import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox } from "./interaction.js";
-import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
+import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform } from "./interaction.js";
+import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned, setBound } from "./attributes.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
 import { selectValue } from "./select.js";
@@ -476,6 +476,19 @@ export class View extends Node {
         }
         disposeApplier(this);
         disposeBindings(this);
+        // the visibility feed dies with the view — the backend watch, the generic
+        // computer, and any at-rest flush still pending
+        this.visUnwatch?.();
+        this.visUnwatch = null;
+        if (this.visGeneric !== null) {
+            this.visGeneric.dispose();
+            this.visGeneric = null;
+        }
+        if (this.visFlushTimer !== 0) {
+            clearTimeout(this.visFlushTimer);
+            this.visFlushTimer = 0;
+        }
+        this.visPending = null;
         this.drawing?.dispose();
         this.drawing = null;
         const s = this.surface;
@@ -493,9 +506,9 @@ export class View extends Node {
         // container constructed `selectable = true` realizes its surface now.
         if (this.selectable === true)
             s.setSelectableRegion?.(true);
-        // an armed onScreen feed follows the view onto its (re)attached surface
-        if (this.onScreenArmed)
-            this.startOnScreen();
+        // an armed visibility feed follows the view onto its (re)attached surface
+        if (this.visArmed)
+            this.startVisibility();
         s.setX(this.x);
         s.setY(this.y);
         s.setWidth(this.width);
@@ -594,22 +607,114 @@ export class View extends Node {
         const r = (this.root ?? this);
         return { x: b.x + r.scrollX, y: b.y + r.scrollY, width: b.width, height: b.height };
     }
-    /** The `onScreen` feed — armed at the FIRST tracked read (AttrSpec.onTrack:
-     *  a fact nobody binds costs nothing), re-armed at attach so a bound view
-     *  that re-attaches keeps its feed. The backend answers with its own
-     *  machinery (DOM: one shared IntersectionObserver); a backend without one
-     *  leaves the fact at its default, true. */
-    onScreenArmed = false;
+    /** The visibility feed — armed at the FIRST tracked read of any of the
+     *  three facts (AttrSpec.onTrack: facts nobody binds cost nothing),
+     *  re-armed at attach so a bound view that re-attaches keeps its feed.
+     *
+     *  TWO FEEDERS, one contract. A backend with page context implements
+     *  Surface.watchVisibility (DOM: one shared IntersectionObserver — sees the
+     *  host page's scroll and transforms, which the app cannot). Everywhere
+     *  else — canvas, native, headless — the runtime computes the facts itself:
+     *  a Constraint over the ancestor walk (rootFrameBox ∩ the root's frame,
+     *  rootTransform's scale × dpr), whose TRACKED reads subscribe it to
+     *  exactly the ancestor x/y/scale/rotation/scroll/visible slots the answer
+     *  depends on — the camera case (a world writing its own scale) invalidates
+     *  it for free, with no attribute of the descendant changing.
+     *
+     *  DELIVERY GRANULARITY (the Aperture ruling): `onScreen` lands
+     *  immediately — a crossing is rare and cheap. `visibleRect` /
+     *  `apparentScale` land AT REST — while the shared clock has motion in
+     *  flight the latest value is buffered and flushed when the glide ends, so
+     *  a fact-bound tier re-derives once per flight, not per frame. */
+    visArmed = false;
+    visUnwatch = null;
+    visGeneric = null;
+    visPending = null;
+    visFlushTimer = 0;
     /** @internal the attribute table's onTrack calls this (first tracked read). */
-    armOnScreen() {
-        this.onScreenArmed = true;
-        this.startOnScreen();
+    armVisibility() {
+        this.visArmed = true;
+        this.startVisibility();
     }
-    startOnScreen() {
-        if (!this.onScreenArmed)
+    startVisibility() {
+        if (!this.visArmed)
             return;
-        this.surface?.watchOnScreen?.((on) => { if (this.onScreen !== on)
-            this.onScreen = on; });
+        const s = this.surface;
+        if (s?.watchVisibility) {
+            // backend feed available: retire any generic computer from a prior life
+            if (this.visGeneric !== null) {
+                this.visGeneric.dispose();
+                this.visGeneric = null;
+            }
+            this.visUnwatch?.();
+            this.visUnwatch = s.watchVisibility((v) => this.deliverVisibility(v.on, v.rect, v.scale));
+            return;
+        }
+        if (this.visGeneric !== null)
+            return; // already computing
+        const dpr = () => (typeof devicePixelRatio === "number" ? devicePixelRatio : 1);
+        this.visGeneric = new Constraint(`${this.constructor.name}.visibility`, () => {
+            // hidden anywhere up the chain = off (tracked reads, so a flip wakes us)
+            for (let v = this; v !== null; v = v.parent instanceof View ? v.parent : null)
+                if (!v.visible)
+                    return { on: false, rect: null, scale: rootTransform(this).scale * dpr() };
+            const t = rootTransform(this);
+            const b = rootFrameBox(this);
+            const r = (this.root ?? this);
+            const ix = Math.max(b.x, 0), iy = Math.max(b.y, 0);
+            const iw = Math.min(b.x + b.width, r.width) - ix, ih = Math.min(b.y + b.height, r.height) - iy;
+            if (iw <= 0 || ih <= 0)
+                return { on: false, rect: null, scale: t.scale * dpr() };
+            const k = t.scale === 0 ? 1 : t.scale;
+            return {
+                on: true,
+                rect: { x: (ix - b.x) / k, y: (iy - b.y) / k, width: iw / k, height: ih / k },
+                scale: t.scale * dpr(),
+            };
+        }, (v) => {
+            const r = v;
+            this.deliverVisibility(r.on, r.rect, r.scale);
+        });
+        this.visGeneric.run();
+    }
+    deliverVisibility(on, rect, scale) {
+        if (this.onScreen !== on)
+            setBound(this, "onScreen", on);
+        const shaped = on && rect !== null ? rect : EMPTY_RECT;
+        if (sharedClock.busy) {
+            // mid-glide: hold the latest, flush at rest (the timer only exists
+            // while something is pending — no standing loop)
+            this.visPending = { rect: shaped, scale };
+            if (this.visFlushTimer === 0) {
+                const tick = () => {
+                    this.visFlushTimer = 0;
+                    if (this.visPending === null)
+                        return;
+                    if (sharedClock.busy) {
+                        this.visFlushTimer = setTimeout(tick, 120);
+                        return;
+                    }
+                    const p = this.visPending;
+                    this.visPending = null;
+                    setBound(this, "visibleRect", p.rect);
+                    setBound(this, "apparentScale", p.scale);
+                };
+                this.visFlushTimer = setTimeout(tick, 120);
+            }
+            return;
+        }
+        this.visPending = null;
+        setBound(this, "visibleRect", shaped);
+        setBound(this, "apparentScale", scale);
+    }
+    /** The composed transform from MY frame to ROOT-frame space — `{x, y,
+     *  scale, rotation}`, the similarity the language's transforms compose to
+     *  (scroll-aware, the hit walk's own math). The METHOD tier's exact answer;
+     *  the facts above are its coarse, at-rest companions. */
+    rootTransform() {
+        const t = rootTransform(this);
+        const r = (this.root ?? this);
+        return { x: t.tx + r.scrollX, y: t.ty + r.scrollY, scale: t.scale, rotation: t.rotation };
     }
     rootOrigin() {
         const o = rootFrameOrigin(this);
@@ -875,6 +980,10 @@ const pushScrolls = (v, ax) => {
     v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; });
     v.surface?.setScrollX?.(ax === "x" || ax === "both", (x) => { v.scrollX = x; });
 };
+/** visibleRect's rest state — one frozen instance, so an off-screen view's
+ *  slot never churns (rectEqual gates the writes besides). */
+const EMPTY_RECT = Object.freeze({ x: 0, y: 0, width: 0, height: 0 });
+const rectEqual = (a, b) => a === b || (a != null && b != null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height);
 defineAttributes(View, {
     x: { def: 0, push: (v, n) => v.surface?.setX(n) },
     y: { def: 0, push: (v, n) => v.surface?.setY(n) },
@@ -896,10 +1005,13 @@ defineAttributes(View, {
             if (b)
                 markRichPending(v);
         } },
-    // the on-screen fact (declared above): default true; the FEED arms at the
-    // first tracked read (onTrack — pay-per-use), and only where the backend
-    // offers the machinery (Surface.watchOnScreen)
-    onScreen: { def: true, onTrack: (v) => v.armOnScreen() },
+    // the visibility facts (declared above): defaults for a page never fed;
+    // the ONE feed arms at the first tracked read of any of the three
+    // (onTrack — pay-per-use), backend-fed where the backend has page context,
+    // runtime-computed everywhere else
+    onScreen: { def: true, onTrack: (v) => v.armVisibility() },
+    visibleRect: { def: EMPTY_RECT, equal: rectEqual, onTrack: (v) => v.armVisibility() },
+    apparentScale: { def: 1, onTrack: (v) => v.armVisibility() },
     ignoreLayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View)
             p.childrenMutated(); } },
     ignoreClip: { def: false, push: (v, b) => v.surface?.setIgnoreClip?.(b) },

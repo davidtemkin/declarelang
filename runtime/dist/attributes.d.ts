@@ -98,6 +98,22 @@ export declare function disposeBindings(self: object): void;
 export declare function disown(self: object, name: string): void;
 /** The constraint (if any) that owns this slot's value. */
 export declare function ownerOf(self: object, name: string): Constraint | null;
+export interface DeclRecord {
+    /** The `{ }` default's source text, null for a plain (literal) declaration. */
+    source: string | null;
+    pos: {
+        line: number;
+        col: number;
+    } | null;
+    /** The compiler's extracted read-paths for the default, when they rode along. */
+    deps: readonly string[] | null;
+}
+/** Record a class's author declarations (instantiate.ts makeClass). */
+export declare function recordDeclarations(ctor: object, table: Record<string, DeclRecord>): void;
+/** Every author-declared slot visible on this instance — the class's own and
+ *  its user superclasses', merged up the prototype chain (runtime base
+ *  classes never register, so View's built-ins stay out of the answer). */
+export declare function declarationsOf(self: object): Record<string, DeclRecord>;
 /** Tooling reads (inspect.ts): the node's OWN attribute values (writes and
  *  bound results — `$attrs`, the instance overlay over the class defaults),
  *  and the slot names currently owned by constraints. Snapshots, not live. */

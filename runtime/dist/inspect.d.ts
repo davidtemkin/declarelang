@@ -61,6 +61,12 @@ export interface Provenance {
     value: unknown;
     /** Was the slot ever set (write or binding), vs riding its class default. */
     set: boolean;
+    /** Loud on a slot that does not exist — never a placid null answer for a
+     *  typo'd name (silence turned a missing read into a wrong measurement). */
+    error?: string;
+    /** True when the provenance below came from an author DECLARATION's `{ }`
+     *  default (a live defBinding, not a standing constraint). */
+    declaration?: true;
     /** The owning constraint, when one owns the slot: its label, whether it
      *  runs on the compiler-wired static path, and — the static-extraction
      *  payoff — the exact read-paths it was wired to. */

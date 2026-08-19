@@ -368,13 +368,40 @@ export declare class View extends Node {
      *  binding it costs a re-derive only when the answer changes — the cheap
      *  way for a view to know it can't be seen, without touching geometry per
      *  frame. Gate ambient work on it: `running = { classroot.onScreen &&
-     *  app.pageVisible }`. Fed by the backend's own visibility machinery (DOM:
-     *  IntersectionObserver, viewport-rooted — an embedded app's box scrolled
-     *  off a foreign page reads false too); armed lazily at the first tracked
-     *  read, so a program that never binds it pays nothing. Backends without
-     *  the machinery (canvas, native — for now) leave it true. Read-only; for
-     *  EXACT geometry ask `rootBounds()` instead. */
+     *  app.pageVisible }`. Fed by the backend's visibility machinery where the
+     *  backend has page context (DOM: IntersectionObserver, viewport-rooted —
+     *  an embedded app's box scrolled off a foreign page reads false too), and
+     *  by the runtime's own ancestor walk elsewhere (canvas, native, headless —
+     *  exact for everything the language can express). Armed lazily at the
+     *  first tracked read, so a program that never binds it pays nothing.
+     *  Read-only; for EXACT geometry ask `rootBounds()` / `rootTransform()`. */
     onScreen: boolean;
+    /** What of me is visible, in MY OWN coordinates — `{x, y, width, height}`,
+     *  the EMPTY rect (all zeros) when nothing shows. The cull-with-margin
+     *  primitive: the fact reports the truth and the author's arithmetic adds
+     *  the band (`visibleRect.width > -300` style margins are the app's
+     *  judgement about its content, not the platform's). AT-REST delivery: it
+     *  updates when motion settles and scrolling quiets, never per frame of a
+     *  glide — a rung/tier decision wants the flight's END, and a fact chasing
+     *  every frame would re-derive its readers sixty times a second (the
+     *  idle-zero discipline). Mid-flight readers use rootBounds() in a handler.
+     *  Under rotation the rect is the axis-aligned approximation. Read-only. */
+    visibleRect: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+    /** The composed scale from MY units to DEVICE pixels — ancestor scales ×
+     *  devicePixelRatio. THE raster-rung fact: an image pyramid picks its tier
+     *  from it, a drawn view its backing density, without reimplementing the
+     *  composed transform or reaching for a host global. Within Declare's own
+     *  transforms (uniform scale + rotation — a similarity) this is exact and
+     *  rotation does not participate; under a non-similar HOST transform (an
+     *  embedding page's CSS) it is the largest axis ratio — the rasterization
+     *  convention (what CA's contentsScale does). Same at-rest delivery as
+     *  visibleRect. Read-only. */
+    apparentScale: number;
     /** The default focus-traversal members of this view: its visible View
      *  children in source order (docs/system-design/input.md, Layer 2). The focus
      *  service descends into each; a view whose `tabOrder()` is not overridden
@@ -460,15 +487,44 @@ export declare class View extends Node {
         width: number;
         height: number;
     };
-    /** The `onScreen` feed — armed at the FIRST tracked read (AttrSpec.onTrack:
-     *  a fact nobody binds costs nothing), re-armed at attach so a bound view
-     *  that re-attaches keeps its feed. The backend answers with its own
-     *  machinery (DOM: one shared IntersectionObserver); a backend without one
-     *  leaves the fact at its default, true. */
-    private onScreenArmed;
+    /** The visibility feed — armed at the FIRST tracked read of any of the
+     *  three facts (AttrSpec.onTrack: facts nobody binds cost nothing),
+     *  re-armed at attach so a bound view that re-attaches keeps its feed.
+     *
+     *  TWO FEEDERS, one contract. A backend with page context implements
+     *  Surface.watchVisibility (DOM: one shared IntersectionObserver — sees the
+     *  host page's scroll and transforms, which the app cannot). Everywhere
+     *  else — canvas, native, headless — the runtime computes the facts itself:
+     *  a Constraint over the ancestor walk (rootFrameBox ∩ the root's frame,
+     *  rootTransform's scale × dpr), whose TRACKED reads subscribe it to
+     *  exactly the ancestor x/y/scale/rotation/scroll/visible slots the answer
+     *  depends on — the camera case (a world writing its own scale) invalidates
+     *  it for free, with no attribute of the descendant changing.
+     *
+     *  DELIVERY GRANULARITY (the Aperture ruling): `onScreen` lands
+     *  immediately — a crossing is rare and cheap. `visibleRect` /
+     *  `apparentScale` land AT REST — while the shared clock has motion in
+     *  flight the latest value is buffered and flushed when the glide ends, so
+     *  a fact-bound tier re-derives once per flight, not per frame. */
+    private visArmed;
+    private visUnwatch;
+    private visGeneric;
+    private visPending;
+    private visFlushTimer;
     /** @internal the attribute table's onTrack calls this (first tracked read). */
-    armOnScreen(): void;
-    private startOnScreen;
+    armVisibility(): void;
+    private startVisibility;
+    private deliverVisibility;
+    /** The composed transform from MY frame to ROOT-frame space — `{x, y,
+     *  scale, rotation}`, the similarity the language's transforms compose to
+     *  (scroll-aware, the hit walk's own math). The METHOD tier's exact answer;
+     *  the facts above are its coarse, at-rest companions. */
+    rootTransform(): {
+        x: number;
+        y: number;
+        scale: number;
+        rotation: number;
+    };
     rootOrigin(): {
         x: number;
         y: number;

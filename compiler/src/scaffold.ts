@@ -454,6 +454,9 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // rootOrigin()'s box sibling: the transformed frame in ROOT-content space,
     // scroll-aware (the hit walk's math) — a one-shot query, never a fact.
     `  rootBounds(): { x: number; y: number; width: number; height: number };`,
+    // the composed similarity to root-frame space — the method tier's exact
+    // transform (the visibility FACTS are its coarse at-rest companions)
+    `  rootTransform(): { x: number; y: number; scale: number; rotation: number };`,
     // bounds() minus the position: x/y are the transform's lead offsets, and it
     // never reads the view's x/y — the form a layout's place() consumes (a
     // strategy must not read the slots it writes).
