@@ -2501,19 +2501,17 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // ── the command seam: the menu bar, the dock, and keys all route here ──
 
     command(id: string) {
+        // New/Open route by RECORD: any app with a row launches through it —
+        // the per-app argument bundles live on the rows now. Only the two
+        // recordless cases remain in prose: Files (its own verbs) and a Files
+        // window's Open-on-selection.
         if (id == "new") {
-            if (app.wm.activeApp == "markdown") app.launcher.openViewer("../../docs/declare.md", "declare.md")
-            else if (app.wm.activeApp == "calendar") app.launcher.openApp("calendar", "../../calendar/calendar", "Calendar", null, "base=../calendar/")
-            else if (app.wm.activeApp == "declareviewer") app.launcher.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
-            else if (app.wm.activeApp == "birds") app.launcher.openApp("birds", "../../birds/birds", "50 Birds", null, "base=../birds/")
-            else if (app.wm.activeApp == "jots") app.launcher.newJot("", null)
+            if (app.launcher.rec(app.wm.activeApp) != null) app.launcher.launch(app.wm.activeApp, null)
             else app.launcher.newFiles()
             }
         else if (id == "open") {
-            if (app.wm.activeApp == "declareviewer") app.launcher.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
-            else if (app.wm.activeApp == "birds") app.launcher.openApp("birds", "../../birds/birds", "50 Birds", null, "base=../birds/")
-            else if (app.wm.activeApp == "jots") app.launcher.newJot("", null)
-            else if (app.wm.activeApp == "files" && app.wm.frontWin != null) (app.wm.frontWin as FilesWindow).openSelection()
+            if (app.wm.activeApp == "files" && app.wm.frontWin != null) (app.wm.frontWin as FilesWindow).openSelection()
+            else if (app.launcher.rec(app.wm.activeApp) != null) app.launcher.launch(app.wm.activeApp, null)
             else app.launcher.openViewer("../../docs/declare.md", "declare.md")
             }
         else if (id == "close") { if (app.wm.frontWin != null) app.wm.closeWin(app.wm.frontWin) }
