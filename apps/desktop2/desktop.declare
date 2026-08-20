@@ -228,7 +228,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
             let oy = bornFrom.height / 2
             let n = bornFrom
             let top = null
-            // same walk as app.originOf — scroll offsets included (see the note
+            // same walk as app.launcher.originOf — scroll offsets included (see the note
             // there); the return trip has to land where the open came from
             while (n != null) {
                 ox += n.x || 0
@@ -280,7 +280,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // activating any real window dismisses open About boxes — they're modals
     // in spirit: clicking anywhere else lets them go (the red light works too)
 
-    activate() { app.wm.frontWin = this; this.raise(app.wm.lowestMini()); if (!plain) app.dismissAbouts() },
+    activate() { app.wm.frontWin = this; this.raise(app.wm.lowestMini()); if (!plain) app.launcher.dismissAbouts() },
 
     // RAISING IS POINTER-KIND-SPLIT (ruled 2026-07-31). A mouse raises the
     // instant it touches a window — the platform rule, and the one that makes
@@ -855,7 +855,7 @@ close control is the whole interface.
 class AboutWindow extends Window [ width = 280, height = 380, plain = true,
     forApp = "desktop",                          // desktop | files | markdown | calendar | declareviewer | birds | jots
 
-    aname: string = { app.nameOf(this.forApp) },
+    aname: string = { app.launcher.nameOf(this.forApp) },
 
     blurb: string = { this.forApp == "files" ? "Browses the live documentation model — every chapter, every element."
         : this.forApp == "markdown" ? "Renders the real files, and reference pages synthesized from the model."
@@ -1067,8 +1067,8 @@ class FilesWindow extends Window [ forApp = "files",
 
     openLeaf(leaf: object, v: View?) {
         const d = "" + (leaf.doc || ""), p = "" + (leaf.path || "")
-        if (d != "") { app.openDoc(d, "" + leaf.name, v); return }
-        if (p != "") app.openViewer("../../" + p, "" + leaf.name, v)
+        if (d != "") { app.launcher.openDoc(d, "" + leaf.name, v); return }
+        if (p != "") app.launcher.openViewer("../../" + p, "" + leaf.name, v)
         },
 
     // File → Open (⌘O) on this window's current selection: a document opens in the
@@ -1079,7 +1079,7 @@ class FilesWindow extends Window [ forApp = "files",
         const cols = this.columnData(this.selPath, app.docsModel.value, this.rootPath)
         const last = cols[cols.length - 1]
         if (last != null && last.leaf != null) this.openLeaf(last.leaf, null)
-        else app.openFolderWindow("" + this.selPath, this)
+        else app.launcher.openFolderWindow("" + this.selPath, this)
         },
 
     body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
@@ -1162,7 +1162,7 @@ class FilesWindow extends Window [ forApp = "files",
                             const it = classroot.pendingItem
                             if (classroot.pendingAt != "" && it != null && near) {
                                 classroot.pendingAt = ""
-                                if (it.hasKids) app.openFolderWindow("" + it.at, this)
+                                if (it.hasKids) app.launcher.openFolderWindow("" + it.at, this)
                                 else classroot.openLeaf(it, this)
                             }
                             },
@@ -1184,7 +1184,7 @@ class FilesWindow extends Window [ forApp = "files",
                                     const it = classroot.pendingItem
                                     if (classroot.pendingAt != "" && it != null && near) {
                                         classroot.pendingAt = ""
-                                        if (it.hasKids) app.openFolderWindow("" + it.at, this)
+                                        if (it.hasKids) app.launcher.openFolderWindow("" + it.at, this)
                                         else classroot.openLeaf(it, this)
                                     }
                                     else {
@@ -1806,11 +1806,11 @@ class WinManager extends Node [
     quitApp(a: string) {
         const doomed = this.windows().filter((w) => this.appOf(w) == a)
         for (const w of doomed) this.closeWin(w)
-        if (a == "markdown") app.mdRunning = false
-        else if (a == "calendar") app.calRunning = false
-        else if (a == "declareviewer") app.dvRunning = false
-        else if (a == "birds") app.brdRunning = false
-        else if (a == "jots") app.jotRunning = false
+        if (a == "markdown") app.launcher.mdRunning = false
+        else if (a == "calendar") app.launcher.calRunning = false
+        else if (a == "declareviewer") app.launcher.dvRunning = false
+        else if (a == "birds") app.launcher.brdRunning = false
+        else if (a == "jots") app.launcher.jotRunning = false
         },
 
     // A dock icon's click: a running app's icon raises its open windows (in
@@ -1852,7 +1852,7 @@ class WinManager extends Node [
 
     isMin(w: Window?) -> boolean { return w != null && w.dockSlot >= 0 },
     ixOf(w: Window?) -> number { return w != null ? w.dockSlot : -1 },
-    labelFor(w: Window) -> string { const t = this.titleOf(w); return t != "" ? t : app.nameOf(this.appOf(w)) },
+    labelFor(w: Window) -> string { const t = this.titleOf(w); return t != "" ? t : app.launcher.nameOf(this.appOf(w)) },
 
     // THE collection seam, and the one cast in the file: `wins` is populated at
     // runtime (createView), so its `children` is View[] — but every occupant is
@@ -1987,8 +1987,8 @@ class WinManager extends Node [
         // app — `plain` is the discriminator, so closing "About Markdown" never
         // decrements the viewer count
         if (!w.plain) {
-            if (w.forApp == "calendar") app.calCount = app.calCount - 1
-            else if (w.forApp == "declareviewer") app.dvCount = app.dvCount - 1
+            if (w.forApp == "calendar") app.launcher.calCount = app.launcher.calCount - 1
+            else if (w.forApp == "declareviewer") app.launcher.dvCount = app.launcher.dvCount - 1
             else if (w.forApp == "markdown") viewerCount = viewerCount - 1
             }
         if (frontWin == w) frontWin = null
@@ -2003,12 +2003,275 @@ class WinManager extends Node [
     ]
 
 
+/*
+### The launcher
+
+Getting applications BORN, faceless: the catalog (key → display name → program
+path), the open verbs behind every dock click and menu item, and the launch
+gates — running/launching per application, badge counts — that the dock's dots
+and bounces derive from. The window manager owns windows once they exist; this
+node owns the moment before.
+
+The surface:
+
+  facts   per-app `running`/`launching` flags and window counts (the dock
+          binds them; Quit clears them through the WM)
+  verbs   `openApp` · `openViewer`/`openDoc`/`openMarkdown` · `newFiles`/
+          `openFolderWindow` · `newJot`/`openWelcome` · `openAbout`/
+          `dismissAbouts` · `openSource` · `nameOf`/`sourceRel` (the catalog)
+*/
+
+class Launcher extends Node [
+    // Activation is one Window-typed slot: every window derives its look (shadow
+    // depth, bar tone, controls) from whether it is this value.
+
+    nameOf(a: string) -> string {
+        return a == "markdown" ? "Markdown" : a == "calendar" ? "Declare Calendar"
+            : a == "declareviewer" ? "Declare Viewer"
+            : a == "birds" ? "50 Birds"
+            : a == "jots" ? "Jots"
+            : a == "desktop" ? "Declare Desktop" : "Files"
+        },
+
+    // View & Edit Source opens the running program itself in the Declare
+    // Viewer — as an embedded app in a desktop window: the AppWindow hosts
+    // apps/viewer, and `program=` in its env segment names the subject (a
+    // path valid in this app's transport base). The viewer self-loads that
+    // program's ?segments and ?file artifacts — reader mode by default.
+
+    sourceRel(a: string) -> string {
+        return a == "calendar" ? "../calendar/calendar.declare"
+            : a == "declareviewer" ? "../viewer/viewer.declare"
+            : a == "birds" ? "../birds/birds.declare"
+            : "desktop.declare"
+        },
+    openSource(a: string) {
+        this.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=" + this.sourceRel(a))
+        },
+    openAbout(a: string) {
+        app.wm.winCount = app.wm.winCount + 1
+        app.wm.winSeq = app.wm.winSeq + 1
+        const w = app.wins.createView("AboutWindow", ({ forApp: "" + a,
+            wx: (app.width - 280) / 2 + (app.wm.winCount % 3) * 16, wy: 110 + (app.wm.winCount % 3) * 14 }))
+        app.wm.frontOpen(w)
+        },
+
+    // a press that lands on nothing deeper (the wallpaper) also dismisses —
+    // the App root is the sink of last resort
+
+    dismissAbouts() {
+        const doomed = app.wm.windows().filter((w) => app.wm.isPlain(w))
+        for (const w of doomed) app.wm.closeWin(w)
+        },
+    newFiles() {
+        this.dismissAbouts()
+        app.wm.winCount = app.wm.winCount + 1
+        app.wm.winSeq = app.wm.winSeq + 1
+        // spawn positions cascade, wrapping after a handful
+        const w = app.wins.createView("FilesWindow", ({ wx: 90 + (app.wm.winCount % 7) * 28, wy: 46 + (app.wm.winCount % 7) * 26 }))
+        app.wm.frontOpen(w)
+        },
+
+    // Double-clicking a folder (or File → Open on one) opens a NEW Files window
+    // drilled to that folder and PINNED so the folder's own column sits at the left
+    // edge (its contents lead) — but the whole tree is present, so you can scroll
+    // left all the way back to the root categories.
+
+    openFolderWindow(folderPath: string, v: View?) {
+        this.dismissAbouts()
+        app.wm.winCount = app.wm.winCount + 1
+        app.wm.winSeq = app.wm.winSeq + 1
+        const depth = ("" + folderPath).split("\n").length - 1
+        const w = app.wins.createView("FilesWindow", ({ wx: 90 + (app.wm.winCount % 7) * 28, wy: 46 + (app.wm.winCount % 7) * 26, selPath: "" + folderPath, focusDepth: depth }))
+        app.wm.frontOpen(w)
+        },
+
+    // Every open verb takes `v`, the view the open came from (the double-clicked
+    // row or icon): the window zooms out of it and shrinks back to it on close.
+    // With no origin (a menu, the dock, ⌘O) a window zooms gently from its own
+    // center. originOf resolves that center in app coords by walking the parents.
+
+    // ⚠ SCROLL OFFSETS COUNT. A row's `y` is its position in its column's
+    // CONTENT, and the column scrolls — so summing the chain without subtracting
+    // each scroller's offset gives where the row would be if nothing had ever
+    // been scrolled. Scroll a file list halfway down and the window then zooms
+    // out of a point off past the bottom of the screen.
+
+    originOf(v: View?) -> object {
+        if (v == null) return null
+        let ox = v.width / 2
+        let oy = v.height / 2
+        let n = v
+        while (n != null) {
+            ox += n.x || 0
+            oy += n.y || 0
+            const p = n.parent
+            if (p != null) { ox -= p.scrollX || 0; oy -= p.scrollY || 0 }
+            n = p
+            }
+        return ({ x: ox, y: oy })
+        },
+
+    // A first open (count 0 — or 0 again after a Quit) is a launch: the dock
+    // icon bounces and the window appears mid-second-bounce, the way a
+    // fast-launching app feels. Later opens are instant.
+
+    // ONE Markdown-window opener behind both verbs: `props` is what differs —
+    // a `path` to fetch, or a hydrated `inlineDoc` + `docName` handed over
+    // whole. Launch gating, spawn cascade, and the origin zoom are identical.
+
+    openMarkdown(props: object, v: View?) {
+        const first = !mdRunning && !mdLaunching
+        if (first) mdLaunching = true
+        const go = () => {
+            mdLaunching = false
+            mdRunning = true
+            app.wm.viewerCount = app.wm.viewerCount + 1
+            this.dismissAbouts()
+            app.wm.winCount = app.wm.winCount + 1
+            app.wm.winSeq = app.wm.winSeq + 1
+            const wx = 160 + (app.wm.winCount % 7) * 28
+            const wy = 36 + (app.wm.winCount % 7) * 26
+            const o = this.originOf(v)
+            const w = app.wins.createView("ViewerWindow", ({ ...props, wx: wx, wy: wy,
+                bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - app.menuBarH : -1,
+                bornFrom: v != null ? v : null }))
+            app.wm.frontOpen(w)
+            }
+        if (first) { app.dock.row.viewerIcon.poke(); setTimeout(go, 900) }
+        else go()
+        },
+    openViewer(p: string, nm: string, v: View?) { if (p != "") this.openMarkdown(({ path: p }), v) },
+
+    // …and a HYDRATED document — Markdown the model already assembled (an
+    // element's reference, the enums page), handed over whole instead of fetched.
+
+    openDoc(md: string, nm: string, v: View?) { if (md != "") this.openMarkdown(({ inlineDoc: md, docName: nm }), v) },
+
+    // a full Declare app in a window — the path is demos/-relative (the slot
+    // convention): "../../calendar/calendar" runs the real calendar,
+    // "../../viewer/viewer" the Declare Viewer. `envExtra` appends to the
+    // window's env segment ("program=…"). The two hosted apps count
+    // separately (running dots + Quit are per application), and each has a
+    // dock icon that launch-bounces on its first open.
+
+    calCount: number = 0,
+    dvCount: number = 0,
+    brdCount: number = 0,
+
+    // running is per application and survives its windows: set when a launch
+    // completes, cleared only by Quit — the dock dots read exactly these
+
+    mdRunning: boolean = false,
+    calRunning: boolean = false,
+    dvRunning: boolean = false,
+    brdRunning: boolean = false,
+    jotRunning: boolean = false,
+    calLaunching: boolean = false,               // calendar mid-launch-bounce
+    dvLaunching: boolean = false,                // Declare Viewer mid-launch-bounce
+    brdLaunching: boolean = false,               // 50 Birds mid-launch-bounce
+    mdLaunching: boolean = false,                // markdown mid-launch-bounce
+    jotLaunching: boolean = false,                // Jots mid-launch-bounce
+
+    // `a` is the APPLICATION KEY ("calendar" | "declareviewer" | "birds"),
+    // passed rather than sniffed. It used to be derived from the path — `isCal =
+    // p.indexOf("calendar") >= 0`, with "not the calendar" meaning the Declare
+    // Viewer — which quietly hard-limited this to exactly two hosted apps and
+    // would have made a third open under the second's name, dot and icon. The
+    // key is also what `forApp` becomes, so `appOf`, Quit and the dock's
+    // running dot all agree by construction.
+
+    openApp(a: string, p: string, nm: string, v: View?, envExtra: string?) {
+        const isCal = a == "calendar"
+        const isBrd = a == "birds"
+        // the launch gate: flags move inside go(), so the running dot appears
+        // when the app has launched (mid-second-bounce), not at the click —
+        // the mid-launch flag guards a double-click during the bounce
+        const first = !(isCal ? calRunning : isBrd ? brdRunning : dvRunning)
+                   && !(isCal ? calLaunching : isBrd ? brdLaunching : dvLaunching)
+        if (first) { if (isCal) calLaunching = true; else if (isBrd) brdLaunching = true; else dvLaunching = true }
+        const go = () => {
+            if (isCal) { calLaunching = false; calRunning = true; calCount = calCount + 1 }
+            else if (isBrd) { brdLaunching = false; brdRunning = true; brdCount = brdCount + 1 }
+            else { dvLaunching = false; dvRunning = true; dvCount = dvCount + 1 }
+            this.dismissAbouts()
+            app.wm.winCount = app.wm.winCount + 1
+            app.wm.winSeq = app.wm.winSeq + 1
+            let wx = 110 + (app.wm.winCount % 5) * 30
+            let wy = 24 + (app.wm.winCount % 5) * 22
+            let ww = 880, wh = 560
+            // The calendar opens smaller than a full app window and clears the
+            // dock (its height caps to the room above it), centered
+            // horizontally. The viewer keeps its base size.
+            if (isCal) {
+                wy = 28
+                // clear the dock (height caps to the room above it) AND never
+                // fall below the calendar's own min (480 × 420) — clamp to both.
+                ww = Math.max(480, Math.min(920, app.width - 80))
+                wh = Math.max(420, Math.min(600, app.height - app.menuBarH - wy - 168))   // 168 ≈ dock footprint + gap
+                wx = Math.round((app.width - ww) / 2)
+                }
+            const o = this.originOf(v)
+            const w = app.wins.createView("AppWindow", ({ appPath: "" + p, appTitle: "" + nm, forApp: a, wx: wx, wy: wy,
+                width: ww, height: wh,
+                extraEnv: envExtra != null ? envExtra : "",
+                bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - app.menuBarH : -1,
+                bornFrom: v != null ? v : null }))
+            app.wm.frontOpen(w)
+            }
+        if (first) { (isCal ? app.dock.row.calIcon : isBrd ? app.dock.row.brdIcon : app.dock.row.dvIcon).poke(); setTimeout(go, 900) }
+        else go()
+        },
+
+    // ── Jots: the built-in application — its notes are JotWindows in
+    // this very program, no island involved. The welcome note pre-opens at boot
+    // (so Jots starts running, its dot lit, with no bounce — it was already
+    // up when you arrived); later launches bounce like any app's.
+
+    welcomeNote: string = """
+**Hello!** This is a working desktop — windows, menus, a dock — running entirely in your browser.
+
+It's built with **Declare**, a new language for user interfaces. A Declare program doesn't script behavior; it states what the interface *is* — this note's yellow, that window's shadow — and the runtime keeps every relationship true while you interact.
+
+**Try things.** Drag the windows. Open apps from the dock. Minimize something. Browse the language's documentation in the Documentation window.
+
+**Curious how it's made?** Press the `[ ]` icon in the dock to read this desktop's own source.
+
+**Never, ever, press the 'r' or 's' keys.**
+""",
+    newJot(txt: string, v: View?) {
+        const first = !jotRunning && !jotLaunching
+        if (first) jotLaunching = true
+        const go = () => {
+            jotLaunching = false
+            jotRunning = true
+            this.dismissAbouts()
+            app.wm.winCount = app.wm.winCount + 1
+            app.wm.winSeq = app.wm.winSeq + 1
+            const w = app.wins.createView("JotWindow", ({ note: "" + (txt || "*A new note.*"),
+                wx: 480 + (app.wm.winCount % 5) * 26, wy: 90 + (app.wm.winCount % 5) * 24 }))
+            app.wm.frontOpen(w)
+            }
+        if (first) { app.dock.row.jotIcon.poke(); setTimeout(go, 900) }
+        else go()
+        },
+    openWelcome() {
+        jotRunning = true
+        app.wm.winSeq = app.wm.winSeq + 1
+        const w = app.wins.createView("JotWindow", ({ note: this.welcomeNote,
+            width: 400, height: 385, wx: Math.max(440, app.width - 490), wy: 120 }))
+        app.wm.frontOpen(w)
+        }
+    ]
+
+
 App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow (wallpaper bleed, a window past the fold) is out of frame, never scroll range
 
     // the faceless core: the window model lives OFF the chrome (see the
     // WinManager header above) — every fact the desktop's views bind is app.wm.*
 
     wm: WinManager [ ],
+    launcher: Launcher [ ],
     minWidth = 800, minHeight = 600,                 // the floors: in a smaller viewport the browser pans (and pinches) the held frame natively — frame-driven, not a scroll anyone declares
     theme = { Themes.cupertino(app.darkMode) },
     fontFamily = "system-ui, sans-serif",
@@ -2216,59 +2479,31 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         d.stroke()
         },
 
-    // Activation is one Window-typed slot: every window derives its look (shadow
-    // depth, bar tone, controls) from whether it is this value.
-
-    nameOf(a: string) -> string {
-        return a == "markdown" ? "Markdown" : a == "calendar" ? "Declare Calendar"
-            : a == "declareviewer" ? "Declare Viewer"
-            : a == "birds" ? "50 Birds"
-            : a == "jots" ? "Jots"
-            : a == "desktop" ? "Declare Desktop" : "Files"
-        },
-
-    // View & Edit Source opens the running program itself in the Declare
-    // Viewer — as an embedded app in a desktop window: the AppWindow hosts
-    // apps/viewer, and `program=` in its env segment names the subject (a
-    // path valid in this app's transport base). The viewer self-loads that
-    // program's ?segments and ?file artifacts — reader mode by default.
-
-    sourceRel(a: string) -> string {
-        return a == "calendar" ? "../calendar/calendar.declare"
-            : a == "declareviewer" ? "../viewer/viewer.declare"
-            : a == "birds" ? "../birds/birds.declare"
-            : "desktop.declare"
-        },
-
-    openSource(a: string) {
-        this.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=" + this.sourceRel(a))
-        },
-
     // ── the command seam: the menu bar, the dock, and keys all route here ──
 
     command(id: string) {
         if (id == "new") {
-            if (app.wm.activeApp == "markdown") this.openViewer("../../docs/declare.md", "declare.md")
-            else if (app.wm.activeApp == "calendar") this.openApp("calendar", "../../calendar/calendar", "Calendar", null, "base=../calendar/")
-            else if (app.wm.activeApp == "declareviewer") this.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
-            else if (app.wm.activeApp == "birds") this.openApp("birds", "../../birds/birds", "50 Birds", null, "base=../birds/")
-            else if (app.wm.activeApp == "jots") this.newJot("", null)
-            else this.newFiles()
+            if (app.wm.activeApp == "markdown") app.launcher.openViewer("../../docs/declare.md", "declare.md")
+            else if (app.wm.activeApp == "calendar") app.launcher.openApp("calendar", "../../calendar/calendar", "Calendar", null, "base=../calendar/")
+            else if (app.wm.activeApp == "declareviewer") app.launcher.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
+            else if (app.wm.activeApp == "birds") app.launcher.openApp("birds", "../../birds/birds", "50 Birds", null, "base=../birds/")
+            else if (app.wm.activeApp == "jots") app.launcher.newJot("", null)
+            else app.launcher.newFiles()
             }
         else if (id == "open") {
-            if (app.wm.activeApp == "declareviewer") this.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
-            else if (app.wm.activeApp == "birds") this.openApp("birds", "../../birds/birds", "50 Birds", null, "base=../birds/")
-            else if (app.wm.activeApp == "jots") this.newJot("", null)
+            if (app.wm.activeApp == "declareviewer") app.launcher.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
+            else if (app.wm.activeApp == "birds") app.launcher.openApp("birds", "../../birds/birds", "50 Birds", null, "base=../birds/")
+            else if (app.wm.activeApp == "jots") app.launcher.newJot("", null)
             else if (app.wm.activeApp == "files" && app.wm.frontWin != null) (app.wm.frontWin as FilesWindow).openSelection()
-            else this.openViewer("../../docs/declare.md", "declare.md")
+            else app.launcher.openViewer("../../docs/declare.md", "declare.md")
             }
         else if (id == "close") { if (app.wm.frontWin != null) app.wm.closeWin(app.wm.frontWin) }
         else if (id == "dark") { app.darkChoice = !app.darkMode; app.darkLocked = true }
-        else if (id == "about-desktop") this.openAbout("desktop")
-        else if (id == "about-app") this.openAbout(app.wm.activeApp)
-        else if (id == "source-desktop") this.openSource("desktop")
+        else if (id == "about-desktop") app.launcher.openAbout("desktop")
+        else if (id == "about-app") app.launcher.openAbout(app.wm.activeApp)
+        else if (id == "source-desktop") app.launcher.openSource("desktop")
         else if (id == "home") app.navigate("apps/homepage/homepage.declare")   // distro-root-relative → works on dev server AND static host
-        else if (id == "source") this.openSource(app.wm.activeApp)
+        else if (id == "source") app.launcher.openSource(app.wm.activeApp)
         else if (id == "quit") app.wm.quitApp(app.wm.activeApp)
         else if (id.indexOf("win:") == 0) app.wm.focusWin(app.wm.windows()[+id.slice(4)])
         },
@@ -2325,23 +2560,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         return Math.max(0, d)
         },
 
-    openAbout(a: string) {
-        app.wm.winCount = app.wm.winCount + 1
-        app.wm.winSeq = app.wm.winSeq + 1
-        const w = this.wins.createView("AboutWindow", ({ forApp: "" + a,
-            wx: (app.width - 280) / 2 + (app.wm.winCount % 3) * 16, wy: 110 + (app.wm.winCount % 3) * 14 }))
-        app.wm.frontOpen(w)
-        },
-
-    // a press that lands on nothing deeper (the wallpaper) also dismisses —
-    // the App root is the sink of last resort
-
-    dismissAbouts() {
-        const doomed = app.wm.windows().filter((w) => app.wm.isPlain(w))
-        for (const w of doomed) app.wm.closeWin(w)
-        },
-
-    onPointerDown() { this.dismissAbouts() },
+    onPointerDown() { app.launcher.dismissAbouts() },
 
     // Appearance follows the OS color scheme (app.dark) by default; the menu's
     // Dark / Light item locks the choice to the user's pick from that point on,
@@ -2373,210 +2592,6 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         alertHue2 = h2
         },
     dismissAlert() { alertName = "" },
-
-    newFiles() {
-        this.dismissAbouts()
-        app.wm.winCount = app.wm.winCount + 1
-        app.wm.winSeq = app.wm.winSeq + 1
-        // spawn positions cascade, wrapping after a handful
-        const w = this.wins.createView("FilesWindow", ({ wx: 90 + (app.wm.winCount % 7) * 28, wy: 46 + (app.wm.winCount % 7) * 26 }))
-        app.wm.frontOpen(w)
-        },
-
-    // Double-clicking a folder (or File → Open on one) opens a NEW Files window
-    // drilled to that folder and PINNED so the folder's own column sits at the left
-    // edge (its contents lead) — but the whole tree is present, so you can scroll
-    // left all the way back to the root categories.
-
-    openFolderWindow(folderPath: string, v: View?) {
-        this.dismissAbouts()
-        app.wm.winCount = app.wm.winCount + 1
-        app.wm.winSeq = app.wm.winSeq + 1
-        const depth = ("" + folderPath).split("\n").length - 1
-        const w = this.wins.createView("FilesWindow", ({ wx: 90 + (app.wm.winCount % 7) * 28, wy: 46 + (app.wm.winCount % 7) * 26, selPath: "" + folderPath, focusDepth: depth }))
-        app.wm.frontOpen(w)
-        },
-
-    // Every open verb takes `v`, the view the open came from (the double-clicked
-    // row or icon): the window zooms out of it and shrinks back to it on close.
-    // With no origin (a menu, the dock, ⌘O) a window zooms gently from its own
-    // center. originOf resolves that center in app coords by walking the parents.
-
-    // ⚠ SCROLL OFFSETS COUNT. A row's `y` is its position in its column's
-    // CONTENT, and the column scrolls — so summing the chain without subtracting
-    // each scroller's offset gives where the row would be if nothing had ever
-    // been scrolled. Scroll a file list halfway down and the window then zooms
-    // out of a point off past the bottom of the screen.
-
-    originOf(v: View?) -> object {
-        if (v == null) return null
-        let ox = v.width / 2
-        let oy = v.height / 2
-        let n = v
-        while (n != null) {
-            ox += n.x || 0
-            oy += n.y || 0
-            const p = n.parent
-            if (p != null) { ox -= p.scrollX || 0; oy -= p.scrollY || 0 }
-            n = p
-            }
-        return ({ x: ox, y: oy })
-        },
-
-    // A first open (count 0 — or 0 again after a Quit) is a launch: the dock
-    // icon bounces and the window appears mid-second-bounce, the way a
-    // fast-launching app feels. Later opens are instant.
-
-    // ONE Markdown-window opener behind both verbs: `props` is what differs —
-    // a `path` to fetch, or a hydrated `inlineDoc` + `docName` handed over
-    // whole. Launch gating, spawn cascade, and the origin zoom are identical.
-
-    openMarkdown(props: object, v: View?) {
-        const first = !mdRunning && !mdLaunching
-        if (first) mdLaunching = true
-        const go = () => {
-            mdLaunching = false
-            mdRunning = true
-            app.wm.viewerCount = app.wm.viewerCount + 1
-            this.dismissAbouts()
-            app.wm.winCount = app.wm.winCount + 1
-            app.wm.winSeq = app.wm.winSeq + 1
-            const wx = 160 + (app.wm.winCount % 7) * 28
-            const wy = 36 + (app.wm.winCount % 7) * 26
-            const o = this.originOf(v)
-            const w = this.wins.createView("ViewerWindow", ({ ...props, wx: wx, wy: wy,
-                bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
-                bornFrom: v != null ? v : null }))
-            app.wm.frontOpen(w)
-            }
-        if (first) { this.dock.row.viewerIcon.poke(); setTimeout(go, 900) }
-        else go()
-        },
-
-    openViewer(p: string, nm: string, v: View?) { if (p != "") this.openMarkdown(({ path: p }), v) },
-
-    // …and a HYDRATED document — Markdown the model already assembled (an
-    // element's reference, the enums page), handed over whole instead of fetched.
-
-    openDoc(md: string, nm: string, v: View?) { if (md != "") this.openMarkdown(({ inlineDoc: md, docName: nm }), v) },
-
-    // a full Declare app in a window — the path is demos/-relative (the slot
-    // convention): "../../calendar/calendar" runs the real calendar,
-    // "../../viewer/viewer" the Declare Viewer. `envExtra` appends to the
-    // window's env segment ("program=…"). The two hosted apps count
-    // separately (running dots + Quit are per application), and each has a
-    // dock icon that launch-bounces on its first open.
-
-    calCount: number = 0,
-    dvCount: number = 0,
-    brdCount: number = 0,
-
-    // running is per application and survives its windows: set when a launch
-    // completes, cleared only by Quit — the dock dots read exactly these
-
-    mdRunning: boolean = false,
-    calRunning: boolean = false,
-    dvRunning: boolean = false,
-    brdRunning: boolean = false,
-    jotRunning: boolean = false,
-
-    calLaunching: boolean = false,               // calendar mid-launch-bounce
-    dvLaunching: boolean = false,                // Declare Viewer mid-launch-bounce
-    brdLaunching: boolean = false,               // 50 Birds mid-launch-bounce
-    mdLaunching: boolean = false,                // markdown mid-launch-bounce
-    jotLaunching: boolean = false,                // Jots mid-launch-bounce
-
-    // `a` is the APPLICATION KEY ("calendar" | "declareviewer" | "birds"),
-    // passed rather than sniffed. It used to be derived from the path — `isCal =
-    // p.indexOf("calendar") >= 0`, with "not the calendar" meaning the Declare
-    // Viewer — which quietly hard-limited this to exactly two hosted apps and
-    // would have made a third open under the second's name, dot and icon. The
-    // key is also what `forApp` becomes, so `appOf`, Quit and the dock's
-    // running dot all agree by construction.
-
-    openApp(a: string, p: string, nm: string, v: View?, envExtra: string?) {
-        const isCal = a == "calendar"
-        const isBrd = a == "birds"
-        // the launch gate: flags move inside go(), so the running dot appears
-        // when the app has launched (mid-second-bounce), not at the click —
-        // the mid-launch flag guards a double-click during the bounce
-        const first = !(isCal ? calRunning : isBrd ? brdRunning : dvRunning)
-                   && !(isCal ? calLaunching : isBrd ? brdLaunching : dvLaunching)
-        if (first) { if (isCal) calLaunching = true; else if (isBrd) brdLaunching = true; else dvLaunching = true }
-        const go = () => {
-            if (isCal) { calLaunching = false; calRunning = true; calCount = calCount + 1 }
-            else if (isBrd) { brdLaunching = false; brdRunning = true; brdCount = brdCount + 1 }
-            else { dvLaunching = false; dvRunning = true; dvCount = dvCount + 1 }
-            this.dismissAbouts()
-            app.wm.winCount = app.wm.winCount + 1
-            app.wm.winSeq = app.wm.winSeq + 1
-            let wx = 110 + (app.wm.winCount % 5) * 30
-            let wy = 24 + (app.wm.winCount % 5) * 22
-            let ww = 880, wh = 560
-            // The calendar opens smaller than a full app window and clears the
-            // dock (its height caps to the room above it), centered
-            // horizontally. The viewer keeps its base size.
-            if (isCal) {
-                wy = 28
-                // clear the dock (height caps to the room above it) AND never
-                // fall below the calendar's own min (480 × 420) — clamp to both.
-                ww = Math.max(480, Math.min(920, this.width - 80))
-                wh = Math.max(420, Math.min(600, this.height - this.menuBarH - wy - 168))   // 168 ≈ dock footprint + gap
-                wx = Math.round((this.width - ww) / 2)
-                }
-            const o = this.originOf(v)
-            const w = this.wins.createView("AppWindow", ({ appPath: "" + p, appTitle: "" + nm, forApp: a, wx: wx, wy: wy,
-                width: ww, height: wh,
-                extraEnv: envExtra != null ? envExtra : "",
-                bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
-                bornFrom: v != null ? v : null }))
-            app.wm.frontOpen(w)
-            }
-        if (first) { (isCal ? this.dock.row.calIcon : isBrd ? this.dock.row.brdIcon : this.dock.row.dvIcon).poke(); setTimeout(go, 900) }
-        else go()
-        },
-
-    // ── Jots: the built-in application — its notes are JotWindows in
-    // this very program, no island involved. The welcome note pre-opens at boot
-    // (so Jots starts running, its dot lit, with no bounce — it was already
-    // up when you arrived); later launches bounce like any app's.
-
-    welcomeNote: string = """
-**Hello!** This is a working desktop — windows, menus, a dock — running entirely in your browser.
-
-It's built with **Declare**, a new language for user interfaces. A Declare program doesn't script behavior; it states what the interface *is* — this note's yellow, that window's shadow — and the runtime keeps every relationship true while you interact.
-
-**Try things.** Drag the windows. Open apps from the dock. Minimize something. Browse the language's documentation in the Documentation window.
-
-**Curious how it's made?** Press the `[ ]` icon in the dock to read this desktop's own source.
-
-**Never, ever, press the 'r' or 's' keys.**
-""",
-
-    newJot(txt: string, v: View?) {
-        const first = !jotRunning && !jotLaunching
-        if (first) jotLaunching = true
-        const go = () => {
-            jotLaunching = false
-            jotRunning = true
-            this.dismissAbouts()
-            app.wm.winCount = app.wm.winCount + 1
-            app.wm.winSeq = app.wm.winSeq + 1
-            const w = this.wins.createView("JotWindow", ({ note: "" + (txt || "*A new note.*"),
-                wx: 480 + (app.wm.winCount % 5) * 26, wy: 90 + (app.wm.winCount % 5) * 24 }))
-            app.wm.frontOpen(w)
-            }
-        if (first) { this.dock.row.jotIcon.poke(); setTimeout(go, 900) }
-        else go()
-        },
-
-    openWelcome() {
-        jotRunning = true
-        app.wm.winSeq = app.wm.winSeq + 1
-        const w = this.wins.createView("JotWindow", ({ note: this.welcomeNote,
-            width: 400, height: 385, wx: Math.max(440, app.width - 490), wy: 120 }))
-        app.wm.frontOpen(w)
-        },
 
     // The menu-bar clock is live — a static time would be the first thing to
     // give the desktop away.
@@ -2612,7 +2627,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     // window on top of it, so you arrive with Files frontmost and the greeting
     // resting behind.
 
-    onInit() { this.docsModel.fetch(); setTimeout(() => { this.openWelcome(); this.newFiles() }, 0); this.tick(); setInterval(() => this.tick(), 15000) },
+    onInit() { this.docsModel.fetch(); setTimeout(() => { app.launcher.openWelcome(); app.launcher.newFiles() }, 0); this.tick(); setInterval(() => this.tick(), 15000) },
 
     // ── ⌘-shortcuts dispatch from the menus' own records: one registry, derived
     // from whatever the contextual bar currently shows, so the active
@@ -2755,7 +2770,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
             ({ id: "source-desktop", label: "View & Edit Source", icon: "CodeIcon" }),
             ({ id: "home", label: "Declare Home" }),
         ] }),
-        ({ id: "app", label: this.nameOf(app.wm.activeApp), bold: true,
+        ({ id: "app", label: app.launcher.nameOf(app.wm.activeApp), bold: true,
             items: this.appMenuItems(app.wm.activeApp) }),
         ({ id: "file", label: "File", items: [
             ({ id: "new", label: "New", key: "⌘N" }),
@@ -2780,7 +2795,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         ({ id: "window", label: "Window", items: this.windowItems(app.wm.winSeq, app.wm.frontWin) }),
         ({ id: "help", label: "Help", items: [
             ({ id: "hsearch", kind: "HelpSearch" }),
-            ({ id: "help-app", label: this.nameOf(app.wm.activeApp) + " Help", icon: "LightbulbIcon" }),
+            ({ id: "help-app", label: app.launcher.nameOf(app.wm.activeApp) + " Help", icon: "LightbulbIcon" }),
         ] }),
     ] },
 
@@ -2788,7 +2803,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     // which is always running — Quit.
 
     appMenuItems(a: string) -> array {
-        const nm = this.nameOf(a)
+        const nm = app.launcher.nameOf(a)
         const out = []
         out.push(({ id: "about-app", label: "About " + nm }))
         out.push(({ divider: true }))
@@ -2810,7 +2825,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         const out = []
         for (let i = 0; i < ws.length; i++) {
             if (app.wm.isPlain(ws[i]) || app.wm.appOf(ws[i]) != a) continue
-            out.push(({ id: "win:" + i, label: app.wm.titleOf(ws[i]) || this.nameOf(a), checked: ws[i] == front }))
+            out.push(({ id: "win:" + i, label: app.wm.titleOf(ws[i]) || app.launcher.nameOf(a), checked: ws[i] == front }))
             }
         if (out.length == 0) out.push(({ id: "nowin", label: "No Windows", enabled: false }))
         return out
@@ -2912,11 +2927,11 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
             DockIcon [ ix = 0, name = "Files", kind = "files", hue1 = #59B0F6, hue2 = #1D6FD1,
                 running = true,
-                onClick() { app.wm.dockOpen("files", () => app.newFiles()) }
+                onClick() { app.wm.dockOpen("files", () => app.launcher.newFiles()) }
                 ],
             viewerIcon: DockIcon [ ix = 1, name = "Markdown", glyph = "M↓", hue1 = #8E7CE8, hue2 = #5A46B8,
-                running = { app.mdRunning },
-                onClick() { app.wm.dockOpen("markdown", () => app.openViewer("../../docs/declare.md", "declare.md")) }
+                running = { app.launcher.mdRunning },
+                onClick() { app.wm.dockOpen("markdown", () => app.launcher.openViewer("../../docs/declare.md", "declare.md")) }
                 ],
 
             // the Declare Viewer as a dock application: launches (bounce, dot,
@@ -2925,20 +2940,20 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
             dvIcon: DockIcon [ ix = 2, name = "Declare Viewer", glyph = "[  ]", gsize = 0.42,
                 hue1 = #2E6FE0, hue2 = #12A594,   // the brand's blue→teal accent thread
-                running = { app.dvRunning },
-                onClick() { app.wm.dockOpen("declareviewer", () => app.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", this, "program=desktop.declare")) }
+                running = { app.launcher.dvRunning },
+                onClick() { app.wm.dockOpen("declareviewer", () => app.launcher.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", this, "program=desktop.declare")) }
                 ],
 
             // A plausible set of applications — enough icons for the
             // magnification swell to read well.
 
             calIcon: DockIcon [ ix = 3, name = "Calendar", kind = "calendar", hue1 = #FFFFFF, hue2 = #EFEFF2,
-                running = { app.calRunning },
-                onClick() { app.wm.dockOpen("calendar", () => app.openApp("calendar", "../../calendar/calendar", "Calendar", this, "base=../calendar/")) }
+                running = { app.launcher.calRunning },
+                onClick() { app.wm.dockOpen("calendar", () => app.launcher.openApp("calendar", "../../calendar/calendar", "Calendar", this, "base=../calendar/")) }
                 ],
             jotIcon: DockIcon [ ix = 4, name = "Jots", kind = "jots", hue1 = #FCF4A7, hue2 = #F3E27E,
-                running = { app.jotRunning },
-                onClick() { app.wm.dockOpen("jots", () => app.newJot("", this)) }
+                running = { app.launcher.jotRunning },
+                onClick() { app.wm.dockOpen("jots", () => app.launcher.newJot("", this)) }
                 ],
 
             // "50 Birds" — a hosted app: apps/birds, the Audubon field guide,
@@ -2947,8 +2962,8 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
             // title, and the application menu all read "50 Birds".
 
             brdIcon: DockIcon [ ix = 5, name = "50 Birds", kind = "bird", hue1 = #66C95F, hue2 = #2C9243,
-                running = { app.brdRunning },
-                onClick() { app.wm.dockOpen("birds", () => app.openApp("birds", "../../birds/birds", "50 Birds", this, "base=../birds/")) }
+                running = { app.launcher.brdRunning },
+                onClick() { app.wm.dockOpen("birds", () => app.launcher.openApp("birds", "../../birds/birds", "50 Birds", this, "base=../birds/")) }
                 ],
 
             // "Write" — an inert placeholder (a pencil): its click shows the
