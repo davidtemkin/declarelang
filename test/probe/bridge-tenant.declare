@@ -1,0 +1,10 @@
+// Island-bridge probe, TENANT side: exports `pos`, imports `volume`, answers
+// a host post by bumping its export — the round trip in one handler.
+
+App [ width = 200, height = 120, fill = #22303C,
+    external volume: number = 0,
+    external pos: number = 3,
+
+    volT: Text [ x = 8, y = 8, textColor = whitesmoke, text = { "v" + app.volume } ],
+    onPost(m: IslandPost) { app.pos = app.pos + 1; app.post("ack", m.topic) }
+    ]

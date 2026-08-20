@@ -131,18 +131,72 @@ That is a real, second application running above — its own `app`, its own
 state, its own settle loop — not a copy of this one's. `program` takes a name
 or a relative path, resolved from the host program's `demos/` folder — so
 `"../../calendar/calendar"` reaches the real calendar from any app beside it,
-no copy; `""` detaches the island. Two reactive channels cross the boundary and
-nothing else: `env` (a query string — `"dark=1&unit=C"` — delivered to the
-tenant's `app.env` at mount and on every change) downward, and `childName`
-(the tenant's `appName`, for a host that titles itself by what it shows)
-upward. Input stays honest at the seam, too: a click inside the tenant
-belongs to the tenant, while the host hears only *a press on the island* —
-which is how a desktop window raises itself when you click into the app it
-hosts.
+no copy; `""` detaches the island. Input stays honest at the seam, too: a
+click inside the tenant belongs to the tenant, while the host hears only *a
+press on the island* — which is how a desktop window raises itself when you
+click into the app it hosts. On the canvas backend the tenant mounts by
+**surface composition** — its tree becomes a subtree of the sealed surface,
+no DOM anywhere — which is also exactly how the native host has always done it.
 
 This is not a corner feature. The desktop demo's windows, the homepage's
 live previews, and this documentation's own runnable examples are all
 `AppIsland` — the page you are reading is an app hosting apps.
+
+## The bridge: `external` attributes and `post`
+
+What crosses the boundary is **declared** — a typed surface, not an open door.
+An island's `external` attribute declarations are the host's half of a bridge;
+a tenant app's `external` declarations are its exports. The runtime pairs the
+two by name when the tenant mounts, and **checks the declared types agree** —
+two separately compiled programs can't share a static proof, so agreement is
+verified the way a linker resolves `extern` symbols: at link time, loudly
+("`pos` is `external number` here and `external string` in the tenant — the
+island could not be linked").
+
+```declare
+player: AppIsland [ program = "player",
+    external volume: number = { app.masterVolume },   -- host-fed: the tenant follows it
+    external readonly pos: number = 0,                -- tenant-owned: the host reads, never writes
+    onPost(m: IslandPost) { app.log(m.topic) }        -- the tenant's messages arrive here
+    ],
+scrubber: View [ x = { app.player.pos * trackWidth } ]  -- full machinery over tenant facts
+```
+
+The tenant's side is plain Declare — it declares the same names and uses them
+as ordinary attributes:
+
+```declare
+App [ external volume: number = 0,     -- arrives from the host, constraints re-derive
+    external pos: number = 3,          -- this app writes it; the host reads it
+    onPost(m: IslandPost) { app.pos = app.pos + 1; app.post("ack", m.topic) },
+    ]
+```
+
+Facts vs. verbs is the load-bearing distinction. An `external` attribute is a
+**fact** — continuous, typed, meaningful whenever read; direction is
+arbitrated by ownership (a slot the host *binds* refuses tenant writes,
+naming the constraint; `readonly external` declares a tenant-owned out-fact
+the host provably can't write). `post(topic, payload)` / `onPost(m)` are
+**verbs** — consumed once, ordered, never re-readable: "do this", never
+"this is so". Data only crosses: an `external` must carry a data type
+(number, string, boolean, array, object, Color, an enum) — a component is an
+identity in one program's graph and cannot cross.
+
+**Foreign tenants speak the same bridge.** A raw-JS tenant in a `DOMIsland`
+reaches it through the island element's one sanctioned handle:
+
+```js
+const h = box.__declareIsland;         // the island's element, after mount
+h.externals();                         // [{ name, type, readonly }] — discovery
+h.get("volume"); h.observe("volume", v => audio.volume = v);
+h.set("pos", 12.5);                    // boundary-VALIDATED against the declared type
+h.post("clicked", id);                 // → the island's onPost
+h.onPost(m => { … });                  // ← the island's post()
+```
+
+A mistyped foreign push is refused with the type named — the same trust-edge
+rule a DataSource applies to arriving bytes. (`env` and `childName`, the
+bridge's untyped ancestors, still work; new code should declare its surface.)
 
 ## The same rule, three ways
 
@@ -152,7 +206,7 @@ and keeps the rest; Declare gives a page a sized island and keeps the rest;
 an app gives another app its box and neither reads the other's tree. When
 you find yourself wanting to reach across a boundary — a constraint on the
 tenant's internals, a DOM query into an island — the design is telling you
-the boundary is in the wrong place: pass data through `env`, or move the
-border.
+the boundary is in the wrong place: declare the fact as `external`, send the
+command as `post`, or move the border.
 
 [Next: **Run it, check it, ship it** →](declare-docs:guide:run-check-ship)
