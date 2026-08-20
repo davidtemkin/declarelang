@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "50a55d003cd1",
+  "buildId": "e7586eda18db",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -5195,6 +5195,11 @@
    "RichText.method.attach": {
     "path": "docs/declare-model.json",
     "title": "RichText.method.attach",
+    "kind": "reference"
+   },
+   "RichText.method.footprint": {
+    "path": "docs/declare-model.json",
+    "title": "RichText.method.footprint",
     "kind": "reference"
    },
    "RichText.scale": {
@@ -12432,6 +12437,22 @@
    "readOnly": false,
    "inheritedFrom": null
   },
+  "RichText.method.footprint": {
+   "id": "RichText.method.footprint",
+   "name": "footprint",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/markdown.ts",
+    "line": 909
+   },
+   "parent": "RichText",
+   "seeAlso": [],
+   "signature": "footprint(): { x: number; y: number; width: number; height: number }",
+   "returns": "{ x: number; y: number; width: number; height: number }"
+  },
   "RichText.method.attach": {
    "id": "RichText.method.attach",
    "name": "attach",
@@ -12441,7 +12462,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/markdown.ts",
-    "line": 898
+    "line": 929
    },
    "parent": "RichText",
    "seeAlso": [],
@@ -12500,6 +12521,7 @@
     "RichText.dark"
    ],
    "methods": [
+    "RichText.method.footprint",
     "RichText.method.attach"
    ],
    "events": [

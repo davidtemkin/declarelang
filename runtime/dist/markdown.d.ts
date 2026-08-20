@@ -24,6 +24,23 @@ export declare abstract class RichText extends View {
      *  attaches bakes a CSS transform ON TOP of the scaled fonts (double-scaling),
      *  and the view's measured height no longer matches its painted height. */
     protected flush(s: Surface): void;
+    /** …and mask the GEOMETRY meaning too. The glyphs are already scaled into
+     *  the runs, so this view's measured width/height ARE its on-screen box —
+     *  but footprint() (auto-extent, layout, bounds) multiplies by `scale`,
+     *  shrinking the box a second time. Measured: at the reader's default 0.9
+     *  every code block stood 1/0.9 taller on screen than in the model — the
+     *  desktop's 7,000px Window block bled ~760px of pixels past its measured
+     *  extent, and the next segments were laid over its tail ("the prose
+     *  overlaps the code blocks", 2026-08-20). Identity here completes the
+     *  rule flush() started: to the geometry system a RichText is untransformed.
+     *  (Rotation is honored via the base walk with scale forced to 1 — a
+     *  rotated RichText keeps its swept box.) */
+    footprint(): {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
     attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** The color scheme for the house rich-element palette: the explicit `dark`
      *  override if set (an app whose own theme selector differs from the OS), else

@@ -57,6 +57,7 @@ const SUITE = [
   "test/history.test.mjs",
   "test/embed.test.mjs",
   "test/vis-camera.test.mjs",
+  "test/reader-flow.test.mjs",
   "test/island.test.mjs",
   "test/island-browser.test.mjs",
   "test/verify-apps.test.mjs",

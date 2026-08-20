@@ -895,6 +895,37 @@ export abstract class RichText extends View {
     if (this.scale !== 1) s.setScale(1, this.pivotX, this.pivotY);
   }
 
+  /** …and mask the GEOMETRY meaning too. The glyphs are already scaled into
+   *  the runs, so this view's measured width/height ARE its on-screen box —
+   *  but footprint() (auto-extent, layout, bounds) multiplies by `scale`,
+   *  shrinking the box a second time. Measured: at the reader's default 0.9
+   *  every code block stood 1/0.9 taller on screen than in the model — the
+   *  desktop's 7,000px Window block bled ~760px of pixels past its measured
+   *  extent, and the next segments were laid over its tail ("the prose
+   *  overlaps the code blocks", 2026-08-20). Identity here completes the
+   *  rule flush() started: to the geometry system a RichText is untransformed.
+   *  (Rotation is honored via the base walk with scale forced to 1 — a
+   *  rotated RichText keeps its swept box.) */
+  override footprint(): { x: number; y: number; width: number; height: number } {
+    if (this.rotation === 0) return { x: 0, y: 0, width: this.width, height: this.height };
+    // the base corner walk with scale pinned to 1 (rotation still honored)
+    const w = this.width, h = this.height;
+    const px = this.pivotX, py = this.pivotY;
+    const a = (this.rotation * Math.PI) / 180;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [cx, cy] of [[0, 0], [w, 0], [0, h], [w, h]]) {
+      const dx = cx - px, dy = cy - py;
+      const fx = px + (dx * ca - dy * sa);
+      const fy = py + (dx * sa + dy * ca);
+      if (fx < minX) minX = fx;
+      if (fx > maxX) maxX = fx;
+      if (fy < minY) minY = fy;
+      if (fy > maxY) maxY = fy;
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
   override attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
     super.attach(backend, parentSurface, before);
     // Reactive render: re-parse and rebuild whenever the source OR `width` changes
