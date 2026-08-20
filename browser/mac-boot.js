@@ -32,7 +32,7 @@
 // native.
 
 import { build, mountApp, settle, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor,
-         Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant } from "../runtime/dist/index.js";
+         Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant, setAppAssetBase } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScroll, macWheel, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
          publishChildName, islandViewById, macScrollTo, surfaceOrigin, createOverlaySurface, rootBox,
@@ -719,13 +719,16 @@ async function mountChild(surfaceId, name, env) {
   const base = globalThis.__declareBase || "";
   const url = new URL(name.endsWith(".declare") ? name : name + ".declare", new URL("demos/", base)).href;
   const { source, deps } = await resolveProgram(url);
-  mountCompiled(surfaceId, { source, deps }, env);
+  mountCompiled(surfaceId, { source, deps }, env, url);
   log("island: " + name + " mounted");
 }
 
 /** Put an already-compiled program into an island. Shared by the URL path and
- *  the live-edit channel, which differ only in where the source came from. */
-function mountCompiled(surfaceId, compiled, env) {
+ *  the live-edit channel, which differ only in where the source came from.
+ *  `assetUrl` is the child's own program URL — the base its relative assets
+ *  resolve against (host-client's childAssetBase rule); the live-edit channel
+ *  has no program URL and leaves it unset. */
+function mountCompiled(surfaceId, compiled, env, assetUrl) {
   const box = surfaceById(surfaceId);
   if (!box) return null;
   // One island, one tenant: evict whatever is mounted before mounting again,
@@ -738,16 +741,23 @@ function mountCompiled(surfaceId, compiled, env) {
   clearEmbed(surfaceId);
   const child = build(compiled.source, { deps: compiled.deps ?? {} });
   child.attach(backend, null);
+  // The child's RELATIVE assets live in its own program's directory, never the
+  // host's (host-client's childAssetBase). Without this, birds-in-a-desktop-
+  // window resolved every plate against the DESKTOP's directory — all 404.
+  if (assetUrl) setAppAssetBase(child, assetUrl);
   mountEmbed(surfaceId, child.surface);
   child.hostWidth = box.width;
   child.hostHeight = box.height;
-  // A declared size floor makes the ISLAND a viewport — the DOM's
-  // wireEnvironmentEmbedded sets `overflow: auto` on the island element for
-  // exactly this case, so a tenant taller than its box pans inside the island
-  // (the tenant ROOT itself never self-scrolls; mountEmbed retires its scroll).
-  // The native mirror: the island surface scrolls; its extent recurses into
-  // the tenant, so the scroll range is the tenant's real height.
-  if ((child.minWidth > 0 || child.minHeight > 0) && box.setScroll) {
+  // The ISLAND is a viewport — the DOM's renderChild sets `overflow: auto` on
+  // the island element UNCONDITIONALLY, so any tenant taller than its box pans
+  // inside the island: a size floor holding the root large, or a page app
+  // whose content outruns the box (birds). The scroll RANGE flows from the
+  // tenant's own model — the root's setPageExtent, which the island's
+  // contentExtent honors along the tenant's declared scroll axis — and clamps
+  // to zero when the tenant fits, exactly `auto`'s behavior. The old gate here
+  // (only on a declared minWidth/minHeight floor) left content-tall tenants
+  // unscrollable.
+  if (box.setScroll) {
     box.setScroll(true, (y) => { /* island pan — no model attribute to mirror */ });
   }
   if (env && Object.keys(env).length) child.env = env;
@@ -768,15 +778,23 @@ function mountCompiled(surfaceId, compiled, env) {
     try { embedUnlinks.set(surfaceId, linkIslandTenant(islView, child)); }
     catch (e) { log("island link: " + e.message); }
   }
+  // The sanctioned handle (guide 18): with no element anywhere, `__childApp`
+  // rides the island VIEW — the canvas convention, kept native.
+  if (islView) islView.__childApp = child;
   // Keep the tenant sized to its box (the box is a constraint target that can
   // change with the window; the child re-derives from hostWidth/Height). An
   // observer, not a rAF loop, for the same reason as startPumps: the box only
   // moves under a resize, the appearance only flips under __declareEnvChanged,
   // and both already produce the frame this rides on.
   globalThis.__declareObserveFrames(() => {
-    if (embedGen.get(surfaceId) !== gen) { liveApps.delete(child); childIslands.delete(child); return false; }  // a newer tenant owns this island
+    if (embedGen.get(surfaceId) !== gen) {
+      liveApps.delete(child); childIslands.delete(child);
+      if (islView && islView.__childApp === child) islView.__childApp = null;
+      return false;                                  // a newer tenant owns this island
+    }
     if (surfaceById(surfaceId) !== box) {
       liveApps.delete(child); childIslands.delete(child);
+      if (islView && islView.__childApp === child) islView.__childApp = null;
       const un = embedUnlinks.get(surfaceId);
       if (un) { embedUnlinks.delete(surfaceId); try { un(); } catch {} }   // the island surface is gone — the bridge with it
       return false;

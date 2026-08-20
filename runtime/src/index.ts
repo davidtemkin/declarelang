@@ -29,7 +29,6 @@ import { DeclareError, DeclareErrors } from "./errors.js";
 // production entry (`renderProgram`) can drop the parser + checker entirely.
 import { mountApp, loadFonts } from "./boot.js";
 import { setAppAssetBase } from "./asset-base.js";
-import { setAppDataBase } from "./data.js";
 
 /** Options for build()/render(): the file-access host `include` resolution
  *  rides and the including file's directory. Both default to a no-op — a
@@ -100,10 +99,14 @@ export async function renderAsync(source: string, host: HTMLElement, backend: Re
   const app = build(source, opts);
   if (opts.assetBase != null) {
     setAppAssetBase(app, opts.assetBase);
-    // Data rides the same rule (the sibling rule, language §9): this app's
-    // relative DataSource urls mean "beside MY program". The base rebases and
-    // then delegates to the global transport, so refusers/stubs still govern.
-    setAppDataBase(app, opts.assetBase);
+    // DELIBERATELY no per-app DATA base here: an island child's relative data
+    // urls resolve through the PAGE's transport — its host's space — which is
+    // what island contracts actually speak (the desktop passes the viewer
+    // `program=desktop.declare`, a path in the DESKTOP's directory; the mac
+    // runner resolves children the same way). Coupling the child's data base
+    // to its asset base 404'd every such contract (found live: the viewer in
+    // a desktop window lost all three panes). The sibling rule holds for
+    // BOOTED apps — bootHost registers their data base — not for tenants.
   }
   await loadFonts(fontFacesOf(app), opts.assetBase);
   return mountApp(app, host, backend);

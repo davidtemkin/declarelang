@@ -91,8 +91,12 @@ const TABLE = {
   },
 
   setPageExtent: {
-    dom: true, canvas: true,
-    mac: "GAP (found 2026-07-31, not yet fixed) — same family as setIgnoreScroll: the App-is-the-page scroll realization. Without it the host cannot publish the document extent, so an app taller than its window has no scroll range to give the platform",
+    // Closed 2026-08-19 (found 2026-07-31): the extent is virtual — a native
+    // app root keeps to its frame (mountEmbed's clip), so contentExtent honors
+    // the root's page extent along its DECLARED scroll axis instead of growing
+    // the root element as the DOM does, and an island over a content-tall
+    // tenant (birds in a desktop window) finally has a scroll range.
+    dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
 

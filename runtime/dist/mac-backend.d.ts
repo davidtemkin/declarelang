@@ -172,6 +172,14 @@ declare class MacSurface implements Surface {
      *  attachRoot / mountEmbed, which run AFTER attach's scrolls push — so the
      *  push guards on it for any later re-push. */
     appRoot: boolean;
+    /** The DECLARED axes, recorded before the root guard: a tenant root never
+     *  self-scrolls, but its declared axis still decides whether its page
+     *  extent grows the ISLAND's scroll range (contentExtent) — the DOM's
+     *  scrollYOn/scrollXOn, which applyScrollStyle records even on the root
+     *  branch. attach's scrolls push runs before mountEmbed retires the root,
+     *  and a later re-push updates these through the guard. */
+    wantsScrollY: boolean;
+    wantsScrollX: boolean;
     setScroll(on: boolean, onScroll: (y: number) => void): void;
     /** Horizontal scroll is not yet realized natively (code blocks clip). */
     setScrollX(on: boolean): void;
@@ -247,6 +255,16 @@ declare class MacSurface implements Surface {
      *  IS the range; there is no reason to fake a child here, because the extent
      *  is computed rather than measured — a floor says the same thing directly.
      *  `null` clears it (the block stopped virtualizing). */
+    /** ROOT only (backend.ts): the App's reactive content extent. The DOM
+     *  realizes this by GROWING the root element along each declared scroll
+     *  axis — an enclosing island's `overflow: auto` then scrolls it. A native
+     *  root keeps to its frame (mountEmbed's clip), so the growth is virtual:
+     *  contentExtent honors an app root's page extent along its declared axis,
+     *  which is what puts a content-tall tenant (birds) in reach of its
+     *  island's scroll. Top level it is moot — the root has no parent surface. */
+    private pageExtentW;
+    private pageExtentH;
+    setPageExtent(w: number, h: number): void;
     private virtualExtent;
     setVirtualExtent(h: number | null): void;
     contentExtent(): number;
