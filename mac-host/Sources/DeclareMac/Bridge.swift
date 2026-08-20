@@ -49,6 +49,23 @@ final class Bridge {
     /// `app.navigate(url)` / `app.openWindow(url)` — the program asking to go
     /// somewhere. `newWindow` distinguishes the two verbs.
     var onNavigate: ((String, Bool) -> Void)?
+    /// The runtime's history mirror (mac-boot wireMacHistory): the app's
+    /// (location, waypoint) pair changed in a settle — (loc, step, verb, the
+    /// departed page's scroll offset). The window keeps the trail.
+    var onHistoryEntry: ((String, String, String, Double) -> Void)?
+    /// Make the CURRENT trail entry agree with the app — after a boot or a
+    /// traversal (the web's square-by-replace).
+    var onHistorySquare: ((String, String) -> Void)?
+
+    /// Drive the live program to a history pair — the popstate direction. The
+    /// runtime restores the step directly, the address through `follow` (so
+    /// the app's onFollow hook applies — pass, redirect, veto), then squares
+    /// the entry back through historySquare.
+    func travel(loc: String, step: String, scroll: Double) {
+        guard let data = try? JSONSerialization.data(withJSONObject: [loc, step, scroll]),
+              let args = String(data: data, encoding: .utf8) else { return }
+        ctx.evaluateScript("globalThis.__declareTravel && __declareTravel.apply(null, \(args))")
+    }
     /// Fired ONCE per `boot()`, when the program first puts something on screen
     /// or gives up trying. "The window is no longer starting" — which is what
     /// ends the dock bounce and releases the deferred activation.
@@ -212,6 +229,16 @@ final class Bridge {
         host.setObject({ [weak self] (title: String) in
             self?.onTitle?(title)
         } as @convention(block) (String) -> Void, forKeyedSubscript: "setTitle")
+
+        // HISTORY, from the program to the window — the pair mirror's two
+        // outward verbs (see onHistoryEntry / onHistorySquare).
+        host.setObject({ [weak self] (loc: String, step: String, verb: String, scroll: Double) in
+            self?.onHistoryEntry?(loc, step, verb, scroll)
+        } as @convention(block) (String, String, String, Double) -> Void, forKeyedSubscript: "historyEntry")
+
+        host.setObject({ [weak self] (loc: String, step: String) in
+            self?.onHistorySquare?(loc, step)
+        } as @convention(block) (String, String) -> Void, forKeyedSubscript: "historySquare")
 
         // The Inspector opened or closed. PUSHED from JS rather than polled:
         // mounting is async (compile, then mount), so the titlebar control read

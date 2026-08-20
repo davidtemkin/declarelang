@@ -31,7 +31,7 @@
 // pointer capture, hover, keyboard, host sizing — and only the drawing is
 // native.
 
-import { build, mountApp, settle, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor,
+import { build, mountApp, settle, observe, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor,
          Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant, setAppAssetBase } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScroll, macWheel, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
@@ -306,7 +306,63 @@ export async function macBoot(url) {
   flushOps();
   H.setTitle(app.appName || programName(base));
   startPumps(app);
+  wireMacHistory(app);
   return app;
+}
+
+/** (app.location, app.waypoint) ⟷ the WINDOW's trail — the same pair mirror
+ *  the web host keeps against the browser's history (host-client.js
+ *  wirePageLocation), aimed at the titlebar arrows instead of a URL bar.
+ *
+ *  OUTWARD per settle: one trail entry when either half changed (both changed
+ *  = one entry, restored atomically), the verb from app.pendingHistoryVerb —
+ *  a follow whose link declared `replace = true` overwrites instead of
+ *  burying Back — and the departed page's scroll rides along, so Back lands
+ *  where the user left.
+ *
+ *  INWARD on an arrow press (__declareTravel — the popstate direction): the
+ *  step written directly (a waypoint can never arrive from outside the app;
+ *  every restored value is one this app wrote earlier), the address through
+ *  `follow` so the onFollow hook applies — pass, redirect, veto — and
+ *  whatever the app decided is squared back to the entry (historySquare).
+ *  A traversal never pushes, so a redirect rule can never trap Back in a
+ *  loop. Scroll restores unless the address carries an `@` reveal — a stored
+ *  anchor intent is the truer landing than a pixel offset (the web's rule).
+ *
+ *  Inert when unused: an app that writes neither pair half holds both
+ *  initials, and nothing pushes — the arrows keep walking programs only. */
+function wireMacHistory(app) {
+  if (!H.historyEntry) return;             // an older host binary keeps no pair trail
+  let mirrored = app.location;
+  let mirroredW = app.waypoint;
+  H.historySquare(mirrored, mirroredW);    // the boot entry learns its (deep-linked) pair
+  observe(() => [app.location, app.waypoint], () => {
+    if (currentApp !== app) return;        // a later boot owns the window now
+    if (app.location === mirrored && app.waypoint === mirroredW) return;
+    const verb = app.pendingHistoryVerb === "replace" ? "replace" : "push";
+    if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
+    H.historyEntry(app.location, app.waypoint, verb,
+      app.surface ? app.surface.scrollOffset : 0);
+    mirrored = app.location;
+    mirroredW = app.waypoint;
+  }, "host:history");
+  globalThis.__declareTravel = (loc, step, scroll) => {
+    if (currentApp !== app) return;
+    if (app.waypoint !== step) app.waypoint = step;
+    if (typeof app.follow === "function") app.follow("#" + loc);
+    else app.location = loc;
+    // Square BEFORE the settle: follow decided synchronously (pass, redirect,
+    // veto), and the mirror's observer runs at the settle's close — with the
+    // mirror already agreeing, a traversal never pushes (the web does this
+    // same dance: onPop's syncByReplace runs before the settle's observers).
+    mirrored = app.location;
+    mirroredW = app.waypoint;
+    settle();
+    H.historySquare(mirrored, mirroredW);
+    if (typeof scroll === "number" && scroll >= 0 && loc.indexOf("@") < 0 && app.surface)
+      macScrollTo(app.surface.id, scroll);
+    flushOps();
+  };
 }
 
 /** mountApp expects a host element; natively the host is the window's root

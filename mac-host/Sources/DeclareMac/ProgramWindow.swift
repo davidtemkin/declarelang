@@ -78,6 +78,45 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
                 if newWindow { self.owner?.openInNewWindow(url) } else { self.open(url) }
             }
         }
+        // The runtime mirrors (app.location, app.waypoint) into this window's
+        // trail — the native twin of the web host's history mirror
+        // (host-client.js wirePageLocation), aimed at the titlebar arrows
+        // instead of a URL bar. "push" mints an entry (stamping the departed
+        // entry's scroll first, so Back lands where the user left); "replace"
+        // overwrites — a follow whose link declared `replace = true`.
+        bridge.onHistoryEntry = { [weak self] loc, step, verb, departScroll in
+            guard let self else { return }
+            if verb == "replace" {
+                if trailAt >= 0 { trail[trailAt].loc = loc; trail[trailAt].step = step }
+            } else {
+                if trailAt >= 0 { trail[trailAt].scroll = departScroll }
+                if trailAt < trail.count - 1 { trail.removeSubrange((trailAt + 1)...) }
+                trail.append(Stop(url: currentURL, loc: loc, step: step))
+                trailAt = trail.count - 1
+            }
+            refreshChrome()
+        }
+        // The current entry made to AGREE with the app — after a boot (the
+        // entry learns the program's initial or deep-linked pair) and after a
+        // traversal (onFollow may have redirected or vetoed; the entry holds
+        // what the app actually decided, the web's square-by-replace). A boot
+        // square also releases a held cross-program traversal pair.
+        bridge.onHistorySquare = { [weak self] loc, step in
+            guard let self, trailAt >= 0 else { return }
+            trail[trailAt].loc = loc
+            trail[trailAt].step = step
+            if let p = pendingStop {
+                pendingStop = nil
+                if p.loc != loc || p.step != step {
+                    // ⚠ Next turn, not this one — this callback is reached from
+                    // inside a JS commit (the boot's own settle); the onNavigate
+                    // rule.
+                    DispatchQueue.main.async { [weak self] in
+                        self?.bridge.travel(loc: p.loc, step: p.step, scroll: p.scroll)
+                    }
+                }
+            }
+        }
         window.makeFirstResponder(view)
         nav = WindowNav(owner: self)
         window.addTitlebarAccessoryViewController(nav)
@@ -165,9 +204,21 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
 
     // ── history ─────────────────────────────────────────────────────────────
     //
-    // A back/forward stack of PROGRAMS, per window. Per window because history
-    // is about where you have been in THIS window — two windows exploring two
-    // programs share nothing else, and would be actively confusing sharing this.
+    // A back/forward trail, per window. Per window because history is about
+    // where you have been in THIS window — two windows exploring two programs
+    // share nothing else, and would be actively confusing sharing this.
+    //
+    // An entry is the browser's PAIR plus the program it belongs to: the URL
+    // names the PROGRAM (crossing programs reboots, as ever); `loc` and `step`
+    // are the app's (location, waypoint) — the same coordinates a browser
+    // entry carries in its fragment and state object. In-app moves arrive
+    // from the runtime per settle (bridge.onHistoryEntry — mac-boot's mirror,
+    // the native twin of host-client's wirePageLocation), so the arrows walk
+    // in-app places exactly as a browser's do; a traversal within the live
+    // program restores the pair through __declareTravel (the popstate
+    // direction) and never reboots. `scroll` is stamped at departure and
+    // restored on traversal — the browser's per-entry scroll, manually, for
+    // the same reason the web host owns it there.
     //
     // WHAT IT DOES NOT HOLD. Source mode is a way of LOOKING at the program you
     // are on, not a place you went (see `viewing`), and a reload is not travel
@@ -178,8 +229,12 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     // The shape is the browser's, because it is the one everybody already has:
     // a cursor into a list; going somewhere new from the middle discards the
     // forward half.
-    private var trail: [String] = []
+    struct Stop { var url: String; var loc = ""; var step = ""; var scroll = -1.0 }
+    private var trail: [Stop] = []
     private var trailAt = -1
+    /// A cross-program traversal's target pair, applied when the freshly
+    /// booted program squares its initial entry (onHistorySquare below).
+    private var pendingStop: Stop? = nil
 
     /// What `open` should do to the trail.
     enum History { case push, stay, replay }
@@ -199,25 +254,33 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         travel()
     }
 
-    /// Go where the cursor now points. Leaves Source mode on the way: the trail
-    /// holds programs, so arriving at one while the window is showing the Viewer
-    /// would land you on the right program in the wrong mode.
+    /// Go where the cursor now points. Within the live program this is the
+    /// browser's popstate — the pair rides into the runtime and the app's own
+    /// machinery (follow, onFollow, waypoint re-derives) does the rest; no
+    /// reboot. Crossing programs (or leaving Source mode, whose display only a
+    /// boot restores) reboots and holds the pair for the arrival to apply.
     private func travel() {
+        // Before anything else: the arrows describe the TRAIL, which has
+        // already moved, and a compile is long enough for a stale arrow to be
+        // clicked again.
+        refreshChrome()
+        let stop = trail[trailAt]
+        if stop.url == currentURL && !viewing {
+            bridge.travel(loc: stop.loc, step: stop.step, scroll: stop.scroll)
+            return
+        }
         viewing = false
         subjectURL = ""
-        // Before the boot, not after it: the arrows describe the TRAIL, which
-        // has already moved, and a compile is long enough for a stale arrow to
-        // be clicked again.
-        refreshChrome()
-        open(trail[trailAt], history: .replay)
+        pendingStop = stop
+        open(stop.url, history: .replay)
     }
 
     private func remember(_ url: String) {
         // Re-opening what is already here (a reload, a re-boot of the same URL)
         // is not a second visit.
-        if trailAt >= 0 && trail[trailAt] == url { return }
+        if trailAt >= 0 && trail[trailAt].url == url { return }
         if trailAt < trail.count - 1 { trail.removeSubrange((trailAt + 1)...) }
-        trail.append(url)
+        trail.append(Stop(url: url))
         trailAt = trail.count - 1
     }
 

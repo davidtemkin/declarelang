@@ -335,7 +335,17 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
             home: Text [ fontSize = 14, textColor = #8A8272, link = "#", text = "← the whole shelf" ],
             pad: View [ width = 1, height = 56 ]
             ],
-        platePad: View [ x = 0, y = { parent.plateW * 1.05 }, width = 1, height = 72 ]
+        platePad: View [ x = 0, y = { parent.plateW * 1.05 }, width = 1, height = 72 ],
+
+        // close the page: the same address as the masthead and "the whole
+        // shelf" (`#` — the shelf), as a box where a reader expects one. It
+        // fades up with the details, and Back still works: closing is a
+        // follow, so it makes an entry like any other move.
+
+        closeBox: View [ x = { parent.width - 34 }, y = 6, width = 28, height = 28, cornerRadius = 14,
+            fill = #F7F3E8F2, stroke = stroke(1, #E2DACA), link = "#", opacity = { parent.flyT },
+            mark: Text [ x = center, y = center, fontSize = 13, textColor = #8A8272, text = "✕" ]
+            ]
         ],
 
     // ═══ the QUIZ — one address, a whole SESSION of history entries ══════════
