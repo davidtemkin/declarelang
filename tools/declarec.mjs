@@ -94,7 +94,7 @@ async function minifyBodies(program) {
  *  means "track at runtime"). */
 const ELIDE_EMPTY = new Set(["attrs", "decls", "methods", "children", "params",
   "includes", "includeSpans", "uses", "classes", "stylesheets", "styles", "fonts"]);
-const ELIDE_FALSE = new Set(["hex", "many", "prevailing", "readOnly", "entry"]);
+const ELIDE_FALSE = new Set(["hex", "many", "prevailing", "readOnly", "external", "entry"]);
 // Exported for test/hydrate.test.mjs — the round-trip invariant must exercise
 // THIS replacer, never a copy that could drift from it.
 export { compactValue, ELIDE_FALSE };

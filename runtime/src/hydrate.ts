@@ -4,7 +4,7 @@
 // false flags — before embedding the JSON; this walk puts the structural
 // fields back so every consumer keeps reading `el.attrs` / `el.name !== null`
 // unconditionally. The boolean flags (`hex`, `many`, `prevailing`, `readOnly`,
-// `entry`) are NOT restored: every reader treats absence as false already.
+// `external`, `entry`) are NOT restored: every reader treats absence as false already.
 //
 // Deliberately its own tiny module (not parser.ts): the production entry is
 // the one importer, and it must pull nothing of the parser along.

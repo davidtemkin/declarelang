@@ -479,6 +479,9 @@ function synthesize(
         source: d.def?.kind === "code" ? d.def.src : null,
         pos: at != null && typeof (at as { line?: number }).line === "number" ? { line: (at as { line: number }).line, col: (at as { col?: number }).col ?? 0 } : null,
         deps: d.def?.kind === "code" ? ((d.def as { deps?: readonly string[] }).deps ?? null) : null,
+        type: d.type,
+        external: d.external || undefined,
+        readOnly: d.readOnly || undefined,
       };
     }
     // The static mapped type on defineAttributes serves hand-declared

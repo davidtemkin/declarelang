@@ -322,8 +322,15 @@ function analyze(tokens) {
     while (tok().kind !== "rb" && tok().kind !== "eof") {
       const start = idx();
       let name = expect("ident", "a member name");
-      if ((tokens[name].raw === "prevailing" || tokens[name].raw === "readonly") &&
-          tok().kind === "ident" && tok(1).kind === "colon") {
+      // declaration modifiers — same recognition as the runtime parser:
+      // only before a declaration head, directly or through one more modifier
+      // (`external readonly x :`), so members NAMED these still format
+      const isMod = (r) => r === "prevailing" || r === "readonly" || r === "external";
+      while (isMod(tokens[name].raw)) {
+        const headNext = tok().kind === "ident" && tok(1).kind === "colon";
+        const modThenHead = tok().kind === "ident" && isMod(tokens[idx()].raw) &&
+          tok(1).kind === "ident" && tok(2).kind === "colon";
+        if (!headNext && !modThenHead) break;
         name = nc[p++];
       }
       let kind;
