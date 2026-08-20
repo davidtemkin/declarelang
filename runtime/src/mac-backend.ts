@@ -200,9 +200,30 @@ class MacSurface implements Surface {
 
   setX(v: number): void { this.x = v; this.geom(); }
   setY(v: number): void { this.y = v; this.geom(); }
-  setWidth(v: number): void { this.width = v; this.geom(); }
-  setHeight(v: number): void { this.height = v; this.geom(); }
+  setWidth(v: number): void { this.frameW = v; this.realizeSize(); }
+  setHeight(v: number): void { this.frameH = v; this.realizeSize(); }
   private geom(): void { emit(OP.GEOM, this.id, this.x, this.y, this.width, this.height); }
+
+  /** The MODEL frame, kept apart from the realized box: an EMBEDDED app root
+   *  realizes LARGER than its frame along a declared scroll axis — the DOM's
+   *  applyRootSize, where the root element grows to the page extent and the
+   *  island's scroll box pans over it. A virtual range alone is not enough:
+   *  it gave the island somewhere to scroll TO, but the root still clipped at
+   *  its frame, so the revealed region was bare host ("scrolling birds in a
+   *  desktop window goes black"). The model's width/height are untouched —
+   *  realization only. Top level (no parent surface) nothing grows; the page
+   *  itself is the scroller there. */
+  private frameW = 0;
+  private frameH = 0;
+  realizeSize(): void {
+    const grow = this.appRoot && this.parent !== null;
+    const w = grow && this.wantsScrollX ? Math.max(this.frameW, this.pageExtentW) : this.frameW;
+    const h = grow && this.wantsScrollY ? Math.max(this.frameH, this.pageExtentH) : this.frameH;
+    if (w === this.width && h === this.height) return;
+    this.width = w;
+    this.height = h;
+    this.geom();
+  }
 
   /** The last realized SOLID fill, as css — attachRoot reads it to paint the
    *  page behind a top-level app (the DOM/canvas attachRoot rule, mirrored).
@@ -377,7 +398,6 @@ class MacSurface implements Surface {
       if (!c.visible) continue;
       let cw = c.width;
       if (!c.boxClip && c.clipData === null && !c.scrollsX) cw = Math.max(cw, c.contentExtentX());
-      else if (c.appRoot && c.wantsScrollX) cw = Math.max(cw, c.pageExtentW);   // the vertical walk's app-root rule
       w = Math.max(w, c.x + cw);
     }
     return w;
@@ -628,17 +648,18 @@ class MacSurface implements Surface {
    *  `null` clears it (the block stopped virtualizing). */
   /** ROOT only (backend.ts): the App's reactive content extent. The DOM
    *  realizes this by GROWING the root element along each declared scroll
-   *  axis — an enclosing island's `overflow: auto` then scrolls it. A native
-   *  root keeps to its frame (mountEmbed's clip), so the growth is virtual:
-   *  contentExtent honors an app root's page extent along its declared axis,
-   *  which is what puts a content-tall tenant (birds) in reach of its
-   *  island's scroll. Top level it is moot — the root has no parent surface. */
+   *  axis — an enclosing island's `overflow: auto` then scrolls it. The
+   *  native mirror is realizeSize: an embedded root's box grows the same
+   *  way, so the island's extent walk sees the range AND the content below
+   *  the fold is actually there to reveal. Top level it is moot — the root
+   *  has no parent surface and nothing grows. */
   private pageExtentW = 0;
   private pageExtentH = 0;
   setPageExtent(w: number, h: number): void {
     if (w === this.pageExtentW && h === this.pageExtentH) return;
     this.pageExtentW = w;
     this.pageExtentH = h;
+    this.realizeSize();
     // Same republish rule as setVirtualExtent: the range only crosses the
     // bridge on a SCROLLPOS, so push it at the scroller that owns this root.
     for (let sc: MacSurface | null = this.parent; sc !== null; sc = sc.parent) {
@@ -669,11 +690,6 @@ class MacSurface implements Surface {
       if (!c.visible) continue;
       let ch = c.height;
       if (!c.boxClip && c.clipData === null && !c.scrolls) ch = Math.max(ch, c.contentExtent());
-      // An app root clips (keeps to its frame) yet still STATES its range: the
-      // page extent along its declared scroll axis is the DOM's grown root
-      // element, seen by the island the same way. Never its raw overflow —
-      // the wallpaper case stays contained.
-      else if (c.appRoot && c.wantsScrollY) ch = Math.max(ch, c.pageExtentH);
       const b = c.y + ch;
       if (b > max) max = b;
     }
@@ -989,6 +1005,11 @@ export function mountEmbed(islandId: number, childRoot: Surface): void {
   // the bottom into white space"). A clipping child contains its own overflow,
   // which is exactly what an app root is supposed to do.
   r.setBoxClip(true);
+  // The root attached — and pushed its frame and page extent — BEFORE this
+  // stamp, so its realization was computed as a top-level root's (frame-tight).
+  // Recompute now that it is embedded: a declared scroll axis grows the box to
+  // the page extent (realizeSize), which is what the island scrolls over.
+  r.realizeSize();
 }
 
 /** Tear down whatever tenant an island is already hosting.

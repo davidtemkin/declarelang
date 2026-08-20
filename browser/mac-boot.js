@@ -751,12 +751,12 @@ function mountCompiled(surfaceId, compiled, env, assetUrl) {
   // The ISLAND is a viewport — the DOM's renderChild sets `overflow: auto` on
   // the island element UNCONDITIONALLY, so any tenant taller than its box pans
   // inside the island: a size floor holding the root large, or a page app
-  // whose content outruns the box (birds). The scroll RANGE flows from the
-  // tenant's own model — the root's setPageExtent, which the island's
-  // contentExtent honors along the tenant's declared scroll axis — and clamps
-  // to zero when the tenant fits, exactly `auto`'s behavior. The old gate here
-  // (only on a declared minWidth/minHeight floor) left content-tall tenants
-  // unscrollable.
+  // whose content outruns the box (birds). The scroll RANGE is the tenant
+  // root's realized height — an embedded root GROWS to its page extent along
+  // its declared scroll axis (mac-backend realizeSize, the DOM's
+  // applyRootSize) — and clamps to zero when the tenant fits, exactly `auto`'s
+  // behavior. The old gate here (only on a declared minWidth/minHeight floor)
+  // left content-tall tenants unscrollable.
   if (box.setScroll) {
     box.setScroll(true, (y) => { /* island pan — no model attribute to mirror */ });
   }

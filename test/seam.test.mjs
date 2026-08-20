@@ -91,11 +91,13 @@ const TABLE = {
   },
 
   setPageExtent: {
-    // Closed 2026-08-19 (found 2026-07-31): the extent is virtual — a native
-    // app root keeps to its frame (mountEmbed's clip), so contentExtent honors
-    // the root's page extent along its DECLARED scroll axis instead of growing
-    // the root element as the DOM does, and an island over a content-tall
-    // tenant (birds in a desktop window) finally has a scroll range.
+    // Closed 2026-08-19 (found 2026-07-31): realizeSize is the DOM's
+    // applyRootSize — an EMBEDDED app root's realized box grows to the page
+    // extent along its declared scroll axis (model frame untouched), so the
+    // island both has a scroll range and has real content under it (a range
+    // alone left the revealed region bare host — "scrolling birds in a
+    // desktop window goes black"). Top level nothing grows; the page itself
+    // is the scroller there.
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
