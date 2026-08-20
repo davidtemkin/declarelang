@@ -933,6 +933,13 @@ export function embedsPending() {
         out.push({ id, slot });
     return out;
 }
+/** The island VIEW behind a surface id — what the bridge links against
+ *  (mac-boot's mountCompiled calls linkIslandTenant on it, so the native
+ *  runner speaks the same `external` facts and post/onPost verbs as every
+ *  other host; islands design, 2026-08-20). */
+export function islandViewById(id) {
+    return islandViews.get(id);
+}
 /** Insert a child app's root surface into an island's surface. No coordinate
  *  sync and no second input router: the tenant is an ordinary subtree, so the
  *  paint and hit walks reach it exactly as they reach anything else. */

@@ -32,10 +32,10 @@
 // native.
 
 import { build, mountApp, settle, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor,
-         Keys, Focus, deliverKeys, setInspectionTarget } from "../runtime/dist/index.js";
+         Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScroll, macWheel, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
-         publishChildName, macScrollTo, surfaceOrigin, createOverlaySurface, rootBox,
+         publishChildName, islandViewById, macScrollTo, surfaceOrigin, createOverlaySurface, rootBox,
          countOps, peekOps, macTraceHit } from "../runtime/dist/mac-backend.js";
 
 const H = globalThis.__declareMacHost;
@@ -544,6 +544,7 @@ globalThis.__declareInspectorOpen = () => inspectorOverlay !== null;
 
 const wiredEmbeds = new Map();
 const embedGen = new Map();
+const embedUnlinks = new Map();   // surfaceId -> the bridge unlink (islands design)
 /** Every app that could publish a live edit → the island surface it lives in
  *  (null for the root app). The web watches the page app AND each embedded
  *  child, because an embedded Viewer's Edit tab publishes liveCard/liveSource on
@@ -731,6 +732,9 @@ function mountCompiled(surfaceId, compiled, env) {
   // and stamp this mount so the previous tenant's size-follow loop retires.
   const gen = (embedGen.get(surfaceId) || 0) + 1;
   embedGen.set(surfaceId, gen);
+  // the previous tenant's bridge dies with it
+  const priorUnlink = embedUnlinks.get(surfaceId);
+  if (priorUnlink) { embedUnlinks.delete(surfaceId); try { priorUnlink(); } catch {} }
   clearEmbed(surfaceId);
   const child = build(compiled.source, { deps: compiled.deps ?? {} });
   child.attach(backend, null);
@@ -754,6 +758,16 @@ function mountCompiled(surfaceId, compiled, env) {
   child.dark = H.appearance() === "dark";
   liveApps.set(child, box);          // a child can itself publish live edits
   childIslands.set(child, surfaceId);
+  // THE ISLAND BRIDGE (islands design, 2026-08-20) — the native runner is a
+  // full peer of the web hosts: pair the island's `external` surface with the
+  // tenant's (type handshake at link time), then facts both ways per settle
+  // and post/onPost verbs. A link error leaves the tenant mounted, unbridged,
+  // and said loudly — same rule as host-client's renderChild.
+  const islView = islandViewById(surfaceId);
+  if (islView && typeof islView.post === "function") {
+    try { embedUnlinks.set(surfaceId, linkIslandTenant(islView, child)); }
+    catch (e) { log("island link: " + e.message); }
+  }
   // Keep the tenant sized to its box (the box is a constraint target that can
   // change with the window; the child re-derives from hostWidth/Height). An
   // observer, not a rAF loop, for the same reason as startPumps: the box only
@@ -761,7 +775,12 @@ function mountCompiled(surfaceId, compiled, env) {
   // and both already produce the frame this rides on.
   globalThis.__declareObserveFrames(() => {
     if (embedGen.get(surfaceId) !== gen) { liveApps.delete(child); childIslands.delete(child); return false; }  // a newer tenant owns this island
-    if (surfaceById(surfaceId) !== box) { liveApps.delete(child); childIslands.delete(child); return false; }
+    if (surfaceById(surfaceId) !== box) {
+      liveApps.delete(child); childIslands.delete(child);
+      const un = embedUnlinks.get(surfaceId);
+      if (un) { embedUnlinks.delete(surfaceId); try { un(); } catch {} }   // the island surface is gone — the bridge with it
+      return false;
+    }
     if (child.hostWidth !== box.width || child.hostHeight !== box.height) {
       child.hostWidth = box.width; child.hostHeight = box.height;
     }
