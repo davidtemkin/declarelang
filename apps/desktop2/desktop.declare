@@ -1560,6 +1560,7 @@ class DockIcon extends View [
     gsize: number = 0.42,                        //   … at this fraction of the plate (wide marks set less)
     kind: string = "",                           // … or drawn art: calendar | notes | mail | terminal | pencil | bird | jots
     running: boolean = false,
+    appId: string = "",                          // the launcher record's key (replicated icons; "" = a fixed icon)
 
     // shared geometry — one place for the numbers the constraints below share
 
@@ -1806,11 +1807,7 @@ class WinManager extends Node [
     quitApp(a: string) {
         const doomed = this.windows().filter((w) => this.appOf(w) == a)
         for (const w of doomed) this.closeWin(w)
-        if (a == "markdown") app.launcher.mdRunning = false
-        else if (a == "calendar") app.launcher.calRunning = false
-        else if (a == "declareviewer") app.launcher.dvRunning = false
-        else if (a == "birds") app.launcher.brdRunning = false
-        else if (a == "jots") app.launcher.jotRunning = false
+        app.launcher.patch(a, ({ running: false }))   // no record (files) = no-op
         },
 
     // A dock icon's click: a running app's icon raises its open windows (in
@@ -1986,11 +1983,7 @@ class WinManager extends Node [
         // an About box carries its SUBJECT's forApp but is not a window OF that
         // app — `plain` is the discriminator, so closing "About Markdown" never
         // decrements the viewer count
-        if (!w.plain) {
-            if (w.forApp == "calendar") app.launcher.calCount = app.launcher.calCount - 1
-            else if (w.forApp == "declareviewer") app.launcher.dvCount = app.launcher.dvCount - 1
-            else if (w.forApp == "markdown") viewerCount = viewerCount - 1
-            }
+        if (!w.plain) app.launcher.bump(w.forApp, -1)
         if (frontWin == w) frontWin = null
         app.wins.removeChild(w)
         w.discard()
@@ -2022,15 +2015,63 @@ The surface:
 */
 
 class Launcher extends Node [
+
+    /* ── the application records ─────────────────────────────────────────────
+       One row per launchable application: the CATALOG (key, names, program,
+       env, dock face) and the LAUNCH STATE (running/launching/count) — the
+       five parallel flag families this array replaced were the God-object
+       smell at its purest: attributes clustered by prefix are records wanting
+       to exist. The dock's launchable icons REPLICATE over these rows; state
+       changes are array replacement (records are data — patch(), never a
+       field poke), so every reader re-derives. */
+
+    apps: array = { [
+        ({ id: "markdown", ix: 1, label: "Markdown", title: "Markdown", glyph: "M↓", gsize: 0.42, kind: "",
+            hue1: 0x8E7CE8, hue2: 0x5A46B8, src: "desktop.declare", running: false, launching: false, count: 0 }),
+        ({ id: "declareviewer", ix: 2, label: "Declare Viewer", title: "Declare Viewer", glyph: "[  ]", gsize: 0.42, kind: "",
+            hue1: 0x2E6FE0, hue2: 0x12A594, prog: "../../viewer/viewer", env: "program=desktop.declare",
+            src: "../viewer/viewer.declare", running: false, launching: false, count: 0 }),
+        ({ id: "calendar", ix: 3, label: "Calendar", title: "Declare Calendar", glyph: "", gsize: 0.42, kind: "calendar",
+            hue1: 0xFFFFFF, hue2: 0xEFEFF2, prog: "../../calendar/calendar", env: "base=../calendar/",
+            src: "../calendar/calendar.declare", running: false, launching: false, count: 0 }),
+        ({ id: "jots", ix: 4, label: "Jots", title: "Jots", glyph: "", gsize: 0.42, kind: "jots",
+            hue1: 0xFCF4A7, hue2: 0xF3E27E, src: "desktop.declare", running: false, launching: false, count: 0 }),
+        ({ id: "birds", ix: 5, label: "50 Birds", title: "50 Birds", glyph: "", gsize: 0.42, kind: "bird",
+            hue1: 0x66C95F, hue2: 0x2C9243, prog: "../../birds/birds", env: "base=../birds/",
+            src: "../birds/birds.declare", running: false, launching: false, count: 0 }),
+        ] },
+
+    // the records as DECLARED DATA, for the dock's datapath (a cursor can
+    // only point into a Dataset)
+
+    data: Dataset [ contents = { ({ apps: app.launcher.apps }) } ],
+
+    rec(a: string) -> object { return this.apps.find((r) => r.id == a) ?? null },
+
+    // records are data: state moves by REPLACING the array, so constraints
+    // bound anywhere re-derive; `patch` merges fields into one app's row
+
+    patch(a: string, p: object) { this.apps = this.apps.map((r) => r.id == a ? ({ ...r, ...p }) : r) },
+    bump(a: string, d: number) { const r = this.rec(a); if (r != null) this.patch(a, ({ count: r.count + d })) },
+
+    // ONE open verb behind every dock click and menu item with a record —
+    // the per-app argument bundles live on the rows now
+
+    launch(a: string, v: View?) {
+        const r = this.rec(a)
+        if (r == null) return
+        if (a == "markdown") this.openViewer("../../docs/declare.md", "declare.md", v)
+        else if (a == "jots") this.newJot("", v)
+        else this.openApp(a, "" + r.prog, "" + r.title, v, "" + r.env)
+        },
+
     // Activation is one Window-typed slot: every window derives its look (shadow
     // depth, bar tone, controls) from whether it is this value.
 
     nameOf(a: string) -> string {
-        return a == "markdown" ? "Markdown" : a == "calendar" ? "Declare Calendar"
-            : a == "declareviewer" ? "Declare Viewer"
-            : a == "birds" ? "50 Birds"
-            : a == "jots" ? "Jots"
-            : a == "desktop" ? "Declare Desktop" : "Files"
+        const r = this.rec(a)
+        if (r != null) return "" + r.title
+        return a == "desktop" ? "Declare Desktop" : "Files"
         },
 
     // View & Edit Source opens the running program itself in the Declare
@@ -2040,10 +2081,8 @@ class Launcher extends Node [
     // program's ?segments and ?file artifacts — reader mode by default.
 
     sourceRel(a: string) -> string {
-        return a == "calendar" ? "../calendar/calendar.declare"
-            : a == "declareviewer" ? "../viewer/viewer.declare"
-            : a == "birds" ? "../birds/birds.declare"
-            : "desktop.declare"
+        const r = this.rec(a)
+        return r != null ? "" + r.src : "desktop.declare"
         },
     openSource(a: string) {
         this.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=" + this.sourceRel(a))
@@ -2121,12 +2160,12 @@ class Launcher extends Node [
     // whole. Launch gating, spawn cascade, and the origin zoom are identical.
 
     openMarkdown(props: object, v: View?) {
-        const first = !mdRunning && !mdLaunching
-        if (first) mdLaunching = true
+        const r = this.rec("markdown")
+        const first = r != null && !r.running && !r.launching
+        if (first) this.patch("markdown", ({ launching: true }))
         const go = () => {
-            mdLaunching = false
-            mdRunning = true
-            app.wm.viewerCount = app.wm.viewerCount + 1
+            this.patch("markdown", ({ launching: false, running: true }))
+            this.bump("markdown", 1)
             this.dismissAbouts()
             app.wm.winCount = app.wm.winCount + 1
             app.wm.winSeq = app.wm.winSeq + 1
@@ -2138,7 +2177,7 @@ class Launcher extends Node [
                 bornFrom: v != null ? v : null }))
             app.wm.frontOpen(w)
             }
-        if (first) { app.dock.row.viewerIcon.poke(); setTimeout(go, 900) }
+        if (first) { app.dock.poke("markdown"); setTimeout(go, 900) }
         else go()
         },
     openViewer(p: string, nm: string, v: View?) { if (p != "") this.openMarkdown(({ path: p }), v) },
@@ -2155,24 +2194,6 @@ class Launcher extends Node [
     // separately (running dots + Quit are per application), and each has a
     // dock icon that launch-bounces on its first open.
 
-    calCount: number = 0,
-    dvCount: number = 0,
-    brdCount: number = 0,
-
-    // running is per application and survives its windows: set when a launch
-    // completes, cleared only by Quit — the dock dots read exactly these
-
-    mdRunning: boolean = false,
-    calRunning: boolean = false,
-    dvRunning: boolean = false,
-    brdRunning: boolean = false,
-    jotRunning: boolean = false,
-    calLaunching: boolean = false,               // calendar mid-launch-bounce
-    dvLaunching: boolean = false,                // Declare Viewer mid-launch-bounce
-    brdLaunching: boolean = false,               // 50 Birds mid-launch-bounce
-    mdLaunching: boolean = false,                // markdown mid-launch-bounce
-    jotLaunching: boolean = false,                // Jots mid-launch-bounce
-
     // `a` is the APPLICATION KEY ("calendar" | "declareviewer" | "birds"),
     // passed rather than sniffed. It used to be derived from the path — `isCal =
     // p.indexOf("calendar") >= 0`, with "not the calendar" meaning the Declare
@@ -2183,17 +2204,15 @@ class Launcher extends Node [
 
     openApp(a: string, p: string, nm: string, v: View?, envExtra: string?) {
         const isCal = a == "calendar"
-        const isBrd = a == "birds"
-        // the launch gate: flags move inside go(), so the running dot appears
+        // the launch gate: state moves inside go(), so the running dot appears
         // when the app has launched (mid-second-bounce), not at the click —
         // the mid-launch flag guards a double-click during the bounce
-        const first = !(isCal ? calRunning : isBrd ? brdRunning : dvRunning)
-                   && !(isCal ? calLaunching : isBrd ? brdLaunching : dvLaunching)
-        if (first) { if (isCal) calLaunching = true; else if (isBrd) brdLaunching = true; else dvLaunching = true }
+        const r = this.rec(a)
+        const first = r != null && !r.running && !r.launching
+        if (first) this.patch(a, ({ launching: true }))
         const go = () => {
-            if (isCal) { calLaunching = false; calRunning = true; calCount = calCount + 1 }
-            else if (isBrd) { brdLaunching = false; brdRunning = true; brdCount = brdCount + 1 }
-            else { dvLaunching = false; dvRunning = true; dvCount = dvCount + 1 }
+            this.patch(a, ({ launching: false, running: true }))
+            this.bump(a, 1)
             this.dismissAbouts()
             app.wm.winCount = app.wm.winCount + 1
             app.wm.winSeq = app.wm.winSeq + 1
@@ -2219,7 +2238,7 @@ class Launcher extends Node [
                 bornFrom: v != null ? v : null }))
             app.wm.frontOpen(w)
             }
-        if (first) { (isCal ? app.dock.row.calIcon : isBrd ? app.dock.row.brdIcon : app.dock.row.dvIcon).poke(); setTimeout(go, 900) }
+        if (first) { app.dock.poke(a); setTimeout(go, 900) }
         else go()
         },
 
@@ -2240,11 +2259,11 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 **Never, ever, press the 'r' or 's' keys.**
 """,
     newJot(txt: string, v: View?) {
-        const first = !jotRunning && !jotLaunching
-        if (first) jotLaunching = true
+        const r = this.rec("jots")
+        const first = r != null && !r.running && !r.launching
+        if (first) this.patch("jots", ({ launching: true }))
         const go = () => {
-            jotLaunching = false
-            jotRunning = true
+            this.patch("jots", ({ launching: false, running: true }))
             this.dismissAbouts()
             app.wm.winCount = app.wm.winCount + 1
             app.wm.winSeq = app.wm.winSeq + 1
@@ -2252,11 +2271,11 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
                 wx: 480 + (app.wm.winCount % 5) * 26, wy: 90 + (app.wm.winCount % 5) * 24 }))
             app.wm.frontOpen(w)
             }
-        if (first) { app.dock.row.jotIcon.poke(); setTimeout(go, 900) }
+        if (first) { app.dock.poke("jots"); setTimeout(go, 900) }
         else go()
         },
     openWelcome() {
-        jotRunning = true
+        this.patch("jots", ({ running: true }))
         app.wm.winSeq = app.wm.winSeq + 1
         const w = app.wins.createView("JotWindow", ({ note: this.welcomeNote,
             width: 400, height: 385, wx: Math.max(440, app.width - 490), wy: 120 }))
@@ -2854,6 +2873,18 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     */
 
     dock: View [ height = 150,
+
+        // the launch bounce, asked of the DOCK (the launcher names an app;
+        // which view that is — a replicated icon found by record key — is
+        // this chrome's own business, not a node's)
+        // the param tier keeps the receiver analyzable (startPark's pattern)
+
+        pokeIcon(icon: DockIcon) { icon.poke() },
+        poke(a: string) {
+            // typed at the seam, like wins.children: every row child is a
+            // DockIcon by construction
+            for (const c of this.row.children) if ((c as DockIcon).appId == a) this.pokeIcon(c as DockIcon)
+            },
         width = { this.plate.width },
         x = { (app.width - this.width) / 2 },
         y = { app.height - 155.5 },           // the 88px plate sits 5.5px off the bottom edge
@@ -2919,6 +2950,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
                 }
             ],
         row: View [ x = 16, y = 0, height = { parent.height },
+            datapath = { app.launcher.data.value },
             layout: SimpleLayout [ axis = x, spacing = 16 ],
 
             // a running app's icon raises its open windows instead of opening
@@ -2929,45 +2961,27 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
                 running = true,
                 onClick() { app.wm.dockOpen("files", () => app.launcher.newFiles()) }
                 ],
-            viewerIcon: DockIcon [ ix = 1, name = "Markdown", glyph = "M↓", hue1 = #8E7CE8, hue2 = #5A46B8,
-                running = { app.launcher.mdRunning },
-                onClick() { app.wm.dockOpen("markdown", () => app.launcher.openViewer("../../docs/declare.md", "declare.md")) }
-                ],
-
-            // the Declare Viewer as a dock application: launches (bounce, dot,
-            // Quit) like the others, hosting the real apps/viewer as an
-            // embedded app — opened, by default, on this program's own source
-
-            dvIcon: DockIcon [ ix = 2, name = "Declare Viewer", glyph = "[  ]", gsize = 0.42,
-                hue1 = #2E6FE0, hue2 = #12A594,   // the brand's blue→teal accent thread
-                running = { app.launcher.dvRunning },
-                onClick() { app.wm.dockOpen("declareviewer", () => app.launcher.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", this, "program=desktop.declare")) }
-                ],
-
-            // A plausible set of applications — enough icons for the
-            // magnification swell to read well.
-
-            calIcon: DockIcon [ ix = 3, name = "Calendar", kind = "calendar", hue1 = #FFFFFF, hue2 = #EFEFF2,
-                running = { app.launcher.calRunning },
-                onClick() { app.wm.dockOpen("calendar", () => app.launcher.openApp("calendar", "../../calendar/calendar", "Calendar", this, "base=../calendar/")) }
-                ],
-            jotIcon: DockIcon [ ix = 4, name = "Jots", kind = "jots", hue1 = #FCF4A7, hue2 = #F3E27E,
-                running = { app.launcher.jotRunning },
-                onClick() { app.wm.dockOpen("jots", () => app.launcher.newJot("", this)) }
-                ],
-
-            // "50 Birds" — a hosted app: apps/birds, the Audubon field guide,
-            // embedded in a desktop window exactly as Calendar and the Declare
-            // Viewer are. One name everywhere: the dock pill, the window
-            // title, and the application menu all read "50 Birds".
-
-            brdIcon: DockIcon [ ix = 5, name = "50 Birds", kind = "bird", hue1 = #66C95F, hue2 = #2C9243,
-                running = { app.launcher.brdRunning },
-                onClick() { app.wm.dockOpen("birds", () => app.launcher.openApp("birds", "../../birds/birds", "50 Birds", this, "base=../birds/")) }
-                ],
 
             // "Write" — an inert placeholder (a pencil): its click shows the
             // "Not implemented" alert, like Mail and the others below.
+
+            // ── the launchable applications: ONE icon, replicated over the
+            // launcher's records — face, wave slot, running dot, and the click
+            // all ride the row (:hue1, :ix, :running); the record key routes
+            // the launch. Five hand-written icons (and the five flag families
+            // that fed them) used to live here.
+
+            DockIcon [ datapath = :apps[], key = :id,
+                ix = { Number(:ix ?? 0) },
+                appId = { "" + (:id ?? "") },
+                name = { "" + (:label ?? "") },
+                glyph = { "" + (:glyph ?? "") },
+                gsize = { Number(:gsize ?? 0.42) },
+                kind = { "" + (:kind ?? "") },
+                hue1 = { :hue1 }, hue2 = { :hue2 },
+                running = { :running == true },
+                onClick() { app.wm.dockOpen("" + :id, () => app.launcher.launch("" + :id, this)) }
+                ],
 
             DockIcon [ ix = 6, name = "Write", kind = "pencil", hue1 = #F49B45, hue2 = #C96B1D,
                 onClick() { app.notImpl("No.", "Write", "pencil", "", 0.42, 0xF49B45, 0xC96B1D) }

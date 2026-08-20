@@ -13,7 +13,10 @@ export default async ({ drive, expect, page }) => {
       activeApp: m.activeApp,
       miniCount: m.miniCount,
       front: m.frontWin ? (m.frontWin.appTitle ?? m.frontWin.title) : null,
-      birdsRunning: (window.__app.launcher ?? window.__app).brdRunning,
+      birdsRunning: (() => {                            // flag era, then records era
+        const L = window.__app.launcher ?? window.__app;
+        return L.rec ? !!(L.rec("birds") ?? {}).running : !!L.brdRunning;
+      })(),
       windows: window.__app.wins.children.length,
     };
   });
