@@ -87,14 +87,17 @@ async function run(label, url, tenantOf) {
 await run("dom", `${B}/test/probe/bridge-host.declare`,
   `document.querySelector('[data-declare-slot^="run:"]')?.__childApp`);
 
-// The FOREIGN handle (DOM only — a raw-JS tenant speaking through the
-// sanctioned `el.__declareIsland`): discovery, a validated push that host
-// constraints re-derive from, and the verb into the island's onPost.
-await test("dom: a foreign tenant works the same bridge through __declareIsland", async () => {
+// The FOREIGN handle (BOTH backends — on the DOM the island IS an element;
+// on canvas it realizes as a positioned overlay over the sealed surface, the
+// editable field's own mechanism): discovery, a validated push that host
+// constraints re-derive from, and the verb into the island's onPost. A page
+// script finds the box the same way on either backend: by data-declare-slot.
+async function foreignRun(label, url) {
+  await test(`${label}: a foreign tenant works the same bridge through __declareIsland`, async () => {
   const page = await browser.newPage();
   const cdp = await page.createCDPSession();
   await cdp.send("Network.setBypassServiceWorker", { bypass: true });
-  await page.goto(`${B}/test/probe/bridge-host.declare`, { waitUntil: "networkidle0", timeout: 60000 });
+  await page.goto(url, { waitUntil: "networkidle0", timeout: 60000 });
   await page.waitForFunction(`document.querySelector('[data-declare-slot="note"]')?.__declareIsland != null`, { timeout: 30000 });
   const s = await page.evaluate(`(() => {
     const h = document.querySelector('[data-declare-slot="note"]').__declareIsland;
@@ -110,11 +113,17 @@ await test("dom: a foreign tenant works the same bridge through __declareIsland"
   assert.equal(after.out, "from raw JS", "host constraints re-derived from the foreign push");
   assert.ok(after.log.includes("note:hello;"), "the foreign post fired the island's onPost");
   await page.close();
-});
+  });
+}
+await foreignRun("dom", `${B}/test/probe/bridge-host.declare`);
 
-// CANVAS: no element — surface composition; the child rides the island view
+// CANVAS: the Declare tenant mounts with no element — surface composition;
+// the child rides the island view
 await run("canvas", `${B}/test/probe/bridge-host.declare?render=canvas`,
   `window.__declare?.find("app.player")?.__childApp`);
+// …while the FOREIGN island realizes as a positioned overlay, and the same
+// page-script contract holds
+await foreignRun("canvas", `${B}/test/probe/bridge-host.declare?render=canvas`);
 
 await browser.close();
 httpServer.close();

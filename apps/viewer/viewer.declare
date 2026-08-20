@@ -118,12 +118,18 @@ App [ fill = { app.theme.bg },
     liveCard: string = "",      // the edit tab republishes each keystroke on this pair …
     liveSource: string = "",    // … and the host recompiles it, feeding app.liveReport back
 
-    // auto follows the HOST's appearance: an embedding desktop passes its
-    // dark mode through env.dark (live — the calendar's rule); standalone,
-    // the system preference decides. Light/Dark stay explicit overrides.
+    // auto follows the HOST's appearance, three tiers: the island bridge's
+    // typed fact first (`external darkOverride` — "" = the host said nothing,
+    // which is what an unlinked standalone run reads), then the env ancestor
+    // (an older host passing env.dark), then the system preference.
+    // Light/Dark stay explicit overrides.
+
+    external darkOverride: string = "",
 
     isDark: boolean = { app.themeMode == "auto"
-        ? (app.env.dark != null ? app.env.dark == true : app.dark)
+        ? (app.darkOverride != ""
+            ? app.darkOverride == "dark"
+            : (app.env.dark != null ? app.env.dark == true : app.dark))
         : app.themeMode == "dark" },
 
     // The HOUSE preset, plus this app's two domain names — and no private values

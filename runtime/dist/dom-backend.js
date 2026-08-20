@@ -686,6 +686,10 @@ function observeVisibility(el, cb) {
 // (island sinks live in backend.ts now — one registry for EVERY backend; the
 // canvas islands have no element, so the DOM-only querySelectorAll replay and
 // the element-typed sink signature both retired with the move)
+/** island element → its view — backend-internal bookkeeping for the CLEAR
+ *  notification (the discovery events carry the view; the __declareView
+ *  expando retired with the scrub). */
+const ISLVIEW = new WeakMap();
 /** Materialize the inner clip container for a box-clipped element: adopt the
  *  ordinary children (in order), inherit the rounding, move the overflow. Used
  *  from BOTH sides of the arrival race — the parent's setBoxClip/insertChild
@@ -1615,8 +1619,8 @@ class DomSurface {
         const el = this.element;
         if (id === "") {
             delete this.element.dataset.declareSlot;
-            notifyIslandSlot({ view: el.__declareView, el: this.element, slot: "" });
-            delete el.__declareView;
+            notifyIslandSlot({ view: ISLVIEW.get(this.element), el: this.element, slot: "" });
+            ISLVIEW.delete(this.element);
             // Back to the painted-UI default: pointer-inert. (Selection needs no
             // reset — under the subtractive realization nothing was ever written
             // on this box, and an island's interior selects by platform default.)
@@ -1627,11 +1631,12 @@ class DomSurface {
             // the view back-reference the host's childName mirror writes onto, then
             // tell the registered host a slot exists here (mark or re-mark — the env
             // segment rides the slot string, so env changes arrive as re-marks)
-            el.__declareView = view;
+            ISLVIEW.set(this.element, view);
             // the FOREIGN tenant's sanctioned handle (islands design): everything a
             // non-Declare tenant may do — get/set/observe/post/onPost — hangs off
             // the island element, built by the Island view itself (duck-typed: no
-            // view.ts import from here)
+            // view.ts import from here). The view itself travels in the DISCOVERY
+            // EVENT — the __declareView expando retired with the scrub.
             const fh = view?.foreignHandle;
             if (typeof fh === "function")
                 el.__declareIsland = fh.call(view);

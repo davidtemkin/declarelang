@@ -378,7 +378,7 @@ export async function bootHost(cfg) {
   async function renderChild(box, compiled, name) {
     if (!compiled || !compiled.source) return;           // keep the last good render
     if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
-    for (const fn of box.__childUndo?.splice(0) ?? []) { try { fn(); } catch {} }
+    for (const fn of childUndoOf.get(box)?.splice(0) ?? []) { try { fn(); } catch {} }
     box.innerHTML = "";
     // The island is a viewport: a child that won't fit (a fixed-size app, or a
     // floored one holding its minWidth/minHeight) pans natively inside its box.
@@ -398,13 +398,13 @@ export async function bootHost(cfg) {
       box.__childApp = childApp;
       if (childApp) {
         childApp.demoSources = seeds;                     // populate a nested copy's own editors
-        const childUndo = (box.__childUndo = box.__childUndo ?? []);
+        const childUndo = childUndoOf.get(box) ?? childUndoOf.set(box, []).get(box);
         // THE ISLAND BRIDGE (islands design): pair the island's `external`
         // surface with the tenant's — the type handshake at link time, then
         // facts both ways per settle and post/onPost verbs. A link error
         // (type disagreement) leaves the tenant mounted but unbridged, said
         // loudly — a broken bridge must not take the render with it.
-        const islView = box.__declareView;
+        const islView = islandViewOf.get(box);
         if (islView && typeof islView.post === "function") {
           try { childUndo.push(linkIslandTenant(islView, childApp)); }
           catch (e) { console.error("[Declare] " + (name || "island") + ": " + e.message); }
@@ -416,7 +416,7 @@ export async function bootHost(cfg) {
         provideHostServices(childApp, navServices);
         //  • appName ↑ childName — the island's name mirror (was a 60Hz page
         //    scan in dom-backend; now one observe per mounted child).
-        const view = box.__declareView;
+        const view = islandViewOf.get(box);
         if (view) {
           const reflect = () => { const n = typeof childApp.appName === "string" ? childApp.appName : ""; if (view.childName !== n) view.childName = n; };
           reflect();
@@ -541,6 +541,13 @@ export async function bootHost(cfg) {
   // the mac backend's own pattern) and the page's paint and hit walks reach
   // it like any subtree. Then the same bridge as everywhere: link the
   // `external` surfaces, wire the verbs, hand the child the nav services.
+  // island element → its VIEW, fed by the discovery events below — the
+  // sanctioned successor to reading a backend-planted expando off the box
+  // (the scrub, islands design: the event carries the view; nothing needs
+  // the back-door)
+  const islandViewOf = new WeakMap();
+  // island box → the per-tenant undo pile (bridge unlink, name observe, …)
+  const childUndoOf = new WeakMap();
   const canvasWiring = new WeakSet();
   async function mountCanvasPreview(view, slotStr) {
     if (stopped || !slotStr.startsWith("run:")) return;
@@ -651,6 +658,7 @@ export async function bootHost(cfg) {
       // a DOM island: the box mounts content; containment keeps the scope the
       // old scan had (everything under THIS host, nested children included)
       if (!host.contains(ev.el)) return;
+      if (ev.view) islandViewOf.set(ev.el, ev.view);
       mountPreview(ev.el);
       watchLiveAll();
     } else if (ev.view && ev.view.root === app) {

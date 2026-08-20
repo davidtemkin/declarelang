@@ -1276,11 +1276,14 @@ class AppWindow extends Window [ width = 880, height = 560,
         program = { classroot.appPath },
 
         // The TYPED half of the dark channel (islands design): a tenant that
-        // declares `external darkMode: boolean` gets this as a checked fact,
-        // handshake and all. `env.dark` below stays — the untyped ancestor —
-        // so every existing tenant keeps working; new tenants should pair.
+        // declares `external darkOverride: string` gets this as a checked
+        // fact, handshake and all. TRI-STATE by sentinel — "dark" / "light",
+        // "" = the host has no opinion (an unlinked tenant's default, so its
+        // Auto mode falls through to its own app.dark). The desktop always
+        // has an opinion. `env.dark` below stays — the untyped ancestor — so
+        // every existing tenant keeps working; new tenants should pair.
 
-        external darkMode: boolean = { app.darkMode },
+        external darkOverride: string = { app.darkMode ? "dark" : "light" },
         env = { "dark=" + (app.darkMode ? "1" : "0")
             + (classroot.extraEnv != "" ? "&" + classroot.extraEnv : "") }
         ]

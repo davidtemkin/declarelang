@@ -719,6 +719,11 @@ function observeVisibility(el: Element, cb: VisibilityCb): () => void {
 // canvas islands have no element, so the DOM-only querySelectorAll replay and
 // the element-typed sink signature both retired with the move)
 
+/** island element → its view — backend-internal bookkeeping for the CLEAR
+ *  notification (the discovery events carry the view; the __declareView
+ *  expando retired with the scrub). */
+const ISLVIEW = new WeakMap<HTMLElement, unknown>();
+
 /** Materialize the inner clip container for a box-clipped element: adopt the
  *  ordinary children (in order), inherit the rounding, move the overflow. Used
  *  from BOTH sides of the arrival race — the parent's setBoxClip/insertChild
@@ -1604,11 +1609,11 @@ class DomSurface implements Surface {
     // content inside this Declare-sized element; the tenant fills the box (100%), so
     // Declare's width/height constraints drive its size with no coordinate sync.
     const s = this.element.style;
-    const el = this.element as HTMLElement & { __declareView?: unknown };
+    const el = this.element as HTMLElement & { __declareIsland?: unknown };
     if (id === "") {
       delete this.element.dataset.declareSlot;
-      notifyIslandSlot({ view: el.__declareView, el: this.element, slot: "" });
-      delete el.__declareView;
+      notifyIslandSlot({ view: ISLVIEW.get(this.element), el: this.element, slot: "" });
+      ISLVIEW.delete(this.element);
       // Back to the painted-UI default: pointer-inert. (Selection needs no
       // reset — under the subtractive realization nothing was ever written
       // on this box, and an island's interior selects by platform default.)
@@ -1618,13 +1623,14 @@ class DomSurface implements Surface {
       // the view back-reference the host's childName mirror writes onto, then
       // tell the registered host a slot exists here (mark or re-mark — the env
       // segment rides the slot string, so env changes arrive as re-marks)
-      el.__declareView = view;
+      ISLVIEW.set(this.element, view);
       // the FOREIGN tenant's sanctioned handle (islands design): everything a
       // non-Declare tenant may do — get/set/observe/post/onPost — hangs off
       // the island element, built by the Island view itself (duck-typed: no
-      // view.ts import from here)
+      // view.ts import from here). The view itself travels in the DISCOVERY
+      // EVENT — the __declareView expando retired with the scrub.
       const fh = (view as { foreignHandle?: () => unknown } | undefined)?.foreignHandle;
-      if (typeof fh === "function") (el as HTMLElement & { __declareIsland?: unknown }).__declareIsland = fh.call(view);
+      if (typeof fh === "function") el.__declareIsland = fh.call(view);
       notifyIslandSlot({ view, el: this.element, slot: id });
       // A live foreign surface, not painted UI: its interior owns hits, so an
       // iframe receives clicks whether or not the View has a sink. Selection

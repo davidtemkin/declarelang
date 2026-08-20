@@ -198,6 +198,12 @@ A mistyped foreign push is refused with the type named — the same trust-edge
 rule a DataSource applies to arriving bytes. (`env` and `childName`, the
 bridge's untyped ancestors, still work; new code should declare its surface.)
 
+Three handles are sanctioned, and only three: `el.__declareApp` (the app an
+embedding page booted into this element), `el.__declareIsland` (the foreign
+tenant's bridge, above), and `__childApp` on an island's element — or, on
+canvas, its view — (the Declare tenant an island mounted). Everything else a
+backend or host plants is internal and may vanish without notice.
+
 ## The same rule, three ways
 
 Each direction draws the border in the same place: **a box, owned by the

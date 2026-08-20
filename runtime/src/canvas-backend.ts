@@ -969,7 +969,7 @@ class CanvasSurface implements Surface {
       this.editEl?.remove();
       this.editEl = null;
       this.edit = null;
-      this.compositor.unregisterEditable(this);
+      this.maybeUnregisterOverlay();   // the embed overlay may still ride this surface
       return;
     }
     const host = this.compositor.hostElement();
@@ -1035,6 +1035,11 @@ class CanvasSurface implements Surface {
    *  attachRoot stores the host (so no element could be created then). */
   remountEditable(): void {
     if (this.edit !== null) this.setEditable(this.edit);
+    if (this.pendingEmbed !== null) {
+      const p = this.pendingEmbed;
+      this.pendingEmbed = null;
+      this.setEmbed(p.id, p.view);
+    }
   }
 
   /** Glue the overlay to the surface's on-screen box: accumulate x/y up the
@@ -1042,8 +1047,7 @@ class CanvasSurface implements Surface {
    *  in the paint transform, not here) and hide it if any ancestor is
    *  invisible. Called each paint by the compositor so it tracks motion. */
   reposition(): void {
-    const el = this.editEl;
-    if (el === null) return;
+    if (this.editEl === null && this.embedEl === null) return;
     let shown = true;
     // Accumulate this surface's absolute position AND clip the overlay to every
     // clipping ancestor — the native twin of the DOM backend, where the field is
@@ -1081,28 +1085,35 @@ class CanvasSurface implements Surface {
       const p: CanvasSurface | null = s.parent;
       if (p !== null && p.scrolls && !s.ignoresScroll) ay -= p.scrollOffset;
     }
-    const st = el.style;
-    st.left = ax + "px";
-    st.top = ay + "px";
-    st.width = this.width + "px";
-    st.height = this.height + "px";
-    // Visible slice = the overlay box ∩ the accumulated clip; empty ⇒ fully
-    // clipped away (hide it, like the DOM field vanishing behind clip-path).
-    if (clipped) {
-      const visL = Math.max(0, clipL);
-      const visT = Math.max(0, clipT);
-      const visR = Math.min(this.width, clipR);
-      const visB = Math.min(this.height, clipB);
-      if (visR <= visL || visB <= visT) {
-        shown = false;
-        st.clipPath = "";
+    // one geometry, applied to every overlay this surface carries — the
+    // editable field and/or a foreign island's box (both are host-level
+    // siblings the compositor's own clip never touches)
+    for (const el of [this.editEl, this.embedEl]) {
+      if (el === null) continue;
+      const st = el.style;
+      st.left = ax + "px";
+      st.top = ay + "px";
+      st.width = this.width + "px";
+      st.height = this.height + "px";
+      // Visible slice = the overlay box ∩ the accumulated clip; empty ⇒ fully
+      // clipped away (hide it, like the DOM field vanishing behind clip-path).
+      let elShown = shown;
+      if (clipped) {
+        const visL = Math.max(0, clipL);
+        const visT = Math.max(0, clipT);
+        const visR = Math.min(this.width, clipR);
+        const visB = Math.min(this.height, clipB);
+        if (visR <= visL || visB <= visT) {
+          elShown = false;
+          st.clipPath = "";
+        } else {
+          st.clipPath = `inset(${visT}px ${this.width - visR}px ${this.height - visB}px ${visL}px)`;
+        }
       } else {
-        st.clipPath = `inset(${visT}px ${this.width - visR}px ${this.height - visB}px ${visL}px)`;
+        st.clipPath = "";
       }
-    } else {
-      st.clipPath = "";
+      st.display = elShown ? "" : "none";
     }
-    st.display = shown ? "" : "none";
   }
 
   /** Hit-test (px,py) — given in the PARENT's space, mirroring paint's
@@ -1279,15 +1290,57 @@ class CanvasSurface implements Surface {
     }
   }
 
-  // Canvas islands have no element to mark — a DOMIsland's FOREIGN content
-  // cannot live inside the sealed surface (the positioned-overlay realization
-  // remains the recorded follow-on) — but an APPISLAND needs none: its tenant
-  // is a Declare program, and it mounts by SURFACE COMPOSITION (the mac
-  // backend's own pattern — boot.ts mountEmbeddedApp inserts the child app's
-  // root surface right here, and the paint and hit walks reach it like
-  // anything else). The notification is the host's cue to do exactly that.
+  /** Two island realizations, split by the slot's PROTOCOL:
+   *
+   *   `run:` — an APPISLAND: the tenant is a Declare program, so it needs no
+   *   element at all — it mounts by SURFACE COMPOSITION (the mac backend's
+   *   own pattern; boot.ts mountEmbeddedApp inserts the child's root surface
+   *   right here, and the paint and hit walks reach it like anything else).
+   *
+   *   anything else — FOREIGN content: it cannot live inside the sealed
+   *   surface, so the island realizes as a positioned DOM OVERLAY over the
+   *   canvas — the editable field's own mechanism, shared: same host, same
+   *   per-paint reposition, same ancestor clipping. The overlay carries the
+   *   `data-declare-slot` attribute and the `__declareIsland` handle, so a
+   *   page script finds and speaks to it exactly as on the DOM backend. */
   setEmbed(id: string, view?: unknown): void {
-    notifyIslandSlot({ view, el: null, slot: id });
+    if (id === "" || id.startsWith("run:")) {
+      if (this.embedEl !== null) { this.embedEl.remove(); this.embedEl = null; this.maybeUnregisterOverlay(); }
+      this.pendingEmbed = null;
+      notifyIslandSlot({ view, el: null, slot: id });
+      return;
+    }
+    const host = this.compositor.hostElement();
+    if (host === null) {
+      // pre-attach (the attach walk marks slots before the host exists) —
+      // remountEditable() replays this once the compositor has its element
+      this.pendingEmbed = { id, view };
+      this.compositor.registerEditable(this);
+      return;
+    }
+    let el = this.embedEl;
+    if (el === null) {
+      el = document.createElement("div");
+      const st = el.style;
+      st.position = "absolute";
+      st.margin = "0";
+      st.overflow = "hidden";
+      host.appendChild(el);
+      this.embedEl = el;
+      this.compositor.registerEditable(this);
+    }
+    el.dataset.declareSlot = id;
+    const box = el as HTMLElement & { __declareIsland?: unknown };
+    const fh = (view as { foreignHandle?: () => unknown } | undefined)?.foreignHandle;
+    if (typeof fh === "function") box.__declareIsland = fh.call(view);
+    this.reposition();
+    notifyIslandSlot({ view, el, slot: id });
+  }
+  private embedEl: HTMLElement | null = null;
+  private pendingEmbed: { id: string; view: unknown } | null = null;
+  private maybeUnregisterOverlay(): void {
+    if (this.editEl === null && this.edit === null && this.embedEl === null && this.pendingEmbed === null)
+      this.compositor.unregisterEditable(this);
   }
 
   /** Route a wheel delta to the innermost scrolling surface under (px,py) in
@@ -1367,6 +1420,9 @@ class CanvasSurface implements Surface {
   destroy(): void {
     this.editEl?.remove();
     this.editEl = null;
+    this.embedEl?.remove();
+    this.embedEl = null;
+    this.pendingEmbed = null;
     this.compositor.unregisterEditable(this);
     if (this.parent !== null) {
       if (this.blends > 0) CanvasSurface.addBlends(this.parent, -this.blends);
