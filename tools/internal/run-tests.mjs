@@ -56,6 +56,7 @@ const SUITE = [
   "test/gesture.test.mjs",
   "test/history.test.mjs",
   "test/embed.test.mjs",
+  "test/dep-typed.test.mjs",
   "test/vis-camera.test.mjs",
   "test/reader-flow.test.mjs",
   "test/island.test.mjs",

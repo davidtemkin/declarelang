@@ -574,6 +574,24 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
 
 let USER_METHODS = new Map<string, { params: string[]; body: string; returns?: string }>();
 
+// ── TYPED method residence (the `open` collision, 2026-08-20) ───────────────
+// USER_METHODS above is name-keyed, which serves ONE purpose soundly: "is this
+// name a method somewhere in the program" (the call-site classification gate).
+// It cannot say WHOSE method a call reaches — and a Map keyed by name silently
+// let the last same-named definition win, so declaring a node verb `open`
+// re-aimed every `.open()` call in the compile (the combobox's own included)
+// at the new body, surfacing as phantom residue errors positioned inside
+// library source. The maps below carry the residence the flat map lost:
+// methods per ELEMENT, classes by name with their base chain, so the summary
+// walk (follow1) can resolve a call by (receiver's class, name) — and only
+// fall back to the all-candidates union when the receiver is genuinely
+// unknowable (still sound: a union over-approximates, it never misses).
+type MethodEntry = { params: string[]; body: string; returns?: string };
+let METHODS_OF = new Map<unknown, Map<string, MethodEntry>>();   // element → its declared methods
+let METHOD_EL_ID = new Map<unknown, number>();                   // element → stable summary-key id
+let CLASS_EL = new Map<string, unknown>();                       // class name → its body element
+let CLASS_BASE = new Map<string, string>();                      // class name → base class name
+
 // The program's `script { }` module scope, split by what the extractor can do
 // with each name: FUNCTIONS are followed (phase 4 — the fourth analyzable callee
 // kind), CLASSES and MUTABLE bindings are refused where a constraint reaches them.
@@ -604,6 +622,54 @@ let PROGRAM_ROOT: unknown = null;
 /** The element a receiver path names, when that is statically knowable.
  *  `undefined` = not knowable (a `parent` inside a class body is the USE site,
  *  which varies per instantiation), and the caller must stay conservative. */
+/** One member step in a receiver path: a NAMED child instance, or a declared
+ *  slot whose TYPE names a program class (`frontWin: Window` — the instance
+ *  lives elsewhere, but the type says whose methods apply). */
+function memberElementOf(el: unknown, seg: string): unknown | undefined {
+  if (el === null || typeof el !== "object") return undefined;
+  const e = el as { children?: { name?: string }[]; decls?: { name: string; type: string }[] };
+  for (const c of e.children ?? []) if (c.name === seg) return c;
+  for (const d of e.decls ?? []) if (d.name === seg && CLASS_EL.has(d.type)) return CLASS_EL.get(d.type);
+  return undefined;
+}
+
+/** Resolve a full receiver PATH (`this.root.launcher`, `classroot.spring`) to
+ *  the element it addresses, walking named members and class-typed decls.
+ *  `undefined` = not statically knowable (an indexed step, a parameter, a
+ *  `parent` inside a class body) — the caller stays conservative. */
+function receiverElementDeep(receiver: string, owner: unknown, classRoot: unknown): unknown | undefined {
+  const p = receiver.replace(/(\.root)+/g, ".root");
+  if (/[[()]/.test(p)) return undefined;                   // indexed / call steps: not a static path
+  const segs = p.split(".");
+  let base: unknown | undefined;
+  let i: number;
+  if (segs[0] === "this" && segs[1] === "root") { base = PROGRAM_ROOT; i = 2; }
+  else if (segs[0] === "this") { base = owner; i = 1; }
+  else if (segs[0] === "classroot") { base = classRoot ?? undefined; i = 1; }
+  else if (segs[0] === "parent" && classRoot == null) { base = PARENT_OF.get(owner); i = 1; }
+  else return undefined;
+  for (; base !== undefined && i < segs.length; i++) base = memberElementOf(base, segs[i]);
+  return base;
+}
+
+/** WHOSE method a resolved receiver's `.name()` reaches: the element's own
+ *  declaration first (instance methods), then up its class chain (`tag` →
+ *  class body → base …). `undefined` = the element is knowable but carries no
+ *  such method anywhere — a name that collides with a different family
+ *  (an Animator's `start`, a library class's verb) and is NOT this call. */
+function methodHome(el: unknown, name: string): unknown | undefined {
+  if (METHODS_OF.get(el)?.has(name)) return el;
+  let tag = (el as { tag?: string } | null)?.tag;
+  const seen = new Set<string>();
+  while (tag !== undefined && !seen.has(tag)) {
+    seen.add(tag);
+    const ce = CLASS_EL.get(tag);
+    if (ce !== undefined && METHODS_OF.get(ce)?.has(name)) return ce;
+    tag = CLASS_BASE.get(tag);
+  }
+  return undefined;
+}
+
 function receiverElement(receiver: string, owner: unknown, classRoot: unknown): unknown | undefined {
   const p = receiver.replace(/(\.root)+/g, ".root");
   if (p === "this") return owner;
@@ -788,10 +854,16 @@ function mayCarryCells(returns: string | undefined): boolean {
   return /^[A-Z]/.test(t);
 }
 
+/** The resolution context a follow runs under: the CONSTRAINT's owner element
+ *  and class root, which is what lets a receiver path resolve to an element
+ *  (typed method residence). Null = no context — resolution falls back to the
+ *  all-candidates union. */
+type FollowCtx = { owner: unknown; classRoot: unknown } | null;
+
 interface Summaries {
   own: Map<string, Summary>;
-  trans: (name: string, receiver: string) => { reads: Set<string>; errors: DepError[] };
-  follow: (c: Call) => { reads: Set<string>; errors: DepError[] };
+  trans: (name: string, receiver: string, ctx?: FollowCtx) => { reads: Set<string>; errors: DepError[] };
+  follow: (c: Call, ctx?: FollowCtx) => { reads: Set<string>; errors: DepError[] };
 }
 
 const NO_RET: ReturnShape = { paths: [], viaParam: [], opaque: false };
@@ -839,6 +911,29 @@ function buildMethodSummaries(): Summaries {
     own.set(name, { ...d, params, returned: new Set<string>(),
                     ret: returnedPaths(sf, locals, params), returns: USER_METHODS.get(name)?.returns });
   }
+  // The TYPED residences (the `open` collision): the same summaries, keyed by
+  // (declaring element, name) instead of name alone, so follow1 can hand a
+  // call the body its receiver actually reaches. The name-keyed map above
+  // stays for what it is still right about — the classification gate, the
+  // computed-defaults merge, and the last-resort fallback.
+  const ownEl = new Map<string, Summary>();
+  const candidatesByName = new Map<string, string[]>();
+  for (const [el, mm] of METHODS_OF) {
+    for (const [name, { params, body, returns }] of mm) {
+      const key = METHOD_EL_ID.get(el) + ":" + name;
+      const sf = parseBody(body, false);
+      if (!sf) { ownEl.set(key, { reads: new Set(), calls: [], errors: [], ...NO_PARAMS, ret: NO_RET }); }
+      else {
+        const locals = collectLocals(sf, params);
+        const roots = new Set<string>(params);
+        for (const par of roots) locals.delete(par);
+        const d = extractBody(sf, locals, undefined, roots);
+        ownEl.set(key, { ...d, params, returned: new Set<string>(), ret: returnedPaths(sf, locals, params), returns });
+      }
+      const list = candidatesByName.get(name);
+      if (list) list.push(key); else candidatesByName.set(name, [key]);
+    }
+  }
   // Computed `{ }` defaults join the same callable graph — a default's body is an
   // EXPRESSION (parseBody expr-mode), and same-named defaults union into one summary.
   for (const [name, bodies] of COMPUTED_DEFAULTS) {
@@ -884,7 +979,7 @@ function buildMethodSummaries(): Summaries {
 
   /** Close over one summary in a caller's frame: rebase its reads, then follow
    *  its own callees with their receivers and arguments rebased too. */
-  const close = (o: Summary, frame: Frame, stack: Set<string>): { reads: Set<string>; errors: DepError[] } => {
+  const close = (o: Summary, frame: Frame, stack: Set<string>, ctx: FollowCtx): { reads: Set<string>; errors: DepError[] } => {
     const reads = new Set<string>();
     const errors = [...o.errors];
     for (const r of o.reads) {
@@ -901,13 +996,13 @@ function buildMethodSummaries(): Summaries {
     };
     for (const c of o.calls) {
       let sub: { reads: Set<string>; errors: DepError[] };
-      if (c.kind === "scriptValue") sub = follow1(c, stack);
+      if (c.kind === "scriptValue") sub = follow1(c, stack, ctx);
       else if (c.kind === "method") {
         const m = rebaseIn(c.receiver, frame);
         if (!m.ok) { errors.push(m.error); continue; }
-        sub = follow1({ ...c, receiver: m.path, args: c.args.map(out) }, stack);
+        sub = follow1({ ...c, receiver: m.path, args: c.args.map(out) }, stack, ctx);
       } else {
-        sub = follow1({ ...c, args: c.args.map(out) }, stack);
+        sub = follow1({ ...c, args: c.args.map(out) }, stack, ctx);
       }
       for (const r of sub.reads) reads.add(r);
       for (const e of sub.errors) errors.push(e);
@@ -928,11 +1023,55 @@ function buildMethodSummaries(): Summaries {
    *  gate was actually protecting against. */
   const projectionGate = (_o: Summary, _c: Call): DepError[] => [];
 
-  const follow1 = (c: Call, stack: Set<string>): { reads: Set<string>; errors: DepError[] } => {
+  const follow1 = (c: Call, stack: Set<string>, ctx: FollowCtx): { reads: Set<string>; errors: DepError[] } => {
     const script = c.kind !== "method";
-    const o = script ? scriptOwn.get(c.name) : own.get(c.name);
+    let o: Summary | undefined;
+    let tag: string;
+    if (script) { o = scriptOwn.get(c.name); tag = "s:" + c.name; }
+    else if (COMPUTED_DEFAULTS.has(c.name)) {
+      // a computed-default read (or a name that doubles as one): the name-level
+      // merged summary, exactly as before typed residences existed
+      o = own.get(c.name); tag = "m:" + c.name;
+    } else {
+      // TYPED RESIDENCE (the `open` collision): resolve the receiver to an
+      // element and ask WHOSE method this call reaches. Three outcomes:
+      //   hit  — that summary alone (a combobox's `this.open()` never again
+      //          follows an unrelated node verb of the same name);
+      //   miss — the receiver is knowable and carries NO such method up its
+      //          chain: a same-named call in a different family (a builtin's
+      //          verb, a cast receiver) — not ours, contribute nothing;
+      //   unknown — receiver not statically knowable: follow EVERY candidate
+      //          and union (sound over-approximation; replaces the silent
+      //          last-definition-wins the name-keyed map used to produce).
+      const cands = candidatesByName.get(c.name) ?? [];
+      let homeKey: string | undefined;
+      if (ctx !== null && cands.length > 0) {
+        const el = receiverElementDeep(c.receiver, ctx.owner, ctx.classRoot);
+        if (el !== undefined) {
+          const home = methodHome(el, c.name);
+          if (home === undefined) return { reads: new Set(), errors: [] };
+          homeKey = METHOD_EL_ID.get(home) + ":" + c.name;
+        }
+      }
+      if (homeKey !== undefined) { o = ownEl.get(homeKey); tag = homeKey; }
+      else if (cands.length > 1) {
+        const reads = new Set<string>();
+        const errors: DepError[] = [];
+        for (const k of cands) {
+          const sub = followSummary(ownEl.get(k)!, k, c, stack, ctx);
+          for (const r of sub.reads) reads.add(r);
+          errors.push(...sub.errors);
+        }
+        return { reads, errors };
+      }
+      else if (cands.length === 1) { o = ownEl.get(cands[0]); tag = cands[0]; }
+      else { o = own.get(c.name); tag = "m:" + c.name; }
+    }
     if (o === undefined) return { reads: new Set(), errors: [] };
-    const tag = (script ? "s:" : "m:") + c.name;
+    return followSummary(o, tag, c, stack, ctx);
+  };
+
+  const followSummary = (o: Summary, tag: string, c: Call, stack: Set<string>, ctx: FollowCtx): { reads: Set<string>; errors: DepError[] } => {
     if (stack.has(tag)) return { reads: new Set(), errors: [] };
     if (o.params === null) {
       return { reads: new Set(), errors: [new DepError(`script function ${c.name}() destructures a parameter — a read through it roots at a name the call site never wrote, so it can't be wired; take the value as a plain parameter and read through it (${c.name}(item) … item.title)`)] };
@@ -1006,17 +1145,17 @@ function buildMethodSummaries(): Summaries {
     const map = new Map<string, string | null>();
     o.params.forEach((p, i) => map.set(p, args === null ? null : (args[i] ?? null)));
     stack.add(tag);
-    const res = close(o, { who: c.name, receiver, map, asValue, lenient: c.kind === "method" }, stack);
+    const res = close(o, { who: c.name, receiver, map, asValue, lenient: c.kind === "method" }, stack, ctx);
     stack.delete(tag);
     memo.set(key, res);   // memo holds the UNPROJECTED reads: the tail varies per call site
     const out = withProjection(res);
     return { reads: out.reads, errors: [...res.errors, ...projectionGate(o, c), ...projectionErrors] };
   };
 
-  const trans = (name: string, receiver: string): { reads: Set<string>; errors: DepError[] } =>
-    follow1({ kind: "method", name, receiver, args: [], projected: false, tail: null }, new Set());
+  const trans = (name: string, receiver: string, ctx: FollowCtx = null): { reads: Set<string>; errors: DepError[] } =>
+    follow1({ kind: "method", name, receiver, args: [], projected: false, tail: null }, new Set(), ctx);
 
-  const follow = (c: Call): { reads: Set<string>; errors: DepError[] } => follow1(c, new Set());
+  const follow = (c: Call, ctx: FollowCtx = null): { reads: Set<string>; errors: DepError[] } => follow1(c, new Set(), ctx);
 
   return { own, trans, follow };
 }
@@ -1034,6 +1173,10 @@ export interface ExtractedConstraint {
 /** Extract deps for every constraint in a RESOLVED program. */
 export function extractProgram(program: Program): ExtractedConstraint[] {
   USER_METHODS = new Map();
+  METHODS_OF = new Map();
+  METHOD_EL_ID = new Map();
+  CLASS_EL = new Map();
+  CLASS_BASE = new Map();
   COMPUTED_DEFAULTS = new Map();
   DEFAULT_OWNERS = new Map();
   PARENT_OF = new Map();
@@ -1043,6 +1186,12 @@ export function extractProgram(program: Program): ExtractedConstraint[] {
   const constraints: Owned[] = [];
   const collect = (el: Element, classRoot: unknown): void => {
     for (const m of el.methods as Method[]) USER_METHODS.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns });
+    if ((el.methods as Method[]).length > 0) {
+      const mm = new Map<string, MethodEntry>();
+      for (const m of el.methods as Method[]) mm.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns });
+      METHODS_OF.set(el, mm);
+      METHOD_EL_ID.set(el, METHOD_EL_ID.size);
+    }
     for (const a of el.attrs as Attr[]) { const v = asCode(a.value); if (v) constraints.push({ tag: el.tag, name: el.name ?? null, attr: a.name, src: v.src, offset: v.pos?.offset ?? 0, node: v, owner: el, classRoot }); }
     for (const d of el.decls as AttrDecl[]) {
       const v = asCode(d.def);
@@ -1062,6 +1211,7 @@ export function extractProgram(program: Program): ExtractedConstraint[] {
   };
   collect(program.root, null);
   for (const c of program.classes) collect(c.body, c.body);
+  for (const c of program.classes) { CLASS_EL.set(c.name, c.body); CLASS_BASE.set(c.name, c.base); }
 
   const { follow } = buildMethodSummaries();
   const out: ExtractedConstraint[] = [];
@@ -1079,7 +1229,7 @@ export function extractProgram(program: Program): ExtractedConstraint[] {
     const r = extractBody(sf, collectLocals(sf, []), inlinable);
     const reads = new Set<string>(r.reads);
     const errors = [...r.errors];
-    for (const call of r.calls) { const sub = follow(call); for (const rd of sub.reads) reads.add(rd); for (const e of sub.errors) errors.push(e); }
+    for (const call of r.calls) { const sub = follow(call, { owner: c.owner, classRoot: c.classRoot }); for (const rd of sub.reads) reads.add(rd); for (const e of sub.errors) errors.push(e); }
     const canon = new Set<string>();
     for (let rd of reads) { rd = rd.replace(/(\.root)+/g, ".root"); if (!/^(this|parent|classroot)(\.root)?$/.test(rd)) canon.add(rd); }
     // SELF-DEPENDENCE — a constraint that reads the slot it defines is a cycle

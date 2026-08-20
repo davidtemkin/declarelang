@@ -641,6 +641,10 @@ function extractBody(sf, locals, inlinable, extraRoots) {
     return { reads, calls, errors };
 }
 let USER_METHODS = new Map();
+let METHODS_OF = new Map(); // element → its declared methods
+let METHOD_EL_ID = new Map(); // element → stable summary-key id
+let CLASS_EL = new Map(); // class name → its body element
+let CLASS_BASE = new Map(); // class name → base class name
 // The program's `script { }` module scope, split by what the extractor can do
 // with each name: FUNCTIONS are followed (phase 4 — the fourth analyzable callee
 // kind), CLASSES and MUTABLE bindings are refused where a constraint reaches them.
@@ -668,6 +672,73 @@ let PROGRAM_ROOT = null;
 /** The element a receiver path names, when that is statically knowable.
  *  `undefined` = not knowable (a `parent` inside a class body is the USE site,
  *  which varies per instantiation), and the caller must stay conservative. */
+/** One member step in a receiver path: a NAMED child instance, or a declared
+ *  slot whose TYPE names a program class (`frontWin: Window` — the instance
+ *  lives elsewhere, but the type says whose methods apply). */
+function memberElementOf(el, seg) {
+    if (el === null || typeof el !== "object")
+        return undefined;
+    const e = el;
+    for (const c of e.children ?? [])
+        if (c.name === seg)
+            return c;
+    for (const d of e.decls ?? [])
+        if (d.name === seg && CLASS_EL.has(d.type))
+            return CLASS_EL.get(d.type);
+    return undefined;
+}
+/** Resolve a full receiver PATH (`this.root.launcher`, `classroot.spring`) to
+ *  the element it addresses, walking named members and class-typed decls.
+ *  `undefined` = not statically knowable (an indexed step, a parameter, a
+ *  `parent` inside a class body) — the caller stays conservative. */
+function receiverElementDeep(receiver, owner, classRoot) {
+    const p = receiver.replace(/(\.root)+/g, ".root");
+    if (/[[()]/.test(p))
+        return undefined; // indexed / call steps: not a static path
+    const segs = p.split(".");
+    let base;
+    let i;
+    if (segs[0] === "this" && segs[1] === "root") {
+        base = PROGRAM_ROOT;
+        i = 2;
+    }
+    else if (segs[0] === "this") {
+        base = owner;
+        i = 1;
+    }
+    else if (segs[0] === "classroot") {
+        base = classRoot ?? undefined;
+        i = 1;
+    }
+    else if (segs[0] === "parent" && classRoot == null) {
+        base = PARENT_OF.get(owner);
+        i = 1;
+    }
+    else
+        return undefined;
+    for (; base !== undefined && i < segs.length; i++)
+        base = memberElementOf(base, segs[i]);
+    return base;
+}
+/** WHOSE method a resolved receiver's `.name()` reaches: the element's own
+ *  declaration first (instance methods), then up its class chain (`tag` →
+ *  class body → base …). `undefined` = the element is knowable but carries no
+ *  such method anywhere — a name that collides with a different family
+ *  (an Animator's `start`, a library class's verb) and is NOT this call. */
+function methodHome(el, name) {
+    if (METHODS_OF.get(el)?.has(name))
+        return el;
+    let tag = el?.tag;
+    const seen = new Set();
+    while (tag !== undefined && !seen.has(tag)) {
+        seen.add(tag);
+        const ce = CLASS_EL.get(tag);
+        if (ce !== undefined && METHODS_OF.get(ce)?.has(name))
+            return ce;
+        tag = CLASS_BASE.get(tag);
+    }
+    return undefined;
+}
 function receiverElement(receiver, owner, classRoot) {
     const p = receiver.replace(/(\.root)+/g, ".root");
     if (p === "this")
@@ -889,6 +960,35 @@ function buildMethodSummaries() {
         own.set(name, { ...d, params, returned: new Set(),
             ret: returnedPaths(sf, locals, params), returns: USER_METHODS.get(name)?.returns });
     }
+    // The TYPED residences (the `open` collision): the same summaries, keyed by
+    // (declaring element, name) instead of name alone, so follow1 can hand a
+    // call the body its receiver actually reaches. The name-keyed map above
+    // stays for what it is still right about — the classification gate, the
+    // computed-defaults merge, and the last-resort fallback.
+    const ownEl = new Map();
+    const candidatesByName = new Map();
+    for (const [el, mm] of METHODS_OF) {
+        for (const [name, { params, body, returns }] of mm) {
+            const key = METHOD_EL_ID.get(el) + ":" + name;
+            const sf = parseBody(body, false);
+            if (!sf) {
+                ownEl.set(key, { reads: new Set(), calls: [], errors: [], ...NO_PARAMS, ret: NO_RET });
+            }
+            else {
+                const locals = collectLocals(sf, params);
+                const roots = new Set(params);
+                for (const par of roots)
+                    locals.delete(par);
+                const d = extractBody(sf, locals, undefined, roots);
+                ownEl.set(key, { ...d, params, returned: new Set(), ret: returnedPaths(sf, locals, params), returns });
+            }
+            const list = candidatesByName.get(name);
+            if (list)
+                list.push(key);
+            else
+                candidatesByName.set(name, [key]);
+        }
+    }
     // Computed `{ }` defaults join the same callable graph — a default's body is an
     // EXPRESSION (parseBody expr-mode), and same-named defaults union into one summary.
     for (const [name, bodies] of COMPUTED_DEFAULTS) {
@@ -940,7 +1040,7 @@ function buildMethodSummaries() {
     const memo = new Map();
     /** Close over one summary in a caller's frame: rebase its reads, then follow
      *  its own callees with their receivers and arguments rebased too. */
-    const close = (o, frame, stack) => {
+    const close = (o, frame, stack, ctx) => {
         const reads = new Set();
         const errors = [...o.errors];
         for (const r of o.reads) {
@@ -961,17 +1061,17 @@ function buildMethodSummaries() {
         for (const c of o.calls) {
             let sub;
             if (c.kind === "scriptValue")
-                sub = follow1(c, stack);
+                sub = follow1(c, stack, ctx);
             else if (c.kind === "method") {
                 const m = rebaseIn(c.receiver, frame);
                 if (!m.ok) {
                     errors.push(m.error);
                     continue;
                 }
-                sub = follow1({ ...c, receiver: m.path, args: c.args.map(out) }, stack);
+                sub = follow1({ ...c, receiver: m.path, args: c.args.map(out) }, stack, ctx);
             }
             else {
-                sub = follow1({ ...c, args: c.args.map(out) }, stack);
+                sub = follow1({ ...c, args: c.args.map(out) }, stack, ctx);
             }
             for (const r of sub.reads)
                 reads.add(r);
@@ -992,12 +1092,71 @@ function buildMethodSummaries() {
      *  refuses only an argument that is not a nameable path, which is the case this
      *  gate was actually protecting against. */
     const projectionGate = (_o, _c) => [];
-    const follow1 = (c, stack) => {
+    const follow1 = (c, stack, ctx) => {
         const script = c.kind !== "method";
-        const o = script ? scriptOwn.get(c.name) : own.get(c.name);
+        let o;
+        let tag;
+        if (script) {
+            o = scriptOwn.get(c.name);
+            tag = "s:" + c.name;
+        }
+        else if (COMPUTED_DEFAULTS.has(c.name)) {
+            // a computed-default read (or a name that doubles as one): the name-level
+            // merged summary, exactly as before typed residences existed
+            o = own.get(c.name);
+            tag = "m:" + c.name;
+        }
+        else {
+            // TYPED RESIDENCE (the `open` collision): resolve the receiver to an
+            // element and ask WHOSE method this call reaches. Three outcomes:
+            //   hit  — that summary alone (a combobox's `this.open()` never again
+            //          follows an unrelated node verb of the same name);
+            //   miss — the receiver is knowable and carries NO such method up its
+            //          chain: a same-named call in a different family (a builtin's
+            //          verb, a cast receiver) — not ours, contribute nothing;
+            //   unknown — receiver not statically knowable: follow EVERY candidate
+            //          and union (sound over-approximation; replaces the silent
+            //          last-definition-wins the name-keyed map used to produce).
+            const cands = candidatesByName.get(c.name) ?? [];
+            let homeKey;
+            if (ctx !== null && cands.length > 0) {
+                const el = receiverElementDeep(c.receiver, ctx.owner, ctx.classRoot);
+                if (el !== undefined) {
+                    const home = methodHome(el, c.name);
+                    if (home === undefined)
+                        return { reads: new Set(), errors: [] };
+                    homeKey = METHOD_EL_ID.get(home) + ":" + c.name;
+                }
+            }
+            if (homeKey !== undefined) {
+                o = ownEl.get(homeKey);
+                tag = homeKey;
+            }
+            else if (cands.length > 1) {
+                const reads = new Set();
+                const errors = [];
+                for (const k of cands) {
+                    const sub = followSummary(ownEl.get(k), k, c, stack, ctx);
+                    for (const r of sub.reads)
+                        reads.add(r);
+                    errors.push(...sub.errors);
+                }
+                return { reads, errors };
+            }
+            else if (cands.length === 1) {
+                o = ownEl.get(cands[0]);
+                tag = cands[0];
+            }
+            else {
+                o = own.get(c.name);
+                tag = "m:" + c.name;
+            }
+        }
         if (o === undefined)
             return { reads: new Set(), errors: [] };
-        const tag = (script ? "s:" : "m:") + c.name;
+        return followSummary(o, tag, c, stack, ctx);
+    };
+    const followSummary = (o, tag, c, stack, ctx) => {
         if (stack.has(tag))
             return { reads: new Set(), errors: [] };
         if (o.params === null) {
@@ -1075,19 +1234,23 @@ function buildMethodSummaries() {
         const map = new Map();
         o.params.forEach((p, i) => map.set(p, args === null ? null : (args[i] ?? null)));
         stack.add(tag);
-        const res = close(o, { who: c.name, receiver, map, asValue, lenient: c.kind === "method" }, stack);
+        const res = close(o, { who: c.name, receiver, map, asValue, lenient: c.kind === "method" }, stack, ctx);
         stack.delete(tag);
         memo.set(key, res); // memo holds the UNPROJECTED reads: the tail varies per call site
         const out = withProjection(res);
         return { reads: out.reads, errors: [...res.errors, ...projectionGate(o, c), ...projectionErrors] };
     };
-    const trans = (name, receiver) => follow1({ kind: "method", name, receiver, args: [], projected: false, tail: null }, new Set());
-    const follow = (c) => follow1(c, new Set());
+    const trans = (name, receiver, ctx = null) => follow1({ kind: "method", name, receiver, args: [], projected: false, tail: null }, new Set(), ctx);
+    const follow = (c, ctx = null) => follow1(c, new Set(), ctx);
     return { own, trans, follow };
 }
 /** Extract deps for every constraint in a RESOLVED program. */
 export function extractProgram(program) {
     USER_METHODS = new Map();
+    METHODS_OF = new Map();
+    METHOD_EL_ID = new Map();
+    CLASS_EL = new Map();
+    CLASS_BASE = new Map();
     COMPUTED_DEFAULTS = new Map();
     DEFAULT_OWNERS = new Map();
     PARENT_OF = new Map();
@@ -1097,6 +1260,13 @@ export function extractProgram(program) {
     const collect = (el, classRoot) => {
         for (const m of el.methods)
             USER_METHODS.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns });
+        if (el.methods.length > 0) {
+            const mm = new Map();
+            for (const m of el.methods)
+                mm.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns });
+            METHODS_OF.set(el, mm);
+            METHOD_EL_ID.set(el, METHOD_EL_ID.size);
+        }
         for (const a of el.attrs) {
             const v = asCode(a.value);
             if (v)
@@ -1130,6 +1300,10 @@ export function extractProgram(program) {
     collect(program.root, null);
     for (const c of program.classes)
         collect(c.body, c.body);
+    for (const c of program.classes) {
+        CLASS_EL.set(c.name, c.body);
+        CLASS_BASE.set(c.name, c.base);
+    }
     const { follow } = buildMethodSummaries();
     const out = [];
     for (const c of constraints) {
@@ -1151,7 +1325,7 @@ export function extractProgram(program) {
         const reads = new Set(r.reads);
         const errors = [...r.errors];
         for (const call of r.calls) {
-            const sub = follow(call);
+            const sub = follow(call, { owner: c.owner, classRoot: c.classRoot });
             for (const rd of sub.reads)
                 reads.add(rd);
             for (const e of sub.errors)
