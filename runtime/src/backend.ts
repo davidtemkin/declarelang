@@ -414,6 +414,15 @@ export interface Surface {
    *  watch on this surface; returns the unwatch. */
   watchVisibility?(cb: (v: { on: boolean; rect: { x: number; y: number; width: number; height: number } | null; scale: number }) => void): () => void;
 
+  /** Re-ask the visibility instrument for CURRENT truth, delivered through
+   *  the standing watch. The DOM's IntersectionObserver is an EDGE sensor —
+   *  it reports crossings, not levels, so a fully visible box under a
+   *  scaling ancestor reports nothing at all — and the runtime calls this
+   *  when its own tracked ancestor walk says the answer moved (view.ts
+   *  visWake: at once at rest, at the glide's end otherwise). A backend
+   *  whose watch already delivers levels (none today) may omit it. */
+  refreshVisibility?(): void;
+
   /** The view's recorded drawing (draw.ts); null clears it. The Canvas
    *  backend replays it during the composite walk; the DOM backend
    *  rasterizes it into this view's own <canvas>, sized by the recording's

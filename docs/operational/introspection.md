@@ -16,6 +16,13 @@ inspectable: the island hands its child app to the Inspector directly, along wit
 page origin for the island's box, so picking and highlighting land on the child's own
 coordinates.
 
+One more exception, and it is deliberate: a **production build** (`declarelang build`)
+ships the bridge as a stub — the ~6.5 KB inspect surface is dev tooling, and slimming it
+out is part of what the build is for. The stub is not silent about it:
+`window.__declare.stub` names what happened and the way back in. Build with
+`declarelang build --debug` and the shipped artifact carries the full bridge — which is
+the right mode for any artifact you intend to `verify` or question after the fact.
+
 ```js
 window.__declare.inspect("app.dock.row.calIcon")
 window.__declare.explain("app.dock.row.calIcon", "width")

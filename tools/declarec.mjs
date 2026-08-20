@@ -312,7 +312,12 @@ export const Inspect = new Proxy({ ready: () => false }, {
   })();
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
-  const bridgeStub = `export function bridgeFor() { return {}; }
+  // The stub bridge is not EMPTY: an empty `window.__declare` is
+  // indistinguishable from breakage to anyone probing a shipped artifact
+  // (found exactly that way — a bug report's "the artifact you ship is the
+  // one you cannot question"). One field says what happened and names the
+  // door; costs a string.
+  const bridgeStub = `export function bridgeFor() { return { stub: "production build - the introspection bridge ships with declarelang build --debug" }; }
 export function pickAt() { return null; }
 export function dependentsOf() { return []; }
 export function expandValue() { return null; }

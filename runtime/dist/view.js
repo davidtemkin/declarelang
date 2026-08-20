@@ -487,11 +487,16 @@ export class View extends Node {
             this.visGeneric.dispose();
             this.visGeneric = null;
         }
+        if (this.visWake !== null) {
+            this.visWake.dispose();
+            this.visWake = null;
+        }
         if (this.visFlushTimer !== 0) {
             clearTimeout(this.visFlushTimer);
             this.visFlushTimer = 0;
         }
         this.visPending = null;
+        this.visStale = false;
         this.drawing?.dispose();
         this.drawing = null;
         const s = this.surface;
@@ -632,12 +637,41 @@ export class View extends Node {
     visArmed = false;
     visUnwatch = null;
     visGeneric = null;
+    visWake = null;
     visPending = null;
+    visStale = false;
     visFlushTimer = 0;
     /** @internal the attribute table's onTrack calls this (first tracked read). */
     armVisibility() {
         this.visArmed = true;
         this.startVisibility();
+    }
+    /** The model's own answer — the ancestor walk, with TRACKED reads: the
+     *  visible chain, rootTransform, rootFrameBox. The generic feed delivers
+     *  this value; the DOM feed runs the same reads purely as a WAKE (below),
+     *  because the reads subscribing to exactly the ancestor slots the answer
+     *  depends on is what makes the camera case (a world writing only its own
+     *  scale) invalidate a descendant's facts with no attribute of its own
+     *  changing. */
+    readVisibility() {
+        const dpr = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
+        // hidden anywhere up the chain = off (tracked reads, so a flip wakes us)
+        for (let v = this; v !== null; v = v.parent instanceof View ? v.parent : null)
+            if (!v.visible)
+                return { on: false, rect: null, scale: rootTransform(this).scale * dpr };
+        const t = rootTransform(this);
+        const b = rootFrameBox(this);
+        const r = (this.root ?? this);
+        const ix = Math.max(b.x, 0), iy = Math.max(b.y, 0);
+        const iw = Math.min(b.x + b.width, r.width) - ix, ih = Math.min(b.y + b.height, r.height) - iy;
+        if (iw <= 0 || ih <= 0)
+            return { on: false, rect: null, scale: t.scale * dpr };
+        const k = t.scale === 0 ? 1 : t.scale;
+        return {
+            on: true,
+            rect: { x: (ix - b.x) / k, y: (iy - b.y) / k, width: iw / k, height: ih / k },
+            scale: t.scale * dpr,
+        };
     }
     startVisibility() {
         if (!this.visArmed)
@@ -651,59 +685,78 @@ export class View extends Node {
             }
             this.visUnwatch?.();
             this.visUnwatch = s.watchVisibility((v) => this.deliverVisibility(v.on, v.rect, v.scale));
+            // THE WAKE (the sprung-camera fix). An IntersectionObserver is an EDGE
+            // sensor: it reports when the intersection crosses a threshold, not
+            // when the level changes — a fully visible box under a scaling
+            // ancestor crosses nothing and reports nothing, and mid-glide entries
+            // are samples frozen at each box's crossing instant. So the facts
+            // cannot be read off the observer's last entry; it is kept for what
+            // only it can see (the HOST PAGE's scroll and transforms, ancestor
+            // clip) and as the measurement instrument. The model's tracked reads
+            // are the wake: when an ancestor slot changes, RE-ASK the observer for
+            // current truth (refreshVisibility → a fresh entry) — at once when at
+            // rest, at the glide's end otherwise. The computed value is discarded:
+            // the model cannot see the page context, the observer can.
+            if (this.visWake === null) {
+                this.visWake = new Constraint(`${this.constructor.name}.visibilityWake`, () => this.readVisibility(), () => {
+                    if (sharedClock.busy) {
+                        this.visStale = true;
+                        this.scheduleVisFlush();
+                        return;
+                    }
+                    this.surface?.refreshVisibility?.();
+                });
+                this.visWake.run();
+            }
             return;
         }
         if (this.visGeneric !== null)
             return; // already computing
-        const dpr = () => (typeof devicePixelRatio === "number" ? devicePixelRatio : 1);
-        this.visGeneric = new Constraint(`${this.constructor.name}.visibility`, () => {
-            // hidden anywhere up the chain = off (tracked reads, so a flip wakes us)
-            for (let v = this; v !== null; v = v.parent instanceof View ? v.parent : null)
-                if (!v.visible)
-                    return { on: false, rect: null, scale: rootTransform(this).scale * dpr() };
-            const t = rootTransform(this);
-            const b = rootFrameBox(this);
-            const r = (this.root ?? this);
-            const ix = Math.max(b.x, 0), iy = Math.max(b.y, 0);
-            const iw = Math.min(b.x + b.width, r.width) - ix, ih = Math.min(b.y + b.height, r.height) - iy;
-            if (iw <= 0 || ih <= 0)
-                return { on: false, rect: null, scale: t.scale * dpr() };
-            const k = t.scale === 0 ? 1 : t.scale;
-            return {
-                on: true,
-                rect: { x: (ix - b.x) / k, y: (iy - b.y) / k, width: iw / k, height: ih / k },
-                scale: t.scale * dpr(),
-            };
-        }, (v) => {
+        this.visGeneric = new Constraint(`${this.constructor.name}.visibility`, () => this.readVisibility(), (v) => {
             const r = v;
             this.deliverVisibility(r.on, r.rect, r.scale);
         });
         this.visGeneric.run();
+    }
+    /** Arm the at-rest flush (the timer only exists while something is pending
+     *  or stale — no standing loop). At rest it prefers RE-MEASURING over
+     *  replaying: a buffered value from mid-glide is a sample of the journey,
+     *  not the destination. */
+    scheduleVisFlush() {
+        if (this.visFlushTimer !== 0)
+            return;
+        const tick = () => {
+            this.visFlushTimer = 0;
+            if (sharedClock.busy) {
+                this.visFlushTimer = setTimeout(tick, 120);
+                return;
+            }
+            const p = this.visPending;
+            this.visPending = null;
+            const s = this.surface;
+            if (this.visStale && s?.refreshVisibility) {
+                // the backend can measure current truth — ask it; the fresh entry
+                // arrives through deliverVisibility on the now-idle clock
+                this.visStale = false;
+                s.refreshVisibility();
+                return;
+            }
+            this.visStale = false;
+            if (p !== null) {
+                setBound(this, "visibleRect", p.rect);
+                setBound(this, "apparentScale", p.scale);
+            }
+        };
+        this.visFlushTimer = setTimeout(tick, 120);
     }
     deliverVisibility(on, rect, scale) {
         if (this.onScreen !== on)
             setBound(this, "onScreen", on);
         const shaped = on && rect !== null ? rect : EMPTY_RECT;
         if (sharedClock.busy) {
-            // mid-glide: hold the latest, flush at rest (the timer only exists
-            // while something is pending — no standing loop)
+            // mid-glide: hold the latest, flush at rest
             this.visPending = { rect: shaped, scale };
-            if (this.visFlushTimer === 0) {
-                const tick = () => {
-                    this.visFlushTimer = 0;
-                    if (this.visPending === null)
-                        return;
-                    if (sharedClock.busy) {
-                        this.visFlushTimer = setTimeout(tick, 120);
-                        return;
-                    }
-                    const p = this.visPending;
-                    this.visPending = null;
-                    setBound(this, "visibleRect", p.rect);
-                    setBound(this, "apparentScale", p.scale);
-                };
-                this.visFlushTimer = setTimeout(tick, 120);
-            }
+            this.scheduleVisFlush();
             return;
         }
         this.visPending = null;

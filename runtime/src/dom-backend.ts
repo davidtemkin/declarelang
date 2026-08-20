@@ -715,6 +715,21 @@ function observeVisibility(el: Element, cb: VisibilityCb): () => void {
   return () => { VISWATCH.delete(el); visIO?.unobserve(el); };
 }
 
+/** Force a fresh entry for an observed element — observe() always reports an
+ *  initial intersection, so unobserve+observe is "measure NOW, through the
+ *  instrument itself": same clipping math, same page context. (A hand-rolled
+ *  getBoundingClientRect walk would have to re-derive ancestor overflow
+ *  clipping, and get it subtly wrong.) The runtime calls this when its model
+ *  walk knows the answer moved but the observer saw no edge — an
+ *  IntersectionObserver reports CROSSINGS, not levels, so a fully visible box
+ *  under a scaling ancestor never crosses anything and never reports
+ *  (view.ts visWake, the sprung-camera fix). */
+function refreshObserved(el: Element): void {
+  if (visIO === null || !VISWATCH.has(el)) return;
+  visIO.unobserve(el);
+  visIO.observe(el);
+}
+
 // (island sinks live in backend.ts now — one registry for EVERY backend; the
 // canvas islands have no element, so the DOM-only querySelectorAll replay and
 // the element-typed sink signature both retired with the move)
@@ -2216,6 +2231,9 @@ class DomSurface implements Surface {
     this.unwatchVisibility?.();
     this.unwatchVisibility = observeVisibility(this.element, cb);
     return () => { this.unwatchVisibility?.(); this.unwatchVisibility = null; };
+  }
+  refreshVisibility(): void {
+    if (this.unwatchVisibility !== null) refreshObserved(this.element);
   }
   private unwatchVisibility: (() => void) | null = null;
 

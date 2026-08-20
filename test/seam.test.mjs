@@ -179,6 +179,21 @@ const TABLE = {
     mac: "NOT A GAP — same runtime-computed feed, and on mac it is exact (an app fills its window; there is no host page). A native feed from the hidden-raster cull would only be an optimization",
     headless: "runtime-computed too — visibility facts settle headlessly, which is what lets unit tests pin them",
   },
+
+  refreshVisibility: {
+    // The watch's pull half (the sprung-camera fix, 2026-08-20): an
+    // IntersectionObserver reports CROSSINGS, not levels, so when the
+    // runtime's tracked ancestor walk knows the answer moved (a world scaling
+    // over a fully visible box — no threshold crossed, no entry) it re-asks
+    // the instrument via unobserve+observe, which always reports an initial
+    // intersection. Only meaningful where a watch exists at all — the
+    // runtime-computed feed on the other three backends delivers levels by
+    // construction and has nothing to refresh.
+    dom: true,
+    canvas: "NOT A GAP — no watchVisibility to refresh; the generic feed is level-valued by construction (see watchVisibility)",
+    mac: "NOT A GAP — same: the runtime-computed feed re-derives on every tracked change",
+    headless: "NOT A GAP — same",
+  },
 };
 
 // ── what the sources actually say ───────────────────────────────────────────
@@ -284,7 +299,7 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 20,   // +watchOnScreen (2026-08-19): the onScreen fact's feed — resting default true where unimplemented
+  assert.equal(members.length, 21,   // +refreshVisibility (2026-08-20): the watch's pull half — DOM-only, the sprung-camera fix
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);

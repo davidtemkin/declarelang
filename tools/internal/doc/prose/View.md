@@ -284,6 +284,16 @@ drawn view its backing density, with no reimplemented transform math and no host
 globals. Exact under Declare's own transforms (rotation does not participate); under
 a non-similar host transform it is the largest axis ratio — the rasterization
 convention. Same at-rest delivery as `visibleRect`. Read-only.
+
+**The phase these facts have — and the one they don't.** All three answer *what is*,
+at arrival: a camera flight lands, then a fact-bound tier re-derives, once. They never
+answer *what will be* — the platform cannot know where a spring is headed, but **your
+app can**, because the camera's target is your own attribute. A prefetch keyed on the
+destination (`tierFor(cardH * app.camTarget)`) fires at departure and overlaps the
+glide; a tier keyed on `apparentScale` asks on arrival and may land soft, then
+sharpen. Those are opposite ends of the same flight, both legitimate: departure-phase
+policy is written against your target state, arrival-phase truth against these facts,
+and the two compose.
 ## onClick
 Fires when the pointer presses **and** releases on the same view (a true click, not a
 stray press) — answered by an `onClick()` handler. The primary interaction event;

@@ -1,0 +1,40 @@
+/*
+The sprung-camera case for the visibility facts (the spring-bug report,
+2026-08-20): a world writes only its OWN scale — no attribute of any
+descendant changes — first directly, then through a Spring. Every box must
+report the RESTING truth on both paths. The row is laid out wider than the
+app so scaling pushes far boxes past the root clip while near ones stay
+fully visible — the fully-visible box is the hard case, because it crosses
+no IntersectionObserver threshold and the platform must re-ask on its own.
+*/
+
+App [ width = 900, height = 400, fill = #FFFFFF,
+    camScale: number = 1,
+    camTarget: number = 1,
+    spring: Spring [ attribute = camScale, to = { app.camTarget }, stiffness = 600, damping = 40 ],
+
+    world: View [ x = 0, y = 60, scale = { app.camScale }, pivotX = 400, pivotY = 100,
+        width = 3000, height = 200,
+        row: View [ layout: SimpleLayout [ axis = x, spacing = 40 ],
+            Box [ ],
+            Box [ ],
+            Box [ ],
+            Box [ ],
+            Box [ ],
+            Box [ ]
+            ]
+        ]
+    ]
+
+
+class Box extends View [ width = 120, height = 160, fill = #C8E6C9,
+    seen: boolean = { classroot.onScreen },
+    res: number = { classroot.apparentScale },
+
+    // the consumer: the facts arm on first TRACKED read, so something in the
+    // tree must actually bind them (an evaluate() pull from a harness is not
+    // a tracked read)
+
+    cap: Text [ x = 4, y = 4, fontSize = 10, wrap = false,
+        text = { (classroot.seen ? "on" : "off") + " " + classroot.res.toFixed(2) } ]
+    ]

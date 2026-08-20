@@ -509,11 +509,26 @@ export declare class View extends Node {
     private visArmed;
     private visUnwatch;
     private visGeneric;
+    private visWake;
     private visPending;
+    private visStale;
     private visFlushTimer;
     /** @internal the attribute table's onTrack calls this (first tracked read). */
     armVisibility(): void;
+    /** The model's own answer — the ancestor walk, with TRACKED reads: the
+     *  visible chain, rootTransform, rootFrameBox. The generic feed delivers
+     *  this value; the DOM feed runs the same reads purely as a WAKE (below),
+     *  because the reads subscribing to exactly the ancestor slots the answer
+     *  depends on is what makes the camera case (a world writing only its own
+     *  scale) invalidate a descendant's facts with no attribute of its own
+     *  changing. */
+    private readVisibility;
     private startVisibility;
+    /** Arm the at-rest flush (the timer only exists while something is pending
+     *  or stale — no standing loop). At rest it prefers RE-MEASURING over
+     *  replaying: a buffered value from mid-glide is a sample of the journey,
+     *  not the destination. */
+    private scheduleVisFlush;
     private deliverVisibility;
     /** The composed transform from MY frame to ROOT-frame space — `{x, y,
      *  scale, rotation}`, the similarity the language's transforms compose to
