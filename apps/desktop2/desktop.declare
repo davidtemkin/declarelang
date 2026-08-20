@@ -1745,18 +1745,6 @@ class DockIcon extends View [
 
 
 /*
-## App — the desktop root
-
-The whole desktop: the wallpaper, the menu bar, the windows layer, and the
-dock, plus the state and commands that tie them together. It tracks the browser
-window with no size floor (a floor would make the page scroll, and a desktop
-never scrolls), and the root clips, so a window hanging past an edge is cropped
-where it lies rather than moved. Everything anchored to an edge — the menu bar's
-width, the clock's right edge, the dock's seat at the bottom — re-derives from
-app.width / app.height on every host resize.
-*/
-
-/*
 ### The window manager
 
 The desktop's core model, faceless: the set of windows as it exists — who is
@@ -2016,7 +2004,8 @@ The surface:
 
 class Launcher extends Node [
 
-    /* ── the application records ─────────────────────────────────────────────
+    /* ### The application records
+
        One row per launchable application: the CATALOG (key, names, program,
        env, dock face) and the LAUNCH STATE (running/launching/count) — the
        five parallel flag families this array replaced were the God-object
@@ -2283,6 +2272,18 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         }
     ]
 
+
+/*
+## App — the desktop root
+
+The whole desktop: the wallpaper, the menu bar, the windows layer, and the
+dock, plus the state and commands that tie them together. It tracks the browser
+window with no size floor (a floor would make the page scroll, and a desktop
+never scrolls), and the root clips, so a window hanging past an edge is cropped
+where it lies rather than moved. Everything anchored to an edge — the menu bar's
+width, the clock's right edge, the dock's seat at the bottom — re-derives from
+app.width / app.height on every host resize.
+*/
 
 App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow (wallpaper bleed, a window past the fold) is out of frame, never scroll range
 

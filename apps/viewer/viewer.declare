@@ -31,16 +31,28 @@ use [ SunIcon, AutoIcon, MoonIcon ]
 class Block extends View [ kind: string = "",
     md: string = "",
     html: string = "",
+    nested: boolean = false,                     // born inside a declaration's body: an aside, not a section break
 
     width = { parent.width },
 
     // prose reads like a book: left-aligned to the shared spine, capped at the
-    // reading measure, with space above it that becomes the section break
+    // reading measure, with space above it that becomes the section break.
+    // A NESTED aside — a block comment inside a class or instance body — keeps
+    // the code's teal spine running through it and sits inset to the code's own
+    // text gutter, so the declaration it interrupts still reads as ONE
+    // specimen: header card, threaded aside, body card.
 
-    prose: Markdown [ visible = { classroot.kind == "prose" }, x = 0, y = { app.proseTopPad },
-        width = { Math.min(parent.width, app.proseMeasure * app.fontScale) },
+    prose: Markdown [ visible = { classroot.kind == "prose" }, x = { classroot.nested ? 20 : 0 },
+        y = { classroot.nested ? 8 : app.proseTopPad },
+        width = { Math.min(parent.width - (classroot.nested ? 20 : 0), app.proseMeasure * app.fontScale) },
         text = { classroot.md }, scale = { app.fontScale }, lineHeight = 1.6,
         bodyColor = { app.theme.text }, dark = { app.isDark }, selectable = true ],
+
+    // the thread: the code spine, continued through the aside
+
+    thread: View [ visible = { classroot.kind == "prose" && classroot.nested }, x = 0, y = 0, width = 2,
+        height = { classroot.prose.y + classroot.prose.height + 8 },
+        fill = { app.theme.accentSecondary }, opacity = 0.55 ],
 
     // code is the specimen: borderless, on a quiet tint, bonded to the comment
     // above it, running the full width with a teal spine on the shared left edge.
@@ -158,7 +170,7 @@ App [ fill = { app.theme.bg },
             const e = ("" + app.rawSrc.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
             segs = [({ kind: "code", html: "<pre>" + e + "</pre>" })]
             }
-        return ({ segments: segs.map(s => ({ kind: s.kind, md: s.md || "", html: s.html || "" })) })
+        return ({ segments: segs.map(s => ({ kind: s.kind, md: s.md || "", html: s.html || "", nested: s.nested == true })) })
         },
 
     // the verbatim file as one escaped, monospace <pre> — the plain-text view
@@ -316,7 +328,7 @@ App [ fill = { app.theme.bg },
             x = { Math.max(24, (parent.width - this.width) / 2) },
             datapath = { app.doc.value },
             layout: SimpleLayout [ axis = y, spacing = 12 ],
-            Block [ datapath = :segments[], kind = :kind, md = :md, html = :html ]
+            Block [ datapath = :segments[], kind = :kind, md = :md, html = :html, nested = { :nested == true } ]
             ],
 
         // plain view: the verbatim source as one monospace flow (same size/theme)

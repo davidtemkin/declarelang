@@ -3,9 +3,11 @@
 export type Segment = {
     kind: "prose";
     md: string;
+    nested?: boolean;
 } | {
     kind: "code";
     html: string;
+    nested?: boolean;
 };
 /** Honest line counts for a .declare source — computed, never claimed (the
  *  homepage's "lines of Declare" figures). `total` physical lines; `code`

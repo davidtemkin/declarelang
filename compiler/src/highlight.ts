@@ -17,8 +17,8 @@
 /** One rendered piece of a source file: a Markdown block lifted from a
  *  `/* … *\/` comment, or a run of syntax-highlighted code as `<pre>` HTML. */
 export type Segment =
-  | { kind: "prose"; md: string }
-  | { kind: "code"; html: string };
+  | { kind: "prose"; md: string; nested?: boolean }
+  | { kind: "code"; html: string; nested?: boolean };
 
 // The role vocabulary — short class names the viewer's `accents` map keys on.
 // A token with no role is emitted as plain text (body color): whitespace,
@@ -160,7 +160,8 @@ export function lineMetrics(src: string): LineMetrics {
 export function highlight(src: string): Segment[] {
   const segments: Segment[] = [];
   let pieces: { cls: string | null; text: string }[] = [];
-  const emit = (cls: string | null, text: string) => { if (text) pieces.push({ cls, text }); };
+  let pieceDepth = 0;                        // bracket depth when the current code run began
+  const emit = (cls: string | null, text: string) => { if (text) { if (pieces.length === 0) pieceDepth = depth; pieces.push({ cls, text }); } };
 
   const flushCode = () => {
     // Trim whole whitespace-only pieces off both ends so a segment doesn't open
@@ -170,21 +171,30 @@ export function highlight(src: string): Segment[] {
     if (!pieces.length) return;
     const html = "<pre>" + pieces.map((p) =>
       p.cls ? `<span class="${p.cls}">${esc(p.text)}</span>` : esc(p.text)).join("") + "</pre>";
-    segments.push({ kind: "code", html });
+    segments.push({ kind: "code", html, ...(pieceDepth > 0 ? { nested: true } : {}) });
     pieces = [];
   };
 
   let i = 0;
   const n = src.length;
+  // Bracket depth: how far inside `[ … ]` bodies the scan is. Every block
+  // comment still becomes PROSE (the literate design: a program is a
+  // document), but a segment born INSIDE a body is marked `nested` — an
+  // aside within a declaration, not a section break between declarations —
+  // so the reader can thread it visually into the specimen it interrupts
+  // (the spine runs on) instead of rendering "class Launcher extends Node ["
+  // as an orphaned one-line block with its body resuming from nowhere.
+  let depth = 0;
   while (i < n) {
     const c = src[i];
 
-    // `/* … */` — a Markdown comment: close the code run, open a prose segment.
+    // `/* … */` — a Markdown comment: close the code run, open a prose
+    // segment — nested when it sits inside a declaration's body.
     if (c === "/" && src[i + 1] === "*") {
       flushCode();
       let j = i + 2;
       while (j < n && !(src[j] === "*" && src[j + 1] === "/")) j++;
-      segments.push({ kind: "prose", md: dedentComment(src.slice(i + 2, j)) });
+      segments.push({ kind: "prose", md: dedentComment(src.slice(i + 2, j)), ...(depth > 0 ? { nested: true } : {}) });
       i = Math.min(j + 2, n);
       continue;
     }
@@ -258,6 +268,8 @@ export function highlight(src: string): Segment[] {
     }
 
     // punctuation / anything else — plain structural text
+    if (c === "[") depth++;
+    else if (c === "]" && depth > 0) depth--;
     emit(null, c); i++;
   }
   flushCode();
