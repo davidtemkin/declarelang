@@ -369,7 +369,9 @@ export interface Surface {
     /** Reflect an `embed` marker onto the surface so a HOST can find this view's
      *  element (data attribute on DOM) and mount foreign content (an editor, a
      *  preview iframe) inside it — the sanctioned seam for embedding non-Declare UI
-     *  that must track the view as the page scrolls. No-op off the DOM. */
+     *  that must track the view as the page scrolls. Canvas records the marker
+     *  and notifies the island sinks (no element — the tenant mounts by SURFACE
+     *  COMPOSITION, mountEmbeddedApp); headless/mac keep their own registries. */
     setEmbed(id: string, view?: unknown): void;
     /** OPTIONAL: watch this surface's visibility — the feed behind the
      *  `onScreen` / `visibleRect` / `apparentScale` facts (view.ts). The DOM
@@ -456,3 +458,18 @@ export interface RenderBackend {
      *  append the element. Canvas: host a <canvas> and start its render loop.) */
     attachRoot(host: HTMLElement, root: Surface): void;
 }
+export interface IslandSlotEvent {
+    /** The island view (runtime View — typed loosely to keep this module leaf-ish). */
+    view: unknown;
+    /** The island's DOM element, when the backend has one; null on canvas. */
+    el: HTMLElement | null;
+    /** The slot marker, `"run:name|k=v"` style ("" never reaches sinks — a
+     *  cleared slot only leaves the live set). */
+    slot: string;
+}
+/** @internal Backends call this from setEmbed (mark, re-mark, or clear). */
+export declare function notifyIslandSlot(ev: IslandSlotEvent): void;
+/** Register an island sink — one per booting host, and a page may boot several
+ *  apps, so this is a set: every sink hears every slot and scopes itself.
+ *  Replays the live islands immediately; returns the unregister. */
+export declare function onIslandSlot(cb: (ev: IslandSlotEvent) => void): () => void;

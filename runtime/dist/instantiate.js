@@ -418,6 +418,9 @@ outer = false) {
                 source: d.def?.kind === "code" ? d.def.src : null,
                 pos: at != null && typeof at.line === "number" ? { line: at.line, col: at.col ?? 0 } : null,
                 deps: d.def?.kind === "code" ? (d.def.deps ?? null) : null,
+                type: d.type,
+                external: d.external || undefined,
+                readOnly: d.readOnly || undefined,
             };
         }
         // The static mapped type on defineAttributes serves hand-declared

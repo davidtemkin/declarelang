@@ -11,6 +11,7 @@
 // the full state once — literals cost no reactive machinery at all.
 
 import { Node, onDiscard, runRetire } from "./node.js";
+import { DeclareError } from "./errors.js";
 import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
@@ -28,7 +29,9 @@ import { record, type Draw, type DisplayList } from "./draw.js";
 import { sharedClock } from "./animate.js";
 import { Constraint, Cell, afterSettle } from "./reactive.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, type InteractionView } from "./interaction.js";
-import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned, setBound } from "./attributes.js";
+import { bindDerived, declarationsOf, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned, setBound, type DeclRecord } from "./attributes.js";
+import { declaredType } from "./value.js";
+import { observe } from "./reactive.js";
 import { handlerName } from "./schema.js";
 import { splitPath, type PathSeg } from "./datapath.js";
 import { selectValue } from "./select.js";
@@ -1380,9 +1383,9 @@ export function setFocusDiscardHook(fn: (view: View) => void): void {
   focusDiscardHook = fn;
 }
 
-export function fireEvent(view: View, event: string, arg?: unknown): void {
+export function fireEvent(view: View, event: string, ...args: unknown[]): void {
   const h = (view as unknown as Record<string, unknown>)[handlerName(event)];
-  if (typeof h === "function") h.call(view, arg);
+  if (typeof h === "function") (h as (...a: unknown[]) => void).call(view, ...args);
 }
 
 /** Resolve a reveal anchor name against a settled tree (location.md §6). One
@@ -1605,6 +1608,20 @@ export class App extends View {
    *  host. (The mac bridge replaces `navigate` wholesale — Bridge.swift — and
    *  reads neither.) */
   hostServices: { navigate?: (to: string) => void; openWindow?: (to: string) => void; inspect?: (slot: string) => void } | null = null;
+
+  /** @internal an EMBEDDED tenant's line to its host island (linkIslandTenant
+   *  installs it). Null = not linked (a top-level app, or never linked) —
+   *  send() says so instead of vanishing. */
+  hostSink: { message(topic: string, payload: unknown): void } | null = null;
+
+  /** post(topic, payload) — the tenant's message VERB, this app → its host
+   *  island's onPost. The other half of the bridge from the facts: consumed
+   *  once, ordered, never re-readable — for "do this", not "this is so"
+   *  (islands design; the state channel is the `external` attributes). */
+  post(topic: string, payload?: unknown): void {
+    if (this.hostSink === null) { console.warn(`[Declare] app.post("${topic}"): this app is not linked to a host island — message dropped`); return; }
+    this.hostSink.message(topic, payload);
+  }
 
   /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
    *  button calls `app.navigate(url)` in an activation handler; the compiler reads
@@ -2076,14 +2093,223 @@ defineAttributes(App, {
   appName: { def: "" },
 });
 
-/** DOMIsland — a foreign-content island (design: the `DOMIsland [ … ]` view). A leaf View
+// ═══ Islands — the boundary is a box, and the box has a typed surface ════════
+//
+// An Island is a View whose INTERIOR belongs to a TENANT — foreign DOM
+// (DOMIsland) or a whole other Declare program (AppIsland, library). The
+// bridge across that boundary is two channels with two natures (islands
+// design, ruled 2026-08-20):
+//
+//   FACTS — the instance's `external` attribute declarations (parser.ts).
+//   Typed, declared on BOTH sides (the island's declarations are the host's
+//   half; a tenant App's `external` declarations are its exports), paired by
+//   name at link time with a TYPE HANDSHAKE — two separately compiled programs
+//   cannot share a static proof, so agreement is checked at the moment the
+//   pairing forms, like a linker resolving extern symbols; a mismatch is a
+//   link error, not a mid-session surprise. Direction is arbitrated by the
+//   OWNERSHIP machinery (a host-bound slot refuses tenant pushes, loudly —
+//   the same referee `location` lives under), with `readonly external` as the
+//   opt-in stricter spelling for a tenant-owned out-fact.
+//
+//   VERBS — post(topic, payload) / onPost({ topic, payload }), both directions,
+//   data-shaped payloads. Consumed once, ordered, never re-readable: what
+//   state slots must not be abused into (the pendingNav lesson).
+//
+// Foreign (non-Declare) tenants reach the same bridge through ONE sanctioned
+// JS handle (the island element's `__declareIsland`): get/set/observe/post/
+// onPost — set is boundary-VALIDATED against the declared type, since a
+// foreign push has no compiler behind it (the same trust-edge rule a
+// DataSource applies to arriving bytes).
+
+/** A tenant's connection, installed by linkIslandTenant / the foreign handle. */
+interface TenantSink {
+  value(name: string, v: unknown): void;
+  message(topic: string, payload: unknown): void;
+}
+
+/** Validate a FOREIGN push against a declared type name — the trust-edge
+ *  check (Declare tenants skip it; their own compiler governed the write and
+ *  the handshake matched the types). Returns the refusal, or null. */
+function boundaryCheck(typeName: string, v: unknown): string | null {
+  if (typeName.endsWith("[]") || typeName === "array") return Array.isArray(v) ? null : `expected an array (${typeName})`;
+  switch (typeName) {
+    case "number": case "Length": case "Color":
+      return typeof v === "number" && Number.isFinite(v) ? null : `expected a number (${typeName})`;
+    case "string": return typeof v === "string" ? null : "expected a string";
+    case "boolean": return typeof v === "boolean" ? null : "expected a boolean";
+    case "object": return typeof v === "object" && v !== null && !Array.isArray(v) ? null : "expected a plain object";
+    default: {
+      const t = declaredType(typeName);
+      if (t !== null && (t as { kind?: string; values?: readonly string[] }).kind === "enum") {
+        const vals = (t as { values?: readonly string[] }).values ?? [];
+        return typeof v === "string" && vals.includes(v) ? null : `expected one of ${vals.join(", ")} (${typeName})`;
+      }
+      return null; // an unrecognized name got past the checker — let it through rather than invent a second checker
+    }
+  }
+}
+
+/** The external declarations of an instance — its half of a bridge. */
+function externalsOf(node: Node): Record<string, DeclRecord> {
+  const out: Record<string, DeclRecord> = {};
+  const all = declarationsOf(node);
+  for (const k of Object.keys(all)) if (all[k].external === true) out[k] = all[k];
+  return out;
+}
+
+/** Island — the abstract boundary box. Concrete kinds decide what the tenant
+ *  IS (DOMIsland: foreign DOM; AppIsland: a Declare program); this base owns
+ *  the bridge — the external-fact surface and the message verbs. */
+export class Island extends View {
+  /** @internal the linked tenant's delivery sink (null = nothing linked). */
+  tenantSink: TenantSink | null = null;
+  /** @internal per-name echo guard: which side a delivery is currently
+   *  crossing FROM, so the far observer skips reflecting it back (identity-
+   *  fresh computed values would otherwise ping-pong; equality gates alone
+   *  cannot stop a constraint that mints a new array per run). */
+  crossing: Map<string, "toTenant" | "toIsland"> = new Map();
+
+  /** The message verb, host → tenant (`post`, in the postMessage lineage —
+   *  `message` is the stream family's event). Dropped with a console note
+   *  when no tenant is linked — a verb has no meaning without a receiver. */
+  post(topic: string, payload?: unknown): void {
+    if (this.tenantSink === null) { console.warn(`[Declare] ${this.constructor.name}.post("${topic}"): no tenant linked — message dropped`); return; }
+    this.tenantSink.message(topic, payload);
+  }
+
+  /** @internal tenant → host verb arrival: fire the declared onPost with the
+   *  one-record payload `{ topic, payload }` (IslandPost). */
+  receiveMessage(topic: string, payload: unknown): void {
+    fireEvent(this, "post", { topic, payload });
+  }
+
+  /** @internal a tenant value push (validated when foreign). Ownership
+   *  referees direction: a non-readonly slot the host BOUND refuses the push
+   *  with the constraint named — the loud, structural answer. A `readonly
+   *  external` slot is tenant-owned by declaration, so it lands via the
+   *  runtime write path. */
+  receiveValue(name: string, v: unknown, foreign: boolean): void {
+    const decl = externalsOf(this)[name];
+    if (decl === undefined) {
+      console.error(`[Declare] tenant push to '${name}': not an external attribute of this island (its externals: ${Object.keys(externalsOf(this)).join(", ") || "none"})`);
+      return;
+    }
+    if (foreign && decl.type !== undefined) {
+      const bad = boundaryCheck(decl.type, v);
+      if (bad !== null) { console.error(`[Declare] tenant push to '${name}': ${bad}; got ${JSON.stringify(v)?.slice(0, 80)}`); return; }
+    }
+    this.crossing.set(name, "toIsland");
+    try {
+      if (decl.readOnly === true) setBound(this, name, v);
+      else (this as unknown as Record<string, unknown>)[name] = v;
+    } catch (e) {
+      // The ownership referee spoke (a host-bound slot refuses a push, naming
+      // its constraint). Loud, attributed — but never fatal to the settle the
+      // observer fired in: a tenant cannot be allowed to crash its host.
+      console.error(`[Declare] tenant push to '${name}' refused: ${(e as Error).message}`);
+    } finally {
+      // the guard clears when the island-side observer consumes it; clear
+      // here too for the no-observer case (nothing host-side reads the slot)
+      queueMicrotask(() => { if (this.crossing.get(name) === "toIsland") this.crossing.delete(name); });
+    }
+  }
+
+  /** The foreign tenant's handle — built once, attached to the island's
+   *  element by the DOM backend (`el.__declareIsland`). The whole sanctioned
+   *  surface for non-Declare content; everything it does rides the same
+   *  bridge a Declare tenant uses. */
+  private handle: Record<string, unknown> | null = null;
+  foreignHandle(): Record<string, unknown> {
+    if (this.handle !== null) return this.handle;
+    const island = this;
+    const messageCbs: Array<(m: { topic: string; payload: unknown }) => void> = [];
+    this.tenantSink ??= {
+      value: () => {},   // a foreign tenant has no value inbox; it observes instead
+      message: (topic, payload) => { for (const cb of messageCbs) cb({ topic, payload }); },
+    };
+    this.handle = {
+      /** current value of an external */
+      get: (name: string) => (island as unknown as Record<string, unknown>)[name],
+      /** push a value in — boundary-validated */
+      set: (name: string, v: unknown) => island.receiveValue(name, v, true),
+      /** per-settle change notifications for an external (returns unobserve) */
+      observe: (name: string, cb: (v: unknown) => void) =>
+        observe(() => (island as unknown as Record<string, unknown>)[name], (v) => cb(v), `island:${name}`),
+      /** tenant → host message (fires the island's onPost) */
+      post: (topic: string, payload?: unknown) => island.receiveMessage(topic, payload),
+      /** host → tenant messages (island.post lands here); cb({ topic, payload }) */
+      onPost: (cb: (m: { topic: string; payload: unknown }) => void) => { messageCbs.push(cb); return () => { const i = messageCbs.indexOf(cb); if (i >= 0) messageCbs.splice(i, 1); }; },
+      /** the declared surface, for discovery */
+      externals: () => { const e = externalsOf(island); return Object.keys(e).map((n) => ({ name: n, type: e[n].type ?? "unknown", readonly: e[n].readOnly === true })); },
+    };
+    return this.handle;
+  }
+}
+
+/** Link an Island to a DECLARE tenant (host-client renderChild, the canvas
+ *  island service, the mac runner). Pairs the two `external` surfaces by name
+ *  with a TYPE HANDSHAKE — the link error, at link time — then bridges both
+ *  directions with per-settle observers, echo-guarded. Initial values: the
+ *  host's side wins for host-writable slots, the tenant's for `readonly
+ *  external` (tenant-owned) ones. Returns the unlink. */
+export function linkIslandTenant(island: Island, tenant: App): () => void {
+  const hostExt = externalsOf(island);
+  const tenantExt = externalsOf(tenant);
+  const paired: string[] = [];
+  for (const name of Object.keys(hostExt)) {
+    const t = tenantExt[name];
+    if (t === undefined) {
+      if (Object.keys(tenantExt).length > 0)
+        console.warn(`[Declare] island external '${name}' has no matching external on the tenant app — not bridged`);
+      continue;
+    }
+    if (hostExt[name].type !== undefined && t.type !== undefined && hostExt[name].type !== t.type) {
+      throw new DeclareError(
+        `island link: '${name}' is declared 'external ${hostExt[name].type}' here and 'external ${t.type}' in the tenant — the island could not be linked`
+      );
+    }
+    paired.push(name);
+  }
+  const undo: Array<() => void> = [];
+  const deliver = (from: Node, to: Node, name: string, dir: "toTenant" | "toIsland"): void => {
+    const v = (from as unknown as Record<string, unknown>)[name];
+    island.crossing.set(name, dir);
+    setBound(to, name, v);
+  };
+  for (const name of paired) {
+    // initial sync — direction by the readonly mark (tenant-owned out-fact vs host-fed)
+    if (hostExt[name].readOnly === true) deliver(tenant, island, name, "toIsland");
+    else deliver(island, tenant, name, "toTenant");
+    // island → tenant
+    undo.push(observe(() => (island as unknown as Record<string, unknown>)[name], () => {
+      if (island.crossing.get(name) === "toIsland") { island.crossing.delete(name); return; }
+      deliver(island, tenant, name, "toTenant");
+    }, `link:${name}:out`));
+    // tenant → island
+    undo.push(observe(() => (tenant as unknown as Record<string, unknown>)[name], () => {
+      if (island.crossing.get(name) === "toTenant") { island.crossing.delete(name); return; }
+      const v = (tenant as unknown as Record<string, unknown>)[name];
+      island.receiveValue(name, v, false);
+    }, `link:${name}:in`));
+  }
+  // verbs, both directions
+  island.tenantSink = {
+    value: (name, v) => setBound(tenant, name, v),
+    message: (topic, payload) => fireEvent(tenant, "post", { topic, payload }),
+  };
+  tenant.hostSink = { message: (topic, payload) => island.receiveMessage(topic, payload) };
+  undo.push(() => { island.tenantSink = null; tenant.hostSink = null; });
+  return () => { for (const fn of undo.splice(0)) { try { fn(); } catch { /* torn down */ } } };
+}
+
+/** DOMIsland — the FOREIGN-CONTENT island (design: the `DOMIsland [ … ]` view). A leaf
  *  whose box Declare lays out and constrains normally, but whose interior is
  *  host-managed DOM: the `slot` key is reflected onto the element (DOM backend)
  *  so the host can mount an iframe / textarea / any element into the Declare-sized
  *  box — its width/height follow this view's constraints with no coordinate
- *  sync. (Canvas backend realizes the same island as a positioned DOM overlay
- *  — setEmbed is a no-op there for now.) */
-export class DOMIsland extends View {
+ *  sync. Carries the Island bridge: `external` declarations + send/onMessage,
+ *  reachable from the tenant side through the element's `__declareIsland`. */
+export class DOMIsland extends Island {
   declare slot: string;
   declare childName: string;
 

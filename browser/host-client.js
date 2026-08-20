@@ -14,7 +14,7 @@
 //
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
-import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase } from "../runtime/dist/index.js";
+import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, mountEmbeddedApp } from "../runtime/dist/index.js";
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -147,6 +147,7 @@ export async function bootHost(cfg) {
     // was waiting on it gets one retry — unwired islands and unburnt edits.
     // (The old 60Hz loops retried implicitly; this is the explicit moment.)
     host.querySelectorAll('[data-declare-slot^="run:"]').forEach((box) => { if (!box.dataset.wired) mountPreview(box); });
+    drainPending();          // canvas islands (and missed fetches) waiting on this very compiler
     watchLiveAll();
   };
 
@@ -398,6 +399,16 @@ export async function bootHost(cfg) {
       if (childApp) {
         childApp.demoSources = seeds;                     // populate a nested copy's own editors
         const childUndo = (box.__childUndo = box.__childUndo ?? []);
+        // THE ISLAND BRIDGE (islands design): pair the island's `external`
+        // surface with the tenant's — the type handshake at link time, then
+        // facts both ways per settle and post/onPost verbs. A link error
+        // (type disagreement) leaves the tenant mounted but unbridged, said
+        // loudly — a broken bridge must not take the render with it.
+        const islView = box.__declareView;
+        if (islView && typeof islView.post === "function") {
+          try { childUndo.push(linkIslandTenant(islView, childApp)); }
+          catch (e) { console.error("[Declare] " + (name || "island") + ": " + e.message); }
+        }
         // The child's own wiring, by observation (its lifetime is known HERE):
         //  • verbs — a child's navigate()/openWindow() were serviced by nobody
         //    before (every such link was dead); page-level nav is the right
@@ -490,6 +501,22 @@ export async function bootHost(cfg) {
     }
     if (box.dataset.wired || box.dataset.wiring) return;
     box.dataset.wiring = "1";                              // in-flight: one compile at a time
+    const { compiled, unseeded } = await resolveCompiled(name);
+    delete box.dataset.wiring;
+    if (unseeded) return;
+    if (!compiled || !compiled.source) { deferPreview({ el: box }); return; }  // compiler not warm / fetch missed — retry when it lands
+    box.dataset.wired = "1";                               // committed: don't remount
+    renderChild(box, compiled, name).then(() => {
+      if (box.__childApp) { box.dataset.envJson = ejson; box.__childApp.env = env; }
+    });
+  }
+
+  // Resolve a slot name to its compiled program — the SAME ladder for a DOM
+  // box and a canvas island: precompiled artifact → validated prewarm →
+  // seed / on-demand fetch + compile. `unseeded` marks the "__"-named
+  // LIVE-EDIT channels (__raw__, __page__) with nothing published yet — they
+  // mount only when an edit arrives through watchLive, never by fetch.
+  async function resolveCompiled(name) {
     // precompiled entries are a bare compiled-source string (the legacy static
     // artifact channel); normalize to the `{ source }` result shape renderChild
     // takes. A live compile already returns `{ source, deps }`.
@@ -501,35 +528,66 @@ export async function bootHost(cfg) {
       try { compiled = await cfg.prewarm(name); } catch {}
     }
     if (compiled == null) {
-      // "__"-named slots are LIVE-EDIT channels (__raw__, __page__), never
-      // fetchable files: unseeded, they mount only when an edit publishes
-      // through watchLive — skip quietly instead of 404-ing on a retry.
-      if (name.startsWith("__") && seeds[name] == null) { delete box.dataset.wiring; return; }
+      if (name.startsWith("__") && seeds[name] == null) return { compiled: null, unseeded: true };
       const src = await sourceFor(name);                  // seed, or fetched on demand
-      compiled = src == null ? null : await compile(src); // src null (fetch failed) ⇒ retry below
+      compiled = src == null ? null : await compile(src); // src null (fetch failed) ⇒ retry via defer
     }
-    delete box.dataset.wiring;
-    if (!compiled || !compiled.source) { deferPreview(box); return; }  // compiler not warm / fetch missed — retry when it lands
-    box.dataset.wired = "1";                               // committed: don't remount
-    renderChild(box, compiled, name).then(() => {
-      if (box.__childApp) { box.dataset.envJson = ejson; box.__childApp.env = env; }
-    });
+    return { compiled, unseeded: false };
+  }
+
+  // A CANVAS island (the sealed surface has no element): the tenant is a
+  // Declare program, so it mounts by SURFACE COMPOSITION — the child app's
+  // root surface becomes a child of the island's surface (mountEmbeddedApp,
+  // the mac backend's own pattern) and the page's paint and hit walks reach
+  // it like any subtree. Then the same bridge as everywhere: link the
+  // `external` surfaces, wire the verbs, hand the child the nav services.
+  const canvasWiring = new WeakSet();
+  async function mountCanvasPreview(view, slotStr) {
+    if (stopped || !slotStr.startsWith("run:")) return;
+    const spec = slotStr.split(":").slice(1).join(":").split("|");
+    const name = spec[0];
+    const env = parseEnv(spec[1]);
+    if (view.__childApp) { view.__childApp.env = env; return; }   // re-mark = env sync
+    if (canvasWiring.has(view)) return;
+    canvasWiring.add(view);
+    const { compiled, unseeded } = await resolveCompiled(name);
+    canvasWiring.delete(view);
+    if (unseeded || stopped) return;
+    if (!compiled || !compiled.source) { deferPreview({ view, slot: slotStr }); return; }
+    if (view.__childApp || view.surface == null) return;          // raced a re-mark / detached
+    try {
+      const childApp = build(compiled.source, { deps: compiled.deps });
+      const base = childAssetBase(name || "");
+      if (base) { setAppAssetBase(childApp, base); setAppDataBase(childApp, base); }
+      mountEmbeddedApp(childApp, view);
+      childApp.env = env;
+      childApp.demoSources = seeds;
+      provideHostServices(childApp, navServices);
+      view.__childApp = childApp;
+      if (typeof view.post === "function") {
+        try { childApp.__unlink = linkIslandTenant(view, childApp); }
+        catch (e) { console.error("[Declare] " + (name || "island") + ": " + e.message); }
+      }
+    } catch (e) {
+      console.error("[Declare] canvas island '" + (name || "?") + "' failed to mount", e);
+    }
   }
   // The RETRY path — the one genuine wait in this shim (a compiler still
   // warm-loading, a fetch that missed). The old loop retried at 60Hz forever;
   // this holds the pending boxes and retries on a short timer that exists
   // ONLY while something is pending — idle-zero the rest of the page's life.
-  const pendingPreviews = new Set();
+  const pendingPreviews = new Set();     // { el } (a DOM box) or { view, slot } (a canvas island)
   let previewTimer = 0;
-  function deferPreview(box) {
-    pendingPreviews.add(box);
+  function drainPending() {
+    const batch = [...pendingPreviews];
+    pendingPreviews.clear();
+    if (stopped) return;
+    for (const p of batch) { if (p.el) mountPreview(p.el); else mountCanvasPreview(p.view, p.slot); }
+  }
+  function deferPreview(entry) {
+    pendingPreviews.add(entry);
     if (previewTimer !== 0) return;
-    previewTimer = setTimeout(() => {
-      previewTimer = 0;
-      const batch = [...pendingPreviews];
-      pendingPreviews.clear();
-      if (!stopped) for (const b of batch) mountPreview(b);
-    }, 250);
+    previewTimer = setTimeout(() => { previewTimer = 0; drainPending(); }, 250);
   }
   undo.push(() => { clearTimeout(previewTimer); previewTimer = 0; pendingPreviews.clear(); });
   // (Island DISCOVERY registration sits at the END of bootHost — everything
@@ -587,10 +645,18 @@ export async function bootHost(cfg) {
   // Containment keeps the scope the scan had (everything under THIS host,
   // nested children included) while two sibling apps stay out of each other.
   // Registered LAST: the replay fires synchronously into everything above.
-  undo.push(onIslandSlot((box) => {
-    if (stopped || !host.contains(box)) return;
-    mountPreview(box);
-    watchLiveAll();
+  undo.push(onIslandSlot((ev) => {
+    if (stopped || ev.slot === "") return;
+    if (ev.el) {
+      // a DOM island: the box mounts content; containment keeps the scope the
+      // old scan had (everything under THIS host, nested children included)
+      if (!host.contains(ev.el)) return;
+      mountPreview(ev.el);
+      watchLiveAll();
+    } else if (ev.view && ev.view.root === app) {
+      // a CANVAS island of THIS page's app: surface composition (no element)
+      mountCanvasPreview(ev.view, ev.slot);
+    }
   }));
 
   return app;

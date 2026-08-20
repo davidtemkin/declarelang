@@ -17,7 +17,7 @@
 // stay inert (hits are box-geometry, like the canvas walk), and resolution
 // is target → nearest sinked surface; the pairing/click rule is shared
 // (input.ts), so both backends decide clicks identically.
-import { allowedRef } from "./backend.js";
+import { allowedRef, notifyIslandSlot } from "./backend.js";
 import { colorToCss, isGradient } from "./value.js";
 import {} from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight } from "./measure.js";
@@ -683,18 +683,9 @@ function observeVisibility(el, cb) {
     visIO.observe(el);
     return () => { VISWATCH.delete(el); visIO?.unobserve(el); };
 }
-const islandSinks = new Set();
-/** Register an island sink — one per booting host, and a page may boot several
- *  apps, so this is a set: every sink hears every slot and scopes itself (the
- *  shim filters by containment, exactly the scope its old scan had). Fires for
- *  every already-marked slot immediately, then per mark/re-mark. Returns the
- *  unregister (a torn-down host must stop hearing about slots). */
-export function onIslandSlot(cb) {
-    islandSinks.add(cb);
-    if (typeof document !== "undefined")
-        document.querySelectorAll("[data-declare-slot]").forEach((el) => cb(el));
-    return () => islandSinks.delete(cb);
-}
+// (island sinks live in backend.ts now — one registry for EVERY backend; the
+// canvas islands have no element, so the DOM-only querySelectorAll replay and
+// the element-typed sink signature both retired with the move)
 /** Materialize the inner clip container for a box-clipped element: adopt the
  *  ordinary children (in order), inherit the rounding, move the overflow. Used
  *  from BOTH sides of the arrival race — the parent's setBoxClip/insertChild
@@ -1624,6 +1615,7 @@ class DomSurface {
         const el = this.element;
         if (id === "") {
             delete this.element.dataset.declareSlot;
+            notifyIslandSlot({ view: el.__declareView, el: this.element, slot: "" });
             delete el.__declareView;
             // Back to the painted-UI default: pointer-inert. (Selection needs no
             // reset — under the subtractive realization nothing was ever written
@@ -1636,8 +1628,14 @@ class DomSurface {
             // tell the registered host a slot exists here (mark or re-mark — the env
             // segment rides the slot string, so env changes arrive as re-marks)
             el.__declareView = view;
-            for (const sink of islandSinks)
-                sink(this.element);
+            // the FOREIGN tenant's sanctioned handle (islands design): everything a
+            // non-Declare tenant may do — get/set/observe/post/onPost — hangs off
+            // the island element, built by the Island view itself (duck-typed: no
+            // view.ts import from here)
+            const fh = view?.foreignHandle;
+            if (typeof fh === "function")
+                el.__declareIsland = fh.call(view);
+            notifyIslandSlot({ view, el: this.element, slot: id });
             // A live foreign surface, not painted UI: its interior owns hits, so an
             // iframe receives clicks whether or not the View has a sink. Selection
             // inside is already the platform's — boxes carry no `user-select` under

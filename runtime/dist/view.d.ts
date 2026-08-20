@@ -649,7 +649,7 @@ export declare function withCursorDefining<T>(view: View, fn: () => T): T;
  *  ANYWHERE on the chain wakes exactly the reads below it. */
 export declare function inheritedCursor(node: Node | null): Cursor | null;
 export declare function setFocusDiscardHook(fn: (view: View) => void): void;
-export declare function fireEvent(view: View, event: string, arg?: unknown): void;
+export declare function fireEvent(view: View, event: string, ...args: unknown[]): void;
 /** The application root — the single visible tree at the top (OpenLaszlo's
  *  `<canvas>`). R0 treats it as the root View; it fills its host by default and
  *  carries the app's reactive environment (host extent, scroll, pointer). */
@@ -794,6 +794,17 @@ export declare class App extends View {
         openWindow?: (to: string) => void;
         inspect?: (slot: string) => void;
     } | null;
+    /** @internal an EMBEDDED tenant's line to its host island (linkIslandTenant
+     *  installs it). Null = not linked (a top-level app, or never linked) —
+     *  send() says so instead of vanishing. */
+    hostSink: {
+        message(topic: string, payload: unknown): void;
+    } | null;
+    /** post(topic, payload) — the tenant's message VERB, this app → its host
+     *  island's onPost. The other half of the bridge from the facts: consumed
+     *  once, ordered, never re-readable — for "do this", not "this is so"
+     *  (islands design; the state channel is the `external` attributes). */
+    post(topic: string, payload?: unknown): void;
     /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
      *  button calls `app.navigate(url)` in an activation handler; the compiler reads
      *  the call statically (links.ts → `<a href>` in the static extraction), and at
@@ -967,14 +978,57 @@ export declare class App extends View {
     private bindPageScroll;
     childrenMutated(): void;
 }
-/** DOMIsland — a foreign-content island (design: the `DOMIsland [ … ]` view). A leaf View
+/** A tenant's connection, installed by linkIslandTenant / the foreign handle. */
+interface TenantSink {
+    value(name: string, v: unknown): void;
+    message(topic: string, payload: unknown): void;
+}
+/** Island — the abstract boundary box. Concrete kinds decide what the tenant
+ *  IS (DOMIsland: foreign DOM; AppIsland: a Declare program); this base owns
+ *  the bridge — the external-fact surface and the message verbs. */
+export declare class Island extends View {
+    /** @internal the linked tenant's delivery sink (null = nothing linked). */
+    tenantSink: TenantSink | null;
+    /** @internal per-name echo guard: which side a delivery is currently
+     *  crossing FROM, so the far observer skips reflecting it back (identity-
+     *  fresh computed values would otherwise ping-pong; equality gates alone
+     *  cannot stop a constraint that mints a new array per run). */
+    crossing: Map<string, "toTenant" | "toIsland">;
+    /** The message verb, host → tenant (`post`, in the postMessage lineage —
+     *  `message` is the stream family's event). Dropped with a console note
+     *  when no tenant is linked — a verb has no meaning without a receiver. */
+    post(topic: string, payload?: unknown): void;
+    /** @internal tenant → host verb arrival: fire the declared onPost with the
+     *  one-record payload `{ topic, payload }` (IslandPost). */
+    receiveMessage(topic: string, payload: unknown): void;
+    /** @internal a tenant value push (validated when foreign). Ownership
+     *  referees direction: a non-readonly slot the host BOUND refuses the push
+     *  with the constraint named — the loud, structural answer. A `readonly
+     *  external` slot is tenant-owned by declaration, so it lands via the
+     *  runtime write path. */
+    receiveValue(name: string, v: unknown, foreign: boolean): void;
+    /** The foreign tenant's handle — built once, attached to the island's
+     *  element by the DOM backend (`el.__declareIsland`). The whole sanctioned
+     *  surface for non-Declare content; everything it does rides the same
+     *  bridge a Declare tenant uses. */
+    private handle;
+    foreignHandle(): Record<string, unknown>;
+}
+/** Link an Island to a DECLARE tenant (host-client renderChild, the canvas
+ *  island service, the mac runner). Pairs the two `external` surfaces by name
+ *  with a TYPE HANDSHAKE — the link error, at link time — then bridges both
+ *  directions with per-settle observers, echo-guarded. Initial values: the
+ *  host's side wins for host-writable slots, the tenant's for `readonly
+ *  external` (tenant-owned) ones. Returns the unlink. */
+export declare function linkIslandTenant(island: Island, tenant: App): () => void;
+/** DOMIsland — the FOREIGN-CONTENT island (design: the `DOMIsland [ … ]` view). A leaf
  *  whose box Declare lays out and constrains normally, but whose interior is
  *  host-managed DOM: the `slot` key is reflected onto the element (DOM backend)
  *  so the host can mount an iframe / textarea / any element into the Declare-sized
  *  box — its width/height follow this view's constraints with no coordinate
- *  sync. (Canvas backend realizes the same island as a positioned DOM overlay
- *  — setEmbed is a no-op there for now.) */
-export declare class DOMIsland extends View {
+ *  sync. Carries the Island bridge: `external` declarations + send/onMessage,
+ *  reachable from the tenant side through the element's `__declareIsland`. */
+export declare class DOMIsland extends Island {
     slot: string;
     childName: string;
     protected flush(s: Surface): void;

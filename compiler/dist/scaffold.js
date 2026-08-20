@@ -98,6 +98,7 @@ interface Shadow { dx: number; dy: number; blur: number; color: Color }
 interface Backdrop { blur: number; saturate: number }
 type Theme = Readonly<Record<string, any>>;
 interface Cursor { readonly data: any; readonly path: readonly string[] }
+interface IslandPost { readonly topic: string; readonly payload: unknown }
 declare function gradient(...args: (Color | string | { offset: number | null; color: Color })[]): Gradient;
 declare function stroke(width: number, color: Color): Stroke;
 declare function stop(offset: number, color: Color): { offset: number; color: Color };
@@ -377,6 +378,9 @@ export const LANGUAGE_API = {
     App: [
         `  navigate(to: string): void;`,
         `  openWindow(to: string): void;`,
+        // the island bridge's tenant-side verb (islands design): this app → its
+        // host island's onPost. Meaningful only when embedded and linked.
+        `  post(topic: string, payload?: unknown): void;`,
         // The ONE operation behind every arrival (location.md §0.5): follow(ref)
         // applies the app's onFollow hook once, then routes — external through
         // navigate, "#…" into a location write + reveal. destinationOf strips the
@@ -498,6 +502,9 @@ export const LANGUAGE_API = {
     // calling you. The shared stream surface (url/active/retry + the read-only
     // intrinsics) flows from the Stream schema's attrs, not from here.
     Socket: [`  send(text: string): void;`],
+    // the island bridge's host-side verb: this island → its linked tenant's
+    // onPost. The state channel is the instance's `external` declarations.
+    DOMIsland: [`  post(topic: string, payload?: unknown): void;`],
     // The edit-session VERBS (editor.ts): `dirty`/`valid`/`error` are schema
     // attrs (readable state), but committing/reverting the draft are calls.
     Editor: [`  commit(): void;`, `  revert(): void;`],

@@ -497,7 +497,11 @@ const AppSchema = {
     // geometry — immediately if standing, or settles later when data builds it.
     // Declaring it replaces the built-in scroll landing; `reveal(target)` is
     // that default, callable from the handler.
-    events: ["follow", "ready", "arrive"],
+    // `post` — the island bridge's inbound verb (islands design): a host
+    // island's post(topic, payload) lands on an embedded tenant app as
+    // onPost({ topic, payload }). Fires only on linked tenants. (`message`
+    // belongs to the stream family — one event name, one payload shape.)
+    events: ["follow", "ready", "arrive", "post"],
 };
 // Text (R3): a text run sized by native browser metrics when width/height
 // aren't given. Its style — textColor/fontSize/fontFamily/fontWeight — lives
@@ -641,6 +645,11 @@ const DOMIslandSchema = {
     // The host mirrors the child's name up (dom-backend name-mirror); a program
     // write would be overwritten at the child's next settle.
     readOnly: ["childName"],
+    // `post` — the island bridge's inbound verb: a tenant's post(topic,
+    // payload) lands here as onPost({ topic, payload }). The outbound half is
+    // the island's own post() method; the state channel is the instance's
+    // `external` attribute declarations.
+    events: ["post"],
 };
 // TextInput (Layer 3, docs/system-design/input.md): an editable text field — the first
 // EDITOR (language §9, the leaf-input exception). `text` is the model/draft slot,
@@ -1165,6 +1174,7 @@ export const EVENT_PAYLOAD = {
     geometry: "FocusGeometry",
     tip: "TipEvent",
     message: "StreamMessage", // Stream: data/type/id (streams.ts)
+    post: "IslandPost", // Island bridge: { topic, payload } (view.ts)
     // payload-free: focus, blur, escapeFocus, init, enter, load, ready,
     // start, stop, repeat, apply, remove, open, close, error
 };

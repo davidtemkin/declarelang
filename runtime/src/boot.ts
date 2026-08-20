@@ -451,6 +451,25 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
 
 /** Mount an already-instantiated App: attach to the backend, root it in `host`,
  *  wire input. The shared tail of every render path. */
+/** Mount a Declare TENANT app inside an ISLAND by SURFACE COMPOSITION — the
+ *  mac backend's own pattern, generalized: the child's root surface becomes a
+ *  child of the island's surface, so the host backend's paint and hit walks
+ *  reach the tenant like any subtree (no element, no second input router).
+ *  This is how AppIsland works on CANVAS (and how it always worked natively);
+ *  the DOM host keeps its element path (renderChild), where the box IS the
+ *  natural mount. The island's box feeds the tenant's host extent, live. */
+export function mountEmbeddedApp(app: App, island: View): App {
+  const backend = island.backend;
+  const parent = island.surface;
+  if (backend === null || parent === null) throw new DeclareError("mountEmbeddedApp: the island is not attached to a backend yet");
+  app.attach(backend, parent);
+  const sync = (): void => { app.hostWidth = island.width; app.hostHeight = island.height; };
+  sync();
+  observe(() => [island.width, island.height], sync, "embed:hostExtent");
+  app.scheduleReveal();
+  return app;
+}
+
 export function mountApp(app: App, host: HTMLElement, backend: RenderBackend, opts: { chrome?: boolean } = {}): App {
   app.attach(backend, null);
   backend.attachRoot(host, app.surface!);

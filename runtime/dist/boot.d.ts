@@ -1,4 +1,4 @@
-import { App } from "./view.js";
+import { App, View } from "./view.js";
 import type { RenderBackend } from "./backend.js";
 import type { Program } from "./parser.js";
 /** A web font to make available before first paint: `src` is a URL (a
@@ -69,6 +69,14 @@ export declare function disposeApp(app: App): void;
 export declare function wireInput(app: App, host: HTMLElement, chrome?: boolean): void;
 /** Mount an already-instantiated App: attach to the backend, root it in `host`,
  *  wire input. The shared tail of every render path. */
+/** Mount a Declare TENANT app inside an ISLAND by SURFACE COMPOSITION — the
+ *  mac backend's own pattern, generalized: the child's root surface becomes a
+ *  child of the island's surface, so the host backend's paint and hit walks
+ *  reach the tenant like any subtree (no element, no second input router).
+ *  This is how AppIsland works on CANVAS (and how it always worked natively);
+ *  the DOM host keeps its element path (renderChild), where the box IS the
+ *  natural mount. The island's box feeds the tenant's host extent, live. */
+export declare function mountEmbeddedApp(app: App, island: View): App;
 export declare function mountApp(app: App, host: HTMLElement, backend: RenderBackend, opts?: {
     chrome?: boolean;
 }): App;

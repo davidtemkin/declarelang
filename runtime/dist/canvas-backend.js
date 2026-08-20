@@ -29,6 +29,7 @@
 import { DeclareError } from "./errors.js";
 import { inAnimationFrame } from "./animate.js";
 const MICROTASK_PAINT = -1;
+import { notifyIslandSlot } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, isGradient } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
@@ -1337,9 +1338,16 @@ class CanvasSurface {
             this.compositor.invalidate();
         }
     }
-    // Canvas has no per-view DOM element to mark — foreign embedding is DOM-only
-    // (the editable-demo host runs on the DOM backend; canvas is parked).
-    setEmbed(_id) { }
+    // Canvas islands have no element to mark — a DOMIsland's FOREIGN content
+    // cannot live inside the sealed surface (the positioned-overlay realization
+    // remains the recorded follow-on) — but an APPISLAND needs none: its tenant
+    // is a Declare program, and it mounts by SURFACE COMPOSITION (the mac
+    // backend's own pattern — boot.ts mountEmbeddedApp inserts the child app's
+    // root surface right here, and the paint and hit walks reach it like
+    // anything else). The notification is the host's cue to do exactly that.
+    setEmbed(id, view) {
+        notifyIslandSlot({ view, el: null, slot: id });
+    }
     /** Route a wheel delta to the innermost scrolling surface under (px,py) in
      *  PARENT-local space; true when consumed. Mirrors hit's transform so it
      *  targets exactly what the user sees; the compositor requests the repaint. */

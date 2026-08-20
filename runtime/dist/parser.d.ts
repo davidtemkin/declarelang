@@ -118,6 +118,13 @@ export interface AttrDecl {
      *  read but nothing may set — the checker refuses an assignment and the
      *  runtime setter throws. Part of the slot's identity, like its type. */
     readOnly: boolean;
+    /** Declared `external name: Type …` — an ISLAND BOUNDARY slot (islands.md):
+     *  on an Island instance it is the host's half of the bridge; on a tenant
+     *  App it is an export. Data types only, paired by name across the link,
+     *  type-agreement checked at mount (the "link error"). Combines with
+     *  `readonly` for an out-fact the host provably never writes. Part of the
+     *  slot's identity, like its type. */
+    external: boolean;
     pos: Pos;
 }
 /** A navigable target extracted from an activation handler's `navigate(to)`

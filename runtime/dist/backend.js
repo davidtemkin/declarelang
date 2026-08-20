@@ -32,4 +32,25 @@ export const TOUCH_TYPES = ["touchStart", "touchMove", "touchEnd", "touchCancel"
  *  as `touch-action: pan-x pan-y` (single-finger pan stays the page's; only
  *  pinch retires — the same narrowing `claim = x` performs for drags). */
 export const PINCH_TYPES = ["pinchStart", "pinch", "pinchEnd"];
+const islandSinks = new Set();
+const liveIslands = new Map();
+/** @internal Backends call this from setEmbed (mark, re-mark, or clear). */
+export function notifyIslandSlot(ev) {
+    if (ev.slot === "") {
+        liveIslands.delete(ev.view);
+        return;
+    }
+    liveIslands.set(ev.view, ev);
+    for (const s of islandSinks)
+        s(ev);
+}
+/** Register an island sink — one per booting host, and a page may boot several
+ *  apps, so this is a set: every sink hears every slot and scopes itself.
+ *  Replays the live islands immediately; returns the unregister. */
+export function onIslandSlot(cb) {
+    islandSinks.add(cb);
+    for (const ev of liveIslands.values())
+        cb(ev);
+    return () => islandSinks.delete(cb);
+}
 //# sourceMappingURL=backend.js.map

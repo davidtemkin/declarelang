@@ -107,6 +107,14 @@ export interface DeclRecord {
     } | null;
     /** The compiler's extracted read-paths for the default, when they rode along. */
     deps: readonly string[] | null;
+    /** The declared TYPE name, verbatim ("number", "array", …) — what the
+     *  island link handshake compares across programs. */
+    type?: string;
+    /** Declared `external` — an island-boundary slot (parser.ts AttrDecl). The
+     *  bridge enumerates an instance's boundary via these records. */
+    external?: boolean;
+    /** Declared `readonly` — with external, an out-fact the host cannot write. */
+    readOnly?: boolean;
 }
 /** Record a class's author declarations (instantiate.ts makeClass). */
 export declare function recordDeclarations(ctor: object, table: Record<string, DeclRecord>): void;

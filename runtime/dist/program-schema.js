@@ -283,6 +283,26 @@ isComponent = () => false) {
     if (type === null) {
         return err(`unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class, or a function type '(a: T) -> R'`, d.typePos);
     }
+    // ── `external` (islands.md): an island BOUNDARY slot ──────────────────────
+    if (d.external) {
+        // Where it may live: an Island's declarations (the host's half of the
+        // bridge) or an App's (a tenant's exports). Anywhere else there is no
+        // boundary for it to cross.
+        if (schema.name !== "App" && !descendsFrom(schema, "DOMIsland")) {
+            return err(`'external ${d.name}' — an external attribute is an island-boundary slot: declare it on an Island (the host's half of the bridge) or on an App (a tenant's export). ${schema.name} has no boundary to cross`, d.pos);
+        }
+        if (d.prevailing) {
+            return err(`'${d.name}' cannot be both prevailing and external — a followed slot takes its value from the ancestor chain, a boundary slot from the other side of the island; the two sources cannot share one slot`, d.pos);
+        }
+        // Data types only: the other side is a SEPARATE program (someday a
+        // separate realm) — a component or view is an identity in THIS program's
+        // graph and cannot cross; a function cannot be serialized across. This is
+        // the same ruling data.ts made for itself: the boundary carries JSON-shaped
+        // values (plus the platform value kinds, which are data).
+        if (type.kind === "component" || type.kind === "view" || type.kind === "fn") {
+            return err(`'external ${d.name}: ${d.type}' — an external attribute carries DATA across the island boundary (number, string, boolean, array, object, Color, Length, an enum); a ${type.kind === "fn" ? "function" : "component instance"} is an identity in this program's graph and cannot cross. For behavior, use the message channel (island.send / onMessage)`, d.typePos);
+        }
+    }
     if (d.def === null)
         return { ok: true, type, value: undefined };
     if (d.def.kind === "code") {

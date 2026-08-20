@@ -1,4 +1,4 @@
-import type { RenderBackend, Surface } from "./backend.js";
+import { type RenderBackend, type Surface } from "./backend.js";
 export declare class CanvasBackend implements RenderBackend {
     private readonly compositor;
     createSurface(): Surface;
