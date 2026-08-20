@@ -14,7 +14,7 @@
 //
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
-import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, mountEmbeddedApp } from "../runtime/dist/index.js";
+import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, afterSettle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, mountEmbeddedApp } from "../runtime/dist/index.js";
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -488,7 +488,8 @@ export async function bootHost(cfg) {
   // Wire ONE island box (called per slot event, never per frame — see the
   // registration below). Idempotent: a wired box only re-syncs env.
   async function mountPreview(box) {
-    if (stopped || !box.isConnected || !box.dataset.declareSlot?.startsWith("run:")) return;
+    if (stopped || !box.dataset.declareSlot?.startsWith("run:")) return;
+    if (!box.isConnected) { deferPreview({ el: box }); return; }   // mid-attach — retry lands it
     const spec = box.dataset.declareSlot.split(":").slice(1).join(":").split("|");
     const name = spec[0];
     const env = parseEnv(spec[1]);
@@ -656,11 +657,22 @@ export async function bootHost(cfg) {
     if (stopped || ev.slot === "") return;
     if (ev.el) {
       // a DOM island: the box mounts content; containment keeps the scope the
-      // old scan had (everything under THIS host, nested children included)
-      if (!host.contains(ev.el)) return;
-      if (ev.view) islandViewOf.set(ev.el, ev.view);
-      mountPreview(ev.el);
-      watchLiveAll();
+      // old scan had (everything under THIS host, nested children included).
+      // ⚠ setEmbed fires during the ATTACH WALK, while the subtree is still
+      // DETACHED — containment cannot be judged yet, and an edge-triggered
+      // event judged too early is missed forever (found live: the docs
+      // chapter's later-built islands never mounted; the old 60Hz scan was
+      // accidentally immune). Insertion completes within the same settle, so
+      // scope at its close.
+      const el = ev.el;
+      const admit = () => {
+        if (stopped || !host.contains(el)) return;   // scoped once connected
+        if (ev.view) islandViewOf.set(el, ev.view);
+        mountPreview(el);
+        watchLiveAll();
+      };
+      if (el.isConnected) admit();
+      else afterSettle(admit);
     } else if (ev.view && ev.view.root === app) {
       // a CANVAS island of THIS page's app: surface composition (no element)
       mountCanvasPreview(ev.view, ev.slot);
