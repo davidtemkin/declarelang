@@ -70,6 +70,7 @@ class Block extends View [ kind: string = "",
 
     code: View [ visible = { classroot.kind == "code" }, width = { parent.width },
         height = { this.body.height + 32 },
+        clip = true,                             // the card contains its code: long lines clip at the box (the DOM's pre scrolls natively; the sealed surface must say so)
 
         // the card's own shape, stated exactly: rounded everywhere EXCEPT the
         // corner an aside joins (DT's ruling) — the card above an aside squares

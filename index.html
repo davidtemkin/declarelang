@@ -66,7 +66,7 @@
 <h6>→</h6>
 <a href="apps/desktop/desktop.declare"><img src="apps/homepage/shots/desktop.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3017 lines — 1744 code, 820 comment · 110 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3102 lines — 1747 code, 885 comment · 110 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -648,7 +648,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=de62b8b2dea9";
+  import boot from "./bundles/declare-boot.js?v=29f9bc8cf4a5";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

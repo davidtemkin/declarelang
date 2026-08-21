@@ -1369,9 +1369,41 @@ class CanvasSurface implements Surface {
       for (let s: CanvasSurface | null = this; s !== null; s = s.parent) {
         if (s.wants?.wantsPinch === true && s.sink !== null) { pinch = { key: s, sink: s.sink }; break; }
       }
-      return { key: this, sink: this.sink, ...this.wants, pinch, x: lx, y: ly, cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
+      // THE CURSOR IS DEEPEST-WINS, sink not required — the DOM's own rule (a
+      // sinkless element's CSS cursor shows while its hits pass through to
+      // the sink ancestor). The desktop's resize halo is the living case:
+      // eight sinkless cursor zones over one sink; without this probe the
+      // sealed surface answered the halo's sink but never the zones' cursors,
+      // so a canvas window had no resize cursors at all (2026-08-21).
+      const zc = this.cursorProbe(lx, cy);
+      return { key: this, sink: this.sink, ...this.wants, pinch, x: lx, y: ly,
+        cursor: zc !== undefined ? zc : this.cursorStyle !== "" ? this.cursorStyle : undefined };
     }
     return null;
+  }
+
+  /** The deepest cursor among CHILDREN under the point, sinks ignored —
+   *  hit()'s geometry (transform, clip, scroll) without its targeting.
+   *  Called with the same child-frame coords hit() probes children at, and
+   *  only when a sink target is being returned, so the extra walk is scoped
+   *  to that target's subtree. */
+  private cursorProbe(clx: number, ccy: number): string | undefined {
+    for (let i = this.children.length - 1; i >= 0; i--) {
+      const c = this.children[i];
+      if (!c.visible) continue;
+      let lx = clx - c.x;
+      let ly = ccy - c.y;
+      [lx, ly] = c.invertTransform(lx, ly);
+      const cp = c.clipPathObj();
+      if (cp !== null && !hitCtx().isPointInPath(cp, lx, ly)) continue;
+      const inBox = lx >= 0 && ly >= 0 && lx < c.width && ly < c.height;
+      if (c.scrolls && !inBox) continue;
+      const cy2 = c.scrolls ? ly + c.scrollOffset : ly;
+      const deep = c.cursorProbe(lx, cy2);
+      if (deep !== undefined) return deep;
+      if (inBox && c.pe !== "none" && c.cursorStyle !== "") return c.cursorStyle;
+    }
+    return undefined;
   }
 
   setScroll(on: boolean, onScroll: (y: number) => void): void {

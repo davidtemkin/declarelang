@@ -135,6 +135,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
     // the new — the rollover pair, resolved by the same seam as click.
     let hoveredKey = null;
     let hoveredSink = null;
+    let hoveredCursor = undefined;
     // Live fingers, by pointerId — the raw touch family's payload. Only
     // maintained while some view under the gesture wants raw touch.
     const fingers = new Map();
@@ -349,9 +350,16 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
         // sink under the pointer and, when it changes, fire the out/over pair.
         const t = resolve(e);
         const key = t !== null ? t.key : null;
+        // The cursor can change WITHOUT the target changing (deepest-wins: eight
+        // sinkless resize zones over one halo sink — sliding along the band keeps
+        // the same target while the zone cursor flips), so the brush re-fires on
+        // either difference. The out/over pair stays keyed to the TARGET alone.
+        const cur = t !== null ? t.cursor : undefined;
+        if (onHover !== undefined && (key !== hoveredKey || cur !== hoveredCursor)) {
+            onHover(t);
+            hoveredCursor = cur;
+        }
         if (key !== hoveredKey) {
-            if (onHover !== undefined)
-                onHover(t);
             if (hoveredSink !== null)
                 hoveredSink("pointerOut", 0, 0);
             hoveredKey = key;
