@@ -1993,26 +1993,28 @@ gates — running/launching per application, badge counts — that the dock's do
 and bounces derive from. The window manager owns windows once they exist; this
 node owns the moment before.
 
+The heart is the APPLICATION RECORDS — one row per launchable application,
+carrying the catalog (key, names, program, env, dock face) and the launch
+state (running/launching/count). The five parallel flag families this array
+replaced were the God-object smell at its purest: attributes clustered by
+prefix are records wanting to exist. The dock's launchable icons REPLICATE
+over these rows; state changes are array replacement (records are data —
+patch(), never a field poke), so every reader re-derives.
+
 The surface:
 
-  facts   per-app `running`/`launching` flags and window counts (the dock
-          binds them; Quit clears them through the WM)
-  verbs   `openApp` · `openViewer`/`openDoc`/`openMarkdown` · `newFiles`/
+  facts   the `apps` records (the dock binds them; Quit clears `running`
+          through the WM)
+  verbs   `launch(id)` behind every dock click and menu item with a record ·
+          `openApp` · `openViewer`/`openDoc`/`openMarkdown` · `newFiles`/
           `openFolderWindow` · `newJot`/`openWelcome` · `openAbout`/
           `dismissAbouts` · `openSource` · `nameOf`/`sourceRel` (the catalog)
 */
 
 class Launcher extends Node [
 
-    /* ### The application records
-
-       One row per launchable application: the CATALOG (key, names, program,
-       env, dock face) and the LAUNCH STATE (running/launching/count) — the
-       five parallel flag families this array replaced were the God-object
-       smell at its purest: attributes clustered by prefix are records wanting
-       to exist. The dock's launchable icons REPLICATE over these rows; state
-       changes are array replacement (records are data — patch(), never a
-       field poke), so every reader re-derives. */
+    // the records: catalog + launch state, one row per application (see the
+    // class header) — mutate by patch(), never a field poke
 
     apps: array = { [
         ({ id: "markdown", ix: 1, label: "Markdown", title: "Markdown", glyph: "M↓", gsize: 0.42, kind: "",
