@@ -304,7 +304,7 @@ export function markInited(view: View): void {
 function initNodeTree(node: Node): void {
   for (const child of node.children) {
     if (child instanceof View) initTree(child);
-    else if (child instanceof Node && !(child instanceof Animator) && !(child instanceof AnimatorGroup)) initNodeTree(child);
+    else if (child instanceof Node) initNodeTree(child);
   }
   if (!INITED.has(node)) {
     INITED.add(node);
@@ -322,11 +322,13 @@ function initTree(view: View): void {
   ensureApplier(view);
   for (const child of view.children) {
     if (child instanceof View) initTree(child);
-    // a FACELESS child (a plain Node — a controller, a clock, a coordinator)
-    // has no applier, no animators, no surface — but it has a lifecycle:
+    // a FACELESS child (a plain Node — a controller, a clock, an animator, a
+    // coordinator) has no applier and no surface — but it has a lifecycle:
     // Node.md has always promised `init`, and until this branch the walk
     // skipped every non-View child, so a node's onInit silently never ran.
-    else if (child instanceof Node && !(child instanceof Animator) && !(child instanceof AnimatorGroup)) initNodeTree(child);
+    // Animators included: their schema inherits the event, so they receive
+    // it (autoStart is separate machinery, fired after inits as ever).
+    else if (child instanceof Node) initNodeTree(child);
   }
   if (!INITED.has(view)) {
     INITED.add(view);

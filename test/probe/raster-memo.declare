@@ -1,0 +1,24 @@
+// The raster-memo probe: one EXPENSIVE drawing (blur classifies it) at an
+// integer position, so exact-scale raster and vector replay agree
+// bit-for-bit; `hue` re-records it, `tick` just forces settles.
+
+App [ width = 600, height = 400, fill = #FFFFFF,
+    hue: number = 120,
+    tick: number = 0,
+    art: View [ x = 40, y = 40, width = 320, height = 240,
+        draw(d: Draw) {
+            const t = app.tick
+            d.filter = "blur(6px)"
+            d.fillStyle = "hsl(" + app.hue + ", 70%, 60%)"
+            d.beginPath()
+            d.roundRect(20, 20, 200, 140, 18)
+            d.fill()
+            d.filter = "none"
+            d.fillStyle = "hsl(" + (app.hue + 120) + ", 60%, 50%)"
+            d.beginPath()
+            d.roundRect(120, 90, 160, 110, 12)
+            d.fill()
+            }
+        ],
+    cap: Text [ x = 40, y = 300, text = { "hue " + app.hue } ]
+    ]

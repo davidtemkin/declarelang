@@ -331,7 +331,9 @@ const ViewSchema = {
     events: ["click", "dblClick", "hold", "pointerDown", "pointerUp", "pointerMove", "pointerOver", "pointerOut",
         "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel",
         "pinchStart", "pinch", "pinchEnd",
-        "init", "retire", "contextMenu", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
+        "retire", "contextMenu", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
+    // (`init` is INHERITED from Node now — the faceless tier's lifecycle,
+    // 2026-08-20; re-listing it here doubled it in the handlers-it-knows error)
 };
 // App is the root View plus the app's reactive environment. `hostWidth`/
 // `hostHeight` are its enclosing extent — the window at top level, the container

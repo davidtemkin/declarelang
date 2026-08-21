@@ -332,5 +332,41 @@ export declare function record(fn: (d: Draw) => void, boxW?: () => number, boxH?
  *  backends share, so a recording renders identically wherever it lands.
  *  Style state is saved/restored; the path is cleared on both sides (save/
  *  restore does not cover the current path in Canvas2D). */
+/** Classify a recording's REPLAY expense — the shared half of the adaptive
+ *  draw cache (rendering model): a backend may memoize the raster of an
+ *  "expensive" list and blit it while (list, scale, dpr) are unchanged. Pure
+ *  over the recording, so every backend gates identically. `filter` (blur is
+ *  the canonical case — measured ~24ms/flush for one full-screen mesh on
+ *  WebKit's deferred CPU raster) is expensive outright; otherwise expense is
+ *  op volume, with gradient paints weighted (each builds a ramp at replay). */
+/** The raster-policy caps — OUR frugality rules, not platform truth (the web
+ *  exposes no raster budget, and its limits are uncharacterized; these keep a
+ *  compliant distance from the one documented hard edge, Safari's per-canvas
+ *  caps, and scale the total in VIEWPORTS because backdrop-class rasters
+ *  scale with the screen). Shared so every backend prices identically. */
+/** The BLEED PAD for a recording whose bounds are not exact: blur and shadow
+ *  paint past the recorded shapes by amounts the recorder cannot fold into
+ *  bounds — but the ops carry the radii, so a sound overscan is computable
+ *  after the fact. CSS/canvas `blur(r)` is Gaussian with σ = r/2; visible
+ *  support ends by ~3σ, padded here to 2.5·r for margin. Shadows add their
+ *  own blur (same law) plus their offset. Shared, so a backend that rasters
+ *  a recording (the memo here; the DOM's per-view canvas in its turn) covers
+ *  the same painted extent everywhere. */
+export declare function rasterPad(list: DisplayList): number;
+/** The STRETCH GRACE (DT's rule, 2026-08-20): a drawn view whose scale just
+ *  changed may render as its stretched prior raster for up to this long;
+ *  once the scale has been quiet for the beat, the next frame is exact.
+ *  Time-based by CHOICE, not heuristic — "animation done" is undetectable in
+ *  this language (a spring, a pointer constraint, and a stream are all just
+ *  writers), so the tolerance is declared instead: transitional frames may
+ *  stretch, resting content is always crisp within a beat. The constant
+ *  matches the visibility facts' at-rest flush — one platform notion of
+ *  "quiet for a beat". */
+export declare const RASTER_GRACE_MS = 120;
+export declare const RASTER_MAX_DIM = 8192;
+export declare const RASTER_MAX_AREA = 16777216;
+export declare function rasterEntryCap(viewportBytes: number): number;
+export declare function rasterTotalCap(viewportBytes: number): number;
+export declare function replayCost(list: DisplayList): "cheap" | "expensive";
 export declare function replay(ctx: CanvasRenderingContext2D, list: DisplayList): void;
 export {};

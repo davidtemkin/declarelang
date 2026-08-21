@@ -461,6 +461,74 @@ function buildGradient(ctx: CanvasRenderingContext2D, g: GradientRec): CanvasGra
  *  backends share, so a recording renders identically wherever it lands.
  *  Style state is saved/restored; the path is cleared on both sides (save/
  *  restore does not cover the current path in Canvas2D). */
+/** Classify a recording's REPLAY expense — the shared half of the adaptive
+ *  draw cache (rendering model): a backend may memoize the raster of an
+ *  "expensive" list and blit it while (list, scale, dpr) are unchanged. Pure
+ *  over the recording, so every backend gates identically. `filter` (blur is
+ *  the canonical case — measured ~24ms/flush for one full-screen mesh on
+ *  WebKit's deferred CPU raster) is expensive outright; otherwise expense is
+ *  op volume, with gradient paints weighted (each builds a ramp at replay). */
+/** The raster-policy caps — OUR frugality rules, not platform truth (the web
+ *  exposes no raster budget, and its limits are uncharacterized; these keep a
+ *  compliant distance from the one documented hard edge, Safari's per-canvas
+ *  caps, and scale the total in VIEWPORTS because backdrop-class rasters
+ *  scale with the screen). Shared so every backend prices identically. */
+/** The BLEED PAD for a recording whose bounds are not exact: blur and shadow
+ *  paint past the recorded shapes by amounts the recorder cannot fold into
+ *  bounds — but the ops carry the radii, so a sound overscan is computable
+ *  after the fact. CSS/canvas `blur(r)` is Gaussian with σ = r/2; visible
+ *  support ends by ~3σ, padded here to 2.5·r for margin. Shadows add their
+ *  own blur (same law) plus their offset. Shared, so a backend that rasters
+ *  a recording (the memo here; the DOM's per-view canvas in its turn) covers
+ *  the same painted extent everywhere. */
+export function rasterPad(list: DisplayList): number {
+  if (list.exact) return 0;
+  let blur = 0, shadowBlur = 0, shadowOff = 0;
+  for (const o of list.ops) {
+    if (o.op === "set") {
+      if (o.k === "filter" && typeof o.v === "string") {
+        for (const m of (o.v as string).matchAll(/blur\((\d+(?:\.\d+)?)px\)/g)) blur = Math.max(blur, Number(m[1]));
+      } else if (o.k === "shadowBlur" && typeof o.v === "number") shadowBlur = Math.max(shadowBlur, o.v);
+      else if ((o.k === "shadowOffsetX" || o.k === "shadowOffsetY") && typeof o.v === "number") shadowOff = Math.max(shadowOff, Math.abs(o.v));
+    }
+  }
+  // clamped: a giant blur's far tail is invisible, and an unbounded pad can
+  // balloon a viewport-class backdrop past the entry cap at high dpr
+  return Math.min(128, Math.ceil(2.5 * blur + 2.5 * shadowBlur + shadowOff));
+}
+
+/** The STRETCH GRACE (DT's rule, 2026-08-20): a drawn view whose scale just
+ *  changed may render as its stretched prior raster for up to this long;
+ *  once the scale has been quiet for the beat, the next frame is exact.
+ *  Time-based by CHOICE, not heuristic — "animation done" is undetectable in
+ *  this language (a spring, a pointer constraint, and a stream are all just
+ *  writers), so the tolerance is declared instead: transitional frames may
+ *  stretch, resting content is always crisp within a beat. The constant
+ *  matches the visibility facts' at-rest flush — one platform notion of
+ *  "quiet for a beat". */
+export const RASTER_GRACE_MS = 120;
+
+export const RASTER_MAX_DIM = 8192;         // Safari's per-canvas dimension cap (iOS 18 tier)
+export const RASTER_MAX_AREA = 16_777_216;  // …and the old area cap (iOS < 18) — the safe floor
+export function rasterEntryCap(viewportBytes: number): number {
+  // 3 viewports: a full-viewport backdrop plus its bleed pad at high dpr
+  // must fit — 2 refused exactly the raster the cache exists for
+  return Math.min(RASTER_MAX_AREA * 4, 3 * viewportBytes);
+}
+export function rasterTotalCap(viewportBytes: number): number {
+  return Math.min(96 << 20, Math.max(32 << 20, 4 * viewportBytes));
+}
+
+export function replayCost(list: DisplayList): "cheap" | "expensive" {
+  let n = 0;
+  for (const o of list.ops) {
+    n++;
+    if (o.op === "set" && o.k === "filter" && o.v !== "none" && o.v !== "") return "expensive";
+    if ((o.op === "fillStyle" || o.op === "strokeStyle") && o.grad !== undefined) n += 4;
+  }
+  return n >= 48 ? "expensive" : "cheap";
+}
+
 export function replay(ctx: CanvasRenderingContext2D, list: DisplayList): void {
   ctx.save();
   ctx.beginPath();

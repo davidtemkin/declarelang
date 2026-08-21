@@ -415,7 +415,7 @@ export function validateShape() { return null; }
 `;
   const themesStub = `export const Themes = Object.freeze({});\n`;
   const viewportStub = `export function lockFocusZoom() {}\n`;
-  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\n`;
+  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayCost() { return "cheap"; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\n`;
   const stubFor = (name, filterRe, contents) => ({
     name,
     setup(build) {

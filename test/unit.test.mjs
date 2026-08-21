@@ -1213,7 +1213,7 @@ await test("check() rejects a typo'd handler, naming the handlers it knows", () 
   const [err] = check(parse("View [ onClik() { } ]"));
   // names the typo and lists the handlers it knows (the set grows with the
   // schema — pin the stable leading pointer handlers, not the whole tail)
-  assert.match(err.message, /View has no 'onClik' event — its handlers: onClick, onDblClick, onHold, onPointerDown, onPointerUp, onPointerMove/);
+  assert.match(err.message, /View has no 'onClik' event — its handlers: onInit, onClick, onDblClick, onHold, onPointerDown, onPointerUp, onPointerMove/);
   assert.equal(err.pos.col, 8);
 });
 
@@ -1841,7 +1841,7 @@ await test("check(): a class body checks as an instance of the class itself", ()
   const errs = check(parseProgram(`class A extends View [ zap = 1, onClik() { } ]\nApp [ width=1 ]`));
   assert.equal(errs.length, 2);
   assert.match(errs[0].message, /A has no attribute 'zap'/);
-  assert.match(errs[1].message, /A has no 'onClik' event — its handlers: onClick/);
+  assert.match(errs[1].message, /A has no 'onClik' event — its handlers: onInit, onClick/);
 });
 
 await test("check() flags a class that contains itself, directly or transitively", () => {
@@ -4634,7 +4634,7 @@ await test("Animator: handlers are allowed (declared events); decls, children, t
     Animator [ attribute=x, to=1, foo: number = 1, onWiggle() { }, View [ ] ] ] ]`));
   const msgs = errs.map((e) => e.message).join("\n");
   assert.match(msgs, /an animator declares no new attributes/);
-  assert.match(msgs, /Animator has no 'onWiggle' event — its handlers: onStart, onStop, onRepeat/);
+  assert.match(msgs, /Animator has no 'onWiggle' event — its handlers: onInit, onStart, onStop, onRepeat/);
   assert.match(msgs, /an animator drives a slot — it has no children/);
 });
 
@@ -6575,7 +6575,7 @@ await test("sources: the `<-` operator is GONE, and the error names the rewrite"
 await test("sources: a handler the source does not call is the ordinary typo error", async () => {
   const bad = await compile(`App [ width = 100, height = 100, k: Keys [ onWheel(e: WheelEvent) { } ] ]`, {});
   assert.equal(bad.source, null);
-  assert.match(bad.errors[0].message, /Keys has no 'onWheel' event — its handlers: onKeyDown, onKeyUp/);
+  assert.match(bad.errors[0].message, /Keys has no 'onWheel' event — its handlers: onInit, onKeyDown, onKeyUp/);
 });
 
 await test("sources: `Keys` is both a component and a callable service, under one name", async () => {

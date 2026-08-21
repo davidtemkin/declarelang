@@ -34,7 +34,7 @@ import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, isGradient } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { cssWeight, fontMetrics, fontString, textWidth, wrapLines } from "./measure.js";
-import { replay } from "./draw.js";
+import { replay, replayCost, rasterPad, rasterEntryCap, rasterTotalCap, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive } from "./input.js";
 /** Style a native editable overlay to match the view's painted text metrics, so
@@ -78,11 +78,47 @@ export class CanvasBackend {
         this.compositor.attach(host, root);
     }
 }
-/** The scene owner: the one shared <canvas>, the dirty-bit + rAF paint
- *  scheduler, and devicePixelRatio handling. Surfaces only ever call
- *  `invalidate()`; nothing else about how pixels reach the screen leaks out. */
+let memoBytes = 0;
+let memoStamp = 0;
+let memoPaints = 0;
+let memoAttempts = 0;
+const memoHolders = new Set();
+// a diag window into the pool (the __declareDiag family): entries and bytes,
+// so a session growing rasters is visible rather than mysterious
+globalThis.__declareRasterStats =
+    () => ({ entries: memoHolders.size, bytes: memoBytes, paints: memoPaints, attempts: memoAttempts });
+function viewportBytes(c) {
+    return c === null ? 8 << 20 : c.width * c.height * 4;
+}
+function releaseRaster(s) {
+    const e = s.rasterEntry;
+    if (e === null)
+        return;
+    memoBytes -= e.bytes;
+    s.rasterEntry = null;
+    memoHolders.delete(s);
+}
+function evictOldest(except) {
+    let victim = null;
+    let oldest = Infinity;
+    for (const h of memoHolders) {
+        if (h === except || h.rasterEntry === null)
+            continue;
+        if (h.rasterEntry.stamp < oldest) {
+            oldest = h.rasterEntry.stamp;
+            victim = h;
+        }
+    }
+    if (victim === null)
+        return false;
+    releaseRaster(victim);
+    return true;
+}
 class Compositor {
     canvas = null;
+    /** the sealed surface's element — the raster memo denominates its caps in
+     *  viewports, and the viewport is this canvas */
+    get rootCanvas() { return this.canvas; }
     embeddedRoot = false;
     ctx = null;
     root = null;
@@ -808,7 +844,137 @@ class CanvasSurface {
     }
     setDrawing(list) {
         this.drawing = list;
+        releaseRaster(this); // a new recording invalidates the memo by identity
+        this.rasterSeen = null;
+        this.rasterCostOf = null;
+        this.rasterScalePending = null;
+        if (this.rasterRestTimer !== 0) {
+            clearTimeout(this.rasterRestTimer);
+            this.rasterRestTimer = 0;
+        }
         this.compositor.invalidate();
+    }
+    /** @internal the raster memo's per-surface state (module functions manage the pool) */
+    rasterEntry = null;
+    rasterSeen = null;
+    rasterScalePending = null;
+    rasterRestTimer = 0;
+    rasterCostOf = null;
+    /** Paint this view's recording: vectors, or the memoized raster when the
+     *  (list, scale) pair is stable — see the module header above. */
+    paintDrawing(ctx) {
+        const list = this.drawing;
+        const b = list.bounds;
+        if (b === null)
+            return;
+        if (globalThis.__declareNoRasterMemo === true) {
+            replay(ctx, list);
+            return;
+        }
+        if (this.rasterCostOf === null || this.rasterCostOf.list !== list)
+            this.rasterCostOf = { list, cost: replayCost(list) };
+        memoPaints++;
+        if (this.rasterCostOf.cost === "cheap") {
+            replay(ctx, list);
+            return;
+        }
+        const m = ctx.getTransform();
+        // rotation/skew keeps pure vectors (a resampled blit would soften — rare,
+        // and the memo is an optimization, never a semantic)
+        if (Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6 || m.a <= 0 || m.d <= 0) {
+            replay(ctx, list);
+            return;
+        }
+        const sx = Math.round(m.a * 1e4) / 1e4;
+        const sy = Math.round(m.d * 1e4) / 1e4;
+        const e = this.rasterEntry;
+        if (e !== null && e.list === list && e.sx === sx && e.sy === sy) {
+            e.stamp = ++memoStamp;
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.drawImage(e.canvas, m.e + m.a * e.bx, m.f + m.d * e.by);
+            ctx.restore();
+            return;
+        }
+        if (e !== null && e.list === list) {
+            // SCALE CHANGED, original in hand: the stretch grace (DT's rule — see
+            // RASTER_GRACE_MS). Transitional frames blit the prior raster scaled —
+            // the DOM compositor's own move — and once the scale has been quiet
+            // for the beat, the frame after is exact. Rest must SCHEDULE that
+            // frame: a settled scene stops compositing, so the timer below asks
+            // for the one repaint that snaps it crisp.
+            const now = performance.now();
+            const pend = this.rasterScalePending;
+            if (pend === null || pend.sx !== sx || pend.sy !== sy) {
+                this.rasterScalePending = { sx, sy, since: now };
+            }
+            const stable = this.rasterScalePending;
+            if (now - stable.since < RASTER_GRACE_MS) {
+                e.stamp = ++memoStamp;
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.drawImage(e.canvas, m.e + m.a * e.bx, m.f + m.d * e.by, e.canvas.width * (sx / e.sx), e.canvas.height * (sy / e.sy));
+                ctx.restore();
+                if (this.rasterRestTimer !== 0)
+                    clearTimeout(this.rasterRestTimer);
+                this.rasterRestTimer = setTimeout(() => { this.rasterRestTimer = 0; this.compositor.invalidate(); }, RASTER_GRACE_MS + 15);
+                return;
+            }
+            this.rasterScalePending = null; // quiet for the beat: fall through to the exact raster
+        }
+        // promotion by STABILITY for a NEW list: raster only when the same key
+        // repeats — content re-recorded every frame keeps pure vector replay
+        const seen = this.rasterSeen;
+        this.rasterSeen = { list, sx, sy };
+        if (e === null && (seen === null || seen.list !== list)) {
+            replay(ctx, list);
+            return;
+        }
+        memoAttempts++;
+        const root = this.compositor.rootCanvas;
+        // blur/shadow paint past inexact bounds — overscan by the computed bleed
+        const pad = rasterPad(list);
+        const bx = b.x - pad, by = b.y - pad;
+        const w = Math.ceil((b.w + 2 * pad) * sx);
+        const h = Math.ceil((b.h + 2 * pad) * sy);
+        const bytes = w * h * 4;
+        if (w < 1 || h < 1 || w > RASTER_MAX_DIM || h > RASTER_MAX_DIM || w * h > RASTER_MAX_AREA || bytes > rasterEntryCap(viewportBytes(root))) {
+            replay(ctx, list);
+            return;
+        }
+        releaseRaster(this);
+        while (memoBytes + bytes > rasterTotalCap(viewportBytes(root))) {
+            if (!evictOldest(this)) {
+                replay(ctx, list);
+                return;
+            }
+        }
+        let cv;
+        try {
+            cv = document.createElement("canvas");
+            cv.width = w;
+            cv.height = h;
+            const c2 = cv.getContext("2d");
+            if (c2 === null)
+                throw new Error("no 2d context");
+            c2.setTransform(sx, 0, 0, sy, -bx * sx, -by * sy);
+            replay(c2, list);
+            // the platform may silently drop a raster later (GPU process restart);
+            // a lost context releases the entry and the next paint re-derives
+            cv.addEventListener?.("contextlost", () => { releaseRaster(this); this.compositor.invalidate(); });
+        }
+        catch (err) {
+            globalThis.__declareRasterErr = String(err);
+            replay(ctx, list); // a refused allocation is a slow frame, never a wrong one
+            return;
+        }
+        this.rasterEntry = { list, sx, sy, canvas: cv, bytes, bx, by, stamp: ++memoStamp };
+        memoBytes += bytes;
+        memoHolders.add(this);
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(cv, m.e + m.a * bx, m.f + m.d * by);
+        ctx.restore();
     }
     setText(text) {
         this.text = text;
@@ -1486,6 +1652,11 @@ class CanvasSurface {
         this.compositor.invalidate();
     }
     destroy() {
+        releaseRaster(this); // the memo pool must not outlive the surface
+        if (this.rasterRestTimer !== 0) {
+            clearTimeout(this.rasterRestTimer);
+            this.rasterRestTimer = 0;
+        }
         this.editEl?.remove();
         this.editEl = null;
         this.embedEl?.remove();
@@ -1695,7 +1866,7 @@ class CanvasSurface {
                 this.compositor.invalidate();
         }
         if (this.drawing !== null)
-            replay(ctx, this.drawing);
+            this.paintDrawing(ctx);
         if (this.text !== "" && this.font !== "") {
             ctx.font = this.font;
             // A gradient text-fill is realized over the view box, so multi-line runs
