@@ -1597,20 +1597,18 @@ class DockIcon extends View [
     // resting center (cx0) feeds the distance, so the swell never reads its own
     // magnified output.
 
-    // The dock's enter/exit gate, asked for rather than assumed. This class is
-    // hosted in two places: the dock row, whose grandparent carries `hotGate`,
-    // and a MiniTile, whose grandparent is the minis row and carries nothing.
-    // In the second case the gate reads `undefined`, `1 + (w - 1) * undefined`
-    // is NaN, and a spring can never arrive at NaN — so six of them chased it
-    // for the life of the session. It cost no pixels (a badge takes its size
-    // from its tile, not from `mag`) and no correctness, only a frame loop that
-    // never parked. A host that states no gate is a host with no wave, which
-    // is 0 — the value the arithmetic already produces for every icon the
-    // pointer is nowhere near.
+    // The dock's enter/exit gate, DECLARED rather than groped for. This class
+    // is hosted in two places — the dock row (which feeds the dock's live
+    // gate at the instance) and a MiniTile badge (which feeds nothing) — and
+    // the default 0 IS the badge's contract: a host that states no gate is a
+    // host with no wave, so the badge's spring parks at 1. The old shape
+    // reached this.parent.parent.hotGate and coped with `undefined` at run
+    // time; that once fed six springs a NaN target they chased for the life
+    // of the session (F1) — a typed slot with a stated default cannot.
 
-    gate(): number { const g = this.parent.parent.hotGate; return typeof g == "number" ? g : 0 },
+    hotGate: number = 0,
 
-    magTarget: number = { 1 + (app.dock.dockMag(app.pointerX - this.cx0) - 1) * this.gate() },
+    magTarget: number = { 1 + (app.dock.dockMag(app.pointerX - this.cx0) - 1) * this.hotGate },
     mag: number = 1,
     magSpring: Spring [ attribute = mag, to = { classroot.magTarget }, stiffness = 1300, damping = 62, epsilon = 0.002 ],
     width  = { this.rest * this.mag },
@@ -2985,6 +2983,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             // wave slot, running dot, and the click all ride the row.
 
             DockIcon [ datapath = :apps[], key = :id,
+                hotGate = { app.dock.hotGate },
                 ix = { Number(:ix ?? 0) },
                 appId = { "" + (:id ?? "") },
                 name = { "" + (:label ?? "") },
