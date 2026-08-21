@@ -270,8 +270,17 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
 
     theme = { ({ ...Themes.sanFrancisco(app.isDark), ...(app.isDark ? app.darkTheme() : app.lightTheme()) }) },
     themeMode: string = "auto",
+
+    // Auto's environment, three tiers (the viewer's pattern): the host's
+    // typed fact first (`external darkOverride` — "" = the host said nothing,
+    // and the checked half of the island bridge), then the untyped ancestor
+    // (an older host passing env.dark), then the system preference.
+
+    external darkOverride: string = "",
     isDark: boolean = { app.themeMode == "auto"
-        ? (app.env.dark != null ? app.env.dark == true : app.dark)
+        ? (app.darkOverride != ""
+            ? app.darkOverride == "dark"
+            : (app.env.dark != null ? app.env.dark == true : app.dark))
         : app.themeMode == "dark" },
 
     // layout constants
