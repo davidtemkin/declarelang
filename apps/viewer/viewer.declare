@@ -32,6 +32,7 @@ class Block extends View [ kind: string = "",
     md: string = "",
     html: string = "",
     nested: boolean = false,                     // born inside a declaration's body: an aside, not a section break
+    joinBelow: boolean = false,                  // the NEXT segment is a nested aside: this card's bottom-left squares
 
     width = { parent.width },
 
@@ -68,10 +69,26 @@ class Block extends View [ kind: string = "",
     // The <pre> never wraps — long constraint lines scroll horizontally.
 
     code: View [ visible = { classroot.kind == "code" }, width = { parent.width },
-        fill = { app.theme.codeBg }, cornerRadius = 8, clip = true,
         height = { this.body.height + 32 },
 
-        spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { app.theme.accentSecondary } ],
+        // the card's own shape, stated exactly: rounded everywhere EXCEPT the
+        // corner an aside joins (DT's ruling) — the card above an aside squares
+        // its bottom-left, the card below its top-left. Per-corner radii say
+        // it directly, and the spine is painted inside the same path, clipped
+        // to the arcs, so the thread meets the gap connectors dead-on.
+
+        draw(d: Draw) {
+            const r = 8
+            const tl = classroot.nested ? 0 : r
+            const bl = classroot.joinBelow ? 0 : r
+            d.fillStyle = app.theme.codeBg
+            d.beginPath()
+            d.roundRect(0, 0, this.width, this.height, [tl, r, r, bl])
+            d.fill()
+            d.clip()
+            d.fillStyle = app.theme.accentSecondary
+            d.fillRect(0, 0, 2, this.height)
+            },
         body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrolls = x, height = { this.contentHeight },
             HTMLText [ x = 0, y = 0, width = { parent.width },
                 html = { classroot.html }, scale = { app.fontScale },
@@ -179,7 +196,8 @@ App [ fill = { app.theme.bg },
             const e = ("" + app.rawSrc.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
             segs = [({ kind: "code", html: "<pre>" + e + "</pre>" })]
             }
-        return ({ segments: segs.map(s => ({ kind: s.kind, md: s.md || "", html: s.html || "", nested: s.nested == true })) })
+        return ({ segments: segs.map((s, i) => ({ kind: s.kind, md: s.md || "", html: s.html || "", nested: s.nested == true,
+            joinBelow: segs[i + 1] != null && segs[i + 1].nested == true })) })
         },
 
     // the verbatim file as one escaped, monospace <pre> — the plain-text view
@@ -337,7 +355,7 @@ App [ fill = { app.theme.bg },
             x = { Math.max(24, (parent.width - this.width) / 2) },
             datapath = { app.doc.value },
             layout: SimpleLayout [ axis = y, spacing = 12 ],
-            Block [ datapath = :segments[], kind = :kind, md = :md, html = :html, nested = { :nested == true } ]
+            Block [ datapath = :segments[], kind = :kind, md = :md, html = :html, nested = { :nested == true }, joinBelow = { :joinBelow == true } ]
             ],
 
         // plain view: the verbatim source as one monospace flow (same size/theme)
