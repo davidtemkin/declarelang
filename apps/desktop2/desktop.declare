@@ -2044,6 +2044,8 @@ class Launcher extends Node [
     // class header) — mutate by patch(), never a field poke
 
     apps: array = { [
+        ({ id: "files", ix: 0, label: "Files", title: "Files", glyph: "", gsize: 0.42, kind: "files",
+            hue1: 0x59B0F6, hue2: 0x1D6FD1, src: "desktop.declare", running: true, launching: false, count: 0 }),
         ({ id: "markdown", ix: 1, label: "Markdown", title: "Markdown", glyph: "M↓", gsize: 0.42, kind: "",
             hue1: 0x8E7CE8, hue2: 0x5A46B8, src: "desktop.declare", running: false, launching: false, count: 0 }),
         ({ id: "declareviewer", ix: 2, label: "Declare Viewer", title: "Declare Viewer", glyph: "[  ]", gsize: 0.42, kind: "",
@@ -2051,12 +2053,20 @@ class Launcher extends Node [
             src: "../viewer/viewer.declare", running: false, launching: false, count: 0 }),
         ({ id: "calendar", ix: 3, label: "Calendar", title: "Declare Calendar", glyph: "", gsize: 0.42, kind: "calendar",
             hue1: 0xFFFFFF, hue2: 0xEFEFF2, prog: "../../calendar/calendar", env: "base=../calendar/",
-            src: "../calendar/calendar.declare", running: false, launching: false, count: 0 }),
+            src: "../calendar/calendar.declare", place: "clearDock", running: false, launching: false, count: 0 }),
         ({ id: "jots", ix: 4, label: "Jots", title: "Jots", glyph: "", gsize: 0.42, kind: "jots",
             hue1: 0xFCF4A7, hue2: 0xF3E27E, src: "desktop.declare", running: false, launching: false, count: 0 }),
         ({ id: "birds", ix: 5, label: "50 Birds", title: "50 Birds", glyph: "", gsize: 0.42, kind: "bird",
             hue1: 0x66C95F, hue2: 0x2C9243, prog: "../../birds/birds", env: "base=../birds/",
             src: "../birds/birds.declare", running: false, launching: false, count: 0 }),
+        ({ id: "write", ix: 6, label: "Write", title: "Write", glyph: "", gsize: 0.42, kind: "pencil",
+            hue1: 0xF49B45, hue2: 0xC96B1D, inert: true, quip: "No.", running: false, launching: false, count: 0 }),
+        ({ id: "mail", ix: 7, label: "Mail", title: "Mail", glyph: "", gsize: 0.42, kind: "mail",
+            hue1: 0x1E8CFB, hue2: 0x1667D9, inert: true, quip: "Nope.", running: false, launching: false, count: 0 }),
+        ({ id: "music", ix: 8, label: "Music", title: "Music", glyph: "♪", gsize: 0.52, kind: "",
+            hue1: 0xFB5C74, hue2: 0xFA233B, inert: true, quip: "Nah.", running: false, launching: false, count: 0 }),
+        ({ id: "terminal", ix: 9, label: "Terminal", title: "Terminal", glyph: "", gsize: 0.42, kind: "terminal",
+            hue1: 0x3A3A40, hue2: 0x17171B, inert: true, quip: "Not.", running: false, launching: false, count: 0 }),
         ] },
 
     // the records as DECLARED DATA, for the dock's datapath (a cursor can
@@ -2078,7 +2088,9 @@ class Launcher extends Node [
     launch(a: string, v: View?) {
         const r = this.rec(a)
         if (r == null) return
-        if (a == "markdown") this.openViewer("../../docs/declare.md", "declare.md", v)
+        if (r.inert == true) app.notImpl("" + r.quip, "" + r.title, "" + r.kind, "" + r.glyph, Number(r.gsize), Number(r.hue1), Number(r.hue2))
+        else if (a == "files") this.newFiles()
+        else if (a == "markdown") this.openViewer("../../docs/declare.md", "declare.md", v)
         else if (a == "jots") this.newJot("", v)
         else this.openApp(a, "" + r.prog, "" + r.title, v, "" + r.env)
         },
@@ -2221,7 +2233,6 @@ class Launcher extends Node [
     // running dot all agree by construction.
 
     openApp(a: string, p: string, nm: string, v: View?, envExtra: string?) {
-        const isCal = a == "calendar"
         // the launch gate: state moves inside go(), so the running dot appears
         // when the app has launched (mid-second-bounce), not at the click —
         // the mid-launch flag guards a double-click during the bounce
@@ -2237,10 +2248,12 @@ class Launcher extends Node [
             let wx = 110 + (app.wm.winCount % 5) * 30
             let wy = 24 + (app.wm.winCount % 5) * 22
             let ww = 880, wh = 560
-            // The calendar opens smaller than a full app window and clears the
-            // dock (its height caps to the room above it), centered
-            // horizontally. The viewer keeps its base size.
-            if (isCal) {
+            // A record may state a PLACEMENT POLICY — the calendar opens
+            // smaller than a full app window and clears the dock (its height
+            // caps to the room above it), centered horizontally; anything
+            // without a policy keeps the base size. The last per-app branch
+            // this verb carried, now a row's word.
+            if (r != null && r.place == "clearDock") {
                 wy = 28
                 // clear the dock (height caps to the room above it) AND never
                 // fall below the calendar's own min (480 × 420) — clamp to both.
@@ -2952,21 +2965,10 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
             // a running app's icon raises its open windows instead of opening
             // more — dockOpen: raise if any, else the app's default open
-            // (which itself decides launch-bounce vs instant by the flag)
-
-            DockIcon [ ix = 0, name = "Files", kind = "files", hue1 = #59B0F6, hue2 = #1D6FD1,
-                running = true,
-                onClick() { app.wm.dockOpen("files", () => app.launcher.newFiles()) }
-                ],
-
-            // "Write" — an inert placeholder (a pencil): its click shows the
-            // "Not implemented" alert, like Mail and the others below.
-
-            // ── the launchable applications: ONE icon, replicated over the
-            // launcher's records — face, wave slot, running dot, and the click
-            // all ride the row (:hue1, :ix, :running); the record key routes
-            // the launch. Five hand-written icons (and the five flag families
-            // that fed them) used to live here.
+            // (which itself decides launch-bounce vs instant by the record).
+            // ONE icon, replicated over the WHOLE catalog — launchables,
+            // Files (always running), and the four inert quips alike: face,
+            // wave slot, running dot, and the click all ride the row.
 
             DockIcon [ datapath = :apps[], key = :id,
                 ix = { Number(:ix ?? 0) },
@@ -2978,19 +2980,6 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
                 hue1 = { :hue1 }, hue2 = { :hue2 },
                 running = { :running == true },
                 onClick() { app.wm.dockOpen("" + :id, () => app.launcher.launch("" + :id, this)) }
-                ],
-
-            DockIcon [ ix = 6, name = "Write", kind = "pencil", hue1 = #F49B45, hue2 = #C96B1D,
-                onClick() { app.notImpl("No.", "Write", "pencil", "", 0.42, 0xF49B45, 0xC96B1D) }
-                ],
-            DockIcon [ ix = 7, name = "Mail", kind = "mail", hue1 = #1E8CFB, hue2 = #1667D9,
-                onClick() { app.notImpl("Nope.", "Mail", "mail", "", 0.42, 0x1E8CFB, 0x1667D9) }
-                ],
-            DockIcon [ ix = 8, name = "Music", glyph = "♪", gsize = 0.52, hue1 = #FB5C74, hue2 = #FA233B,
-                onClick() { app.notImpl("Nah.", "Music", "", "♪", 0.52, 0xFB5C74, 0xFA233B) }
-                ],
-            DockIcon [ ix = 9, name = "Terminal", kind = "terminal", hue1 = #3A3A40, hue2 = #17171B,
-                onClick() { app.notImpl("Not.", "Terminal", "terminal", "", 0.42, 0x3A3A40, 0x17171B) }
                 ]
             ],
 
