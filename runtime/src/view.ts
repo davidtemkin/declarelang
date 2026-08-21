@@ -1433,7 +1433,9 @@ export function setFocusDiscardHook(fn: (view: View) => void): void {
   focusDiscardHook = fn;
 }
 
-export function fireEvent(view: View, event: string, ...args: unknown[]): void {
+export function fireEvent(view: Node, event: string, ...args: unknown[]): void {
+  // typed at Node, not View: an event is a handler lookup on the instance, and
+  // the faceless tier has a lifecycle too (a plain Node fires `init`)
   const h = (view as unknown as Record<string, unknown>)[handlerName(event)];
   if (typeof h === "function") (h as (...a: unknown[]) => void).call(view, ...args);
 }

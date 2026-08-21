@@ -67,4 +67,17 @@ export default async ({ drive, expect, page }) => {
   await drive.settleMotion();
   eq(await facts(), { activeApp: "files", miniCount: 0, front: "Documentation", birdsRunning: true, windows: 2 },
     "after refocus click");
+
+  // THE ALERT owns its state now (the repatriation): an inert dock icon
+  // (Write, past the five replicated launchables) raises it; OK dismisses
+  await drive.click("app.dock.row.6");
+  await drive.wait(300);
+  await drive.settleMotion();
+  const shown = await page.evaluate(() => ({ vis: window.__app.alert.visible, name: window.__app.alert.name }));
+  eq(shown, { vis: true, name: "Write" }, "the inert icon raised the alert");
+  await drive.click("app.alert.panel.ok");
+  await drive.wait(200);
+  await drive.settleMotion();
+  const gone = await page.evaluate(() => ({ vis: window.__app.alert.visible, name: window.__app.alert.name }));
+  eq(gone, { vis: false, name: "" }, "OK dismissed it");
 };

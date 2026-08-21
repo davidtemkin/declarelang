@@ -919,9 +919,9 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
                     visible = { classroot.forApp == "markdown" || classroot.forApp == "desktop" || classroot.forApp == "declareviewer" },
                     text = { classroot.forApp == "markdown" ? "M↓" : "[  ]" } ],
                 cwk: Text [ x = center, y = 4, fontWeight = bold, textColor = 0xFFFFFF, fontSize = 15,
-                    visible = { classroot.forApp == "calendar" }, text = { app.dayName } ],
+                    visible = { classroot.forApp == "calendar" }, text = { app.clock.dayName } ],
                 cnum: Text [ x = center, y = 30, fontSize = 46, textColor = 0x1D1D1F,
-                    visible = { classroot.forApp == "calendar" }, text = { "" + app.dayNum } ]
+                    visible = { classroot.forApp == "calendar" }, text = { "" + app.clock.dayNum } ]
                 ],
 
             nm: Text [ x = center, fontSize = 17, fontWeight = bold, textColor = { theme.text },
@@ -1678,10 +1678,10 @@ class DockIcon extends View [
                     d.fillStyle = 0xFFFFFF
                     d.font = "bold 7.5px system-ui, sans-serif"
                     d.textBaseline = "middle"
-                    d.fillText(app.dayName, 24, 7)
+                    d.fillText(app.clock.dayName, 24, 7)
                     d.fillStyle = 0x1D1D1F
                     d.font = "27px system-ui, sans-serif"
-                    d.fillText("" + app.dayNum, 24, 31)
+                    d.fillText("" + app.clock.dayNum, 24, 31)
                     }
                 else { app.drawKindArt(d, k, classroot.hue1) }
                 }
@@ -1741,6 +1741,33 @@ class DockIcon extends View [
             textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
             text = { classroot.name } ]
         ]
+    ]
+
+
+/*
+### The clock
+
+Today, as a fact: the menu bar's live readout, the calendar dock icon's date
+face, and an About window's date all read the same node. Self-driving — it
+arms its own 15-second timer at init, so no host wiring exists to forget.
+*/
+
+class Clock extends Node [
+    text: string = "",
+    dayName: string = "",
+    dayNum: number = 0,
+
+    tick() {
+        const d = new Date()
+        const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]
+        const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]
+        const h12 = d.getHours() % 12 == 0 ? 12 : d.getHours() % 12
+        const mm = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
+        this.text = wd + " " + mo + " " + d.getDate() + "  " + h12 + ":" + mm + " " + (d.getHours() >= 12 ? "PM" : "AM")
+        this.dayName = wd.toUpperCase()
+        this.dayNum = d.getDate()
+        },
+    onInit() { this.tick(); setInterval(() => this.tick(), 15000) }
     ]
 
 
@@ -2293,6 +2320,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // WinManager header above) — every fact the desktop's views bind is app.wm.*
 
     wm: WinManager [ ],
+    clock: Clock [ ],
     launcher: Launcher [ ],
     minWidth = 800, minHeight = 600,                 // the floors: in a smaller viewport the browser pans (and pinches) the held frame natively — frame-driven, not a scroll anyone declares
     theme = { Themes.cupertino(app.darkMode) },
@@ -2313,7 +2341,6 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // ── shared desktop geometry: named once, read by every constraint below ──
 
     menuBarH: number = 32,                       // the menu bar's height; windows live below it
-    wallSeed: number = 7,                        // the generative wallpaper's seed; ` (backtick) cycles it
 
     // The tilt easter egg's seed (see Window.tilts): 0 = a level desktop
     // (boot state — the egg is dormant until pressed). `r` bumps it and every
@@ -2594,42 +2621,9 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // raise. A single slot of state — `notImpl` fills it (name + icon), and the
     // OK button clears it. `alertName == ""` means no alert.
 
-    alertName: string = "",
-    alertHead: string = "",                      // the terse per-app headline ("No." / "Nope." / …)
-    alertKind: string = "",
-    alertGlyph: string = "",
-    alertGsize: number = 0.42,
-    alertHue1: Color = #4A90D9,
-    alertHue2: Color = #2E5FA3,
     notImpl(head: string, name: string, kind: string, glyph: string, gsize: number, h1: number, h2: number) {
         this.dockDismiss()
-        alertHead = head
-        alertName = name
-        alertKind = kind
-        alertGlyph = glyph
-        alertGsize = gsize
-        alertHue1 = h1
-        alertHue2 = h2
-        },
-    dismissAlert() { alertName = "" },
-
-    // The menu-bar clock is live — a static time would be the first thing to
-    // give the desktop away.
-
-    clockText: string = "",
-
-    dayName: string = "",
-    dayNum: number = 0,
-
-    tick() {
-        const d = new Date()
-        const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]
-        const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]
-        const h12 = d.getHours() % 12 == 0 ? 12 : d.getHours() % 12
-        const mm = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
-        clockText = wd + " " + mo + " " + d.getDate() + "  " + h12 + ":" + mm + " " + (d.getHours() >= 12 ? "PM" : "AM")
-        dayName = wd.toUpperCase()
-        dayNum = d.getDate()
+        this.alert.show(head, name, kind, glyph, gsize, h1, h2)
         },
 
     // ── The documentation model: one fetch of the docs app's own spine. The
@@ -2647,7 +2641,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // window on top of it, so you arrive with Files frontmost and the greeting
     // resting behind.
 
-    onInit() { this.docsModel.fetch(); setTimeout(() => { app.launcher.openWelcome(); app.launcher.newFiles() }, 0); this.tick(); setInterval(() => this.tick(), 15000) },
+    onInit() { this.docsModel.fetch(); setTimeout(() => { app.launcher.openWelcome(); app.launcher.newFiles() }, 0) },
 
     // ── ⌘-shortcuts dispatch from the menus' own records: one registry, derived
     // from whatever the contextual bar currently shows, so the active
@@ -2659,7 +2653,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     keys: Keys [
         onKeyDown(e: KeyEvent) {
-            if (e.key == "`" && !e.meta && !e.repeat) { app.wallSeed = app.wallSeed + 1; return }   // cycle the wallpaper (selection/debug)
+            if (e.key == "`" && !e.meta && !e.repeat) { app.wallpaper.seed = app.wallpaper.seed + 1; return }   // cycle the wallpaper (selection/debug)
             if (e.key == "r" && !e.meta && !e.repeat) { app.tiltSeed = app.tiltSeed + 1; return }   // the tilt egg: every window springs to a random lean
             if (e.key == "R" && !e.meta && !e.repeat) { app.tiltSeed = 0; return }                  // …and level again
             if (e.key == "s" && !e.meta && !e.repeat) { app.scaleSeed = app.scaleSeed + 1; return } // the zoom egg: every window springs to a random scale
@@ -2677,7 +2671,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     A hue-tinted dark ground with five saturated color poles, biased to the edges
     and melted together with a big blur() under a `lighten` blend — a bold,
-    cohesive gradient field. It is a PURE FUNCTION of `app.wallSeed`: a seeded
+    cohesive gradient field. It is a PURE FUNCTION of `this.seed`: a seeded
     PRNG picks the palette (a per-seed color scheme keeps hues cohesive rather
     than muddy) and the pole layout, so pressing ` (backtick) bumps the seed and
     rotates through the generated space. It has no handler, so a desktop press
@@ -2686,7 +2680,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     **Drawn once, then paint-scaled.** The mesh is recorded in a FIXED reference
     box (refW × refH constants), so its display list never changes with the
-    window — only `app.wallSeed` rebuilds it. On resize the view is cover-scaled
+    window — only `this.seed` rebuilds it. On resize the view is cover-scaled
     to fill (uniform, aspect preserved: the tighter axis fits, the other overflows
     and clips) and re-centered, all with paint-only transforms, so the field never
     re-rasters on resize. This matters because WebKit's 2D canvas is deferred —
@@ -2701,7 +2695,9 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     softness).
     */
 
-    wallpaper: View [ refW: number = 1920,
+    wallpaper: View [
+        seed: number = 7,                        // the generative seed; ` (backtick) cycles it
+        refW: number = 1920,
         refH: number = 1200,
         width = { this.refW }, height = { this.refH },
         x = { (app.width - this.refW) / 2 }, y = { (app.height - this.refH) / 2 },
@@ -2711,8 +2707,8 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             const W = this.width
             const H = this.height
             const hsl = (h, s, l) => "hsl(" + (((h % 360) + 360) % 360) + "," + s + "%," + l + "%)"
-            // seeded PRNG (mulberry32) — deterministic per app.wallSeed
-            let a = (app.wallSeed >>> 0) || 1
+            // seeded PRNG (mulberry32) — deterministic per this.seed
+            let a = (this.seed >>> 0) || 1
             const rnd = () => {
                 a = (a + 1831565813) | 0                          // mulberry32's increment, in decimal (an 8-digit 0x here would read as a color)
                 let t = Math.imul(a ^ (a >>> 15), 1 | a)
@@ -2862,7 +2858,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             ],
         clock: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 13,
             fontWeight = medium,                 // 400 reads thin under browser antialiasing; medium holds up
-            textColor = { parent.menuInk }, text = { app.clockText } ]
+            textColor = { parent.menuInk }, text = { app.clock.text } ]
         ],
 
     /*
@@ -3030,7 +3026,28 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // reuses the very renderer the dock draws (app.drawKindArt), badged with a
     // caution triangle.
 
-    alert: View [ visible = { app.alertName != "" },
+    alert: View [
+        // its own single slot of state: show() fills it, dismiss() clears it,
+        // "" = no alert — the state lives where the pixels are
+
+        name: string = "",
+        head: string = "",                       // the terse per-app headline ("No." / "Nope." / …)
+        kind: string = "",
+        glyph: string = "",
+        gsize: number = 0.42,
+        hue1: Color = #4A90D9,
+        hue2: Color = #2E5FA3,
+        show(head: string, name: string, kind: string, glyph: string, gsize: number, h1: number, h2: number) {
+            this.head = head
+            this.name = name
+            this.kind = kind
+            this.glyph = glyph
+            this.gsize = gsize
+            this.hue1 = h1
+            this.hue2 = h2
+            },
+        dismiss() { this.name = "" },
+        visible = { this.name != "" },
         x = 0, y = 0, width = { app.width }, height = { app.height },
         onPointerDown() { },                           // modal: presses on the scrim do nothing
 
@@ -3047,15 +3064,15 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             shadow = shadow(0, 16, 50, #00000059),
 
             icon: AppGlyph [ x = 118, y = 26, edge = 64,
-                kind = { app.alertKind }, glyph = { app.alertGlyph }, gsize = { app.alertGsize },
-                hue1 = { app.alertHue1 }, hue2 = { app.alertHue2 } ],
+                kind = { app.alert.kind }, glyph = { app.alert.glyph }, gsize = { app.alert.gsize },
+                hue1 = { app.alert.hue1 }, hue2 = { app.alert.hue2 } ],
             badge: CautionBadge [ x = 162, y = 70, edge = 30 ],
 
             title: Text [ x = center, y = 112, fontSize = 15, fontWeight = semibold,
-                textColor = { theme.text }, text = { app.alertHead } ],
+                textColor = { theme.text }, text = { app.alert.head } ],
             msg: Text [ x = 20, y = 136, width = 260, wrap = true, textAlign = center,
                 fontSize = 12, textColor = { theme.textMuted },
-                text = { "Declare Desktop doesn't include " + app.alertName + "." } ],
+                text = { "Declare Desktop doesn't include " + app.alert.name + "." } ],
 
             // The payoff — a rounded image with a thin hairline, so it reads as
             // deliberate rather than a stray asset.
@@ -3066,7 +3083,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
             ok: Button [ x = 16, y = { parent.height - 46 }, width = { parent.width - 32 },
                 label = "OK", primary = true,
-                onClick() { app.dismissAlert() }
+                onClick() { app.alert.dismiss() }
                 ]
             ]
         ]

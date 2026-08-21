@@ -242,6 +242,21 @@ export function markInited(view) {
             markInited(child);
     }
 }
+/** Depth-first `init` for a faceless subtree: children first, then the node —
+ *  the same order initTree gives views. Idempotent through the same INITED
+ *  set, so a re-entered walk cannot double-fire. */
+function initNodeTree(node) {
+    for (const child of node.children) {
+        if (child instanceof View)
+            initTree(child);
+        else if (child instanceof Node && !(child instanceof Animator) && !(child instanceof AnimatorGroup))
+            initNodeTree(child);
+    }
+    if (!INITED.has(node)) {
+        INITED.add(node);
+        fireEvent(node, "init");
+    }
+}
 function initTree(view) {
     // The stylesheet channel arms here — construction-complete, before init
     // fires and before any paint, so onInit and the first frame both see the
@@ -253,6 +268,12 @@ function initTree(view) {
     for (const child of view.children) {
         if (child instanceof View)
             initTree(child);
+        // a FACELESS child (a plain Node — a controller, a clock, a coordinator)
+        // has no applier, no animators, no surface — but it has a lifecycle:
+        // Node.md has always promised `init`, and until this branch the walk
+        // skipped every non-View child, so a node's onInit silently never ran.
+        else if (child instanceof Node && !(child instanceof Animator) && !(child instanceof AnimatorGroup))
+            initNodeTree(child);
     }
     if (!INITED.has(view)) {
         INITED.add(view);

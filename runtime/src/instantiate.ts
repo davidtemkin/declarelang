@@ -283,7 +283,7 @@ function installPending(pending: readonly Pending[], ctx: Ctx): void {
 /** Views that have fired `onInit` — init is once per lifetime, however the
  *  view arrived (the initial build, or a later replication reconcile whose
  *  own initTree ran before the root's walk reached it). */
-const INITED = new WeakSet<View>();
+const INITED = new WeakSet<Node>();
 
 /** Mark a whole subtree as already-inited WITHOUT firing anything — the
  *  membership-anchored lifecycle (materialization.md §2, RULED 2026-07-30):
@@ -298,6 +298,20 @@ export function markInited(view: View): void {
   }
 }
 
+/** Depth-first `init` for a faceless subtree: children first, then the node —
+ *  the same order initTree gives views. Idempotent through the same INITED
+ *  set, so a re-entered walk cannot double-fire. */
+function initNodeTree(node: Node): void {
+  for (const child of node.children) {
+    if (child instanceof View) initTree(child);
+    else if (child instanceof Node && !(child instanceof Animator) && !(child instanceof AnimatorGroup)) initNodeTree(child);
+  }
+  if (!INITED.has(node)) {
+    INITED.add(node);
+    fireEvent(node, "init");
+  }
+}
+
 function initTree(view: View): void {
   // The stylesheet channel arms here — construction-complete, before init
   // fires and before any paint, so onInit and the first frame both see the
@@ -308,6 +322,11 @@ function initTree(view: View): void {
   ensureApplier(view);
   for (const child of view.children) {
     if (child instanceof View) initTree(child);
+    // a FACELESS child (a plain Node — a controller, a clock, a coordinator)
+    // has no applier, no animators, no surface — but it has a lifecycle:
+    // Node.md has always promised `init`, and until this branch the walk
+    // skipped every non-View child, so a node's onInit silently never ran.
+    else if (child instanceof Node && !(child instanceof Animator) && !(child instanceof AnimatorGroup)) initNodeTree(child);
   }
   if (!INITED.has(view)) {
     INITED.add(view);

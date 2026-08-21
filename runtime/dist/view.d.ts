@@ -664,7 +664,7 @@ export declare function withCursorDefining<T>(view: View, fn: () => T): T;
  *  ANYWHERE on the chain wakes exactly the reads below it. */
 export declare function inheritedCursor(node: Node | null): Cursor | null;
 export declare function setFocusDiscardHook(fn: (view: View) => void): void;
-export declare function fireEvent(view: View, event: string, ...args: unknown[]): void;
+export declare function fireEvent(view: Node, event: string, ...args: unknown[]): void;
 /** The application root — the single visible tree at the top (OpenLaszlo's
  *  `<canvas>`). R0 treats it as the root View; it fills its host by default and
  *  carries the app's reactive environment (host extent, scroll, pointer). */

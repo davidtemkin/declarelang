@@ -79,4 +79,20 @@ App [ width = 100, height = 100,
   assert.equal(app.out.text, "10", "the base-chain method's read wired through the subclass instance");
 });
 
+await test("a faceless node has a lifecycle — onInit fires, depth-first", async () => {
+  // the walk skipped every non-View child until 2026-08-20, so a node's
+  // onInit silently never ran (Node.md promised it all along)
+  const app = await boot(`
+class Inner extends Node [ mark: string = "", onInit() { this.mark = "inner" } ]
+class Brain extends Node [ log: string = "",
+    inner: Inner [ ],
+    onInit() { this.log = this.inner.mark + ";brain" }
+    ]
+App [ width = 100, height = 100,
+    brain: Brain [ ],
+    out: Text [ text = { app.brain.log } ],
+    ]`);
+  assert.equal(app.out.text, "inner;brain", "children first, then the node — initTree's own order");
+});
+
 summarize("dep-typed");

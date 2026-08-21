@@ -1221,6 +1221,8 @@ export function setFocusDiscardHook(fn) {
     focusDiscardHook = fn;
 }
 export function fireEvent(view, event, ...args) {
+    // typed at Node, not View: an event is a handler lookup on the instance, and
+    // the faceless tier has a lifecycle too (a plain Node fires `init`)
     const h = view[handlerName(event)];
     if (typeof h === "function")
         h.call(view, ...args);

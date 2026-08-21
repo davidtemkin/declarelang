@@ -66,6 +66,10 @@ const NodeSchema: ComponentSchema = {
   name: "Node",
   base: null,
   attrs: {},
+  // the faceless lifecycle: a plain Node fires `init` when its tree stands
+  // (instantiate.ts initNodeTree) — Node.md promised it; the walk and this
+  // declaration caught up 2026-08-20
+  events: ["init"],
 };
 
 const ViewSchema: ComponentSchema = {
