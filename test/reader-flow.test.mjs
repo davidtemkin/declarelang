@@ -83,6 +83,28 @@ await test("reader (canvas): same invariant, sealed surface", async () => {
   assert.equal(c.model.overlaps, 0, "model boxes tile cleanly");
 });
 
+await test("the viewer inside the CANVAS desktop gets its host's data", async () => {
+  // the twin of ad796537: the canvas island mount coupled the child's DATA
+  // base to its asset base, so the viewer tenant's `desktop.declare?segments`
+  // resolved against /apps/viewer/ and 404'd — "no code in the viewer" on
+  // ?render=canvas (found live 2026-08-21). Data resolves through the HOST's
+  // space; only assets are child-relative.
+  await page.goto(`${B}/apps/desktop/desktop.declare?render=canvas`, { waitUntil: "networkidle0", timeout: 60000 });
+  await sleep(3000);
+  await page.evaluate(`window.__app.openSource("desktop")`);
+  await page.waitForFunction(`(() => {
+    const isl = window.__declare.find("app.wins").children.map((w) => w.island).filter(Boolean).find((i) => i.__childApp);
+    return isl && isl.__childApp.segSrc.status !== "idle" && isl.__childApp.segSrc.status !== "loading";
+  })()`, { timeout: 30000 });
+  const st = await page.evaluate(`(() => {
+    const isl = window.__declare.find("app.wins").children.map((w) => w.island).filter(Boolean).find((i) => i.__childApp);
+    const t = isl.__childApp;
+    return { seg: t.segSrc.status, len: String(t.segSrc.value || "").length };
+  })()`);
+  assert.equal(st.seg, "loaded", "segments resolved host-relative");
+  assert.ok(st.len > 100000, `the whole source arrived (got ${st.len})`);
+});
+
 await browser.close();
 httpServer.close();
 summarize("reader-flow");

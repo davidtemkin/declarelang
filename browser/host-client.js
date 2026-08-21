@@ -566,7 +566,15 @@ export async function bootHost(cfg) {
     try {
       const childApp = build(compiled.source, { deps: compiled.deps });
       const base = childAssetBase(name || "");
-      if (base) { setAppAssetBase(childApp, base); setAppDataBase(childApp, base); }
+      // ASSET base only — deliberately no per-app DATA base: an island child's
+      // relative data urls resolve through the PAGE's transport, its host's
+      // space (the desktop passes the viewer `program=desktop.declare`, a path
+      // in the DESKTOP's directory). Coupling data to the asset base 404'd
+      // every such contract — found on the DOM mount 2026-08-19 (ad796537) and
+      // AGAIN here on the canvas mount 2026-08-21: the same one-line disease
+      // in the twin code path, presenting as "no code in the viewer" on
+      // ?render=canvas.
+      if (base) setAppAssetBase(childApp, base);
       mountEmbeddedApp(childApp, view);
       childApp.env = env;
       childApp.demoSources = seeds;
