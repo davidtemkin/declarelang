@@ -2307,13 +2307,22 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 /*
 ## App — the desktop root
 
-The whole desktop: the wallpaper, the menu bar, the windows layer, and the
-dock, plus the state and commands that tie them together. It tracks the browser
-window with no size floor (a floor would make the page scroll, and a desktop
-never scrolls), and the root clips, so a window hanging past an edge is cropped
-where it lies rather than moved. Everything anchored to an edge — the menu bar's
-width, the clock's right edge, the dock's seat at the bottom — re-derives from
-app.width / app.height on every host resize.
+The root is COMPOSITION now, and reads as one: three faceless nodes carry the
+model — `wm` (the windows as they exist), `launcher` (the moment before, and
+the application records everything derives from), `clock` (today, as a fact)
+— and five stacked views carry the chrome: wallpaper, windows layer, menu
+bar, dock, alert, in paint order. Each view owns its own state and geometry;
+the nodes never reach into them. What stays flat here has a reason to be
+root-wide: the theme, the appearance choice, the window eggs (tilt/zoom — read
+by every Window), the shared icon-art vocabulary (drawKindArt/drawPill — the
+dock, the parked badges, and the alert all draw from it), and `command`, the
+one dispatch seam the menu bar, the dock, and the keyboard all route through.
+
+It tracks the browser window with no size floor (a floor would make the page
+scroll, and a desktop never scrolls), and the root clips, so a window hanging
+past an edge is cropped where it lies rather than moved. Everything anchored
+to an edge — the menu bar's width, the clock's right edge, the dock's seat at
+the bottom — re-derives from app.width / app.height on every host resize.
 */
 
 App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow (wallpaper bleed, a window past the fold) is out of frame, never scroll range
@@ -2569,14 +2578,6 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     onInit() { this.docsModel.fetch(); setTimeout(() => { app.launcher.openWelcome(); app.launcher.newFiles() }, 0) },
 
-    // ── ⌘-shortcuts dispatch from the menus' own records: one registry, derived
-    // from whatever the contextual bar currently shows, so the active
-    // application's keys are automatically the live set — nothing is declared
-    // twice.
-
-    keyRegistry: array = { (app.menus || [])
-        .flatMap((m) => (m.items || []).filter((r) => r.key).map((r) => ({ menu: "" + m.label, ...r }))) },
-
     keys: Keys [
         onKeyDown(e: KeyEvent) {
             if (e.key == "`" && !e.meta && !e.repeat) { app.wallpaper.seed = app.wallpaper.seed + 1; return }   // cycle the wallpaper (selection/debug)
@@ -2587,7 +2588,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             if (!e.meta || e.repeat || e.key == "Meta") return
             if (app.bar.mb.shown) return             // an open menu owns the keyboard
             const combo = "⌘" + (e.key.length == 1 ? e.key.toUpperCase() : e.key)
-            const hit = (app.keyRegistry || []).find((r) => r.key == combo && r.enabled != false)
+            const hit = (app.bar.keyRegistry || []).find((r) => r.key == combo && r.enabled != false)
             if (hit != null) app.command("" + hit.id)
             }
         ],
@@ -2695,91 +2696,100 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     wins: View [ x = 0, y = { app.menuBarH }, width = { app.width }, height = { app.height - app.menuBarH } ],
 
-    /*
-    ### The menu bar — whole menus as records, contextual
-
-    The `menus` array re-derives from the active application (and from app.wm.winSeq /
-    app.wm.frontWin for the Window menu), so the bar follows focus live, even while a
-    menu is open. Keyboard shortcuts dispatch from these same records.
-    */
-
-    menus: array = { [
-        ({ id: "brand", label: "Declare", kind: "BrandMark", items: [
-            ({ id: "about-desktop", label: "About Declare Desktop", icon: "BracketIcon" }),
-            ({ divider: true }),
-            ({ id: "dark", label: app.darkMode ? "Light Mode" : "Dark Mode", key: "⌘K", icon: "AutoIcon" }),
-            ({ divider: true }),
-            ({ id: "source-desktop", label: "View & Edit Source", icon: "CodeIcon" }),
-            ({ id: "home", label: "Declare Home" }),
-        ] }),
-        ({ id: "app", label: app.launcher.nameOf(app.wm.activeApp), bold: true,
-            items: this.appMenuItems(app.wm.activeApp) }),
-        ({ id: "file", label: "File", items: [
-            ({ id: "new", label: "New", key: "⌘N" }),
-            ({ id: "open", label: "Open…", key: "⌘O", enabled: app.wm.activeApp != "calendar" }),
-            ({ divider: true }),
-            ({ id: "close", label: "Close Window", key: "⌘W", enabled: app.wm.frontWin != null }),
-        ] }),
-
-        // the standard Edit suite — present and keyed, honestly disabled:
-        // nothing on this desktop edits yet
-
-        ({ id: "edit", label: "Edit", items: [
-            ({ id: "undo", label: "Undo", key: "⌘Z", enabled: false }),
-            ({ id: "redo", label: "Redo", key: "⇧⌘Z", enabled: false }),
-            ({ divider: true }),
-            ({ id: "cut", label: "Cut", key: "⌘X", enabled: false }),
-            ({ id: "copy", label: "Copy", key: "⌘C", enabled: false }),
-            ({ id: "paste", label: "Paste", key: "⌘V", enabled: false }),
-            ({ divider: true }),
-            ({ id: "selall", label: "Select All", key: "⌘A", enabled: false }),
-        ] }),
-        ({ id: "window", label: "Window", items: this.windowItems(app.wm.winSeq, app.wm.frontWin) }),
-        ({ id: "help", label: "Help", items: [
-            ({ id: "hsearch", kind: "HelpSearch" }),
-            ({ id: "help-app", label: app.launcher.nameOf(app.wm.activeApp) + " Help", icon: "LightbulbIcon" }),
-        ] }),
-    ] },
-
-    // The application menu: About, View & Edit Source, and — except for Files,
-    // which is always running — Quit.
-
-    appMenuItems(a: string) -> array {
-        const nm = app.launcher.nameOf(a)
-        const out = []
-        out.push(({ id: "about-app", label: "About " + nm }))
-        out.push(({ divider: true }))
-        out.push(({ id: "source", label: "View & Edit Source" }))
-        if (a != "files") {
-            out.push(({ divider: true }))
-            out.push(({ id: "quit", label: "Quit " + nm, key: "⌘Q" }))
-            }
-        return out
-        },
-
-    // the Window menu is live state as records: the active application's open
-    // windows, front one checked. `seq` and `front` arrive as arguments so
-    // the menus constraint above visibly reads them — its re-derive hooks.
-
-    windowItems(seq: number, front: Window?) -> array {
-        const a = app.wm.activeApp
-        const ws = app.wm.windows()
-        const out = []
-        for (let i = 0; i < ws.length; i++) {
-            if (app.wm.isPlain(ws[i]) || app.wm.appOf(ws[i]) != a) continue
-            out.push(({ id: "win:" + i, label: app.wm.titleOf(ws[i]) || app.launcher.nameOf(a), checked: ws[i] == front }))
-            }
-        if (out.length == 0) out.push(({ id: "nowin", label: "No Windows", enabled: false }))
-        return out
-        },
-
     // No background: the menu bar's words render straight on the wallpaper.
     // `ink` turns the titles light, and the wallpaper's top scrim keeps them
     // legible over any palette.
 
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.menuBarH },
         menuInk: Color = 0xF2F2F5,
-        mb: MenuBar [ x = 10, height = { parent.height }, menus = { app.menus }, ink = { parent.menuInk },
+
+        /*
+        ### The menu bar — whole menus as records, contextual
+
+        The `menus` array re-derives from the active application (and from app.wm.winSeq /
+        app.wm.frontWin for the Window menu), so the bar follows focus live, even while a
+        menu is open. Keyboard shortcuts dispatch from these same records.
+        */
+
+        menus: array = { [
+            ({ id: "brand", label: "Declare", kind: "BrandMark", items: [
+                ({ id: "about-desktop", label: "About Declare Desktop", icon: "BracketIcon" }),
+                ({ divider: true }),
+                ({ id: "dark", label: app.darkMode ? "Light Mode" : "Dark Mode", key: "⌘K", icon: "AutoIcon" }),
+                ({ divider: true }),
+                ({ id: "source-desktop", label: "View & Edit Source", icon: "CodeIcon" }),
+                ({ id: "home", label: "Declare Home" }),
+            ] }),
+            ({ id: "app", label: app.launcher.nameOf(app.wm.activeApp), bold: true,
+                items: this.appMenuItems(app.wm.activeApp) }),
+            ({ id: "file", label: "File", items: [
+                ({ id: "new", label: "New", key: "⌘N" }),
+                ({ id: "open", label: "Open…", key: "⌘O", enabled: app.wm.activeApp != "calendar" }),
+                ({ divider: true }),
+                ({ id: "close", label: "Close Window", key: "⌘W", enabled: app.wm.frontWin != null }),
+            ] }),
+
+            // the standard Edit suite — present and keyed, honestly disabled:
+            // nothing on this desktop edits yet
+
+            ({ id: "edit", label: "Edit", items: [
+                ({ id: "undo", label: "Undo", key: "⌘Z", enabled: false }),
+                ({ id: "redo", label: "Redo", key: "⇧⌘Z", enabled: false }),
+                ({ divider: true }),
+                ({ id: "cut", label: "Cut", key: "⌘X", enabled: false }),
+                ({ id: "copy", label: "Copy", key: "⌘C", enabled: false }),
+                ({ id: "paste", label: "Paste", key: "⌘V", enabled: false }),
+                ({ divider: true }),
+                ({ id: "selall", label: "Select All", key: "⌘A", enabled: false }),
+            ] }),
+            ({ id: "window", label: "Window", items: this.windowItems(app.wm.winSeq, app.wm.frontWin) }),
+            ({ id: "help", label: "Help", items: [
+                ({ id: "hsearch", kind: "HelpSearch" }),
+                ({ id: "help-app", label: app.launcher.nameOf(app.wm.activeApp) + " Help", icon: "LightbulbIcon" }),
+            ] }),
+        ] },
+
+        // The application menu: About, View & Edit Source, and — except for Files,
+        // which is always running — Quit.
+
+        appMenuItems(a: string) -> array {
+            const nm = app.launcher.nameOf(a)
+            const out = []
+            out.push(({ id: "about-app", label: "About " + nm }))
+            out.push(({ divider: true }))
+            out.push(({ id: "source", label: "View & Edit Source" }))
+            if (a != "files") {
+                out.push(({ divider: true }))
+                out.push(({ id: "quit", label: "Quit " + nm, key: "⌘Q" }))
+                }
+            return out
+            },
+
+        // the Window menu is live state as records: the active application's open
+        // windows, front one checked. `seq` and `front` arrive as arguments so
+        // the menus constraint above visibly reads them — its re-derive hooks.
+
+        windowItems(seq: number, front: Window?) -> array {
+            const a = app.wm.activeApp
+            const ws = app.wm.windows()
+            const out = []
+            for (let i = 0; i < ws.length; i++) {
+                if (app.wm.isPlain(ws[i]) || app.wm.appOf(ws[i]) != a) continue
+                out.push(({ id: "win:" + i, label: app.wm.titleOf(ws[i]) || app.launcher.nameOf(a), checked: ws[i] == front }))
+                }
+            if (out.length == 0) out.push(({ id: "nowin", label: "No Windows", enabled: false }))
+            return out
+            },
+
+        // ── ⌘-shortcuts dispatch from the menus' own records: one registry, derived
+        // from whatever the contextual bar currently shows, so the active
+        // application's keys are automatically the live set — nothing is declared
+        // twice.
+
+        keyRegistry: array = { (app.bar.menus || [])
+            .flatMap((m) => (m.items || []).filter((r) => r.key).map((r) => ({ menu: "" + m.label, ...r }))) },
+
+        mb: MenuBar [ x = 10, height = { parent.height }, menus = { app.bar.menus }, ink = { parent.menuInk },
             picked(id: string) { app.command(id) }
             ],
         clock: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 13,
