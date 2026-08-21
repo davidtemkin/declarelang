@@ -161,16 +161,16 @@ class Window extends View [ width = 560, height = 400, clip = true,
     dockSlot: number = -1,                       // ≥0 = my slot in the dock's minimized section
     miniT: number = 0,                           // the park blend: 0 = free, 1 = docked (animated — the journey)
 
-    // My slot comes from the shared mini layout (app.miniLayout), left-anchored
+    // My slot comes from the shared mini layout (app.dock.miniLayout), left-anchored
     // like the icon row so a magnified thumbnail grows rightward and never
     // crosses the divider. x/w are the slot's live geometry; rw is its resting
     // width, so w/rw is my share of the magnification swell. A thumbnail keeps
     // its aspect, centers vertically in its cell, and rounds its corners at
     // thumbnail scale.
 
-    slotW: number = { app.miniLayout != null && this.dockSlot >= 0 && this.dockSlot < app.miniLayout.length ? app.miniLayout[this.dockSlot].w : 48 },
-    slotRestW: number = { app.miniLayout != null && this.dockSlot >= 0 && this.dockSlot < app.miniLayout.length ? app.miniLayout[this.dockSlot].rw : 48 },
-    slotX: number = { app.miniLayout != null && this.dockSlot >= 0 && this.dockSlot < app.miniLayout.length ? app.miniLayout[this.dockSlot].x : 0 },
+    slotW: number = { app.dock.miniLayout != null && this.dockSlot >= 0 && this.dockSlot < app.dock.miniLayout.length ? app.dock.miniLayout[this.dockSlot].w : 48 },
+    slotRestW: number = { app.dock.miniLayout != null && this.dockSlot >= 0 && this.dockSlot < app.dock.miniLayout.length ? app.dock.miniLayout[this.dockSlot].rw : 48 },
+    slotX: number = { app.dock.miniLayout != null && this.dockSlot >= 0 && this.dockSlot < app.dock.miniLayout.length ? app.dock.miniLayout[this.dockSlot].x : 0 },
     parkScale: number = { this.slotW / Math.max(1, this.width) },
     waveMag: number = { this.slotW / Math.max(1, this.slotRestW) },
 
@@ -1466,11 +1466,11 @@ class MiniTile extends View [
     // geometry straight from the mini layout (the same entries the parked
     // window reads), translated into the minis section's local space
 
-    slotW: number = { app.miniLayout != null && this.ix < app.miniLayout.length ? app.miniLayout[this.ix].w : 48 },
-    slotH: number = { app.miniLayout != null && this.ix < app.miniLayout.length ? app.miniLayout[this.ix].h : 48 },
-    slotRestW: number = { app.miniLayout != null && this.ix < app.miniLayout.length ? app.miniLayout[this.ix].rw : 48 },
+    slotW: number = { app.dock.miniLayout != null && this.ix < app.dock.miniLayout.length ? app.dock.miniLayout[this.ix].w : 48 },
+    slotH: number = { app.dock.miniLayout != null && this.ix < app.dock.miniLayout.length ? app.dock.miniLayout[this.ix].h : 48 },
+    slotRestW: number = { app.dock.miniLayout != null && this.ix < app.dock.miniLayout.length ? app.dock.miniLayout[this.ix].rw : 48 },
     waveMag: number = { this.slotW / Math.max(1, this.slotRestW) },
-    x = { (app.miniLayout != null && this.ix < app.miniLayout.length ? app.miniLayout[this.ix].x : 0) - (app.dock.x + app.dock.row.width + 32) },
+    x = { (app.dock.miniLayout != null && this.ix < app.dock.miniLayout.length ? app.dock.miniLayout[this.ix].x : 0) - (app.dock.x + app.dock.row.width + 32) },
     width = { this.slotW },
     height = { this.slotH },   // the thumbnail's aspect height (not icon-square), so the badge lands on the thumbnail's own corner
     y = { parent.height - 13.5 - 30.5 * this.waveMag - this.height / 2 },   // scales around the badge baseline (grows upward on rollover); at rest this is the plate center
@@ -1493,7 +1493,7 @@ class MiniTile extends View [
 
     badge: DockIcon [
         visible = { classroot.seated },
-        width = { app.badgeEdge * classroot.waveMag }, height = { app.badgeEdge * classroot.waveMag },
+        width = { app.dock.badgeEdge * classroot.waveMag }, height = { app.dock.badgeEdge * classroot.waveMag },
 
         // x tracks the thumbnail's right edge (2px inside it); y sits on the
         // dock's common badge baseline (13.5px above the plate floor), not the
@@ -1501,8 +1501,8 @@ class MiniTile extends View [
         // hangs below it while a tall one stays contained. The tile's center is
         // the plate center; baseline = center + (44 - 13.5).
 
-        x = { parent.width - (app.badgeEdge + 2) * classroot.waveMag },
-        y = { parent.height / 2 + (30.5 - app.badgeEdge) * classroot.waveMag },
+        x = { parent.width - (app.dock.badgeEdge + 2) * classroot.waveMag },
+        y = { parent.height / 2 + (30.5 - app.dock.badgeEdge) * classroot.waveMag },
         kind = { classroot.kind == "calendar" ? "calendar" : classroot.kind == "jots" ? "jots" : classroot.kind == "files" ? "files" : classroot.kind == "birds" ? "bird" : "" },
         glyph = { classroot.kind == "markdown" ? "M↓" : classroot.kind == "declareviewer" ? "[  ]" : "" },
         hue1 = { classroot.kind == "markdown" ? 0x8E7CE8
@@ -1564,8 +1564,8 @@ class DockIcon extends View [
 
     // shared geometry — one place for the numbers the constraints below share
 
-    rest: number = { app.iconEdge },             // resting icon size (the shared cell)
-    pitch: number = { app.iconEdge + 16 },       // slot-center spacing: the resting size plus a 16px gap
+    rest: number = { app.dock.iconEdge },             // resting icon size (the shared cell)
+    pitch: number = { app.dock.iconEdge + 16 },       // slot-center spacing: the resting size plus a 16px gap
     strip: number = 16,                          // the running-dot band below the icons
 
     // the face is rendered ONCE at this fixed reference size and paint-scaled to
@@ -1582,7 +1582,7 @@ class DockIcon extends View [
     // not read the magnified layout (a feedback loop); resting geometry is
     // fixed: `pitch` about the app's center
 
-    cx0: number = { app.width / 2 + (this.ix - (this.slots - 1) / 2) * this.pitch - app.miniSpan / 2 },
+    cx0: number = { app.width / 2 + (this.ix - (this.slots - 1) / 2) * this.pitch - app.dock.miniSpan / 2 },
 
     // magnification: the shared wave (app.dockMag) about my resting center,
     // read off the SMOOTHED pointer (dockX) so it glides every frame, and
@@ -1610,7 +1610,7 @@ class DockIcon extends View [
 
     gate(): number { const g = this.parent.parent.hotGate; return typeof g == "number" ? g : 0 },
 
-    magTarget: number = { 1 + (app.dockMag(app.pointerX - this.cx0) - 1) * this.gate() },
+    magTarget: number = { 1 + (app.dock.dockMag(app.pointerX - this.cx0) - 1) * this.gate() },
     mag: number = 1,
     magSpring: Spring [ attribute = mag, to = { classroot.magTarget }, stiffness = 1300, damping = 62, epsilon = 0.002 ],
     width  = { this.rest * this.mag },
@@ -1891,30 +1891,21 @@ class WinManager extends Node [
     rebuildMinis() {
         const ws = this.miniList()
         const out = []
-        let total = 0
         for (let i = 0; i < ws.length; i++) {
             ws[i].dockSlot = i
-            // the longer edge matches an app icon's edge: a minimized
-            // window is never wider or taller than an icon
-            const fit = app.thumbEdge / Math.max(ws[i].width, ws[i].height)
-            const slotW = Math.round(ws[i].width * fit)
-            const slotH = Math.round(ws[i].height * fit)
-            out.push(({ ix: i, label: this.labelFor(ws[i]), kind: this.appOf(ws[i]), w: slotW, h: slotH }))
-            total += slotW + 8
+            // RAW window geometry only: what fits where, at what pixel size,
+            // is the dock's business (dock.tiles derives it) — the model
+            // stopped knowing what a pixel is here
+            out.push(({ ix: i, label: this.labelFor(ws[i]), kind: this.appOf(ws[i]), winW: ws[i].width, winH: ws[i].height }))
             }
         miniRecs = out
         miniWins = ws
         miniCount = out.length
-        // the mini section's resting width added to the plate: the divider zone
-        // (34 = 16px left margin + line + 18px right) plus the slots and their
-        // gaps. `total` already counts a trailing 8px gap, so: total + 34 − 8.
-        miniGoal = out.length > 0 ? total + 26 : 0
         },
 
     // the minimized section's width — sprung toward the rebuilt goal, so
     // admitting or releasing a tile widens and narrows the dock as motion
 
-    miniGoal: number = 0,
     startPark(w: Window) { w.miniBack.stop(); w.bornX = 0; w.bornY = 0; w.miniGo.start() },
     startUnpark(w: Window) { w.miniGo.stop(); w.miniBack.start() },
 
@@ -2362,10 +2353,6 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     tiltSeed: number = 0,
     scaleSeed: number = 0,                       // the zoom egg's seed; `s` re-rolls, `S` resets
-    iconEdge: number = 56,                       // a dock icon's resting edge
-    dockFloor: number = 13,                      // the icons' resting bottom line, up from the desktop's bottom edge
-    badgeEdge: number = 20,                      // a minimized window's app badge, at rest
-    thumbEdge: number = 64,                      // a minimized thumbnail's longer edge — bigger than an icon, and centered
 
     /*
     ### The dock's magnification swell
@@ -2389,28 +2376,6 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     the RESTING center (cx0), never the magnified layout, so the swell can't
     feed back on itself.
     */
-
-    dockX: number = 0,
-
-    // In-dock tracking: the swell sits under the cursor with about a frame of
-    // lag and settles in ~110ms, critically damped (no tail).
-
-    dockXSpring: Spring [ attribute = dockX, to = { app.pointerX }, stiffness = 1300, damping = 62, epsilon = 0.5 ],
-
-    dockMag(dist: number) -> number {
-        const pitch = this.iconEdge + 16
-        const a = Math.abs(dist)
-        const xs = [0, pitch, 2 * pitch, 3 * pitch, 4 * pitch]
-        // A pointed peak, not a dome: the hovered icon reaches 1.55× and the
-        // drop-off is steepest on the first step.
-        // peak · ±1 · ±2 · ±3 · ±4 = 1.55 · 1.35 · 1.18 · 1.06 · 1.0.
-        const ys = [1.55, 1.35, 1.18, 1.06, 1]
-        if (a >= xs[4]) return 1
-        for (let i = 0; i < 4; i++) {
-            if (a <= xs[i + 1]) return ys[i] + (ys[i + 1] - ys[i]) * (a - xs[i]) / (xs[i + 1] - xs[i])
-            }
-        return 1
-        },
 
     // an app illustration in the 48-unit authoring box (the caller has already
     // scaled to size, and painted the plate hue behind). The plate-hued `kind`s
@@ -2569,56 +2534,6 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         },
 
     dockDismiss() { app.bar.mb.menu.rootClose() },
-    miniSpan: number = 0,
-    spanSpring: Spring [ attribute = miniSpan, to = { app.wm.miniGoal }, stiffness = 380, damping = 34, epsilon = 0.5 ],
-
-    // ── the mini layout: one computation both the parked windows and their
-    // hit tiles read (deps arrive as arguments, so the constraint visibly
-    // tracks them — the windowItems pattern). Left-anchored accumulation,
-    // exactly like the icon row's layout: a magnified thumbnail pushes its
-    // neighbors right and never crosses the divider on its left. The wave's
-    // falloff runs over resting centers (the icons' anti-feedback rule).
-
-    miniLayout: array = { this.computeMiniLayout(app.wm.miniRecs, app.dockX, app.dock.hot,
-        app.dock.x, app.dock.row.width, app.miniSpan, app.width) },
-
-    // iconRow = the nine icons + eight gaps at rest; 10 = the plate's side
-    // skirts (5 each); 5 = the row's inset in the plate; 17 = the divider
-    // zone (8 + line + 8). The wave itself is app.dockMag — one curve, read
-    // here for the tiles and by each DockIcon for the icons.
-
-    computeMiniLayout(recs: array, px: number, hot: number, dockLeftX: number, rowW: number, span: number, appW: number) -> array {
-        const rs = recs || []
-        const iconRow = 9 * app.iconEdge + 8 * 16   // the nine icons + eight gaps, at rest
-        // 32 = the plate's two 16px side skirts; 16 = the row's inset in the
-        // plate; 34 = the divider zone (16px left margin + line + 18px right
-        // margin) — the first thumbnail starts 34px past the last icon's edge
-        const restDockX = (appW - (iconRow + 32 + span)) / 2
-        let rx = restDockX + 16 + iconRow + 34      // first slot's resting left
-        let lx = dockLeftX + 16 + rowW + 34         // …and its live left
-        const out = []
-        for (const r of rs) {
-            const cx0 = rx + r.w / 2
-            // the same wave the icons ride (app.dockMag), so tiles magnify in step
-            const m = 1 + (app.dockMag(px - cx0) - 1) * hot
-            const w = r.w * m
-            out.push(({ x: lx, w: w, rw: r.w, h: (r.h || r.w) * m, cx: lx + w / 2 }))
-            lx += w + 8
-            rx += r.w + 8
-            }
-        return out
-        },
-
-    // the wave's extra width beyond rest — the plate stretches for it, so a
-    // magnified thumbnail never hangs past the dock's right edge
-
-    miniMagX: number = { this.magOf(app.miniLayout, app.wm.miniRecs) },
-    magOf(lay: array, recs: array) -> number {
-        if (lay == null || recs == null || lay.length == 0) return 0
-        let d = 0
-        for (let i = 0; i < lay.length; i++) d += lay[i].w - recs[i].w
-        return Math.max(0, d)
-        },
 
     onPointerDown() { app.launcher.dismissAbouts() },
 
@@ -2895,6 +2810,105 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             // DockIcon by construction
             for (const c of this.row.children) if ((c as DockIcon).appId == a) this.pokeIcon(c as DockIcon)
             },
+
+        // ── the dock's own geometry: the constants, the smoothed pointer, the
+        // wave, and the parked-strip layout — everything that knows what a
+        // pixel is lives HERE now; the WM hands over raw window facts and the
+        // dock derives the rest (tiles → miniGoal → the sprung span). The
+        // springs kept their structure, constants, and targets in the move.
+
+        iconEdge: number = 56,                   // a dock icon's resting edge
+        badgeEdge: number = 20,                  // a minimized window's app badge, at rest
+        thumbEdge: number = 64,                  // a minimized thumbnail's longer edge — bigger than an icon, and centered
+
+        dockX: number = 0,
+
+        // In-dock tracking: the swell sits under the cursor with about a frame
+        // of lag and settles in ~110ms, critically damped (no tail).
+
+        dockXSpring: Spring [ attribute = dockX, to = { app.pointerX }, stiffness = 1300, damping = 62, epsilon = 0.5 ],
+
+        dockMag(dist: number) -> number {
+            const pitch = this.iconEdge + 16
+            const a = Math.abs(dist)
+            const xs = [0, pitch, 2 * pitch, 3 * pitch, 4 * pitch]
+            // A pointed peak, not a dome: the hovered icon reaches 1.55× and the
+            // drop-off is steepest on the first step.
+            // peak · ±1 · ±2 · ±3 · ±4 = 1.55 · 1.35 · 1.18 · 1.06 · 1.0.
+            const ys = [1.55, 1.35, 1.18, 1.06, 1]
+            if (a >= xs[4]) return 1
+            for (let i = 0; i < 4; i++) {
+                if (a <= xs[i + 1]) return ys[i] + (ys[i + 1] - ys[i]) * (a - xs[i]) / (xs[i + 1] - xs[i])
+                }
+            return 1
+            },
+
+        // the parked strip, fitted: raw window facts (wm.miniRecs) → tile
+        // pixel sizes — the thumbnail's longer edge matches an icon's edge, so
+        // it is never wider or taller than one
+
+        tiles: array = { (app.wm.miniRecs || []).map((r) => {
+            const fit = this.thumbEdge / Math.max(r.winW, r.winH)
+            return ({ ix: r.ix, label: r.label, kind: r.kind, w: Math.round(r.winW * fit), h: Math.round(r.winH * fit) })
+            }) },
+
+        // the strip's resting width: the divider zone (34 = 16px left margin +
+        // line + 18px right) plus the slots and their 8px gaps; the trailing
+        // gap is already counted, so: total + 34 − 8
+
+        miniGoal: number = { this.tiles.length > 0 ? this.tiles.reduce((t, r) => t + r.w + 8, 0) + 26 : 0 },
+
+        miniSpan: number = 0,
+        spanSpring: Spring [ attribute = miniSpan, to = { app.dock.miniGoal }, stiffness = 380, damping = 34, epsilon = 0.5 ],
+
+        // ── the mini layout: one computation both the parked windows and their
+        // hit tiles read (deps arrive as arguments, so the constraint visibly
+        // tracks them — the windowItems pattern). Left-anchored accumulation,
+        // exactly like the icon row's layout: a magnified thumbnail pushes its
+        // neighbors right and never crosses the divider on its left. The wave's
+        // falloff runs over resting centers (the icons' anti-feedback rule).
+
+        miniLayout: array = { this.computeMiniLayout(this.tiles, this.dockX, this.hot,
+            this.x, this.row.width, this.miniSpan, app.width) },
+
+        // iconRow = the nine icons + eight gaps at rest; 10 = the plate's side
+        // skirts (5 each); 5 = the row's inset in the plate; 17 = the divider
+        // zone (8 + line + 8). The wave itself is dockMag — one curve, read
+        // here for the tiles and by each DockIcon for the icons.
+
+        computeMiniLayout(recs: array, px: number, hot: number, dockLeftX: number, rowW: number, span: number, appW: number) -> array {
+            const rs = recs || []
+            const iconRow = 9 * this.iconEdge + 8 * 16   // the nine icons + eight gaps, at rest
+            // 32 = the plate's two 16px side skirts; 16 = the row's inset in the
+            // plate; 34 = the divider zone (16px left margin + line + 18px right
+            // margin) — the first thumbnail starts 34px past the last icon's edge
+            const restDockX = (appW - (iconRow + 32 + span)) / 2
+            let rx = restDockX + 16 + iconRow + 34      // first slot's resting left
+            let lx = dockLeftX + 16 + rowW + 34         // …and its live left
+            const out = []
+            for (const r of rs) {
+                const cx0 = rx + r.w / 2
+                // the same wave the icons ride (dockMag), so tiles magnify in step
+                const m = 1 + (this.dockMag(px - cx0) - 1) * hot
+                const w = r.w * m
+                out.push(({ x: lx, w: w, rw: r.w, h: (r.h || r.w) * m, cx: lx + w / 2 }))
+                lx += w + 8
+                rx += r.w + 8
+                }
+            return out
+            },
+
+        // the wave's extra width beyond rest — the plate stretches for it, so a
+        // magnified thumbnail never hangs past the dock's right edge
+
+        miniMagX: number = { this.magOf(this.miniLayout, this.tiles) },
+        magOf(lay: array, recs: array) -> number {
+            if (lay == null || recs == null || lay.length == 0) return 0
+            let d = 0
+            for (let i = 0; i < lay.length; i++) d += lay[i].w - recs[i].w
+            return Math.max(0, d)
+            },
+
         width = { this.plate.width },
         x = { (app.width - this.width) / 2 },
         y = { app.height - 155.5 },           // the 88px plate sits 5.5px off the bottom edge
@@ -2928,7 +2942,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         // dock-height: the icons' bottom anchor reads parent.height, and a
         // shorter row would float them above the plate at rest.
 
-        plate: View [ x = 0, y = { parent.height - 88 }, height = 88, width = { parent.row.width + 32 + app.miniSpan + app.miniMagX },
+        plate: View [ x = 0, y = { parent.height - 88 }, height = 88, width = { parent.row.width + 32 + app.dock.miniSpan + app.dock.miniMagX },
             cornerRadius = 27, fill = { app.darkMode ? 0x2A2A30 : 0xFCFCFE }, opacity = 0.4 ],
 
         // The plate's edge rim, DRAWN at full strength (the plate is translucent,
@@ -2989,10 +3003,10 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         // is open, and the divider fades in with the widening, so growth reads as
         // one motion with no seam.
 
-        minis: View [ visible = { app.miniSpan > 0.5 },
+        minis: View [ visible = { app.dock.miniSpan > 0.5 },
             x = { parent.row.x + parent.row.width + 16 }, y = 0, height = { parent.height },
             div: View [ x = 0, y = { parent.height - 77 }, width = 1, height = 65,
-                opacity = { Math.min(1, app.miniSpan / 26) },
+                opacity = { Math.min(1, app.dock.miniSpan / 26) },
                 fill = { app.darkMode ? 0xFFFFFF48 : 0x00000042 } ],
 
             // a static pool of tiles, not replication: each is a pure

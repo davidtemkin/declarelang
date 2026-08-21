@@ -45,6 +45,13 @@ export default async ({ drive, expect, page }) => {
   await drive.settleMotion();
   eq(await facts(), { activeApp: "files", miniCount: 1, front: null, birdsRunning: true, windows: 3 },
     "after minimize");
+  // the dock FITS the parked window (the WM hands raw facts; dock.tiles does
+  // the pixel math): birds' 880×560 window at thumbEdge 64 → 64×41
+  const tile = await page.evaluate(() => {
+    const t = (window.__app.dock.tiles ?? [])[0] ?? null;
+    return t && { ix: t.ix, label: t.label, kind: t.kind, w: t.w, h: t.h };
+  });
+  eq(tile, { ix: 0, label: "50 Birds", kind: "birds", w: 64, h: 41 }, "the fitted tile");
 
   // RESTORE from the dock's parked strip: back on stage, focused again
   await page.evaluate(() => (window.__app.wm ?? window.__app).restoreMiniAt(0));
