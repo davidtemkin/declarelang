@@ -119,7 +119,7 @@ export default async ({ app, drive, expect }) => {
 ### 2.5 Named states & visual checks
 
 A states file lists `{ name, route: assert-script steps, viewport(s) }`. Verify captures each state on the chosen backend(s). **Capture is an app-level API on the canvas backend**: `__declare.capture() → PNG/ImageData` reads the app's own raster (`toDataURL`/OffscreenCanvas) — no compositor, no device-pixel-ratio ambiguity, byte-stable because the app inked those pixels itself, and cheap enough to diff *in-page*. The DOM backend is captured via CDP screenshot as today (it has no raster of its own — this asymmetry is itself a small argument for the own-pixels substrate). Then:
-- **Regression mode** (default): perceptual-diff vs `baselines/<state>@<viewport>.png` (AA tolerance from the perceptual suite); `--bless` to accept.
+- **Regression mode** (default): perceptual-diff vs `baselines/<state>@<viewport>.png` beside the states script — for an app, `apps/<name>/tests/baselines/`, the `tests/` convention (operational/verify.md); `--bless` to accept.
 - **Parity mode** (`--backend both`): DOM vs canvas within tolerance — extends the CI invariant to *your app*, not just the test corpus.
 - **Judge mode** (evals only, §3.5): screenshots handed to a multimodal judge with a falsifiable-question rubric — never "does it look right", always "does any text overlap / clip / render off-canvas; is the described element present".
 

@@ -34,7 +34,7 @@ deterministic by the driven clock.
 | `--no-typecheck` | skip the rung-3 typecheck (on by default) |
 | `--assert <script.mjs>` | the drive/expect script for rung 5 |
 | `--fixtures <dir>` | data fixtures the app consumes |
-| `--states <script.mjs>` · `--baselines <dir>` | rung-6 named states and their baseline images |
+| `--states <script.mjs>` · `--baselines <dir>` | rung-6 named states and their baseline images (default: `baselines/` beside the states script) |
 | `--bless` | write current renders as the baselines |
 | `--wrap` | wrap a bare `class … extends` in a probe app, so a library component verifies standalone |
 
@@ -121,10 +121,29 @@ yesterday's artifact. That is why it is a separate command and not a slower part
 `npm test`, and why the rule is *derive immediately before*.
 → [`derive.md`](declare-docs:operational:derive)
 
-The slow suite works by **discovery**: name a script after its program and put it
-alongside — `controls.declare` → `controls.assert.mjs` (R5), `controls.states.mjs`
-(R6) — and the app is climbed to the top of the ladder from then on. Nothing to
-register, so a new script cannot be forgotten by a future run.
+The slow suite works by **discovery**, and the discovery rule is the repo's
+convention for where an app's checks live — **the `tests/` folder**:
+
+```
+apps/<name>/
+  <name>.declare        the program (named after its directory)
+  tests/
+    assert.mjs          rung-5 behavior (optional)
+    states.mjs          rung-6 named states (optional)
+    baselines/          the blessed captures states.mjs compares against
+```
+
+Give an app a `tests/` folder holding either script and it is climbed to the top
+of the ladder from then on — nothing to register, so a new script cannot be
+forgotten by a future run. The folder pairs with the `.declare` named after its
+directory, so sibling includes (`viewer/tour.declare`) don't confuse it, and the
+scripts need no name prefix — the folder scopes them.
+
+The folder is not just tidiness; it is the **packaging boundary**. Placement is
+the declaration ([`system-design/app-packaging.md`](../system-design/app-packaging.md)): a
+deploy or package sweeps everything in the app's directory, and `tests/` is the
+one subtree that never ships. Test scripts and baseline PNGs stay out of every
+deploy by one rule instead of a per-file exception list.
 
 Keep this split in mind when a green suite and a broken program disagree: `npm test`
 alone never opens a browser, so pointer routing, real text metrics, CSS and paint are

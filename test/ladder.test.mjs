@@ -5,8 +5,12 @@
 // leaves rungs 5–6 — real input, real pixels — reachable only by remembering to
 // type `--assert` / `--states` with the right paths, which is exactly the kind of
 // step that silently stops happening. This runs them by DISCOVERY instead: any
-// app that ships a `<name>.assert.mjs` or `<name>.states.mjs` beside its program
-// is climbed to the top of the ladder, and a new one is picked up by existing.
+// app that ships a `tests/` folder (tests/assert.mjs, tests/states.mjs,
+// tests/baselines/) is climbed to the top of the ladder, and a new one is
+// picked up by existing. The folder is the convention (operational/verify.md):
+// it scopes the scripts to their app, and it is the packaging boundary — a
+// deploy or package sweeps the app dir, and `tests/` is the one subtree that
+// never ships.
 //
 // Not part of `npm test` (that ruling stands — these need Chromium and take
 // minutes). It is `npm run test:ladder`, and the pre-release step in the ops
@@ -19,21 +23,24 @@ import { test, summarize } from "./harness.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** Every `*.declare` under apps/ that has an assert and/or states script named
- *  after it — the pairing convention (controls.declare ↔ controls.assert.mjs). */
+/** Every app dir under apps/ that ships a `tests/` folder — the folder pairs
+ *  with the .declare named after its dir (apps/controls/tests/ ↔
+ *  apps/controls/controls.declare), so an app with sibling includes
+ *  (viewer/tour.declare) still has exactly one ladder subject. */
 function discover() {
   const found = [];
   const walk = (dir) => {
     for (const e of readdirSync(dir)) {
       const p = join(dir, e);
-      if (statSync(p).isDirectory()) { if (e !== "node_modules" && e !== "dist" && e !== "baselines") walk(p); continue; }
-      if (!e.endsWith(".declare")) continue;
-      const stem = p.slice(0, -".declare".length);
-      const assert = stem + ".assert.mjs";
-      const states = stem + ".states.mjs";
-      if (existsSync(assert) || existsSync(states)) {
-        found.push({ file: p, assert: existsSync(assert) ? assert : null, states: existsSync(states) ? states : null });
-      }
+      if (!statSync(p).isDirectory()) continue;
+      if (e === "node_modules" || e === "dist" || e === "baselines") continue;
+      if (e !== "tests") { walk(p); continue; }
+      const assert = join(p, "assert.mjs");
+      const states = join(p, "states.mjs");
+      if (!existsSync(assert) && !existsSync(states)) continue;
+      const file = join(dir, basename(dir) + ".declare");
+      if (!existsSync(file)) throw new Error(`ladder: ${p} has no ${basename(dir)}.declare beside it — tests/ pairs with the .declare named after its app dir`);
+      found.push({ file, assert: existsSync(assert) ? assert : null, states: existsSync(states) ? states : null });
     }
   };
   walk(join(ROOT, "apps"));

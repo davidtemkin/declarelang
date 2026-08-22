@@ -1,7 +1,7 @@
 // The desktop's named visual states.
 //
-//   bless:   node tools/verify.mjs apps/desktop/desktop.declare --states apps/desktop/desktop.states.mjs --bless
-//   compare: node tools/verify.mjs apps/desktop/desktop.declare --states apps/desktop/desktop.states.mjs
+//   bless:   node tools/verify.mjs apps/desktop/desktop.declare --states apps/desktop/tests/states.mjs --bless
+//   compare: node tools/verify.mjs apps/desktop/desktop.declare --states apps/desktop/tests/states.mjs
 //
 // The desktop is the last app to get an instrument, and it needs one before its
 // menu icons migrate (chrome-divergences D11 puts WindowIcon and CodeIcon here).

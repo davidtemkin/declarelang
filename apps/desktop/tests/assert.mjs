@@ -1,5 +1,5 @@
 // The desktop's WINDOW-MANAGEMENT contract — verify rung 5.
-// Run: node tools/verify.mjs apps/desktop/desktop.declare --assert apps/desktop/desktop.assert.mjs
+// Run: node tools/verify.mjs apps/desktop/desktop.declare --assert apps/desktop/tests/assert.mjs
 //
 // Written as the refactor gate for the Node ("faceless logic") restructuring:
 // every fact and verb here must answer identically before and after the window

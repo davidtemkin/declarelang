@@ -1,7 +1,7 @@
 // The viewer's named visual states.
 //
-//   bless:   node tools/verify.mjs apps/viewer/viewer.declare --states apps/viewer/viewer.states.mjs --bless
-//   compare: node tools/verify.mjs apps/viewer/viewer.declare --states apps/viewer/viewer.states.mjs
+//   bless:   node tools/verify.mjs apps/viewer/viewer.declare --states apps/viewer/tests/states.mjs --bless
+//   compare: node tools/verify.mjs apps/viewer/viewer.declare --states apps/viewer/tests/states.mjs
 //
 // Thin on purpose. The viewer's stake in this work is its BESPOKE chrome — the
 // ModeSeg mode switch and its own theme switch, both of which restate house

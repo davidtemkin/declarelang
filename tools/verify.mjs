@@ -206,7 +206,10 @@ if (failedRung === null && flags.rung >= 6 && flags.states !== null) {
       compiled: { source: out.source, deps: out.deps },
       appDir: dirOf(resolvePath(file)),
       statesPath: flags.states,
-      baselinesDir: flags.baselines ?? joinPath(dirOf(resolvePath(file)), "baselines"),
+      // The default sits beside the STATES file, not the app program: the
+      // tests/ convention (operational/verify.md) keeps states.mjs and
+      // baselines/ together wherever that folder lives.
+      baselinesDir: flags.baselines ?? joinPath(dirOf(resolvePath(flags.states)), "baselines"),
       bless: flags.bless,
       fixturesDir: flags.fixtures,
     });

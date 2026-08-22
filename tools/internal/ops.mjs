@@ -62,7 +62,7 @@ export const OPS = {
         description: "The suites whose SUBJECT is a derived artifact — the assembled doc model, declare-help's knowledge base, the committed prewarm cache, the production builds. Only meaningful straight after a derive, which is why the command carries it: run alone on a stale tree it tests yesterday's artifact.",
         test: false, docs: "declare-docs:operational:verify" },
       { id: "test-ladder", cmd: "npm run test:ladder",
-        description: "The SLOW rungs, pre-release: every app shipping a <name>.assert.mjs or <name>.states.mjs beside it is climbed to R5 (real input) and R6 (pixels vs baselines) in headless Chromium. Discovery-based, so a new script is picked up by existing. `npm run test:all` runs both suites.",
+        description: "The SLOW rungs, pre-release: every app shipping a tests/ folder (tests/assert.mjs, tests/states.mjs, tests/baselines/) is climbed to R5 (real input) and R6 (pixels vs baselines) in headless Chromium. Discovery-based, so a new script is picked up by existing. `npm run test:all` runs both suites.",
         // the smoke test proves DISCOVERY only — climbing the real rungs here
         // would pull Chromium into the main suite, which is the split
         // this entry exists to keep.

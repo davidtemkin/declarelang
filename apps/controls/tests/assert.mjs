@@ -1,5 +1,5 @@
 // The controls showcase's behavioral contract — verify's rung 5 proving case.
-// Run: node tools/verify.mjs apps/controls/controls.declare --assert apps/controls/controls.assert.mjs
+// Run: node tools/verify.mjs apps/controls/controls.declare --assert apps/controls/tests/assert.mjs
 //
 // Asserts at the LANGUAGE's altitude: named views and attributes through the
 // __declare bridge — real pointer/keyboard input, deterministic motion.

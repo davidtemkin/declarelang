@@ -1,7 +1,7 @@
 // The tracker's named visual states.
 //
-//   bless:   node tools/verify.mjs apps/tracker/tracker.declare --states apps/tracker/tracker.states.mjs --bless
-//   compare: node tools/verify.mjs apps/tracker/tracker.declare --states apps/tracker/tracker.states.mjs
+//   bless:   node tools/verify.mjs apps/tracker/tracker.declare --states apps/tracker/tests/states.mjs --bless
+//   compare: node tools/verify.mjs apps/tracker/tracker.declare --states apps/tracker/tests/states.mjs
 //
 // The tracker carries more glyph-as-icon sites than any other app — the four
 // filter/sort buttons wear `▾` inside their LABEL STRINGS, the group headers use

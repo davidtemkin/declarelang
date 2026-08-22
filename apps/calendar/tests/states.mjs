@@ -1,8 +1,8 @@
 // The calendar's named visual states — the flagship, so every pixel here is
 // load-bearing for the chrome-standardization work.
 //
-//   bless:   node tools/verify.mjs apps/calendar/calendar.declare --states apps/calendar/calendar.states.mjs --bless
-//   compare: node tools/verify.mjs apps/calendar/calendar.declare --states apps/calendar/calendar.states.mjs
+//   bless:   node tools/verify.mjs apps/calendar/calendar.declare --states apps/calendar/tests/states.mjs --bless
+//   compare: node tools/verify.mjs apps/calendar/calendar.declare --states apps/calendar/tests/states.mjs
 //
 // THE CLOCK IS PINNED. The calendar's initial state derives from the day it
 // loads (CAL_BOOT), which is correct behaviour and fatal for a baseline: an

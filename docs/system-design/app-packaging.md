@@ -158,13 +158,17 @@ which no sweep can see. That is the whole job of (2).
 
 ### 4a. The skip-list, and why junk is not an architecture
 
-The sweep's real defect is over-inclusion: measured on `apps/docs`, it ships `baselines/`
-(perceptual-test fixtures) and `docs.states.mjs` (a test harness). Neither is the app.
+The sweep's real defect is over-inclusion: measured on `apps/docs` before the
+`tests/` convention, it shipped `baselines/` (perceptual-test fixtures) and
+`docs.states.mjs` (a test harness). Neither is the app.
 
-That is a two-entry skip-list, not a reason to redesign collection. The existing list
-(`dist`, `prebuilt`, `node_modules`, `index.html`, dotfiles, `*.declare`) grows by the
-fixture conventions this repo uses. A repository that keeps its test fixtures beside its
-apps pays a small, declared price for it.
+The repo's answer (standardized 2026-08-22, [verify](declare-docs:operational:verify))
+is a placement rule of its own: every app's checks live in `apps/<name>/tests/`
+(`assert.mjs`, `states.mjs`, `baselines/`). So the skip-list needs exactly one
+entry for test material — **`tests/` never ships** — beside the existing list
+(`dist`, `prebuilt`, `node_modules`, `index.html`, dotfiles, `*.declare`). No
+per-file exception list, and a new kind of fixture lands inside the boundary
+instead of growing it.
 
 ### 4b. Silence must be trustworthy
 

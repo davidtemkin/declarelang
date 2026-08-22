@@ -1,8 +1,8 @@
 // The sampler's named visual states — the widest coverage in the corpus, so
 // this is the primary instrument for the chrome-standardization work.
 //
-//   bless:   node tools/verify.mjs apps/sampler/sampler.declare --states apps/sampler/sampler.states.mjs --bless
-//   compare: node tools/verify.mjs apps/sampler/sampler.declare --states apps/sampler/sampler.states.mjs
+//   bless:   node tools/verify.mjs apps/sampler/sampler.declare --states apps/sampler/tests/states.mjs --bless
+//   compare: node tools/verify.mjs apps/sampler/sampler.declare --states apps/sampler/tests/states.mjs
 //
 // States are chosen to cover the surfaces the work moves, not to photograph the
 // app: theme tokens (every specimen, light and dark), the drawn marks that
