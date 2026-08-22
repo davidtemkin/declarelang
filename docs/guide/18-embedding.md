@@ -153,21 +153,21 @@ verified the way a linker resolves `extern` symbols: at link time, loudly
 ("`pos` is `external number` here and `external string` in the tenant — the
 island could not be linked").
 
-```declare
+```declare-fragment
 player: AppIsland [ program = "player",
-    external volume: number = { app.masterVolume },   -- host-fed: the tenant follows it
-    external readonly pos: number = 0,                -- tenant-owned: the host reads, never writes
-    onPost(m: IslandPost) { app.log(m.topic) }        -- the tenant's messages arrive here
+    external volume: number = { app.masterVolume },   // host-fed: the tenant follows it
+    external readonly pos: number = 0,                // tenant-owned: the host reads, never writes
+    onPost(m: IslandPost) { app.log(m.topic) }        // the tenant's messages arrive here
     ],
-scrubber: View [ x = { app.player.pos * trackWidth } ]  -- full machinery over tenant facts
+scrubber: View [ x = { app.player.pos * trackWidth } ]  // full machinery over tenant facts
 ```
 
 The tenant's side is plain Declare — it declares the same names and uses them
 as ordinary attributes:
 
 ```declare
-App [ external volume: number = 0,     -- arrives from the host, constraints re-derive
-    external pos: number = 3,          -- this app writes it; the host reads it
+App [ external volume: number = 0,     // arrives from the host, constraints re-derive
+    external pos: number = 3,          // this app writes it; the host reads it
     onPost(m: IslandPost) { app.pos = app.pos + 1; app.post("ack", m.topic) },
     ]
 ```

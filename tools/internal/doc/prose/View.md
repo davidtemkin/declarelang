@@ -305,10 +305,6 @@ View [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,
     ]
 ```
 
-## onInit
-Fires once when the view has finished constructing and its subtree exists — the place
-for setup that needs the built tree. Answered by `onInit()`.
-
 ## x
 The horizontal offset within the parent, in pixels. Honoured only while the parent
 imposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute

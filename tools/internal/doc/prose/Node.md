@@ -14,3 +14,9 @@ class Cart [ count: number = 0,
 
 A view then holds one as a named member (`cart: Cart [ ]`) and reads/drives it reactively —
 state and behaviour with no pixels of its own.
+
+## onInit
+Fires once when the node has finished constructing and its subtree exists — the place for
+setup that needs the built tree. Every node gets it, **faceless subclasses included**
+(the init walk covers non-View children since 2026-08-20 — before that, only views were
+visited and a Node's `onInit` silently never fired). Answered by `onInit()`.

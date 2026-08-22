@@ -316,12 +316,11 @@ post is for commands and occurrences, never continuous values.
 ## onPost
 The inbound half, an event: a host island's `post(topic, payload)` arrives on its
 embedded tenant as `onPost(m: IslandPost)` — `m.topic`, `m.payload`. Fires only on a
-linked tenant.
-
-## external (declaration modifier)
-On a tenant App, `external name: Type = default` declares an **export** — the app's half
-of its island's typed bridge. The host island declares the same name `external`; the
-runtime pairs them at mount with a type handshake (a mismatch is a link error). The slot
-then behaves as an ordinary attribute on both sides: this app writes it and the host's
-constraints re-derive; the host feeds it and this app's constraints re-derive. Ownership
-arbitrates direction — a slot the host *binds* refuses this app's writes, loudly.
+linked tenant. The state channel is the `external` declaration modifier: on a tenant
+App, `external name: Type = default` declares an **export** — the app's half of its
+island's typed bridge. The host island declares the same name `external`; the runtime
+pairs them at mount with a type handshake (a mismatch is a link error). The slot then
+behaves as an ordinary attribute on both sides: this app writes it and the host's
+constraints re-derive; the host feeds it and this app's constraints re-derive.
+Ownership arbitrates direction — a slot the host *binds* refuses this app's writes,
+loudly.

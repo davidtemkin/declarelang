@@ -1,0 +1,4 @@
+App [ external volume: number = 0,     // arrives from the host, constraints re-derive
+    external pos: number = 3,          // this app writes it; the host reads it
+    onPost(m: IslandPost) { app.pos = app.pos + 1; app.post("ack", m.topic) }
+    ]
