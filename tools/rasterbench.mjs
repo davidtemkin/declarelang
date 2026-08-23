@@ -14,11 +14,17 @@
 // The three engines do not present pixels the same way, so no single number is
 // comparable across them and the tool refuses to pretend otherwise:
 //
-//   WebKit  — the 2D canvas is DEFERRED. Draw calls only record; rasterization
-//             is forced lazily at the first pixel read. So `flushMs` below — a
-//             ONE-PIXEL readback — is the real rendering cost, and a 1x1 read
-//             costs the same as a full one (a one-pixel copy cannot be a buffer
-//             transfer). This is the only way to see WebKit's raster at all.
+//   WebKit, SOFTWARE-backed — the 2D canvas is DEFERRED. Draw calls only
+//             record; rasterization is forced lazily at the first pixel read,
+//             so `flushMs` (a ONE-PIXEL readback) is the real rendering cost
+//             and a 1x1 read costs the same as a full one.
+//   WebKit, GPU-backed — ⚠ THE READBACK DOES NOT FORCE ANYTHING. Measured
+//             2026-08-23: real Safari returns flushMs 0-5ms flat across an 89x
+//             range of painted pixels, and 0ms on a 395MB canvas, where the
+//             off-screen WKWebView harness on the SAME probe read 113-178ms.
+//             The harness is getting a software backing; Safari.app is not.
+//             So flushMs measures software raster only, and a flat flushMs is
+//             NOT evidence that a scene is cheap — see `ink` below.
 //   Blink   — eager GPU raster, presented without a readback. `flushMs` is ~0
 //             there and means nothing; the cost shows up as frame cadence, or
 //             nowhere at all because the GPU absorbed it.
@@ -32,6 +38,12 @@
 // `bytes` — the total backing store of every <canvas> on the page — is the one
 // number that IS comparable, because it is an allocation rather than a timing.
 // It is the whole answer to the extent probe.
+//
+// `ink` — the share of sampled points that are not transparent. The one metric
+// that catches a failure NO timing can see: past its total canvas budget Safari
+// draws TRANSPARENT canvases, and a scene that painted nothing is fast and
+// wrong. A 0% ink reading beside a 0ms flush is not a fast frame, it is a blank
+// one, and the two are indistinguishable by every other column here.
 //
 // ── two traps this rig has to dodge ───────────────────────────────────────
 //
@@ -148,6 +160,50 @@ const AGENT = `(async () => {
     if (f > flushMax) flushMax = f;
   }
 
+  // Does this engine honour ctx.filter at all? WebKit was measured ACCEPTING
+  // the assignment (it reads back verbatim, as a plain expando) and then
+  // painting unfiltered — so the only honest test is whether a blurred rect
+  // bleeds past its own edge. Free to carry here, and it means no result can
+  // quietly assume a filter cost that was never incurred.
+  // Did anything actually get painted? Sampled on a coarse grid rather than
+  // read whole — a 1800x57602 canvas cannot be pulled into a typed array, and
+  // the question is only "is there content", not "which content".
+  let inkPct = null;
+  try {
+    let seen = 0, lit = 0;
+    for (const c of canvases()) {
+      const g = c.getContext("2d");
+      if (!g) continue;
+      // BLOCKS, not points: a hairline lattice on a 32px pitch is almost never
+      // under a point sample, and "0% ink" would then mean "I sampled between
+      // the lines", not "nothing painted". A block asks the question the metric
+      // is actually for — is there content in this neighbourhood.
+      const B = 40;
+      for (let gx = 0; gx < 4; gx++) {
+        for (let gy = 0; gy < 4; gy++) {
+          const x = Math.min(Math.max(0, c.width - B), Math.floor((gx + 0.5) * c.width / 4 - B / 2));
+          const y = Math.min(Math.max(0, c.height - B), Math.floor((gy + 0.5) * c.height / 4 - B / 2));
+          const w = Math.min(B, c.width), h = Math.min(B, c.height);
+          if (w < 1 || h < 1) continue;
+          seen++;
+          const d = g.getImageData(x, y, w, h).data;
+          for (let i = 3; i < d.length; i += 4) { if (d[i] !== 0) { lit++; break; } }
+        }
+      }
+    }
+    inkPct = seen ? Math.round((lit / seen) * 100) : null;
+  } catch (e) { inkPct = null; }
+
+  let filterWorks = null;
+  try {
+    const fc = document.createElement("canvas"); fc.width = 200; fc.height = 200;
+    const fg = fc.getContext("2d");
+    fg.filter = "blur(20px)";
+    fg.fillStyle = "#fff";
+    fg.fillRect(80, 80, 40, 40);
+    filterWorks = fg.getImageData(60, 100, 1, 1).data[3] > 0;
+  } catch (e) { filterWorks = null; }
+
   const cs = canvases();
   const sorted = gaps.slice().sort((a, b) => a - b);
   const at = (q) => sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] : 0;
@@ -164,6 +220,8 @@ const AGENT = `(async () => {
     // reported, never assumed: an engine driven without a screen may be at 1x,
     // and a 1x measurement is not comparable with a 2x one
     dpr: window.devicePixelRatio || 1,
+    filterWorks: filterWorks,
+    ink: inkPct,
   };
 })()`;
 
@@ -249,6 +307,13 @@ async function safariEngine() {
   }
   const sid = session.sessionId;
   await call("POST", `/session/${sid}/timeouts`, { script: 120000 });
+  if (yieldFocus) {
+    // Safari is up; give the front back. Whether the numbers survive that is
+    // the experiment — an OCCLUDED window is throttled, and a throttled window
+    // reports cadence that looks like a finding and is an artifact.
+    spawn("osascript", ["-e", 'tell application "Finder" to activate'], { stdio: "ignore" });
+    await sleep(600);
+  }
   return {
     name: "safari",
     async goto(url) {
@@ -337,6 +402,13 @@ const renderers = flag("renderers", "dom,canvas").split(",");
 const probes = flag("probe", Object.keys(PROBES).join(",")).split(",");
 const steps = Number(flag("steps", "40"));
 const headless = has("headless");
+// --brief keeps only each sweep's endpoints. The curve's SHAPE is lost; its
+// span is not — which is the trade worth making when the run is holding
+// someone's screen.
+const brief = has("brief");
+// --yield-focus hands the front back to another app right after the session
+// opens, so a run can answer whether this engine needs to be frontmost at all
+const yieldFocus = has("yield-focus");
 const jsonOut = flag("json", null);
 
 if (headless) console.log("⚠ --headless: Chrome rasterizes on SwiftShader here. Structural runs only — these are not GPU numbers.\n");
@@ -376,10 +448,13 @@ for (const engineName of engines) {
         continue;
       }
       console.log(`\n  ${probeName} · ${renderer}`);
-      console.log(`  ${"sweep".padEnd(34)}${"axis".padStart(7)}${"flushSum".padStart(10)}${"flushMax".padStart(10)}${"p50".padStart(8)}${"p95".padStart(8)}${"cvs".padStart(6)}${"MB".padStart(9)}${"maxDim".padStart(8)}${"dpr".padStart(5)}`);
+      console.log(`  ${"sweep".padEnd(34)}${"axis".padStart(7)}${"flushSum".padStart(10)}${"flushMax".padStart(10)}${"p50".padStart(8)}${"p95".padStart(8)}${"cvs".padStart(6)}${"MB".padStart(9)}${"maxDim".padStart(8)}${"dpr".padStart(5)}${"ink%".padStart(6)}${"filter".padStart(8)}`);
 
       for (const sweep of probe.sweeps) {
-        for (const v of sweep.values) {
+        const values = brief && sweep.values.length > 2
+          ? [sweep.values[0], sweep.values[sweep.values.length - 1]]
+          : sweep.values;
+        for (const v of values) {
           const knobs = { ...sweep.hold, [sweep.axis]: v };
           // fresh navigation per point — a warm page has already been read back
           await engine.goto(`${BASE}/${probe.file}?render=${renderer}`);
@@ -401,7 +476,7 @@ for (const engineName of engines) {
           console.log(
             `  ${sweep.name.padEnd(34)}${String(v).padStart(7)}${String(out.flushMs).padStart(10)}${String(out.flushMax).padStart(10)}` +
             `${cad(out.p50).padStart(8)}${cad(out.p95).padStart(8)}` +
-            `${String(out.canvases).padStart(6)}${mb.padStart(9)}${String(out.maxDim).padStart(8)}${String(out.dpr).padStart(5)}`);
+            `${String(out.canvases).padStart(6)}${mb.padStart(9)}${String(out.maxDim).padStart(8)}${String(out.dpr).padStart(5)}${String(out.ink === null ? "?" : out.ink).padStart(6)}${(out.filterWorks === null ? "?" : out.filterWorks ? "yes" : "NO").padStart(8)}`);
           rows.push({ engine: engine.name, probe: probeName, renderer, sweep: sweep.name, axis: sweep.axis, value: v, ...out });
         }
       }
