@@ -46,9 +46,8 @@
 // FRESH rather than re-driving a warm page.
 import http from "node:http";
 import path from "node:path";
-import { writeFileSync } from "node:fs";
-import { existsSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { writeFileSync, existsSync, unlinkSync, statSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import { createDeclareServer } from "../server/create.mjs";
@@ -65,19 +64,22 @@ const PROBES = {
   coverage: {
     file: "test/probe/raster-coverage.declare",
     drive: "static",
+    // The two sweeps run the SAME op counts and differ only in what each mark
+    // covers — 0.05 of the view against all of it, a 400x separation in painted
+    // pixels at identical list length. Span stays <= 1 deliberately: a mark
+    // larger than its view grows the RECORDING's bounds, which grows the canvas,
+    // which would put an allocation change inside a coverage experiment.
     sweeps: [
-      // op count climbs 256x while covered area stays near-flat (marks tile)
-      { name: "ops @ span 0.06 (tiling)", hold: { span: 0.06 }, axis: "ops", values: [8, 32, 128, 512, 2048] },
-      // op count is FIXED at 8 while covered area climbs (marks stack)
-      { name: "span @ ops 8 (stacking)", hold: { ops: 8 }, axis: "span", values: [0.06, 0.25, 0.5, 1, 1.5] },
+      { name: "span 0.05 — marks tile", hold: { span: 0.05 }, axis: "ops", values: [64, 256, 1024, 4096] },
+      { name: "span 1.00 — marks cover", hold: { span: 1.0 }, axis: "ops", values: [64, 256, 1024, 4096] },
     ],
   },
   size: {
     file: "test/probe/raster-size.declare",
     drive: "resize",
     sweeps: [
-      { name: "resize, live (reads its own size)", hold: { mode: "live" }, axis: "weight", values: [1, 3, 5, 8] },
-      { name: "resize, ref  (fixed box + scale)", hold: { mode: "ref" }, axis: "weight", values: [1, 3, 5, 8] },
+      { name: "resize, live (reads its own size)", hold: { mode: "live", weight: 3 }, axis: "blur", values: [0, 8, 24, 48] },
+      { name: "resize, ref  (fixed box + scale)", hold: { mode: "ref", weight: 3 }, axis: "blur", values: [0, 8, 24, 48] },
     ],
   },
   extent: {
@@ -97,47 +99,71 @@ const PROBES = {
 
 const AGENT = `(async () => {
   const app = window.__app;
-  const raf = () => new Promise((r) => requestAnimationFrame(r));
+  // An off-screen view never gets a frame callback, so the agent cannot depend
+  // on one: this is a frame request where there is a display, and a task turn
+  // where there is not — enough for the runtime to settle and for the DOM
+  // backend to re-rasterize, which it does synchronously on setDrawing rather
+  // than on a frame.
+  const raf = () => __TICK__;
   const canvases = () => Array.from(document.querySelectorAll("canvas"));
   const bump = () => { app.tick = (app.tick || 0) + 1; };
+  // one pixel from each canvas. On a deferred rasterizer this forces the whole
+  // flush and IS the render cost; on an eager one it is a GPU sync and noise.
+  const flush = () => {
+    const t = performance.now();
+    for (const c of canvases()) {
+      try { const g = c.getContext("2d"); if (g) g.getImageData(0, 0, 1, 1); } catch (e) { /* tainted or lost */ }
+    }
+    return performance.now() - t;
+  };
 
-  const set = (k, v) => { app[k] = v; };
-  for (const [k, v] of Object.entries(KNOBS)) set(k, v);
+  for (const [k, v] of Object.entries(KNOBS)) app[k] = v;
   await raf(); await raf();
 
-  // the drive — a window of frames, each one perturbed so the scene really
-  // re-paints; the gaps between them are this engine's cadence under load
+  // TWO PASSES, because the two metrics corrupt each other. A readback is a GPU
+  // sync on Blink, so taking one every step would poison the very cadence it is
+  // sitting next to; and a single flush at the END cannot see a cost that is
+  // paid per frame (a resize re-records every step — that is the whole point of
+  // the size probe). So: cadence with no readback, then flush with one per step.
+
   const gaps = [];
-  let last = performance.now();
-  for (let i = 0; i < STEPS; i++) {
-    DRIVE_STEP;
-    await raf();
-    const now = performance.now();
-    gaps.push(now - last);
-    last = now;
+  if (!NOCADENCE) {
+    let last = performance.now();
+    for (let i = 0; i < STEPS; i++) {
+      DRIVE_STEP;
+      await raf();
+      const now = performance.now();
+      gaps.push(now - last);
+      last = now;
+    }
   }
 
-  // MATERIALIZATION: one pixel from each canvas. On a deferred rasterizer this
-  // forces the whole flush and is the real cost; on an eager one it is noise.
-  await raf();
-  bump();
-  await raf();
-  const t0 = performance.now();
-  for (const c of canvases()) {
-    try { const g = c.getContext("2d"); if (g) g.getImageData(0, 0, 1, 1); } catch (e) { /* tainted or lost */ }
+  let flushTotal = 0, flushMax = 0;
+  for (let i = 0; i < STEPS; i++) {
+    DRIVE_STEP;
+    bump();
+    await raf();
+    const f = flush();
+    flushTotal += f;
+    if (f > flushMax) flushMax = f;
   }
-  const flushMs = performance.now() - t0;
 
   const cs = canvases();
   const sorted = gaps.slice().sort((a, b) => a - b);
   const at = (q) => sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] : 0;
+  const r2 = (x) => Math.round(x * 100) / 100;
   return {
-    flushMs: Math.round(flushMs * 100) / 100,
-    p50: Math.round(at(0.5) * 100) / 100,
-    p95: Math.round(at(0.95) * 100) / 100,
+    // the whole gesture's rasterization, and its worst single frame
+    flushMs: r2(flushTotal),
+    flushMax: r2(flushMax),
+    p50: NOCADENCE ? null : r2(at(0.5)),
+    p95: NOCADENCE ? null : r2(at(0.95)),
     canvases: cs.length,
     bytes: cs.reduce((a, c) => a + c.width * c.height * 4, 0),
     maxDim: cs.reduce((a, c) => Math.max(a, c.width, c.height), 0),
+    // reported, never assumed: an engine driven without a screen may be at 1x,
+    // and a 1x measurement is not comparable with a 2x one
+    dpr: window.devicePixelRatio || 1,
   };
 })()`;
 
@@ -152,9 +178,13 @@ const DRIVES = {
   scroll: "app.scrollY = (i / STEPS) * (app.height * (app.k - 1))",
 };
 
-function agentFor(drive, knobs, steps) {
+function agentFor(drive, knobs, steps, noCadence = false) {
   return AGENT
-    .replace("DRIVE_STEP;", DRIVES[drive] + ";")
+    .replace(/DRIVE_STEP;/g, DRIVES[drive] + ";")
+    .replace("__TICK__", noCadence
+      ? "new Promise((r) => setTimeout(r, 0))"
+      : "new Promise((r) => requestAnimationFrame(r))")
+    .replace(/NOCADENCE/g, String(noCadence))
     .replace(/STEPS/g, String(steps))
     .replace("KNOBS", JSON.stringify(knobs));
 }
@@ -247,6 +277,52 @@ async function safariEngine() {
   };
 }
 
+// WebKit with no browser on screen — mac-host/webkitprobe, a WKWebView that
+// never activates. Sound because WebKit's flush is forced by the readback and
+// not by presentation, so an off-screen view rasterizes identically. What it
+// cannot give is frame cadence (no display to pace it), so those fields are
+// blanked rather than reported as zeros.
+async function webkitEngine() {
+  // Build when missing OR older than its source. A stale native binary that
+  // still runs is this repo's most reliable way to measure last week's code and
+  // believe it was this week's.
+  const bin = path.join(ROOT, "mac-host", "webkitprobe");
+  const src = bin + ".swift";
+  const stale = !existsSync(bin) || statSync(bin).mtimeMs < statSync(src).mtimeMs;
+  if (stale) {
+    console.log("  building mac-host/webkitprobe …");
+    const r = spawnSync("swiftc", ["-O", src, "-o", bin], { stdio: ["ignore", "ignore", "pipe"] });
+    if (r.status !== 0) throw new Error("swiftc failed: " + String(r.stderr).trim().split("\n").slice(-3).join(" "));
+  }
+  const scratch = path.join(ROOT, "mac-host", ".webkitprobe-agent.js");
+  let pending = null;         // the URL the next run() should load
+  let viewport = { w: 900, h: 600 };
+  let sweepResize = false;    // set by the caller for a resize-driven probe
+  return {
+    name: "webkit (WKWebView, off-screen — flush only, no cadence)",
+    noCadence: true,
+    async goto(url) { pending = url; },
+    async resize(w, h) { viewport = { w, h }; },
+    // the resize GESTURE cannot be driven from out here: the probe is a
+    // one-shot process, so it has to sweep its own frame while the agent runs
+    setResizeDrive(on) { sweepResize = on; },
+    async run(src) {
+      writeFileSync(scratch, src);
+      const out = await new Promise((resolve, reject) => {
+        const spawnArgs = [pending, scratch, `${viewport.w}x${viewport.h}`];
+        if (sweepResize) spawnArgs.push("resize");
+        const p = spawn(bin, spawnArgs, { stdio: ["ignore", "pipe", "pipe"] });
+        let so = "", se = "";
+        p.stdout.on("data", (d) => (so += d));
+        p.stderr.on("data", (d) => (se += d));
+        p.on("close", (code) => (code === 0 ? resolve(so.trim()) : reject(new Error(se.trim() || `exit ${code}`))));
+      });
+      return JSON.parse(out);
+    },
+    async close() { try { unlinkSync(scratch); } catch { /* never written */ } },
+  };
+}
+
 // ── the run ───────────────────────────────────────────────────────────────
 
 const argv = process.argv.slice(2);
@@ -278,7 +354,9 @@ const rows = [];
 for (const engineName of engines) {
   let engine;
   try {
-    engine = engineName === "safari" ? await safariEngine() : await chromeEngine({ headless });
+    engine = engineName === "safari" ? await safariEngine()
+      : engineName === "webkit" ? await webkitEngine()
+      : await chromeEngine({ headless });
   } catch (err) {
     console.log(`${engineName}: SKIPPED — ${err.message}\n`);
     continue;
@@ -290,31 +368,40 @@ for (const engineName of engines) {
     if (!probe) { console.log(`  unknown probe '${probeName}'`); continue; }
 
     for (const renderer of renderers) {
+      if (engine.noCadence && renderer === "canvas") {
+        // the canvas backend's compositor is a dirty-bit + rAF scheduler, and an
+        // off-screen view never gets a frame — it would paint nothing and report
+        // a confident zero. Refuse rather than measure a blank.
+        console.log(`\n  ${probeName} · canvas — SKIPPED (needs a frame callback; use --engines chrome or safari)`);
+        continue;
+      }
       console.log(`\n  ${probeName} · ${renderer}`);
-      console.log(`  ${"sweep".padEnd(34)}${"axis".padStart(7)}${"flushMs".padStart(10)}${"p50".padStart(8)}${"p95".padStart(8)}${"cvs".padStart(6)}${"MB".padStart(9)}${"maxDim".padStart(8)}`);
+      console.log(`  ${"sweep".padEnd(34)}${"axis".padStart(7)}${"flushSum".padStart(10)}${"flushMax".padStart(10)}${"p50".padStart(8)}${"p95".padStart(8)}${"cvs".padStart(6)}${"MB".padStart(9)}${"maxDim".padStart(8)}${"dpr".padStart(5)}`);
 
       for (const sweep of probe.sweeps) {
         for (const v of sweep.values) {
           const knobs = { ...sweep.hold, [sweep.axis]: v };
           // fresh navigation per point — a warm page has already been read back
           await engine.goto(`${BASE}/${probe.file}?render=${renderer}`);
-          if (probe.drive === "resize") {
+          engine.setResizeDrive?.(probe.drive === "resize");
+          if (probe.drive === "resize" && !engine.setResizeDrive) {
             // the resize gesture itself: a sweep of viewport widths, with the
             // in-page recorder running across it
-            const run = engine.run(agentFor(probe.drive, knobs, steps));
+            const run = engine.run(agentFor(probe.drive, knobs, steps, engine.noCadence === true));
             for (let i = 0; i < steps; i++) {
               await engine.resize(700 + Math.round(300 * Math.sin((i / steps) * Math.PI)), 600);
               await sleep(16);
             }
             var out = await run;
           } else {
-            var out = await engine.run(agentFor(probe.drive, knobs, steps));
+            var out = await engine.run(agentFor(probe.drive, knobs, steps, engine.noCadence === true));
           }
           const mb = (out.bytes / (1 << 20)).toFixed(1);
+          const cad = (x) => (engine.noCadence ? "—" : String(x));
           console.log(
-            `  ${sweep.name.padEnd(34)}${String(v).padStart(7)}${String(out.flushMs).padStart(10)}` +
-            `${String(out.p50).padStart(8)}${String(out.p95).padStart(8)}` +
-            `${String(out.canvases).padStart(6)}${mb.padStart(9)}${String(out.maxDim).padStart(8)}`);
+            `  ${sweep.name.padEnd(34)}${String(v).padStart(7)}${String(out.flushMs).padStart(10)}${String(out.flushMax).padStart(10)}` +
+            `${cad(out.p50).padStart(8)}${cad(out.p95).padStart(8)}` +
+            `${String(out.canvases).padStart(6)}${mb.padStart(9)}${String(out.maxDim).padStart(8)}${String(out.dpr).padStart(5)}`);
           rows.push({ engine: engine.name, probe: probeName, renderer, sweep: sweep.name, axis: sweep.axis, value: v, ...out });
         }
       }

@@ -21,12 +21,18 @@
 // the wallpaper's real cost is washes, not marks: a handful of ops covering
 // every pixel several times over.
 
-App [ width = 1000, height = 700, fill = #0B0E12,
+// ⚠ No declared width/height: the App takes the HOST's size, which is what
+// makes a resize reach `app.width` at all. Pinning them (as the other two
+// probes do, deliberately) would leave the driver resizing a window whose
+// program never noticed — a sweep that measures nothing and says so quietly.
+
+App [ fill = #0B0E12,
 
     mode: string = "live",       // "live" (reads its own size) · "ref" (fixed box + scale)
     refW: number = 1200,
     refH: number = 800,
     weight: number = 5,          // full-surface radial fills
+    blur: number = 0,            // filter radius, px — 0 leaves the filter unset
     tick: number = 0,
 
     field: View [
@@ -50,6 +56,16 @@ App [ width = 1000, height = 700, fill = #0B0E12,
 
             d.fillStyle = "#0D1420"
             d.fillRect(0, 0, W, H)
+
+            // The washes go under a blur when one is asked for, because that is
+            // what makes this content expensive in the first place: a gaussian
+            // is O(radius^2) and does not care how few marks it covers. The
+            // wallpaper's measured ~24ms/flush in Safari is this, not the fills
+            // — so a size probe without it measures a shape the real case does
+            // not have.
+
+            d.save()
+            if (app.blur > 0) { d.filter = "blur(" + app.blur + "px)" }
             const spots = [[0.17, 0.24], [0.82, 0.20], [0.50, 0.54], [0.20, 0.82], [0.83, 0.80]]
             for (let i = 0; i < n; i = i + 1) {
                 const p = spots[i % spots.length]
@@ -62,6 +78,7 @@ App [ width = 1000, height = 700, fill = #0B0E12,
                 d.fillStyle = g
                 d.fillRect(0, 0, W, H)
                 }
+            d.restore()
             }
         ],
 
