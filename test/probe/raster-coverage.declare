@@ -25,6 +25,7 @@ App [ width = 900, height = 600, fill = #101418,
 
     ops: number = 24,            // how many marks
     span: number = 0.25,         // each mark's size, as a fraction of the view
+    alpha: number = 0.5,         // per-mark opacity — see the note below
     tick: number = 0,            // bump to re-record with the same geometry
 
     art: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
@@ -40,6 +41,17 @@ App [ width = 900, height = 600, fill = #101418,
             // span the whole view whatever their size — the walk is identical
             // in both regimes and only `span` decides tile-vs-stack
 
+            // ⚠ TRANSLUCENT ON PURPOSE. With opaque marks a stacking sweep
+            // measures nothing: an opaque fill covering the whole surface makes
+            // every earlier mark dead, and both engines discard them. Measured
+            // 2026-08-23 — 4096 full covers at 1800x1200 is 8,847 Mpx, which
+            // Safari reported in 1ms and WKWebView in ~26ms per step; the first
+            // is 1.7s of work at Safari's own measured fill rate and the second
+            // implies 340,000 Mpx/s against a software raster that runs at 141.
+            // Neither painted it. A mark that must be COMPOSITED cannot be
+            // dropped, so alpha is what makes overdraw real rather than
+            // notional. alpha = 1 restores the old (cullable) shape.
+            d.globalAlpha = Math.max(0.01, Math.min(1, app.alpha))
             const cols = Math.max(1, Math.ceil(Math.sqrt(n)))
             const stepX = cols > 1 ? (W - mw) / (cols - 1) : 0
             const stepY = cols > 1 ? (H - mh) / (cols - 1) : 0

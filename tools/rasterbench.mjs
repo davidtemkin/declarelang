@@ -39,6 +39,17 @@
 // number that IS comparable, because it is an allocation rather than a timing.
 // It is the whole answer to the extent probe.
 //
+// ⚠ STANDING CAVEAT, 2026-08-23: flushMs DOES NOT MEASURE RASTERIZATION WORK.
+// The coverage probe's own calibration point says so — one full-surface
+// translucent fill reads 5ms and 4096 of them read 259ms, which is 52x the time
+// for 4096x the work, on marks that must be composited and cannot legally be
+// dropped. Whatever the readback forces, it is not proportional to painting.
+// So no cost MODEL may be drawn from these columns yet. What the rig does
+// measure honestly: `bytes` and `maxDim` (allocations), `ink` (did it paint at
+// all), `filter` (a capability), `drive` (is the sweep live), and cadence on an
+// engine that has a display. Fixing this needs a different instrument for
+// raster, not a wider sweep of this one.
+//
 // `ink` — the share of sampled points that are not transparent. The one metric
 // that catches a failure NO timing can see: past its total canvas budget Safari
 // draws TRANSPARENT canvases, and a scene that painted nothing is fast and
@@ -82,8 +93,12 @@ const PROBES = {
     // larger than its view grows the RECORDING's bounds, which grows the canvas,
     // which would put an allocation change inside a coverage experiment.
     sweeps: [
-      { name: "span 0.05 — marks tile", hold: { span: 0.05 }, axis: "ops", values: [64, 256, 1024, 4096] },
-      { name: "span 1.00 — marks cover", hold: { span: 1.0 }, axis: "ops", values: [64, 256, 1024, 4096] },
+      // ops = 1 is the CALIBRATION point: one full-surface fill is a known
+      // quantity, so the marginal cost per added cover is readable off the
+      // curve. A 4096-cover row that does not cost ~4096x the 1-cover row is
+      // not painting what it claims to, whatever the ratio between sweeps says.
+      { name: "span 0.05 — marks tile", hold: { span: 0.05 }, axis: "ops", values: [1, 64, 256, 1024, 4096] },
+      { name: "span 1.00 — marks cover", hold: { span: 1.0 }, axis: "ops", values: [1, 64, 256, 1024, 4096] },
     ],
   },
   size: {
@@ -165,6 +180,45 @@ const AGENT = `(async () => {
   // painting unfiltered — so the only honest test is whether a blurred rect
   // bleeds past its own edge. Free to carry here, and it means no result can
   // quietly assume a filter cost that was never incurred.
+  // DOES THE DRIVE ACTUALLY DRIVE? Every timing here assumes each step causes a
+  // fresh recording and a fresh raster. Nothing verified that, and a probe whose
+  // knob is inert reports flat numbers that read exactly like "this engine is
+  // fast". So: sample a pixel, perturb, sample again. If the two agree, the
+  // sweep measured an unchanging scene and every column below is meaningless.
+  let driveWorks = null;
+  try {
+    // a spread of points, not one: a sparse scene leaves the centre empty, and
+    // a single sample there reports INERT for a drive that is working fine
+    const px = () => {
+      const out = [];
+      for (const c of canvases()) {
+        const g = c.getContext("2d");
+        if (!g) continue;
+        // BLOCKS at irregular offsets. A regular grid of point samples ALIASES
+        // against a regular scene: measured 2026-08-23, a 64-mark lattice on a
+        // 122px pitch fell entirely between 4 evenly spaced probes and reported
+        // INERT for a drive that was working. Blocks cannot fall between marks,
+        // and the offsets are chosen not to share a factor with the scene.
+        const B = 37;
+        for (const [fx, fy] of [[0.13, 0.17], [0.41, 0.63], [0.71, 0.29], [0.89, 0.83]]) {
+          const x = Math.min(Math.max(0, c.width - B), Math.floor(fx * c.width));
+          const y = Math.min(Math.max(0, c.height - B), Math.floor(fy * c.height));
+          const w = Math.min(B, c.width), h = Math.min(B, c.height);
+          if (w < 1 || h < 1) continue;
+          const d = g.getImageData(x, y, w, h).data;
+          let acc = 0;
+          for (let i = 0; i < d.length; i += 4) acc = (acc + d[i] * 3 + d[i + 1] * 5 + d[i + 2] * 7 + d[i + 3] * 11) | 0;
+          out.push(acc);
+        }
+      }
+      return out.join("|");
+    };
+    const before = px();
+    bump();
+    await raf(); await raf();
+    driveWorks = px() !== before;
+  } catch (e) { driveWorks = null; }
+
   // Did anything actually get painted? Sampled on a coarse grid rather than
   // read whole — a 1800x57602 canvas cannot be pulled into a typed array, and
   // the question is only "is there content", not "which content".
@@ -222,6 +276,7 @@ const AGENT = `(async () => {
     dpr: window.devicePixelRatio || 1,
     filterWorks: filterWorks,
     ink: inkPct,
+    drive: driveWorks,
   };
 })()`;
 
@@ -448,7 +503,7 @@ for (const engineName of engines) {
         continue;
       }
       console.log(`\n  ${probeName} · ${renderer}`);
-      console.log(`  ${"sweep".padEnd(34)}${"axis".padStart(7)}${"flushSum".padStart(10)}${"flushMax".padStart(10)}${"p50".padStart(8)}${"p95".padStart(8)}${"cvs".padStart(6)}${"MB".padStart(9)}${"maxDim".padStart(8)}${"dpr".padStart(5)}${"ink%".padStart(6)}${"filter".padStart(8)}`);
+      console.log(`  ${"sweep".padEnd(34)}${"axis".padStart(7)}${"flushSum".padStart(10)}${"flushMax".padStart(10)}${"p50".padStart(8)}${"p95".padStart(8)}${"cvs".padStart(6)}${"MB".padStart(9)}${"maxDim".padStart(8)}${"dpr".padStart(5)}${"ink%".padStart(6)}${"drive".padStart(7)}${"filter".padStart(8)}`);
 
       for (const sweep of probe.sweeps) {
         const values = brief && sweep.values.length > 2
@@ -476,7 +531,7 @@ for (const engineName of engines) {
           console.log(
             `  ${sweep.name.padEnd(34)}${String(v).padStart(7)}${String(out.flushMs).padStart(10)}${String(out.flushMax).padStart(10)}` +
             `${cad(out.p50).padStart(8)}${cad(out.p95).padStart(8)}` +
-            `${String(out.canvases).padStart(6)}${mb.padStart(9)}${String(out.maxDim).padStart(8)}${String(out.dpr).padStart(5)}${String(out.ink === null ? "?" : out.ink).padStart(6)}${(out.filterWorks === null ? "?" : out.filterWorks ? "yes" : "NO").padStart(8)}`);
+            `${String(out.canvases).padStart(6)}${mb.padStart(9)}${String(out.maxDim).padStart(8)}${String(out.dpr).padStart(5)}${String(out.ink === null ? "?" : out.ink).padStart(6)}${(out.drive === null ? "?" : out.drive ? "ok" : "INERT").padStart(7)}${(out.filterWorks === null ? "?" : out.filterWorks ? "yes" : "NO").padStart(8)}`);
           rows.push({ engine: engine.name, probe: probeName, renderer, sweep: sweep.name, axis: sweep.axis, value: v, ...out });
         }
       }
