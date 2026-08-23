@@ -1,0 +1,70 @@
+// SIZE-DEPENDENCE — the hole no backend fills today, isolated from everything
+// else that makes the desktop wallpaper expensive.
+//
+// One view, one draw body, one knob. `mode` decides whether the recording is a
+// function of the live window or of a fixed reference box:
+//
+//   "live" — the view IS the window, so `d.w`/`d.h` change every resize frame,
+//            the body re-records, and the recording's identity changes with it.
+//            Nothing caches, nothing graces: this is the naive shape, the one
+//            an author would write first.
+//   "ref"  — the view is a fixed refW x refH box, cover-scaled to the window.
+//            `d.w` is then CONSTANT, so the recording never changes and the
+//            transform does the work. This is the workaround (desktop.declare's
+//            wallpaper, 2607-2634), reproduced with nothing else attached.
+//
+// The A/B is the whole point: same pixels, same content weight, same driver,
+// and the difference between the two curves is exactly what the workaround
+// buys — which is the number that says whether a size grace is worth building.
+//
+// `weight` sets how many full-surface radial fills the body paints, because
+// the wallpaper's real cost is washes, not marks: a handful of ops covering
+// every pixel several times over.
+
+App [ width = 1000, height = 700, fill = #0B0E12,
+
+    mode: string = "live",       // "live" (reads its own size) · "ref" (fixed box + scale)
+    refW: number = 1200,
+    refH: number = 800,
+    weight: number = 5,          // full-surface radial fills
+    tick: number = 0,
+
+    field: View [
+        width  = { app.mode == "ref" ? app.refW : app.width },
+        height = { app.mode == "ref" ? app.refH : app.height },
+        x = { app.mode == "ref" ? (app.width - app.refW) / 2 : 0 },
+        y = { app.mode == "ref" ? (app.height - app.refH) / 2 : 0 },
+        pivotX = { this.width / 2 },
+        pivotY = { this.height / 2 },
+        scale = { app.mode == "ref"
+            ? Math.max(app.width / app.refW, app.height / app.refH)
+            : 1 },
+
+        draw(d: Draw) {
+            const W = d.w
+            const H = d.h
+            const n = Math.max(1, Math.round(app.weight))
+
+            // a dark ground, then n washes — each one covers the whole surface,
+            // so covered pixels are n+1 viewports whatever the mark count says
+
+            d.fillStyle = "#0D1420"
+            d.fillRect(0, 0, W, H)
+            const spots = [[0.17, 0.24], [0.82, 0.20], [0.50, 0.54], [0.20, 0.82], [0.83, 0.80]]
+            for (let i = 0; i < n; i = i + 1) {
+                const p = spots[i % spots.length]
+                const px = p[0] * W
+                const py = p[1] * H
+                const r = 0.45 * Math.max(W, H)
+                const g = d.createRadialGradient(px, py, 0, px, py, r)
+                g.addColorStop(0, "hsl(" + ((i * 61 + app.tick * 7) % 360) + ", 72%, 52%)")
+                g.addColorStop(1, "rgba(0,0,0,0)")
+                d.fillStyle = g
+                d.fillRect(0, 0, W, H)
+                }
+            }
+        ],
+
+    cap: Text [ x = 12, y = 12, textColor = #FFFFFF, ignoreScroll = true,
+        text = { "mode " + app.mode + " · weight " + app.weight } ]
+    ]

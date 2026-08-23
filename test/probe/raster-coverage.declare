@@ -1,0 +1,57 @@
+// COVERAGE vs OP COUNT — the two variables `replayCost` (draw.ts) conflates.
+//
+// The classifier calls a list "expensive" at 48 ops, weighting gradients. On a
+// DEFERRED rasterizer that is measuring the wrong quantity: the draw calls only
+// record (~1ms at any list length), and the bill arrives at the flush, sized by
+// how many device pixels get painted and how many times they get painted over.
+//
+// So this probe drives the two apart. `ops` marks, each covering `span` of the
+// view on each axis, walked over a lattice:
+//
+//   small span, many ops  → the marks TILE: high op count, low covered area,
+//                           near-zero overdraw
+//   large span, few ops   → the marks STACK: low op count, enormous covered
+//                           area, deep overdraw
+//
+// Sweeping the two independently is what separates "how many ops" from "how
+// many pixels", and either curve refutes the other reading.
+//
+// Deliberately flat fills only — no gradient, no filter. Those carry their own
+// cost stories (and their own weighting in the classifier); mixing them in
+// would put three variables in one probe. `tick` re-records without changing
+// the shape, so a driver can force a fresh recording between samples.
+
+App [ width = 900, height = 600, fill = #101418,
+
+    ops: number = 24,            // how many marks
+    span: number = 0.25,         // each mark's size, as a fraction of the view
+    tick: number = 0,            // bump to re-record with the same geometry
+
+    art: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
+        draw(d: Draw) {
+            const W = d.w
+            const H = d.h
+            const n = Math.max(1, Math.round(app.ops))
+            const s = Math.max(0.01, app.span)
+            const mw = W * s
+            const mh = H * s
+
+            // a square lattice sized to the mark count, so the marks always
+            // span the whole view whatever their size — the walk is identical
+            // in both regimes and only `span` decides tile-vs-stack
+
+            const cols = Math.max(1, Math.ceil(Math.sqrt(n)))
+            const stepX = cols > 1 ? (W - mw) / (cols - 1) : 0
+            const stepY = cols > 1 ? (H - mh) / (cols - 1) : 0
+            for (let i = 0; i < n; i = i + 1) {
+                const cx = i % cols
+                const cy = Math.floor(i / cols)
+                d.fillStyle = "hsl(" + ((i * 37 + app.tick * 13) % 360) + ", 65%, 55%)"
+                d.fillRect(cx * stepX, cy * stepY, mw, mh)
+                }
+            }
+        ],
+
+    cap: Text [ x = 12, y = 12, textColor = #FFFFFF,
+        text = { "ops " + app.ops + " · span " + app.span } ]
+    ]

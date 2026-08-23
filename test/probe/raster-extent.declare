@@ -1,0 +1,56 @@
+// EXTENT — a drawing much larger than the viewport, and what each backend does
+// about the backing store it implies.
+//
+// The DOM backend rasterizes a recording into a per-view <canvas> sized to the
+// recording's bounds x dpr (dom-backend.ts rasterize), unconditionally. So a
+// backdrop declared over a whole document allocates a backing store for the
+// whole document — the shape homepage.declare measured at 2882 x 33,422 (~96
+// megapixels, ~385MB) before it was pinned, which also cleared Chrome's
+// 32,767px maximum canvas dimension. The canvas backend instead REFUSES an
+// over-cap raster (rasterEntryCap) and replays vectors; the Mac host sizes a
+// CGContext to the recording's own bounds.
+//
+// Three different answers to one authored shape, so the probe states the shape
+// and lets the driver read what each one did — wall time, but above all the
+// TOTAL BACKING BYTES, which is the quantity that actually diverges.
+//
+//   k       — the paper's extent, in viewports
+//   pinned  — false: the paper spans the document (the naive shape)
+//             true:  the paper is viewport-tall and rides the scroll, snapped
+//                    to the lattice so it is pixel-identical to the tall
+//                    version (the workaround, homepage.declare:892)
+//
+// An App scrolls y by default, so the spacer alone establishes the range and
+// the paper's own height never has to carry it.
+
+App [ width = 900, height = 600, fill = #0B0E12,
+
+    k: number = 8,               // extent, in viewports
+    pinned: boolean = false,
+    tick: number = 0,
+
+    // the scroll range, in both modes — an inert box, so the range is never a
+    // function of the thing being measured
+
+    spacer: View [ x = 0, y = 0, width = { app.width }, height = { app.height * app.k } ],
+
+    paper: View [ x = 0,
+        width = { app.width },
+        height = { app.pinned ? app.height + 32 : app.height * app.k },
+        y = { app.pinned
+            ? Math.max(0, Math.min(Math.floor(app.scrollY / 32) * 32,
+                app.height * app.k - this.height))
+            : 0 },
+
+        draw(d: Draw) {
+            const W = d.w
+            const H = d.h
+            d.fillStyle = app.tick == 0 ? "#1B2733" : "#1B2734"   // re-record without moving a line
+            for (let gx = 0; gx <= W; gx = gx + 32) d.fillRect(gx, 0, 1, H)
+            for (let gy = 0; gy <= H; gy = gy + 32) d.fillRect(0, gy, W, 1)
+            }
+        ],
+
+    cap: Text [ x = 12, y = 12, textColor = #FFFFFF, ignoreScroll = true,
+        text = { "k " + app.k + " · " + (app.pinned ? "pinned" : "document-tall") } ]
+    ]
