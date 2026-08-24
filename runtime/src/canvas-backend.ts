@@ -36,6 +36,7 @@ import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Str
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { cssWeight, fontMetrics, fontString, textWidth, wrapLines, type TextStyle } from "./measure.js";
 import { replay, replayCost, rasterPad, rasterEntryCap, rasterTotalCap, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS, type DisplayList } from "./draw.js";
+import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-filter.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive, type HitTarget } from "./input.js";
 
@@ -1772,9 +1773,20 @@ class CanvasSurface implements Surface {
     this.box ??= boxShape(this.width, this.height, this.cornerRadius);
     ctx.clip(this.box);
     // blur is stated in view px; the filter runs in device space
-    ctx.filter = `blur(${b.blur * scaleMag}px) saturate(${b.saturate})`;
+    const spec = `blur(${b.blur * scaleMag}px) saturate(${b.saturate})`;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(snap, dx0, dy0);
+    if (ctxFilterSupported()) {
+      ctx.filter = spec;
+      ctx.drawImage(snap, dx0, dy0);
+    } else {
+      // WebKit accepts ctx.filter and paints unfiltered (canvas-filter.ts), so
+      // frost there composited an untouched copy of its own backdrop. Blur the
+      // sample ourselves and draw the RESULT — same promise, different
+      // mechanism, which is the standing ruling for anything that differs by
+      // engine rather than by design.
+      const out = applyFilterFallback(snap, parseFilter(spec));
+      ctx.drawImage(out, dx0, dy0);
+    }
     ctx.restore();
   }
 

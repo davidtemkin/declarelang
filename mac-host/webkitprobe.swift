@@ -50,15 +50,37 @@ if args.count >= 4 {
 // is a genuine resize gesture and not a simulated one. It runs on the main
 // runloop alongside the agent, which yields between its own steps.
 let resizing = args.contains("resize")
+// `rafshim` defines requestAnimationFrame in terms of setTimeout, injected at
+// document start so it is in place before the program boots. An off-screen view
+// gets no frame callback at all (measured — an rAF inside one never fires), and
+// the canvas backend's compositor is rAF-scheduled, so without this it paints
+// NOTHING here and a correctness probe reads a blank canvas as a finding.
+// Timing under the shim is meaningless; correctness is not.
+let rafShim = args.contains("rafshim")
 
 final class Probe: NSObject, WKNavigationDelegate {
     let web: WKWebView
     let script: String
     var done = false
 
-    init(size: CGSize, script: String) {
+    let shimRaf: Bool
+    init(size: CGSize, script: String, shimRaf: Bool = false) {
+        self.shimRaf = shimRaf
         let cfg = WKWebViewConfiguration()
         cfg.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        if shimRaf {
+            let js = """
+            (function () {
+              var t = 0;
+              window.requestAnimationFrame = function (cb) {
+                return setTimeout(function () { cb(performance.now()); }, 16);
+              };
+              window.cancelAnimationFrame = function (id) { clearTimeout(id); };
+            })();
+            """
+            cfg.userContentController.addUserScript(
+                WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
         web = WKWebView(frame: CGRect(origin: .zero, size: size), configuration: cfg)
         // no window: the layer is real, it simply never reaches a screen
         web.wantsLayer = true
@@ -142,7 +164,7 @@ final class Probe: NSObject, WKNavigationDelegate {
 // An accessory app never activates, never shows in the Dock, never takes focus.
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
-let probe = Probe(size: size, script: script)
+let probe = Probe(size: size, script: script, shimRaf: rafShim)
 if resizing { probe.startResizing(base: size) }
 probe.web.load(URLRequest(url: url))
 
