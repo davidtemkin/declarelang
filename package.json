@@ -20,7 +20,7 @@
     "deploy": "\"$HOME/Code/Mesa/scripts/deploy-declare.sh\" HEAD",
     "test": "npm run build && node tools/internal/run-tests.mjs",
     "test:derived": "npm run build && node tools/internal/run-tests.mjs test/docs.test.mjs test/schema-completeness.test.mjs test/declare-help.test.mjs test/prewarm.test.mjs test/ops.test.mjs",
-    "test:ladder": "npm run build && node test/ladder.test.mjs",
+    "test:ladder": "npm run build && node test/ladder.test.mjs && node test/eval-references.test.mjs --ladder",
     "test:all": "npm test && npm run test:ladder",
     "test:conform": "npm run build && node test/conform/conform.test.mjs",
     "test:mac": "npm run build:mac && node test/mac-shell.test.mjs && node test/conform/conform.test.mjs --mac && node mac-host/gate.mjs"

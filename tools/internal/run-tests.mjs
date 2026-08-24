@@ -63,6 +63,7 @@ const SUITE = [
   "test/island.test.mjs",
   "test/island-browser.test.mjs",
   "test/verify-apps.test.mjs",
+  "test/eval-references.test.mjs",
 ];
 
 const files = process.argv.slice(2).length ? process.argv.slice(2) : SUITE;
