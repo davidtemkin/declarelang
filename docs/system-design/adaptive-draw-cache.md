@@ -1,5 +1,213 @@
 # Adaptive draw caching — hot `draw()` views without manual bitmaps
 
+> **Status: SUPERSEDED TWICE, 2026-08-24. Read this block first — the one below
+> it is history, and on its own it misleads.** The 08-16 rejection says "the
+> caching mechanism does not survive". A cache DID ship, four days later, and a
+> reader who stops at that line concludes caching was refused.
+
+## A. What shipped after the rejection (c979645f, 2026-08-20)
+
+The **raster memo**, canvas half — `canvas-backend.ts`, policy shared in
+`draw.ts`. It is not the mechanism rejected below, and the difference is the
+whole point:
+
+- **Exact-scale only.** An entry is keyed on (display list identity, effective
+  device scale). No high-water mark, no downsampling, so no double-filtered
+  edges. The rejection's fidelity objection does not apply.
+- **Promotion by STABILITY, not by hotness.** The same key must appear on two
+  consecutive paints. A continuously-scaled drawing never satisfies that and so
+  never pays — which is exactly the case the rejection showed a cache cannot
+  help.
+- **Cheap lists stay vectors forever** (`replayCost`), so the memo only ever
+  covers recordings that were expensive to replay.
+- **Every allocation is deniable**: caps denominated in viewports
+  (`rasterEntryCap`, `rasterTotalCap`), LRU eviction, and a refused raster
+  degrades to vector replay. A miss is slow, never wrong.
+
+And **the stretch grace** (`RASTER_GRACE_MS = 120`, DT's rule): a drawn view
+whose scale just changed may render as its stretched prior raster for up to a
+beat; once the scale has been quiet for that beat, the next frame is exact. It
+is a **declared tolerance, not an inferred state** — "animation is over" is
+undetectable in this language, since a spring, a pointer constraint and a stream
+are all just writers, so the platform states the tolerance instead of guessing
+at motion. The constant matches the visibility facts' at-rest flush, so there is
+one platform notion of "quiet for a beat".
+
+⚠ The grace covers **scale** change of an unchanged list only. It is gated on
+list identity, so a recording that re-records — anything reading `d.w`/`d.h` —
+gets neither memo nor grace. That is the wallpaper's case and it remains open;
+see §E.
+
+## B. The instruments (2026-08-23/24) — and what each cannot see
+
+Built this cycle, because the corpus cannot answer these questions: its drawings
+carry workarounds, so every measurement on them moves four variables at once.
+
+- `test/probe/raster-{coverage,size,extent}.declare` — each states the naive
+  shape an author would write first and carries the workaround as a **knob**, so
+  the A/B is inside the probe.
+- `tools/rasterbench.mjs` — the driver. Headed Chrome by default, `--trace`,
+  `--brief`, `--yield-focus`, `--engines chrome|safari|webkit`.
+- `mac-host/webkitprobe.swift` — WebKit with no browser on screen (an accessory
+  app; never activates, never takes focus or the pointer).
+
+**What is trustworthy, and what is not.** This cost four wrong answers in two
+days; the record is the useful part:
+
+| instrument | measures honestly | CANNOT see |
+|---|---|---|
+| Chrome `--trace` (headed) | raster/paint cost, calibrated | anything on other engines |
+| off-screen WKWebView | allocation, ink, capability | cadence, presentation, canvas backend, Safari's feature flags |
+| real Safari | cadence, presentation, feature flags | (needs the screen; ask first) |
+| mac host stats | raster ms and px per node | — |
+
+1. **`flushMs` is not a raster meter.** The 1x1-readback trick (Mesa) forces a
+   flush on a SOFTWARE canvas. On a GPU-backed one it forces nothing: real
+   Safari reads 0-5ms flat across an 89x range of painted pixels, and 0ms on a
+   395MB canvas. Worse, it fails its own calibration even where it scales —
+   4096x the work read as 52x the time on marks that cannot legally be culled.
+   Withdrawn as a cost measure entirely.
+2. **Headless Chrome rasterizes on SwiftShader.** A software number wearing
+   Blink's name. `rasterbench` is headed by default and says so when it is not.
+3. **A bare WKWebView gets a software canvas backing**; Safari.app does not. Do
+   not put Safari's name on a WKWebView number.
+4. **Point-sampling a regular scene ALIASES.** A 64-mark lattice on a 122px
+   pitch fell entirely between four evenly spaced probes and reported a working
+   sweep as inert. Both the `ink` and `drive` checks now hash blocks at offsets
+   sharing no factor with the scene.
+5. **Opaque marks are culled by both engines**, so an overdraw probe built from
+   them measures nothing. Marks must be composited (translucent) to be real.
+
+The rig therefore carries its own falsifiers: `drive` (did the sweep change any
+pixels?), `ink` (did anything paint at all?), and an `ops = 1` calibration point
+on every coverage sweep. **`ink` exists because Safari's documented failure past
+its canvas budget is to draw TRANSPARENT canvases — fast, and blank, and
+indistinguishable from cheap by every timing column.**
+
+## C. What they measured
+
+**Where a DOM canvas actually costs — not where anyone would guess.** Chrome
+tracing, headed, real GPU: the cost is `LayerTreeHost::DoUpdateLayers`, the
+renderer's MAIN THREAD updating layers at commit, with the GPU process a distant
+second. `RasterTask` — cc's tile rasterization — reads **0-1ms no matter how
+much is painted**. Main-thread work at commit blocks everything, and it was
+invisible to every metric this rig had before tracing.
+
+**`replayCost` prices the wrong quantity.** `paintMs` over 6 steps, DOM
+renderer, at IDENTICAL op counts per row:
+
+| ops | tile (span 0.05) | cover (span 1.00) | ratio |
+|---|---|---|---|
+| 1 | 1 | 9 | 9x |
+| 64 | 7 | 124 | 18x |
+| 256 | 7 | 402 | 57x |
+| 1024 | 14 | 1475 | 105x |
+| 4096 | **30** | **6152** | **205x** |
+
+The meter passes calibration where `flushMs` failed it: 256→4096 ops is 16x the
+work and 15.3x the time; 64→4096 is 64x and 49.6x — linear once past fixed
+overhead, reproducible run to run. `replayCost` classifies every row here
+"expensive" (all past its 48-op threshold) and cannot tell 30ms from 6152ms.
+**Covered area predicts; op count does not.** Cadence corroborates: p95 169.7ms
+(DOM) / 50.4ms (canvas) on the top row against 8.4ms flat elsewhere.
+
+Our canvas backend runs the same shape cheaper but not differently — 3654ms
+against DOM's 6152 at the top, same linearity, same event. One shared canvas
+versus a per-view element, not a different cost model.
+
+**Extent.** A document-tall backdrop at 48 viewports allocates **395.5MB in one
+1800x57602 canvas**, takes headed Chrome's p95 to 58.4ms — and reads **ink 0%**:
+it allocates, costs time, and paints nothing. Pinned to the viewport it is
+8.7MB and flat at every extent. The canvas backend is flat at 8.2MB in both,
+having refused the raster and replayed vectors. Three positions, one authored
+shape. (This is homepage.declare's workaround, isolated — it measured ~385MB
+before pinning.)
+
+**⚠ Safari IGNORES `ctx.filter`.** Confirmed on real Safari, not just the
+harness: `"filter" in ctx` is false, the assignment is accepted as a plain
+expando and reads back verbatim, and a blurred rect does not bleed past its own
+edge. Three consequences: the desktop wallpaper's blur does not render there at
+all (a shipped fidelity bug); `replayCost`'s "filter ⇒ expensive outright"
+prices a cost never incurred; and `rasterPad` reserves bleed for spread that
+never happens.
+
+## D. Canvas, per runtime — the platform attributes
+
+Same recording throughout (`artSunnySky`, two full-surface gradient fills at
+1190x1024 @2x = 4.87 Mpx, M2 Max):
+
+| path | ms/paint | Mpx/s |
+|---|---|---|
+| `CGBitmapContext` (CPU) | 34.5 | 141 |
+| `CGContext` over IOSurface *memory* | 34.8 | 140 |
+| Skia CPU (`chrome --disable-gpu`) | 36.0 | 135 |
+| Chrome canvas (GPU, ANGLE/Metal) | 1.67 | 2,919 |
+| Safari canvas | 0.95 | 5,131 |
+| `CGIOSurfaceContext` (SPI) | 0.63–0.77 | 6,300–7,710 |
+| Metal fragment shader | 0.77 | 6,350 |
+
+CG's CPU rasterizer is within 4% of Skia's, so the 20-50x gap is *GPU vs CPU
+rasterization*, not API quality — and zero-copy is not the win, since a
+CGContext over `IOSurfaceGetBaseAddress` still measures 140 Mpx/s. What matters
+is the context TYPE routing drawing to the GPU.
+
+| | Blink | WebKit | Core Graphics / CA |
+|---|---|---|---|
+| when it rasters | eagerly, as issued | deferred to first pixel read | at the call, synchronously |
+| where | GPU, raster threads, off main thread | GPU (IOSurface) unless `willReadFrequently` | whatever the context type says — CPU by default |
+| the bill attaches to | layer update at commit (measured) | the flush — whoever touches a pixel | the draw call |
+| overdraw | pays at paint, not raster | pays fully | pays fully |
+| under a transform | bitmap resamples; composited *content* re-rasters at rest | same | bitmaps resample; **procedural layers re-rasterize the path** |
+| caps | 32,767/dim; tile eviction | 16.7MP/canvas (pre-iOS 18); 224–384MB total | none in that sense; IOSurface memory is real |
+| failure mode | slow but correct (software fallback) | **silently transparent** | memory growth |
+
+Four things generalize: covered pixels x overdraw predicts cost and op count
+does not; filters break that rule (superlinear in radius, geometry-independent);
+**only description survives a transform** — a bitmap is correct at exactly the
+size it was made, on every runtime, and CA is the only one of the three offering
+a first-class procedural alternative; and the failure modes are asymmetric, with
+Safari's the dangerous one because it goes quiet rather than slow.
+
+On the Mac side the compositor is not the bottleneck (p95 4.8ms/commit on a
+40-step resize against Chrome's 94ms wall), but **each CATransaction pays a
+window-server round trip**: measured `commit total=1084ms, CPU=4ms,
+WAITING=1080ms`. Ops are already maximally chunked — JavaScriptCore is
+in-process and one settle is one JSON blob inside one transaction — so the lever
+is commit COUNT (one transaction per display tick), never op batching.
+
+## E. What is open now
+
+1. **Per-op bounds.** The recorder already maps each op's extent through the
+   live CTM before unioning it into `ink` (`draw.ts`), so capturing it per op is
+   a few lines. It yields BOTH a correct cost predictor for `replayCost` and
+   viewport culling, off one change. Culling is byte-identical, needs no memory,
+   no invalidation and no caps — so it comes before any cache.
+2. **Size grace** — the scale grace's twin, for recordings that read
+   `d.w`/`d.h`. This is the wallpaper's case and nothing addresses it today. The
+   dep partition it needs is the one durable insight of the rejected design
+   below, and `d.w`/`d.h` are getters precisely so size-dependence is declared
+   by use rather than guessed.
+3. **DOM extent** — a raster window (a band-sized backing store re-imaged as the
+   visible rect moves). SVG would solve extent structurally, being the one DOM
+   primitive the browser rasterizes under the transform, but it adds a THIRD
+   rendering semantics to a conformance oracle that has canvas as its reference
+   — and `LayerDescribe`'s focal-radial mismatch (0.01% → 7.33% differing on the
+   `vignette` probe) is what that costs per primitive. Parked, not killed.
+4. **The `ctx.filter` bug**, which is the one confirmed shipped user-visible
+   defect this cycle turned up.
+
+**The ruling that reorganizes all of it (DT, 2026-08-23): the goal is not
+uniformity.** What must be uniform is the PROMISE — no author manages rasters on
+any renderer, content is exact at rest, transitional frames may be approximate,
+memory never blows up — and the shared vocabulary (the size/content dep
+partition, `rasterPad`, the 120ms beat). The MECHANISM should vary with what
+each renderer needs. The Mac host is the proof: its best answer is not a variant
+of the shared cache but re-description, which caches nothing and is exact at
+every scale. `replayCost` is demoted accordingly — a dispatch function over a
+recording, not a shared promotion gate, since the DOM backend has no
+whether-to-raster choice to make.
+
+
 > **Status: REJECTED, 2026-08-16, on measurement.** The caching mechanism below
 > does not survive; the *analysis* it rests on does, and is reused by what
 > replaces it. Superseded by re-description (see "What replaces it").

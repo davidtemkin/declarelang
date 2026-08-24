@@ -400,7 +400,9 @@ decision rotation needs was already made for scale) and composes with it
   view's drawing rotates with it — the recording replays under the transform).
   Settled for canvas and the Mac host; still OPEN for DOM, where a transformed
   view's drawing is CSS-stretched rather than replayed at the scale it is seen —
-  see adaptive-draw-cache.md, "Where the ruling is not yet kept".
+  see adaptive-draw-cache.md, "Where the ruling is not yet kept", and the CURRENT state
+  (what shipped, the instruments, and where a DOM canvas actually costs) in that
+  file's 2026-08-24 status block — the 08-16 rejection alone misleads.
 - 4.3 (draw() image sources) stays deferred; re-examine once rotation lands —
   a rotated `Image` dissolves the most common want.
 

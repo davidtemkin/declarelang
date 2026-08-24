@@ -43727,7 +43727,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/system-design/adaptive-draw-cache.md",
-     "preview": "Status: REJECTED, 2026-08-16, on measurement. The caching mechanism below does not survive; the analysis it rests on does, and is reused by what replaces it. Superseded by re-description (see \"What replaces it\"). Why it fails, in one line:…"
+     "preview": "Status: SUPERSEDED TWICE, 2026-08-24. Read this block first — the one below it is history, and on its own it misleads. The 08-16 rejection says \"the caching mechanism does not survive\". A cache DID ship, four days later, and a reader who st…"
     },
     {
      "name": "Animation",
