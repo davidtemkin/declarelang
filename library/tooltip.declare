@@ -108,11 +108,15 @@ class Tooltip extends View [ visible = { shown && tipText != "" },
     stroke = { typeof theme.tooltipLine == "number" ? stroke(1, theme.tooltipLine) : null },
 
     // pure chrome: never a pointer target — and never on the hover chain
-    // either, which is what pointerEvents (unlike a hit-test override) governs
+    // either, which is what pointerEvents (unlike a hit-test override) governs.
+    // "none" is a corridor, not a lid (View.pointerEvents), so the label must
+    // carry it too — measured 2026-08-24: without its own "none" the label
+    // answered viewAt and sat on the hover chain, and this comment was a lie.
 
     pointerEvents = "none",
 
-    t: Text [ x = 8, y = 5, fontSize = { typeof theme.tooltipSize == "number" ? theme.tooltipSize : 12 },
+    t: Text [ pointerEvents = "none",
+        x = 8, y = 5, fontSize = { typeof theme.tooltipSize == "number" ? theme.tooltipSize : 12 },
         textColor = { typeof theme.tooltipText == "number" ? theme.tooltipText : 0xF4F6FA },
         text = { classroot.tipText } ]
     ]
