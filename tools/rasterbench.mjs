@@ -69,7 +69,7 @@
 // FRESH rather than re-driving a warm page.
 import http from "node:http";
 import path from "node:path";
-import { writeFileSync, existsSync, unlinkSync, statSync } from "node:fs";
+import { writeFileSync, existsSync, unlinkSync, statSync, readFileSync, mkdirSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
@@ -312,6 +312,49 @@ function findChrome() {
   throw new Error("no Chrome found — set PUPPETEER_EXECUTABLE_PATH");
 }
 
+// Chrome's own tracing — the only instrument here that watches the RASTERIZER
+// rather than asking the page. Every in-page signal is either absorbed by the
+// GPU or decoupled from painting (see the standing caveat above); the raster
+// threads and the GPU process, by contrast, report what they actually did.
+//
+// Categories are the DevTools timeline set plus cc/gpu, because 2D canvas work
+// on Blink happens in the GPU process and never appears on the renderer's main
+// thread at all. Names are NOT filtered to a guessed allow-list: the totals are
+// grouped by event name and the biggest are reported, so the meter can tell us
+// which event matters instead of us telling it.
+const TRACE_CATEGORIES = [
+  "disabled-by-default-devtools.timeline",
+  "disabled-by-default-devtools.timeline.frame",
+  "cc", "gpu", "benchmark", "viz",
+  "disabled-by-default-gpu.service",
+];
+
+function summarizeTrace(json) {
+  const evs = json.traceEvents ?? [];
+  // process/thread names arrive as metadata events, so a duration can be
+  // attributed to "the GPU process" rather than to a bare tid
+  const procName = new Map();
+  for (const e of evs) {
+    if (e.ph === "M" && e.name === "process_name") procName.set(e.pid, e.args?.name ?? "");
+  }
+  const byName = new Map();
+  let gpuUs = 0, rasterUs = 0, paintUs = 0;
+  for (const e of evs) {
+    if (e.ph !== "X" || typeof e.dur !== "number") continue;
+    byName.set(e.name, (byName.get(e.name) ?? 0) + e.dur);
+    if ((procName.get(e.pid) ?? "").includes("GPU")) gpuUs += e.dur;
+    if (e.name === "RasterTask" || e.name === "RasterizerTaskImpl::RunOnWorkerThread") rasterUs += e.dur;
+    // Measured 2026-08-24: for a DOM <canvas> this is where the drawing's cost
+    // actually lands — the renderer main thread updating layers at commit, NOT
+    // cc's RasterTask (which reads 0-1ms no matter how much is painted).
+    if (e.name === "LayerTreeHost::DoUpdateLayers") paintUs += e.dur;
+  }
+  const top = [...byName.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)
+    .map(([n, us]) => `${n}:${(us / 1000).toFixed(0)}`);
+  return { paintMs: Math.round(paintUs / 1000), gpuMs: Math.round(gpuUs / 1000),
+           rasterMs: Math.round(rasterUs / 1000), top };
+}
+
 async function chromeEngine({ headless }) {
   const browser = await puppeteer.launch({
     executablePath: findChrome(),
@@ -328,7 +371,15 @@ async function chromeEngine({ headless }) {
       await sleep(350);
     },
     async resize(w, h) { await page.setViewport({ width: w, height: h, deviceScaleFactor: 2 }); },
-    async run(src) { return await page.evaluate(src); },
+    async run(src) {
+      if (!trace) return await page.evaluate(src);
+      const out = path.join(TRACE_DIR, `t-${traceN++}.json`);
+      await page.tracing.start({ path: out, screenshots: false, categories: TRACE_CATEGORIES });
+      const r = await page.evaluate(src);
+      await page.tracing.stop();
+      try { return { ...r, ...summarizeTrace(JSON.parse(readFileSync(out, "utf8"))) }; }
+      finally { try { unlinkSync(out); } catch { /* keep going */ } }
+    },
     async close() { await browser.close(); },
   };
 }
@@ -461,6 +512,15 @@ const headless = has("headless");
 // span is not — which is the trade worth making when the run is holding
 // someone's screen.
 const brief = has("brief");
+// --trace: ask Chrome what its rasterizer actually did. Headed only — a
+// SwiftShader trace describes software work under Blink's name.
+const trace = has("trace");
+const TRACE_DIR = path.join(ROOT, "mac-host", ".rasterbench-traces");
+let traceN = 0;
+if (trace) {
+  mkdirSync(TRACE_DIR, { recursive: true });
+  if (headless) console.log("⚠ --trace with --headless traces SwiftShader, not the GPU. These are software numbers.\n");
+}
 // --yield-focus hands the front back to another app right after the session
 // opens, so a run can answer whether this engine needs to be frontmost at all
 const yieldFocus = has("yield-focus");
@@ -532,6 +592,9 @@ for (const engineName of engines) {
             `  ${sweep.name.padEnd(34)}${String(v).padStart(7)}${String(out.flushMs).padStart(10)}${String(out.flushMax).padStart(10)}` +
             `${cad(out.p50).padStart(8)}${cad(out.p95).padStart(8)}` +
             `${String(out.canvases).padStart(6)}${mb.padStart(9)}${String(out.maxDim).padStart(8)}${String(out.dpr).padStart(5)}${String(out.ink === null ? "?" : out.ink).padStart(6)}${(out.drive === null ? "?" : out.drive ? "ok" : "INERT").padStart(7)}${(out.filterWorks === null ? "?" : out.filterWorks ? "yes" : "NO").padStart(8)}`);
+          if (trace && out.gpuMs !== undefined) {
+            console.log(`      ↳ trace: paint ${out.paintMs}ms · gpu ${out.gpuMs}ms · cc-raster ${out.rasterMs}ms · top ${out.top.join(" ")}`);
+          }
           rows.push({ engine: engine.name, probe: probeName, renderer, sweep: sweep.name, axis: sweep.axis, value: v, ...out });
         }
       }

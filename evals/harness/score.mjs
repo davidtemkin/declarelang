@@ -12,21 +12,27 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { formatSource } from "../../tools/format.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
+// The RULER must be the same language the candidate was written in: when a round
+// pins a subject (a downloaded distribution), verify and the formatter come from
+// THERE, not from the working tree — otherwise a moving main scores a fixed
+// subject and the series measures the difference between them.
+export function subjectRootDefault() { return ROOT; }
+
 /** Run `node tools/verify.mjs … --json` and return its parsed report. */
-function runVerify(appFile, opts) {
-  const args = [join(ROOT, "tools/verify.mjs"), appFile, "--json", "--rung", String(opts.rung ?? 6)];
+function runVerify(appFile, opts, root = ROOT) {
+  const args = [join(root, "tools/verify.mjs"), appFile, "--json", "--rung", String(opts.rung ?? 6)];
   if (opts.typecheck === false) args.push("--no-typecheck");
   if (opts.assert) args.push("--assert", opts.assert);
   if (opts.states) args.push("--states", opts.states);
   if (opts.baselines) args.push("--baselines", opts.baselines);
   if (opts.fixtures) args.push("--fixtures", opts.fixtures);
   return new Promise((res) => {
-    const p = spawn("node", args, { cwd: ROOT });
+    const p = spawn("node", args, { cwd: root });
     let out = "", err = "";
     p.stdout.on("data", (d) => (out += d));
     p.stderr.on("data", (d) => (err += d));
@@ -41,9 +47,9 @@ function runVerify(appFile, opts) {
 /** Character-level diff size between raw source and its canonical form — the
  *  "format distance" metric (§2.9): how far the model's output sits from canon.
  *  0 = already canon. A cheap line-multiset delta, direction-agnostic. */
-export function formatDistance(src) {
+export function formatDistance(src, fmt = formatSource) {
   let canon;
-  try { canon = formatSource(src); } catch { return null; } // unparseable → no distance
+  try { canon = fmt(src); } catch { return null; } // unparseable → no distance
   if (canon === src) return 0;
   const bag = (s) => { const m = new Map(); for (const l of s.split("\n")) m.set(l, (m.get(l) ?? 0) + 1); return m; };
   const a = bag(src), b = bag(canon);
@@ -76,14 +82,20 @@ export function idiomScore(src, spec) {
  * @param {object} task      { dir, hasAssert, hasStates, hasBaselines, hasFixtures }
  * @returns normalized score consumed by the runner + RESULTS generator.
  */
-export async function score(appFile, task) {
+export async function score(appFile, task, { subjectRoot = ROOT } = {}) {
+  // the subject's own formatter decides canon for its own language version
+  let fmt = formatSource;
+  if (subjectRoot !== ROOT) {
+    try { fmt = (await import(pathToFileURL(join(subjectRoot, "tools/format.mjs")).href)).formatSource; }
+    catch { /* subject predates the export — fall back to this tree's */ }
+  }
   const opts = { rung: 6 };
   if (task.hasAssert) opts.assert = join(task.dir, "assert.mjs");
   if (task.hasStates) opts.states = join(task.dir, "states.mjs");
   if (task.hasBaselines) opts.baselines = join(task.dir, "baselines");
   if (task.hasFixtures) opts.fixtures = join(task.dir, "fixtures");
 
-  const { report, stderr } = await runVerify(appFile, opts);
+  const { report, stderr } = await runVerify(appFile, opts, subjectRoot);
   const src = existsSync(appFile) ? readFileSync(appFile, "utf8") : "";
   const idiomSpec = join(task.dir, "idiom.json");
   const idiom = existsSync(idiomSpec) ? idiomScore(src, JSON.parse(readFileSync(idiomSpec, "utf8"))) : null;
@@ -92,7 +104,7 @@ export async function score(appFile, task) {
     return {
       ok: false, rungClimbed: 0, rungFailed: 1, compileOk: false,
       diagnostics: [], summary: "verify produced no report",
-      stderr: stderr.slice(-500), formatDistance: formatDistance(src), idiom,
+      stderr: stderr.slice(-500), formatDistance: formatDistance(src, fmt), idiom, raw: null,
     };
   }
 
@@ -109,8 +121,9 @@ export async function score(appFile, task) {
     stats: report.stats ?? null,
     // What verify would print — the exact teaching surface a solver iterates against.
     report: renderForSolver(report),
-    formatDistance: formatDistance(src),
+    formatDistance: formatDistance(src, fmt),
     idiom,
+    raw: report, // the full ladder report, persisted per cell as verify.json
   };
 }
 

@@ -20,7 +20,7 @@
 
 import { cpSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, relative, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
@@ -114,18 +114,35 @@ export function makeSandbox({ runDir, runName, task, track, model, rep, briefDoc
 // context. Fixtures the task's app consumes land under my-apps/fixtures/,
 // where the agent is told its data lives. Outside the repo (tmpdir), like the
 // corpus arm, so nothing can walk ../.. into the real tree.
-export function makeDistroSandbox({ runName, task, model, rep }) {
+// A `subject` directory (a round's pinned download — see evals/ROUNDS.md) is the
+// preferred source: the agent gets exactly what a visitor gets from GitHub's
+// tarball, no .git and no history, and the round stays reproducible from its
+// SHA long after the working tree has moved on. Without one it falls back to
+// cloning the live ROOT, which measures whatever is committed here right now.
+export function makeDistroSandbox({ runName, task, model, rep, subject = null, base: baseDir = null }) {
   const cell = sandboxName({ task, track: "agentic", model, rep });
-  const base = join(tmpdir(), "declare-evals", runName ?? "run", cell);
+  const base = join(baseDir ?? join(tmpdir(), "declare-evals"), runName ?? "run", cell);
   rmSync(base, { recursive: true, force: true });
   mkdirSync(base, { recursive: true });
   const dir = join(base, "declarelang");
-  execFileSync("git", ["clone", "--depth", "1", "--quiet", "file://" + ROOT, dir], { stdio: "pipe" });
   // the eval corpus ships in the repo — including reference solutions and the
   // hidden asserts. An agent WILL find them (observed: one recognized its brief
   // in evals/tasks/ and copied the reference verbatim). Strip evals/ from the
   // sandbox: the product surface stays intact, the answer key does not travel.
-  rmSync(join(dir, "evals"), { recursive: true, force: true });
+  // node_modules goes too: installing is part of what this arm measures.
+  const OMIT = new Set(["evals", ".git", "node_modules"]);
+  if (subject) {
+    cpSync(subject, dir, {
+      recursive: true,
+      filter: (src) => {
+        const rel = relative(subject, src);
+        return rel === "" || !OMIT.has(rel.split(sep)[0]);
+      },
+    });
+  } else {
+    execFileSync("git", ["clone", "--depth", "1", "--quiet", "file://" + ROOT, dir], { stdio: "pipe" });
+    for (const p of OMIT) rmSync(join(dir, p), { recursive: true, force: true });
+  }
   if (task.hasFixtures) cpSync(join(task.dir, "fixtures"), join(dir, "my-apps", "fixtures"), { recursive: true });
   return { dir };
 }

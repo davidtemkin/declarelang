@@ -106,7 +106,7 @@ App [ width = 760, height = 260, fill = #141A21, textColor = whitesmoke,
         visible = { app.dragId != "" },
         x = { app.pointerX - this.width / 2 }, y = { app.pointerY - 22 },
         width = { app.dragW }, height = 44, fill = 0x5B7FA8, opacity = 0.85,
-        gt: Text [ x = 8, y = 8, fontSize = 12, textColor = whitesmoke, wrap = false,
+        gt: Text [ pointerEvents = "none", x = 8, y = 8, fontSize = 12, textColor = whitesmoke, wrap = false,
             text = { app.dragLabel } ]
         ]
     ]

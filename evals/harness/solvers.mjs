@@ -67,7 +67,7 @@ export function runClaude(prompt, model, opts = {}) {
     p.on("error", (e) => rej(e));
     p.on("close", (code) => {
       if (code !== 0 && !out) return rej(new Error(`claude exited ${code}: ${err.slice(-400)}`));
-      let text = out, tokens = null, usage = null;
+      let text = out, tokens = null, usage = null, turns = null, costUsd = null;
       try {
         const j = JSON.parse(out);
         text = j.result ?? j.text ?? out;
@@ -78,8 +78,13 @@ export function runClaude(prompt, model, opts = {}) {
         // raw accounting detail — the Run-2 anomaly (1-1.9M on final iterations)
         // needs the breakdown to be diagnosable; keep both shapes the CLI emits
         usage = { usage: j.usage ?? null, modelUsage: j.modelUsage ?? null };
+        // `tokens` sums cache READS, so it grows with turn count at fixed context
+        // — an agentic cell's 3.8M was ~107K read once and re-read 40 times. Turns
+        // and cost are the honest headline; the breakdown lives in `usage`.
+        turns = j.num_turns ?? null;
+        costUsd = j.total_cost_usd ?? null;
       } catch { /* plain-text output format — leave text as-is */ }
-      res({ text, tokens, usage });
+      res({ text, tokens, usage, turns, costUsd });
     });
     p.stdin.write(prompt);
     p.stdin.end();
@@ -183,13 +188,13 @@ export function claudeDistroSolver() {
     id: "claude-distro",
     async solve({ brief, model, cwd }) {
       const prompt = SYSTEM_DISTRO + "\n\n# The request\n\n" + brief;
-      const { text, tokens, usage } = await runClaude(prompt, model, {
+      const { text, tokens, usage, turns, costUsd } = await runClaude(prompt, model, {
         cwd, tools: "Read,Glob,Grep,Bash,Write,Edit",
       });
       // the deliverable is the FILE, not the reply — read it from the clone
       const appFile = join(cwd, "my-apps", "app.declare");
       const source = existsSync(appFile) ? readFileSync(appFile, "utf8") : null;
-      return { source, tokens, usage, raw: text };
+      return { source, tokens, usage, turns, costUsd, raw: text };
     },
   };
 }

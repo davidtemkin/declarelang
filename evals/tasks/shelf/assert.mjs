@@ -5,6 +5,13 @@
 export default async ({ drive, expect }) => {
   const nodes = async () => drive.page.evaluate(() => {
     const walk = (n, acc, ox, oy) => {
+      // the contract is what's ON SCREEN: a hidden subtree (visible = false —
+      // e.g. replicate-all-then-filter, a brief-conformant shape) is skipped
+      // whole. Round-001 taught this: a correct solution seeded 3 visible
+      // blocks and this walk counted its 2 hidden replicas too. Same defect
+      // class as the width≥30 filter above — the assert judging the tree,
+      // not the screen.
+      if (n.shown === false) return acc;
       const x = ox + (n.x ?? 0), y = oy + (n.y ?? 0);
       acc.push({ path: n.path, x, y, w: n.width, h: n.height, text: n.text ?? null });
       n.children.forEach((c) => walk(c, acc, x, y));

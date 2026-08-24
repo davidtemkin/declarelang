@@ -35,14 +35,14 @@ App [ width = 440, height = 520, fill = { theme.bg },
         const text = app.draft.trim();
         if (text === "") return;
         const rows = app.tasks.read(["rows"]) ?? [];
-        app.tasks.insert("rows", rows.length, { id: "n" + app.nextId, label: text, done: false });
+        app.tasks.insert(["rows"], rows.length, { id: "n" + app.nextId, label: text, done: false });
         app.nextId = app.nextId + 1;
         },
 
-    toggle(id) {
+    toggle(id: string) {
         const rows = app.tasks.read(["rows"]) ?? [];
         const i = rows.findIndex((r) => r.id === id);
-        if (i >= 0) app.tasks.set("rows." + i + ".done", !rows[i].done);
+        if (i >= 0) app.tasks.set(["rows", i, "done"], !rows[i].done);
         },
 
     heading: Text [ x = 24, y = 20, fontSize = 20, fontWeight = semibold, textColor = { theme.text },
