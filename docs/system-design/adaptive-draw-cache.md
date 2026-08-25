@@ -310,34 +310,40 @@ is commit COUNT (one transaction per display tick), never op batching.
 ## E. What is open now
 
 1. ~~Per-op bounds, the area predictor, culling~~ — DONE, §C.2.
-2. **Size grace — MEASURED 2026-08-25, and the measurement argues against it on
-   Chrome.** The size probe under Chrome tracing (`paintMs` =
-   `LayerTreeHost::DoUpdateLayers`, 30-step resize, blur 0/8/24/48):
+2. **Size grace — measured 2026-08-25, twice, and the first measurement was
+   wrong.** The first run said the wallpaper's workaround (a fixed reference box
+   under a CSS scale) cost ~2× the naive re-record-per-frame shape on Chrome DOM,
+   and that a size grace would therefore regress Chrome. That finding was
+   committed and is WITHDRAWN. Two instrument artifacts stacked: the probe's
+   drive bumped `app.tick` every step to force a repaint, and the `ref` body
+   reads `tick`, so the reference box re-recorded and re-rasterized its 14.6 MB
+   canvas every frame — defeating the workaround by construction; and the
+   rig's readback-based checks (`ink`, `drive`, `filter`) ran inside the trace
+   window, and a readback of an accelerated canvas syncs the whole texture,
+   proportional to its bytes. `will-change: transform` on the view, then on the
+   canvas too, moved nothing — which is what pointed at the instrument rather
+   than the compositor. A drive that touches what it measures is not a drive.
 
-   | DOM renderer | live (reads `d.w`/`d.h`, re-records per frame) | ref (fixed box + CSS scale — the wallpaper's workaround) |
+   With the drive inert and the trace bracketing only the gesture (Chrome DOM,
+   30-step resize, `paintMs` = `LayerTreeHost::DoUpdateLayers`):
+
+   | | main-thread paint | GPU process |
    |---|---|---|
-   | paint ms | 542 · 1380 · 1504 · 1638 | **1052 · 2789 · 2962 · 3118** |
-   | backing store | 6.7 MB | 14.6 MB |
+   | live — re-records every step | **1 ms** | 144–217 ms |
+   | ref — fixed box + CSS scale | **1 ms** | 72–117 ms |
+   | ref, backing 3.7 / 14.6 / 58.6 MB | 1 / 1 / 1 ms | 108 / 69 / 116 ms |
 
-   **The workaround costs about 2× the naive shape on Chrome DOM.** A fixed
-   reference box is a bigger canvas element, and under a changing CSS transform
-   Blink updates that element's layer every frame regardless — so "draw once,
-   paint-scale" trades a re-record for a larger per-frame layer update and loses.
-   The canvas backend is indifferent (live 222–611 vs ref 198–634): its one
-   canvas is the whole viewport and the layer update is the viewport's, whatever
-   happens inside it. The earlier `flushMs` reading (74–92 vs 12–24 ms, "4–5×
-   the other way") was the discredited meter and is withdrawn with it.
-
-   So a size grace that keeps a stale raster and stretches it — the workaround's
-   own mechanism, made automatic — would be a REGRESSION on Chrome DOM. The
-   wallpaper's workaround was written against Safari's deferred raster (~24 ms
-   per flush, measured in 2026-08), and that is the one engine where no raster
-   meter exists: `flushMs` forces nothing on a GPU-backed canvas. The only Safari
-   number that means anything for this question is CADENCE under the resize —
-   live vs ref, p50/p95 — on the real browser. That sweep needs DT's go (it takes
-   a window; the pointer is never touched). Until it runs, size grace is not
-   justified by any measurement in hand, and building it would be building to
-   the discredited one.
+   **Nothing regresses on Chrome.** Both shapes are free on the main thread;
+   the GPU-process cost is a few ms per frame and the stale-raster-plus-scale
+   shape is about half the re-record shape there; backing size is flat. So a
+   size grace — keep the raster, stretch it for the beat, re-record at rest —
+   is a mild win on Chrome and cannot hurt it. What it is FOR is the engine the
+   workaround was written against: Safari's deferred raster, where the same
+   re-record measured ~24 ms per flush in 2026-08 — and Safari has no raster
+   meter, so the number that decides is CADENCE under the resize on the real
+   browser, live against ref. That sweep needs DT's go. The mechanism is not in
+   doubt on the engine we can measure; its magnitude on the one we cannot is
+   the open number.
 3. **DOM extent** — a raster window (a band-sized backing store re-imaged as the
    visible rect moves). SVG would solve extent structurally, being the one DOM
    primitive the browser rasterizes under the transform, but it adds a THIRD

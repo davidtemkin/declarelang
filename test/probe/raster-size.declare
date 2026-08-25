@@ -29,8 +29,15 @@
 App [ fill = #0B0E12,
 
     mode: string = "live",       // "live" (reads its own size) · "ref" (fixed box + scale)
-    refW: number = 1200,
-    refH: number = 800,
+
+    // `refScale` sizes the reference box as one knob (refW/refH stay for a
+    // caller that wants them independently): the same content on a 600x400,
+    // 1200x800 or 2400x1600 backing store isolates the cost of the STORE from
+    // the cost of the drawing.
+
+    refScale: number = 1,
+    refW: number = { 1200 * this.refScale },
+    refH: number = { 800 * this.refScale },
     weight: number = 5,          // full-surface radial fills
     blur: number = 0,            // filter radius, px — 0 leaves the filter unset
     tick: number = 0,

@@ -107,6 +107,11 @@ const PROBES = {
     sweeps: [
       { name: "resize, live (reads its own size)", hold: { mode: "live", weight: 3 }, axis: "blur", values: [0, 8, 24, 48] },
       { name: "resize, ref  (fixed box + scale)", hold: { mode: "ref", weight: 3 }, axis: "blur", values: [0, 8, 24, 48] },
+      // the store, isolated: identical content, identical resize, only the
+      // reference box's size changes — the recording never re-records in ref
+      // mode, so any cost that scales with this is the cost of holding and
+      // presenting a bigger texture under a changing transform, nothing else
+      { name: "resize, ref  — backing size", hold: { mode: "ref", weight: 3, blur: 0 }, axis: "refScale", values: [0.5, 1, 2] },
     ],
   },
   extent: {
@@ -125,6 +130,7 @@ const PROBES = {
 // because Safari's WebDriver takes a script body, not a function reference.
 
 const AGENT = `(async () => {
+  const PHASE = "__PHASE__";
   const app = window.__app;
   // An off-screen view never gets a frame callback, so the agent cannot depend
   // on one: this is a frame request where there is a display, and a task turn
@@ -144,8 +150,7 @@ const AGENT = `(async () => {
     return performance.now() - t;
   };
 
-  for (const [k, v] of Object.entries(KNOBS)) app[k] = v;
-  await raf(); await raf();
+  if (PHASE === "drive") { for (const [k, v] of Object.entries(KNOBS)) app[k] = v; await raf(); await raf(); }
 
   // TWO PASSES, because the two metrics corrupt each other. A readback is a GPU
   // sync on Blink, so taking one every step would poison the very cadence it is
@@ -154,7 +159,7 @@ const AGENT = `(async () => {
   // the size probe). So: cadence with no readback, then flush with one per step.
 
   const gaps = [];
-  if (!NOCADENCE) {
+  if (PHASE === "drive" && !NOCADENCE) {
     let last = performance.now();
     for (let i = 0; i < STEPS; i++) {
       DRIVE_STEP;
@@ -166,13 +171,15 @@ const AGENT = `(async () => {
   }
 
   let flushTotal = 0, flushMax = 0;
-  for (let i = 0; i < STEPS; i++) {
-    DRIVE_STEP;
-    bump();
-    await raf();
-    const f = flush();
-    flushTotal += f;
-    if (f > flushMax) flushMax = f;
+  if (PHASE === "drive" && !NOFLUSH) {
+    for (let i = 0; i < STEPS; i++) {
+      DRIVE_STEP;
+      bump();
+      await raf();
+      const f = flush();
+      flushTotal += f;
+      if (f > flushMax) flushMax = f;
+    }
   }
 
   // Does this engine honour ctx.filter at all? WebKit was measured ACCEPTING
@@ -180,6 +187,14 @@ const AGENT = `(async () => {
   // painting unfiltered — so the only honest test is whether a blurred rect
   // bleeds past its own edge. Free to carry here, and it means no result can
   // quietly assume a filter cost that was never incurred.
+  if (PHASE === "drive") {
+    const sorted0 = gaps.slice().sort((a, b) => a - b);
+    const at0 = (q) => sorted0.length ? sorted0[Math.min(sorted0.length - 1, Math.floor(sorted0.length * q))] : 0;
+    const r20 = (x) => Math.round(x * 100) / 100;
+    return { flushMs: r20(flushTotal), flushMax: r20(flushMax),
+             p50: NOCADENCE ? null : r20(at0(0.5)), p95: NOCADENCE ? null : r20(at0(0.95)) };
+  }
+  // ── the CHECKS phase: everything below reads the canvas back ──
   // DOES THE DRIVE ACTUALLY DRIVE? Every timing here assumes each step causes a
   // fresh recording and a fresh raster. Nothing verified that, and a probe whose
   // knob is inert reports flat numbers that read exactly like "this engine is
@@ -283,21 +298,34 @@ const AGENT = `(async () => {
 const DRIVES = {
   // a static shape: perturb the recording so each frame really re-paints
   static: "bump()",
-  // resize is driven from OUTSIDE the page (the viewport is the driver's), so
-  // in here the step is only the repaint the resize will have caused
-  resize: "bump()",
+  // resize is driven from OUTSIDE the page (the viewport is the driver's), and
+  // the step here is NOTHING — the resize is the whole stimulus. ⚠ It used to
+  // be bump(), and that defeated the probe: `ref` mode's draw body reads
+  // app.tick, so every step re-recorded and re-rasterized the fixed reference
+  // box, which is precisely what the workaround exists to avoid. Measured that
+  // way, ref "lost" to live by 2x on Chrome DOM, and will-change: transform
+  // changed nothing — because the cost was our own per-frame re-raster of a
+  // 14.6 MB canvas, not the compositor. A finding was committed on it and had
+  // to be withdrawn (2026-08-25). A drive that touches what it measures is not
+  // a drive.
+  resize: "",
   // scroll the page's own declared offset — a settable attribute, so this is
   // the same gesture on every renderer rather than a per-backend wheel event
   scroll: "app.scrollY = (i / STEPS) * (app.height * (app.k - 1))",
 };
 
-function agentFor(drive, knobs, steps, noCadence = false) {
+function agentFor(drive, knobs, steps, noCadence = false, phase = "drive") {
   return AGENT
+    .replace("__PHASE__", phase)
     .replace(/DRIVE_STEP;/g, DRIVES[drive] + ";")
     .replace("__TICK__", noCadence
       ? "new Promise((r) => setTimeout(r, 0))"
       : "new Promise((r) => requestAnimationFrame(r))")
     .replace(/NOCADENCE/g, String(noCadence))
+    // a resize probe measures whether the recording re-records under the
+    // gesture; a flush pass that bumps the recording per step would answer
+    // "yes" for every mode and pollute the trace with its own re-rasters
+    .replace(/NOFLUSH/g, String(drive === "resize"))
     .replace(/STEPS/g, String(steps))
     .replace("KNOBS", JSON.stringify(knobs));
 }
@@ -363,14 +391,26 @@ async function chromeEngine({ headless }) {
     defaultViewport: { width: 900, height: 600, deviceScaleFactor: 2 },
   });
   const page = await browser.newPage();
+  if (willChange) {
+    await page.evaluateOnNewDocument(`(() => {
+      const st = document.createElement("style");
+      // BOTH the transformed view and the drawing canvas inside it: promoting
+      // only the view leaves the canvas as content rasterized INTO that layer's
+      // tiles at every new scale (measured: no change). The canvas as its own
+      // layer is what makes a transform a pure compositor scale of a texture.
+      st.textContent = '[style*="scale("], [style*="rotate("], canvas { will-change: transform; }';
+      (document.head || document.documentElement).appendChild(st);
+    })()`);
+  }
   return {
-    name: headless ? "chrome (HEADLESS — SwiftShader, not the GPU)" : "chrome",
+    name: (headless ? "chrome (HEADLESS — SwiftShader, not the GPU)" : "chrome") + (willChange ? " + will-change" : ""),
     async goto(url) {
       await page.goto(url, { waitUntil: "networkidle0", timeout: 60000 });
       await page.waitForFunction("window.__app != null", { timeout: 30000 });
       await sleep(350);
     },
     async resize(w, h) { await page.setViewport({ width: w, height: h, deviceScaleFactor: 2 }); },
+    async runUntraced(src) { return await page.evaluate(src); },
     async run(src) {
       if (!trace) return await page.evaluate(src);
       const out = path.join(TRACE_DIR, `t-${traceN++}.json`);
@@ -445,6 +485,32 @@ async function safariEngine() {
       try { await call("DELETE", `/session/${sid}`); } catch { /* already gone */ }
       proc.kill();
     },
+  };
+}
+
+// Firefox, through puppeteer's WebDriver BiDi support. In-page metrics only —
+// there is no CDP trace, so the raster meter is absent; Gecko rasterizes
+// eagerly on the CPU (Mesa's finding), so its cost shows up in CADENCE, and
+// that column is honest here. The Gecko Profiler (MOZ_PROFILER_STARTUP) is the
+// raster meter for a later adapter.
+async function firefoxEngine() {
+  const bin = ["/Applications/Firefox.app/Contents/MacOS/firefox"].find(existsSync);
+  if (!bin) throw new Error("no Firefox at /Applications/Firefox.app");
+  const browser = await puppeteer.launch({
+    browser: "firefox", executablePath: bin, headless: false,
+    defaultViewport: { width: 900, height: 600, deviceScaleFactor: 2 },
+  });
+  const page = await browser.newPage();
+  return {
+    name: "firefox (no trace — cadence and in-page only)",
+    async goto(url) {
+      await page.goto(url, { waitUntil: "networkidle0", timeout: 60000 });
+      await page.waitForFunction("window.__app != null", { timeout: 30000 });
+      await sleep(350);
+    },
+    async resize(w, h) { await page.setViewport({ width: w, height: h, deviceScaleFactor: 2 }); },
+    async run(src) { return await page.evaluate(src); },
+    async close() { await browser.close(); },
   };
 }
 
@@ -524,6 +590,12 @@ if (trace) {
 // --yield-focus hands the front back to another app right after the session
 // opens, so a run can answer whether this engine needs to be frontmost at all
 const yieldFocus = has("yield-focus");
+// --will-change: inject `will-change: transform` on every transformed element
+// before the program boots. An EXPERIMENT lever, not a setting: it asks whether a
+// per-frame cost under a changing transform is the compositor re-rasterizing an
+// unpromoted layer (promotion makes the transform compositor-only, and the cost
+// collapses) or something else (it does not).
+const willChange = has("will-change");
 const jsonOut = flag("json", null);
 
 if (headless) console.log("⚠ --headless: Chrome rasterizes on SwiftShader here. Structural runs only — these are not GPU numbers.\n");
@@ -543,6 +615,7 @@ for (const engineName of engines) {
   try {
     engine = engineName === "safari" ? await safariEngine()
       : engineName === "webkit" ? await webkitEngine()
+      : engineName === "firefox" ? await firefoxEngine()
       : await chromeEngine({ headless });
   } catch (err) {
     console.log(`${engineName}: SKIPPED — ${err.message}\n`);
@@ -574,18 +647,23 @@ for (const engineName of engines) {
           // fresh navigation per point — a warm page has already been read back
           await engine.goto(`${BASE}/${probe.file}?render=${renderer}`);
           engine.setResizeDrive?.(probe.drive === "resize");
+          let out;
           if (probe.drive === "resize" && !engine.setResizeDrive) {
             // the resize gesture itself: a sweep of viewport widths, with the
             // in-page recorder running across it
-            const run = engine.run(agentFor(probe.drive, knobs, steps, engine.noCadence === true));
+            const run = engine.run(agentFor(probe.drive, knobs, steps, engine.noCadence === true, "drive"));
             for (let i = 0; i < steps; i++) {
               await engine.resize(700 + Math.round(300 * Math.sin((i / steps) * Math.PI)), 600);
               await sleep(16);
             }
-            var out = await run;
+            out = await run;
           } else {
-            var out = await engine.run(agentFor(probe.drive, knobs, steps, engine.noCadence === true));
+            out = await engine.run(agentFor(probe.drive, knobs, steps, engine.noCadence === true, "drive"));
           }
+          // the checks read the canvas back; they run in their own evaluate so
+          // a trace of the drive never contains their readbacks
+          const checks = await (engine.runUntraced ?? engine.run).call(engine, agentFor(probe.drive, knobs, steps, engine.noCadence === true, "checks"));
+          out = { ...checks, ...out };
           const mb = (out.bytes / (1 << 20)).toFixed(1);
           const cad = (x) => (engine.noCadence ? "—" : String(x));
           console.log(
