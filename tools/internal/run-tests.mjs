@@ -60,6 +60,8 @@ const SUITE = [
   "test/vis-camera.test.mjs",
   "test/reader-flow.test.mjs",
   "test/raster-memo.test.mjs",
+  "test/canvas-filter.test.mjs",   // the Safari filter fallback, pinned from Chrome via the forced-fallback lever
+  "test/draw-bounds.test.mjs",     // text bounds, per-op extents, replayArea, byte-identical culling
   "test/island.test.mjs",
   "test/island-browser.test.mjs",
   "test/verify-apps.test.mjs",

@@ -211,6 +211,58 @@ Regression check after the fixes: the native gate is 16 programs, 0 failing, wit
 `blur` IMPROVED 0.27pt and `desktop` 0.07pt; behavioural conformance passes 14/14
 with dom, canvas and mac agreeing.
 
+## C.2 The batch on that ground (2026-08-25) — bounds, cost, culling, eviction
+
+Started from one question: *is the size of a drawing always known?* It was not,
+and the answer was a shipped bug. `fillText` marked only its **anchor point**, so
+a `draw()` whose only ink was text bounded to a degenerate box, and the DOM
+backend — which sizes a per-view canvas to the bounds — allocated **1×1 and
+rendered nothing**. Measured on `test/probe/textbounds.declare`: 0 white pixels
+on DOM against 3597 on the canvas backend, whose bounds only gate the memo.
+The recorder now mirrors font/align/baseline/letterSpacing and bounds a run via
+the **shared measurer** (`measure.ts`, the one Text layout already uses), so it
+stays context-free; bare Node with no measurer falls back to the anchor. Mac
+receives the fix through the display-list JSON (`mac-host/textbounds-check.mjs`).
+
+What was built on the way, all in `runtime/src/draw.ts` and `canvas-backend.ts`:
+
+- **Per-op extents** (`DisplayList.extents`, parallel to `ops`, null for
+  non-paint ops). The recorder already mapped each painted extent through the
+  CTM before unioning it into `bounds`; keeping them costs an array slot.
+- **`replayArea` replaces `replayCost`.** Area in recording units², overdraw
+  counted, gradients weighted, filter ⇒ ∞. The *quantity* is the recording's and
+  shared; the *threshold* is each backend's — the canvas backend promotes at
+  `ops × 20µs + coveredDevicePx × 0.5ms/Mpx ≥ 1ms`, which keeps the old 48-op
+  rule as a bound and **adds** area to it, so a four-op full-screen wash now
+  promotes where op count alone called it cheap.
+- **Viewport culling** in `replay(ctx, list, clip?)`: paint ops entirely outside
+  the visible region are skipped. **Byte-identical** — pinned two ways in
+  `test/draw-bounds.test.mjs`, the scrolled extent probe and every drawops cell,
+  comparing data URLs for equality rather than tolerance. Refused for lists using
+  a composite operator whose effect reaches past its source (`copy`,
+  `source-in/out`, `destination-in/out/atop`). Only the vector path culls; a memo
+  raster is always the whole recording, since a memo must not depend on the
+  viewport.
+- **Eviction by relevance, then value.** An entry not painted last compositor
+  generation is off-screen and worthless at any recency — largest first; among
+  live ones, lowest `rasterMs × hits / bytes`. Both terms are exact per-entry
+  facts; only the absolute budget was ever fuzzy.
+- **Discovered ceilings, not calibrated ones.** A null context, a throw, or a
+  large raster that samples blank halves the session's budget scale and never
+  raises it. DT ruled out a measured cap sweep: a ceiling found on one machine
+  under one set of apps is an anecdote, and boot-time preflight costs the memory
+  it measures.
+
+⚠ **Placeholders, named as such in the code:** `OP_US = 20` is a stroke's worst
+case standing in for every op kind; `GRADIENT_WEIGHT = 3` is a guess; the
+Safari and mac thresholds are unmeasured. The op-kind sweep on `rasterbench`
+(solid / gradient / stroke / text / `shadowBlur` — not `filter`, which Safari
+ignores) is what turns them into numbers.
+
+Verified: JS suite green; native gate 16/0 (`blur` still −0.27pt, `desktop`
+−0.06pt); behavioural conformance 14/14; all 30 drawops cells within budget on
+Mac after the change.
+
 ## D. Canvas, per runtime — the platform attributes
 
 Same recording throughout (`artSunnySky`, two full-surface gradient fills at
@@ -257,11 +309,7 @@ is commit COUNT (one transaction per display tick), never op batching.
 
 ## E. What is open now
 
-1. **Per-op bounds.** The recorder already maps each op's extent through the
-   live CTM before unioning it into `ink` (`draw.ts`), so capturing it per op is
-   a few lines. It yields BOTH a correct cost predictor for `replayCost` and
-   viewport culling, off one change. Culling is byte-identical, needs no memory,
-   no invalidation and no caps — so it comes before any cache.
+1. ~~Per-op bounds, the area predictor, culling~~ — DONE, §C.2.
 2. **Size grace** — the scale grace's twin, for recordings that read
    `d.w`/`d.h`. This is the wallpaper's case and nothing addresses it today. The
    dep partition it needs is the one durable insight of the rejected design

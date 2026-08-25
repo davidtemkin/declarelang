@@ -1,0 +1,31 @@
+// Does a text-ONLY drawing survive its own bounds?
+//
+// The recorder cannot measure text, so `fillText` marks the ANCHOR POINT and
+// clears `exact` (draw.ts). `rasterPad` pads for blur and shadow — not text. So
+// a recording whose only ink is text bounds to a degenerate box, and any backend
+// that sizes a raster to those bounds clips the glyphs away.
+//
+// Two views, one question. `lone` draws text and nothing else. `withBox` draws
+// the same text over a rect that bounds it. If the first is blank or clipped and
+// the second is not, the bounds are the cause and not the text.
+
+App [ width = 420, height = 220, fill = #101014,
+    lone: View [ x = 10, y = 10, width = 400, height = 90,
+        draw(d: Draw) {
+            d.fillStyle = "#FFFFFF"
+            d.font = "600 34px system-ui, sans-serif"
+            d.textBaseline = "middle"
+            d.fillText("TEXT ONLY", 30, 45)
+            }
+        ],
+    withBox: View [ x = 10, y = 115, width = 400, height = 90,
+        draw(d: Draw) {
+            d.fillStyle = "#2A2A33"
+            d.fillRect(0, 0, 400, 90)
+            d.fillStyle = "#FFFFFF"
+            d.font = "600 34px system-ui, sans-serif"
+            d.textBaseline = "middle"
+            d.fillText("WITH A BOX", 30, 45)
+            }
+        ]
+    ]

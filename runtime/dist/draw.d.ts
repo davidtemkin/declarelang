@@ -181,6 +181,15 @@ export interface DisplayList {
     readonly ops: readonly DrawOp[];
     readonly bounds: Bounds | null;
     readonly exact: boolean;
+    /** PER-OP painted extent, parallel to `ops` — the box each PAINT op inked,
+     *  in the recording's local space (the same space as `bounds`), or null for
+     *  an op that paints nothing (state, path building, transforms). This is
+     *  what a replay CULLS against and what a cost model SUMS: the recorder
+     *  already maps every painted extent through the live CTM before unioning
+     *  it into `bounds`, so keeping each one costs an array slot and nothing
+     *  else. Blur/shadow bleed is NOT in these (see `rasterPad`), exactly as it
+     *  is not in `bounds`. */
+    readonly extents: ReadonlyArray<Bounds | null>;
 }
 /** The write-only, Canvas2D-shaped context a draw method records into.
  *
@@ -191,6 +200,9 @@ export interface DisplayList {
  *  attribute inside draw is what re-triggers recording. */
 export declare class Draw {
     private readonly ops;
+    /** parallel to `ops` — see DisplayList.extents */
+    private readonly extents;
+    private push;
     /** THE VIEW'S OWN SIZE, for a drawing that sizes itself — `d.w` / `d.h`.
      *
      *  The scaffold has typed these since draw() was typed at all, so arithmetic
@@ -220,6 +232,12 @@ export declare class Draw {
     private strokeHalf;
     /** Cleared once an op paints an extent the recorder can't bound locally. */
     private exactBounds;
+    /** Mirror of the recorded text state, for bounding a run — the same
+     *  pattern as `strokeHalf` for stroke expansion. Canvas2D's defaults. */
+    private tFont;
+    private tAlign;
+    private tBaseline;
+    private tLetter;
     /** The live transform matrix [a,b,c,d,e,f] and its save/restore stack. Every
      *  painted extent is mapped through it before it grows the ink box, so the
      *  recording's bounds land in the VIEW's local space even under scale/rotate/
@@ -307,6 +325,10 @@ export declare class Draw {
     clip(rule?: CanvasFillRule): void;
     fillText(text: string, x: number, y: number, maxWidth?: number): void;
     strokeText(text: string, x: number, y: number, maxWidth?: number): void;
+    /** The run's box from the mirrored text state. With no measurer at all (a
+     *  bare Node test constructing a Draw — headless verify provides one) this
+     *  falls back to the anchor point, which is what every call did before. */
+    private textExtent;
     save(): void;
     restore(): void;
     translate(x: number, y: number): void;
@@ -367,6 +389,21 @@ export declare const RASTER_MAX_DIM = 8192;
 export declare const RASTER_MAX_AREA = 16777216;
 export declare function rasterEntryCap(viewportBytes: number): number;
 export declare function rasterTotalCap(viewportBytes: number): number;
-export declare function replayCost(list: DisplayList): "cheap" | "expensive";
-export declare function replay(ctx: CanvasRenderingContext2D, list: DisplayList): void;
+/** The recording's covered area — see ListInfo.area. Pure over the recording,
+ *  so every backend prices the same quantity; each applies its own scale² and
+ *  its own threshold. This REPLACES the op-counting classifier: measured under
+ *  Chrome tracing (2026-08-24), two lists of identical op count differed 205x
+ *  in paint cost by covered area alone, and the op count called both
+ *  "expensive". Op count is still a term — a stroke has real per-op setup
+ *  cost — but it is the backend's term to weigh, from `list.ops.length`. */
+export declare function replayArea(list: DisplayList): number;
+/** Replay a recording into a real 2D context. `clip`, when given, is the
+ *  region (recording-local) the replay can be SEEN in: paint ops entirely
+ *  outside it are skipped. BYTE-IDENTICAL where visible — a skipped op painted
+ *  nothing inside the clip, and a list using a composite operator that reaches
+ *  outside its source is never culled (ListInfo.cullable). This is the cheapest
+ *  lever there is against the cost that was measured: what reaches the
+ *  compositor is what costs, and an off-screen op reaching it costs the same as
+ *  an on-screen one. `__declareNoCull` disables it for an A/B. */
+export declare function replay(ctx: CanvasRenderingContext2D, list: DisplayList, clip?: Bounds): void;
 export {};

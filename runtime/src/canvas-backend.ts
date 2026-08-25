@@ -35,7 +35,7 @@ import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Stroke } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { cssWeight, fontMetrics, fontString, textWidth, wrapLines, type TextStyle } from "./measure.js";
-import { replay, replayCost, rasterPad, rasterEntryCap, rasterTotalCap, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS, type DisplayList } from "./draw.js";
+import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS, type DisplayList, type Bounds } from "./draw.js";
 import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-filter.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive, type HitTarget } from "./input.js";
@@ -101,7 +101,7 @@ export class CanvasBackend implements RenderBackend {
 // category — a spring, a pointer constraint, and a data stream are all just
 // writers — so promotion is by STABILITY (the same key seen on two
 // consecutive paints), which a continuously-scaled drawing never satisfies
-// and therefore never pays for. Cheap lists (replayCost, draw.ts) replay as
+// and therefore never pays for. Cheap lists (replayArea + this backend's threshold) replay as
 // vectors forever: crisp, zero memory, and they were never the problem.
 //
 // EVERY ALLOCATION IS DENIABLE. The web platform's raster-memory edges are
@@ -120,17 +120,49 @@ interface RasterEntry {
   bytes: number;
   bx: number;                  // the bounds origin the raster is anchored at
   by: number;
-  stamp: number;               // recency for LRU (a paint counter, not time)
+  stamp: number;               // recency (a memo-touch counter, not time)
+  seen: number;                // the compositor generation this was last painted in
+  rasterMs: number;            // what the raster cost to make — its value, per hit
+  hits: number;                // blits served since creation
 }
 let memoBytes = 0;
 let memoStamp = 0;
 let memoPaints = 0;
 let memoAttempts = 0;
+/** Advances once per compositor paint. An entry whose `seen` is behind it was
+ *  not painted last frame — off-screen, hidden, or occluded — and is worth
+ *  nothing at any recency. A static scene does not advance it, so idling
+ *  evicts nothing. */
+let memoGeneration = 0;
+/** Multiplies the total cap. Halved whenever the platform hands back a
+ *  DISCOVERED ceiling — a null context, a throw, or a large raster that came
+ *  back blank (Safari's failure past its canvas budget is transparent, not
+ *  slow) — so the session lives under the limit it actually hit. Never raised:
+ *  the ceiling is unknowable and a guess that was once too high stays wrong. */
+let budgetScale = 1;
 const memoHolders = new Set<CanvasSurface>();
+
+// ── the admission threshold: THIS backend's constants over the shared quantities ──
+//
+// cost ≈ ops × OP_US + coveredDevicePx × PX_US_PER_MPX / 1e6. Two terms, because
+// two things were measured: a stroke or path op has real per-op setup cost, and
+// covered pixels cost linearly (Chrome tracing, canvas backend, 0.41ms/Mpx —
+// rounded up). OP_US is set so that the old 48-op rule survives as a bound
+// (48 × 20 = 960µs) and area is ADDED to it: a four-op full-screen wash now
+// promotes, which the op count alone called cheap. ⚠ The per-op constant is a
+// stroke's worst case standing in for every op kind, and the gradient weight in
+// draw.ts is a guess — the op-kind sweep is what turns these into numbers.
+const OP_US = 20;
+const PX_US_PER_MPX = 500;
+const PROMOTE_US = 1000;
+/** Below this a blank check is not worth its GPU sync; above it, a raster that
+ *  painted nothing is exactly the failure the check exists to catch. */
+const BLANK_CHECK_BYTES = 8 << 20;
 // a diag window into the pool (the __declareDiag family): entries and bytes,
 // so a session growing rasters is visible rather than mysterious
 (globalThis as { __declareRasterStats?: () => { entries: number; bytes: number } }).__declareRasterStats =
-  () => ({ entries: memoHolders.size, bytes: memoBytes, paints: memoPaints, attempts: memoAttempts });
+  () => ({ entries: memoHolders.size, bytes: memoBytes, paints: memoPaints, attempts: memoAttempts,
+           generation: memoGeneration, budgetScale });
 
 function viewportBytes(c: HTMLCanvasElement | null): number {
   return c === null ? 8 << 20 : c.width * c.height * 4;
@@ -142,16 +174,48 @@ function releaseRaster(s: CanvasSurface): void {
   s.rasterEntry = null;
   memoHolders.delete(s);
 }
-function evictOldest(except: CanvasSurface): boolean {
+/** Eviction by RELEVANCE, then by value — not by recency. An entry not painted
+ *  last frame is off-screen and worthless however recently it was made, and
+ *  the biggest of those frees the most; among the live ones, the lowest value
+ *  density (milliseconds the raster saves per hit, per byte it holds) goes
+ *  first. Both terms are per-entry facts, exactly known — the design's
+ *  observation that only the absolute budget is fuzzy, the relative order
+ *  never is. */
+function evictLeastValuable(except: CanvasSurface): boolean {
   let victim: CanvasSurface | null = null;
-  let oldest = Infinity;
+  let worst = Infinity;
   for (const h of memoHolders) {
-    if (h === except || h.rasterEntry === null) continue;
-    if (h.rasterEntry.stamp < oldest) { oldest = h.rasterEntry.stamp; victim = h; }
+    const e = h.rasterEntry;
+    if (h === except || e === null) continue;
+    const stale = e.seen < memoGeneration - 1;
+    const score = stale ? -e.bytes : (e.rasterMs * Math.max(1, e.hits)) / e.bytes;
+    if (score < worst) { worst = score; victim = h; }
   }
   if (victim === null) return false;
   releaseRaster(victim);
   return true;
+}
+
+/** A large raster that painted NOTHING where its recording says it painted is
+ *  the platform's silent failure (Safari past its canvas budget draws
+ *  transparent). Sampled at a few op centres — a GPU sync, so only ever run
+ *  once, on a fresh entry past BLANK_CHECK_BYTES. A recording that truly paints
+ *  transparent at every sampled centre reads as blank and demotes to vectors:
+ *  slower, never wrong. */
+function looksBlank(cv: HTMLCanvasElement, list: DisplayList, sx: number, sy: number, bx: number, by: number): boolean {
+  const g = cv.getContext("2d");
+  const ext = list.extents ?? [];
+  if (g === null) return false;
+  let sampled = 0;
+  for (let i = 0; i < ext.length && sampled < 12; i++) {
+    const e = ext[i];
+    if (!e || e.w <= 0 || e.h <= 0) continue;
+    const x = Math.min(cv.width - 1, Math.max(0, Math.round((e.x + e.w / 2 - bx) * sx)));
+    const y = Math.min(cv.height - 1, Math.max(0, Math.round((e.y + e.h / 2 - by) * sy)));
+    sampled++;
+    try { if (g.getImageData(x, y, 1, 1).data[3] !== 0) return false; } catch { return false; }
+  }
+  return sampled > 0;
 }
 
 class Compositor {
@@ -532,6 +596,7 @@ class Compositor {
 
   private readonly paint = (): void => {
     this.frame = 0;
+    memoGeneration++;
     const { canvas, ctx, root } = this;
     if (canvas === null || ctx === null || root === null) return;
     // Backing store = the root's logical size × devicePixelRatio; the CSS box
@@ -839,7 +904,6 @@ class CanvasSurface implements Surface {
     this.drawing = list;
     releaseRaster(this);                     // a new recording invalidates the memo by identity
     this.rasterSeen = null;
-    this.rasterCostOf = null;
     this.rasterScalePending = null;
     if (this.rasterRestTimer !== 0) { clearTimeout(this.rasterRestTimer); this.rasterRestTimer = 0; }
     this.compositor.invalidate();
@@ -850,7 +914,6 @@ class CanvasSurface implements Surface {
   private rasterSeen: { list: DisplayList; sx: number; sy: number } | null = null;
   private rasterScalePending: { sx: number; sy: number; since: number } | null = null;
   private rasterRestTimer: ReturnType<typeof setTimeout> | 0 = 0;
-  private rasterCostOf: { list: DisplayList; cost: "cheap" | "expensive" } | null = null;
 
   /** Paint this view's recording: vectors, or the memoized raster when the
    *  (list, scale) pair is stable — see the module header above. */
@@ -858,20 +921,33 @@ class CanvasSurface implements Surface {
     const list = this.drawing!;
     const b = list.bounds;
     if (b === null) return;
-    if ((globalThis as { __declareNoRasterMemo?: boolean }).__declareNoRasterMemo === true) { replay(ctx, list); return; }
-    if (this.rasterCostOf === null || this.rasterCostOf.list !== list)
-      this.rasterCostOf = { list, cost: replayCost(list) };
-    memoPaints++;
-    if (this.rasterCostOf.cost === "cheap") { replay(ctx, list); return; }
     const m = ctx.getTransform();
     // rotation/skew keeps pure vectors (a resampled blit would soften — rare,
-    // and the memo is an optimization, never a semantic)
-    if (Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6 || m.a <= 0 || m.d <= 0) { replay(ctx, list); return; }
+    // and the memo is an optimization, never a semantic); the same axis test
+    // decides whether a culling clip can be expressed at all
+    const axis = Math.abs(m.b) <= 1e-6 && Math.abs(m.c) <= 1e-6 && m.a > 0 && m.d > 0;
+    // The region a vector replay can be SEEN in, in the recording's own units:
+    // the whole canvas, mapped back through the live transform. Conservative
+    // (a scroll pane's clip is tighter), and every op outside it is skipped
+    // byte-identically — see draw.ts replay().
+    const clip: Bounds | undefined = axis
+      ? { x: -m.e / m.a, y: -m.f / m.d, w: ctx.canvas.width / m.a, h: ctx.canvas.height / m.d }
+      : undefined;
+    memoPaints++;
+    if ((globalThis as { __declareNoRasterMemo?: boolean }).__declareNoRasterMemo === true || !axis) { replay(ctx, list, clip); return; }
     const sx = Math.round(m.a * 1e4) / 1e4;
     const sy = Math.round(m.d * 1e4) / 1e4;
+    // ADMISSION: is this recording worth bytes at all? The quantity is the
+    // recording's (draw.ts replayArea, in its own units); the scale² and the
+    // threshold are this backend's. Cheap lists replay as vectors forever —
+    // crisp, zero memory, and they were never the problem.
+    const est = list.ops.length * OP_US + (replayArea(list) * sx * sy) * PX_US_PER_MPX / 1e6;
+    if (est < PROMOTE_US) { replay(ctx, list, clip); return; }
     const e = this.rasterEntry;
     if (e !== null && e.list === list && e.sx === sx && e.sy === sy) {
       e.stamp = ++memoStamp;
+      e.seen = memoGeneration;
+      e.hits++;
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.drawImage(e.canvas, m.e + m.a * e.bx, m.f + m.d * e.by);
@@ -893,6 +969,7 @@ class CanvasSurface implements Surface {
       const stable = this.rasterScalePending!;
       if (now - stable.since < RASTER_GRACE_MS) {
         e.stamp = ++memoStamp;
+        e.seen = memoGeneration;
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.drawImage(e.canvas, m.e + m.a * e.bx, m.f + m.d * e.by,
@@ -908,7 +985,7 @@ class CanvasSurface implements Surface {
     // repeats — content re-recorded every frame keeps pure vector replay
     const seen = this.rasterSeen;
     this.rasterSeen = { list, sx, sy };
-    if (e === null && (seen === null || seen.list !== list)) { replay(ctx, list); return; }
+    if (e === null && (seen === null || seen.list !== list)) { replay(ctx, list, clip); return; }
     memoAttempts++;
     const root = this.compositor.rootCanvas;
     // blur/shadow paint past inexact bounds — overscan by the computed bleed
@@ -917,29 +994,35 @@ class CanvasSurface implements Surface {
     const w = Math.ceil((b.w + 2 * pad) * sx);
     const h = Math.ceil((b.h + 2 * pad) * sy);
     const bytes = w * h * 4;
-    if (w < 1 || h < 1 || w > RASTER_MAX_DIM || h > RASTER_MAX_DIM || w * h > RASTER_MAX_AREA || bytes > rasterEntryCap(viewportBytes(root))) { replay(ctx, list); return; }
+    if (w < 1 || h < 1 || w > RASTER_MAX_DIM || h > RASTER_MAX_DIM || w * h > RASTER_MAX_AREA || bytes > rasterEntryCap(viewportBytes(root))) { replay(ctx, list, clip); return; }
     releaseRaster(this);
-    while (memoBytes + bytes > rasterTotalCap(viewportBytes(root))) {
-      if (!evictOldest(this)) { replay(ctx, list); return; }
+    while (memoBytes + bytes > rasterTotalCap(viewportBytes(root)) * budgetScale) {
+      if (!evictLeastValuable(this)) { replay(ctx, list, clip); return; }
     }
     let cv: HTMLCanvasElement;
+    let rasterMs = 0;
     try {
+      const t0 = performance.now();
       cv = document.createElement("canvas");
       cv.width = w;
       cv.height = h;
       const c2 = cv.getContext("2d");
       if (c2 === null) throw new Error("no 2d context");
       c2.setTransform(sx, 0, 0, sy, -bx * sx, -by * sy);
-      replay(c2, list);
+      replay(c2, list);                        // the WHOLE recording — a memo must not depend on the viewport
+      rasterMs = performance.now() - t0;
       // the platform may silently drop a raster later (GPU process restart);
       // a lost context releases the entry and the next paint re-derives
       cv.addEventListener?.("contextlost", () => { releaseRaster(this); this.compositor.invalidate(); });
+      if (bytes > BLANK_CHECK_BYTES && looksBlank(cv, list, sx, sy, bx, by)) throw new Error("raster came back blank");
     } catch (err) {
+      // a DISCOVERED ceiling: live under it for the rest of the session
+      budgetScale = Math.max(0.125, budgetScale * 0.5);
       (globalThis as { __declareRasterErr?: string }).__declareRasterErr = String(err);
-      replay(ctx, list);                     // a refused allocation is a slow frame, never a wrong one
+      replay(ctx, list, clip);                 // a refused allocation is a slow frame, never a wrong one
       return;
     }
-    this.rasterEntry = { list, sx, sy, canvas: cv, bytes, bx, by, stamp: ++memoStamp };
+    this.rasterEntry = { list, sx, sy, canvas: cv, bytes, bx, by, stamp: ++memoStamp, seen: memoGeneration, rasterMs, hits: 0 };
     memoBytes += bytes;
     memoHolders.add(this);
     ctx.save();

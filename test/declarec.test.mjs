@@ -112,8 +112,20 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // is product surface every production app can reach (the facts and the verbs
   // ARE the API; the provenance records are what make a running program
   // explainable), so the weight is carried deliberately rather than shaken.
+  //
+  // 84 → 88 KB (2026-08-25, the drawing pipeline made correct and priced):
+  // measured 83.x → 84.7 across three things. The canvas `filter` fallback
+  // (+5.0 KB: Safari accepts ctx.filter and paints unfiltered, so frost and
+  // d.filter rendered FLAT there — a box blur, a colour matrix and a parser
+  // are the whole of it, and none of the three can go). The recorder's
+  // per-op extents and measured text bounds (+4.4 KB: a text-only draw()
+  // rendered NOTHING on the default backend, because fillText marked only its
+  // anchor). And the canvas backend's admission by covered area, byte-identical
+  // culling, relevance eviction and discovered-ceiling budget (+2.3 KB). Each
+  // is either a rendering-correctness fix on a shipped renderer or the
+  // always-on raster policy every production drawing runs through.
   const gz = out.sizes.totalGzip;
-  assert.ok(gz > 20 * 1024 && gz < 84 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  assert.ok(gz > 20 * 1024 && gz < 88 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
 await test("closure freshness: an edit to an INCLUDED file invalidates the build (the prod-cache rule)", async () => {

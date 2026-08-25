@@ -26,6 +26,7 @@
 
 import { DeclareError } from "./errors.js";
 import { applyFilterFallback, ctxFilterSupported, isIdentity, parseFilter, type FilterSpec } from "./canvas-filter.js";
+import { fontMetrics, textWidth } from "./measure.js";
 import { colorToCss, type Color } from "./value.js";
 
 /** A style value may be a CSS string or a Declare `Color` (a number) — draw() is
@@ -124,6 +125,15 @@ export interface DisplayList {
   readonly ops: readonly DrawOp[];
   readonly bounds: Bounds | null;
   readonly exact: boolean;
+  /** PER-OP painted extent, parallel to `ops` — the box each PAINT op inked,
+   *  in the recording's local space (the same space as `bounds`), or null for
+   *  an op that paints nothing (state, path building, transforms). This is
+   *  what a replay CULLS against and what a cost model SUMS: the recorder
+   *  already maps every painted extent through the live CTM before unioning
+   *  it into `bounds`, so keeping each one costs an array slot and nothing
+   *  else. Blur/shadow bleed is NOT in these (see `rasterPad`), exactly as it
+   *  is not in `bounds`. */
+  readonly extents: ReadonlyArray<Bounds | null>;
 }
 
 /** The write-only, Canvas2D-shaped context a draw method records into.
@@ -135,6 +145,9 @@ export interface DisplayList {
  *  attribute inside draw is what re-triggers recording. */
 export class Draw {
   private readonly ops: DrawOp[] = [];
+  /** parallel to `ops` — see DisplayList.extents */
+  private readonly extents: (Bounds | null)[] = [];
+  private push(op: DrawOp): void { this.ops.push(op); this.extents.push(null); }
 
   /** THE VIEW'S OWN SIZE, for a drawing that sizes itself — `d.w` / `d.h`.
    *
@@ -171,6 +184,12 @@ export class Draw {
   private strokeHalf = 0.5;
   /** Cleared once an op paints an extent the recorder can't bound locally. */
   private exactBounds = true;
+  /** Mirror of the recorded text state, for bounding a run — the same
+   *  pattern as `strokeHalf` for stroke expansion. Canvas2D's defaults. */
+  private tFont = "10px sans-serif";
+  private tAlign = "start";
+  private tBaseline = "alphabetic";
+  private tLetter = 0;
   /** The live transform matrix [a,b,c,d,e,f] and its save/restore stack. Every
    *  painted extent is mapped through it before it grows the ink box, so the
    *  recording's bounds land in the VIEW's local space even under scale/rotate/
@@ -183,70 +202,70 @@ export class Draw {
 
   // ── styles ──
   set fillStyle(v: string | Color | DrawGradient) {
-    this.ops.push(isGradient(v) ? { op: "fillStyle", grad: v.rec } : { op: "fillStyle", v: cssOf(v) });
+    this.push(isGradient(v) ? { op: "fillStyle", grad: v.rec } : { op: "fillStyle", v: cssOf(v) });
   }
   get fillStyle(): string { return this.readOnly("fillStyle"); }
 
   set strokeStyle(v: string | Color | DrawGradient) {
-    this.ops.push(isGradient(v) ? { op: "strokeStyle", grad: v.rec } : { op: "strokeStyle", v: cssOf(v) });
+    this.push(isGradient(v) ? { op: "strokeStyle", grad: v.rec } : { op: "strokeStyle", v: cssOf(v) });
   }
   get strokeStyle(): string { return this.readOnly("strokeStyle"); }
 
-  set lineWidth(v: number) { this.strokeHalf = v / 2; this.ops.push({ op: "set", k: "lineWidth", v }); }
+  set lineWidth(v: number) { this.strokeHalf = v / 2; this.push({ op: "set", k: "lineWidth", v }); }
   get lineWidth(): number { return this.readOnly("lineWidth"); }
 
-  set lineCap(v: string) { this.ops.push({ op: "set", k: "lineCap", v }); }
+  set lineCap(v: string) { this.push({ op: "set", k: "lineCap", v }); }
   get lineCap(): string { return this.readOnly("lineCap"); }
 
-  set lineJoin(v: string) { this.ops.push({ op: "set", k: "lineJoin", v }); }
+  set lineJoin(v: string) { this.push({ op: "set", k: "lineJoin", v }); }
   get lineJoin(): string { return this.readOnly("lineJoin"); }
 
-  set miterLimit(v: number) { this.ops.push({ op: "set", k: "miterLimit", v }); }
+  set miterLimit(v: number) { this.push({ op: "set", k: "miterLimit", v }); }
   get miterLimit(): number { return this.readOnly("miterLimit"); }
 
-  set lineDashOffset(v: number) { this.ops.push({ op: "set", k: "lineDashOffset", v }); }
+  set lineDashOffset(v: number) { this.push({ op: "set", k: "lineDashOffset", v }); }
   get lineDashOffset(): number { return this.readOnly("lineDashOffset"); }
 
-  setLineDash(segments: number[]): void { this.ops.push({ op: "setLineDash", segments: segments.slice() }); }
+  setLineDash(segments: number[]): void { this.push({ op: "setLineDash", segments: segments.slice() }); }
 
-  set globalAlpha(v: number) { this.ops.push({ op: "set", k: "globalAlpha", v }); }
+  set globalAlpha(v: number) { this.push({ op: "set", k: "globalAlpha", v }); }
   get globalAlpha(): number { return this.readOnly("globalAlpha"); }
 
-  set globalCompositeOperation(v: string) { this.ops.push({ op: "set", k: "globalCompositeOperation", v }); }
+  set globalCompositeOperation(v: string) { this.push({ op: "set", k: "globalCompositeOperation", v }); }
   get globalCompositeOperation(): string { return this.readOnly("globalCompositeOperation"); }
 
   // shadow/blur: the extent grows unpredictably past the shape, so bounds go loose
-  set shadowBlur(v: number) { this.exactBounds = false; this.ops.push({ op: "set", k: "shadowBlur", v }); }
+  set shadowBlur(v: number) { this.exactBounds = false; this.push({ op: "set", k: "shadowBlur", v }); }
   get shadowBlur(): number { return this.readOnly("shadowBlur"); }
-  set shadowColor(v: string | Color) { this.ops.push({ op: "set", k: "shadowColor", v: cssOf(v) }); }
+  set shadowColor(v: string | Color) { this.push({ op: "set", k: "shadowColor", v: cssOf(v) }); }
   get shadowColor(): string { return this.readOnly("shadowColor"); }
-  set shadowOffsetX(v: number) { this.exactBounds = false; this.ops.push({ op: "set", k: "shadowOffsetX", v }); }
+  set shadowOffsetX(v: number) { this.exactBounds = false; this.push({ op: "set", k: "shadowOffsetX", v }); }
   get shadowOffsetX(): number { return this.readOnly("shadowOffsetX"); }
-  set shadowOffsetY(v: number) { this.exactBounds = false; this.ops.push({ op: "set", k: "shadowOffsetY", v }); }
+  set shadowOffsetY(v: number) { this.exactBounds = false; this.push({ op: "set", k: "shadowOffsetY", v }); }
   get shadowOffsetY(): number { return this.readOnly("shadowOffsetY"); }
 
-  set filter(v: string) { this.exactBounds = false; this.ops.push({ op: "set", k: "filter", v }); }
+  set filter(v: string) { this.exactBounds = false; this.push({ op: "set", k: "filter", v }); }
   get filter(): string { return this.readOnly("filter"); }
 
-  set imageSmoothingEnabled(v: boolean) { this.ops.push({ op: "set", k: "imageSmoothingEnabled", v }); }
+  set imageSmoothingEnabled(v: boolean) { this.push({ op: "set", k: "imageSmoothingEnabled", v }); }
   get imageSmoothingEnabled(): boolean { return this.readOnly("imageSmoothingEnabled"); }
-  set imageSmoothingQuality(v: string) { this.ops.push({ op: "set", k: "imageSmoothingQuality", v }); }
+  set imageSmoothingQuality(v: string) { this.push({ op: "set", k: "imageSmoothingQuality", v }); }
   get imageSmoothingQuality(): string { return this.readOnly("imageSmoothingQuality"); }
 
   // text state
-  set font(v: string) { this.ops.push({ op: "set", k: "font", v }); }
+  set font(v: string) { this.tFont = v; this.push({ op: "set", k: "font", v }); }
   get font(): string { return this.readOnly("font"); }
-  set textAlign(v: string) { this.ops.push({ op: "set", k: "textAlign", v }); }
+  set textAlign(v: string) { this.tAlign = v; this.push({ op: "set", k: "textAlign", v }); }
   get textAlign(): string { return this.readOnly("textAlign"); }
-  set textBaseline(v: string) { this.ops.push({ op: "set", k: "textBaseline", v }); }
+  set textBaseline(v: string) { this.tBaseline = v; this.push({ op: "set", k: "textBaseline", v }); }
   get textBaseline(): string { return this.readOnly("textBaseline"); }
-  set direction(v: string) { this.ops.push({ op: "set", k: "direction", v }); }
+  set direction(v: string) { this.push({ op: "set", k: "direction", v }); }
   get direction(): string { return this.readOnly("direction"); }
-  set letterSpacing(v: string) { this.ops.push({ op: "set", k: "letterSpacing", v }); }
+  set letterSpacing(v: string) { this.tLetter = parseFloat(v) || 0; this.push({ op: "set", k: "letterSpacing", v }); }
   get letterSpacing(): string { return this.readOnly("letterSpacing"); }
-  set wordSpacing(v: string) { this.ops.push({ op: "set", k: "wordSpacing", v }); }
+  set wordSpacing(v: string) { this.push({ op: "set", k: "wordSpacing", v }); }
   get wordSpacing(): string { return this.readOnly("wordSpacing"); }
-  set fontKerning(v: string) { this.ops.push({ op: "set", k: "fontKerning", v }); }
+  set fontKerning(v: string) { this.push({ op: "set", k: "fontKerning", v }); }
   get fontKerning(): string { return this.readOnly("fontKerning"); }
 
   // ── gradients (recordable handles — Canvas2D shape, plain-data payload) ──
@@ -262,75 +281,75 @@ export class Draw {
 
   // ── rects ──
   fillRect(x: number, y: number, w: number, h: number): void {
-    this.ops.push({ op: "fillRect", x, y, w, h });
+    this.push({ op: "fillRect", x, y, w, h });
     this.mark(x, y, x + w, y + h);
   }
   strokeRect(x: number, y: number, w: number, h: number): void {
-    this.ops.push({ op: "strokeRect", x, y, w, h });
+    this.push({ op: "strokeRect", x, y, w, h });
     const e = this.strokeHalf;
     this.mark(x - e, y - e, x + w + e, y + h + e);
   }
   clearRect(x: number, y: number, w: number, h: number): void {
-    this.ops.push({ op: "clearRect", x, y, w, h });
+    this.push({ op: "clearRect", x, y, w, h });
     this.mark(x, y, x + w, y + h);
   }
 
   // ── path building ──
-  beginPath(): void { this.ops.push({ op: "beginPath" }); this.path = null; }
+  beginPath(): void { this.push({ op: "beginPath" }); this.path = null; }
 
-  moveTo(x: number, y: number): void { this.ops.push({ op: "moveTo", x, y }); this.extend(x, y, x, y); }
-  lineTo(x: number, y: number): void { this.ops.push({ op: "lineTo", x, y }); this.extend(x, y, x, y); }
+  moveTo(x: number, y: number): void { this.push({ op: "moveTo", x, y }); this.extend(x, y, x, y); }
+  lineTo(x: number, y: number): void { this.push({ op: "lineTo", x, y }); this.extend(x, y, x, y); }
 
   /** Bounds take the full circle's box — conservative for partial arcs,
    *  exact for full ones, and no trigonometry in the recorder. */
   arc(x: number, y: number, r: number, a0: number, a1: number, ccw = false): void {
-    this.ops.push({ op: "arc", x, y, r, a0, a1, ccw });
+    this.push({ op: "arc", x, y, r, a0, a1, ccw });
     this.extend(x - r, y - r, x + r, y + r);
   }
 
   /** The tangent arc's box is bounded by its two guide points (conservative:
    *  the curve stays within their span plus the corner it rounds). */
   arcTo(x1: number, y1: number, x2: number, y2: number, r: number): void {
-    this.ops.push({ op: "arcTo", x1, y1, x2, y2, r });
+    this.push({ op: "arcTo", x1, y1, x2, y2, r });
     this.extend(x1, y1, x1, y1);
     this.extend(x2, y2, x2, y2);
   }
 
   ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw = false): void {
-    this.ops.push({ op: "ellipse", x, y, rx, ry, rot, a0, a1, ccw });
+    this.push({ op: "ellipse", x, y, rx, ry, rot, a0, a1, ccw });
     // conservative: the rotated ellipse fits in a circle of its larger radius
     const r = Math.max(Math.abs(rx), Math.abs(ry));
     this.extend(x - r, y - r, x + r, y + r);
   }
 
   rect(x: number, y: number, w: number, h: number): void {
-    this.ops.push({ op: "rect", x, y, w, h });
+    this.push({ op: "rect", x, y, w, h });
     this.extend(x, y, x + w, y + h);
   }
 
   roundRect(x: number, y: number, w: number, h: number, radii: number | number[] = 0): void {
-    this.ops.push({ op: "roundRect", x, y, w, h, radii: Array.isArray(radii) ? radii.slice() : radii });
+    this.push({ op: "roundRect", x, y, w, h, radii: Array.isArray(radii) ? radii.slice() : radii });
     this.extend(x, y, x + w, y + h);
   }
 
   quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void {
-    this.ops.push({ op: "quadraticCurveTo", cpx, cpy, x, y });
+    this.push({ op: "quadraticCurveTo", cpx, cpy, x, y });
     this.extend(cpx, cpy, cpx, cpy);
     this.extend(x, y, x, y);
   }
 
   bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void {
-    this.ops.push({ op: "bezierCurveTo", cp1x, cp1y, cp2x, cp2y, x, y });
+    this.push({ op: "bezierCurveTo", cp1x, cp1y, cp2x, cp2y, x, y });
     this.extend(cp1x, cp1y, cp1x, cp1y);
     this.extend(cp2x, cp2y, cp2x, cp2y);
     this.extend(x, y, x, y);
   }
 
-  closePath(): void { this.ops.push({ op: "closePath" }); }
+  closePath(): void { this.push({ op: "closePath" }); }
 
   // ── paint ──
   fill(rule?: CanvasFillRule): void {
-    this.ops.push({ op: "fill", rule });
+    this.push({ op: "fill", rule });
     if (this.path) this.mark(this.path.x, this.path.y, this.path.x + this.path.w, this.path.y + this.path.h);
   }
 
@@ -338,7 +357,7 @@ export class Draw {
    *  miter join can poke further; bounds stay advisory until dirty-region
    *  culling consumes them — the rung that lands culling owns tightening.) */
   stroke(): void {
-    this.ops.push({ op: "stroke" });
+    this.push({ op: "stroke" });
     if (this.path) {
       const e = this.strokeHalf;
       this.mark(this.path.x - e, this.path.y - e, this.path.x + this.path.w + e, this.path.y + this.path.h + e);
@@ -347,56 +366,101 @@ export class Draw {
 
   /** Clip narrows subsequent painting to the current path — no ink of its own,
    *  scoped by save/restore. */
-  clip(rule?: CanvasFillRule): void { this.ops.push({ op: "clip", rule }); }
+  clip(rule?: CanvasFillRule): void { this.push({ op: "clip", rule }); }
 
-  // Text: the run's width/height need font metrics the recorder can't measure,
-  // so bounds go loose (the anchor point is recorded for a floor).
+  // Text: the recorder has no context to measure with, so it asks the SHARED
+  // measurer (measure.ts — the one both backends and Text layout already use)
+  // for the run's advance and the font's ascent/descent, and bounds the run
+  // from those. `exact` still goes false: the box is the FONT's bounding box
+  // around the run, padded, not the glyphs' ink — enough to size a raster,
+  // not enough to cull against a dirty region.
+  //
+  // Found by asking "is the size always known?" (DT, 2026-08-25): it was not.
+  // fillText marked only its ANCHOR POINT, so a draw() whose only ink was text
+  // bounded to a degenerate box, and the DOM backend — which sizes a per-view
+  // canvas to the bounds — allocated a 1x1 canvas and rendered NOTHING.
+  // Measured on test/probe/textbounds.declare: 0 white pixels on DOM against
+  // 3597 on the canvas backend, whose bounds only gate the memo.
   fillText(text: string, x: number, y: number, maxWidth?: number): void {
-    this.ops.push({ op: "fillText", text: String(text), x, y, maxWidth });
+    this.push({ op: "fillText", text: String(text), x, y, maxWidth });
     this.exactBounds = false;
-    this.mark(x, y, x, y);
+    this.textExtent(String(text), x, y, maxWidth, 0);
   }
   strokeText(text: string, x: number, y: number, maxWidth?: number): void {
-    this.ops.push({ op: "strokeText", text: String(text), x, y, maxWidth });
+    this.push({ op: "strokeText", text: String(text), x, y, maxWidth });
     this.exactBounds = false;
-    this.mark(x, y, x, y);
+    this.textExtent(String(text), x, y, maxWidth, this.strokeHalf);
+  }
+  /** The run's box from the mirrored text state. With no measurer at all (a
+   *  bare Node test constructing a Draw — headless verify provides one) this
+   *  falls back to the anchor point, which is what every call did before. */
+  private textExtent(text: string, x: number, y: number, maxWidth: number | undefined, pen: number): void {
+    let w: number, asc: number, desc: number;
+    try {
+      w = textWidth(text, this.tFont, this.tLetter);
+      const m = fontMetrics(this.tFont);
+      asc = m.ascent; desc = m.descent;
+    } catch {
+      this.mark(x, y, x, y);
+      return;
+    }
+    if (maxWidth !== undefined && maxWidth >= 0 && w > maxWidth) w = maxWidth;
+    // the measurer is Skia's or an approximation; the renderer may be Core
+    // Text. Glyph overhang, italics and metric disagreement all live in this
+    // margin — 8% of the advance plus a couple of pixels each way, plus the pen
+    const px = w * 0.08 + 2 + pen, py = 2 + pen;
+    let x0: number;
+    switch (this.tAlign) {
+      case "center": x0 = x - w / 2; break;
+      case "right": case "end": x0 = x - w; break;
+      default: x0 = x; break;                       // left, start
+    }
+    const lh = asc + desc;
+    let y0: number;
+    switch (this.tBaseline) {
+      case "top": case "hanging": y0 = y; break;
+      case "middle": y0 = y - lh / 2; break;
+      case "bottom": case "ideographic": y0 = y - lh; break;
+      default: y0 = y - asc; break;                 // alphabetic
+    }
+    this.mark(x0 - px, y0 - py, x0 + w + px, y0 + lh + py);
   }
 
   // ── state + transform ──
   // The recorder tracks the transform matrix, so bounds stay EXACT under any
   // affine transform (the mapped corners give the local-space extent); only
   // blur/filter/text leave bounds inexact.
-  save(): void { this.ctmStack.push([...this.ctm]); this.ops.push({ op: "save" }); }
-  restore(): void { const m = this.ctmStack.pop(); if (m) this.ctm = m; this.ops.push({ op: "restore" }); }
+  save(): void { this.ctmStack.push([...this.ctm]); this.push({ op: "save" }); }
+  restore(): void { const m = this.ctmStack.pop(); if (m) this.ctm = m; this.push({ op: "restore" }); }
 
   translate(x: number, y: number): void {
     const [a, b, c, d, e, f] = this.ctm;
     this.ctm = [a, b, c, d, a * x + c * y + e, b * x + d * y + f];
-    this.ops.push({ op: "translate", x, y });
+    this.push({ op: "translate", x, y });
   }
   rotate(angle: number): void {
     const s = Math.sin(angle), co = Math.cos(angle);
     this.ctm = matMul(this.ctm, [co, s, -s, co, 0, 0]);
-    this.ops.push({ op: "rotate", angle });
+    this.push({ op: "rotate", angle });
   }
   scale(x: number, y: number): void {
     const [a, b, c, d, e, f] = this.ctm;
     this.ctm = [a * x, b * x, c * y, d * y, e, f];
-    this.ops.push({ op: "scale", x, y });
+    this.push({ op: "scale", x, y });
   }
   transform(a: number, b: number, c: number, d: number, e: number, f: number): void {
     this.ctm = matMul(this.ctm, [a, b, c, d, e, f]);
-    this.ops.push({ op: "transform", m: [a, b, c, d, e, f] });
+    this.push({ op: "transform", m: [a, b, c, d, e, f] });
   }
   setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void {
     this.ctm = [a, b, c, d, e, f];
-    this.ops.push({ op: "setTransform", m: [a, b, c, d, e, f] });
+    this.push({ op: "setTransform", m: [a, b, c, d, e, f] });
   }
-  resetTransform(): void { this.ctm = [1, 0, 0, 1, 0, 0]; this.ops.push({ op: "resetTransform" }); }
+  resetTransform(): void { this.ctm = [1, 0, 0, 1, 0, 0]; this.push({ op: "resetTransform" }); }
 
   /** The finished recording. Called by record(); a Draw is single-use. */
   list(): DisplayList {
-    return { ops: this.ops, bounds: this.ink, exact: this.exactBounds };
+    return { ops: this.ops, bounds: this.ink, exact: this.exactBounds, extents: this.extents };
   }
 
   private readOnly(what: string): never {
@@ -416,13 +480,18 @@ export class Draw {
    *  transform is applied here, once, when the path/rect is committed to ink. */
   private mark(x0: number, y0: number, x1: number, y1: number): void {
     const [a, b, c, d, e, f] = this.ctm;
-    if (a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0) {
-      this.ink = union(this.ink, x0, y0, x1, y1);
-      return;
+    let mx0 = x0, my0 = y0, mx1 = x1, my1 = y1;
+    if (!(a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0)) {
+      const xa = a * x0 + c * y0 + e, xb = a * x1 + c * y0 + e, xc = a * x0 + c * y1 + e, xd = a * x1 + c * y1 + e;
+      const ya = b * x0 + d * y0 + f, yb = b * x1 + d * y0 + f, yc = b * x0 + d * y1 + f, yd = b * x1 + d * y1 + f;
+      mx0 = Math.min(xa, xb, xc, xd); my0 = Math.min(ya, yb, yc, yd);
+      mx1 = Math.max(xa, xb, xc, xd); my1 = Math.max(ya, yb, yc, yd);
     }
-    const xa = a * x0 + c * y0 + e, xb = a * x1 + c * y0 + e, xc = a * x0 + c * y1 + e, xd = a * x1 + c * y1 + e;
-    const ya = b * x0 + d * y0 + f, yb = b * x1 + d * y0 + f, yc = b * x0 + d * y1 + f, yd = b * x1 + d * y1 + f;
-    this.ink = union(this.ink, Math.min(xa, xb, xc, xd), Math.min(ya, yb, yc, yd), Math.max(xa, xb, xc, xd), Math.max(ya, yb, yc, yd));
+    this.ink = union(this.ink, mx0, my0, mx1, my1);
+    // the op this extent belongs to is the one just pushed — every paint op
+    // pushes, then marks, and nothing marks without pushing first
+    const i = this.extents.length - 1;
+    if (i >= 0) this.extents[i] = union(this.extents[i], mx0, my0, mx1, my1);
   }
 }
 
@@ -520,34 +589,106 @@ export function rasterTotalCap(viewportBytes: number): number {
   return Math.min(96 << 20, Math.max(32 << 20, 4 * viewportBytes));
 }
 
-export function replayCost(list: DisplayList): "cheap" | "expensive" {
-  let n = 0;
-  for (const o of list.ops) {
-    n++;
-    if (o.op === "set" && o.k === "filter" && o.v !== "none" && o.v !== "") return "expensive";
-    if ((o.op === "fillStyle" || o.op === "strokeStyle") && o.grad !== undefined) n += 4;
-  }
-  return n >= 48 ? "expensive" : "cheap";
+/** One scan per recording, cached by identity — what the raster policy and
+ *  the culling replay both need to know about a list. */
+interface ListInfo {
+  /** Covered area in RECORDING units², summed over every paint op's extent
+   *  (so overdraw counts — Mesa and our own tracing agree it is what costs),
+   *  gradient paints weighted; Infinity when a filter is live anywhere, since a
+   *  convolution is superlinear in radius and not area-driven at all. The
+   *  QUANTITY is a property of the recording and lives here; the THRESHOLD a
+   *  backend compares it to is a property of that backend and lives there. */
+  area: number;
+  /** false when a composite operator whose effect reaches PAST the source's
+   *  own extent is used anywhere — copy, source-in/out, destination-in/out/
+   *  atop clear or keep pixels outside the drawn shape, so skipping an
+   *  off-screen op under one would change on-screen pixels. */
+  cullable: boolean;
 }
+const infoCache = new WeakMap<DisplayList, ListInfo>();
+const UNCULLABLE = new Set(["copy", "source-in", "source-out", "destination-in", "destination-out", "destination-atop"]);
+/** Per-pixel shading costs more than a solid fill. A PLACEHOLDER until the
+ *  op-kind sweep on rasterbench measures it — stated so nobody mistakes it
+ *  for a number. */
+const GRADIENT_WEIGHT = 3;
 
-export function replay(ctx: CanvasRenderingContext2D, list: DisplayList): void {
-  // WebKit accepts ctx.filter and paints unfiltered (canvas-filter.ts), so a
-  // recording that sets one has to be interpreted rather than handed over. The
-  // check is per-recording and the answer is cached, so a list with no filter —
-  // very nearly all of them — pays one scan and nothing else.
-  for (const o of list.ops) {
-    if (o.op === "set" && o.k === "filter" && o.v !== "none" && o.v !== "") {
-      if (!ctxFilterSupported()) { replayFiltered(ctx, list); return; }
-      break;
+function listInfo(list: DisplayList): ListInfo {
+  const hit = infoCache.get(list);
+  if (hit !== undefined) return hit;
+  const ext = list.extents ?? [];
+  let area = 0, fillGrad = false, strokeGrad = false, filtered = false, cullable = true;
+  for (let i = 0; i < list.ops.length; i++) {
+    const o = list.ops[i];
+    switch (o.op) {
+      case "fillStyle": fillGrad = o.grad !== undefined; break;
+      case "strokeStyle": strokeGrad = o.grad !== undefined; break;
+      case "set":
+        if (o.k === "filter" && o.v !== "none" && o.v !== "") filtered = true;
+        else if (o.k === "globalCompositeOperation" && UNCULLABLE.has(String(o.v))) cullable = false;
+        break;
+      case "fillRect": case "fill": case "fillText": {
+        const e = ext[i]; if (e) area += e.w * e.h * (fillGrad ? GRADIENT_WEIGHT : 1); break;
+      }
+      case "strokeRect": case "stroke": case "strokeText": {
+        const e = ext[i]; if (e) area += e.w * e.h * (strokeGrad ? GRADIENT_WEIGHT : 1); break;
+      }
+      case "clearRect": { const e = ext[i]; if (e) area += e.w * e.h; break; }
     }
   }
-  replayDirect(ctx, list);
+  const info = { area: filtered ? Infinity : area, cullable };
+  infoCache.set(list, info);
+  return info;
 }
 
-function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList): void {
+/** The recording's covered area — see ListInfo.area. Pure over the recording,
+ *  so every backend prices the same quantity; each applies its own scale² and
+ *  its own threshold. This REPLACES the op-counting classifier: measured under
+ *  Chrome tracing (2026-08-24), two lists of identical op count differed 205x
+ *  in paint cost by covered area alone, and the op count called both
+ *  "expensive". Op count is still a term — a stroke has real per-op setup
+ *  cost — but it is the backend's term to weigh, from `list.ops.length`. */
+export function replayArea(list: DisplayList): number {
+  return listInfo(list).area;
+}
+
+/** Is this paint op entirely outside `cull`? Ops without an extent (state,
+ *  paths, transforms — and a paint op the recorder could not bound) never
+ *  skip. `cull` is in the recording's local space, already padded by
+ *  `rasterPad` so a bleed from just outside still lands. */
+function culled(list: DisplayList, i: number, cull: Bounds | null): boolean {
+  if (cull === null) return false;
+  const e = list.extents?.[i];
+  if (!e) return false;
+  return e.x + e.w < cull.x || e.x > cull.x + cull.w || e.y + e.h < cull.y || e.y > cull.y + cull.h;
+}
+
+/** Replay a recording into a real 2D context. `clip`, when given, is the
+ *  region (recording-local) the replay can be SEEN in: paint ops entirely
+ *  outside it are skipped. BYTE-IDENTICAL where visible — a skipped op painted
+ *  nothing inside the clip, and a list using a composite operator that reaches
+ *  outside its source is never culled (ListInfo.cullable). This is the cheapest
+ *  lever there is against the cost that was measured: what reaches the
+ *  compositor is what costs, and an off-screen op reaching it costs the same as
+ *  an on-screen one. `__declareNoCull` disables it for an A/B. */
+export function replay(ctx: CanvasRenderingContext2D, list: DisplayList, clip?: Bounds): void {
+  const info = listInfo(list);
+  let cull: Bounds | null = null;
+  if (clip !== undefined && info.cullable && (globalThis as { __declareNoCull?: boolean }).__declareNoCull !== true) {
+    const pad = rasterPad(list);
+    cull = pad === 0 ? clip : { x: clip.x - pad, y: clip.y - pad, w: clip.w + 2 * pad, h: clip.h + 2 * pad };
+  }
+  // WebKit accepts ctx.filter and paints unfiltered (canvas-filter.ts), so a
+  // recording that sets one has to be interpreted rather than handed over.
+  if (info.area === Infinity && !ctxFilterSupported()) { replayFiltered(ctx, list, cull); return; }
+  replayDirect(ctx, list, cull);
+}
+
+function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bounds | null): void {
   ctx.save();
   ctx.beginPath();
-  for (const o of list.ops) {
+  for (let i = 0; i < list.ops.length; i++) {
+    const o = list.ops[i];
+    if (culled(list, i, cull)) continue;
     switch (o.op) {
       case "fillStyle": ctx.fillStyle = o.grad ? buildGradient(ctx, o.grad) : o.v!; break;
       case "strokeStyle": ctx.strokeStyle = o.grad ? buildGradient(ctx, o.grad) : o.v!; break;
@@ -603,13 +744,13 @@ function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList): void {
  *  because the spec applies them after the filter rather than to its source:
  *  `globalAlpha`, `globalCompositeOperation`, and `clip`. They stay on the
  *  target, where compositing the filtered result honours them for free. */
-function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList): void {
+function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bounds | null): void {
   const W = ctx.canvas.width, H = ctx.canvas.height;
   const scratch = document.createElement("canvas");
   scratch.width = W;
   scratch.height = H;
   const sx = scratch.getContext("2d");
-  if (sx === null) { replayDirect(ctx, list); return; }
+  if (sx === null) { replayDirect(ctx, list, cull); return; }
   // ⚠ INHERIT THE AMBIENT TRANSFORM. replay() is handed a context the backend
   // has already positioned and scaled (the view's offset, times dpr); the
   // recording's coordinates are relative to THAT, not to the canvas. A scratch
@@ -657,7 +798,9 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList): void 
 
   ctx.save(); ctx.beginPath();
   sx.save(); sx.beginPath();
-  for (const o of list.ops) {
+  for (let i = 0; i < list.ops.length; i++) {
+    const o = list.ops[i];
+    if (culled(list, i, cull)) continue;
     switch (o.op) {
       case "fillStyle": both((c) => { c.fillStyle = o.grad ? buildGradient(c, o.grad) : o.v!; }); break;
       case "strokeStyle": both((c) => { c.strokeStyle = o.grad ? buildGradient(c, o.grad) : o.v!; }); break;
