@@ -113,21 +113,42 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // ARE the API; the provenance records are what make a running program
   // explainable), so the weight is carried deliberately rather than shaken.
   //
-  // 84 → 88 KB (2026-08-25, the drawing pipeline made correct and priced):
-  // measured 84.7 across TWO things, both riding draw.js — which calendar ships
-  // because its closure includes library/focusring.declare, and that draws.
-  // The recorder's per-op extents, measured text bounds and culling replay
-  // (draw.js minified+gzip 3.0 → 4.6 KB, +1.5: a text-only draw() rendered
+  // 84 KB HOLDS (2026-08-25, the drawing pipeline made correct and priced):
+  // measured 84.7, briefly over. Two things rode draw.js — which calendar
+  // ships because its closure includes library/focusring.declare, and that
+  // draws. The recorder's per-op extents, measured text bounds and culling
+  // replay (draw.js minified+gzip 3.0 → 4.6 KB: a text-only draw() rendered
   // NOTHING on this backend because fillText marked only its anchor). And the
-  // canvas `filter` fallback draw.js now imports for Safari, which accepts
-  // ctx.filter and paints unfiltered (canvas-filter.js, +1.8 KB gzip: a box
-  // blur, a colour matrix and a parser, and none of the three can go). The
-  // canvas backend's raster policy is NOT in this number — a DOM production
-  // bundle does not ship canvas-backend.js at all. ⚠ canvas-filter rides every
-  // drawing app whether or not it uses d.filter; a `usesFilter` fact and a stub
-  // would give that 1.8 KB back to programs that never set one.
+  // canvas `filter` fallback draw.js imports for Safari, which accepts
+  // ctx.filter and paints unfiltered (canvas-filter.js, +1.8 KB). The band was
+  // raised to 88 for one commit — then the second of those was slimmed OUT of
+  // every program that never sets d.filter (slim-filter, the fact + stub pinned
+  // below), which is most of them, and calendar came back at 83.4. So the
+  // recorder's growth is carried and the fallback is paid only where it can
+  // render. The canvas backend's raster policy is not in this number at all: a
+  // DOM production bundle does not ship canvas-backend.js.
   const gz = out.sizes.totalGzip;
-  assert.ok(gz > 20 * 1024 && gz < 88 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  assert.ok(gz > 20 * 1024 && gz < 84 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+});
+
+await test("slim-filter: the Safari filter fallback ships only where a program can reach it", async () => {
+  // canvas-filter.js is ~13 KB raw; its stub is a few hundred bytes. The
+  // metafile lists both under the same path, so size is the discriminator.
+  const filterBytes = (out) => {
+    const k = Object.keys(out.metafile.inputs).find((k) => /[/\\]canvas-filter\.js$/.test(k));
+    return k ? out.metafile.inputs[k].bytes : -1;
+  };
+  const cal = readFileSync(resolve(HERE, "../apps/calendar/calendar.declare"), "utf8");
+  const blur = readFileSync(resolve(HERE, "../test/probe/blur.declare"), "utf8");
+  // a DOM program that never sets d.filter: stubbed (its frost is CSS backdrop-filter)
+  const a = await buildProduction(cal, { name: "calendar", originDir: resolve(HERE, "../apps/calendar") });
+  assert.ok(filterBytes(a) > 0 && filterBytes(a) < 1024, `expected the stub for a filter-free DOM program, got ${filterBytes(a)} bytes`);
+  // a program that sets d.filter: the real module, or Safari paints it unfiltered
+  const b = await buildProduction(blur, { name: "blur", originDir: resolve(HERE, "../test/probe") });
+  assert.ok(filterBytes(b) > 4096, `expected the real module for a program that sets d.filter, got ${filterBytes(b)} bytes`);
+  // a CANVAS build: frost filters a backdrop snapshot through the module with no d.filter anywhere
+  const c = await buildProduction(cal, { name: "calendar", originDir: resolve(HERE, "../apps/calendar"), render: "canvas" });
+  assert.ok(filterBytes(c) > 4096, `expected the real module for a canvas build, got ${filterBytes(c)} bytes`);
 });
 
 await test("closure freshness: an edit to an INCLUDED file invalidates the build (the prod-cache rule)", async () => {

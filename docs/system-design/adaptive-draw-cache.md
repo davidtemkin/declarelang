@@ -310,11 +310,34 @@ is commit COUNT (one transaction per display tick), never op batching.
 ## E. What is open now
 
 1. ~~Per-op bounds, the area predictor, culling~~ — DONE, §C.2.
-2. **Size grace** — the scale grace's twin, for recordings that read
-   `d.w`/`d.h`. This is the wallpaper's case and nothing addresses it today. The
-   dep partition it needs is the one durable insight of the rejected design
-   below, and `d.w`/`d.h` are getters precisely so size-dependence is declared
-   by use rather than guessed.
+2. **Size grace — MEASURED 2026-08-25, and the measurement argues against it on
+   Chrome.** The size probe under Chrome tracing (`paintMs` =
+   `LayerTreeHost::DoUpdateLayers`, 30-step resize, blur 0/8/24/48):
+
+   | DOM renderer | live (reads `d.w`/`d.h`, re-records per frame) | ref (fixed box + CSS scale — the wallpaper's workaround) |
+   |---|---|---|
+   | paint ms | 542 · 1380 · 1504 · 1638 | **1052 · 2789 · 2962 · 3118** |
+   | backing store | 6.7 MB | 14.6 MB |
+
+   **The workaround costs about 2× the naive shape on Chrome DOM.** A fixed
+   reference box is a bigger canvas element, and under a changing CSS transform
+   Blink updates that element's layer every frame regardless — so "draw once,
+   paint-scale" trades a re-record for a larger per-frame layer update and loses.
+   The canvas backend is indifferent (live 222–611 vs ref 198–634): its one
+   canvas is the whole viewport and the layer update is the viewport's, whatever
+   happens inside it. The earlier `flushMs` reading (74–92 vs 12–24 ms, "4–5×
+   the other way") was the discredited meter and is withdrawn with it.
+
+   So a size grace that keeps a stale raster and stretches it — the workaround's
+   own mechanism, made automatic — would be a REGRESSION on Chrome DOM. The
+   wallpaper's workaround was written against Safari's deferred raster (~24 ms
+   per flush, measured in 2026-08), and that is the one engine where no raster
+   meter exists: `flushMs` forces nothing on a GPU-backed canvas. The only Safari
+   number that means anything for this question is CADENCE under the resize —
+   live vs ref, p50/p95 — on the real browser. That sweep needs DT's go (it takes
+   a window; the pointer is never touched). Until it runs, size grace is not
+   justified by any measurement in hand, and building it would be building to
+   the discredited one.
 3. **DOM extent** — a raster window (a band-sized backing store re-imaged as the
    visible rect moves). SVG would solve extent structurally, being the one DOM
    primitive the browser rasterizes under the transform, but it adds a THIRD

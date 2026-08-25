@@ -252,7 +252,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const c of el.children ?? []) walkBodies(c, fn);
   };
   const programFacts = (() => {
-    let themes = false, draw = false, focusKeys = false, tips = false, touch = false, selectors = false, schemas = false;
+    let themes = false, draw = false, filter = false, focusKeys = false, tips = false, touch = false, selectors = false, schemas = false;
     // A SELECTOR plan (any non-string segment — index/slice/wildcard) in an
     // attribute path or an emitted body plan keeps the evaluator aboard.
     const planful = (v) => v != null && v.kind === "path" && Array.isArray(v.plan) && v.plan.some((s) => typeof s !== "string");
@@ -273,6 +273,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const name of built.usedComponents) if (SELF_FOCUSING.has(name)) focusKeys = true;
     const walkEl = (el) => {
       if ((el.methods ?? []).some((m) => m.name === "draw")) draw = true;
+
       // The focus-zoom lock (viewport-lock.js, ~1.7 KB gz) runs only for an app
       // that claimed the raw touch family — the runtime keys it on the ROOT's
       // wantsTouch. This walk is deliberately WIDER than that: any element
@@ -299,6 +300,12 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const r of roots) {
       walkBodies(r, (src) => {
         if (/\bThemes\b/.test(src)) themes = true;
+        // `d.filter = …` in any body keeps the canvas `filter` fallback
+        // (canvas-filter.js, ~1.8 KB gz): Safari accepts ctx.filter and paints
+        // unfiltered, so a program that sets one needs the module to render
+        // there at all. One that never sets one does not — the DOM backend's own
+        // frost is CSS backdrop-filter. Conservative: any body, not just draw().
+        if (/\.filter\s*=[^=]/.test(src)) filter = true;
         // A body may CALL the services (`Keys.isDown(…)`, `Focus.focus(this)`).
         if (/\bKeys\b|\bFocus\b/.test(src)) focusKeys = true;
         if (/\bTip\b/.test(src)) tips = true;
@@ -308,7 +315,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
       walkEl(r);
       walkSel(r);
     }
-    return { usesThemes: themes, usesDraw: draw, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas };
+    return { usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas };
   })();
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
@@ -415,6 +422,12 @@ export function validateShape() { return null; }
 `;
   const themesStub = `export const Themes = Object.freeze({});\n`;
   const viewportStub = `export function lockFocusZoom() {}\n`;
+  // canvas-filter.js: the Safari ctx.filter fallback. Stubbed to "the engine
+  // supports it" so replay() takes the direct path — correct for a program that
+  // never sets d.filter, since no filter op ever reaches the fallback. ⚠ NOT for
+  // a canvas-backend build: frost there filters a backdrop snapshot through this
+  // module with no d.filter in the program at all.
+  const filterStub = `export function parseFilter() { return { blur: 0, saturate: 1, brightness: 1, contrast: 1, grayscale: 0, invert: 0, unsupported: [] }; }\nexport function isIdentity() { return true; }\nexport function ctxFilterSupported() { return true; }\nexport function forceFilterFallback() {}\nexport function applyFilterFallback(src) { return src; }\n`;
   const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayArea() { return 0; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\n`;
   const stubFor = (name, filterRe, contents) => ({
     name,
@@ -428,6 +441,7 @@ export function validateShape() { return null; }
     stubFor("slim-datapath", /[/\\]datapath\.js$/, datapathStub),
     ...(programFacts.usesThemes ? [] : [stubFor("slim-themes", /[/\\]themes\.js$/, themesStub)]),
     ...(programFacts.usesDraw ? [] : [stubFor("slim-draw", /[/\\]draw\.js$/, drawStub)]),
+    ...(programFacts.usesFilter || (canvas) ? [] : [stubFor("slim-filter", /[/\\]canvas-filter\.js$/, filterStub)]),
     ...(programFacts.usesFocusKeys ? [] : [
       stubFor("slim-focus", /[/\\]focus\.js$/, focusStub),
       stubFor("slim-keys", /[/\\]keys\.js$/, keysStub),
