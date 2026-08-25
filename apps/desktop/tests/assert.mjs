@@ -10,11 +10,13 @@ export default async ({ drive, expect, page }) => {
   const facts = () => page.evaluate(() => {
     const m = window.__app.wm ?? window.__app;          // the WM node, or the pre-refactor App
     return {
-      activeApp: m.activeApp,
+      // instances era: activeApp is the application NODE — normalize to its id
+      activeApp: m.activeApp && m.activeApp.id != null ? m.activeApp.id : m.activeApp,
       miniCount: m.miniCount,
       front: m.frontWin ? (m.frontWin.appTitle ?? m.frontWin.title) : null,
-      birdsRunning: (() => {                            // flag era, then records era
+      birdsRunning: (() => {                            // flag era → records era → instances era
         const L = window.__app.launcher ?? window.__app;
+        if (L.birds) return !!L.birds.running;
         return L.rec ? !!(L.rec("birds") ?? {}).running : !!L.brdRunning;
       })(),
       windows: window.__app.wins.children.length,
@@ -49,9 +51,11 @@ export default async ({ drive, expect, page }) => {
   // the pixel math): birds' 880×560 window at thumbEdge 64 → 64×41
   const tile = await page.evaluate(() => {
     const t = (window.__app.dock.tiles ?? [])[0] ?? null;
-    return t && { ix: t.ix, label: t.label, kind: t.kind, w: t.w, h: t.h };
+    return t && { ix: t.ix, label: t.label, w: t.w, h: t.h };
   });
-  eq(tile, { ix: 0, label: "50 Birds", kind: "birds", w: 64, h: 41 }, "the fitted tile");
+  // (the tile carries geometry + label only; the app identity rides
+  // miniRecs.appId in the instances era)
+  eq(tile, { ix: 0, label: "50 Birds", w: 64, h: 41 }, "the fitted tile");
 
   // RESTORE from the dock's parked strip: back on stage, focused again
   await page.evaluate(() => (window.__app.wm ?? window.__app).restoreMiniAt(0));
@@ -80,11 +84,13 @@ export default async ({ drive, expect, page }) => {
   await drive.click("app.dock.row.6");
   await drive.wait(300);
   await drive.settleMotion();
-  const shown = await page.evaluate(() => ({ vis: window.__app.alert.visible, name: window.__app.alert.name }));
+  const shown = await page.evaluate(() => ({ vis: window.__app.alert.visible,
+    name: window.__app.alert.subject ? window.__app.alert.subject.title : (window.__app.alert.name ?? "") }));
   eq(shown, { vis: true, name: "Write" }, "the inert icon raised the alert");
   await drive.click("app.alert.panel.ok");
   await drive.wait(200);
   await drive.settleMotion();
-  const gone = await page.evaluate(() => ({ vis: window.__app.alert.visible, name: window.__app.alert.name }));
+  const gone = await page.evaluate(() => ({ vis: window.__app.alert.visible,
+    name: window.__app.alert.subject ? window.__app.alert.subject.title : (window.__app.alert.name ?? "") }));
   eq(gone, { vis: false, name: "" }, "OK dismissed it");
 };

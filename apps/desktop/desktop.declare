@@ -92,7 +92,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // shade, no zoom — the strips vanish and the yellow/green lights go inert
 
     plain: boolean = false,
-    forApp: string = "",                         // which application this window belongs to; subclasses set it
+    forApp: DesktopApp = null,                   // the application this window belongs to; subclasses (or the creator) set it
     appPath: string = "",                        // an AppWindow's program path; "" elsewhere
     homing: boolean = false,                     // mid restore flight: leaving the dock, slot still held
 
@@ -725,30 +725,39 @@ class CodeIcon extends Icon [
 
 
 /*
-## AppGlyph — a standalone app icon at any size
+## AppGlyph — an application's icon at any size
 
-The dock's rounded plate plus an illustration for a given kind or glyph. The
-"Not implemented" alert reuses it so an app's mark is identical there and in
-the dock — one renderer, `app.drawKindArt`.
+The dock's rounded plate plus the app's own mark — a text glyph or its drawn
+`face` — read straight off the application instance, so the mark is identical
+wherever it appears: the dock, an About box, the alert sheet, a minimized
+window's badge.
 */
 
 class AppGlyph extends View [ width = { this.edge }, height = { this.edge },
     edge: number = 64,
-    kind: string = "",
-    glyph: string = "",
-    gsize: number = 0.42,
-    hue1: Color = #4A90D9,
-    hue2: Color = #2E5FA3,
+
+    // the application BY ID (a component slot cannot be constrained —
+    // DECLARE2000; the id can, and ap() resolves it per read)
+
+    appId: string = "",
+    ap() -> DesktopApp { return app.launcher.byId(this.appId) },
     cornerRadius = { this.edge * 0.23 }, clip = true,
-    fill = { gradient(this.hue1, this.hue2) },
+    fill = { gradient(app.launcher.hue1Of(this.appId), app.launcher.hue2Of(this.appId)) },
 
     g: Text [ x = center, y = center, fontWeight = semibold, textColor = #FFFFFF,
-        fontSize = { classroot.edge * classroot.gsize },
-        visible = { classroot.glyph != "" },
-        text = { classroot.glyph } ],
+        fontSize = { classroot.edge * app.launcher.gsizeOf(classroot.appId) },
+        visible = { !app.launcher.drawnOf(classroot.appId) && app.launcher.glyphOf(classroot.appId) != "" },
+        text = { app.launcher.glyphOf(classroot.appId) } ],
     art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
-        visible = { classroot.kind != "" },
-        draw(d: Draw) { d.scale(this.width / 48, this.width / 48); app.drawKindArt(d, classroot.kind, classroot.hue1) }
+        visible = { app.launcher.drawnOf(classroot.appId) },
+        draw(d: Draw) {
+            // the day read directly, for the calendar face — see DockIcon.art
+            void app.clock.dayName
+            void app.clock.dayNum
+            d.scale(this.width / 48, this.width / 48)
+            const a = classroot.ap()
+            if (a != null) a.face(d)
+            }
         ]
     ]
 
@@ -853,76 +862,20 @@ close control is the whole interface.
 */
 
 class AboutWindow extends Window [ width = 280, height = 380, plain = true,
-    forApp = "desktop",                          // desktop | files | markdown | calendar | declareviewer | birds | jots
 
-    aname: string = { app.launcher.nameOf(this.forApp) },
+    // the SUBJECT arrives at creation (openAbout passes the app instance);
+    // name, blurb, and art all read it — nothing here switches on a kind
 
-    blurb: string = { this.forApp == "files" ? "Browses the live documentation model — every chapter, every element."
-        : this.forApp == "markdown" ? "Renders the real files, and reference pages synthesized from the model."
-        : this.forApp == "declareviewer" ? "Reader, source, and live editor over any Declare program — here, hosted as an embedded app."
-        : this.forApp == "calendar" ? "The actual apps/calendar, running as an embedded child app in this window's island."
-        : this.forApp == "birds" ? "The actual apps/birds — Audubon's plates as a field guide — hosted as an embedded app."
-        : this.forApp == "jots" ? "Small paper notes with their own window chrome — built into this program."
-        : "A Mac desktop, declared. Windows, dock, and menus are views and records, all drawn — no bitmaps, no borrowed art." },
+    aname: string = { this.forApp != null ? this.forApp.title : "" },
 
     body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
         col: View [ x = 24, y = 22, width = { parent.width - 48 },
             layout: SimpleLayout [ axis = y, spacing = 10 ],
 
-            art: View [ x = center, width = 96, height = 96, cornerRadius = 22, clip = true,
-                fill = { classroot.forApp == "markdown" ? gradient(0x8E7CE8, 0x5A46B8)
-                    : classroot.forApp == "files" ? gradient(0x59B0F6, 0x1D6FD1)
-                    : classroot.forApp == "calendar" ? gradient(0xFFFFFF, 0xEFEFF2)
-                    : classroot.forApp == "declareviewer" ? gradient(0x2E6FE0, 0x12A594)
-                    : classroot.forApp == "birds" ? gradient(0x66C95F, 0x2C9243)
-                    : classroot.forApp == "jots" ? gradient(0xFCF4A7, 0xF3E27E)
-                    : gradient(0x4AA8E8, 0x35C4B5) },
+            // the app's own mark at About size — the ONE renderer (AppGlyph),
+            // so this art and the dock's cannot disagree
 
-                // per-app art, authored in a 48-box and doubled (the dock's rule)
-
-                a: View [ x = 0, y = 0, width = 48, height = 48, scale = 2,
-                    draw(d: Draw) {
-                        const k = classroot.forApp
-                        if (k == "calendar") {
-                            d.fillStyle = 0xFB4238
-                            d.fillRect(0, 0, 48, 13)
-                            }
-                        else if (k == "files") {
-                            // the folder — the dock icon's art, one rendition
-                            d.fillStyle = 0xD9E7FA
-                            d.beginPath()
-                            d.roundRect(9, 13.5, 14, 8, 2)
-                            d.fill()
-                            d.beginPath()
-                            d.roundRect(9, 16, 30, 19, 2.5)
-                            d.fill()
-                            d.fillStyle = 0xFFFFFF
-                            d.beginPath()
-                            d.roundRect(9, 20, 30, 15, 2.5)
-                            d.fill()
-                            }
-                        else if (k == "jots") {
-                            d.fillStyle = 0xF3DC49
-                            d.fillRect(0, 0, 48, 10)
-                            d.strokeStyle = 0xE0CE66
-                            d.lineWidth = 2
-                            d.beginPath()
-                            d.moveTo(8, 19); d.lineTo(40, 19)
-                            d.moveTo(8, 27); d.lineTo(40, 27)
-                            d.moveTo(8, 35); d.lineTo(26, 35)
-                            d.stroke()
-                            }
-                        else if (k == "birds") { app.drawKindArt(d, "bird", 0x66C95F) }
-                        }
-                    ],
-                t: Text [ x = center, y = center, fontSize = 34, fontWeight = bold, textColor = 0xFFFFFF,
-                    visible = { classroot.forApp == "markdown" || classroot.forApp == "desktop" || classroot.forApp == "declareviewer" },
-                    text = { classroot.forApp == "markdown" ? "M↓" : "[  ]" } ],
-                cwk: Text [ x = center, y = 4, fontWeight = bold, textColor = 0xFFFFFF, fontSize = 15,
-                    visible = { classroot.forApp == "calendar" }, text = { app.clock.dayName } ],
-                cnum: Text [ x = center, y = 30, fontSize = 46, textColor = 0x1D1D1F,
-                    visible = { classroot.forApp == "calendar" }, text = { "" + app.clock.dayNum } ]
-                ],
+            art: AppGlyph [ x = center, edge = 96, appId = { classroot.forApp != null ? classroot.forApp.id : "" } ],
 
             nm: Text [ x = center, fontSize = 17, fontWeight = bold, textColor = { theme.text },
                 text = { classroot.aname } ],
@@ -930,7 +883,7 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
                 text = "Version pre-1.0" ],
             gap: View [ width = 4, height = 2 ],
             bl: Text [ fontSize = 11, wrap = true, width = { parent.width }, textAlign = center,
-                textColor = { theme.textMuted }, text = { classroot.blurb } ],
+                textColor = { theme.textMuted }, text = { classroot.forApp != null ? classroot.forApp.blurb : "" } ],
             gap2: View [ width = 4, height = 8 ],
             cp: Text [ x = center, fontSize = 10, textColor = { theme.textFaint },
                 text = "Built in Declare · MIT · © 2026 David Temkin" ]
@@ -986,7 +939,7 @@ and clip independently, the dividers between them drag, and a double-click
 opens a document in the Viewer.
 */
 
-class FilesWindow extends Window [ forApp = "files",
+class FilesWindow extends Window [
 
     // the SELECTION CHAIN: the open nodes' names, newline-joined, one per column
     // ("" = nothing open). Every level of the hierarchy — even the top — is DATA
@@ -1298,7 +1251,7 @@ reference page from the documentation model; anything else fetches the real
 file as text. Its title is the file's basename.
 */
 
-class ViewerWindow extends Window [ width = 640, height = 460, forApp = "markdown",
+class ViewerWindow extends Window [ width = 640, height = 460,
     path: string = "",
 
     // the window's name is the FILE being viewed — its basename, not the path
@@ -1370,7 +1323,7 @@ base `Window`'s behavior — drag, the activation shadow, shade, resize edges �
 through `chrome = false`, so here chrome is a skin, not the skeleton.
 */
 
-class JotWindow extends Window [ width = 300, height = 250, chrome = false, forApp = "jots",
+class JotWindow extends Window [ width = 300, height = 250, chrome = false,
     baseRadius = 0, barH = 12, minW = 160, minH = 90,
     title = "",                                  // untitled — labels fall back to the app's name
     note: string = "",                           // the note's seed text
@@ -1461,7 +1414,7 @@ class MiniTile extends View [
     on: boolean = { app.wm.miniRecs != null && this.ix < app.wm.miniRecs.length },
     visible = { this.on },
     lbl: string = { this.on ? "" + app.wm.miniRecs[this.ix].label : "" },
-    kind: string = { this.on ? "" + app.wm.miniRecs[this.ix].kind : "" },
+    appId: string = { this.on ? "" + app.wm.miniRecs[this.ix].appId : "" },
 
     // geometry straight from the mini layout (the same entries the parked
     // window reads), translated into the minis section's local space
@@ -1503,18 +1456,7 @@ class MiniTile extends View [
 
         x = { parent.width - (app.dock.badgeEdge + 2) * classroot.waveMag },
         y = { parent.height / 2 + (30.5 - app.dock.badgeEdge) * classroot.waveMag },
-        kind = { classroot.kind == "calendar" ? "calendar" : classroot.kind == "jots" ? "jots" : classroot.kind == "files" ? "files" : classroot.kind == "birds" ? "bird" : "" },
-        glyph = { classroot.kind == "markdown" ? "M↓" : classroot.kind == "declareviewer" ? "[  ]" : "" },
-        hue1 = { classroot.kind == "markdown" ? 0x8E7CE8
-            : classroot.kind == "declareviewer" ? 0x2E6FE0
-            : classroot.kind == "calendar" ? 0xFFFFFF
-            : classroot.kind == "birds" ? 0x66C95F
-            : classroot.kind == "jots" ? 0xFCF4A7 : 0x59B0F6 },
-        hue2 = { classroot.kind == "markdown" ? 0x5A46B8
-            : classroot.kind == "declareviewer" ? 0x12A594
-            : classroot.kind == "calendar" ? 0xEFEFF2
-            : classroot.kind == "birds" ? 0x2C9243
-            : classroot.kind == "jots" ? 0xF3E27E : 0x1D6FD1 },
+        appId = { classroot.appId },
         onClick() { app.wm.restoreMiniAt(classroot.ix) }
         ],
 
@@ -1552,15 +1494,17 @@ class DockIcon extends View [
     // per-icon inputs, fed at the use site
 
     ix: number = 0,                              // resting slot index
-    slots: number = 10,                          // total icons — keep in step with the dock's row
-    name: string = "",                           // the label pill's text
-    hue1: Color = #4A90D9,                       // plate gradient, top → bottom
-    hue2: Color = #2E5FA3,
-    glyph: string = "",                          // a text glyph icon (⌘, ♪, …) …
-    gsize: number = 0.42,                        //   … at this fraction of the plate (wide marks set less)
-    kind: string = "",                           // … or drawn art: calendar | notes | mail | terminal | pencil | bird | jots
-    running: boolean = false,
-    appId: string = "",                          // the launcher record's key (replicated icons; "" = a fixed icon)
+    slots: number = { app.launcher.roster.length },   // total icons — derived from the catalog
+
+    // THE application, held BY ID: a component slot cannot be constrained
+    // (DECLARE2000), but an id string can — and a constraint may freely READ
+    // the node ap() resolves, so face, hues, dot, pill, and the click all
+    // derive from the one instance, reactively re-resolving if the id moves
+    // (a MiniTile badge's does).
+
+    appId: string = "",
+    ap() -> DesktopApp { return app.launcher.byId(this.appId) },
+    running: boolean = false,                    // fed from the data row at the use site (the live flag rides the records)
 
     // shared geometry — one place for the numbers the constraints below share
 
@@ -1639,54 +1583,40 @@ class DockIcon extends View [
 
         scale = { classroot.width / classroot.face },
         cornerRadius = { this.width * 0.23 }, clip = true,
-        fill = { gradient(this.parent.hue1, this.parent.hue2) },
+        fill = { gradient(app.launcher.hue1Of(classroot.appId), app.launcher.hue2Of(classroot.appId)) },
 
         // Glyph sizes stay fractional — rounding them would tick the art in
         // whole-pixel steps while the plate glides subpixel, a visible jitter.
 
         g: Text [ x = center, y = center, fontWeight = semibold, textColor = 0xFFFFFF,
-            fontSize = { this.parent.width * classroot.gsize },
-            visible = { classroot.glyph != "" },
-            text = { classroot.glyph } ],
+            fontSize = { this.parent.width * app.launcher.gsizeOf(classroot.appId) },
+            visible = { !app.launcher.drawnOf(classroot.appId) && app.launcher.glyphOf(classroot.appId) != "" },
+            text = { app.launcher.glyphOf(classroot.appId) } ],
 
         // Drawn app art, authored in a 48-unit box and scaled to fill the plate.
 
         art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
-            visible = { classroot.kind != "" },
+            visible = { app.launcher.drawnOf(classroot.appId) },
 
             // the illustration is drawn at the icon's LIVE size — a canvas
             // scale inside draw() (vector, recomputed every frame) rather than
             // a CSS transform stretching a fixed 48px raster, which re-samples
-            // and jitters a pixel as the magnification glides. The body keeps
-            // its 48-unit authoring coordinates; only the scale moved inward.
+            // and jitters a pixel as the magnification glides. The app's face
+            // keeps its 48-unit authoring coordinates; only the scale moved
+            // inward. (The calendar's live weekday + day are part of ITS face,
+            // so the whole mark scales as one unit and re-records on the flip.)
 
             draw(d: Draw) {
+                // the DAY is read HERE, directly — a face() that reads live
+                // state (the calendar's) would never re-record otherwise:
+                // reads inside a called method are not wired from a class body
+                void app.clock.dayName
+                void app.clock.dayNum
                 d.scale(this.width / 48, this.width / 48)
-                const k = classroot.kind
-                if (k == "calendar") {
-                    d.fillStyle = 0xFFFFFF
-                    d.fillRect(0, 0, 48, 48)
-                    d.fillStyle = 0xFB4238
-                    d.fillRect(0, 0, 48, 13)
-                    // the weekday and day are drawn in the SAME 48-unit space,
-                    // so the whole face — band, MON, and the number — scales as
-                    // one unit at any size (dock crest or badge); no per-glyph
-                    // font clamp to skew their relative sizes.
-                    d.textAlign = "center"
-                    d.fillStyle = 0xFFFFFF
-                    d.font = "bold 7.5px system-ui, sans-serif"
-                    d.textBaseline = "middle"
-                    d.fillText(app.clock.dayName, 24, 7)
-                    d.fillStyle = 0x1D1D1F
-                    d.font = "27px system-ui, sans-serif"
-                    d.fillText("" + app.clock.dayNum, 24, 31)
-                    }
-                else { app.drawKindArt(d, k, classroot.hue1) }
+                const a = classroot.ap()
+                if (a != null) a.face(d)
                 }
             ],
-
-        // the calendar's live weekday + day are drawn inside `art` (one 48-unit
-        // face that scales whole), not as separate Text children
 
         // The icon's glossy edge — the same top-lit rim the dock plate carries,
         // scaled to the icon and drawn at its live size (no raster jitter as it
@@ -1737,7 +1667,7 @@ class DockIcon extends View [
         draw(d: Draw) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
         t: Text [ x = center, y = { (this.parent.bodyH - this.height) / 2 }, fontSize = 13,
             textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
-            text = { classroot.name } ]
+            text = { app.launcher.labelOf(classroot.appId) } ]
         ]
     ]
 
@@ -1766,6 +1696,253 @@ class Clock extends Node [
         this.dayNum = d.getDate()
         },
     onInit() { this.tick(); setInterval(() => this.tick(), 15000) }
+    ]
+
+
+/*
+### The applications
+
+An APPLICATION is a node: one instance per app the desktop offers, declared
+under the launcher and reachable by name (`app.launcher.calendar`). The
+instance carries everything that is the app's own — identity (label, title,
+blurb), the icon (plate hues, a text glyph or a drawn `face`), launch state
+(`running`/`launching`/`count`, plain reactive attributes — assignment is the
+update, no record ceremony), policy (`alwaysRunning`, `canOpen`, `place`),
+and the `launch` verb behind its dock icon and menu items. (The verb is
+`launch`, not `open` — dep-extract resolves calls by NAME across the merged
+source, and `open` collides with the library combobox's `open()`: the
+phantom-".start()" trap this file has hit before.)
+
+One taxonomy covers every citizen. A BUILT-IN app (Files, Jots) opens windows
+of this very program. A HOSTED app (Calendar, 50 Birds, Declare Viewer) is a
+FOREIGN program carried the same way — hosting is a subclass with a program
+path, not a different mechanism. An INERT app (Write, Mail, Music, Terminal)
+owns a quip and raises the alert. Chrome never switches on an app id: the
+dock icon, the About box, the alert sheet, and a minimized window's badge all
+read the ONE instance, so the art, the name, and the running dot cannot
+disagree — and adding an application is one class plus one roster entry.
+
+`face(d)` is the icon's art, authored in the dock's 48-unit box; the caller
+scales first and has painted the plate hue behind (AppGlyph, DockIcon). It is
+a method, so a face that reads live state — the calendar's date — re-records
+when that state changes, like any tracked drawing.
+*/
+
+class DesktopApp extends Node [
+    id: string = "",
+    label: string = "",                          // the dock pill's short name
+    title: string = "",                          // the formal name — menus, About
+    blurb: string = "",                          // the About box's line
+    glyph: string = "",                          // a text-glyph mark (M↓, ♪, [ ]) …
+    gsize: number = 0.42,                        //   … at this fraction of the plate
+    drawn: boolean = false,                      // … or a drawn face() — this flag picks
+    hue1: Color = #4A90D9,                       // plate gradient, top → bottom
+    hue2: Color = #2E5FA3,
+    src: string = "desktop.declare",             // View & Edit Source's subject
+    quip: string = "",                           // an inert app's refusal
+    running: boolean = false,
+    launching: boolean = false,                  // mid launch-bounce (guards a double-click)
+    count: number = 0,                           // open windows (informational)
+    alwaysRunning: boolean = false,              // Files: no Quit item
+    canOpen: boolean = true,                     // calendar: Open… disabled
+    face(d: Draw) { },                           // drawn icon art, in the 48-unit box
+    launch(v: View?) { }                         // what New and a dock click do
+    ]
+
+
+class HostedApp extends DesktopApp [             // a foreign program — the same citizen
+    prog: string = "",                           // the program the window's island mounts
+    env: string = "",                            // its embedding environment segment
+    place: string = "",                          // window placement policy ("clearDock")
+    launch(v: View?) { app.launcher.openHosted(this, v, "") }
+    ]
+
+
+class InertApp extends DesktopApp [
+    launch(v: View?) { app.alert.subject = this }
+    ]
+
+
+class FilesApp extends DesktopApp [ id = "files", label = "Files", title = "Files",
+    blurb = "Browses the live documentation model — every chapter, every element.",
+    hue1 = #59B0F6, hue2 = #1D6FD1, drawn = true,
+    running = true, alwaysRunning = true,
+    launch(v: View?) { app.launcher.newFiles() },
+    face(d: Draw) {
+        // the folder — one rendition, wherever the icon appears
+        d.fillStyle = 0xD9E7FA
+        d.beginPath()
+        d.roundRect(9, 13.5, 14, 8, 2)
+        d.fill()
+        d.beginPath()
+        d.roundRect(9, 16, 30, 19, 2.5)
+        d.fill()
+        d.fillStyle = 0xFFFFFF
+        d.beginPath()
+        d.roundRect(9, 20, 30, 15, 2.5)
+        d.fill()
+        }
+    ]
+
+
+class MarkdownApp extends DesktopApp [ id = "markdown", label = "Markdown", title = "Markdown",
+    blurb = "Renders the real files, and reference pages synthesized from the model.",
+    glyph = "M↓", hue1 = #8E7CE8, hue2 = #5A46B8,
+    launch(v: View?) { app.launcher.openViewer("../../docs/declare.md", "declare.md", v) }
+    ]
+
+
+class ViewerApp extends HostedApp [ id = "declareviewer", label = "Declare Viewer", title = "Declare Viewer",
+    blurb = "Reader, source, and live editor over any Declare program — here, hosted as an embedded app.",
+    glyph = "[  ]", hue1 = #2E6FE0, hue2 = #12A594,
+    prog = "../../viewer/viewer", env = "program=desktop.declare", src = "../viewer/viewer.declare"
+    ]
+
+
+class CalendarApp extends HostedApp [ id = "calendar", label = "Calendar", title = "Declare Calendar",
+    blurb = "The actual apps/calendar, running as an embedded child app in this window's island.",
+    hue1 = #FFFFFF, hue2 = #EFEFF2, drawn = true, canOpen = false,
+    prog = "../../calendar/calendar", env = "base=../calendar/", src = "../calendar/calendar.declare",
+    place = "clearDock",
+    face(d: Draw) {
+        d.fillStyle = 0xFFFFFF
+        d.fillRect(0, 0, 48, 48)
+        d.fillStyle = 0xFB4238
+        d.fillRect(0, 0, 48, 13)
+        // the weekday and day are drawn in the SAME 48-unit space, so the
+        // whole face — band, MON, and the number — scales as one unit at any
+        // size (dock crest, badge, About); reading the clock here means the
+        // face re-records when the day flips, wherever it is mounted.
+        d.textAlign = "center"
+        d.fillStyle = 0xFFFFFF
+        d.font = "bold 7.5px system-ui, sans-serif"
+        d.textBaseline = "middle"
+        d.fillText(app.clock.dayName, 24, 7)
+        d.fillStyle = 0x1D1D1F
+        d.font = "27px system-ui, sans-serif"
+        d.fillText("" + app.clock.dayNum, 24, 31)
+        }
+    ]
+
+
+class JotsApp extends DesktopApp [ id = "jots", label = "Jots", title = "Jots",
+    blurb = "Small paper notes with their own window chrome — built into this program.",
+    hue1 = #FCF4A7, hue2 = #F3E27E, drawn = true,
+    launch(v: View?) { app.launcher.newJot("", v) },
+    face(d: Draw) {
+        // all-yellow paper (the plate's yellow is the background), a
+        // saturated strip and faint ruled lines
+        d.fillStyle = 0xF3DC49
+        d.fillRect(0, 0, 48, 10)
+        d.strokeStyle = 0xE0CE66
+        d.lineWidth = 2
+        d.beginPath()
+        d.moveTo(8, 19); d.lineTo(40, 19)
+        d.moveTo(8, 27); d.lineTo(40, 27)
+        d.moveTo(8, 35); d.lineTo(26, 35)
+        d.stroke()
+        }
+    ]
+
+
+class BirdsApp extends HostedApp [ id = "birds", label = "50 Birds", title = "50 Birds",
+    blurb = "The actual apps/birds — Audubon's plates as a field guide — hosted as an embedded app.",
+    hue1 = #66C95F, hue2 = #2C9243, drawn = true,
+    prog = "../../birds/birds", env = "base=../birds/", src = "../birds/birds.declare",
+    face(d: Draw) {
+        // the bird: a perched songbird facing right — one white
+        // silhouette (beak, crown, back, tail, breast), with the eye and
+        // the folded wing struck back in the plate's hue.
+        d.fillStyle = 0xFFFFFF
+        d.beginPath()
+        d.moveTo(41.5, 16.5)                                     // beak tip
+        d.lineTo(34.6, 13.4)                                     // beak base, top edge
+        d.bezierCurveTo(33.2, 8.6, 26.4, 7.2, 22.8, 10.8)        // the crown
+        d.bezierCurveTo(17.5, 15.8, 12.2, 25.4, 8.5, 37)         // the back, sloping to the tail
+        d.lineTo(16.2, 34.2)                                     // the tail's notch
+        d.bezierCurveTo(21.5, 36.6, 28.4, 36.4, 32.4, 32.2)      // the belly
+        d.bezierCurveTo(35.6, 28.8, 36.2, 23.6, 34.9, 19.6)      // the breast, up to the throat
+        d.closePath()                                            // throat back to the beak tip
+        d.fill()
+        d.fillStyle = this.hue1
+        d.beginPath()
+        d.arc(30.2, 14.6, 1.6, 0, Math.PI * 2)                   // the eye
+        d.fill()
+        d.strokeStyle = this.hue1
+        d.lineWidth = 1.6
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(24.5, 18.5)
+        d.quadraticCurveTo(17.5, 22.5, 14.8, 30.5)               // the folded wing
+        d.stroke()
+        }
+    ]
+
+
+class WriteApp extends InertApp [ id = "write", label = "Write", title = "Write",
+    quip = "No.", hue1 = #F49B45, hue2 = #C96B1D, drawn = true,
+    face(d: Draw) {
+        // the pencil: eraser upper-left, tip lower-right. Body + tip in
+        // white; the eraser seam struck back in the plate's hue.
+        d.fillStyle = 0xFFFFFF
+        d.beginPath()
+        d.moveTo(7.8, 12.2); d.lineTo(14.2, 5.8); d.lineTo(35.7, 27.3); d.lineTo(29.3, 33.7)
+        d.closePath(); d.fill()
+        d.beginPath()
+        d.moveTo(35.7, 27.3); d.lineTo(29.3, 33.7); d.lineTo(39.5, 37.5)
+        d.closePath(); d.fill()
+        d.strokeStyle = this.hue1
+        d.lineWidth = 1.6
+        d.beginPath()
+        d.moveTo(11.4, 15.7); d.lineTo(17.7, 9.4)
+        d.moveTo(13.5, 17.8); d.lineTo(19.8, 11.5)
+        d.stroke()
+        }
+    ]
+
+
+class MailApp extends InertApp [ id = "mail", label = "Mail", title = "Mail",
+    quip = "Nope.", hue1 = #1E8CFB, hue2 = #1667D9, drawn = true,
+    face(d: Draw) {
+        d.fillStyle = 0xFFFFFF
+        d.beginPath()
+        d.moveTo(9, 15); d.lineTo(39, 15); d.lineTo(39, 34); d.lineTo(9, 34)
+        d.closePath(); d.fill()
+        d.strokeStyle = 0xB9C6DB
+        d.lineWidth = 1.6
+        d.beginPath()
+        d.moveTo(9.5, 15.8); d.lineTo(24, 26); d.lineTo(38.5, 15.8)
+        d.stroke()
+        }
+    ]
+
+
+class MusicApp extends InertApp [ id = "music", label = "Music", title = "Music",
+    quip = "Nah.", glyph = "♪", gsize = 0.52, hue1 = #FB5C74, hue2 = #FA233B
+    ]
+
+
+class TerminalApp extends InertApp [ id = "terminal", label = "Terminal", title = "Terminal",
+    quip = "Not.", hue1 = #3A3A40, hue2 = #17171B, drawn = true,
+    face(d: Draw) {
+        d.strokeStyle = 0xFFFFFF
+        d.lineWidth = 2.6
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(14, 18.5); d.lineTo(20, 24); d.lineTo(14, 29.5)
+        d.moveTo(24, 30); d.lineTo(32.5, 30)
+        d.stroke()
+        }
+    ]
+
+
+// the desktop itself — the About/Source subject when no application's window
+// is front; not in the dock roster
+
+class DeskApp extends DesktopApp [ id = "desktop", label = "Declare Desktop", title = "Declare Desktop",
+    blurb = "A Mac desktop, declared. Windows, dock, and menus are views and records, all drawn — no bitmaps, no borrowed art.",
+    glyph = "[  ]", hue1 = #4AA8E8, hue2 = #35C4B5,
+    launch(v: View?) { app.launcher.newFiles() }
     ]
 
 
@@ -1804,11 +1981,9 @@ class WinManager extends Node [
     window's app is read from its class; About windows carry theirs explicitly.
     */
 
-    pathOf(w: Window?) -> string { return w != null ? w.appPath : "" },
+    appOf(w: Window?) -> DesktopApp { return w != null && w.forApp != null ? w.forApp : app.launcher.files },
 
-    appOf(w: Window?) -> string { return w != null && w.forApp != "" ? w.forApp : "files" },
-
-    activeApp: string = { this.appOf(app.wm.frontWin) },
+    activeApp: DesktopApp = { this.appOf(app.wm.frontWin) },
 
     focusWin(w: Window?) { if (w == null) return; if (this.isMin(w)) this.restoreMini(w); else w.activate() },
 
@@ -1817,10 +1992,10 @@ class WinManager extends Node [
     // running). Running is an application state, not a window count: closing the
     // last window leaves the app running, its dock dot lit — only Quit ends it.
 
-    quitApp(a: string) {
+    quitApp(a: DesktopApp) {
         const doomed = this.windows().filter((w) => this.appOf(w) == a)
         for (const w of doomed) this.closeWin(w)
-        app.launcher.patch(a, ({ running: false }))   // no record (files) = no-op
+        a.running = false
         },
 
     // A dock icon's click: a running app's icon raises its open windows (in
@@ -1837,11 +2012,11 @@ class WinManager extends Node [
        and the dock closes the menu itself. `rootClose()` is what Escape uses —
        the whole chain, submenus included. Harmless when nothing is open.
 
-       Every dock press routes through one of three verbs (dockOpen, notImpl,
+       Every dock press routes through one of two verbs (dockOpen,
        restoreMiniAt), so this sits at the top of each rather than on a wrapper
        view: events do not bubble, so a press on an icon never reaches the dock. */
 
-    dockOpen(a: string, open: () -> void) {
+    dockOpen(a: DesktopApp, open: () -> void) {
         app.dockDismiss()
         const live = this.windows().filter((w) => this.appOf(w) == a && !this.isPlain(w) && !this.isMin(w))
         if (live.length > 0) { for (const w of live) this.focusWin(w); return }
@@ -1862,7 +2037,7 @@ class WinManager extends Node [
 
     isMin(w: Window?) -> boolean { return w != null && w.dockSlot >= 0 },
     ixOf(w: Window?) -> number { return w != null ? w.dockSlot : -1 },
-    labelFor(w: Window) -> string { const t = this.titleOf(w); return t != "" ? t : app.launcher.nameOf(this.appOf(w)) },
+    labelFor(w: Window) -> string { const t = this.titleOf(w); return t != "" ? t : this.appOf(w).title },
 
     // THE collection seam, and the one cast in the file: `wins` is populated at
     // runtime (createView), so its `children` is View[] — but every occupant is
@@ -1894,7 +2069,7 @@ class WinManager extends Node [
             // RAW window geometry only: what fits where, at what pixel size,
             // is the dock's business (dock.tiles derives it) — the model
             // stopped knowing what a pixel is here
-            out.push(({ ix: i, label: this.labelFor(ws[i]), kind: this.appOf(ws[i]), winW: ws[i].width, winH: ws[i].height }))
+            out.push(({ ix: i, label: this.labelFor(ws[i]), appId: this.appOf(ws[i]).id, winW: ws[i].width, winH: ws[i].height }))
             }
         miniRecs = out
         miniWins = ws
@@ -1987,7 +2162,7 @@ class WinManager extends Node [
         // an About box carries its SUBJECT's forApp but is not a window OF that
         // app — `plain` is the discriminator, so closing "About Markdown" never
         // decrements the viewer count
-        if (!w.plain) app.launcher.bump(w.forApp, -1)
+        if (!w.plain && w.forApp != null) w.forApp.count = w.forApp.count - 1
         if (frontWin == w) frontWin = null
         app.wins.removeChild(w)
         w.discard()
@@ -2003,94 +2178,109 @@ class WinManager extends Node [
 /*
 ### The launcher
 
-Getting applications BORN, faceless: the catalog (key → display name → program
-path), the open verbs behind every dock click and menu item, and the launch
-gates — running/launching per application, badge counts — that the dock's dots
-and bounces derive from. The window manager owns windows once they exist; this
-node owns the moment before.
+Getting applications BORN, faceless: the application INSTANCES (see "The
+applications" above), the open verbs behind every dock click and menu item,
+and the one launch gate their dots and bounces derive from. The window
+manager owns windows once they exist; this node owns the moment before.
 
-The heart is the APPLICATION RECORDS — one row per launchable application,
-carrying the catalog (key, names, program, env, dock face) and the launch
-state (running/launching/count). The five parallel flag families this array
-replaced were the God-object smell at its purest: attributes clustered by
-prefix are records wanting to exist. The dock's launchable icons REPLICATE
-over these rows; state changes are array replacement (records are data —
-patch(), never a field poke), so every reader re-derives.
+The instances replaced the application RECORDS array — which had itself
+replaced five parallel flag families (attributes clustered by prefix are
+records wanting to exist; records for a fixed catalog of stateful,
+art-bearing citizens were in turn CLASSES wanting to exist). State is plain
+reactive attributes on each instance — assignment is the update, no patch
+ceremony — and the only data left is identity: `data` derives id + order for
+the dock's replication, and each icon resolves its instance back from the id
+(a node reference never enters data-shaped state).
 
 The surface:
 
-  facts   the `apps` records (the dock binds them; Quit clears `running`
-          through the WM)
-  verbs   `launch(id)` behind every dock click and menu item with a record ·
-          `openApp` · `openViewer`/`openDoc`/`openMarkdown` · `newFiles`/
+  facts   the instances (`files` … `terminal`, plus `desk`, the desktop
+          itself) · `roster` (the dock's order) · `data` (id + ix, for the
+          datapath) · `byId`
+  verbs   each app's own `launch(v)` · `gated` (the launch bounce, once) ·
+          `openHosted` · `openViewer`/`openDoc`/`openMarkdown` · `newFiles`/
           `openFolderWindow` · `newJot`/`openWelcome` · `openAbout`/
-          `dismissAbouts` · `openSource` · `nameOf`/`sourceRel` (the catalog)
+          `dismissAbouts` · `openSource`
 */
 
 class Launcher extends Node [
 
-    // the records: catalog + launch state, one row per application (see the
-    // class header) — mutate by patch(), never a field poke
+    // the applications — one instance each (see "The applications"), plus
+    // `desk`, the desktop itself (the About/Source subject; not in the dock)
 
-    apps: array = { [
-        ({ id: "files", ix: 0, label: "Files", title: "Files", glyph: "", gsize: 0.42, kind: "files",
-            hue1: 0x59B0F6, hue2: 0x1D6FD1, src: "desktop.declare", running: true, launching: false, count: 0 }),
-        ({ id: "markdown", ix: 1, label: "Markdown", title: "Markdown", glyph: "M↓", gsize: 0.42, kind: "",
-            hue1: 0x8E7CE8, hue2: 0x5A46B8, src: "desktop.declare", running: false, launching: false, count: 0 }),
-        ({ id: "declareviewer", ix: 2, label: "Declare Viewer", title: "Declare Viewer", glyph: "[  ]", gsize: 0.42, kind: "",
-            hue1: 0x2E6FE0, hue2: 0x12A594, prog: "../../viewer/viewer", env: "program=desktop.declare",
-            src: "../viewer/viewer.declare", running: false, launching: false, count: 0 }),
-        ({ id: "calendar", ix: 3, label: "Calendar", title: "Declare Calendar", glyph: "", gsize: 0.42, kind: "calendar",
-            hue1: 0xFFFFFF, hue2: 0xEFEFF2, prog: "../../calendar/calendar", env: "base=../calendar/",
-            src: "../calendar/calendar.declare", place: "clearDock", running: false, launching: false, count: 0 }),
-        ({ id: "jots", ix: 4, label: "Jots", title: "Jots", glyph: "", gsize: 0.42, kind: "jots",
-            hue1: 0xFCF4A7, hue2: 0xF3E27E, src: "desktop.declare", running: false, launching: false, count: 0 }),
-        ({ id: "birds", ix: 5, label: "50 Birds", title: "50 Birds", glyph: "", gsize: 0.42, kind: "bird",
-            hue1: 0x66C95F, hue2: 0x2C9243, prog: "../../birds/birds", env: "base=../birds/",
-            src: "../birds/birds.declare", running: false, launching: false, count: 0 }),
-        ({ id: "write", ix: 6, label: "Write", title: "Write", glyph: "", gsize: 0.42, kind: "pencil",
-            hue1: 0xF49B45, hue2: 0xC96B1D, inert: true, quip: "No.", running: false, launching: false, count: 0 }),
-        ({ id: "mail", ix: 7, label: "Mail", title: "Mail", glyph: "", gsize: 0.42, kind: "mail",
-            hue1: 0x1E8CFB, hue2: 0x1667D9, inert: true, quip: "Nope.", running: false, launching: false, count: 0 }),
-        ({ id: "music", ix: 8, label: "Music", title: "Music", glyph: "♪", gsize: 0.52, kind: "",
-            hue1: 0xFB5C74, hue2: 0xFA233B, inert: true, quip: "Nah.", running: false, launching: false, count: 0 }),
-        ({ id: "terminal", ix: 9, label: "Terminal", title: "Terminal", glyph: "", gsize: 0.42, kind: "terminal",
-            hue1: 0x3A3A40, hue2: 0x17171B, inert: true, quip: "Not.", running: false, launching: false, count: 0 }),
-        ] },
+    files:    FilesApp    [ ],
+    markdown: MarkdownApp [ ],
+    viewer:   ViewerApp   [ ],
+    calendar: CalendarApp [ ],
+    jots:     JotsApp     [ ],
+    birds:    BirdsApp    [ ],
+    write:    WriteApp    [ ],
+    mail:     MailApp     [ ],
+    music:    MusicApp    [ ],
+    terminal: TerminalApp [ ],
+    desk:     DeskApp     [ ],
 
-    // the records as DECLARED DATA, for the dock's datapath (a cursor can
-    // only point into a Dataset)
+    // the dock's order, and the enumeration every by-id lookup walks
 
-    data: Dataset [ contents = { ({ apps: app.launcher.apps }) } ],
+    roster: DesktopApp[] = { [this.files, this.markdown, this.viewer, this.calendar,
+        this.jots, this.birds, this.write, this.mail, this.music, this.terminal] },
 
-    rec(a: string) -> object { return this.apps.find((r) => r.id == a) ?? null },
+    byId(id: string) -> DesktopApp { return this.roster.find((a) => a.id == id) ?? null },
 
-    // records are data: state moves by REPLACING the array, so constraints
-    // bound anywhere re-derive; `patch` merges fields into one app's row
+    // Per-attribute accessors for ID-CARRIED references. A constraint may not
+    // read an attribute off a node a method CHOSE at run time (DECLARE7001 —
+    // the dependency can't be named at the call site), but a method may
+    // return the ATTRIBUTE itself. These serve the STATIC facts (hues, glyph,
+    // size, label): they re-derive whenever the id changes. The one LIVE
+    // per-app flag, `running`, rides the data records above instead — a
+    // class-body constraint does not wire reads made inside a method it
+    // calls, so a mutation there would never wake it.
 
-    patch(a: string, p: object) { this.apps = this.apps.map((r) => r.id == a ? ({ ...r, ...p }) : r) },
-    bump(a: string, d: number) { const r = this.rec(a); if (r != null) this.patch(a, ({ count: r.count + d })) },
+    hue1Of(id: string) -> Color { const a = this.roster.find((x) => x.id == id); return a != null ? a.hue1 : 0x4A90D9 },
+    hue2Of(id: string) -> Color { const a = this.roster.find((x) => x.id == id); return a != null ? a.hue2 : 0x2E5FA3 },
+    glyphOf(id: string) -> string { const a = this.roster.find((x) => x.id == id); return a != null ? a.glyph : "" },
+    gsizeOf(id: string) -> number { const a = this.roster.find((x) => x.id == id); return a != null ? a.gsize : 0.42 },
+    drawnOf(id: string) -> boolean { const a = this.roster.find((x) => x.id == id); return a != null && a.drawn },
+    labelOf(id: string) -> string { const a = this.roster.find((x) => x.id == id); return a != null ? a.label : "" },
 
-    // ONE open verb behind every dock click and menu item with a record —
-    // the per-app argument bundles live on the rows now
+    // identity, order, and the ONE LIVE FLAG as DECLARED DATA, for the dock's
+    // datapath (a cursor can only point into a Dataset, and a node reference
+    // never enters data-shaped state — each icon resolves its instance back
+    // from the id). The rows are ENUMERATED with direct reads, not a
+    // roster.map closure: a class-body constraint wires only the member
+    // chains written in its own text (the read-through gap — probe pins
+    // pending), and `running` must wake the dock's dots.
 
-    launch(a: string, v: View?) {
-        const r = this.rec(a)
-        if (r == null) return
-        if (r.inert == true) app.notImpl("" + r.quip, "" + r.title, "" + r.kind, "" + r.glyph, Number(r.gsize), Number(r.hue1), Number(r.hue2))
-        else if (a == "files") this.newFiles()
-        else if (a == "markdown") this.openViewer("../../docs/declare.md", "declare.md", v)
-        else if (a == "jots") this.newJot("", v)
-        else this.openApp(a, "" + r.prog, "" + r.title, v, "" + r.env)
-        },
+    data: Dataset [ contents = { ({ apps: [
+        ({ id: classroot.files.id, ix: 0, running: classroot.files.running }),
+        ({ id: classroot.markdown.id, ix: 1, running: classroot.markdown.running }),
+        ({ id: classroot.viewer.id, ix: 2, running: classroot.viewer.running }),
+        ({ id: classroot.calendar.id, ix: 3, running: classroot.calendar.running }),
+        ({ id: classroot.jots.id, ix: 4, running: classroot.jots.running }),
+        ({ id: classroot.birds.id, ix: 5, running: classroot.birds.running }),
+        ({ id: classroot.write.id, ix: 6, running: classroot.write.running }),
+        ({ id: classroot.mail.id, ix: 7, running: classroot.mail.running }),
+        ({ id: classroot.music.id, ix: 8, running: classroot.music.running }),
+        ({ id: classroot.terminal.id, ix: 9, running: classroot.terminal.running }),
+        ] }) } ],
 
-    // Activation is one Window-typed slot: every window derives its look (shadow
-    // depth, bar tone, controls) from whether it is this value.
+    // THE LAUNCH GATE, once for every application. A first open (not running,
+    // not launching) is a launch: the dock icon bounces and the window
+    // appears mid-second-bounce, the way a fast-launching app feels; later
+    // opens are instant. State moves inside the deferred step, so the running
+    // dot appears when the app HAS launched, not at the click, and the
+    // mid-launch flag guards a double-click during the bounce.
 
-    nameOf(a: string) -> string {
-        const r = this.rec(a)
-        if (r != null) return "" + r.title
-        return a == "desktop" ? "Declare Desktop" : "Files"
+    gated(a: DesktopApp, body: () -> void) {
+        const first = !a.running && !a.launching
+        if (first) a.launching = true
+        const go = () => {
+            a.launching = false
+            a.running = true
+            a.count = a.count + 1
+            body()
+            }
+        if (first) { app.dock.poke(a); setTimeout(go, 900) } else go()
         },
 
     // View & Edit Source opens the running program itself in the Declare
@@ -2099,17 +2289,13 @@ class Launcher extends Node [
     // path valid in this app's transport base). The viewer self-loads that
     // program's ?segments and ?file artifacts — reader mode by default.
 
-    sourceRel(a: string) -> string {
-        const r = this.rec(a)
-        return r != null ? "" + r.src : "desktop.declare"
+    openSource(a: DesktopApp) {
+        this.openHosted(this.viewer, null, "program=" + a.src)
         },
-    openSource(a: string) {
-        this.openApp("declareviewer", "../../viewer/viewer", "Declare Viewer", null, "program=" + this.sourceRel(a))
-        },
-    openAbout(a: string) {
+    openAbout(a: DesktopApp) {
         app.wm.winCount = app.wm.winCount + 1
         app.wm.winSeq = app.wm.winSeq + 1
-        const w = app.wins.createView("AboutWindow", ({ forApp: "" + a,
+        const w = app.wins.createView("AboutWindow", ({ forApp: a,
             wx: (app.width - 280) / 2 + (app.wm.winCount % 3) * 16, wy: 110 + (app.wm.winCount % 3) * 14 }))
         app.wm.frontOpen(w)
         },
@@ -2126,7 +2312,7 @@ class Launcher extends Node [
         app.wm.winCount = app.wm.winCount + 1
         app.wm.winSeq = app.wm.winSeq + 1
         // spawn positions cascade, wrapping after a handful
-        const w = app.wins.createView("FilesWindow", ({ wx: 90 + (app.wm.winCount % 7) * 28, wy: 46 + (app.wm.winCount % 7) * 26 }))
+        const w = app.wins.createView("FilesWindow", ({ forApp: this.files, wx: 90 + (app.wm.winCount % 7) * 28, wy: 46 + (app.wm.winCount % 7) * 26 }))
         app.wm.frontOpen(w)
         },
 
@@ -2140,7 +2326,7 @@ class Launcher extends Node [
         app.wm.winCount = app.wm.winCount + 1
         app.wm.winSeq = app.wm.winSeq + 1
         const depth = ("" + folderPath).split("\n").length - 1
-        const w = app.wins.createView("FilesWindow", ({ wx: 90 + (app.wm.winCount % 7) * 28, wy: 46 + (app.wm.winCount % 7) * 26, selPath: "" + folderPath, focusDepth: depth }))
+        const w = app.wins.createView("FilesWindow", ({ forApp: this.files, wx: 90 + (app.wm.winCount % 7) * 28, wy: 46 + (app.wm.winCount % 7) * 26, selPath: "" + folderPath, focusDepth: depth }))
         app.wm.frontOpen(w)
         },
 
@@ -2179,25 +2365,18 @@ class Launcher extends Node [
     // whole. Launch gating, spawn cascade, and the origin zoom are identical.
 
     openMarkdown(props: object, v: View?) {
-        const r = this.rec("markdown")
-        const first = r != null && !r.running && !r.launching
-        if (first) this.patch("markdown", ({ launching: true }))
-        const go = () => {
-            this.patch("markdown", ({ launching: false, running: true }))
-            this.bump("markdown", 1)
+        this.gated(this.markdown, () => {
             this.dismissAbouts()
             app.wm.winCount = app.wm.winCount + 1
             app.wm.winSeq = app.wm.winSeq + 1
             const wx = 160 + (app.wm.winCount % 7) * 28
             const wy = 36 + (app.wm.winCount % 7) * 26
             const o = this.originOf(v)
-            const w = app.wins.createView("ViewerWindow", ({ ...props, wx: wx, wy: wy,
+            const w = app.wins.createView("ViewerWindow", ({ ...props, forApp: this.markdown, wx: wx, wy: wy,
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - app.menuBarH : -1,
                 bornFrom: v != null ? v : null }))
             app.wm.frontOpen(w)
-            }
-        if (first) { app.dock.poke("markdown"); setTimeout(go, 900) }
-        else go()
+            })
         },
     openViewer(p: string, nm: string, v: View?) { if (p != "") this.openMarkdown(({ path: p }), v) },
 
@@ -2206,43 +2385,27 @@ class Launcher extends Node [
 
     openDoc(md: string, nm: string, v: View?) { if (md != "") this.openMarkdown(({ inlineDoc: md, docName: nm }), v) },
 
-    // a full Declare app in a window — the path is demos/-relative (the slot
-    // convention): "../../calendar/calendar" runs the real calendar,
-    // "../../viewer/viewer" the Declare Viewer. `envExtra` appends to the
-    // window's env segment ("program=…"). The two hosted apps count
-    // separately (running dots + Quit are per application), and each has a
-    // dock icon that launch-bounces on its first open.
+    // a full Declare app in a window — a HOSTED application: the AppWindow's
+    // island mounts `a.prog` ("../../calendar/calendar" runs the real
+    // calendar; the path is demos/-relative, the slot convention). `envExtra`
+    // overrides the app's own env segment when the caller names a different
+    // subject (View & Edit Source's "program=…"); "" takes the app's own.
+    // Hosted apps count separately (running dots + Quit are per application),
+    // and each launch-bounces on its first open — the shared gate.
 
-    // `a` is the APPLICATION KEY ("calendar" | "declareviewer" | "birds"),
-    // passed rather than sniffed. It used to be derived from the path — `isCal =
-    // p.indexOf("calendar") >= 0`, with "not the calendar" meaning the Declare
-    // Viewer — which quietly hard-limited this to exactly two hosted apps and
-    // would have made a third open under the second's name, dot and icon. The
-    // key is also what `forApp` becomes, so `appOf`, Quit and the dock's
-    // running dot all agree by construction.
-
-    openApp(a: string, p: string, nm: string, v: View?, envExtra: string?) {
-        // the launch gate: state moves inside go(), so the running dot appears
-        // when the app has launched (mid-second-bounce), not at the click —
-        // the mid-launch flag guards a double-click during the bounce
-        const r = this.rec(a)
-        const first = r != null && !r.running && !r.launching
-        if (first) this.patch(a, ({ launching: true }))
-        const go = () => {
-            this.patch(a, ({ launching: false, running: true }))
-            this.bump(a, 1)
+    openHosted(a: HostedApp, v: View?, envExtra: string) {
+        this.gated(a, () => {
             this.dismissAbouts()
             app.wm.winCount = app.wm.winCount + 1
             app.wm.winSeq = app.wm.winSeq + 1
             let wx = 110 + (app.wm.winCount % 5) * 30
             let wy = 24 + (app.wm.winCount % 5) * 22
             let ww = 880, wh = 560
-            // A record may state a PLACEMENT POLICY — the calendar opens
+            // An app may state a PLACEMENT POLICY — the calendar opens
             // smaller than a full app window and clears the dock (its height
             // caps to the room above it), centered horizontally; anything
-            // without a policy keeps the base size. The last per-app branch
-            // this verb carried, now a row's word.
-            if (r != null && r.place == "clearDock") {
+            // without a policy keeps the base size.
+            if (a.place == "clearDock") {
                 wy = 28
                 // clear the dock (height caps to the room above it) AND never
                 // fall below the calendar's own min (480 × 420) — clamp to both.
@@ -2251,15 +2414,13 @@ class Launcher extends Node [
                 wx = Math.round((app.width - ww) / 2)
                 }
             const o = this.originOf(v)
-            const w = app.wins.createView("AppWindow", ({ appPath: "" + p, appTitle: "" + nm, forApp: a, wx: wx, wy: wy,
+            const w = app.wins.createView("AppWindow", ({ appPath: "" + a.prog, appTitle: "" + a.title, forApp: a, wx: wx, wy: wy,
                 width: ww, height: wh,
-                extraEnv: envExtra != null ? envExtra : "",
+                extraEnv: envExtra != "" ? envExtra : "" + a.env,
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - app.menuBarH : -1,
                 bornFrom: v != null ? v : null }))
             app.wm.frontOpen(w)
-            }
-        if (first) { app.dock.poke(a); setTimeout(go, 900) }
-        else go()
+            })
         },
 
     // ── Jots: the built-in application — its notes are JotWindows in
@@ -2279,25 +2440,19 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 **Never, ever, press the 'r' or 's' keys.**
 """,
     newJot(txt: string, v: View?) {
-        const r = this.rec("jots")
-        const first = r != null && !r.running && !r.launching
-        if (first) this.patch("jots", ({ launching: true }))
-        const go = () => {
-            this.patch("jots", ({ launching: false, running: true }))
+        this.gated(this.jots, () => {
             this.dismissAbouts()
             app.wm.winCount = app.wm.winCount + 1
             app.wm.winSeq = app.wm.winSeq + 1
-            const w = app.wins.createView("JotWindow", ({ note: "" + (txt || "*A new note.*"),
+            const w = app.wins.createView("JotWindow", ({ forApp: this.jots, note: "" + (txt || "*A new note.*"),
                 wx: 480 + (app.wm.winCount % 5) * 26, wy: 90 + (app.wm.winCount % 5) * 24 }))
             app.wm.frontOpen(w)
-            }
-        if (first) { app.dock.poke("jots"); setTimeout(go, 900) }
-        else go()
+            })
         },
     openWelcome() {
-        this.patch("jots", ({ running: true }))
+        this.jots.running = true
         app.wm.winSeq = app.wm.winSeq + 1
-        const w = app.wins.createView("JotWindow", ({ note: this.welcomeNote,
+        const w = app.wins.createView("JotWindow", ({ forApp: this.jots, note: this.welcomeNote,
             width: 400, height: 385, wx: Math.max(440, app.width - 490), wy: 120 }))
         app.wm.frontOpen(w)
         }
@@ -2314,9 +2469,10 @@ the application records everything derives from), `clock` (today, as a fact)
 bar, dock, alert, in paint order. Each view owns its own state and geometry;
 the nodes never reach into them. What stays flat here has a reason to be
 root-wide: the theme, the appearance choice, the window eggs (tilt/zoom — read
-by every Window), the shared icon-art vocabulary (drawKindArt/drawPill — the
-dock, the parked badges, and the alert all draw from it), and `command`, the
-one dispatch seam the menu bar, the dock, and the keyboard all route through.
+by every Window), `drawPill` (the one label-pill silhouette the dock and the
+parked tiles share; an app's ICON art lives on its application class), and
+`command`, the one dispatch seam the menu bar, the dock, and the keyboard all
+route through.
 
 It tracks the browser window with no size floor (a floor would make the page
 scroll, and a desktop never scrolls), and the root clips, so a window hanging
@@ -2384,105 +2540,6 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     feed back on itself.
     */
 
-    // an app illustration in the 48-unit authoring box (the caller has already
-    // scaled to size, and painted the plate hue behind). The plate-hued `kind`s
-    // only — the live calendar face is drawn by each caller, which owns the day
-    // data. ONE renderer, shared by the dock icons and the "Not implemented"
-    // alert, so an app's icon is identical wherever it appears.
-
-    drawKindArt(d: Draw, kind: string, hue1: number) {
-        if (kind == "files") {
-            d.fillStyle = 0xD9E7FA
-            d.beginPath()
-            d.roundRect(9, 13.5, 14, 8, 2)
-            d.fill()
-            d.beginPath()
-            d.roundRect(9, 16, 30, 19, 2.5)
-            d.fill()
-            d.fillStyle = 0xFFFFFF
-            d.beginPath()
-            d.roundRect(9, 20, 30, 15, 2.5)
-            d.fill()
-            }
-        else if (kind == "mail") {
-            d.fillStyle = 0xFFFFFF
-            d.beginPath()
-            d.moveTo(9, 15); d.lineTo(39, 15); d.lineTo(39, 34); d.lineTo(9, 34)
-            d.closePath(); d.fill()
-            d.strokeStyle = 0xB9C6DB
-            d.lineWidth = 1.6
-            d.beginPath()
-            d.moveTo(9.5, 15.8); d.lineTo(24, 26); d.lineTo(38.5, 15.8)
-            d.stroke()
-            }
-        else if (kind == "terminal") {
-            d.strokeStyle = 0xFFFFFF
-            d.lineWidth = 2.6
-            d.lineCap = "round"
-            d.beginPath()
-            d.moveTo(14, 18.5); d.lineTo(20, 24); d.lineTo(14, 29.5)
-            d.moveTo(24, 30); d.lineTo(32.5, 30)
-            d.stroke()
-            }
-        else if (kind == "pencil") {
-            // the pencil: eraser upper-left, tip lower-right. Body + tip in
-            // white; the eraser seam struck back in the plate's hue.
-            d.fillStyle = 0xFFFFFF
-            d.beginPath()
-            d.moveTo(7.8, 12.2); d.lineTo(14.2, 5.8); d.lineTo(35.7, 27.3); d.lineTo(29.3, 33.7)
-            d.closePath(); d.fill()
-            d.beginPath()
-            d.moveTo(35.7, 27.3); d.lineTo(29.3, 33.7); d.lineTo(39.5, 37.5)
-            d.closePath(); d.fill()
-            d.strokeStyle = hue1
-            d.lineWidth = 1.6
-            d.beginPath()
-            d.moveTo(11.4, 15.7); d.lineTo(17.7, 9.4)
-            d.moveTo(13.5, 17.8); d.lineTo(19.8, 11.5)
-            d.stroke()
-            }
-        else if (kind == "bird") {
-            // the bird: a perched songbird facing right — one white
-            // silhouette (beak, crown, back, tail, breast), with the eye and
-            // the folded wing struck back in the plate's hue.
-            d.fillStyle = 0xFFFFFF
-            d.beginPath()
-            d.moveTo(41.5, 16.5)                                     // beak tip
-            d.lineTo(34.6, 13.4)                                     // beak base, top edge
-            d.bezierCurveTo(33.2, 8.6, 26.4, 7.2, 22.8, 10.8)        // the crown
-            d.bezierCurveTo(17.5, 15.8, 12.2, 25.4, 8.5, 37)         // the back, sloping to the tail
-            d.lineTo(16.2, 34.2)                                     // the tail's notch
-            d.bezierCurveTo(21.5, 36.6, 28.4, 36.4, 32.4, 32.2)      // the belly
-            d.bezierCurveTo(35.6, 28.8, 36.2, 23.6, 34.9, 19.6)      // the breast, up to the throat
-            d.closePath()                                            // throat back to the beak tip
-            d.fill()
-            d.fillStyle = hue1
-            d.beginPath()
-            d.arc(30.2, 14.6, 1.6, 0, Math.PI * 2)                   // the eye
-            d.fill()
-            d.strokeStyle = hue1
-            d.lineWidth = 1.6
-            d.lineCap = "round"
-            d.beginPath()
-            d.moveTo(24.5, 18.5)
-            d.quadraticCurveTo(17.5, 22.5, 14.8, 30.5)               // the folded wing
-            d.stroke()
-            }
-        else if (kind == "jots") {
-            // all-yellow paper (the plate's yellow is the background), a
-            // saturated strip and faint ruled lines
-            d.fillStyle = 0xF3DC49
-            d.fillRect(0, 0, 48, 10)
-            d.strokeStyle = 0xE0CE66
-            d.lineWidth = 2
-            d.beginPath()
-            d.moveTo(8, 19); d.lineTo(40, 19)
-            d.moveTo(8, 27); d.lineTo(40, 27)
-            d.moveTo(8, 35); d.lineTo(26, 35)
-            d.stroke()
-            }
-        },
-
     // The label pill's silhouette — ONE path: a stadium body (fully-rounded
     // left/right ends, r = half the body height, so the caps are true
     // semicircles, not rounded-rectangle corners) plus a small fixed triangle
@@ -2516,27 +2573,23 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // ── the command seam: the menu bar, the dock, and keys all route here ──
 
     command(id: string) {
-        // New/Open route by RECORD: any app with a row launches through it —
-        // the per-app argument bundles live on the rows now. Only the two
-        // recordless cases remain in prose: Files (its own verbs) and a Files
-        // window's Open-on-selection.
-        if (id == "new") {
-            if (app.launcher.rec(app.wm.activeApp) != null) app.launcher.launch(app.wm.activeApp, null)
-            else app.launcher.newFiles()
-            }
+        // New and Open route through the ACTIVE APPLICATION's own verb — the
+        // one specific case is a Files window's Open-on-selection. (activeApp
+        // reads as nullable, but appOf's files-fallback means it never is.)
+        const cur = app.wm.activeApp!
+        if (id == "new") cur.launch(null)
         else if (id == "open") {
-            if (app.wm.activeApp == "files" && app.wm.frontWin != null) (app.wm.frontWin as FilesWindow).openSelection()
-            else if (app.launcher.rec(app.wm.activeApp) != null) app.launcher.launch(app.wm.activeApp, null)
-            else app.launcher.openViewer("../../docs/declare.md", "declare.md")
+            if (cur == app.launcher.files && app.wm.frontWin != null) (app.wm.frontWin as FilesWindow).openSelection()
+            else cur.launch(null)
             }
         else if (id == "close") { if (app.wm.frontWin != null) app.wm.closeWin(app.wm.frontWin) }
         else if (id == "dark") { app.darkChoice = !app.darkMode; app.darkLocked = true }
-        else if (id == "about-desktop") app.launcher.openAbout("desktop")
-        else if (id == "about-app") app.launcher.openAbout(app.wm.activeApp)
-        else if (id == "source-desktop") app.launcher.openSource("desktop")
+        else if (id == "about-desktop") app.launcher.openAbout(app.launcher.desk)
+        else if (id == "about-app") app.launcher.openAbout(cur)
+        else if (id == "source-desktop") app.launcher.openSource(app.launcher.desk)
         else if (id == "home") app.navigate("apps/homepage/homepage.declare")   // distro-root-relative → works on dev server AND static host
-        else if (id == "source") app.launcher.openSource(app.wm.activeApp)
-        else if (id == "quit") app.wm.quitApp(app.wm.activeApp)
+        else if (id == "source") app.launcher.openSource(cur)
+        else if (id == "quit") app.wm.quitApp(cur)
         else if (id.indexOf("win:") == 0) app.wm.focusWin(app.wm.windows()[+id.slice(4)])
         },
 
@@ -2551,15 +2604,6 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     darkLocked: boolean = false,
     darkChoice: boolean = false,
     darkMode: boolean = { this.darkLocked ? this.darkChoice : app.dark },
-
-    // ── The "Not implemented" alert: one app-modal sheet the inert dock apps
-    // raise. A single slot of state — `notImpl` fills it (name + icon), and the
-    // OK button clears it. `alertName == ""` means no alert.
-
-    notImpl(head: string, name: string, kind: string, glyph: string, gsize: number, h1: number, h2: number) {
-        this.dockDismiss()
-        this.alert.show(head, name, kind, glyph, gsize, h1, h2)
-        },
 
     // ── The documentation model: one fetch of the docs app's own spine. The
     // Files browser's Guide and Reference folders, and the synthesized reference
@@ -2720,11 +2764,11 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
                 ({ id: "source-desktop", label: "View & Edit Source", icon: "CodeIcon" }),
                 ({ id: "home", label: "Declare Home" }),
             ] }),
-            ({ id: "app", label: app.launcher.nameOf(app.wm.activeApp), bold: true,
-                items: this.appMenuItems(app.wm.activeApp) }),
+            ({ id: "app", label: app.wm.activeApp!.title, bold: true,
+                items: this.appMenuItems(app.wm.activeApp!) }),
             ({ id: "file", label: "File", items: [
                 ({ id: "new", label: "New", key: "⌘N" }),
-                ({ id: "open", label: "Open…", key: "⌘O", enabled: app.wm.activeApp != "calendar" }),
+                ({ id: "open", label: "Open…", key: "⌘O", enabled: app.wm.activeApp!.canOpen }),
                 ({ divider: true }),
                 ({ id: "close", label: "Close Window", key: "⌘W", enabled: app.wm.frontWin != null }),
             ] }),
@@ -2745,20 +2789,20 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             ({ id: "window", label: "Window", items: this.windowItems(app.wm.winSeq, app.wm.frontWin) }),
             ({ id: "help", label: "Help", items: [
                 ({ id: "hsearch", kind: "HelpSearch" }),
-                ({ id: "help-app", label: app.launcher.nameOf(app.wm.activeApp) + " Help", icon: "LightbulbIcon" }),
+                ({ id: "help-app", label: app.wm.activeApp!.title + " Help", icon: "LightbulbIcon" }),
             ] }),
         ] },
 
         // The application menu: About, View & Edit Source, and — except for Files,
         // which is always running — Quit.
 
-        appMenuItems(a: string) -> array {
-            const nm = app.launcher.nameOf(a)
+        appMenuItems(a: DesktopApp) -> array {
+            const nm = a.title
             const out = []
             out.push(({ id: "about-app", label: "About " + nm }))
             out.push(({ divider: true }))
             out.push(({ id: "source", label: "View & Edit Source" }))
-            if (a != "files") {
+            if (!a.alwaysRunning) {
                 out.push(({ divider: true }))
                 out.push(({ id: "quit", label: "Quit " + nm, key: "⌘Q" }))
                 }
@@ -2770,12 +2814,12 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         // the menus constraint above visibly reads them — its re-derive hooks.
 
         windowItems(seq: number, front: Window?) -> array {
-            const a = app.wm.activeApp
+            const a = app.wm.activeApp!
             const ws = app.wm.windows()
             const out = []
             for (let i = 0; i < ws.length; i++) {
                 if (app.wm.isPlain(ws[i]) || app.wm.appOf(ws[i]) != a) continue
-                out.push(({ id: "win:" + i, label: app.wm.titleOf(ws[i]) || app.launcher.nameOf(a), checked: ws[i] == front }))
+                out.push(({ id: "win:" + i, label: app.wm.titleOf(ws[i]) || a.title, checked: ws[i] == front }))
                 }
             if (out.length == 0) out.push(({ id: "nowin", label: "No Windows", enabled: false }))
             return out
@@ -2813,10 +2857,10 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         // the param tier keeps the receiver analyzable (startPark's pattern)
 
         pokeIcon(icon: DockIcon) { icon.poke() },
-        poke(a: string) {
+        poke(a: DesktopApp) {
             // typed at the seam, like wins.children: every row child is a
             // DockIcon by construction
-            for (const c of this.row.children) if ((c as DockIcon).appId == a) this.pokeIcon(c as DockIcon)
+            for (const c of this.row.children) if ((c as DockIcon).appId == a.id) this.pokeIcon(c as DockIcon)
             },
 
         // ── the dock's own geometry: the constants, the smoothed pointer, the
@@ -2857,7 +2901,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
         tiles: array = { (app.wm.miniRecs || []).map((r) => {
             const fit = this.thumbEdge / Math.max(r.winW, r.winH)
-            return ({ ix: r.ix, label: r.label, kind: r.kind, w: Math.round(r.winW * fit), h: Math.round(r.winH * fit) })
+            return ({ ix: r.ix, label: r.label, w: Math.round(r.winW * fit), h: Math.round(r.winH * fit) })
             }) },
 
         // the strip's resting width: the divider zone (34 = 16px left margin +
@@ -2879,14 +2923,15 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         miniLayout: array = { this.computeMiniLayout(this.tiles, this.dockX, this.hot,
             this.x, this.row.width, this.miniSpan, app.width) },
 
-        // iconRow = the nine icons + eight gaps at rest; 10 = the plate's side
+        // iconRow = the resting icon row (from the roster); 10 = the plate's side
         // skirts (5 each); 5 = the row's inset in the plate; 17 = the divider
         // zone (8 + line + 8). The wave itself is dockMag — one curve, read
         // here for the tiles and by each DockIcon for the icons.
 
         computeMiniLayout(recs: array, px: number, hot: number, dockLeftX: number, rowW: number, span: number, appW: number) -> array {
             const rs = recs || []
-            const iconRow = 9 * this.iconEdge + 8 * 16   // the nine icons + eight gaps, at rest
+            const n = app.launcher.roster.length
+            const iconRow = n * this.iconEdge + (n - 1) * 16   // the resting icon row, derived from the roster (was hard-coded at nine icons — one short)
             // 32 = the plate's two 16px side skirts; 16 = the row's inset in the
             // plate; 34 = the divider zone (16px left margin + line + 18px right
             // margin) — the first thumbnail starts 34px past the last icon's edge
@@ -2986,23 +3031,19 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             layout: SimpleLayout [ axis = x, spacing = 16 ],
 
             // a running app's icon raises its open windows instead of opening
-            // more — dockOpen: raise if any, else the app's default open
-            // (which itself decides launch-bounce vs instant by the record).
-            // ONE icon, replicated over the WHOLE catalog — launchables,
-            // Files (always running), and the four inert quips alike: face,
-            // wave slot, running dot, and the click all ride the row.
+            // more — dockOpen: raise if any, else the app's OWN open verb
+            // (the launch gate decides bounce vs instant). ONE icon,
+            // replicated over the WHOLE roster — launchables, Files (always
+            // running), and the four inert quips alike. The data carries only
+            // id + order; the icon resolves its application instance and
+            // reads everything — face, hues, dot, pill, click — off it.
 
             DockIcon [ datapath = :apps[], key = :id,
                 hotGate = { app.dock.hotGate },
                 ix = { Number(:ix ?? 0) },
                 appId = { "" + (:id ?? "") },
-                name = { "" + (:label ?? "") },
-                glyph = { "" + (:glyph ?? "") },
-                gsize = { Number(:gsize ?? 0.42) },
-                kind = { "" + (:kind ?? "") },
-                hue1 = { :hue1 }, hue2 = { :hue2 },
                 running = { :running == true },
-                onClick() { app.wm.dockOpen("" + :id, () => app.launcher.launch("" + :id, this)) }
+                onClick() { const a = this.ap(); if (a != null) app.wm.dockOpen(a, () => a.launch(this)) }
                 ]
             ],
 
@@ -3035,31 +3076,18 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     // ── The "Not implemented" alert: a translucent app-modal sheet — the scrim
     // swallows every press — sitting frontmost over all the chrome. Its icon
-    // reuses the very renderer the dock draws (app.drawKindArt), badged with a
+    // is the subject app's own (AppGlyph — the dock's renderer), badged with a
     // caution triangle.
 
     alert: View [
-        // its own single slot of state: show() fills it, dismiss() clears it,
-        // "" = no alert — the state lives where the pixels are
+        // its own single slot of state: an inert app assigns ITSELF here
+        // (InertApp.open), dismiss clears it, null = no alert — the state
+        // lives where the pixels are, and everything below (icon, headline,
+        // message) derives from the one subject
 
-        name: string = "",
-        head: string = "",                       // the terse per-app headline ("No." / "Nope." / …)
-        kind: string = "",
-        glyph: string = "",
-        gsize: number = 0.42,
-        hue1: Color = #4A90D9,
-        hue2: Color = #2E5FA3,
-        show(head: string, name: string, kind: string, glyph: string, gsize: number, h1: number, h2: number) {
-            this.head = head
-            this.name = name
-            this.kind = kind
-            this.glyph = glyph
-            this.gsize = gsize
-            this.hue1 = h1
-            this.hue2 = h2
-            },
-        dismiss() { this.name = "" },
-        visible = { this.name != "" },
+        subject: DesktopApp = null,
+        dismiss() { this.subject = null },
+        visible = { this.subject != null },
         x = 0, y = 0, width = { app.width }, height = { app.height },
         onPointerDown() { },                           // modal: presses on the scrim do nothing
 
@@ -3075,16 +3103,14 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             stroke = stroke(1, #FFFFFF80),
             shadow = shadow(0, 16, 50, #00000059),
 
-            icon: AppGlyph [ x = 118, y = 26, edge = 64,
-                kind = { app.alert.kind }, glyph = { app.alert.glyph }, gsize = { app.alert.gsize },
-                hue1 = { app.alert.hue1 }, hue2 = { app.alert.hue2 } ],
+            icon: AppGlyph [ x = 118, y = 26, edge = 64, appId = { app.alert.subject != null ? app.alert.subject.id : "" } ],
             badge: CautionBadge [ x = 162, y = 70, edge = 30 ],
 
             title: Text [ x = center, y = 112, fontSize = 15, fontWeight = semibold,
-                textColor = { theme.text }, text = { app.alert.head } ],
+                textColor = { theme.text }, text = { app.alert.subject != null ? app.alert.subject.quip : "" } ],
             msg: Text [ x = 20, y = 136, width = 260, wrap = true, textAlign = center,
                 fontSize = 12, textColor = { theme.textMuted },
-                text = { "Declare Desktop doesn't include " + app.alert.name + "." } ],
+                text = { "Declare Desktop doesn't include " + (app.alert.subject != null ? app.alert.subject.title : "") + "." } ],
 
             // The payoff — a rounded image with a thin hairline, so it reads as
             // deliberate rather than a stray asset.
