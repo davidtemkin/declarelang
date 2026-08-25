@@ -48,7 +48,8 @@ async function openReader(url) {
   await new Promise((r) => setTimeout(r, 1200)); // boot animations settle
   const icon = await page.evaluate(() => {
     let found = null;
-    const walk = (v) => { for (const c of v.children ?? []) { if (c.constructor.name === "DockIcon" && c.name === "Markdown") found = c; walk(c); } };
+    // records era named icons by `name`; the instances era by `appId`
+    const walk = (v) => { for (const c of v.children ?? []) { if (c.constructor.name === "DockIcon" && (c.name === "Markdown" || c.appId === "markdown")) found = c; walk(c); } };
     walk(globalThis.__declare.find("app"));
     // canvas surfaces have no element; locate by model geometry either way
     let x = 0, y = 0, v = found;
@@ -211,7 +212,7 @@ try {
     // open the real calendar app in an AppWindow from the dock
     const icon = await page.evaluate(() => {
       let found = null;
-      const walk = (v) => { for (const c of v.children ?? []) { if (c.constructor.name === "DockIcon" && c.name === "Calendar") found = c; walk(c); } };
+      const walk = (v) => { for (const c of v.children ?? []) { if (c.constructor.name === "DockIcon" && (c.name === "Calendar" || c.appId === "calendar")) found = c; walk(c); } };
       walk(globalThis.__declare.find("app"));
       let x = 0, y = 0, v = found;
       while (v && v.x !== undefined) { x += v.x; y += v.y; v = v.parent; }

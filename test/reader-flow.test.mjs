@@ -91,7 +91,9 @@ await test("the viewer inside the CANVAS desktop gets its host's data", async ()
   // space; only assets are child-relative.
   await page.goto(`${B}/apps/desktop/desktop.declare?render=canvas`, { waitUntil: "networkidle0", timeout: 60000 });
   await sleep(3000);
-  await page.evaluate(`(window.__app.launcher ?? window.__app).openSource("desktop")`);
+  // instances era: openSource takes the application NODE (launcher.desk);
+  // the string spelling stays as the older trees' fallback
+  await page.evaluate(`(() => { const L = window.__app.launcher ?? window.__app; L.openSource(L.desk ?? "desktop"); })()`);
   await page.waitForFunction(`(() => {
     const isl = window.__declare.find("app.wins").children.map((w) => w.island).filter(Boolean).find((i) => i.__childApp);
     return isl && isl.__childApp.segSrc.status !== "idle" && isl.__childApp.segSrc.status !== "loading";
