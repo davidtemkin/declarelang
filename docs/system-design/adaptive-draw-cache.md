@@ -263,6 +263,112 @@ Verified: JS suite green; native gate 16/0 (`blur` still −0.27pt, `desktop`
 −0.06pt); behavioural conformance 14/14; all 30 drawops cells within budget on
 Mac after the change.
 
+## C.3 The measurement pass (2026-08-25) — every engine, and the constants
+
+DT's go: "do all of the measurement required so we can proceed to build." One
+pass, serialized (a Chrome trace and a Safari cadence run cannot share the GPU):
+Chrome traced on both renderers at two mark sizes, real Safari on the size and
+op-kind sweeps with focus yielded, Firefox on everything, the Mac host on its own
+meter, and the iOS Simulator for caps. The rig grew an op-kind axis on the
+coverage probe (`kind` = fill · gradient · stroke · text · shadow — `shadowBlur`,
+not `filter`, so the blur arm exists on Safari), a weight axis on the size probe
+(the axis that loads an engine that ignores `ctx.filter`), a Firefox engine, a
+Simulator engine, and `tools/rasterfit.mjs`, which turns the traced rows into
+the cost model's constants.
+
+**The constants — calibrated, two spans, Chrome tracing.** `slope(span) = OP +
+PX·area(span)`; two mark sizes, two equations:
+
+| kind | DOM: OP µs/op | DOM: PX ms/Mpx | canvas: OP | canvas: PX | PX relative to fill |
+|---|---|---|---|---|---|
+| fill | 1.6 | 0.10 | 0.3 | 0.05 | 1× |
+| stroke | 1.6 | 0.06 | 0.8 | 0.03 | 0.6× |
+| shadow | 3.0 | 0.43 | 0.7 | 0.22 | 4.3× |
+| text | ~0 | 0.85 | ~0 | 0.42 | 8.5× |
+| gradient | 6.1 | **3.01** | 2.6 | **1.53** | **30×** |
+
+Two things the placeholders got wrong by an order of magnitude each way. The
+per-op floor is 1–3 µs on DOM and under 1 µs on canvas — `OP_US = 20` was ten
+times high, so the old 48-op rule was promoting recordings that cost 50 µs to
+replay. And a gradient's per-pixel cost is **30× a solid fill's**, not 3× —
+`GRADIENT_WEIGHT = 3` was ten times low, so a two-wash sky priced as cheap.
+Canvas is ~0.5× DOM on every row, the same ratio as before; the kind ratios
+are identical on both renderers. So: one shared set of per-kind AREA weights
+(draw.ts), one per-backend pair of base constants (canvas-backend.ts), which is
+the split the ruling asked for.
+
+**Size grace — decided: not built, because no measured engine needs it.**
+Safari, the engine the wallpaper's workaround was written against, on the
+weight axis (five full-surface radial washes is the wallpaper; weight 32 is six
+times that), 30-step resize, focus yielded:
+
+| Safari, both renderers | weight 3 | 8 | 16 | 32 |
+|---|---|---|---|---|
+| live — re-records every step, p50/p95 | 17/18 | 17/17 | 17/17 | 17/17 |
+| ref — fixed box + CSS scale | 17/18 | 17/17 | 17/18 | 17/17 |
+
+Flat at the 60 Hz cap to six times the wallpaper's load, live and ref alike,
+DOM and canvas alike. Chrome: 1 ms of main-thread paint either way (§E.2).
+Firefox: live p95 11–20 against ref 9–10 at 120 Hz — a few ms, no drops. The
+"~24 ms per flush" the workaround cites does not reproduce on any engine at
+any load run here; whatever it measured in 2026-08, it is not what these
+engines do now. A grace that stretches a stale raster for the beat would buy
+nothing measurable and would carry the two-mechanism complexity (scale grace
+and size grace are different gates) for it. Not built. The consequence for the
+corpus: the wallpaper's reference box, and the dock icon's `face`, are
+workarounds for a cost that is not there, and can be retired on this evidence
+— that is DT's file and DT's call.
+
+**Firefox, in full** (Gecko rasterizes eagerly on the CPU, so its cost is in
+cadence; 120 Hz display, p50 8 ms):
+- Gradient fills are its cliff: 256 gradient marks p50 **55 ms**, 1024 → **234
+  ms**, on the DOM renderer. On the canvas renderer the same rows read p50 8 /
+  p95 238 — the memo promoting the stable list and blitting it, the first
+  raster paid once. That is the memo doing on Gecko exactly what it was built
+  for, and the clearest evidence in the whole pass that it earns its bytes.
+- Shadows: 1024 shadowed marks re-record at ~110 ms each (DOM); canvas hides it
+  behind the memo again.
+- Extent: a document-tall DOM canvas goes **blank at 131.8 MB** (ink 0 at
+  k ≥ 16, where Chrome still rendered) — a discovered ceiling lower than
+  Safari's. The canvas backend is flat, having refused the raster.
+- Everything else at 120 Hz.
+
+**Safari, op kinds:** 60 Hz on every row; only 4096 full-surface translucent
+covers drop (p50 28 ms).
+
+**The Mac host, on its own meter** (`mac-host/kindsbench.mjs` — `ctl eval`
+turns the probe's knobs, `statsreset`/`stats` read LayerTree's raster timer;
+ms per re-record, 30 re-records per row):
+
+| kind | 256 ops | 1024 ops | small mark, 1024 | path |
+|---|---|---|---|---|
+| fill | 3.1 | 7.3 | 8.6 | described (CALayers) |
+| gradient | 6.8 | 19.0 | 16.0 | described |
+| stroke | 3.2 | 9.5 | 9.0 | described |
+| text | 25 | 79 | 19.7 | rasterized (Core Text) |
+| **shadow** | **722** | **4785** | 85 | rasterized (Core Graphics) |
+
+Two shapes in that table. The DESCRIBED kinds cost per op and not per pixel —
+the same at both mark sizes — because what is being paid is CALayer
+construction (~7–19 µs per mark), and the pixels are the render server's. That
+is the Mac's version of "the cost lands where the compositor is fed", and it
+sits between Chrome DOM's 15 µs/op and canvas's 8. The RASTERIZED kinds scale
+with area (text 4× between the spans) and, for shadows, with radius²: **a
+shadowed mark costs ~4.7 ms on the Mac host against 61 µs on Chrome** — a 75×
+cliff, because Core Graphics blurs each shadow on the CPU in the per-node
+raster path. That is the largest per-engine divergence this pass found, and it
+is specific: `CAShapeLayer` carries `shadowRadius`/`shadowOpacity`/`shadowOffset`
+natively, so shadows could be DESCRIBED like fills are and never reach CG.
+Open, and the first thing to build on the Mac side.
+
+**iOS Simulator** (iPhone 16 Pro, iOS WebKit at dpr 3; timings Mac-hosted and
+indicative): `ctx.filter` NOT honoured, the same as desktop Safari. The
+document-tall extent at k=48 is an **889.9 MB, 2700×86403 canvas that paints
+nothing** (ink 0%) — the per-canvas cap, exactly where draw.ts's
+RASTER_MAX_AREA keeps the memo from going. Strokes and text at 1024 marks read
+p50 30 and 61 ms where desktop Safari was flat, a WebKit-configuration
+difference worth a real-device run before it is called a number.
+
 ## D. Canvas, per runtime — the platform attributes
 
 Same recording throughout (`artSunnySky`, two full-surface gradient fills at
@@ -310,40 +416,13 @@ is commit COUNT (one transaction per display tick), never op batching.
 ## E. What is open now
 
 1. ~~Per-op bounds, the area predictor, culling~~ — DONE, §C.2.
-2. **Size grace — measured 2026-08-25, twice, and the first measurement was
-   wrong.** The first run said the wallpaper's workaround (a fixed reference box
-   under a CSS scale) cost ~2× the naive re-record-per-frame shape on Chrome DOM,
-   and that a size grace would therefore regress Chrome. That finding was
-   committed and is WITHDRAWN. Two instrument artifacts stacked: the probe's
-   drive bumped `app.tick` every step to force a repaint, and the `ref` body
-   reads `tick`, so the reference box re-recorded and re-rasterized its 14.6 MB
-   canvas every frame — defeating the workaround by construction; and the
-   rig's readback-based checks (`ink`, `drive`, `filter`) ran inside the trace
-   window, and a readback of an accelerated canvas syncs the whole texture,
-   proportional to its bytes. `will-change: transform` on the view, then on the
-   canvas too, moved nothing — which is what pointed at the instrument rather
-   than the compositor. A drive that touches what it measures is not a drive.
-
-   With the drive inert and the trace bracketing only the gesture (Chrome DOM,
-   30-step resize, `paintMs` = `LayerTreeHost::DoUpdateLayers`):
-
-   | | main-thread paint | GPU process |
-   |---|---|---|
-   | live — re-records every step | **1 ms** | 144–217 ms |
-   | ref — fixed box + CSS scale | **1 ms** | 72–117 ms |
-   | ref, backing 3.7 / 14.6 / 58.6 MB | 1 / 1 / 1 ms | 108 / 69 / 116 ms |
-
-   **Nothing regresses on Chrome.** Both shapes are free on the main thread;
-   the GPU-process cost is a few ms per frame and the stale-raster-plus-scale
-   shape is about half the re-record shape there; backing size is flat. So a
-   size grace — keep the raster, stretch it for the beat, re-record at rest —
-   is a mild win on Chrome and cannot hurt it. What it is FOR is the engine the
-   workaround was written against: Safari's deferred raster, where the same
-   re-record measured ~24 ms per flush in 2026-08 — and Safari has no raster
-   meter, so the number that decides is CADENCE under the resize on the real
-   browser, live against ref. That sweep needs DT's go. The mechanism is not in
-   doubt on the engine we can measure; its magnitude on the one we cannot is
-   the open number.
+2. ~~Size grace~~ — DECIDED 2026-08-25, not built: no measured engine drops a
+   frame under the naive shape at up to six times the wallpaper's load. §C.3
+   carries the table and the corpus consequence. (The first Chrome reading that
+   said the workaround regressed Chrome 2× was two instrument artifacts and was
+   withdrawn — the drive perturbed the recording, and readbacks sat inside the
+   trace window; `will-change` on the view and then the canvas moved nothing,
+   which is what pointed at the rig.)
 3. **DOM extent** — a raster window (a band-sized backing store re-imaged as the
    visible rect moves). SVG would solve extent structurally, being the one DOM
    primitive the browser rasterizes under the transform, but it adds a THIRD

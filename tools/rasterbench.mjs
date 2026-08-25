@@ -101,6 +101,39 @@ const PROBES = {
       { name: "span 1.00 — marks cover", hold: { span: 1.0 }, axis: "ops", values: [1, 64, 256, 1024, 4096] },
     ],
   },
+  // THE OP-KIND SWEEP — the cost model has two constants per kind (per-op and
+  // per-pixel) and both were placeholders. Same span, same alpha, same op
+  // counts; only WHAT each mark is changes. Under Chrome tracing the paint
+  // column is the calibrated cost; on the other engines the cadence column is.
+  kinds: {
+    file: "test/probe/raster-coverage.declare",
+    drive: "static",
+    sweeps: ["fill", "gradient", "stroke", "text", "shadow"].map((kind) => (
+      { name: `kind ${kind}`, hold: { kind, span: 0.25 }, axis: "ops", values: [1, 256, 1024] }
+    )),
+  },
+  // the same kinds at a SMALL mark (span 0.06 → ~8k device px per op against
+  // ~135k at 0.25): two spans separate a kind's per-op term from its per-pixel
+  // term, which one span bundles into a single slope
+  "kinds-small": {
+    file: "test/probe/raster-coverage.declare",
+    drive: "static",
+    sweeps: ["fill", "gradient", "stroke", "text", "shadow"].map((kind) => (
+      { name: `kind ${kind} (small)`, hold: { kind, span: 0.06 }, axis: "ops", values: [1, 256, 1024] }
+    )),
+  },
+  // the size probe on the WEIGHT axis — the one that loads an engine that
+  // ignores ctx.filter (Safari), where the blur axis is inert; weight 16 is
+  // wallpaper class (five full-surface washes over a 1920x1200 box measured
+  // ~24 ms per flush on Safari in 2026-08)
+  "size-weight": {
+    file: "test/probe/raster-size.declare",
+    drive: "resize",
+    sweeps: [
+      { name: "resize, live — weight", hold: { mode: "live", blur: 0 }, axis: "weight", values: [3, 8, 16, 32] },
+      { name: "resize, ref  — weight", hold: { mode: "ref", blur: 0 }, axis: "weight", values: [3, 8, 16, 32] },
+    ],
+  },
   size: {
     file: "test/probe/raster-size.declare",
     drive: "resize",
@@ -247,7 +280,11 @@ const AGENT = `(async () => {
       // under a point sample, and "0% ink" would then mean "I sampled between
       // the lines", not "nothing painted". A block asks the question the metric
       // is actually for — is there content in this neighbourhood.
-      const B = 40;
+      // the block scales with dpr: a lattice on a 32-CSS-px pitch is 96 device
+      // px apart at dpr 3, and a fixed 40 px block then sits between the lines
+      // on a scene that painted — measured on the iOS Simulator, ink 0% on
+      // pinned rows the extent metric showed as fully allocated and drawn
+      const B = Math.round(40 * (window.devicePixelRatio || 1));
       for (let gx = 0; gx < 4; gx++) {
         for (let gy = 0; gy < 4; gy++) {
           const x = Math.min(Math.max(0, c.width - B), Math.floor((gx + 0.5) * c.width / 4 - B / 2));
@@ -424,9 +461,42 @@ async function chromeEngine({ headless }) {
   };
 }
 
+// iOS Simulator Safari, through the same safaridriver, with the capabilities
+// that boot a simulator and attach to its Safari. Its WebKit is iOS WebKit —
+// the feature flags, the per-canvas area cap (16.7 MP on the iOS 18 tier, the
+// safe floor the caps in draw.ts keep to), the memory policy, and the failure
+// past budget (transparent canvases) are all the device's. Its TIMINGS are not:
+// the simulator runs on the Mac's GPU and CPU, so cadence there is indicative
+// only. Right rig for correctness and ceilings; not for numbers.
+async function simulatorEngine() {
+  // Boot the device FIRST. safaridriver will boot one itself, but its session
+  // timeout is shorter than a cold simulator boot — measured 2026-08-25: "The
+  // session timed out while waiting" on the first attempt, every time. A
+  // booted device attaches in seconds.
+  const list = spawnSync("xcrun", ["simctl", "list", "devices", "available", "-j"], { encoding: "utf8" });
+  const devices = Object.values(JSON.parse(list.stdout || "{}").devices ?? {}).flat();
+  const pick = devices.find((d) => /iPhone 16 Pro$/.test(d.name)) ?? devices.find((d) => /iPhone/.test(d.name));
+  if (pick) {
+    if (pick.state !== "Booted") {
+      console.log(`  booting ${pick.name} …`);
+      spawnSync("xcrun", ["simctl", "boot", pick.udid], { stdio: "ignore" });
+      for (let i = 0; i < 90; i++) {
+        await sleep(2000);
+        const st = spawnSync("xcrun", ["simctl", "list", "devices", "-j"], { encoding: "utf8" });
+        const d = Object.values(JSON.parse(st.stdout || "{}").devices ?? {}).flat().find((x) => x.udid === pick.udid);
+        if (d?.state === "Booted") break;
+      }
+      await sleep(8000);   // SpringBoard needs a beat after "Booted" before Safari can be driven
+    }
+  }
+  // platformName is REQUIRED alongside the simulator flag — without it
+  // safaridriver answers "The 'macOS' platform is not supported" (2026-08-25)
+  return await safariEngine({ platformName: "iOS", "safari:useSimulator": true, "safari:deviceType": "iPhone" }, "ios-simulator (Safari on iOS WebKit — caps and capability; timings are Mac-hosted)");
+}
+
 // safaridriver speaks plain W3C WebDriver over HTTP — no client library, and
 // none is wanted: the whole protocol surface used here is five calls.
-async function safariEngine() {
+async function safariEngine(extraCaps = {}, label = "safari") {
   const port = 4680 + Math.floor(process.pid % 200);
   const proc = spawn("safaridriver", ["--port", String(port)], { stdio: "ignore" });
   await sleep(1200);
@@ -443,7 +513,7 @@ async function safariEngine() {
   };
   let session;
   try {
-    session = await call("POST", "/session", { capabilities: { alwaysMatch: {} } });
+    session = await call("POST", "/session", { capabilities: { alwaysMatch: extraCaps } });
   } catch (err) {
     proc.kill();
     throw new Error(
@@ -460,8 +530,11 @@ async function safariEngine() {
     spawn("osascript", ["-e", 'tell application "Finder" to activate'], { stdio: "ignore" });
     await sleep(600);
   }
+  const simulator = extraCaps["safari:useSimulator"] === true;
   return {
-    name: "safari",
+    name: label,
+    // a simulator has no resizable window; the resize probe cannot be driven there
+    noResize: simulator,
     async goto(url) {
       await call("POST", `/session/${sid}/url`, { url });
       // no networkidle in W3C — poll for the app the same way the page would
@@ -472,7 +545,7 @@ async function safariEngine() {
       }
       await sleep(350);
     },
-    async resize(w, h) { await call("POST", `/session/${sid}/window/rect`, { width: w, height: h + 80 }); },
+    async resize(w, h) { if (!simulator) await call("POST", `/session/${sid}/window/rect`, { width: w, height: h + 80 }); },
     async run(src) {
       const wrapped =
         `var done = arguments[arguments.length - 1];` +
@@ -614,6 +687,7 @@ for (const engineName of engines) {
   let engine;
   try {
     engine = engineName === "safari" ? await safariEngine()
+      : engineName === "ios" ? await simulatorEngine()
       : engineName === "webkit" ? await webkitEngine()
       : engineName === "firefox" ? await firefoxEngine()
       : await chromeEngine({ headless });
@@ -627,6 +701,10 @@ for (const engineName of engines) {
     const probe = PROBES[probeName];
     if (!probe) { console.log(`  unknown probe '${probeName}'`); continue; }
 
+    if (engine.noResize && probe.drive === "resize") {
+      console.log(`\n  ${probeName} — SKIPPED (this engine has no resizable window)`);
+      continue;
+    }
     for (const renderer of renderers) {
       if (engine.noCadence && renderer === "canvas") {
         // the canvas backend's compositor is a dirty-bit + rAF scheduler, and an

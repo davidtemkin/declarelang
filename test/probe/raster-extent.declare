@@ -45,7 +45,13 @@ App [ width = 900, height = 600, fill = #0B0E12,
         draw(d: Draw) {
             const W = d.w
             const H = d.h
-            d.fillStyle = app.tick == 0 ? "#1B2733" : "#1B2734"   // re-record without moving a line
+            // re-record without moving a line. A visible hue step, not a
+            // one-level nudge: Gecko's getImageData rounds a one-level delta
+            // away on premultiplied readback, and the rig's drive check then
+            // reports a working sweep as INERT (measured 2026-08-25, every
+            // extent row on Firefox). Same lattice, same lines; only the paper's
+            // tint moves.
+            d.fillStyle = "hsl(" + (210 + (app.tick % 2) * 40) + ", 30%, 16%)"
             for (let gx = 0; gx <= W; gx = gx + 32) d.fillRect(gx, 0, 1, H)
             for (let gy = 0; gy <= H; gy = gy + 32) d.fillRect(0, gy, W, 1)
             }

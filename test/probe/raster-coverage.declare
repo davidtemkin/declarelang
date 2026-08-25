@@ -26,6 +26,14 @@ App [ width = 900, height = 600, fill = #101418,
     ops: number = 24,            // how many marks
     span: number = 0.25,         // each mark's size, as a fraction of the view
     alpha: number = 0.5,         // per-mark opacity — see the note below
+
+    // WHAT each mark is — the op-kind axis. The cost model prices covered area
+    // with a per-op term; both constants are per KIND (a gradient shades every
+    // pixel, a stroke builds geometry per op, a blur is superlinear in radius)
+    // and this is the knob that measures them instead of guessing:
+    //   fill · gradient · stroke · text · shadow
+
+    kind: string = "fill",
     tick: number = 0,            // bump to re-record with the same geometry
 
     art: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
@@ -55,11 +63,45 @@ App [ width = 900, height = 600, fill = #101418,
             const cols = Math.max(1, Math.ceil(Math.sqrt(n)))
             const stepX = cols > 1 ? (W - mw) / (cols - 1) : 0
             const stepY = cols > 1 ? (H - mh) / (cols - 1) : 0
+            const k = app.kind
+            if (k == "shadow") {
+                // the portable gaussian — shadowBlur works on every engine, where
+                // ctx.filter does not; the radius scales with the mark so the
+                // convolution's cost stays a property of the KIND, not the size
+                d.shadowColor = "rgba(0,0,0,0.9)"
+                d.shadowBlur = Math.max(4, mw * 0.15)
+                }
+            if (k == "stroke") { d.lineWidth = Math.max(2, mw * 0.08) }
+            if (k == "text") {
+                d.font = "600 " + Math.max(10, Math.round(mh * 0.6)) + "px system-ui, sans-serif"
+                d.textBaseline = "top"
+                }
             for (let i = 0; i < n; i = i + 1) {
                 const cx = i % cols
                 const cy = Math.floor(i / cols)
-                d.fillStyle = "hsl(" + ((i * 37 + app.tick * 13) % 360) + ", 65%, 55%)"
-                d.fillRect(cx * stepX, cy * stepY, mw, mh)
+                const x = cx * stepX
+                const y = cy * stepY
+                const hue = (i * 37 + app.tick * 13) % 360
+                if (k == "gradient") {
+                    const g = d.createLinearGradient(x, y, x + mw, y + mh)
+                    g.addColorStop(0, "hsl(" + hue + ", 65%, 55%)")
+                    g.addColorStop(1, "hsl(" + ((hue + 90) % 360) + ", 65%, 35%)")
+                    d.fillStyle = g
+                    d.fillRect(x, y, mw, mh)
+                    }
+                else if (k == "stroke") {
+                    d.strokeStyle = "hsl(" + hue + ", 65%, 55%)"
+                    d.strokeRect(x, y, mw, mh)
+                    }
+                else if (k == "text") {
+                    d.fillStyle = "hsl(" + hue + ", 65%, 55%)"
+                    d.fillText("Ag 47", x, y)
+                    }
+                else {
+                    // fill, and shadow (a fill under the shadow state set above)
+                    d.fillStyle = "hsl(" + hue + ", 65%, 55%)"
+                    d.fillRect(x, y, mw, mh)
+                    }
                 }
             }
         ],
