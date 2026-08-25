@@ -88,6 +88,9 @@ export function ctxFilterSupported(): boolean {
   // paths can be diffed against each other on one machine
   if ((globalThis as { __declareForceFilterFallback?: boolean }).__declareForceFilterFallback === true) return false;
   if (supported !== null) return supported;
+  // no DOM (a headless boot, a Node rung) — there is no canvas to test and
+  // nothing will paint, so claim support and take the direct path
+  if (typeof document === "undefined") return (supported = true);
   try {
     const c = document.createElement("canvas");
     c.width = 60; c.height = 20;

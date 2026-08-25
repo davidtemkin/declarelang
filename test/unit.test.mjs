@@ -1129,7 +1129,14 @@ await test("scaffold: the Draw surface mirrors draw.ts — every member, no drif
   // 2026-08-05). The silent direction is the one worth gating; both are gated now.
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("../runtime/src/draw.ts", import.meta.url), "utf8");
-  const body = src.slice(src.indexOf("export class Draw {"));
+  // …and only the CLASS BODY. Slicing to end-of-file also swept module-level
+  // code below it, where the second pattern below matches any two-space-indented
+  // CALL as if it were a member — so adding a private helper to draw.ts and
+  // calling it from a top-level function reported a phantom drift (replayDirect,
+  // 2026-08-24). Bounded here; verified to change nothing else, the same 56
+  // members either way.
+  const fromClass = src.slice(src.indexOf("export class Draw {"));
+  const body = fromClass.slice(0, fromClass.indexOf("\n}") + 2);
   const real = new Set();
   for (const m of body.matchAll(/^  (?:get|set) ([a-zA-Z]\w*)\(/gm)) real.add(m[1]);
   for (const m of body.matchAll(/^  ([a-z]\w*)\(/gm)) real.add(m[1]);

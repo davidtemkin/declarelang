@@ -24,6 +24,7 @@
 // Everything else — text, gradients, shadow/blur, filter, compositing,
 // clipping, transforms, the full path and rect set — is here.
 import { DeclareError } from "./errors.js";
+import { applyFilterFallback, ctxFilterSupported, isIdentity, parseFilter } from "./canvas-filter.js";
 import { colorToCss } from "./value.js";
 /** A style value may be a CSS string or a Declare `Color` (a number) — draw() is
  *  first-class with the language's Color type, so `d.fillStyle = #BCC4E2`
@@ -410,6 +411,22 @@ export function replayCost(list) {
     return n >= 48 ? "expensive" : "cheap";
 }
 export function replay(ctx, list) {
+    // WebKit accepts ctx.filter and paints unfiltered (canvas-filter.ts), so a
+    // recording that sets one has to be interpreted rather than handed over. The
+    // check is per-recording and the answer is cached, so a list with no filter —
+    // very nearly all of them — pays one scan and nothing else.
+    for (const o of list.ops) {
+        if (o.op === "set" && o.k === "filter" && o.v !== "none" && o.v !== "") {
+            if (!ctxFilterSupported()) {
+                replayFiltered(ctx, list);
+                return;
+            }
+            break;
+        }
+    }
+    replayDirect(ctx, list);
+}
+function replayDirect(ctx, list) {
     ctx.save();
     ctx.beginPath();
     for (const o of list.ops) {
@@ -506,6 +523,188 @@ export function replay(ctx, list) {
                 break;
             case "resetTransform":
                 ctx.resetTransform();
+                break;
+        }
+    }
+    ctx.beginPath();
+    ctx.restore();
+}
+/** Replay with `filter` INTERPRETED — for engines that accept the property and
+ *  ignore it.
+ *
+ *  PER OPERATION, not per group. Canvas2D filters each drawing operation's own
+ *  source before compositing it, so two adjacent rects under one blur show a
+ *  seam where their union would be solid. Measured on Chrome, which is the
+ *  conformance reference: seam alpha 191 against a unioned 255. (⚠ The Mac
+ *  host's DrawReplay builds a GROUP layer instead — everything under the filter
+ *  into one side context — which is a different picture wherever filtered marks
+ *  overlap. Noted, not fixed here.)
+ *
+ *  The mechanism is two contexts in lockstep. Every state, path and transform
+ *  op goes to both; a paint op with a filter live is drawn on the SCRATCH,
+ *  filtered, and composited back. Three things deliberately do not mirror,
+ *  because the spec applies them after the filter rather than to its source:
+ *  `globalAlpha`, `globalCompositeOperation`, and `clip`. They stay on the
+ *  target, where compositing the filtered result honours them for free. */
+function replayFiltered(ctx, list) {
+    const W = ctx.canvas.width, H = ctx.canvas.height;
+    const scratch = document.createElement("canvas");
+    scratch.width = W;
+    scratch.height = H;
+    const sx = scratch.getContext("2d");
+    if (sx === null) {
+        replayDirect(ctx, list);
+        return;
+    }
+    // ⚠ INHERIT THE AMBIENT TRANSFORM. replay() is handed a context the backend
+    // has already positioned and scaled (the view's offset, times dpr); the
+    // recording's coordinates are relative to THAT, not to the canvas. A scratch
+    // starting at identity draws the same marks at 1x in the wrong corner — which
+    // is exactly what it did: a 200..600 device-px bar landed at 100..300.
+    sx.setTransform(ctx.getTransform());
+    let spec = null;
+    const saved = []; // `filter` is part of the gstate
+    const both = (fn) => { fn(ctx); fn(sx); };
+    /** Draw one mark through the filter: onto the scratch at full opacity and
+     *  source-over (alpha and blend belong to the composite), filter it, lay it
+     *  down under the target's own transform-free identity, then wipe. */
+    const filtered = (paint) => {
+        sx.save();
+        sx.globalAlpha = 1;
+        sx.globalCompositeOperation = "source-over";
+        paint(sx);
+        sx.restore();
+        // the recording states blur in USER units and the buffer is in DEVICE
+        // pixels, so the radius rides the live transform's magnitude — the same
+        // correction paintFrost makes for the same reason
+        const m = sx.getTransform();
+        const mag = Math.hypot(m.a, m.b) || 1;
+        const out = applyFilterFallback(scratch, mag === 1 ? spec : { ...spec, blur: spec.blur * mag });
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(out, 0, 0);
+        ctx.restore();
+        sx.save();
+        sx.setTransform(1, 0, 0, 1, 0, 0);
+        sx.clearRect(0, 0, W, H);
+        sx.restore();
+    };
+    const paint = (fn) => {
+        if (spec === null)
+            fn(ctx);
+        else
+            filtered(fn);
+    };
+    ctx.save();
+    ctx.beginPath();
+    sx.save();
+    sx.beginPath();
+    for (const o of list.ops) {
+        switch (o.op) {
+            case "fillStyle":
+                both((c) => { c.fillStyle = o.grad ? buildGradient(c, o.grad) : o.v; });
+                break;
+            case "strokeStyle":
+                both((c) => { c.strokeStyle = o.grad ? buildGradient(c, o.grad) : o.v; });
+                break;
+            case "set":
+                if (o.k === "filter") {
+                    const css = String(o.v);
+                    const f = css === "none" || css === "" ? null : parseFilter(css);
+                    spec = f !== null && !isIdentity(f) ? f : null;
+                }
+                else if (o.k === "globalAlpha" || o.k === "globalCompositeOperation") {
+                    ctx[o.k] = o.v; // composite-time, target only
+                }
+                else {
+                    both((c) => { c[o.k] = o.v; });
+                }
+                break;
+            case "setLineDash":
+                both((c) => c.setLineDash(o.segments));
+                break;
+            case "fillRect":
+                paint((c) => c.fillRect(o.x, o.y, o.w, o.h));
+                break;
+            case "strokeRect":
+                paint((c) => c.strokeRect(o.x, o.y, o.w, o.h));
+                break;
+            case "clearRect":
+                ctx.clearRect(o.x, o.y, o.w, o.h);
+                break; // not a drawing op — never filtered
+            case "beginPath":
+                both((c) => c.beginPath());
+                break;
+            case "moveTo":
+                both((c) => c.moveTo(o.x, o.y));
+                break;
+            case "lineTo":
+                both((c) => c.lineTo(o.x, o.y));
+                break;
+            case "arc":
+                both((c) => c.arc(o.x, o.y, o.r, o.a0, o.a1, o.ccw));
+                break;
+            case "arcTo":
+                both((c) => c.arcTo(o.x1, o.y1, o.x2, o.y2, o.r));
+                break;
+            case "ellipse":
+                both((c) => c.ellipse(o.x, o.y, o.rx, o.ry, o.rot, o.a0, o.a1, o.ccw));
+                break;
+            case "rect":
+                both((c) => c.rect(o.x, o.y, o.w, o.h));
+                break;
+            case "roundRect":
+                both((c) => c.roundRect(o.x, o.y, o.w, o.h, o.radii));
+                break;
+            case "quadraticCurveTo":
+                both((c) => c.quadraticCurveTo(o.cpx, o.cpy, o.x, o.y));
+                break;
+            case "bezierCurveTo":
+                both((c) => c.bezierCurveTo(o.cp1x, o.cp1y, o.cp2x, o.cp2y, o.x, o.y));
+                break;
+            case "closePath":
+                both((c) => c.closePath());
+                break;
+            case "fill":
+                paint((c) => (o.rule ? c.fill(o.rule) : c.fill()));
+                break;
+            case "stroke":
+                paint((c) => c.stroke());
+                break;
+            case "clip":
+                o.rule ? ctx.clip(o.rule) : ctx.clip();
+                break; // applies AFTER the filter
+            case "fillText":
+                paint((c) => c.fillText(o.text, o.x, o.y, o.maxWidth));
+                break;
+            case "strokeText":
+                paint((c) => c.strokeText(o.text, o.x, o.y, o.maxWidth));
+                break;
+            case "save":
+                saved.push(spec);
+                both((c) => c.save());
+                break;
+            case "restore":
+                spec = saved.length ? saved.pop() : null;
+                both((c) => c.restore());
+                break;
+            case "translate":
+                both((c) => c.translate(o.x, o.y));
+                break;
+            case "rotate":
+                both((c) => c.rotate(o.angle));
+                break;
+            case "scale":
+                both((c) => c.scale(o.x, o.y));
+                break;
+            case "transform":
+                both((c) => c.transform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]));
+                break;
+            case "setTransform":
+                both((c) => c.setTransform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]));
+                break;
+            case "resetTransform":
+                both((c) => c.resetTransform());
                 break;
         }
     }
