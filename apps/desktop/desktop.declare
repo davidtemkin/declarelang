@@ -32,12 +32,13 @@ the desktop carries no image payload at all — pure description. (The one
 bitmap is a certain music-video still, and it earns its keep.)
 */
 
-// The window classes below are created only at runtime, by name —
-// `wins.createView("FilesWindow", …)` — never as a declared tag. Class
-// reachability is otherwise a static fact (unused classes are dropped, which
-// is what tree-shakes production builds), and a name inside a runtime string
-// is invisible to that analysis. `use` is the explicit bridge: keep these
-// classes registered for creation by name.
+// The window classes below are created only at runtime, by name — a window
+// RECORD carries its class as a string, and WinSlot (the replication hinge)
+// creates it — never as a declared tag. Class reachability is otherwise a
+// static fact (unused classes are dropped, which is what tree-shakes
+// production builds), and a name inside a runtime string is invisible to that
+// analysis. `use` is the explicit bridge: keep these classes registered for
+// creation by name.
 
 use [ BracketIcon, CodeIcon, AutoIcon, LightbulbIcon, FilesWindow, ViewerWindow, AppWindow, AboutWindow, JotWindow, BrandMark, HelpSearch, AppGlyph, CautionBadge ]
 
@@ -92,7 +93,8 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // shade, no zoom — the strips vanish and the yellow/green lights go inert
 
     plain: boolean = false,
-    forApp: DesktopApp = null,                   // the application this window belongs to; subclasses (or the creator) set it
+    recId: string = "",                          // my window RECORD's id (wm.list) — the slot sets it at creation
+    forApp: DesktopApp = null,                   // the application this window belongs to; the slot sets it from the record
     appPath: string = "",                        // an AppWindow's program path; "" elsewhere
     homing: boolean = false,                     // mid restore flight: leaving the dock, slot still held
 
@@ -134,7 +136,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // ── the ZOOM egg — the tilt's scale twin (`s` re-rolls, `S` resets) ──
     // Same dormancy contract: zoomA rides at 1 until the seed is bumped, and
     // blends away on the way into the dock (the park scale must land exact —
-    // seatCheck measures it to half a pixel). Composed MULTIPLICATIVELY into
+    // the seat check measures it to half a pixel). Composed MULTIPLICATIVELY into
     // the park blend below, so the two journeys never fight.
 
     zoomTarget: number = { app.scaleSeed > 0 && this.tilts ? 0.55 + Math.random() * 0.9 : 1 },
@@ -207,9 +209,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // that it actually arrived, so an interrupted journey never commits the
     // destination's state.
 
-    miniGo: Animator [ attribute = miniT, to = 1, duration = 260, motion = cubicIn,
-        onStop() { app.wm.nudge() }                // no state — just a re-derive poke for seat checks
-        ],
+    miniGo: Animator [ attribute = miniT, to = 1, duration = 260, motion = cubicIn ],
     miniBack: Animator [ attribute = miniT, to = 0, duration = 260, motion = cubicOut,
         onStop() { if (classroot.miniT <= 0.01) app.wm.unparked(classroot) }
         ],
@@ -280,7 +280,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // activating any real window dismisses open About boxes — they're modals
     // in spirit: clicking anywhere else lets them go (the red light works too)
 
-    activate() { app.wm.frontWin = this; this.raise(app.wm.lowestMini()); if (!plain) app.launcher.dismissAbouts() },
+    activate() { app.wm.frontWin = this; app.wm.raiseWin(this); if (!plain) app.launcher.dismissAbouts() },
 
     // RAISING IS POINTER-KIND-SPLIT (ruled 2026-07-31). A mouse raises the
     // instant it touches a window — the platform rule, and the one that makes
@@ -1405,16 +1405,15 @@ Its pill is the `DockIcon`'s, showing the window's title.
 
 class MiniTile extends View [
 
-    // a static pool member (no replication, no Dataset): `ix` is assigned at
-    // the use site, and every property below is a pure constraint over the
-    // app's mini state — one atomic write to miniRecs re-derives the whole
-    // tile, so no per-row machinery exists to go stale
+    // REPLICATED over the WM's parked records (wm.miniData, one tile per
+    // record, keyed by the window's id) — the static six-slot pool this
+    // replaced existed only because per-row liveness couldn't then be
+    // trusted; the records era ends with the cap
 
-    ix: number = 0,
-    on: boolean = { app.wm.miniRecs != null && this.ix < app.wm.miniRecs.length },
-    visible = { this.on },
-    lbl: string = { this.on ? "" + app.wm.miniRecs[this.ix].label : "" },
-    appId: string = { this.on ? "" + app.wm.miniRecs[this.ix].appId : "" },
+    ix: number = { Number(:ix ?? 0) },
+    recId: string = { "" + (:id ?? "") },
+    lbl: string = { "" + (:label ?? "") },
+    appId: string = { "" + (:appId ?? "") },
 
     // geometry straight from the mini layout (the same entries the parked
     // window reads), translated into the minis section's local space
@@ -1434,10 +1433,10 @@ class MiniTile extends View [
     // the window is seated in this slot — its visual width equals the slot's
     // (both sides derive from the same layout entry, so the equality holds
     // through the magnification wave, and never mid-journey: a traveling or
-    // restored window's scale·width can't match). Pure derived fact — no
-    // arrival bookkeeping at all.
+    // restored window's scale·width can't match). Pure derived fact, read
+    // LIVE off the window itself — no journey bookkeeping.
 
-    seated: boolean = { app.wm.seatCheck(app.wm.miniWins, this.ix, this.slotW, app.wm.winSeq, app.pointerX, app.dock.hot) },
+    seated: boolean = { app.wm.seated(this.recId, this.slotW) },
 
     // The badge is the app's own dock icon at badge scale — same class, same
     // art, so the calendar badge carries the live date.
@@ -1627,6 +1626,7 @@ class DockIcon extends View [
             draw(d: Draw) {
                 const w = this.width
                 const h = this.height
+                if (w < 3 || h < 3) return       // a freshly replicated tile's first paint can be 0×0 — nothing to rim
                 const r = w * 0.23
                 const g = d.createLinearGradient(0, 0, 0, h)
                 g.addColorStop(0, "rgba(255,255,255,0.42)")
@@ -1947,43 +1947,140 @@ class DeskApp extends DesktopApp [ id = "desktop", label = "Declare Desktop", ti
 
 
 /*
+### WinSlot — the one imperative hinge of windows-as-data
+
+Replication cannot vary a CLASS per record (the tag is structure, fixed at
+compile time), so every window record replicates this one fixed slot, and the
+slot creates its record's class by name — `createView(:cls)`, the string door
+`use` holds open. Everything else about a window is data: which windows
+exist, their stacking (record order IS paint order — a raise is `list.move`),
+and which are parked (the `mini` tail). The slot fills the layer and declares
+no handlers, so it is transparent to the pointer; the window inside is the
+citizen. The slot also resolves the record's non-data companions at birth:
+the application instance (by id) and the origin view (the launcher's
+`takeBorn` side channel — a node reference never enters data-shaped state).
+*/
+
+class WinSlot extends View [ width = { parent.width }, height = { parent.height },
+    recId: string = { "" + (:id ?? "") },
+    win: Window = null,
+    onInit() {
+        const props = ({ ...((:props ?? ({})) as object),
+            recId: "" + (:id ?? ""),
+            forApp: app.launcher.byId("" + (:appId ?? "")),
+            bornFrom: app.launcher.takeBorn("" + (:id ?? "")) })
+        this.win = this.createView("" + (:cls ?? "View"), props as Record<string, unknown>) as Window
+        }
+    ]
+
+
+/*
 ### The window manager
 
 The desktop's core model, faceless: the set of windows as it exists — who is
-front, who is parked in the dock, what "running" means — with no pixels of its
-own. The chrome BINDS these facts; this node never reaches into a view's tree.
+front, who is parked in the dock — with no pixels of its own. THE WINDOW LIST
+IS DATA (`list`, windows-as-data 2026-08-25): one record per window
+{ id, cls, appId, mini, props… }, whose ORDER is the paint order — a raise is
+a `move`, an open an `insert` (before the minimized tail), a close a
+`removeAt`, and the replicated WinSlots reconcile the views to match. That
+retired the whole hand-bumped era: `winSeq`, `frontOpen`/`lowestMini`/
+`raise(below)`, `rebuildMinis` + the `miniRecs`/`miniWins` parallel arrays,
+the six-tile cap, and `seatCheck`'s deps-as-arguments — consumers now derive
+from the records (through the tracked `read`) and from the windows the slots
+carry.
 
-The surface (what the rest of the desktop depends on):
+The surface:
 
-  facts   `frontWin` · `activeApp` · `winCount`/`winSeq` (open/close sequence
-          numbers — window lists re-derive off them) · `miniRecs`/`miniCount`/
-          `miniWins`/`miniGoal` (the parked-window records the dock renders)
-  verbs   `focusWin` · `bringFront` · `frontOpen` · `closeWin` · `quitApp` ·
-          `minimizeWin` · `restoreMini`/`restoreMiniAt` · `dockOpen` (raise-or-
-          restore-or-launch) · `windows()`/`miniList()` (typed enumeration)
-
-Everything else here is machinery serving those verbs (`seatCheck`, `nudge`,
-`rebuildMinis`, the park journeys) — reachable, as everything is, but not a
-surface anyone should bind.
+  facts   `list` (the records) · `frontWin` · `activeApp` · `miniCount` ·
+          `miniData` (the parked records, ix-stamped, for the dock's tiles)
+  verbs   `focusWin` · `bringFront` · `closeWin` · `quitApp` · `minimizeWin` ·
+          `restoreMini`/`restoreMiniAt` · `dockOpen` (raise-or-restore-or-
+          launch) · `addWin`/`raiseWin`/`focusNew` (the record verbs the
+          launcher opens through) · `windows()`/`miniList()`/`winOf` (the live
+          views, resolved through the slots)
 */
 
 class WinManager extends Node [
     frontWin: Window = null,
-    winCount: number = 0,                        // ever-opened count — staggers spawn positions
-    viewerCount: number = 0,                     // open viewers, for the dock's running dot
+    winCount: number = 0,                        // ever-opened count — record ids + spawn-position stagger
 
-    /*
-    ### The application model
+    // the records. `recs()` reads through the TRACKED accessor, so a
+    // constraint that derives from the list re-derives on every insert/move/
+    // removeAt/set — mutations wake region cells, which plain `.value.wins`
+    // property access would never subscribe to.
 
-    Several "applications" share this desktop — Files, Markdown (the viewer),
-    Declare Calendar and Declare Viewer (hosted apps), and Jots — and the
-    menu bar is contextual: it belongs to the front window's application. A
-    window's app is read from its class; About windows carry theirs explicitly.
-    */
+    list: Dataset { { "wins": [] } },
+
+    recs() -> array { return (this.list.read(["wins"]) as object[]) ?? [] },
+    minis() -> array { return this.recs().filter((r) => r.mini == true) },
+    miniCount: number = { this.minis().length },
+
+    // the parked records as DECLARED DATA for the dock's tile replication,
+    // stamped with their band index (which is also each window's dockSlot)
+
+    miniData: Dataset [ contents = { ({ minis: app.wm.minis().map((r, i) => ({ ...(r as object), ix: i })) }) } ],
 
     appOf(w: Window?) -> DesktopApp { return w != null && w.forApp != null ? w.forApp : app.launcher.files },
 
     activeApp: DesktopApp = { this.appOf(app.wm.frontWin) },
+
+    // ── the live views, resolved through the slots (order = record order) ──
+
+    windows() -> Window[] {
+        const out = []
+        for (const s of app.wins.childViews) { const w = (s as WinSlot).win; if (w != null) out.push(w) }
+        return out as Window[]
+        },
+    miniList() -> Window[] { return this.windows().filter((w) => this.isMin(w)).sort((a, b) => this.ixOf(a) - this.ixOf(b)) },
+    winOf(id: string) -> Window {
+        for (const s of app.wins.childViews) { const sl = s as WinSlot; if (sl.recId == id && sl.win != null) return sl.win }
+        return null
+        },
+    idxOf(id: string) -> number { return this.recs().findIndex((r) => r.id == id) },
+
+    // ── the record verbs ──
+
+    spawn() -> number { winCount = winCount + 1; return winCount },
+
+    // an open INSERTS before the minimized tail — top of the normal band
+
+    addWin(rec: object) {
+        const ws = this.recs()
+        let at = ws.length
+        for (let i = 0; i < ws.length; i++) if (ws[i].mini == true) { at = i; break }
+        this.list.insert(["wins"], at, rec)
+        },
+
+    // focus the window a just-inserted record materializes: the view exists
+    // once the settle has reconciled the slots, so the step waits for its close
+
+    focusNew(id: string) {
+        afterSettle(() => { const w = this.winOf(id); if (w != null) this.frontWin = w })
+        },
+
+    // a raise is a MOVE to the top of the normal band (just under the
+    // minimized tail); the tail's own order is the band's business
+
+    raiseWin(w: Window) {
+        if (w == null || w.recId == "" || this.isMin(w)) return
+        const ws = this.recs()
+        const from = ws.findIndex((r) => r.id == w.recId)
+        if (from < 0) return
+        const rest = ws.filter((r) => r.id != w.recId)
+        let to = rest.length
+        for (let i = 0; i < rest.length; i++) if (rest[i].mini == true) { to = i; break }
+        this.list.move(["wins"], from, to)
+        },
+    patchWin(id: string, p: object) {
+        const i = this.idxOf(id)
+        if (i < 0) return
+        const ws = this.recs()
+        this.list.set(["wins", i], ({ ...(ws[i] as object), ...(p as object) }))
+        },
+    removeWin(id: string) {
+        const i = this.idxOf(id)
+        if (i >= 0) this.list.removeAt(["wins"], i)
+        },
 
     focusWin(w: Window?) { if (w == null) return; if (this.isMin(w)) this.restoreMini(w); else w.activate() },
 
@@ -1997,10 +2094,6 @@ class WinManager extends Node [
         for (const w of doomed) this.closeWin(w)
         a.running = false
         },
-
-    // A dock icon's click: a running app's icon raises its open windows (in
-    // their stacking order, so the front one ends front); with none open —
-    // running or not — the app's default open runs instead.
 
     /* A dock press dismisses an open menu AND does its own work — the dock rule,
        and worth stating because it is the opposite of a light dismiss. Clicking
@@ -2031,123 +2124,62 @@ class WinManager extends Node [
 
     A minimized window becomes a dock citizen: its geometry constraints run the
     icons' own swell math, so it magnifies and displaces along with the row, and
-    the dock's span is sprung so the plate widens smoothly to admit it. The
-    records here drive the invisible hit tiles and their label pills.
+    the dock's span is sprung so the plate widens smoothly to admit it. Parked
+    membership is the record's `mini` flag (plus the label/size capture the dock
+    fits tiles from); the journey (`miniT`, `dockSlot`, `homing`) stays the
+    window's own — animators drive views, records carry facts.
     */
 
     isMin(w: Window?) -> boolean { return w != null && w.dockSlot >= 0 },
     ixOf(w: Window?) -> number { return w != null ? w.dockSlot : -1 },
     labelFor(w: Window) -> string { const t = this.titleOf(w); return t != "" ? t : this.appOf(w).title },
 
-    // THE collection seam, and the one cast in the file: `wins` is populated at
-    // runtime (createView), so its `children` is View[] — but every occupant is
-    // a Window by construction (every open* path creates a Window subclass).
-    // Typed HERE once, every window-taking method below can say `w: Window`.
-
-    windows() -> Window[] { return app.wins.children as Window[] },
-    miniList() -> Window[] { return this.windows().filter((w) => this.isMin(w)).sort((a, b) => this.ixOf(a) - this.ixOf(b)) },
-
-    miniCount: number = 0,
-    miniRecs: array = null,
-
-    // compact the slot indices and rebuild the tile records — after every
-    // park, unpark, and close-of-parked. Slot widths are per window: the
-    // thumbnail keeps its window's aspect, its longer edge matching an app
-    // icon's edge, so it is never wider or taller than an icon.
-
-    // miniWins mirrors the records by index with the window references — a
-    // parallel app attr, kept out of the records: records are data, and a
-    // View's circular graph must never enter data-shaped state
-
-    miniWins: Window[] = null,
-
-    rebuildMinis() {
-        const ws = this.miniList()
-        const out = []
-        for (let i = 0; i < ws.length; i++) {
-            ws[i].dockSlot = i
-            // RAW window geometry only: what fits where, at what pixel size,
-            // is the dock's business (dock.tiles derives it) — the model
-            // stopped knowing what a pixel is here
-            out.push(({ ix: i, label: this.labelFor(ws[i]), appId: this.appOf(ws[i]).id, winW: ws[i].width, winH: ws[i].height }))
-            }
-        miniRecs = out
-        miniWins = ws
-        miniCount = out.length
-        },
-
-    // the minimized section's width — sprung toward the rebuilt goal, so
-    // admitting or releasing a tile widens and narrows the dock as motion
-
     startPark(w: Window) { w.miniBack.stop(); w.bornX = 0; w.bornY = 0; w.miniGo.start() },
     startUnpark(w: Window) { w.miniGo.stop(); w.miniBack.start() },
 
-    // settled-park state rides the records (the badge derives from its
-    // record's `full`, plain data — no reactive aggregation in constraints):
-    // full only after the arriving journey completes, and cleared the
-    // instant the journey home begins
+    // renumber the parked windows' dockSlots to their band order — after
+    // every park, unpark, and close-of-parked
+
+    renumberMinis() {
+        const ms = this.minis()
+        for (let i = 0; i < ms.length; i++) { const w = this.winOf("" + ms[i].id); if (w != null) w.dockSlot = i }
+        },
 
     minimizeWin(w: Window) {
         if (w == null || this.isPlain(w) || this.isMin(w)) return
-        if (this.miniCount >= 6) return          // the static tile pool's size
-        w.dockSlot = this.miniCount
-        this.rebuildMinis()
+        // capture what the dock needs while the window is parked — label and
+        // RAW geometry (pixel fitting is the dock's business, dock.tiles)
+        this.patchWin(w.recId, ({ mini: true, label: this.labelFor(w), appId: this.appOf(w).id, winW: w.width, winH: w.height }))
+        const from = this.idxOf(w.recId)
+        if (from >= 0) this.list.move(["wins"], from, this.recs().length - 1)   // to the very top: the band's newest
+        this.renumberMinis()
         if (frontWin == w) frontWin = null
-        w.raise()                                // the thumbnail pins to the top of the minimized band
         this.startPark(w)
-        winSeq = winSeq + 1
         },
 
     bringFront(w: Window) { w.activate() },              // not focusWin — that would recurse via isMin
-
-    // ── The minimized band: minimized windows' live thumbnails stay in `wins`
-    // (below the plate) but pin to the TOP of the layer, so a full-size window
-    // that reaches the dock can't cover them. A window that activates or opens
-    // raises only to just BENEATH the band — `raise(below)` with the band's
-    // floor — so the band always wins. `lowestMini` is that floor: the lowest-z
-    // SETTLED minimized window (a homing or restoring window is leaving the
-    // band, so it's excluded, and the restoring window comes up to the front of
-    // the non-minimized band).
-
-    lowestMini() -> Window? {
-        const ws = this.windows()
-        for (let i = 0; i < ws.length; i++) { const w = ws[i]; if (this.isMin(w) && !w.homing) return w }
-        return null
-        },
-
-    // bring a freshly-opened window to the front of the NON-minimized band
-
-    frontOpen(w: Window) { frontWin = w; w.raise(this.lowestMini()) },
-
-    // seatedness for a tile's badge: the window's visual width equals the
-    // slot's — geometry, not bookkeeping. Deps arrive as arguments (the
-    // windowItems pattern); winSeq re-derives it at every journey boundary
-    // (miniGo's completion nudges it), pointer/hot cover the wave frames.
-
-    seatCheck(wins: Window[], i: number, slotW: number, seq: number, px: number, hot: number) -> boolean {
-        const w = wins != null && i >= 0 && i < wins.length ? wins[i] : null
-        if (w == null || w.homing == true) return false   // homing = leaving now: the badge goes first
-        return w.scale < 0.9 && Math.abs(w.scale * w.width - slotW) < 0.5
-        },
-
-    nudge() { winSeq = winSeq + 1 },
 
     restoreMini(w: Window) {
         if (w == null || !this.isMin(w) || w.homing) return   // already on the way home
         w.homing = true
         this.startUnpark(w)                      // the slot stays mine until the journey home ends
         this.bringFront(w)                       // frontmost from the first frame of the journey
-        winSeq = winSeq + 1
         },
 
-    // miniBack's onStop: the window is home — release the slot and focus it
+    // miniBack's onStop: the window is home — its record rejoins the normal
+    // band's top, the slot is released, and it takes focus
 
     unparked(w: Window) {
+        this.patchWin(w.recId, ({ mini: false }))
+        const from = this.idxOf(w.recId)
+        const rest = this.recs().filter((r) => r.id != w.recId)
+        let to = rest.length
+        for (let i = 0; i < rest.length; i++) if (rest[i].mini == true) { to = i; break }
+        if (from >= 0) this.list.move(["wins"], from, to)
         w.dockSlot = -1
         w.homing = false
-        this.rebuildMinis()
+        this.renumberMinis()
         this.focusWin(w)
-        winSeq = winSeq + 1
         },
 
     restoreMiniAt(i: number) {
@@ -2158,18 +2190,25 @@ class WinManager extends Node [
     closeWin(w: Window) { w.beginClose() },              // the reverse zoom; removal on its onStop
 
     reallyClose(w: Window) {
-        winSeq = winSeq + 1
         // an About box carries its SUBJECT's forApp but is not a window OF that
         // app — `plain` is the discriminator, so closing "About Markdown" never
         // decrements the viewer count
         if (!w.plain && w.forApp != null) w.forApp.count = w.forApp.count - 1
         if (frontWin == w) frontWin = null
-        app.wins.removeChild(w)
-        w.discard()
-        this.rebuildMinis()                      // a Quit can take a minimized window's tile with it
+        this.removeWin(w.recId)                  // the record goes; replication discards slot + window
+        this.renumberMinis()                     // a Quit can take a minimized window's tile with it
         },
 
-    winSeq: number = 0,                          // bumped on every open/close, so window lists re-derive
+    // seatedness for a tile's badge: the window's visual width equals the
+    // slot's — pure geometry, read LIVE off the window the slot resolves
+    // (per-frame during a journey, via tracking; no journey bookkeeping)
+
+    seated(id: string, slotW: number) -> boolean {
+        const w = this.winOf(id)
+        if (w == null || w.homing == true) return false   // homing = leaving now: the badge goes first
+        return w.scale < 0.9 && Math.abs(w.scale * w.width - slotW) < 0.5
+        },
+
     isPlain(w: Window?) -> boolean { return w != null && w.plain },
     titleOf(w: Window?) -> string { return w != null ? w.title : "" }
     ]
@@ -2283,6 +2322,27 @@ class Launcher extends Node [
         if (first) { app.dock.poke(a); setTimeout(go, 900) } else go()
         },
 
+    // ── the one door every window opens through (windows-as-data): mint the
+    // record, stash the origin view in the side channel (a node reference
+    // never enters data-shaped state — the slot collects it at birth), insert
+    // before the minimized tail, and focus the window the settle materializes.
+
+    borns: object,                               // id → origin view, until the slot takes it
+    onInit() { this.borns = ({}) },
+    putBorn(id: string, v: View?) { if (v != null && this.borns != null) this.borns[id] = v },
+    takeBorn(id: string) -> View {
+        if (this.borns == null) return null
+        const v = this.borns[id] ?? null
+        delete this.borns[id]
+        return v as View
+        },
+
+    openWin(id: string, cls: string, a: DesktopApp, props: object, v: View?) {
+        this.putBorn(id, v)
+        app.wm.addWin(({ id: id, cls: cls, appId: a.id, mini: false, props: props }))
+        app.wm.focusNew(id)
+        },
+
     // View & Edit Source opens the running program itself in the Declare
     // Viewer — as an embedded app in a desktop window: the AppWindow hosts
     // apps/viewer, and `program=` in its env segment names the subject (a
@@ -2293,11 +2353,9 @@ class Launcher extends Node [
         this.openHosted(this.viewer, null, "program=" + a.src)
         },
     openAbout(a: DesktopApp) {
-        app.wm.winCount = app.wm.winCount + 1
-        app.wm.winSeq = app.wm.winSeq + 1
-        const w = app.wins.createView("AboutWindow", ({ forApp: a,
-            wx: (app.width - 280) / 2 + (app.wm.winCount % 3) * 16, wy: 110 + (app.wm.winCount % 3) * 14 }))
-        app.wm.frontOpen(w)
+        const n = app.wm.spawn()
+        this.openWin("w" + n, "AboutWindow", a,
+            ({ wx: (app.width - 280) / 2 + (n % 3) * 16, wy: 110 + (n % 3) * 14 }), null)
         },
 
     // a press that lands on nothing deeper (the wallpaper) also dismisses —
@@ -2309,11 +2367,10 @@ class Launcher extends Node [
         },
     newFiles() {
         this.dismissAbouts()
-        app.wm.winCount = app.wm.winCount + 1
-        app.wm.winSeq = app.wm.winSeq + 1
         // spawn positions cascade, wrapping after a handful
-        const w = app.wins.createView("FilesWindow", ({ forApp: this.files, wx: 90 + (app.wm.winCount % 7) * 28, wy: 46 + (app.wm.winCount % 7) * 26 }))
-        app.wm.frontOpen(w)
+        const n = app.wm.spawn()
+        this.openWin("w" + n, "FilesWindow", this.files,
+            ({ wx: 90 + (n % 7) * 28, wy: 46 + (n % 7) * 26 }), null)
         },
 
     // Double-clicking a folder (or File → Open on one) opens a NEW Files window
@@ -2323,11 +2380,10 @@ class Launcher extends Node [
 
     openFolderWindow(folderPath: string, v: View?) {
         this.dismissAbouts()
-        app.wm.winCount = app.wm.winCount + 1
-        app.wm.winSeq = app.wm.winSeq + 1
+        const n = app.wm.spawn()
         const depth = ("" + folderPath).split("\n").length - 1
-        const w = app.wins.createView("FilesWindow", ({ forApp: this.files, wx: 90 + (app.wm.winCount % 7) * 28, wy: 46 + (app.wm.winCount % 7) * 26, selPath: "" + folderPath, focusDepth: depth }))
-        app.wm.frontOpen(w)
+        this.openWin("w" + n, "FilesWindow", this.files,
+            ({ wx: 90 + (n % 7) * 28, wy: 46 + (n % 7) * 26, selPath: "" + folderPath, focusDepth: depth }), v)
         },
 
     // Every open verb takes `v`, the view the open came from (the double-clicked
@@ -2367,15 +2423,13 @@ class Launcher extends Node [
     openMarkdown(props: object, v: View?) {
         this.gated(this.markdown, () => {
             this.dismissAbouts()
-            app.wm.winCount = app.wm.winCount + 1
-            app.wm.winSeq = app.wm.winSeq + 1
-            const wx = 160 + (app.wm.winCount % 7) * 28
-            const wy = 36 + (app.wm.winCount % 7) * 26
+            const n = app.wm.spawn()
+            const wx = 160 + (n % 7) * 28
+            const wy = 36 + (n % 7) * 26
             const o = this.originOf(v)
-            const w = app.wins.createView("ViewerWindow", ({ ...props, forApp: this.markdown, wx: wx, wy: wy,
-                bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - app.menuBarH : -1,
-                bornFrom: v != null ? v : null }))
-            app.wm.frontOpen(w)
+            this.openWin("w" + n, "ViewerWindow", this.markdown,
+                ({ ...(props as object), wx: wx, wy: wy,
+                    bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - app.menuBarH : -1 }), v)
             })
         },
     openViewer(p: string, nm: string, v: View?) { if (p != "") this.openMarkdown(({ path: p }), v) },
@@ -2396,10 +2450,9 @@ class Launcher extends Node [
     openHosted(a: HostedApp, v: View?, envExtra: string) {
         this.gated(a, () => {
             this.dismissAbouts()
-            app.wm.winCount = app.wm.winCount + 1
-            app.wm.winSeq = app.wm.winSeq + 1
-            let wx = 110 + (app.wm.winCount % 5) * 30
-            let wy = 24 + (app.wm.winCount % 5) * 22
+            const n = app.wm.spawn()
+            let wx = 110 + (n % 5) * 30
+            let wy = 24 + (n % 5) * 22
             let ww = 880, wh = 560
             // An app may state a PLACEMENT POLICY — the calendar opens
             // smaller than a full app window and clears the dock (its height
@@ -2414,12 +2467,11 @@ class Launcher extends Node [
                 wx = Math.round((app.width - ww) / 2)
                 }
             const o = this.originOf(v)
-            const w = app.wins.createView("AppWindow", ({ appPath: "" + a.prog, appTitle: "" + a.title, forApp: a, wx: wx, wy: wy,
-                width: ww, height: wh,
-                extraEnv: envExtra != "" ? envExtra : "" + a.env,
-                bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - app.menuBarH : -1,
-                bornFrom: v != null ? v : null }))
-            app.wm.frontOpen(w)
+            this.openWin("w" + n, "AppWindow", a,
+                ({ appPath: "" + a.prog, appTitle: "" + a.title, wx: wx, wy: wy,
+                    width: ww, height: wh,
+                    extraEnv: envExtra != "" ? envExtra : "" + a.env,
+                    bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - app.menuBarH : -1 }), v)
             })
         },
 
@@ -2442,19 +2494,20 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     newJot(txt: string, v: View?) {
         this.gated(this.jots, () => {
             this.dismissAbouts()
-            app.wm.winCount = app.wm.winCount + 1
-            app.wm.winSeq = app.wm.winSeq + 1
-            const w = app.wins.createView("JotWindow", ({ forApp: this.jots, note: "" + (txt || "*A new note.*"),
-                wx: 480 + (app.wm.winCount % 5) * 26, wy: 90 + (app.wm.winCount % 5) * 24 }))
-            app.wm.frontOpen(w)
+            const n = app.wm.spawn()
+            this.openWin("w" + n, "JotWindow", this.jots,
+                ({ note: "" + (txt || "*A new note.*"),
+                    wx: 480 + (n % 5) * 26, wy: 90 + (n % 5) * 24 }), null)
             })
         },
     openWelcome() {
         this.jots.running = true
-        app.wm.winSeq = app.wm.winSeq + 1
-        const w = app.wins.createView("JotWindow", ({ forApp: this.jots, note: this.welcomeNote,
-            width: 400, height: 385, wx: Math.max(440, app.width - 490), wy: 120 }))
-        app.wm.frontOpen(w)
+        // its own id, off the spawn counter: the welcome is furniture, and
+        // must not consume the first stagger step (the boot Files window's
+        // position — and every later window's — would shift by one)
+        this.openWin("welcome", "JotWindow", this.jots,
+            ({ note: this.welcomeNote,
+                width: 400, height: 385, wx: Math.max(440, app.width - 490), wy: 120 }), null)
         }
     ]
 
@@ -2463,10 +2516,10 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 ## App — the desktop root
 
 The root is COMPOSITION now, and reads as one: three faceless nodes carry the
-model — `wm` (the windows as they exist), `launcher` (the moment before, and
-the application records everything derives from), `clock` (today, as a fact)
-— and five stacked views carry the chrome: wallpaper, windows layer, menu
-bar, dock, alert, in paint order. Each view owns its own state and geometry;
+model — `wm` (the windows AS DATA: records whose order is the stacking), the
+`launcher` (the applications, and the moment before a window exists), `clock`
+(today, as a fact) — and five stacked views carry the chrome: wallpaper,
+windows layer, menu bar, dock, alert, in paint order. Each view owns its own state and geometry;
 the nodes never reach into them. What stays flat here has a reason to be
 root-wide: the theme, the appearance choice, the window eggs (tilt/zoom — read
 by every Window), `drawPill` (the one label-pill silhouette the dock and the
@@ -2736,9 +2789,14 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             }
         ],
 
-    // ── the windows layer: a structural container; order is promotion ──────
+    // ── the windows layer: WINDOWS AS DATA — the WM's records replicate into
+    // slots (each WinSlot creates its record's class); record order is paint
+    // order, so a raise is a data move and the minimized band is the tail ──
 
-    wins: View [ x = 0, y = { app.menuBarH }, width = { app.width }, height = { app.height - app.menuBarH } ],
+    wins: View [ x = 0, y = { app.menuBarH }, width = { app.width }, height = { app.height - app.menuBarH },
+        datapath = { app.wm.list.value },
+        WinSlot [ datapath = :wins[], key = :id ]
+        ],
 
     // No background: the menu bar's words render straight on the wallpaper.
     // `ink` turns the titles light, and the wallpaper's top scrim keeps them
@@ -2750,9 +2808,10 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         /*
         ### The menu bar — whole menus as records, contextual
 
-        The `menus` array re-derives from the active application (and from app.wm.winSeq /
-        app.wm.frontWin for the Window menu), so the bar follows focus live, even while a
-        menu is open. Keyboard shortcuts dispatch from these same records.
+        The `menus` array re-derives from the active application (and, for the
+        Window menu, live off the window slots and app.wm.frontWin), so the bar
+        follows focus live, even while a menu is open. Keyboard shortcuts
+        dispatch from these same records.
         */
 
         menus: array = { [
@@ -2786,7 +2845,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
                 ({ divider: true }),
                 ({ id: "selall", label: "Select All", key: "⌘A", enabled: false }),
             ] }),
-            ({ id: "window", label: "Window", items: this.windowItems(app.wm.winSeq, app.wm.frontWin) }),
+            ({ id: "window", label: "Window", items: this.windowItems() }),
             ({ id: "help", label: "Help", items: [
                 ({ id: "hsearch", kind: "HelpSearch" }),
                 ({ id: "help-app", label: app.wm.activeApp!.title + " Help", icon: "LightbulbIcon" }),
@@ -2809,12 +2868,14 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             return out
             },
 
-        // the Window menu is live state as records: the active application's open
-        // windows, front one checked. `seq` and `front` arrive as arguments so
-        // the menus constraint above visibly reads them — its re-derive hooks.
+        // the Window menu is live state as records: the active application's
+        // open windows, front one checked — derived straight off the slots'
+        // windows and the front slot (the hand-bumped `winSeq`/deps-as-
+        // arguments idiom this replaced is retired: the reads are live)
 
-        windowItems(seq: number, front: Window?) -> array {
+        windowItems() -> array {
             const a = app.wm.activeApp!
+            const front = app.wm.frontWin
             const ws = app.wm.windows()
             const out = []
             for (let i = 0; i < ws.length; i++) {
@@ -2895,13 +2956,13 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             return 1
             },
 
-        // the parked strip, fitted: raw window facts (wm.miniRecs) → tile
-        // pixel sizes — the thumbnail's longer edge matches an icon's edge, so
-        // it is never wider or taller than one
+        // the parked strip, fitted: raw window facts (the WM's parked records)
+        // → tile pixel sizes — the thumbnail's longer edge matches an icon's
+        // edge, so it is never wider or taller than one
 
-        tiles: array = { (app.wm.miniRecs || []).map((r) => {
+        tiles: array = { (app.wm.minis() || []).map((r, i) => {
             const fit = this.thumbEdge / Math.max(r.winW, r.winH)
-            return ({ ix: r.ix, label: r.label, w: Math.round(r.winW * fit), h: Math.round(r.winH * fit) })
+            return ({ ix: i, label: r.label, w: Math.round(r.winW * fit), h: Math.round(r.winH * fit) })
             }) },
 
         // the strip's resting width: the divider zone (34 = 16px left margin +
@@ -3059,17 +3120,12 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
                 opacity = { Math.min(1, app.dock.miniSpan / 26) },
                 fill = { app.darkMode ? 0xFFFFFF48 : 0x00000042 } ],
 
-            // a static pool of tiles, not replication: each is a pure
-            // constraint reader over the app's mini state, positioned from
-            // the shared layout — there is no per-row machinery to go stale
+            // one tile per parked RECORD (wm.miniData), keyed by window id —
+            // add a park and a tile exists, close it from anywhere and it goes
 
             rowM: View [ x = 0, y = 0, height = { parent.height },
-                MiniTile [ ix = 0 ],
-                MiniTile [ ix = 1 ],
-                MiniTile [ ix = 2 ],
-                MiniTile [ ix = 3 ],
-                MiniTile [ ix = 4 ],
-                MiniTile [ ix = 5 ]
+                datapath = { app.wm.miniData.value },
+                MiniTile [ datapath = :minis[], key = :id ]
                 ]
             ]
         ],

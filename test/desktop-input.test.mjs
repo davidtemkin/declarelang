@@ -58,7 +58,7 @@ async function openReader(url) {
   });
   await page.mouse.click(icon.x, icon.y);
   await page.waitForFunction(
-    () => globalThis.__declare.find("app.wins").children.some((c) => c.constructor.name === "ViewerWindow"),
+    () => globalThis.__declare.find("app.wins").children.map((c) => c.win ?? c).some((c) => c.constructor.name === "ViewerWindow"),
     { timeout: 15000 });
   await new Promise((r) => setTimeout(r, 1500)); // open animation + content fetch
 }
@@ -67,7 +67,7 @@ async function openReader(url) {
  *  wins layer sits below the 32px menu bar). */
 function readerGeo() {
   return page.evaluate(() => {
-    const w = globalThis.__declare.find("app.wins").children.find((c) => c.constructor.name === "ViewerWindow");
+    const w = globalThis.__declare.find("app.wins").children.map((c) => c.win ?? c).find((c) => c.constructor.name === "ViewerWindow");
     globalThis.__w = w;
     const walk = (v) => { if (v.scrolls === "y" || v.scrolls === "both") return v; for (const c of v.children ?? []) { const r = walk(c); if (r) return r; } return null; };
     globalThis.__body = walk(w);
@@ -226,7 +226,7 @@ try {
     await new Promise((r) => setTimeout(r, 800));
     await zoomOn();
     const r = await page.evaluate(() => {
-      const aw = globalThis.__declare.find("app.wins").children.find((c) => c.constructor.name === "AppWindow");
+      const aw = globalThis.__declare.find("app.wins").children.map((c) => c.win ?? c).find((c) => c.constructor.name === "AppWindow");
       const box = document.querySelector('[data-declare-slot^="run:"]');
       const rect = box.getBoundingClientRect();
       return { rectW: rect.width, rectCx: rect.left + rect.width / 2, rectCy: rect.top + rect.height / 2,

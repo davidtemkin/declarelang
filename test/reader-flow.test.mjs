@@ -95,11 +95,11 @@ await test("the viewer inside the CANVAS desktop gets its host's data", async ()
   // the string spelling stays as the older trees' fallback
   await page.evaluate(`(() => { const L = window.__app.launcher ?? window.__app; L.openSource(L.desk ?? "desktop"); })()`);
   await page.waitForFunction(`(() => {
-    const isl = window.__declare.find("app.wins").children.map((w) => w.island).filter(Boolean).find((i) => i.__childApp);
+    const isl = window.__declare.find("app.wins").children.map((w) => (w.win ?? w).island).filter(Boolean).find((i) => i.__childApp);
     return isl && isl.__childApp.segSrc.status !== "idle" && isl.__childApp.segSrc.status !== "loading";
   })()`, { timeout: 30000 });
   const st = await page.evaluate(`(() => {
-    const isl = window.__declare.find("app.wins").children.map((w) => w.island).filter(Boolean).find((i) => i.__childApp);
+    const isl = window.__declare.find("app.wins").children.map((w) => (w.win ?? w).island).filter(Boolean).find((i) => i.__childApp);
     const t = isl.__childApp;
     return { seg: t.segSrc.status, len: String(t.segSrc.value || "").length };
   })()`);

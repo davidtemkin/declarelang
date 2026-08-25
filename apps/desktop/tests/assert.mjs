@@ -19,7 +19,7 @@ export default async ({ drive, expect, page }) => {
         if (L.birds) return !!L.birds.running;
         return L.rec ? !!(L.rec("birds") ?? {}).running : !!L.brdRunning;
       })(),
-      windows: window.__app.wins.children.length,
+      windows: window.__app.wins.children.filter((c) => c.recId === undefined || c.win != null).length,
     };
   });
   const eq = (got, want, what) => {
@@ -42,7 +42,7 @@ export default async ({ drive, expect, page }) => {
     "after dock launch");
 
   // MINIMIZE via the yellow light: the window parks, focus falls back
-  await drive.click("app.wins.2.bar.lights.mini");
+  await drive.click("app.wins.2.0.bar.lights.mini");   // windows-as-data: wins.N is the slot, .0 its window
   await drive.wait(600);
   await drive.settleMotion();
   eq(await facts(), { activeApp: "files", miniCount: 1, front: null, birdsRunning: true, windows: 3 },
@@ -66,14 +66,14 @@ export default async ({ drive, expect, page }) => {
 
   // CLOSE via the red light: the window goes; the APP stays running (closing
   // is not quitting — the dock dot survives until Quit)
-  await drive.click("app.wins.2.bar.lights.close");
+  await drive.click("app.wins.2.0.bar.lights.close");
   await drive.wait(600);
   await drive.settleMotion();
   eq(await facts(), { activeApp: "files", miniCount: 0, front: null, birdsRunning: true, windows: 2 },
     "after close");
 
   // FOCUS: clicking a window's bar raises it and names its app active
-  await drive.click("app.wins.1.bar");
+  await drive.click("app.wins.1.0.bar");
   await drive.wait(300);
   await drive.settleMotion();
   eq(await facts(), { activeApp: "files", miniCount: 0, front: "Documentation", birdsRunning: true, windows: 2 },
