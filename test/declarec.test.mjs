@@ -114,16 +114,18 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // explainable), so the weight is carried deliberately rather than shaken.
   //
   // 84 → 88 KB (2026-08-25, the drawing pipeline made correct and priced):
-  // measured 83.x → 84.7 across three things. The canvas `filter` fallback
-  // (+5.0 KB: Safari accepts ctx.filter and paints unfiltered, so frost and
-  // d.filter rendered FLAT there — a box blur, a colour matrix and a parser
-  // are the whole of it, and none of the three can go). The recorder's
-  // per-op extents and measured text bounds (+4.4 KB: a text-only draw()
-  // rendered NOTHING on the default backend, because fillText marked only its
-  // anchor). And the canvas backend's admission by covered area, byte-identical
-  // culling, relevance eviction and discovered-ceiling budget (+2.3 KB). Each
-  // is either a rendering-correctness fix on a shipped renderer or the
-  // always-on raster policy every production drawing runs through.
+  // measured 84.7 across TWO things, both riding draw.js — which calendar ships
+  // because its closure includes library/focusring.declare, and that draws.
+  // The recorder's per-op extents, measured text bounds and culling replay
+  // (draw.js minified+gzip 3.0 → 4.6 KB, +1.5: a text-only draw() rendered
+  // NOTHING on this backend because fillText marked only its anchor). And the
+  // canvas `filter` fallback draw.js now imports for Safari, which accepts
+  // ctx.filter and paints unfiltered (canvas-filter.js, +1.8 KB gzip: a box
+  // blur, a colour matrix and a parser, and none of the three can go). The
+  // canvas backend's raster policy is NOT in this number — a DOM production
+  // bundle does not ship canvas-backend.js at all. ⚠ canvas-filter rides every
+  // drawing app whether or not it uses d.filter; a `usesFilter` fact and a stub
+  // would give that 1.8 KB back to programs that never set one.
   const gz = out.sizes.totalGzip;
   assert.ok(gz > 20 * 1024 && gz < 88 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
