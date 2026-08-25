@@ -25,6 +25,20 @@ import type { Program, Element, Attr, AttrDecl, Method } from "../../runtime/dis
 import { LANGUAGE_METHOD_EFFECTS } from "./effects.js";
 
 const SCOPE_ROOTS = new Set(["parent", "classroot"]); // `this` via ThisKeyword; `app` is `this.root`
+
+/** The DYNAMIC sentinel (the alias/closure door, 2026-08-25). A body whose
+ *  cell reads the extractor can SEE but cannot NAME as static paths — an
+ *  attribute read rooted at a local alias (`const a = this.roster.find(…);
+ *  a.running`) or at an iterator closure's parameter (`team.filter((p) =>
+ *  p.online)`) — used to drop those reads SILENTLY, and a prewired constraint
+ *  then missed the edge and went permanently stale (the soundness contract
+ *  says over-approximate, never miss). Such a body now contributes this
+ *  sentinel instead: it flows up the summary graph like any read (rebase
+ *  leaves unknown roots alone), and extractProgram turns it into "leave this
+ *  constraint on the runtime-tracking path", where every one of those reads
+ *  is live per run — the seam the header reserves for genuinely dynamic
+ *  reads. The cost is one constraint's prewiring, never its correctness. */
+const DYNAMIC = "~dynamic";
 const GLOBALS = new Set(["Inspect","Math","Object","JSON","Array","Number","String","Boolean","Date","console","parseInt","parseFloat","isNaN","isFinite","Infinity","NaN","undefined","null","RegExp","Symbol","Map","Set","Promise","Intl","Error"]);
 // …plus colorWithAlpha, the lowered-alpha helper compile.ts now resolves in
 // callee position (its arguments carry any deps; the call itself is pure).
@@ -389,6 +403,75 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
   const isReactiveRootId = (n: ts.Node): boolean =>
     (ts.isIdentifier(n) && (SCOPE_ROOTS.has(n.text) || roots.has(n.text)) && !locals.has(n.text)) || n.kind === ts.SyntaxKind.ThisKeyword;
 
+  // ── the alias/closure door (see DYNAMIC above): which LOCALS may carry
+  // cells. Two ways a cell-bearing value lands in a local the chain classifier
+  // cannot see through: a `const`/`let` whose initializer touches reactive
+  // state and is not provably a plain value, and an iterator closure's
+  // parameter (the elements of whatever reactive chain the iterator ran
+  // over). A property read rooted at either marks the body DYNAMIC — unless
+  // the read is itself a pure projection (`.length`, `.toFixed(…)`, a further
+  // iterator), which reaches no cell of its own.
+  const dynamicRoots = new Set<string>();
+  {
+    /** Provably a VALUE: literals, template strings, arithmetic/comparison
+     *  (operators destroy node-ness), pure-method calls. `||`/`??`/`?:` pass
+     *  their operands through, so they are value-like only when both sides are. */
+    const valueLike = (e: ts.Expression): boolean => {
+      if (ts.isParenthesizedExpression(e) || ts.isNonNullExpression(e) || ts.isAsExpression(e)) return valueLike(e.expression);
+      if (ts.isStringLiteralLike(e) || ts.isNumericLiteral(e) || ts.isTemplateExpression(e)) return true;
+      if (e.kind === ts.SyntaxKind.TrueKeyword || e.kind === ts.SyntaxKind.FalseKeyword || e.kind === ts.SyntaxKind.NullKeyword) return true;
+      if (ts.isPrefixUnaryExpression(e) || ts.isPostfixUnaryExpression(e) || ts.isTypeOfExpression(e)) return true;
+      if (ts.isBinaryExpression(e)) {
+        const op = e.operatorToken.kind;
+        if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.AmpersandAmpersandToken || op === ts.SyntaxKind.QuestionQuestionToken)
+          return valueLike(e.left) && valueLike(e.right);
+        return true;
+      }
+      if (ts.isConditionalExpression(e)) return valueLike(e.whenTrue) && valueLike(e.whenFalse);
+      if (ts.isCallExpression(e) && ts.isPropertyAccessExpression(e.expression) && PURE_METHODS.has(e.expression.name.text)) return true;
+      return false;
+    };
+    /** Does this subtree read reactive state at all? A local built from
+     *  inert material (`new Map()`, a literal) can carry no cell. */
+    const touchesReactive = (e: ts.Node): boolean => {
+      let hit = false;
+      const v = (n: ts.Node): void => {
+        if (hit) return;
+        if (n.kind === ts.SyntaxKind.ThisKeyword) { hit = true; return; }
+        if (ts.isIdentifier(n) && (SCOPE_ROOTS.has(n.text) || roots.has(n.text)) && !isNamePosition(n)) { hit = true; return; }
+        ts.forEachChild(n, v);
+      };
+      v(e);
+      return hit;
+    };
+    // pass 1: cell-capable const/let aliases
+    const scan1 = (n: ts.Node): void => {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer !== undefined
+          && touchesReactive(n.initializer) && !valueLike(n.initializer)) {
+        dynamicRoots.add(n.name.text);
+      }
+      ts.forEachChild(n, scan1);
+    };
+    scan1(sf);
+    // pass 2: iterator-closure parameters over a reactive (or aliased) chain
+    const scan2 = (n: ts.Node): void => {
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ITER.has(n.expression.name.text)) {
+        const b = baseOfChain(n.expression.expression);
+        const overReactive = b.kind === ts.SyntaxKind.ThisKeyword
+          || (ts.isIdentifier(b) && (SCOPE_ROOTS.has(b.text) || roots.has(b.text) || dynamicRoots.has(b.text)));
+        if (overReactive) {
+          for (const a of n.arguments) {
+            if ((ts.isArrowFunction(a) || ts.isFunctionExpression(a))) {
+              for (const p of a.parameters) if (ts.isIdentifier(p.name)) dynamicRoots.add(p.name.text);
+            }
+          }
+        }
+      }
+      ts.forEachChild(n, scan2);
+    };
+    scan2(sf);
+  }
+
   const baseOf = (n: ts.Node): ts.Node => {
     let c: ts.Node = n;
     while (ts.isPropertyAccessExpression(c) || ts.isElementAccessExpression(c) || ts.isCallExpression(c) || ts.isNonNullExpression(c) || ts.isParenthesizedExpression(c)) c = c.expression;
@@ -437,7 +520,21 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
     // grew. Identifiers and `this` are the ordinary roots the classifier
     // already judged; everything else gets walked.
     if (!ts.isIdentifier(n) && n.kind !== ts.SyntaxKind.ThisKeyword) walk(n);
-    if (!reactive) return;
+    if (!reactive) {
+      // the alias/closure door: a chain rooted at a local that may CARRY
+      // cells — a read through it is real but unnameable, so the body goes
+      // DYNAMIC (tracking path) instead of silently dropping the edge. A pure
+      // projection off the alias (`.length`, `.toFixed(…)`, a further
+      // iterator whose own closure params are handled by pass 2) reaches no
+      // cell of its own and keeps the static path.
+      if (ts.isIdentifier(base) && dynamicRoots.has(base.text)) {
+        const s0 = segs.length > 0 ? segs[segs.length - 1] : null;
+        const nm = s0 !== null && ts.isPropertyAccessExpression(s0) ? s0.name.text : null;
+        const pureTail = nm !== null && (nm === "length" || PURE_METHODS.has(nm) || ITER.has(nm));
+        if (!pureTail) reads.add(DYNAMIC);
+      }
+      return;
+    }
     const ordered = [...segs].reverse();
     let pathEnd: ts.Node = base;
     for (const s of ordered) {
@@ -706,6 +803,7 @@ type Rebased = { ok: true; path: string } | { ok: false; error: DepError };
 
 /** Move one path out of a summary's frame into the caller's. */
 function rebaseIn(path: string, frame: Frame): Rebased {
+  if (path === DYNAMIC) return { ok: true, path };   // the sentinel crosses every frame unchanged
   const root = path.split(/[.[]/, 1)[0];
   if (frame.map.has(root)) {
     const arg = frame.map.get(root)!;
@@ -1167,6 +1265,12 @@ export interface ExtractedConstraint {
   offset: number;
   node: CodeValue | null;
   reads: string[];
+  /** True when the body (transitively) reads cells through a local alias or
+   *  an iterator closure — reads that are REAL but not nameable as static
+   *  paths. Such a constraint must stay on the runtime-tracking path: wiring
+   *  its nameable reads alone would silently miss the rest (the staleness
+   *  class the DYNAMIC sentinel exists for). */
+  dynamic?: boolean;
   errors: { message: string; offset: number }[];
 }
 
@@ -1232,6 +1336,7 @@ export function extractProgram(program: Program): ExtractedConstraint[] {
     for (const call of r.calls) { const sub = follow(call, { owner: c.owner, classRoot: c.classRoot }); for (const rd of sub.reads) reads.add(rd); for (const e of sub.errors) errors.push(e); }
     const canon = new Set<string>();
     for (let rd of reads) { rd = rd.replace(/(\.root)+/g, ".root"); if (!/^(this|parent|classroot)(\.root)?$/.test(rd)) canon.add(rd); }
+    const dynamic = canon.delete(DYNAMIC);
     // SELF-DEPENDENCE — a constraint that reads the slot it defines is a cycle
     // by construction: it invalidates itself on every run (the bare-`...theme`
     // trap in a theme provision → `this.theme`; on the App root the `app.`
@@ -1257,7 +1362,7 @@ export function extractProgram(program: Program): ExtractedConstraint[] {
         errors.push({ message: `'${c.attr}' reads itself — a { } cannot depend on the slot it defines; name the base it derives from instead (e.g. a parent's or the app's '${c.attr}', or a helper such as houseTheme(…))`, offset: 0 });
       }
     }
-    out.push({ tag: c.tag, name: c.name, attr: c.attr, offset: c.offset, node: c.node, reads: [...canon], errors: errors.map((e) => ({ message: e.message, offset: e.offset })) });
+    out.push({ tag: c.tag, name: c.name, attr: c.attr, offset: c.offset, node: c.node, reads: [...canon], dynamic: dynamic || undefined, errors: errors.map((e) => ({ message: e.message, offset: e.offset })) });
   }
   return out;
 }
@@ -1277,7 +1382,10 @@ export function annotateProgram(program: Program): { errors: { message: string; 
   const out = extractProgram(program);
   const errors: { message: string; offset: number; where: string }[] = [];
   for (const c of out) {
-    if (c.node) (c.node as { deps?: readonly string[] }).deps = c.errors.length ? [] : c.reads;
+    // A DYNAMIC constraint (alias/closure-carried reads) attaches EMPTY deps —
+    // the same sound fallback a residue gets: unwired, so the runtime
+    // re-discovers every read each run and none goes stale.
+    if (c.node) (c.node as { deps?: readonly string[] }).deps = c.errors.length || c.dynamic ? [] : c.reads;
     // Position the residue at the CONSTRAINT (`c.offset` is program-global — the
     // `{`), not the body-local sub-expression offset `e.offset` carries.
     for (const e of c.errors) errors.push({ message: e.message, offset: c.offset, where: `${c.name ?? c.tag}.${c.attr}` });

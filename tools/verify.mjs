@@ -273,8 +273,11 @@ if (flags.json) {
   for (const w of warnings) console.log(`  warn ${show(w)}`);
   for (const n of boot.notes) console.log(`  note ${n}`);
   if (failedRung === null) {
+    // wired = rows with a non-empty dep set; an empty row is a constraint on
+    // the runtime-tracking path (a residue, or the alias/closure DYNAMIC class)
+    const wired = out.deps ? out.deps.filter((d) => d.length > 0).length : 0;
     console.log(`  verify: ${file} — clean through R${climbed}` +
-      (out.deps?.length ? ` (${out.deps.length} constraints statically wired)` : ""));
+      (out.deps?.length ? ` (${wired} of ${out.deps.length} constraints statically wired)` : ""));
   } else {
     console.log(`  verify: ${file} — FAILED at R${failedRung}`);
   }

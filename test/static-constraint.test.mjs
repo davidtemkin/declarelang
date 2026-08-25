@@ -243,5 +243,52 @@ test("a wired constraint stays reactive after an Animator displaces and complete
   }
 });
 
+// ── the ALIAS/CLOSURE DOOR (silent-staleness fix, 2026-08-25) ───────────────
+// A cell read rooted at a local alias (`const a = list.find(…); a.running`) or
+// an iterator closure's parameter is REAL but has no nameable static path. The
+// extractor used to drop it silently — a prewired constraint then missed the
+// edge and went permanently stale (found as the desktop's vanished running-dot,
+// caught only by the R6 pixel gate). Such constraints now stay on the runtime-
+// tracking path (empty deps), where every read is live per run; constraints
+// whose reads are all nameable keep their prewiring.
+
+test("a find()-alias read stays LIVE — the constraint drops to tracking, never to staleness", async () => {
+  const app = await run(`class A extends Node [ id: string = "", running: boolean = false ]
+    class Ic extends View [ appId: string = "",
+      dot: View [ width = 4, height = 4, visible = { app.runningOf(classroot.appId) } ] ]
+    App [ width = 100, height = 100,
+      ax: A [ id = "x" ], ay: A [ id = "y" ],
+      roster: A[] = { [this.ax, this.ay] },
+      runningOf(id: string) -> boolean { const a = this.roster.find((q) => q.id == id); return a != null && a.running },
+      ic: Ic [ appId = "y" ] ]`);
+  assert.equal(owner(app.ic.dot, "visible").isStatic, false, "alias-carried reads force the tracking path");
+  assert.equal(app.ic.dot.visible, false);
+  app.ay.running = true; settle();
+  assert.equal(app.ic.dot.visible, true, "the aliased read woke — no silent staleness");
+});
+
+test("an iterator-closure read stays LIVE (roster.map((a) => a.running) in a class body)", async () => {
+  const app = await run(`class A extends Node [ id: string = "", running: boolean = false ]
+    class L extends Node [
+      ax: A [ id = "x" ], ay: A [ id = "y" ],
+      roster: A[] = { [this.ax, this.ay] },
+      data: Dataset [ contents = { ({ apps: classroot.roster.map((a) => ({ id: a.id, running: a.running })) }) } ],
+      ]
+    App [ width = 100, height = 100, l: L [ ],
+      t: Text [ text = { (app.l.data.value.apps || []).map((r) => r.id + ":" + r.running).join(" ") } ] ]`);
+  assert.equal(app.t.text, "x:false y:false");
+  app.l.ay.running = true; settle();
+  assert.equal(app.t.text, "x:false y:true", "the closure read woke through the data lens");
+});
+
+test("a pure projection off an alias KEEPS the static path (.split/.length)", async () => {
+  const app = await run(`App [ n: number = 3,
+    v: View [ width = { app.calc() } ],
+    calc() -> number { const s = ("" + this.n).split("."); return s.length + this.n } ]`);
+  assert.equal(owner(app.v, "width").isStatic, true, "a value-typed alias costs no wiring");
+  app.n = 7; settle();
+  assert.equal(app.v.width, 8, "still live on its named deps");
+});
+
 console.log(`\nstatic-constraint: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
