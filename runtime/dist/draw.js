@@ -484,16 +484,25 @@ export function rasterTotalCap(viewportBytes) {
 }
 const infoCache = new WeakMap();
 const UNCULLABLE = new Set(["copy", "source-in", "source-out", "destination-in", "destination-out", "destination-atop"]);
-/** Per-pixel shading costs more than a solid fill. A PLACEHOLDER until the
- *  op-kind sweep on rasterbench measures it — stated so nobody mistakes it
- *  for a number. */
-const GRADIENT_WEIGHT = 3;
+/** Per-kind weights on COVERED AREA, relative to a solid fill — MEASURED
+ *  2026-08-25 under Chrome tracing at two mark sizes (tools/rasterfit.mjs,
+ *  rows in the raster tracking doc §C.3). Per-pixel cost in ms/Mpx on the
+ *  DOM renderer: fill 0.10, stroke 0.06, shadow 0.43, text 0.85, gradient
+ *  3.01; the ratios are identical on the canvas renderer at ~0.5× the base,
+ *  which is why the WEIGHTS are shared here and the BASE lives in each
+ *  backend. Two placeholders these replaced were each an order of magnitude
+ *  off: a gradient's shading is 30× a fill's, not 3×, and the per-op floor
+ *  is 1–3 µs, not 20. `shadow` applies while shadowBlur > 0 is live at the
+ *  paint — the probe's radius scaled with its mark, so this is a flat weight
+ *  standing in for a radius-dependent cost, and says so. */
+const KIND_WEIGHT = { fill: 1, stroke: 0.6, shadow: 4.3, text: 8.5, gradient: 30 };
 function listInfo(list) {
     const hit = infoCache.get(list);
     if (hit !== undefined)
         return hit;
     const ext = list.extents ?? [];
-    let area = 0, fillGrad = false, strokeGrad = false, filtered = false, cullable = true;
+    let area = 0, fillGrad = false, strokeGrad = false, shadow = false, filtered = false, cullable = true;
+    const w = (base) => base * (shadow ? KIND_WEIGHT.shadow : 1);
     for (let i = 0; i < list.ops.length; i++) {
         const o = list.ops[i];
         switch (o.op) {
@@ -508,21 +517,28 @@ function listInfo(list) {
                     filtered = true;
                 else if (o.k === "globalCompositeOperation" && UNCULLABLE.has(String(o.v)))
                     cullable = false;
+                else if (o.k === "shadowBlur")
+                    shadow = typeof o.v === "number" && o.v > 0;
                 break;
             case "fillRect":
-            case "fill":
-            case "fillText": {
+            case "fill": {
                 const e = ext[i];
                 if (e)
-                    area += e.w * e.h * (fillGrad ? GRADIENT_WEIGHT : 1);
+                    area += e.w * e.h * w(fillGrad ? KIND_WEIGHT.gradient : KIND_WEIGHT.fill);
                 break;
             }
             case "strokeRect":
-            case "stroke":
+            case "stroke": {
+                const e = ext[i];
+                if (e)
+                    area += e.w * e.h * w(strokeGrad ? KIND_WEIGHT.gradient : KIND_WEIGHT.stroke);
+                break;
+            }
+            case "fillText":
             case "strokeText": {
                 const e = ext[i];
                 if (e)
-                    area += e.w * e.h * (strokeGrad ? GRADIENT_WEIGHT : 1);
+                    area += e.w * e.h * w(KIND_WEIGHT.text);
                 break;
             }
             case "clearRect": {

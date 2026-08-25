@@ -97,16 +97,18 @@ let budgetScale = 1;
 const memoHolders = new Set();
 // ── the admission threshold: THIS backend's constants over the shared quantities ──
 //
-// cost ≈ ops × OP_US + coveredDevicePx × PX_US_PER_MPX / 1e6. Two terms, because
-// two things were measured: a stroke or path op has real per-op setup cost, and
-// covered pixels cost linearly (Chrome tracing, canvas backend, 0.41ms/Mpx —
-// rounded up). OP_US is set so that the old 48-op rule survives as a bound
-// (48 × 20 = 960µs) and area is ADDED to it: a four-op full-screen wash now
-// promotes, which the op count alone called cheap. ⚠ The per-op constant is a
-// stroke's worst case standing in for every op kind, and the gradient weight in
-// draw.ts is a guess — the op-kind sweep is what turns these into numbers.
-const OP_US = 20;
-const PX_US_PER_MPX = 500;
+// cost ≈ ops × OP_US + weightedCoveredDevicePx × PX_US_PER_MPX / 1e6, where the
+// area is already kind-weighted by draw.ts (a gradient pixel counts 30 fill
+// pixels). MEASURED 2026-08-25 under Chrome tracing on this renderer, two mark
+// sizes: the per-op floor is 0.3–0.8 µs and a solid fill shades at 0.05 ms/Mpx.
+// Rounded UP, because a miss here is a slow frame and a wrong promotion is only
+// memory. Sanity at 1 ms: a full-viewport solid fill (2.16 Mpx at 2×) prices at
+// ~0.1 ms and stays vectors; a full-viewport gradient wash prices at ~3 ms and
+// promotes; a thousand tiny fills price at ~1.4 ms and promote. The previous
+// constants (20 µs, 500 µs/Mpx) were each ten times high and promoted
+// recordings that cost 50 µs to replay.
+const OP_US = 1;
+const PX_US_PER_MPX = 50;
 const PROMOTE_US = 1000;
 /** Below this a blank check is not worth its GPU sync; above it, a raster that
  *  painted nothing is exactly the failure the check exists to catch. */

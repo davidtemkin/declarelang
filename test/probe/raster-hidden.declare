@@ -1,0 +1,48 @@
+// HIDDEN DRAWINGS — four views, one shown, each drawing a full-surface wash.
+//
+// The shape weather's WSky documents designing around: one view per sky
+// condition, three hidden, and on the DOM backend every one of them used to
+// allocate and rasterize its full-size canvas ("tens of megabytes of backing
+// store nobody can see"). The canvas backend never paints a hidden surface and
+// the Mac host skips it; this probe exists so the DOM backend can be held to
+// the same rule, and so the price of the skip — a raster owed when a view
+// SHOWS — is visible too.
+//
+//   shown — which of the four is visible (0..3); the driver flips it
+//
+// The washes are expensive on purpose (five radial fills over the whole view)
+// so a raster that should not have happened costs enough to notice.
+
+App [ width = 800, height = 600, fill = #0B0E12,
+
+    shown: number = 0,
+
+    a: View [ x = 0, y = 0, width = 800, height = 600, visible = { app.shown == 0 },
+        draw(d: Draw) { app.wash(d, d.w, d.h, 0) }
+        ],
+    b: View [ x = 0, y = 0, width = 800, height = 600, visible = { app.shown == 1 },
+        draw(d: Draw) { app.wash(d, d.w, d.h, 90) }
+        ],
+    c: View [ x = 0, y = 0, width = 800, height = 600, visible = { app.shown == 2 },
+        draw(d: Draw) { app.wash(d, d.w, d.h, 180) }
+        ],
+    e: View [ x = 0, y = 0, width = 800, height = 600, visible = { app.shown == 3 },
+        draw(d: Draw) { app.wash(d, d.w, d.h, 270) }
+        ],
+
+    wash(d: Draw, W: number, H: number, hue: number) {
+        d.fillStyle = "#0D1420"
+        d.fillRect(0, 0, W, H)
+        const spots = [[0.17, 0.24], [0.82, 0.20], [0.50, 0.54], [0.20, 0.82], [0.83, 0.80]]
+        for (let i = 0; i < 5; i = i + 1) {
+            const p = spots[i]
+            const px = p[0] * W
+            const py = p[1] * H
+            const g = d.createRadialGradient(px, py, 0, px, py, 0.45 * Math.max(W, H))
+            g.addColorStop(0, "hsl(" + ((hue + i * 61) % 360) + ", 72%, 52%)")
+            g.addColorStop(1, "rgba(0,0,0,0)")
+            d.fillStyle = g
+            d.fillRect(0, 0, W, H)
+            }
+        }
+    ]

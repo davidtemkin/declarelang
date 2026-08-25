@@ -158,6 +158,47 @@ await test("culling is byte-identical on every drawing feature (drawops, canvas 
   assert.equal(await grab(false) === await grab(true), true, "culled and unculled drawops frames differ");
 });
 
+// THE HIDDEN-RASTER SKIP. Four views drawing full-surface washes, one shown.
+// The DOM backend used to allocate and rasterize all four (weather's WSky
+// comment designs around exactly that); the canvas backend never paints a
+// hidden surface and the Mac host skips it. Now a hidden view's canvas holds no
+// pixels, the raster is OWED, and showing pays it — with the shown view's pixels
+// identical to a fresh load, which is what makes the skip an optimization and
+// not a semantic.
+await test("hidden drawings hold no backing store; showing one rasterizes it, identically", async () => {
+  const backing = `Array.from(document.querySelectorAll("canvas")).map((c) => c.width * c.height * 4)`;
+  const shot = `document.querySelectorAll("canvas")[0] && (() => {
+    const cs = Array.from(document.querySelectorAll("canvas")).filter((c) => c.width > 0);
+    return cs.length === 1 ? cs[0].toDataURL() : "MULTIPLE:" + cs.length;
+  })()`;
+  const pg = await open("test/probe/raster-hidden.declare?render=dom");
+  const before = await pg.evaluate(backing);
+  assert.equal(before.filter((b) => b > 0).length, 1, `expected exactly one rasterized canvas, got ${JSON.stringify(before)}`);
+  const one = Math.max(...before);
+  assert.equal(before.reduce((a, b) => a + b, 0), one, "hidden views hold no backing store");
+  // show the third: it rasterizes, the first releases
+  await pg.evaluate(`window.__app.shown = 2`);
+  await sleep(400);
+  const after = await pg.evaluate(backing);
+  assert.equal(after.filter((b) => b > 0).length, 1, `after a switch, exactly one rasterized canvas: ${JSON.stringify(after)}`);
+  assert.equal(after[2] > 0 && after[0] === 0, true, "the shown view is the rasterized one and the hidden one released");
+  const switched = await pg.evaluate(shot);
+  // byte-identical across a hide → re-show round trip: the raster owed while
+  // hidden and paid on show is the same raster a view shown from the start
+  // had — so the first view, shown at boot, must match itself after 0→1→0
+  await pg.evaluate(`window.__app.shown = 0`);
+  await sleep(300);
+  const backAtStart = await pg.evaluate(shot);
+  await pg.evaluate(`window.__app.shown = 1`);
+  await sleep(300);
+  await pg.evaluate(`window.__app.shown = 0`);
+  await sleep(400);
+  const reShown = await pg.evaluate(shot);
+  await pg.close();
+  assert.equal(switched.startsWith("data:"), true, `expected one rasterized canvas after the switch, got ${switched.slice(0, 12)}`);
+  assert.equal(backAtStart === reShown, true, "a view re-shown after being hidden renders exactly as it did when shown from the start");
+});
+
 await browser.close();
 httpServer.close();
 summarize("draw-bounds");

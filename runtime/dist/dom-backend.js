@@ -755,6 +755,11 @@ class DomSurface {
         width: 0, height: 0, fill: null, gradient: null, cornerRadius: 0, stroke: null, shadow: null,
     };
     fillV = null;
+    /** `visible` as this surface last set it. A hidden view's drawing is not
+     *  rasterized — see setDrawing — and the raster it would have made is OWED
+     *  until it shows. */
+    shown = true;
+    drawOwed = false;
     /** Set once the drawing raster has ever existed (arms the dpr watch once). */
     watching = false;
     gone = false;
@@ -928,11 +933,38 @@ class DomSurface {
         if (this.watching)
             return;
         this.watching = true;
-        onDprChange(() => !this.gone, () => { if (this.drawEl !== null)
-            this.rasterize(); });
+        onDprChange(() => !this.gone, () => { if (this.drawEl !== null) {
+            if (this.shown)
+                this.rasterize();
+            else
+                this.drawOwed = true;
+        } });
     }
     setVisible(v) {
         this.element.style.display = v ? "" : "none";
+        // THE HIDDEN-RASTER SKIP. A hidden view's drawing is never seen, and its
+        // per-view canvas is the largest thing this backend allocates — weather's
+        // WSky comment records designing AROUND this ("a hidden draw() still
+        // allocates its canvas at full size … tens of megabytes of backing store
+        // nobody can see"). The canvas backend never paints a hidden surface and
+        // the Mac host skips it (LayerTree skippedRasterN); this was the one
+        // renderer that paid. Hiding RELEASES the backing store — a zero-sized
+        // canvas holds no pixels — and showing pays the raster back. The honest
+        // price of the skip is that re-raster on show; the Mac host counts both
+        // sides (skipped vs revealed), and the trade is the same one.
+        this.shown = v;
+        if (!v) {
+            if (this.drawEl !== null && this.drawing !== null) {
+                this.drawEl.width = 0;
+                this.drawEl.height = 0;
+                this.drawOwed = true;
+            }
+        }
+        else if (this.drawOwed) {
+            this.drawOwed = false;
+            if (this.drawing !== null && this.drawing.bounds !== null)
+                this.rasterize();
+        }
         // A HIDDEN native scroller is not a scroller: `display: none` makes the
         // browser report `scrollTop` as 0 while it privately keeps the offset,
         // and refuse writes. So a program that scrolls a hidden pane home — the
@@ -2194,11 +2226,21 @@ class DomSurface {
         }
         if (this.drawEl === null) {
             const c = document.createElement("canvas");
+            // a fresh <canvas> is 300x150 — 180 KB of backing store before anything
+            // is drawn. rasterize() sizes it; a view that is hidden at this point
+            // never gets there, and would otherwise hold that default forever
+            c.width = 0;
+            c.height = 0;
             c.style.position = "absolute";
             c.style.pointerEvents = "none"; // content is inert — hits are box-geometry
             this.placeContent(c, this.imgEl);
             this.drawEl = c;
             this.watchDpr();
+        }
+        // hidden: owe the raster rather than make one nobody can see (setVisible)
+        if (!this.shown) {
+            this.drawOwed = true;
+            return;
         }
         this.rasterize();
     }
