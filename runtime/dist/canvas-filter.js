@@ -195,54 +195,118 @@ function adjustInPlace(c, f) {
  *  neither buffer beyond the next call — this recycles scratch canvases, because
  *  frost runs every frame the scene invalidates and allocating two canvases per
  *  frosted view per frame is its own performance bug. */
+/** Three box passes ≈ a gaussian, and the relationship is EXACT rather than
+ *  fitted: for a box of width w, sigma² = 3(w²−1)/12, so w = sqrt(4·sigma²/3 + 1).
+ *  That is why this replaced a resample pyramid — a pyramid's sigma is not a
+ *  clean function of its total downsample factor (measured: the same factor and
+ *  the same step count produced sigma 16.7 at one buffer size and 11.9 at
+ *  another), so it could not be calibrated, only fitted, and the fit did not
+ *  hold across dpr.
+ *
+ *  Runs on PREMULTIPLIED values. Blurring straight RGBA drags the colour of
+ *  fully transparent pixels into the edge — a mark on a transparent ground
+ *  develops a dark halo — and every mark this path filters is on one. */
+function boxBlur(d, w, h, sigma) {
+    if (sigma < 0.3)
+        return;
+    // n box passes of width w give sigma² = n(w²−1)/12; at n = 3 that is
+    // sigma² = (w²−1)/4, so w = sqrt(4·sigma²+1) and the RADIUS is (w−1)/2.
+    // (Solving for w and then halving it is not the same thing — doing that
+    // under-blurred by a factor of two, measured 9.9 against a native 19.7.)
+    const r = Math.max(1, Math.round((Math.sqrt(4 * sigma * sigma + 1) - 1) / 2));
+    const n = w * h;
+    const src = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+        const a = d[i * 4 + 3] / 255;
+        src[i * 4] = d[i * 4] * a;
+        src[i * 4 + 1] = d[i * 4 + 1] * a;
+        src[i * 4 + 2] = d[i * 4 + 2] * a;
+        src[i * 4 + 3] = d[i * 4 + 3];
+    }
+    let a = src, b = new Float32Array(n * 4);
+    const pass = (horiz) => {
+        const outer = horiz ? h : w, inner = horiz ? w : h;
+        const step = horiz ? 4 : w * 4;
+        for (let o = 0; o < outer; o++) {
+            const base = horiz ? o * w * 4 : o * 4;
+            for (let c = 0; c < 4; c++) {
+                let sum = 0;
+                // seed the window with edge clamping, then slide it — O(pixels), not
+                // O(pixels · radius), which is what makes a wide blur affordable at all
+                for (let k = -r; k <= r; k++)
+                    sum += a[base + Math.min(inner - 1, Math.max(0, k)) * step + c];
+                for (let i = 0; i < inner; i++) {
+                    b[base + i * step + c] = sum / (2 * r + 1);
+                    const add = Math.min(inner - 1, i + r + 1), sub = Math.max(0, i - r);
+                    sum += a[base + add * step + c] - a[base + sub * step + c];
+                }
+            }
+        }
+        const t = a;
+        a = b;
+        b = t;
+    };
+    for (let i = 0; i < 3; i++) {
+        pass(true);
+        pass(false);
+    }
+    for (let i = 0; i < n; i++) {
+        const al = a[i * 4 + 3];
+        const inv = al > 0.5 ? 255 / al : 0;
+        d[i * 4] = a[i * 4] * inv;
+        d[i * 4 + 1] = a[i * 4 + 1] * inv;
+        d[i * 4 + 2] = a[i * 4 + 2] * inv;
+        d[i * 4 + 3] = al;
+    }
+}
+/** Apply `spec` to `src` and return a canvas holding the result. The caller owns
+ *  neither buffer beyond the next call — this recycles scratch canvases, because
+ *  frost runs every frame the scene invalidates and allocating two canvases per
+ *  frosted view per frame is its own performance bug.
+ *
+ *  A wide blur is done on a DOWNSAMPLED buffer and scaled back: the cost then
+ *  falls with the square of the factor, and the resampling either side is itself
+ *  part of the blur, so its contribution is subtracted from the box passes
+ *  rather than ignored. The colour matrix rides the same small buffer. */
 export function applyFilterFallback(src, spec) {
     reportUnsupported(spec.unsupported);
     const w = src.width, h = src.height;
+    const colour = !isIdentity({ ...spec, blur: 0 });
     if (spec.blur <= 0.5) {
         const flat = take(w, h);
         flat.getContext("2d").drawImage(src, 0, 0);
-        if (!isIdentity({ ...spec, blur: 0 }))
+        if (colour)
             adjustInPlace(flat, spec);
         return flat;
     }
-    // How far down the pyramid: each halving roughly doubles the effective
-    // radius, so the number of steps is log2 of the radius, floored so a small
-    // blur still takes at least one step and a huge one cannot reduce the buffer
-    // below a couple of pixels (where the upscale would show banding).
-    const steps = Math.max(1, Math.min(6, Math.round(Math.log2(Math.max(2, spec.blur)))));
-    let cur = take(w, h);
-    cur.getContext("2d").drawImage(src, 0, 0);
-    const chain = [];
-    for (let i = 0; i < steps; i++) {
-        const nw = Math.max(2, Math.floor(cur.width / 2));
-        const nh = Math.max(2, Math.floor(cur.height / 2));
-        if (nw === cur.width && nh === cur.height)
-            break;
-        const next = take(nw, nh);
-        const ng = next.getContext("2d");
-        ng.imageSmoothingEnabled = true;
-        ng.imageSmoothingQuality = "high";
-        ng.drawImage(cur, 0, 0, cur.width, cur.height, 0, 0, nw, nh);
-        chain.push(cur);
-        cur = next;
-    }
-    // the colour matrix, on the smallest buffer — a sixteenth of the pixels at
-    // two halvings, and colour survives bilinear magnification intact
-    if (!isIdentity({ ...spec, blur: 0 }))
-        adjustInPlace(cur, spec);
-    // …and back up, one halving at a time. Going straight to full size in one
-    // draw would show the smallest buffer's texels as soft squares; stepping up
-    // re-filters at every level, which is what makes it read as a gaussian.
-    for (let i = chain.length - 1; i >= 0; i--) {
-        const up = chain[i];
-        const ug = up.getContext("2d");
-        ug.imageSmoothingEnabled = true;
-        ug.imageSmoothingQuality = "high";
-        ug.clearRect(0, 0, up.width, up.height);
-        ug.drawImage(cur, 0, 0, cur.width, cur.height, 0, 0, up.width, up.height);
-        give(cur);
-        cur = up;
-    }
-    return cur;
+    // Keep roughly 6 sigma of detail in the small buffer. The box radius is an
+    // INTEGER, so a small sigma quantizes coarsely — at sigma 2.8 the nearest
+    // radius is 12% off, at sigma 6.6 it is 2%. Trading a little more CPU for a
+    // buffer that can express the radius is the better side of that deal.
+    let f = Math.max(1, Math.min(8, Math.round(spec.blur / 6)));
+    while (f > 1 && (Math.floor(w / f) < 8 || Math.floor(h / f) < 8))
+        f--;
+    const sw = Math.max(1, Math.floor(w / f)), sh = Math.max(1, Math.floor(h / f));
+    const small = take(sw, sh);
+    const sg = small.getContext("2d", { willReadFrequently: true });
+    sg.imageSmoothingEnabled = true;
+    sg.imageSmoothingQuality = "high";
+    sg.drawImage(src, 0, 0, w, h, 0, 0, sw, sh);
+    // a box average over `f` pixels has sigma f/sqrt(12); it happens twice, going
+    // down and coming back up, and variances add
+    const resample = f > 1 ? 2 * (f * f / 12) : 0;
+    const sigmaFull = Math.sqrt(Math.max(0, spec.blur * spec.blur - resample));
+    const img = sg.getImageData(0, 0, sw, sh);
+    boxBlur(img.data, sw, sh, sigmaFull / f);
+    sg.putImageData(img, 0, 0);
+    if (colour)
+        adjustInPlace(small, spec);
+    const out = take(w, h);
+    const og = out.getContext("2d");
+    og.imageSmoothingEnabled = true;
+    og.imageSmoothingQuality = "high";
+    og.drawImage(small, 0, 0, sw, sh, 0, 0, w, h);
+    give(small);
+    return out;
 }
 //# sourceMappingURL=canvas-filter.js.map

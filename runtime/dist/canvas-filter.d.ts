@@ -21,5 +21,10 @@ export declare function forceFilterFallback(on: boolean): void;
 /** Apply `spec` to `src` and return a canvas holding the result. The caller owns
  *  neither buffer beyond the next call — this recycles scratch canvases, because
  *  frost runs every frame the scene invalidates and allocating two canvases per
- *  frosted view per frame is its own performance bug. */
+ *  frosted view per frame is its own performance bug.
+ *
+ *  A wide blur is done on a DOWNSAMPLED buffer and scaled back: the cost then
+ *  falls with the square of the factor, and the resampling either side is itself
+ *  part of the blur, so its contribution is subtracted from the box passes
+ *  rather than ignored. The colour matrix rides the same small buffer. */
 export declare function applyFilterFallback(src: HTMLCanvasElement, spec: FilterSpec): HTMLCanvasElement;

@@ -630,12 +630,18 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList): void 
     sx.globalCompositeOperation = "source-over";
     paint(sx);
     sx.restore();
-    // the recording states blur in USER units and the buffer is in DEVICE
-    // pixels, so the radius rides the live transform's magnitude — the same
-    // correction paintFrost makes for the same reason
-    const m = sx.getTransform();
-    const mag = Math.hypot(m.a, m.b) || 1;
-    const out = applyFilterFallback(scratch, mag === 1 ? spec! : { ...spec!, blur: spec!.blur * mag });
+    // ⚠ NO TRANSFORM CORRECTION. `ctx.filter` lengths are DEVICE space and are
+    // not affected by the CTM — measured on Chrome, a blur(10px) edge ramps over
+    // the same 32 device px at scale 1, 2 and 4, and blur.declare's sigma reads
+    // 19.7 at dpr 1 and at dpr 2 alike. An earlier version scaled the radius by
+    // the transform's magnitude, which was wrong at every dpr and merely
+    // CANCELLED at dpr 2 against a pyramid that under-blurred by about the same
+    // factor. Two errors agreeing is not a measurement.
+    //
+    // (Frost is the opposite case and keeps its own scaling: a backdrop blur is
+    // stated in VIEW units, and CSS backdrop-filter scales with the element's
+    // transform, so paintFrost multiplies by the magnitude on purpose.)
+    const out = applyFilterFallback(scratch, spec!);
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(out, 0, 0);

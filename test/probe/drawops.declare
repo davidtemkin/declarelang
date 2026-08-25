@@ -1,0 +1,319 @@
+// DRAW-OP CONFORMANCE — one cell per feature, so a divergence names itself.
+//
+// The visual gates compare whole apps: `mac-host/fidelity.mjs` reports "9%
+// differing" over 160px tiles, and `perceptual` holds DOM and canvas to each
+// other. Both answer "is it the same picture"; neither answers "WHICH op is
+// wrong", which is the question when bringing a third renderer into spec.
+//
+// So: a fixed grid, one drawing feature per cell, geometry-checkable and
+// high-contrast, with no randomness and no clock. A driver renders the same
+// program on Chrome (the conformance reference) and on the Mac host and diffs
+// CELL BY CELL, so the output is a list of op names rather than a percentage.
+//
+// RULES FOR A CELL, because a bad cell reads as a renderer bug:
+//   • deterministic — no time, no random, no measurement
+//   • high contrast against the cell's own ground, so antialiasing noise at an
+//     edge cannot dominate the cell's score
+//   • inside its 200x150 box with a margin, so a neighbour's bleed is not
+//     counted against it (shadow and blur cells keep extra room)
+//   • ONE feature per cell. A cell that needs two is two cells.
+//
+// `cells` is the manifest and the drawing order at once — the driver reads it
+// off the running program rather than keeping its own copy, so the two cannot
+// drift.
+
+App [ width = 1200, height = 750, fill = #202024,
+
+    cols: number = 6,
+    cellW: number = 200,
+    cellH: number = 150,
+
+    cells: array = [
+        "fillRect", "strokeRect", "roundRectScalar", "roundRectArray", "arc", "arcTo",
+        "ellipseRotated", "bezier", "quadratic", "fillEvenOdd", "clipRect", "clipEvenOdd",
+        "lineCapRound", "lineJoinBevel", "miterLimit", "lineDash", "dashOffset", "linearGradient",
+        "radialConcentric", "radialFocal", "conicGradient", "globalAlpha", "blendMultiply", "blendLighten",
+        "shadowOffset", "shadowBlur", "filterBlur", "filterTwoMarks", "transformRotate", "textFill"
+        ],
+
+    grid: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
+        draw(d: Draw) {
+            const list = app.cells
+            for (let i = 0; i < list.length; i = i + 1) {
+                const cx = (i % app.cols) * app.cellW
+                const cy = Math.floor(i / app.cols) * app.cellH
+                d.save()
+                d.translate(cx, cy)
+                // each cell's own ground, so a cell is scored against a known field
+                d.fillStyle = "#101014"
+                d.fillRect(2, 2, app.cellW - 4, app.cellH - 4)
+                app.cell(d, list[i])
+                d.restore()
+                }
+            }
+        ],
+
+    // One feature per branch. Coordinates are cell-local (the caller translated).
+
+    cell(d: Draw, k: string) {
+        const W = this.cellW
+        const H = this.cellH
+        if (k == "fillRect") {
+            d.fillStyle = "#4FC3F7"
+            d.fillRect(40, 35, 120, 80)
+            }
+        else if (k == "strokeRect") {
+            d.strokeStyle = "#FFB74D"
+            d.lineWidth = 8
+            d.strokeRect(40, 35, 120, 80)
+            }
+        else if (k == "roundRectScalar") {
+            d.fillStyle = "#81C784"
+            d.beginPath()
+            d.roundRect(40, 35, 120, 80, 24)
+            d.fill()
+            }
+        else if (k == "roundRectArray") {
+            // four different corners — the radii-list form, which a renderer
+            // that only reads a scalar quietly rounds uniformly
+            d.fillStyle = "#BA68C8"
+            d.beginPath()
+            d.roundRect(40, 35, 120, 80, [4, 40, 4, 40])
+            d.fill()
+            }
+        else if (k == "arc") {
+            d.fillStyle = "#F06292"
+            d.beginPath()
+            d.arc(100, 75, 50, 0, Math.PI * 1.4, false)
+            d.closePath()
+            d.fill()
+            }
+        else if (k == "arcTo") {
+            d.strokeStyle = "#4DD0E1"
+            d.lineWidth = 10
+            d.beginPath()
+            d.moveTo(40, 120)
+            d.arcTo(40, 30, 160, 30, 48)
+            d.lineTo(160, 30)
+            d.stroke()
+            }
+        else if (k == "ellipseRotated") {
+            // rotation is the term a renderer mapping ellipse onto a circle
+            // transform most often drops
+            d.fillStyle = "#FFD54F"
+            d.beginPath()
+            d.ellipse(100, 75, 70, 28, Math.PI / 5, 0, Math.PI * 2, false)
+            d.fill()
+            }
+        else if (k == "bezier") {
+            d.strokeStyle = "#9FA8DA"
+            d.lineWidth = 9
+            d.beginPath()
+            d.moveTo(30, 120)
+            d.bezierCurveTo(60, 10, 140, 140, 170, 30)
+            d.stroke()
+            }
+        else if (k == "quadratic") {
+            d.strokeStyle = "#A5D6A7"
+            d.lineWidth = 9
+            d.beginPath()
+            d.moveTo(30, 115)
+            d.quadraticCurveTo(100, 5, 170, 115)
+            d.stroke()
+            }
+        else if (k == "fillEvenOdd") {
+            // two nested rings: nonzero fills the middle solid, evenodd leaves
+            // a hole — the two are unmistakable at a glance
+            d.fillStyle = "#FF8A65"
+            d.beginPath()
+            d.arc(100, 75, 55, 0, Math.PI * 2, false)
+            d.arc(100, 75, 28, 0, Math.PI * 2, false)
+            d.fill("evenodd")
+            }
+        else if (k == "clipRect") {
+            d.save()
+            d.beginPath()
+            d.rect(60, 50, 80, 50)
+            d.clip()
+            d.fillStyle = "#7986CB"
+            d.fillRect(0, 0, W, H)
+            d.restore()
+            }
+        else if (k == "clipEvenOdd") {
+            d.save()
+            d.beginPath()
+            d.rect(40, 30, 120, 90)
+            d.rect(70, 55, 60, 40)
+            d.clip("evenodd")
+            d.fillStyle = "#4DB6AC"
+            d.fillRect(0, 0, W, H)
+            d.restore()
+            }
+        else if (k == "lineCapRound") {
+            d.strokeStyle = "#E57373"
+            d.lineWidth = 26
+            d.lineCap = "round"
+            d.beginPath()
+            d.moveTo(55, 75)
+            d.lineTo(145, 75)
+            d.stroke()
+            }
+        else if (k == "lineJoinBevel") {
+            d.strokeStyle = "#64B5F6"
+            d.lineWidth = 20
+            d.lineJoin = "bevel"
+            d.beginPath()
+            d.moveTo(45, 115)
+            d.lineTo(100, 35)
+            d.lineTo(155, 115)
+            d.stroke()
+            }
+        else if (k == "miterLimit") {
+            // a sharp angle past the limit falls back to a bevel; a renderer
+            // ignoring miterLimit keeps a long spike
+            d.strokeStyle = "#FFF176"
+            d.lineWidth = 14
+            d.lineJoin = "miter"
+            d.miterLimit = 2
+            d.beginPath()
+            d.moveTo(40, 120)
+            d.lineTo(100, 40)
+            d.lineTo(160, 120)
+            d.stroke()
+            }
+        else if (k == "lineDash") {
+            d.strokeStyle = "#4FC3F7"
+            d.lineWidth = 12
+            d.setLineDash([18, 12])
+            d.beginPath()
+            d.moveTo(30, 75)
+            d.lineTo(170, 75)
+            d.stroke()
+            }
+        else if (k == "dashOffset") {
+            d.strokeStyle = "#F48FB1"
+            d.lineWidth = 12
+            d.setLineDash([18, 12])
+            d.lineDashOffset = 9
+            d.beginPath()
+            d.moveTo(30, 75)
+            d.lineTo(170, 75)
+            d.stroke()
+            }
+        else if (k == "linearGradient") {
+            const g = d.createLinearGradient(30, 0, 170, 0)
+            g.addColorStop(0, "#FF5252")
+            g.addColorStop(0.5, "#FFEB3B")
+            g.addColorStop(1, "#00BCD4")
+            d.fillStyle = g
+            d.fillRect(30, 35, 140, 80)
+            }
+        else if (k == "radialConcentric") {
+            const g = d.createRadialGradient(100, 75, 0, 100, 75, 60)
+            g.addColorStop(0, "#FFFFFF")
+            g.addColorStop(1, "#1A237E")
+            d.fillStyle = g
+            d.fillRect(30, 15, 140, 120)
+            }
+        else if (k == "radialFocal") {
+            // TWO circles with DIFFERENT centres and a non-zero start radius —
+            // canvas's radial is focal, and a renderer mapping it onto a
+            // one-circle primitive cannot express this (it took the mac
+            // describer from 0.01% to 7.33% differing before it was refused)
+            const g = d.createRadialGradient(70, 50, 12, 105, 80, 65)
+            g.addColorStop(0, "#FFFFFF")
+            g.addColorStop(1, "#004D40")
+            d.fillStyle = g
+            d.fillRect(30, 15, 140, 120)
+            }
+        else if (k == "conicGradient") {
+            const g = d.createConicGradient(0.6, 100, 75)
+            g.addColorStop(0, "#FF5252")
+            g.addColorStop(0.34, "#69F0AE")
+            g.addColorStop(0.67, "#448AFF")
+            g.addColorStop(1, "#FF5252")
+            d.fillStyle = g
+            d.fillRect(35, 20, 130, 110)
+            }
+        else if (k == "globalAlpha") {
+            d.fillStyle = "#FFFFFF"
+            d.fillRect(35, 30, 90, 90)
+            d.globalAlpha = 0.35
+            d.fillStyle = "#FF3D00"
+            d.fillRect(75, 55, 90, 70)
+            d.globalAlpha = 1
+            }
+        else if (k == "blendMultiply") {
+            d.fillStyle = "#FFC107"
+            d.fillRect(35, 30, 95, 90)
+            d.globalCompositeOperation = "multiply"
+            d.fillStyle = "#03A9F4"
+            d.fillRect(70, 55, 95, 70)
+            d.globalCompositeOperation = "source-over"
+            }
+        else if (k == "blendLighten") {
+            d.fillStyle = "#4A148C"
+            d.fillRect(35, 30, 95, 90)
+            d.globalCompositeOperation = "lighten"
+            d.fillStyle = "#00695C"
+            d.fillRect(70, 55, 95, 70)
+            d.globalCompositeOperation = "source-over"
+            }
+        else if (k == "shadowOffset") {
+            d.shadowColor = "rgba(0,0,0,0.85)"
+            d.shadowOffsetX = 12
+            d.shadowOffsetY = 10
+            d.fillStyle = "#FFCC80"
+            d.fillRect(45, 40, 90, 65)
+            d.shadowColor = "rgba(0,0,0,0)"
+            d.shadowOffsetX = 0
+            d.shadowOffsetY = 0
+            }
+        else if (k == "shadowBlur") {
+            d.shadowColor = "rgba(255,255,255,0.95)"
+            d.shadowBlur = 22
+            d.fillStyle = "#37474F"
+            d.fillRect(60, 50, 80, 55)
+            d.shadowColor = "rgba(0,0,0,0)"
+            d.shadowBlur = 0
+            }
+        else if (k == "filterBlur") {
+            d.save()
+            d.filter = "blur(9px)"
+            d.fillStyle = "#FFEE58"
+            d.fillRect(55, 45, 90, 60)
+            d.restore()
+            }
+        else if (k == "filterTwoMarks") {
+            // THE per-op vs per-group question, drawn. Canvas2D filters each
+            // drawing operation's own source, so these two adjacent rects blur
+            // SEPARATELY and show a seam where they meet. A renderer that
+            // filters the GROUP blurs their union instead and the seam is gone.
+            d.save()
+            d.filter = "blur(7px)"
+            d.fillStyle = "#E1F5FE"
+            d.fillRect(45, 45, 55, 60)
+            d.fillRect(100, 45, 55, 60)
+            d.restore()
+            }
+        else if (k == "transformRotate") {
+            d.save()
+            d.translate(100, 75)
+            d.rotate(Math.PI / 7)
+            d.scale(1.25, 0.8)
+            d.fillStyle = "#AED581"
+            d.fillRect(-55, -40, 110, 80)
+            d.restore()
+            }
+        else if (k == "textFill") {
+            // ⚠ text will NEVER match glyph for glyph across rasterizers (Core
+            // Text vs Skia); the driver scores this cell on its own looser
+            // budget. It is here to catch placement and size, not shape.
+            d.fillStyle = "#ECEFF1"
+            d.font = "600 34px system-ui, sans-serif"
+            d.textAlign = "center"
+            d.textBaseline = "middle"
+            d.fillText("Agj 123", 100, 75)
+            }
+        }
+    ]
