@@ -160,12 +160,20 @@ enum DrawReplay {
                     // band around the whole screen (~26/255 at the very edge,
                     // decaying inward over roughly the blur radius).
                     f.setValue(ci, forKey: kCIInputImageKey)
-                    // CIGaussianBlur's inputRadius IS the standard deviation, which is
-                    // also what CSS `blur(<length>)` means — so the radius carries
-                    // across unscaled. (Measured both ways with test/probe/blur.declare
-                    // and blur2.declare: blur(20px) → sigma 20.35 in Chrome and in
-                    // CoreImage, plain and under a 0.5 view scale.)
-                    f.setValue(r * geom.scale, forKey: kCIInputRadiusKey)
+                    // CIGaussianBlur's inputRadius IS the standard deviation, and so
+                    // is CSS `blur(<length>)` — so the radius carries across
+                    // UNSCALED. It was being multiplied by the backing scale here,
+                    // which the comment above it already said not to do: the layer
+                    // is congruent with the raster (device resolution) and is drawn
+                    // back 1:1, so a radius in layer pixels IS a radius in device
+                    // pixels. Measured on test/probe/drawops.declare, blur(9px):
+                    // Chrome sigma 10.1, this at `r * geom.scale` sigma 19.4.
+                    //
+                    // ⚠ Canvas filter lengths are DEVICE space and ignore the CTM —
+                    // blur(10px) ramps over the same 32 device px at scale 1, 2 and
+                    // 4, and blur.declare reads the same sigma at dpr 1 and dpr 2.
+                    // So there is no view scale to fold in here, ever.
+                    f.setValue(r, forKey: kCIInputRadiusKey)
                     if let result = f.outputImage?.cropped(to: ci.extent) {
                         out = ciContext.createCGImage(result, from: ci.extent)
                     }
@@ -203,8 +211,21 @@ enum DrawReplay {
 
         func applyShadow(_ c: CGContext) {
             if let sc = st.shadowColor, sc.alphaComponent > 0, (st.shadowBlur > 0 || st.shadowDx != 0 || st.shadowDy != 0) {
-                c.setShadow(offset: CGSize(width: st.shadowDx, height: st.shadowDy),
-                            blur: st.shadowBlur / 2, color: sc.cgColor)
+                // ⚠ NEGATE Y. Core Graphics places a shadow in its own device
+                // space, which is y-UP, while canvas states the offset y-DOWN —
+                // so a positive shadowOffsetY landed ABOVE the shape here. The
+                // MAGNITUDE needs no correction: CG does not put the CTM through
+                // the offset, measured — a shadowOffsetX of 12 lands 12 device px
+                // out under a backing scale of 2, matching Chrome exactly. Only
+                // the sign was ever wrong, which is why the x cell passed and the
+                // y extent was zero.
+                // ⚠ NOT shadowBlur/2. Canvas defines its shadow as a gaussian of
+                // sigma = shadowBlur/2, and it is tempting to read CG's `blur` as
+                // that sigma — but CG's parameter behaves like the full extent,
+                // so halving it blurred half as much. Measured on drawops:
+                // Chrome's glow ramps over 12 device px where `/2` gave 4.
+                c.setShadow(offset: CGSize(width: st.shadowDx, height: -st.shadowDy),
+                            blur: st.shadowBlur, color: sc.cgColor)
             } else {
                 c.setShadow(offset: .zero, blur: 0, color: nil)
             }
@@ -254,10 +275,26 @@ enum DrawReplay {
                 // No CG primitive: sweep it as thin wedges (native-host.md §4).
                 let cx = coords[1], cy = coords[2], a0 = coords[0]
                 let r = max(c.boundingBoxOfClipPath.width, c.boundingBoxOfClipPath.height)
-                let steps = 180
+                // Wedge count follows the CIRCUMFERENCE, not a constant: a fixed
+                // 180 gives 2-degree wedges, which is a couple of pixels at the
+                // rim of a small gradient and a visible staircase at the rim of a
+                // large one. About one wedge per two device pixels of arc keeps
+                // the error under a level either way, and a small gradient does
+                // not pay for a large one's resolution.
+                let steps = max(180, min(2048, Int((2 * CGFloat.pi * r * geom.scale / 2).rounded())))
+                // Wedges TILE, so antialiasing their shared edges is pure loss:
+                // two abutting antialiased fills do not sum back to opaque, and
+                // the seam between every pair showed up as a faint spoke across
+                // the whole sweep. The outer rim is beyond the clip and the clip
+                // antialiases on its own, so nothing visible is given up.
+                c.setShouldAntialias(false)
                 for i in 0..<steps {
                     let t0 = CGFloat(i) / CGFloat(steps), t1 = CGFloat(i + 1) / CGFloat(steps)
-                    let col = interpolate(stops: stops, at: t0)
+                    // sampled at the wedge's MIDPOINT, not its leading edge —
+                    // free, and it halves the average hue error, because a wedge
+                    // painted with its start colour lags the true sweep by half a
+                    // wedge everywhere instead of being centred on it
+                    let col = interpolate(stops: stops, at: (t0 + t1) / 2)
                     let wedge = CGMutablePath()
                     wedge.move(to: CGPoint(x: cx, y: cy))
                     wedge.addArc(center: CGPoint(x: cx, y: cy), radius: r,
@@ -266,6 +303,7 @@ enum DrawReplay {
                     c.setFillColor(col.cgColor)
                     c.addPath(wedge); c.fillPath()
                 }
+                c.setShouldAntialias(true)
             }
             c.restoreGState()
         }

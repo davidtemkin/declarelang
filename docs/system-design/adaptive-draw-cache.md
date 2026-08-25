@@ -147,10 +147,10 @@ pyramid, a sixteenth of the pixels at two halvings.
 
 ⚠ Canvas2D filters PER DRAWING OPERATION, not per group — measured on Chrome,
 the conformance reference: two adjacent rects under one blur show a seam at alpha
-191 where their union is a solid 255. **The Mac host is the off-spec one here**:
-`DrawReplay.swift` builds a group layer, which differs wherever filtered marks
-overlap — and the wallpaper is exactly that shape, five lighten-composited washes
-under one blur. Open.
+191 where their union is a solid 255. The Mac host **already does this** and its
+source says so; an earlier reading of one comment here claimed otherwise and was
+wrong. Measured on the `filterTwoMarks` cell: the seam dips 55.7 on Chrome and
+56.0 on Mac.
 
 Measured after the fix, against the frost and blur probes: WebKit's output
 matches Chrome's NATIVE filter at meanΔ 1.91 and 2.80 of 255 — about as closely
@@ -172,6 +172,44 @@ on it. The durable answer is `__declareForceFilterFallback`, which makes an
 engine that HAS `ctx.filter` take the path built for engines that do not — so a
 SAFARI bug is pinned from a Chrome-only suite (`test/canvas-filter.test.mjs`).
 Reach for that shape for the next engine gap, rather than for a Safari gate.
+
+## C.1 Mac drawing conformance — measured per op, and closed (2026-08-24)
+
+Bringing a renderer into spec needs an instrument that names the OP, which
+neither existing visual rig does: `fidelity.mjs` scores a whole app over 160px
+tiles and the perceptual suite holds DOM and canvas to each other. So
+`test/probe/drawops.declare` states one drawing feature per cell on a fixed grid
+and `mac-host/drawconform.mjs` scores cell by cell. Validated on the web pair
+first — chrome canvas against chrome DOM is **0% on all 30 cells** — so a
+non-zero Mac column is the renderer, not the rig.
+
+Five cells diverged. All five are now within budget, and none of the fixes was
+what the first guess said:
+
+| cell | before | after | what it actually was |
+|---|---|---|---|
+| `filterTwoMarks` | 28.01% | 0% | the blur radius, not group-vs-per-op |
+| `filterBlur` | 25.82% | 0% | `r * geom.scale` — the radius was scaled by the backing scale, which the comment directly above it already said not to do |
+| `shadowBlur` | 8.70% | 0% | `shadowBlur / 2` — CG's `blur` behaves like the full extent, not the sigma |
+| `shadowOffset` | 3.20% | 0% | the SIGN of y only: CG places shadows in its own y-UP device space |
+| `conicGradient` | 2.92% | 0.05% | antialiased seams between TILING wedges, plus a fixed 180-wedge sweep |
+
+Two of those had to be measured rather than reasoned about, because the obvious
+theory was wrong both times. **Canvas shadow offsets and filter lengths are
+DEVICE space and ignore the CTM** — `blur(10px)` ramps over the same 32 device px
+at scale 1, 2 and 4, and a `shadowOffsetX` of 12 lands 12 device px out at either
+dpr. So the expected "divide by the CTM scale" correction on the Mac side was not
+needed for the shadow OFFSET at all (CG does not put the CTM through it, measured
+— the x cell had always passed), and the y fix is a bare negation. Conversely the
+filter radius WAS being scaled and should not have been.
+
+⚠ The remaining Mac gap is text, and it is expected: `textFill` reads 3.11%
+against a 22% budget, because Core Text will never match Skia glyph for glyph.
+That cell is there to catch placement and size, not shape.
+
+Regression check after the fixes: the native gate is 16 programs, 0 failing, with
+`blur` IMPROVED 0.27pt and `desktop` 0.07pt; behavioural conformance passes 14/14
+with dom, canvas and mac agreeing.
 
 ## D. Canvas, per runtime — the platform attributes
 
