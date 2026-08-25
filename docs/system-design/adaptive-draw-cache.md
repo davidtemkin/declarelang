@@ -123,13 +123,55 @@ having refused the raster and replayed vectors. Three positions, one authored
 shape. (This is homepage.declare's workaround, isolated — it measured ~385MB
 before pinning.)
 
-**⚠ Safari IGNORES `ctx.filter`.** Confirmed on real Safari, not just the
-harness: `"filter" in ctx` is false, the assignment is accepted as a plain
-expando and reads back verbatim, and a blurred rect does not bleed past its own
-edge. Three consequences: the desktop wallpaper's blur does not render there at
-all (a shipped fidelity bug); `replayCost`'s "filter ⇒ expensive outright"
-prices a cost never incurred; and `rasterPad` reserves bleed for spread that
-never happens.
+**⚠ Safari IGNORES `ctx.filter` — FOUND, AND FIXED (2026-08-24).** Confirmed on
+real Safari, not just the harness: `"filter" in ctx` is false, the assignment is
+accepted as a plain expando and reads back verbatim, and a blurred rect does not
+bleed past its own edge. It is not a feature that throws or reports absence; it
+is one that lies.
+
+A capability sweep over the whole recorded surface says that is the ONLY gap —
+`filter` (blur and saturate) plus a bare `fontKerning` property. shadowBlur,
+letterSpacing, wordSpacing, direction, roundRect, ellipse, conicGradient,
+setLineDash and all thirteen blend modes already agree across engines.
+
+**Two things depended on it, and they needed different mechanisms.** FROST
+(`canvas-backend` paintFrost) filters a finished snapshot of what is underneath,
+so one post-hoc pass covers it; weather's entire glass treatment was flat on that
+engine, for as long as the canvas backend has had frost. An author's `d.filter`
+applies to everything drawn AFTER it, with no snapshot to work from, so `replay`
+interprets it instead. Both live in `runtime/src/canvas-filter.ts`: a PYRAMID
+blur (repeated halving down, then up — the GPU's bilinear sampler does the
+averaging, each halving roughly doubles the radius, O(pixels) rather than a
+gaussian's O(radius²)), with the colour matrix run on the SMALLEST buffer in the
+pyramid, a sixteenth of the pixels at two halvings.
+
+⚠ Canvas2D filters PER DRAWING OPERATION, not per group — measured on Chrome,
+the conformance reference: two adjacent rects under one blur show a seam at alpha
+191 where their union is a solid 255. **The Mac host is the off-spec one here**:
+`DrawReplay.swift` builds a group layer, which differs wherever filtered marks
+overlap — and the wallpaper is exactly that shape, five lighten-composited washes
+under one blur. Open.
+
+Measured after the fix, against the frost and blur probes: WebKit's output
+matches Chrome's NATIVE filter at meanΔ 1.91 and 2.80 of 255 — about as closely
+as Chrome's own fallback does, and inside the band this project already accepts
+between renderers.
+
+Two consequences remain open: `replayCost`'s "filter ⇒ expensive outright" prices
+a cost that on that engine was never incurred, and `rasterPad` reserves bleed for
+spread that did not happen. Both are now wrong in the other direction, since the
+fallback really does blur.
+
+**Why nothing caught it, and the lever that closes the class.** The conformance
+suite compares DOM against canvas — on Chrome, where both blur correctly. DOM
+uses CSS `backdrop-filter`, which Safari implements properly, and DOM is the
+default (islands are always DOM), so shipped apps were never affected; the
+exposure was Safari plus the canvas renderer, which nothing in the suite covers.
+That is the standing "Chrome cannot see Safari canvas problems" trap with a name
+on it. The durable answer is `__declareForceFilterFallback`, which makes an
+engine that HAS `ctx.filter` take the path built for engines that do not — so a
+SAFARI bug is pinned from a Chrome-only suite (`test/canvas-filter.test.mjs`).
+Reach for that shape for the next engine gap, rather than for a Safari gate.
 
 ## D. Canvas, per runtime — the platform attributes
 

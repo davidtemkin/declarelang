@@ -44018,6 +44018,14 @@
      "preview": "A1. A region read spelled .value.<field is not reactive — RESOLVED What it looked like. A Dataset contents = { … } reading another dataset's region never recomputed when that region was written. Reported twice independently — once here, onc…"
     },
     {
+     "name": "Finding",
+     "subtitle": "a green reference went silently red: pointerEvents = \"none\" stopped sealing subtrees",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/findings-2026-08-23-pointer-corridor.md",
+     "preview": "Round 001 drift check, 2026-08-23. Subject: 949200bb (v0.3.1, pushed main). What happened Before spending a token, round 001 verified the four task references against the pinned subject. Two of four were red: task rung cause class ---------…"
+    },
+    {
      "name": "Hierarchical focus scopes (D9)",
      "subtitle": "",
      "kind": "doc",
