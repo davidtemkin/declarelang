@@ -131,6 +131,30 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   assert.ok(gz > 20 * 1024 && gz < 84 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
+// THE STUB-DRIFT TRAP, made structural. The production build replaces
+// draw.js (and canvas-filter.js) with hand-written stubs for programs that
+// cannot reach them, and a stub is a second copy of the module's export list.
+// It has drifted twice: a renamed export (replayCost → replayArea) and a new one
+// (rasterLooksBlank), each surfacing as "No matching export" in every AOT
+// build at once, five suite files red. So: every value export in the source
+// must have a name in its stub. Types are not exports at runtime and are
+// skipped. A stub may export MORE (harmless); it may not export less.
+await test("the production stubs mirror every value export of the modules they replace", () => {
+  const declarec = readFileSync(resolve(HERE, "../tools/declarec.mjs"), "utf8");
+  const stubOf = (name) => {
+    const m = new RegExp(`const ${name} = \\x60([\\s\\S]*?)\\x60;`).exec(declarec);
+    assert.ok(m, `${name} not found in tools/declarec.mjs`);
+    return m[1];
+  };
+  const valueExports = (file) => [...readFileSync(resolve(HERE, "../runtime/src", file), "utf8")
+    .matchAll(/^export (?:async )?(?:function|const|let|class) ([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
+  for (const [src, stubName] of [["draw.ts", "drawStub"], ["canvas-filter.ts", "filterStub"]]) {
+    const stub = stubOf(stubName);
+    const missing = valueExports(src).filter((n) => !new RegExp(`export (?:function|const|class) ${n}\\b`).test(stub));
+    assert.deepEqual(missing, [], `${stubName} lacks exports that ${src} has: ${missing.join(", ")} — add them to the stub in tools/declarec.mjs`);
+  }
+});
+
 await test("slim-filter: the Safari filter fallback ships only where a program can reach it", async () => {
   // canvas-filter.js is ~13 KB raw; its stub is a few hundred bytes. The
   // metafile lists both under the same path, so size is the discriminator.

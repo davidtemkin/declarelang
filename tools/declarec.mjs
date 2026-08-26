@@ -428,7 +428,7 @@ export function validateShape() { return null; }
   // a canvas-backend build: frost there filters a backdrop snapshot through this
   // module with no d.filter in the program at all.
   const filterStub = `export function parseFilter() { return { blur: 0, saturate: 1, brightness: 1, contrast: 1, grayscale: 0, invert: 0, unsupported: [] }; }\nexport function isIdentity() { return true; }\nexport function ctxFilterSupported() { return true; }\nexport function forceFilterFallback() {}\nexport function applyFilterFallback(src) { return src; }\n`;
-  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayArea() { return 0; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\n`;
+  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayArea() { return 0; }\nexport function rasterLooksBlank() { return false; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\n`;
   const stubFor = (name, filterRe, contents) => ({
     name,
     setup(build) {
