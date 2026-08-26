@@ -33,6 +33,7 @@ export const OP = {
     SCROLLX: 30, SCROLLXPOS: 31, PAGEFILL: 32,
     IGNORESCROLL: 33, RICHWIDTH: 34, BLEND: 35, BACKDROP: 36, TINT: 37,
     ROTATE: 38, MEDIA: 39,
+    RASTERSCALE: 40,
 };
 function host() {
     const h = globalThis.__declareMacHost;
@@ -279,6 +280,15 @@ class MacSurface {
         this.pivotX = px;
         this.pivotY = py;
         emit(OP.SCALE, this.id, scale, px, py);
+    }
+    /** The composed scale a drawing is seen at, at rest (backend.ts). The host
+     *  DESCRIBES most recordings as layers, which the render server rasterizes
+     *  under any transform; the remainder — text, focal radials, filters — it
+     *  rasters into a bitmap at the backing scale, and that bitmap was stretched
+     *  under a view scale. This hands the host the density to raster that
+     *  remainder at, the same fix the DOM backend makes for the same softness. */
+    setRasterScale(k) {
+        emit(OP.RASTERSCALE, this.id, k);
     }
     setClip(pathData) {
         this.clipData = pathData;

@@ -135,7 +135,7 @@ const TABLE = {
   setRasterScale: {
     dom: true,
     canvas: "replays the recording under the live transform, so a scaled drawing is exact at every scale with no raster to redo — the memo's own scale key handles the cached case (stretch grace, canvas-backend.ts)",
-    mac: "GAP for the RASTERIZED remainder — the described 82% (LayerDescribe: paths, gradients, now shadows) re-rasterizes in the render server under any transform and is exact; the rest (text, focal radials, filters) is held at backing scale and stretched under a view scale, the same softness this member fixes on DOM. Absent, the optional call is a no-op and the host degrades to soft-under-scale, never wrong; the fix is a per-node re-raster at the composed scale at rest, the DOM's shape (adaptive-draw-cache.md §C.4)",
+    mac: true,
     headless: NOT_APPLICABLE,
   },
   setSelectableRegion: {

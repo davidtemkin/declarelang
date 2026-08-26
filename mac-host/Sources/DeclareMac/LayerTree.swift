@@ -68,6 +68,10 @@ final class Node {
     /// current epoch = something beneath may have moved, so re-sample.
     var frostEpoch: Int = -1
     var scaleK: CGFloat = 1
+    /// Device px per view unit a RASTERIZED drawing should be made at — the
+    /// composed scale from the runtime's at-rest feed (RASTERSCALE). 0 = the
+    /// backing scale, which is what a drawing under no view scale wants.
+    var rasterK: CGFloat = 0
     /// Rotation in model degrees (clockwise on screen); folded with scale
     /// into one layer transform by applyScale.
     var rotation: CGFloat = 0
@@ -546,6 +550,16 @@ final class LayerTree {
             // An editable already configured must pick up the new face: the two
             // ops are independent and TEXTSTYLE often lands after EDIT.
             n.editable?.restyle(st)
+        case 40: // RASTERSCALE — the at-rest composed density for a rasterized drawing
+            guard let n = nodes[id] else { return }
+            let k = num(a(0))
+            if abs(k - n.rasterK) > 0.001 {
+                n.rasterK = k
+                // a described drawing re-rasterizes in the render server under any
+                // transform and needs nothing; a RASTERIZED one is a bitmap made at
+                // one density, and a new density means a new bitmap
+                if n.drawList != nil, n.draw?.name != "described" { pendingDraw.insert(id) }
+            }
         case 18: // DRAW
             guard let n = nodes[id] else { return }
             if a(0) == nil || a(0) is NSNull {
@@ -1284,7 +1298,12 @@ final class LayerTree {
         let bw = CGFloat((b?["w"] as? NSNumber)?.doubleValue ?? Double(n.box.width))
         let bh = CGFloat((b?["h"] as? NSNumber)?.doubleValue ?? Double(n.box.height))
         let w = max(1, bw), h = max(1, bh)
-        let s = scale
+        // EXACT UNDER A VIEW SCALE. The bitmap is w×h points on a layer that the
+        // ancestor's transform then scales; at the backing scale it is stretched
+        // by that transform, the softness the DOM backend also had. The runtime
+        // hands the composed density at rest (RASTERSCALE) and the bitmap is made
+        // at it — contentsScale carries the extra pixels through CA unchanged.
+        let s = n.rasterK > 0 ? n.rasterK : scale
         guard let cs = CGColorSpace(name: CGColorSpace.sRGB),
               let cg = CGContext(data: nil, width: Int(w * s), height: Int(h * s), bitsPerComponent: 8,
                                  bytesPerRow: 0, space: cs,
