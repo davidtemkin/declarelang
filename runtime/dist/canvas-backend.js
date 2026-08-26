@@ -936,7 +936,16 @@ class CanvasSurface {
             ? { x: -m.e / m.a, y: -m.f / m.d, w: ctx.canvas.width / m.a, h: ctx.canvas.height / m.d }
             : undefined;
         memoPaints++;
-        if (globalThis.__declareNoRasterMemo === true || !axis) {
+        if (globalThis.__declareNoRasterMemo === true) {
+            // the A/B lever means OFF, not "stop using": an entry promoted before the
+            // lever was thrown is released, so the pool reads empty and its bytes are
+            // really gone — otherwise a before/after measured the memo's absence with
+            // its memory still held
+            releaseRaster(this);
+            replay(ctx, list, clip);
+            return;
+        }
+        if (!axis) {
             replay(ctx, list, clip);
             return;
         }

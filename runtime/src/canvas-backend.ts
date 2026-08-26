@@ -929,7 +929,16 @@ class CanvasSurface implements Surface {
       ? { x: -m.e / m.a, y: -m.f / m.d, w: ctx.canvas.width / m.a, h: ctx.canvas.height / m.d }
       : undefined;
     memoPaints++;
-    if ((globalThis as { __declareNoRasterMemo?: boolean }).__declareNoRasterMemo === true || !axis) { replay(ctx, list, clip); return; }
+    if ((globalThis as { __declareNoRasterMemo?: boolean }).__declareNoRasterMemo === true) {
+      // the A/B lever means OFF, not "stop using": an entry promoted before the
+      // lever was thrown is released, so the pool reads empty and its bytes are
+      // really gone — otherwise a before/after measured the memo's absence with
+      // its memory still held
+      releaseRaster(this);
+      replay(ctx, list, clip);
+      return;
+    }
+    if (!axis) { replay(ctx, list, clip); return; }
     const sx = Math.round(m.a * 1e4) / 1e4;
     const sy = Math.round(m.d * 1e4) / 1e4;
     // ADMISSION: is this recording worth bytes at all? The quantity is the
