@@ -398,11 +398,9 @@ decision rotation needs was already made for scale) and composes with it
 - **Open policy to rule in-build**: perceptual-baseline tolerance for rotated
   antialiasing (it differs per backend); `draw()`-tier interplay (a rotated
   view's drawing rotates with it — the recording replays under the transform).
-  Settled for canvas and the Mac host; still OPEN for DOM, where a transformed
-  view's drawing is CSS-stretched rather than replayed at the scale it is seen —
-  see adaptive-draw-cache.md, "Where the ruling is not yet kept", and the CURRENT state
-  (what shipped, the instruments, and where a DOM canvas actually costs) in that
-  file's 2026-08-24 status block — the 08-16 rejection alone misleads.
+  Settled for canvas and the Mac host; RESOLVED for DOM on 2026-08-26: a drawing under a transform re-rasterizes at
+  its at-rest composed density on every renderer that holds pixels — see
+  adaptive-draw-cache.md, the raster policy, §3.
 - 4.3 (draw() image sources) stays deferred; re-examine once rotation lands —
   a rotated `Image` dissolves the most common want.
 

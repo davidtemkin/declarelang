@@ -43722,12 +43722,12 @@
      "preview": "How the Declare system is built, and why. This is the working agreement for the neolang/ effort and the first thing every contributing agent reads. It complements the product docs in ../docs/system-design/(../design-docs) (vision, language,…"
     },
     {
-     "name": "Adaptive draw caching",
-     "subtitle": "hot draw() views without manual bitmaps",
+     "name": "The raster policy",
+     "subtitle": "how a drawing reaches pixels on each renderer",
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/system-design/adaptive-draw-cache.md",
-     "preview": "Status: SUPERSEDED TWICE, 2026-08-24. Read this block first — the one below it is history, and on its own it misleads. The 08-16 rejection says \"the caching mechanism does not survive\". A cache DID ship, four days later, and a reader who st…"
+     "preview": "A draw() body records a display list; a renderer turns that list into pixels. This document is the policy for that step: what every renderer promises, the vocabulary they share, what each does differently and why, the engine facts those dif…"
     },
     {
      "name": "Animation",
