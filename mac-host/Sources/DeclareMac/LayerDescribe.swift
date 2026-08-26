@@ -31,9 +31,26 @@ enum LayerDescribe {
 
     /// Paint state a CAShapeLayer can carry. Two marks can share a layer only
     /// when every field here matches — this is the run key.
+    /// A canvas shadow, as a layer can carry it. Offsets and blur are DEVICE
+    /// space in canvas (they ignore the CTM — measured), while CALayer's are
+    /// layer points, so they are divided by the backing scale at build time.
+    struct ShadowSpec: Equatable {
+        var color: String
+        var blur: CGFloat
+        var dx: CGFloat
+        var dy: CGFloat
+    }
     private struct Paint: Equatable {
         var isStroke = false
         var color: String = "#000"
+        /// Shadow, when live at the mark — see ShadowSpec.
+        var shadow: ShadowSpec? = nil
+        /// A shadowed mark is its OWN layer, never merged into a run: canvas
+        /// shadows each drawing operation separately, so a later mark's shadow
+        /// falls ON an earlier mark's fill, and a compound path's single shadow
+        /// cannot say that (it never falls inside the union). The nonce makes
+        /// two shadowed paints unequal even when everything else matches.
+        var nonce: Int = 0
         var gradient: NSDictionary? = nil
         var lineWidth: CGFloat = 1
         var cap: CGLineCap = .butt
@@ -56,6 +73,10 @@ enum LayerDescribe {
         var dashOffset: CGFloat = 0
         var alpha: CGFloat = 1
         var ctm: CGAffineTransform = .identity
+        var shadowColor: String? = nil
+        var shadowBlur: CGFloat = 0
+        var shadowDx: CGFloat = 0
+        var shadowDy: CGFloat = 0
     }
 
     /// Can a gradient be expressed as a CAGradientLayer at all? Checked at
@@ -127,12 +148,24 @@ enum LayerDescribe {
             if runPaint != p { flush(); runPaint = p }
             runPath.addPath(geom)
         }
+        var shadowNonce = 0
         func paintFor(stroke: Bool, evenOdd: Bool = false) -> Paint? {
             let src = stroke ? st.stroke : st.fill
             var p = Paint()
             p.isStroke = stroke
             p.alpha = st.alpha
             p.evenOdd = evenOdd
+            // a shadow is live when its colour has any alpha and it has any
+            // extent — the same test the rasterizer's applyShadow makes
+            if let sc = st.shadowColor, let c = CSSColor.parse(sc), c.alphaComponent > 0,
+               st.shadowBlur > 0 || st.shadowDx != 0 || st.shadowDy != 0 {
+                // a gradient paint is a mask over a gradient layer, and the mask
+                // draws no shadow of its own; that shape keeps the raster path
+                if src is [String: Any] { return nil }
+                shadowNonce += 1
+                p.shadow = ShadowSpec(color: sc, blur: st.shadowBlur, dx: st.shadowDx, dy: st.shadowDy)
+                p.nonce = shadowNonce
+            }
             if let g = src as? [String: Any] {
                 guard expressible(g) else { return nil }
                 p.gradient = g as NSDictionary
@@ -199,7 +232,17 @@ enum LayerDescribe {
                     guard ((o["v"] as? String) ?? "source-over") == "source-over" else { return nil }
                 case "textAlign", "textBaseline", "font", "letterSpacing":
                     break                                   // harmless unless text is drawn
-                default: return nil                         // shadows, filter, …
+                // SHADOWS ARE DESCRIBED, not refused (2026-08-26). Refusing them
+                // sent every shadowed recording to the CG rasterizer, where a
+                // shadow is a CPU blur per mark: measured ~4.7 ms per shadowed
+                // mark against 61 µs on Chrome, the largest per-engine cliff in
+                // the raster tracking doc §C.3. CAShapeLayer carries a shadow
+                // natively and the render server draws it.
+                case "shadowColor": st.shadowColor = o["v"] as? String
+                case "shadowBlur": st.shadowBlur = d("v")
+                case "shadowOffsetX": st.shadowDx = d("v")
+                case "shadowOffsetY": st.shadowDy = d("v")
+                default: return nil                         // filter, …
                 }
             case "fill":
                 guard let p = paintFor(stroke: false, evenOdd: (o["rule"] as? String) == "evenodd")
@@ -262,6 +305,22 @@ enum LayerDescribe {
             let c = CSSColor.parse(p.color)?.cgColor
             if p.isStroke { shape.strokeColor = c } else { shape.fillColor = c }
             shape.opacity = Float(p.alpha)
+            if let sh = p.shadow, let sc = CSSColor.parse(sh.color) {
+                // canvas: device-space offset and blur, y-DOWN. Layer: points,
+                // y-UP. Divide by the backing scale, negate y. The radius
+                // carries across as the same quantity CG's `blur` is — the
+                // rasterizer passes shadowBlur through unhalved and matches
+                // Chrome at 0% (drawconform shadowBlur), so this does too;
+                // that cell is what holds this to account.
+                shape.shadowColor = sc.cgColor
+                shape.shadowOpacity = 1
+                shape.shadowRadius = sh.blur / scale
+                shape.shadowOffset = CGSize(width: sh.dx / scale, height: -sh.dy / scale)
+                shape.actions?["shadowOpacity"] = NSNull()
+                shape.actions?["shadowRadius"] = NSNull()
+                shape.actions?["shadowOffset"] = NSNull()
+                shape.actions?["shadowColor"] = NSNull()
+            }
             return shape
         }
 

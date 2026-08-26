@@ -346,7 +346,7 @@ ms per re-record, 30 re-records per row):
 | gradient | 6.8 | 19.0 | 16.0 | described |
 | stroke | 3.2 | 9.5 | 9.0 | described |
 | text | 25 | 79 | 19.7 | rasterized (Core Text) |
-| **shadow** | **722** | **4785** | 85 | rasterized (Core Graphics) |
+| **shadow** | **722** → 5.5 | **4785** → 13.9 | 85 | rasterized (CG) → **described** (2026-08-26) |
 
 Two shapes in that table. The DESCRIBED kinds cost per op and not per pixel —
 the same at both mark sizes — because what is being paid is CALayer
@@ -359,7 +359,21 @@ cliff, because Core Graphics blurs each shadow on the CPU in the per-node
 raster path. That is the largest per-engine divergence this pass found, and it
 is specific: `CAShapeLayer` carries `shadowRadius`/`shadowOpacity`/`shadowOffset`
 natively, so shadows could be DESCRIBED like fills are and never reach CG.
-Open, and the first thing to build on the Mac side.
+
+**Built, 2026-08-26.** `LayerDescribe` now parses the shadow state it used to
+refuse, carries it in the run key, and sets it on the solid-paint
+`CAShapeLayer`. Two things had to be right and were verified by instrument
+rather than reasoned: a shadowed mark is its OWN layer, never merged into a
+run — canvas shadows each drawing operation separately, so a later mark's
+shadow falls on an earlier mark's fill, which a compound path's single shadow
+cannot say — and canvas shadow geometry is device-space where the layer's is
+points, so offset and blur divide by the backing scale and the offset's y is
+negated into the layer's y-up space. A shadowed gradient keeps the raster path
+(its shape is a mask over a gradient layer, and a mask draws no shadow).
+`drawconform`: `shadowOffset` 0%, `shadowBlur` 0% at meanΔ 0.38 — identical to
+the rasterized path's numbers, so the described shadow matches CG and Chrome
+alike. The meter: **256 shadowed marks 722 → 5.5 ms; 1024 marks 4785 → 13.9
+ms** per re-record, every row described. Gate 16/0, desktop −0.62 pt.
 
 **iOS Simulator** (iPhone 16 Pro, iOS WebKit at dpr 3; timings Mac-hosted and
 indicative): `ctx.filter` NOT honoured, the same as desktop Safari. The

@@ -2,6 +2,7 @@
 //
 //   node mac-host/kindsbench.mjs            # all kinds, ops 1/256/1024, span 0.25
 //   node mac-host/kindsbench.mjs --small    # span 0.06 (the second span rasterfit needs)
+//   node mac-host/kindsbench.mjs --kind shadow   # one kind only
 //
 // The web rigs cannot drive the Mac host, and the host cannot be traced by
 // Chrome — but it has the one raster meter that was always honest: LayerTree
@@ -34,7 +35,8 @@ const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 const SMALL = process.argv.includes("--small");
 const SPAN = SMALL ? 0.06 : 0.25;
 const STEPS = 30;
-const KINDS = ["fill", "gradient", "stroke", "text", "shadow"];
+const ONLY = process.argv[process.argv.indexOf("--kind") + 1];
+const KINDS = process.argv.includes("--kind") ? [ONLY] : ["fill", "gradient", "stroke", "text", "shadow"];
 const OPS = [1, 256, 1024];
 
 async function ctl(cmd) {
