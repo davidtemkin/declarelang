@@ -660,6 +660,45 @@ function listInfo(list: DisplayList): ListInfo {
  *  in paint cost by covered area alone, and the op count called both
  *  "expensive". Op count is still a term — a stroke has real per-op setup
  *  cost — but it is the backend's term to weigh, from `list.ops.length`. */
+/** Did a raster of `list` paint NOTHING where the recording says it painted?
+ *  The platform's silent failure: past its canvas budget Safari draws
+ *  transparent, Firefox blanks a DOM canvas at ~130 MB (measured 2026-08-25),
+ *  and no timing sees either — a blank frame is a fast one. Sampled at a few
+ *  op centres, which is a GPU sync, so a caller runs it once per fresh raster
+ *  and only past a size worth the sync. A recording that truly paints
+ *  transparent at every sampled centre reads as blank; the caller's recovery
+ *  (vectors on canvas, a lower density on DOM) is slower, never wrong.
+ *  `sx, sy` are the raster's density and `bx, by` its origin in recording
+ *  units — the same numbers the raster was made with. */
+export function rasterLooksBlank(cv: HTMLCanvasElement, list: DisplayList, sx: number, sy: number, bx: number, by: number): boolean {
+  // a test lever: the platform failure this detects cannot be provoked on
+  // demand (it is the engine's own budget), so a pin forces the DETECTOR and
+  // checks the recovery — halve and retry on DOM, vectors on canvas
+  const force = (globalThis as { __declareForceBlank?: number }).__declareForceBlank;
+  if (typeof force === "number" && force > 0) { (globalThis as { __declareForceBlank?: number }).__declareForceBlank = force - 1; return true; }
+  const g = cv.getContext("2d");
+  const ext = list.extents ?? [];
+  if (g === null) return false;
+  let sampled = 0;
+  for (let i = 0; i < ext.length && sampled < 12; i++) {
+    const e = ext[i];
+    if (!e || e.w <= 0 || e.h <= 0) continue;
+    // a 3×3 PATCH about the centre, not one pixel: a hairline's centre rounds
+    // one device pixel off the line at low density (measured — a 1 px lattice
+    // at density 1 read "blank" at every sample and the DOM backend halved a
+    // raster that had painted), and a false blank is a raster thrown away
+    const cx = Math.round((e.x + e.w / 2 - bx) * sx), cy = Math.round((e.y + e.h / 2 - by) * sy);
+    const x = Math.min(Math.max(0, cv.width - 3), Math.max(0, cx - 1));
+    const y = Math.min(Math.max(0, cv.height - 3), Math.max(0, cy - 1));
+    sampled++;
+    try {
+      const d = g.getImageData(x, y, Math.min(3, cv.width), Math.min(3, cv.height)).data;
+      for (let k = 3; k < d.length; k += 4) if (d[k] !== 0) return false;
+    } catch { return false; }
+  }
+  return sampled > 0;
+}
+
 export function replayArea(list: DisplayList): number {
   return listInfo(list).area;
 }

@@ -396,6 +396,17 @@ export declare function rasterTotalCap(viewportBytes: number): number;
  *  in paint cost by covered area alone, and the op count called both
  *  "expensive". Op count is still a term — a stroke has real per-op setup
  *  cost — but it is the backend's term to weigh, from `list.ops.length`. */
+/** Did a raster of `list` paint NOTHING where the recording says it painted?
+ *  The platform's silent failure: past its canvas budget Safari draws
+ *  transparent, Firefox blanks a DOM canvas at ~130 MB (measured 2026-08-25),
+ *  and no timing sees either — a blank frame is a fast one. Sampled at a few
+ *  op centres, which is a GPU sync, so a caller runs it once per fresh raster
+ *  and only past a size worth the sync. A recording that truly paints
+ *  transparent at every sampled centre reads as blank; the caller's recovery
+ *  (vectors on canvas, a lower density on DOM) is slower, never wrong.
+ *  `sx, sy` are the raster's density and `bx, by` its origin in recording
+ *  units — the same numbers the raster was made with. */
+export declare function rasterLooksBlank(cv: HTMLCanvasElement, list: DisplayList, sx: number, sy: number, bx: number, by: number): boolean;
 export declare function replayArea(list: DisplayList): number;
 /** Replay a recording into a real 2D context. `clip`, when given, is the
  *  region (recording-local) the replay can be SEEN in: paint ops entirely

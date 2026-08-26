@@ -34,7 +34,7 @@ import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, isGradient } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { cssWeight, fontMetrics, fontString, textWidth, wrapLines } from "./measure.js";
-import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
+import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
 import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-filter.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive } from "./input.js";
@@ -154,35 +154,6 @@ function evictLeastValuable(except) {
         return false;
     releaseRaster(victim);
     return true;
-}
-/** A large raster that painted NOTHING where its recording says it painted is
- *  the platform's silent failure (Safari past its canvas budget draws
- *  transparent). Sampled at a few op centres — a GPU sync, so only ever run
- *  once, on a fresh entry past BLANK_CHECK_BYTES. A recording that truly paints
- *  transparent at every sampled centre reads as blank and demotes to vectors:
- *  slower, never wrong. */
-function looksBlank(cv, list, sx, sy, bx, by) {
-    const g = cv.getContext("2d");
-    const ext = list.extents ?? [];
-    if (g === null)
-        return false;
-    let sampled = 0;
-    for (let i = 0; i < ext.length && sampled < 12; i++) {
-        const e = ext[i];
-        if (!e || e.w <= 0 || e.h <= 0)
-            continue;
-        const x = Math.min(cv.width - 1, Math.max(0, Math.round((e.x + e.w / 2 - bx) * sx)));
-        const y = Math.min(cv.height - 1, Math.max(0, Math.round((e.y + e.h / 2 - by) * sy)));
-        sampled++;
-        try {
-            if (g.getImageData(x, y, 1, 1).data[3] !== 0)
-                return false;
-        }
-        catch {
-            return false;
-        }
-    }
-    return sampled > 0;
 }
 class Compositor {
     canvas = null;
@@ -603,9 +574,25 @@ class Compositor {
         this.editables.clear();
         this.host = null;
     }
+    /** When the previous paint landed. A paint within RASTER_GRACE_MS of the
+     *  last is a frame IN MOTION — a scroll, a spring, a drag — and a frost may
+     *  be approximate there; the rest timer below books the one exact frame once
+     *  the frames stop (the memo's own grace, applied to frost). */
+    lastPaintAt = 0;
+    inMotion = false;
+    frostRestTimer = 0;
+    /** A frost painted approximately asks for its exact frame at rest. */
+    frostWantsRest() {
+        if (this.frostRestTimer !== 0)
+            clearTimeout(this.frostRestTimer);
+        this.frostRestTimer = setTimeout(() => { this.frostRestTimer = 0; this.invalidate(); }, RASTER_GRACE_MS + 15);
+    }
     paint = () => {
         this.frame = 0;
         memoGeneration++;
+        const now = performance.now();
+        this.inMotion = now - this.lastPaintAt < RASTER_GRACE_MS;
+        this.lastPaintAt = now;
         const { canvas, ctx, root } = this;
         if (canvas === null || ctx === null || root === null)
             return;
@@ -1045,7 +1032,7 @@ class CanvasSurface {
             // the platform may silently drop a raster later (GPU process restart);
             // a lost context releases the entry and the next paint re-derives
             cv.addEventListener?.("contextlost", () => { releaseRaster(this); this.compositor.invalidate(); });
-            if (bytes > BLANK_CHECK_BYTES && looksBlank(cv, list, sx, sy, bx, by))
+            if (bytes > BLANK_CHECK_BYTES && rasterLooksBlank(cv, list, sx, sy, bx, by))
                 throw new Error("raster came back blank");
         }
         catch (err) {
@@ -1952,8 +1939,13 @@ class CanvasSurface {
             // sample ourselves and draw the RESULT — same promise, different
             // mechanism, which is the standing ruling for anything that differs by
             // engine rather than by design.
-            const out = applyFilterFallback(snap, parseFilter(spec));
+            // in motion: the GPU-only blur, no readback, no colour — and a booking
+            // for the exact frame at rest; at rest: the calibrated pass, once
+            const approx = this.compositor.inMotion;
+            const out = applyFilterFallback(snap, parseFilter(spec), approx);
             ctx.drawImage(out, dx0, dy0);
+            if (approx)
+                this.compositor.frostWantsRest();
         }
         ctx.restore();
     }
@@ -1961,7 +1953,9 @@ class CanvasSurface {
      *  then children — the same content order the DOM backend's element order
      *  produces. */
     paintContent(ctx, skipExempt = false) {
-        if (this.backdrop !== null)
+        // __declareNoFrost: an A/B lever, never a setting — it exists so a frame-
+        // rate question can be answered by measurement rather than by argument
+        if (this.backdrop !== null && globalThis.__declareNoFrost !== true)
             this.paintFrost(ctx);
         this.paintBox(ctx);
         if (this.image !== null) {

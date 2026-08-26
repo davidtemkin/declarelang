@@ -262,7 +262,8 @@ const AGENT = `(async () => {
       return out.join("|");
     };
     const before = px();
-    bump();
+    if ("__DRIVE__" === "scroll-app") { app.scrollY = 0; await raf(); await raf(); app.scrollY = Math.max(0, app.height - (app.hostHeight || window.innerHeight)) * 0.5; }
+    else bump();
     await raf(); await raf();
     driveWorks = px() !== before;
   } catch (e) { driveWorks = null; }
@@ -329,6 +330,7 @@ const AGENT = `(async () => {
     filterWorks: filterWorks,
     ink: inkPct,
     drive: driveWorks,
+    memo: (globalThis.__declareRasterStats ? globalThis.__declareRasterStats() : null),
   };
 })()`;
 
@@ -349,12 +351,16 @@ const DRIVES = {
   // scroll the page's own declared offset — a settable attribute, so this is
   // the same gesture on every renderer rather than a per-backend wheel event
   scroll: "app.scrollY = (i / STEPS) * (app.height * (app.k - 1))",
+  // a real app: sweep the root's scroll range as a person would, top to bottom
+  // and back, so both directions and both ends are in the window
+  "scroll-app": "app.scrollY = Math.max(0, (app.height - (app.hostHeight || window.innerHeight))) * (0.5 - 0.5 * Math.cos((i / STEPS) * 2 * Math.PI))",
 };
 
 function agentFor(drive, knobs, steps, noCadence = false, phase = "drive") {
   return AGENT
     .replace("__PHASE__", phase)
     .replace(/DRIVE_STEP;/g, DRIVES[drive] + ";")
+    .replace(/__DRIVE__/g, drive)
     .replace("__TICK__", noCadence
       ? "new Promise((r) => setTimeout(r, 0))"
       : "new Promise((r) => requestAnimationFrame(r))")
@@ -644,7 +650,19 @@ const has = (name) => argv.includes("--" + name);
 
 const engines = flag("engines", "chrome").split(",");
 const renderers = flag("renderers", "dom,canvas").split(",");
-const probes = flag("probe", Object.keys(PROBES).join(",")).split(",");
+// --app <path.declare>: benchmark a REAL program instead of a probe. The drive
+// is a scroll of the root (app.scrollY over its range), which is what a person
+// does to weather; the report is the same columns, and on Chrome --trace gives
+// the paint breakdown. No knobs, one row per renderer.
+const appPath = flag("app", null);
+if (appPath) {
+  PROBES.app = {
+    file: appPath,
+    drive: "scroll-app",
+    sweeps: [{ name: `scroll ${appPath.replace(/^.*\//, "")}`, hold: {}, axis: "pass", values: [1] }],
+  };
+}
+const probes = flag("probe", appPath ? "app" : Object.keys(PROBES).join(",")).split(",");
 const steps = Number(flag("steps", "40"));
 const headless = has("headless");
 // --brief keeps only each sweep's endpoints. The curve's SHAPE is lost; its
@@ -669,6 +687,10 @@ const yieldFocus = has("yield-focus");
 // unpromoted layer (promotion makes the transform compositor-only, and the cost
 // collapses) or something else (it does not).
 const willChange = has("will-change");
+// --pre <js>: evaluated in the page after it boots and before the drive, on
+// every engine (the Safari engine has no document-start hook, so this is how a
+// lever reaches it). An A/B is two runs differing only in this.
+const pre = flag("pre", null);
 const jsonOut = flag("json", null);
 
 if (headless) console.log("⚠ --headless: Chrome rasterizes on SwiftShader here. Structural runs only — these are not GPU numbers.\n");
@@ -724,6 +746,7 @@ for (const engineName of engines) {
           const knobs = { ...sweep.hold, [sweep.axis]: v };
           // fresh navigation per point — a warm page has already been read back
           await engine.goto(`${BASE}/${probe.file}?render=${renderer}`);
+          if (pre) await (engine.runUntraced ?? engine.run).call(engine, `(async () => { ${pre}; return true; })()`);
           engine.setResizeDrive?.(probe.drive === "resize");
           let out;
           if (probe.drive === "resize" && !engine.setResizeDrive) {
@@ -751,6 +774,7 @@ for (const engineName of engines) {
           if (trace && out.gpuMs !== undefined) {
             console.log(`      ↳ trace: paint ${out.paintMs}ms · gpu ${out.gpuMs}ms · cc-raster ${out.rasterMs}ms · top ${out.top.join(" ")}`);
           }
+          if (out.memo) console.log(`      ↳ memo: ${out.memo.entries} entries · ${(out.memo.bytes / 1048576).toFixed(1)} MB · ${out.memo.paints} paints · budget×${out.memo.budgetScale}`);
           rows.push({ engine: engine.name, probe: probeName, renderer, sweep: sweep.name, axis: sweep.axis, value: v, ...out });
         }
       }

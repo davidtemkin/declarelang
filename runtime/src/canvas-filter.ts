@@ -244,10 +244,44 @@ function boxBlur(d: Uint8ClampedArray, w: number, h: number, sigma: number): voi
  *  falls with the square of the factor, and the resampling either side is itself
  *  part of the blur, so its contribution is subtracted from the box passes
  *  rather than ignored. The colour matrix rides the same small buffer. */
-export function applyFilterFallback(src: HTMLCanvasElement, spec: FilterSpec): HTMLCanvasElement {
+export function applyFilterFallback(src: HTMLCanvasElement, spec: FilterSpec, approximate = false): HTMLCanvasElement {
   reportUnsupported(spec.unsupported);
   const w = src.width, h = src.height;
   const colour = !isIdentity({ ...spec, blur: 0 });
+  // THE APPROXIMATE PATH — blur by resampling only: drawImage down and up, no
+  // readback, no colour. The calibrated path below reads the small buffer back
+  // (getImageData) for the box passes and the colour matrix, and on a
+  // GPU-backed canvas that readback is a pipeline stall; frost paid it per
+  // frosted view per FRAME. Measured on Safari, weather, scrolling (2026-08-26):
+  // p95 48 ms calibrated, 29 ms this way, 26 ms with frost off entirely. So a
+  // caller in MOTION asks for this, and asks for the calibrated pass once the
+  // frames have been quiet for the beat — the platform's stated tolerance,
+  // transitional frames approximate and resting content exact, applied to
+  // frost exactly as it is applied to a stretched raster. `__declareFilterGpuOnly`
+  // forces it, for an A/B.
+  if ((approximate || (globalThis as { __declareFilterGpuOnly?: boolean }).__declareFilterGpuOnly === true) && spec.blur > 0.5) {
+    let f = Math.max(1, Math.min(8, Math.round(spec.blur / 3)));
+    while (f > 1 && (Math.floor(w / f) < 8 || Math.floor(h / f) < 8)) f--;
+    const sw = Math.max(1, Math.floor(w / f)), sh = Math.max(1, Math.floor(h / f));
+    const small = take(sw, sh);
+    const sg = small.getContext("2d")!;
+    sg.imageSmoothingEnabled = true; sg.imageSmoothingQuality = "high";
+    sg.drawImage(src, 0, 0, w, h, 0, 0, sw, sh);
+    // a second, quarter-size bounce widens the kernel without any readback
+    const tiny = take(Math.max(1, sw >> 1), Math.max(1, sh >> 1));
+    const tg = tiny.getContext("2d")!;
+    tg.imageSmoothingEnabled = true; tg.imageSmoothingQuality = "high";
+    tg.drawImage(small, 0, 0, sw, sh, 0, 0, tiny.width, tiny.height);
+    sg.clearRect(0, 0, sw, sh);
+    sg.drawImage(tiny, 0, 0, tiny.width, tiny.height, 0, 0, sw, sh);
+    give(tiny);
+    const out = take(w, h);
+    const og = out.getContext("2d")!;
+    og.imageSmoothingEnabled = true; og.imageSmoothingQuality = "high";
+    og.drawImage(small, 0, 0, sw, sh, 0, 0, w, h);
+    give(small);
+    return out;
+  }
   if (spec.blur <= 0.5) {
     const flat = take(w, h);
     flat.getContext("2d")!.drawImage(src, 0, 0);
