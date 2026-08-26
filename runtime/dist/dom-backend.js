@@ -21,7 +21,7 @@ import { allowedRef, notifyIslandSlot } from "./backend.js";
 import { colorToCss, isGradient } from "./value.js";
 import {} from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight } from "./measure.js";
-import { replay, rasterEntryCap, RASTER_MAX_DIM, RASTER_MAX_AREA } from "./draw.js";
+import { replay, rasterEntryCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA } from "./draw.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive } from "./input.js";
 import { lockFocusZoom } from "./viewport-lock.js";
@@ -305,8 +305,12 @@ const TRANSFORMS = new WeakMap();
 // be countable rather than silent. The same diag family as the canvas memo's.
 let domRasterBytes = 0;
 let domRasterClamped = 0;
+let domRasterBlank = 0;
 globalThis.__declareDomRasterStats =
-    () => ({ bytes: domRasterBytes, clamped: domRasterClamped });
+    () => ({ bytes: domRasterBytes, clamped: domRasterClamped, blank: domRasterBlank });
+/** Past this a raster that came back blank is worth the one GPU sync it takes
+ *  to notice — the same bar the canvas memo uses. */
+const DOM_BLANK_CHECK_BYTES = 8 << 20;
 let liveTransforms = 0;
 // The scroll offset each marked scroller was last TOLD to hold — the model's
 // answer, kept because the element's own is not always available to give
@@ -774,6 +778,11 @@ class DomSurface {
     /** Device px per view unit of the raster currently in the canvas; 0 = none. */
     rasterK = 0;
     rasterBytes = 0;
+    /** The densest raster the platform has NOT refused for this view. A blank
+     *  at density k sets this to k/2 for the life of the surface: the ceiling was
+     *  discovered once, and every later re-record lives under it rather than
+     *  re-discovering it with a blank raster and a check apiece. */
+    maxK = Infinity;
     /** Set once the drawing raster has ever existed (arms the dpr watch once). */
     watching = false;
     gone = false;
@@ -2281,7 +2290,7 @@ class DomSurface {
         const c = this.drawEl;
         const b = this.drawing.bounds;
         const dpr = window.devicePixelRatio || 1;
-        let kk = k ?? this.composedScale * dpr;
+        let kk = Math.min(k ?? this.composedScale * dpr, this.maxK);
         const cap = rasterEntryCap(Math.max(1, window.innerWidth * dpr) * Math.max(1, window.innerHeight * dpr) * 4);
         const bytesAt = (q) => Math.ceil(b.w * q) * Math.ceil(b.h * q) * 4;
         if (kk > dpr && (bytesAt(kk) > cap || Math.ceil(b.w * kk) > RASTER_MAX_DIM || Math.ceil(b.h * kk) > RASTER_MAX_DIM
@@ -2304,6 +2313,22 @@ class DomSurface {
         const ctx = c.getContext("2d");
         ctx.setTransform(kk, 0, 0, kk, -b.x * kk, -b.y * kk);
         replay(ctx, this.drawing);
+        // THE DISCOVERED CEILING, on the backend that holds obligatory bytes. A
+        // canvas the platform refused (Safari past its budget, Firefox past ~130 MB)
+        // comes back TRANSPARENT and nothing else says so — measured on the extent
+        // probe: a 395 MB canvas that allocated, cost time, and painted nothing.
+        // Here the recovery is not vectors (there are none) but DENSITY: halve it
+        // and try again, down to a quarter of dpr — soft, present, and counted. A
+        // drawing too large to paint at a quarter of dpr stays blank and counted;
+        // that is the one case with no honest recovery.
+        if (this.rasterBytes > DOM_BLANK_CHECK_BYTES && rasterLooksBlank(c, this.drawing, kk, kk, b.x, b.y)) {
+            domRasterBlank++;
+            if (kk > dpr / 4) {
+                this.maxK = kk / 2;
+                this.rasterize(kk / 2);
+                return;
+            }
+        }
     }
     /** The at-rest composed scale, from the view's visibility feed (backend.ts).
      *  A change re-rasterizes at the new density; the same value is a no-op. */

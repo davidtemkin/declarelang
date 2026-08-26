@@ -239,6 +239,37 @@ await test("a drawing under a large scale is exact at rest on the DOM backend (n
   assert.equal(dom <= canvas * 1.5 + 2, true, `DOM ring edge ramps over ${dom} device px against canvas's ${canvas} — still CSS-stretched`);
 });
 
+// THE DISCOVERED CEILING ON DOM. Past its canvas budget the platform draws a
+// TRANSPARENT canvas and nothing else says so (measured: a 395 MB canvas that
+// allocated, cost time, and painted nothing). The DOM backend's bytes are
+// obligatory, so its recovery is DENSITY: a large raster that samples blank is
+// remade at half the density, down to a quarter of dpr, and counted. The
+// failure cannot be provoked on Chrome, so the lever forces the detector for
+// the first N checks and the pin watches the recovery happen.
+await test("a DOM raster that comes back blank is remade at a lower density, and counted", async () => {
+  // the extent probe at k=4 is a ~33 MB canvas — past the 8 MB bar the check
+  // runs at. The lever is armed AFTER boot: the boot raster is already past the
+  // bar at 900x600 @2x, and arming it earlier spent the forced blank there
+  const pg = await open("test/probe/raster-extent.declare?render=dom");
+  await pg.evaluate(`globalThis.__declareForceBlank = 1; window.__app.k = 4`);
+  await sleep(600);
+  const st = await pg.evaluate(`globalThis.__declareDomRasterStats()`);
+  const cv = await pg.evaluate(`(() => { const c = document.querySelector("canvas"); return { w: c.width, cssW: parseFloat(c.style.width) }; })()`);
+  await pg.close();
+  assert.equal(st.blank >= 1, true, `expected the blank to be counted, stats ${JSON.stringify(st)}`);
+  // the raster at dpr 2 read blank (forced); the retry at density 1 is what stands
+  assert.equal(Math.abs(cv.w / cv.cssW - 1) < 0.05, true, `expected the raster remade at half density (1 px per unit), got ${cv.w}/${cv.cssW}`);
+  // and the ceiling is STICKY: a further re-record stays at the density that painted
+  const pg2 = await open("test/probe/raster-extent.declare?render=dom");
+  await pg2.evaluate(`globalThis.__declareForceBlank = 1; window.__app.k = 4`);
+  await sleep(500);
+  await pg2.evaluate(`window.__app.tick = 5`);          // re-record, no lever armed
+  await sleep(500);
+  const again = await pg2.evaluate(`(() => { const c = document.querySelector("canvas"); return c.width / parseFloat(c.style.width); })()`);
+  await pg2.close();
+  assert.equal(Math.abs(again - 1) < 0.05, true, `a later re-record went back to the refused density: ${again}`);
+});
+
 await browser.close();
 httpServer.close();
 summarize("draw-bounds");
