@@ -43,6 +43,7 @@ export declare const OP: {
     readonly TINT: 37;
     readonly ROTATE: 38;
     readonly MEDIA: 39;
+    readonly RASTERSCALE: 40;
 };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
@@ -162,6 +163,13 @@ declare class MacSurface implements Surface {
      *  interaction.ts toChildLocal applies (the ONE-WALK rule). */
     invertTransform(lx: number, ly: number): [number, number];
     setScale(scale: number, px: number, py: number): void;
+    /** The composed scale a drawing is seen at, at rest (backend.ts). The host
+     *  DESCRIBES most recordings as layers, which the render server rasterizes
+     *  under any transform; the remainder — text, focal radials, filters — it
+     *  rasters into a bitmap at the backing scale, and that bitmap was stretched
+     *  under a view scale. This hands the host the density to raster that
+     *  remainder at, the same fix the DOM backend makes for the same softness. */
+    setRasterScale(k: number): void;
     setClip(pathData: string | null): void;
     setBoxClip(on: boolean): void;
     setIgnoreClip(on: boolean): void;
