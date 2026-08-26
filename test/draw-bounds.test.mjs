@@ -199,6 +199,46 @@ await test("hidden drawings hold no backing store; showing one rasterizes it, id
   assert.equal(backAtStart === reShown, true, "a view re-shown after being hidden renders exactly as it did when shown from the start");
 });
 
+// EXACT AT REST UNDER TRANSFORM — the DOM half of the adaptive draw cache.
+// A hairline ring drawn at 1px under scale = 4: the canvas backend replays
+// under the transform and is exact; the DOM backend used to hold pixels at
+// bounds × dpr and let CSS stretch them, so the same ring arrived 4× as wide.
+// Now the view's at-rest visibility feed hands the composed scale to the
+// surface and it re-rasters at that density. The measure is the ring's edge
+// RAMP — how many device pixels a hard edge takes to go from ground to ink —
+// on DOM against canvas. Stretched: ~4× canvas's. Exact: about the same.
+await test("a drawing under a large scale is exact at rest on the DOM backend (not CSS-stretched)", async () => {
+  const ramp = async (render) => {
+    const pg = await open(`test/probe/raster-scaled.declare?render=${render}`);
+    await sleep(700);                                      // past the at-rest beat, and the feed's flush
+    const png = await pg.screenshot({ encoding: "base64" });
+    const r = await pg.evaluate((b64) => new Promise((res) => {
+      const im = new Image();
+      im.onload = () => {
+        const c = document.createElement("canvas"); c.width = im.width; c.height = im.height;
+        const g = c.getContext("2d"); g.drawImage(im, 0, 0);
+        // the ring's centre is at view (60,40) → app (40+240, 40+160) = (280,200); its
+        // left edge is 28·4 = 112 app px to the left → x ≈ 168. Scan the row through
+        // the centre from x=150 to 190 (device 2×) and count transitional pixels.
+        const y = 200 * 2;
+        let mid = 0;
+        for (let x = 150 * 2; x < 190 * 2; x++) {
+          const v = g.getImageData(x, y, 1, 1).data[0];
+          if (v > 40 && v < 215) mid++;
+        }
+        res(mid);
+      };
+      im.src = "data:image/png;base64," + b64;
+    }), png);
+    await pg.close();
+    return r;
+  };
+  const dom = await ramp("dom");
+  const canvas = await ramp("canvas");
+  assert.equal(canvas > 0, true, `the canvas render should show an edge (got ${canvas} transitional px)`);
+  assert.equal(dom <= canvas * 1.5 + 2, true, `DOM ring edge ramps over ${dom} device px against canvas's ${canvas} — still CSS-stretched`);
+});
+
 await browser.close();
 httpServer.close();
 summarize("draw-bounds");

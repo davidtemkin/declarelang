@@ -957,6 +957,7 @@ export class View extends Node {
       if (p !== null) {
         setBound(this, "visibleRect", p.rect);
         setBound(this, "apparentScale", p.scale);
+        if (this.drawing !== null && p.rect !== null) this.surface?.setRasterScale?.(p.scale);
       }
     };
     this.visFlushTimer = setTimeout(tick, 120);
@@ -973,6 +974,7 @@ export class View extends Node {
     this.visPending = null;
     setBound(this, "visibleRect", shaped);
     setBound(this, "apparentScale", scale);
+    if (this.drawing !== null && on) this.surface?.setRasterScale?.(scale);
   }
 
   /** The composed transform from MY frame to ROOT-frame space — `{x, y,
@@ -1201,6 +1203,12 @@ export class View extends Node {
       1
     );
     this.drawing.run();
+    // A drawing has a RESOLUTION, and the resolution it should have is the
+    // composed scale it is seen at — which is the apparentScale fact, delivered
+    // at rest. The facts arm on tracked reads and a drawing does not read its
+    // own scale, so arm here: a drawn view keeps its feed, and the surface
+    // learns its density through setRasterScale (backend.ts).
+    this.armVisibility();
   }
 
   /** Re-record right now — the explicit half of draw-on-invalidation (the

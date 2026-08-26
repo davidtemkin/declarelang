@@ -1,0 +1,43 @@
+// A DRAWING UNDER A LARGE SCALE, at rest — is it exact, or stretched?
+//
+// The canvas backend replays a recording under the live transform and the Mac
+// host describes it as layers, so both are exact at any scale. The DOM backend
+// held a drawing's pixels at bounds × dpr and let CSS stretch them: a hairline
+// ring drawn at 1px and scaled 4× arrived as a 4px smear, forever, on that one
+// renderer. This probe is that case with nothing else in it.
+//
+// The art is chosen to make softness measurable: a 1px ring, a 1px grid, and
+// small text — features that are one device pixel wide when exact and several
+// when stretched. A driver measures the edge ramp; a pin compares DOM against
+// canvas, which was always exact.
+//
+//   k — the scale (default 4; the driver can set it, or leave it)
+
+App [ width = 600, height = 400, fill = #101014,
+
+    k: number = 4,
+
+    art: View [ x = 40, y = 40, width = 120, height = 80,
+        pivotX = 0, pivotY = 0,
+        scale = { app.k },
+        draw(d: Draw) {
+            // 1px hairlines: a grid, then a ring
+            d.strokeStyle = "#7FB3FF"
+            d.lineWidth = 1
+            for (let gx = 0.5; gx < 120; gx = gx + 12) { d.beginPath(); d.moveTo(gx, 0); d.lineTo(gx, 80); d.stroke() }
+            for (let gy = 0.5; gy < 80; gy = gy + 12) { d.beginPath(); d.moveTo(0, gy); d.lineTo(120, gy); d.stroke() }
+            d.strokeStyle = "#FFFFFF"
+            d.beginPath()
+            d.arc(60, 40, 28, 0, Math.PI * 2, false)
+            d.stroke()
+            // small text, which a stretch turns to mush first
+            d.fillStyle = "#FFFFFF"
+            d.font = "600 9px system-ui, sans-serif"
+            d.textAlign = "center"
+            d.textBaseline = "middle"
+            d.fillText("exact", 60, 40)
+            }
+        ],
+
+    cap: Text [ x = 12, y = 360, textColor = #FFFFFF, text = { "scale " + app.k } ]
+    ]

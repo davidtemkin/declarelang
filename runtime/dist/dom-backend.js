@@ -21,7 +21,7 @@ import { allowedRef, notifyIslandSlot } from "./backend.js";
 import { colorToCss, isGradient } from "./value.js";
 import {} from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight } from "./measure.js";
-import { replay } from "./draw.js";
+import { replay, rasterEntryCap, RASTER_MAX_DIM, RASTER_MAX_AREA } from "./draw.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive } from "./input.js";
 import { lockFocusZoom } from "./viewport-lock.js";
@@ -299,6 +299,14 @@ const CARVED = new Map();
 // a rotated host window hears honest coordinates. Zero live transforms —
 // almost every app, almost all the time — is the untouched fast path.
 const TRANSFORMS = new WeakMap();
+// The DOM backend's raster LEDGER: every per-view drawing canvas is retained-
+// mode bytes (the canvas IS the content), so there is nothing to evict — but
+// what is held should be visible, and a density request the cap refused should
+// be countable rather than silent. The same diag family as the canvas memo's.
+let domRasterBytes = 0;
+let domRasterClamped = 0;
+globalThis.__declareDomRasterStats =
+    () => ({ bytes: domRasterBytes, clamped: domRasterClamped });
 let liveTransforms = 0;
 // The scroll offset each marked scroller was last TOLD to hold — the model's
 // answer, kept because the element's own is not always available to give
@@ -760,6 +768,12 @@ class DomSurface {
      *  until it shows. */
     shown = true;
     drawOwed = false;
+    /** The composed scale (ancestor scales, NOT dpr) the drawing was last told
+     *  it is seen at — from setRasterScale, at rest. 1 until the feed speaks. */
+    composedScale = 1;
+    /** Device px per view unit of the raster currently in the canvas; 0 = none. */
+    rasterK = 0;
+    rasterBytes = 0;
     /** Set once the drawing raster has ever existed (arms the dpr watch once). */
     watching = false;
     gone = false;
@@ -957,6 +971,9 @@ class DomSurface {
             if (this.drawEl !== null && this.drawing !== null) {
                 this.drawEl.width = 0;
                 this.drawEl.height = 0;
+                domRasterBytes -= this.rasterBytes;
+                this.rasterBytes = 0;
+                this.rasterK = 0;
                 this.drawOwed = true;
             }
         }
@@ -2244,24 +2261,65 @@ class DomSurface {
         }
         this.rasterize();
     }
-    /** Rasterize the recording into this view's canvas, sized to the bounds at
-     *  the current devicePixelRatio; CSS size is derived from the backing
-     *  store so device pixels map 1:1. */
-    rasterize() {
+    /** Rasterize the recording into this view's canvas at DENSITY k — device
+     *  pixels per view unit. The CSS box stays the recording's bounds in view
+     *  units, so a CSS transform above this element scales the canvas's box
+     *  exactly as it scales everything else; what k decides is how many device
+     *  pixels stand behind that box. k = dpr is a 1:1 raster; k = dpr × the
+     *  composed scale is EXACT under the transform, which is what the at-rest
+     *  feed asks for (setRasterScale). Until that feed speaks, dpr.
+     *
+     *  THE DOM HALF OF THE ADAPTIVE DRAW CACHE (task #28). The canvas backend
+     *  replays under the live transform and the Mac host describes, so both were
+     *  already exact at any scale; this backend held pixels at bounds × dpr and
+     *  let CSS stretch them forever — the one renderer where a scaled drawing
+     *  stayed soft. Now: stretched for the beat, exact at rest. The bytes are
+     *  OBLIGATORY (retained-mode — the canvas IS the content), so the entry cap
+     *  is honoured by CLAMPING density back to dpr, never by refusing to draw:
+     *  a scaled drawing past the cap is soft, which is what it was before. */
+    rasterize(k) {
         const c = this.drawEl;
         const b = this.drawing.bounds;
         const dpr = window.devicePixelRatio || 1;
-        const w = Math.max(1, Math.ceil(b.w * dpr));
-        const h = Math.max(1, Math.ceil(b.h * dpr));
+        let kk = k ?? this.composedScale * dpr;
+        const cap = rasterEntryCap(Math.max(1, window.innerWidth * dpr) * Math.max(1, window.innerHeight * dpr) * 4);
+        const bytesAt = (q) => Math.ceil(b.w * q) * Math.ceil(b.h * q) * 4;
+        if (kk > dpr && (bytesAt(kk) > cap || Math.ceil(b.w * kk) > RASTER_MAX_DIM || Math.ceil(b.h * kk) > RASTER_MAX_DIM
+            || Math.ceil(b.w * kk) * Math.ceil(b.h * kk) > RASTER_MAX_AREA)) {
+            domRasterClamped++;
+            kk = dpr; // over the cap: soft, as before, never absent
+        }
+        const w = Math.max(1, Math.ceil(b.w * kk));
+        const h = Math.max(1, Math.ceil(b.h * kk));
+        domRasterBytes -= this.rasterBytes;
         c.width = w;
         c.height = h;
+        this.rasterBytes = w * h * 4;
+        domRasterBytes += this.rasterBytes;
+        this.rasterK = kk;
         c.style.left = b.x + "px";
         c.style.top = b.y + "px";
-        c.style.width = w / dpr + "px";
-        c.style.height = h / dpr + "px";
+        c.style.width = b.w + "px";
+        c.style.height = b.h + "px";
         const ctx = c.getContext("2d");
-        ctx.setTransform(dpr, 0, 0, dpr, -b.x * dpr, -b.y * dpr);
+        ctx.setTransform(kk, 0, 0, kk, -b.x * kk, -b.y * kk);
         replay(ctx, this.drawing);
+    }
+    /** The at-rest composed scale, from the view's visibility feed (backend.ts).
+     *  A change re-rasterizes at the new density; the same value is a no-op. */
+    setRasterScale(scale) {
+        const dpr = window.devicePixelRatio || 1;
+        // the fact is ancestor scales × dpr; keep the ancestor part so a dpr
+        // change (watchDpr) recomposes rather than reuses a stale product
+        this.composedScale = Math.max(1e-3, scale / dpr);
+        if (this.drawing === null || this.drawing.bounds === null || this.drawEl === null)
+            return;
+        if (!this.shown) {
+            this.drawOwed = true;
+            return;
+        }
+        if (Math.abs(this.rasterK - scale) > 1e-3 * Math.max(1, scale))
+            this.rasterize(scale);
     }
     insertChild(child, before) {
         // insertBefore both parents and MOVES an existing child — exactly the

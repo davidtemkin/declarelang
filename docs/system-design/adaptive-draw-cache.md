@@ -383,6 +383,39 @@ RASTER_MAX_AREA keeps the memo from going. Strokes and text at 1024 marks read
 p50 30 and 61 ms where desktop Safari was flat, a WebKit-configuration
 difference worth a real-device run before it is called a number.
 
+## C.4 The DOM half of #28 — exact at rest under transform (2026-08-26)
+
+The canvas backend replays a recording under the live transform and the Mac
+host describes it, so both were exact at any scale; the DOM backend held a
+drawing's pixels at bounds × dpr and let CSS stretch them — the one renderer
+where a scaled drawing stayed soft, forever, which is what the 08-16 header
+above called "where the ruling is not yet kept".
+
+**Built on the fact that already existed.** `apparentScale` is documented as
+"the raster-rung fact … a drawn view its backing density", delivered at rest by
+the view's visibility feed. The gap was only that the facts arm on tracked
+reads and a drawing does not read its own scale. So: `bindDraw()` arms the feed
+for any view with a `draw()`; where the fact lands (both the flush path and
+the immediate path) the view hands the scale to an optional `Surface.setRasterScale`;
+the DOM backend re-rasterizes at that density — the canvas box stays the
+recording's bounds in view units so the ancestor transform scales it exactly
+as before, and only the device pixels behind it change. Canvas and Mac do not
+implement the method and pay nothing. The at-rest tolerance is the one the
+whole design uses: stretched for the beat, exact after it.
+
+**Bytes are obligatory here**, so the entry cap is honoured by CLAMPING density
+back to dpr, never by refusing to draw — a scaled drawing past the cap is soft,
+which is what it was before, and the clamp is counted
+(`__declareDomRasterStats`: bytes held, clamps). A DOM raster ledger exists now
+for the same reason the canvas memo has one: what is held should be visible.
+
+Pinned (`test/probe/raster-scaled.declare`, a 1 px ring under scale 4): the
+ring's edge ramp on DOM against canvas, which was always exact — the pin FAILED
+with only the seam in place and passes with the backend change, which is the
+right order for a pin to be born in. The DOM-vs-canvas perceptual suite holds
+at 123/123, and the desktop's states are unmoved (39/39): the dock icons now
+re-raster at their resting scale, and their baselines did not notice.
+
 ## D. Canvas, per runtime — the platform attributes
 
 Same recording throughout (`artSunnySky`, two full-surface gradient fills at

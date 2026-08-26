@@ -407,6 +407,14 @@ export interface Surface {
      *  rasterizes it into this view's own <canvas>, sized by the recording's
      *  bounds. The same list renders identically either way (rule 5). */
     setDrawing(list: DisplayList | null): void;
+    /** The composed scale a drawing is SEEN at — device pixels per view unit
+     *  (ancestor scales × devicePixelRatio), delivered AT REST by the view's
+     *  visibility feed (the `apparentScale` fact, view.ts). A backend that holds
+     *  a drawing as pixels re-rasterizes at this density so a transformed
+     *  drawing is exact once it has been quiet for the beat; one that replays
+     *  under the transform (canvas) or describes (mac) has nothing to do. Optional:
+     *  only the DOM backend owns a resolution. */
+    setRasterScale?(k: number): void;
     /** This view's text run ("" = none) and its style, separately: text is the
      *  hot reactive path (R4 constraints), style the cold one. Text is a
      *  first-class capability — NOT a recording — precisely so the DOM backend
