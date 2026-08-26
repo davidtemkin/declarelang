@@ -127,6 +127,17 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
+  // ADDED 2026-08-26 — the DOM half of the adaptive draw cache. The composed
+  // scale a drawing is seen at, delivered AT REST by the view's visibility feed
+  // (the apparentScale fact); a backend that holds a drawing as pixels
+  // re-rasterizes at that density. Optional because two of three renderers own
+  // no resolution to correct.
+  setRasterScale: {
+    dom: true,
+    canvas: "replays the recording under the live transform, so a scaled drawing is exact at every scale with no raster to redo — the memo's own scale key handles the cached case (stretch grace, canvas-backend.ts)",
+    mac: "GAP for the RASTERIZED remainder — the described 82% (LayerDescribe: paths, gradients, now shadows) re-rasterizes in the render server under any transform and is exact; the rest (text, focal radials, filters) is held at backing scale and stretched under a view scale, the same softness this member fixes on DOM. Absent, the optional call is a no-op and the host degrades to soft-under-scale, never wrong; the fix is a per-node re-raster at the composed scale at rest, the DOM's shape (adaptive-draw-cache.md §C.4)",
+    headless: NOT_APPLICABLE,
+  },
   setSelectableRegion: {
     dom: true,
     canvas: "native text selection is a DOM affordance — the canvas walk has no selection to anchor (selection phase 2, 2026-08-06)",
@@ -299,7 +310,8 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 21,   // +refreshVisibility (2026-08-20): the watch's pull half — DOM-only, the sprung-camera fix
+  assert.equal(members.length, 22,   // +setRasterScale (2026-08-26): the at-rest composed scale, for a backend that holds pixels — DOM implements, canvas/mac replay/describe
+                                     // +refreshVisibility (2026-08-20): the watch's pull half — DOM-only, the sprung-camera fix
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);
