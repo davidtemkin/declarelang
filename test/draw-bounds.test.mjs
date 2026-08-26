@@ -270,6 +270,31 @@ await test("a DOM raster that comes back blank is remade at a lower density, and
   assert.equal(Math.abs(again - 1) < 0.05, true, `a later re-record went back to the refused density: ${again}`);
 });
 
+// BOX SHADOW UNDER ROTATION. The canvas backend painted a box's drop shadow by
+// filling the shape 1e5 px off-canvas and bringing only its shadow back with a
+// compensating x-offset — but the y-offset was not compensated, so under any
+// rotation the shadow's source landed off-canvas vertically and the shadow
+// vanished (and the huge off-canvas fill occasionally swept across the view as
+// a dark rectangle). test/probe/boxshadow.declare has a card rotated 12°; the
+// shadow must exist below-right of it.
+await test("a rotated box keeps its drop shadow on the canvas backend", async () => {
+  const pg = await open("test/probe/boxshadow.declare?render=canvas");
+  const dark = await pg.evaluate(`(() => {
+    const c = document.querySelector("canvas"); const g = c.getContext("2d");
+    // the rotated card 'b' is around app (340..540, 60..180) rotated 12° about
+    // its centre; sample a band just OUTSIDE its lower-right, where an outset
+    // shadow lands, and count pixels darker than the #6A6A72 ground
+    let shadow = 0, seen = 0;
+    for (let x = 440; x < 560; x += 2) for (let y = 190; y < 230; y += 2) {
+      const d = g.getImageData(x * 2, y * 2, 1, 1).data; seen++;
+      if (d[0] < 90 && d[1] < 90 && d[2] < 95) shadow++;   // darker than ground (~106)
+    }
+    return { shadow, seen };
+  })()`);
+  await pg.close();
+  assert.equal(dark.shadow > 20, true, `the rotated card's shadow is missing: ${dark.shadow}/${dark.seen} shadow pixels below-right`);
+});
+
 await browser.close();
 httpServer.close();
 summarize("draw-bounds");

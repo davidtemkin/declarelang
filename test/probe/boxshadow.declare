@@ -1,0 +1,36 @@
+// BOX SHADOWS, upright and rotated — the desktop-window case.
+//
+// The canvas backend paints a box's drop shadow by a trick: the black shape is
+// filled 1e5 px off-canvas and only its shadow is brought back by a
+// compensating offset (boxpaint.ts). This probe is that shape in the states
+// that break it — a rotated window — so a Firefox-vs-Chrome diff, and a
+// with/without-rotation diff on one engine, name the bug.
+//
+// Each card is a white rounded box with a soft drop shadow on a mid-grey
+// ground, so the shadow is high-contrast against the ground and the box.
+
+App [ width = 600, height = 400, fill = #6A6A72,
+
+    // upright — the shadow must sit below-right of the box
+
+    a: View [ x = 60, y = 50, width = 200, height = 120, cornerRadius = 16,
+        fill = #FFFFFF,
+        shadow = { shadow(0, 10, 24, 0x00000066) } ],
+
+    // rotated — the case the desktop is in, and where the off-canvas trick's
+    // uncompensated y term throws the shadow away
+
+    b: View [ x = 340, y = 60, width = 200, height = 120, cornerRadius = 16,
+        pivotX = 100, pivotY = 60,
+        rotation = 12,
+        fill = #FFFFFF,
+        shadow = { shadow(0, 10, 24, 0x00000066) } ],
+
+    // a scaled box too — the memo's exact-at-rest path carries the shadow
+
+    c: View [ x = 150, y = 230, width = 120, height = 90, cornerRadius = 14,
+        pivotX = 60, pivotY = 45,
+        scale = 1.6,
+        fill = #FFFFFF,
+        shadow = { shadow(0, 8, 20, 0x00000066) } ]
+    ]

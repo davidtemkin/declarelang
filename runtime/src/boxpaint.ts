@@ -100,19 +100,34 @@ export function boxShape(w: number, h: number, r: number): Path2D {
  *  shape itself is drawn far off-canvas with a compensating offset so only its
  *  shadow lands. */
 export function paintBoxShadow(ctx: CanvasRenderingContext2D, box: Path2D, sh: Shadow): void {
-  const K = 1e5;
   const m = ctx.getTransform();
   ctx.save();
-  // Clip to the COMPLEMENT of the box (evenodd over an enclosing rect).
+  // Clip to the COMPLEMENT of the box (evenodd over an enclosing rect), then
+  // fill the box black IN PLACE: the black fill is entirely inside the box and
+  // the clip removes it, so only the drop shadow — which extends OUTSIDE the
+  // box — survives. This is CSS's outset box-shadow (painted behind the box,
+  // clipped to outside it), and it needs no trick.
+  //
+  // ⚠ It used to. The shape was filled 1e5 px off-canvas and only its shadow
+  // brought back by a compensating x-offset — but the y-offset was NOT
+  // compensated, so under any ROTATION (m.b ≠ 0) the shadow's source landed
+  // 1e5·m.b px off-canvas vertically and the shadow vanished. Measured on
+  // test/probe/boxshadow.declare: a rotated card lost its shadow on Chrome and
+  // Firefox alike (Firefox showed it most, since the desktop's tilt egg leaves
+  // windows rotated). In place, there is nothing off-canvas to lose.
+  const K = 1e5;
   const outside = new Path2D();
   outside.rect(-K, -K, 2 * K, 2 * K);
   outside.addPath(box);
   ctx.clip(outside, "evenodd");
   ctx.shadowColor = colorToCss(sh.color);
-  ctx.shadowOffsetX = (sh.dx + K) * m.a;
-  ctx.shadowOffsetY = sh.dy * m.d;
-  ctx.shadowBlur = sh.blur * m.a;
-  ctx.translate(-K, 0);
+  // canvas shadow offset/blur are DEVICE space; map the LOCAL offset through the
+  // transform's linear part so the shadow rotates and scales WITH the box (CSS
+  // box-shadow does), and take the scale MAGNITUDE for the blur so a rotation
+  // does not shrink it (m.a alone is s·cosθ).
+  ctx.shadowOffsetX = sh.dx * m.a + sh.dy * m.c;
+  ctx.shadowOffsetY = sh.dx * m.b + sh.dy * m.d;
+  ctx.shadowBlur = sh.blur * Math.hypot(m.a, m.b);
   ctx.fillStyle = "#000";
   ctx.fill(box);
   ctx.restore();
