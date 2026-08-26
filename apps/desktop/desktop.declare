@@ -249,15 +249,22 @@ class Window extends View [ width = 560, height = 400, clip = true,
         onStop() { app.wm.reallyClose(classroot) }
         ],
 
-    // drag/resize bookkeeping (the captured-move pattern: root-space anchors)
+    // drag/resize bookkeeping (the captured-move pattern: root-space anchors).
+    // px0/py0 are the shared POINTER anchors; each gesture then keeps its OWN
+    // pool — drag anchors the window origin, size anchors the box — because
+    // one shared pool once had `wx0` meaning window-x in one gesture and
+    // width in the other.
 
     px0: number = 0,
     py0: number = 0,
-    wx0: number = 0,
-    wy0: number = 0,
-    wh0: number = 0,
+    wx0: number = 0,                             // window x at drag start
+    wy0: number = 0,                             // window y at drag start
     dragging: boolean = false,
     sizeMode: string = "",                       // "" | "r" | "b" | "rb"
+    sizeW0: number = 0,                          // width at size start
+    sizeH0: number = 0,                          // height at size start
+    sizeX0: number = 0,                          // window x at size start (left-edge modes)
+    sizeY0: number = 0,                          // window y at size start (top-edge modes)
 
     // Shade (the Jot's collapse widget) and zoom each remember what they
     // displace so they can restore it. Minimize sends the window down into the
@@ -280,7 +287,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // activating any real window dismisses open About boxes — they're modals
     // in spirit: clicking anywhere else lets them go (the red light works too)
 
-    activate() { app.wm.frontWin = this; app.wm.raiseWin(this); if (!plain) app.launcher.dismissAbouts() },
+    activate() { app.wm.frontId = this.recId; app.wm.raiseWin(this); if (!plain) app.launcher.dismissAbouts() },
 
     // RAISING IS POINTER-KIND-SPLIT (ruled 2026-07-31). A mouse raises the
     // instant it touches a window — the platform rule, and the one that makes
@@ -332,9 +339,6 @@ class Window extends View [ width = 560, height = 400, clip = true,
             }
         },
 
-    wl0: number = 0,                             // window x at size start (left-edge modes)
-    wt0: number = 0,                             // window y at size start (top-edge modes)
-
     // Title-bar dragging, shared by both chromes (the standard bar and the
     // Jot's strip): anchor on press, clamp on move — a window can never be
     // dragged beyond reach; some of it stays on the desktop on every side.
@@ -366,10 +370,10 @@ class Window extends View [ width = 560, height = 400, clip = true,
         sizeMode = "" + mode
         px0 = app.pointerX
         py0 = app.pointerY
-        wx0 = this.width
-        wh0 = this.height
-        wl0 = this.wx
-        wt0 = this.wy
+        sizeW0 = this.width
+        sizeH0 = this.height
+        sizeX0 = this.wx
+        sizeY0 = this.wy
         },
 
     // The grabbable set composes into "l" | "r" | "t" | "b" and the four
@@ -400,15 +404,15 @@ class Window extends View [ width = 560, height = 400, clip = true,
         const d = ({ x: d0.x / sc, y: d0.y / sc })
         const sx = sizeMode.indexOf("r") >= 0 ? 1 : sizeMode.indexOf("l") >= 0 ? -1 : 0
         const sy = sizeMode.indexOf("b") >= 0 ? 1 : sizeMode.indexOf("t") >= 0 ? -1 : 0
-        const w = sx != 0 ? Math.max(minW, wx0 + sx * d.x) : wx0
-        const h = sy != 0 ? Math.max(minH, wh0 + sy * d.y) : wh0
+        const w = sx != 0 ? Math.max(minW, sizeW0 + sx * d.x) : sizeW0
+        const h = sy != 0 ? Math.max(minH, sizeH0 + sy * d.y) : sizeH0
         // plant the OPPOSITE edge: with a center pivot, growing the box moves
         // both edges, so the center shifts by half the growth toward the
         // grabbed side — half the VISIBLE growth (× scale), in window axes,
         // hence rotated back to root
-        const m = this.rot(sx * (w - wx0) / 2 * sc, sy * (h - wh0) / 2 * sc, this.rotation)
-        this.wx = wl0 + (wx0 - w) / 2 + m.x
-        this.wy = wt0 + (wh0 - h) / 2 + m.y
+        const m = this.rot(sx * (w - sizeW0) / 2 * sc, sy * (h - sizeH0) / 2 * sc, this.rotation)
+        this.wx = sizeX0 + (sizeW0 - w) / 2 + m.x
+        this.wy = sizeY0 + (sizeH0 - h) / 2 + m.y
         if (sy < 0 && this.rotation == 0 && this.scale == 1) this.wy = Math.max(0, this.wy)
         this.width = w
         this.height = h
@@ -751,9 +755,6 @@ class AppGlyph extends View [ width = { this.edge }, height = { this.edge },
     art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
         visible = { app.launcher.drawnOf(classroot.appId) },
         draw(d: Draw) {
-            // the day read directly, for the calendar face — see DockIcon.art
-            void app.clock.dayName
-            void app.clock.dayNum
             d.scale(this.width / 48, this.width / 48)
             const a = classroot.ap()
             if (a != null) a.face(d)
@@ -1024,6 +1025,26 @@ class FilesWindow extends Window [
         if (p != "") app.launcher.openViewer("../../" + p, "" + leaf.name, v)
         },
 
+    // THE POINTER-ANCHORED second click (the OS rule: two clicks within a
+    // time window AND a few px of pointer travel — row identity deliberately
+    // NOT consulted, because the strip's reveal scroll can slide a different
+    // row under the cursor between them; matching rows would let a stray hit
+    // reselect an ancestor, or pair two distant clicks through a row that
+    // slid between). Consumes the pending item and opens it; returns whether
+    // it did. NOT the platform's onDblClick, on purpose: a Finder row must
+    // SELECT on the first click instantly, and declaring onDblClick makes a
+    // single click wait out the double window (§8's resolved layer).
+
+    secondClick(v: View?) -> boolean {
+        const near = Math.abs(app.pointerX - this.pendingPX) < 6 && Math.abs(app.pointerY - this.pendingPY) < 6
+        const it = this.pendingItem
+        if (this.pendingAt == "" || it == null || !near) return false
+        this.pendingAt = ""
+        if (it.hasKids) app.launcher.openFolderWindow("" + it.at, v)
+        else this.openLeaf(it, v)
+        return true
+        },
+
     // File → Open (⌘O) on this window's current selection: a document opens in the
     // viewer, a folder opens a new window rooted at it — the double-click actions.
 
@@ -1110,15 +1131,7 @@ class FilesWindow extends Window [
                         // anchored double-click — rows don't bubble, so this fires only
                         // when no row took the hit
 
-                        onClick() {
-                            const near = Math.abs(app.pointerX - classroot.pendingPX) < 6 && Math.abs(app.pointerY - classroot.pendingPY) < 6
-                            const it = classroot.pendingItem
-                            if (classroot.pendingAt != "" && it != null && near) {
-                                classroot.pendingAt = ""
-                                if (it.hasKids) app.launcher.openFolderWindow("" + it.at, this)
-                                else classroot.openLeaf(it, this)
-                            }
-                            },
+                        onClick() { classroot.secondClick(this) },
                         inner: View [ x = 0, y = 6, width = { parent.width }, height = { this.contentHeight + 12 },
                             layout: SimpleLayout [ axis = y, spacing = 1 ],
                             View [ datapath = :items[], width = { parent.width }, height = { classroot.rowH },
@@ -1126,21 +1139,9 @@ class FilesWindow extends Window [
                                 onClick() {
                                     classroot.activate()
                                     const at = "" + :at
-                                    // data-level double-click, POINTER-anchored (the OS rule: two clicks
-                                    // within a time window AND a few px of pointer travel — row identity
-                                    // deliberately NOT consulted). The second click opens the PENDING item
-                                    // even when the strip's reveal scroll has slid a different row under
-                                    // the cursor; matching rows instead let a stray hit reselect an
-                                    // ancestor and truncate the columns back toward the root, and would
-                                    // pair two distant clicks through a row that slid between them.
-                                    const near = Math.abs(app.pointerX - classroot.pendingPX) < 6 && Math.abs(app.pointerY - classroot.pendingPY) < 6
-                                    const it = classroot.pendingItem
-                                    if (classroot.pendingAt != "" && it != null && near) {
-                                        classroot.pendingAt = ""
-                                        if (it.hasKids) app.launcher.openFolderWindow("" + it.at, this)
-                                        else classroot.openLeaf(it, this)
-                                    }
-                                    else {
+                                    // the data-level double-click (secondClick above); a first
+                                    // click ARMS the pending item and selects
+                                    if (!classroot.secondClick(this)) {
                                         classroot.pendingAt = at
                                         classroot.pendingItem = ({ name: "" + :name, path: "" + :path, doc: "" + :doc, hasKids: !!:hasKids, at: at })
                                         classroot.pendingPX = app.pointerX
@@ -1606,11 +1607,6 @@ class DockIcon extends View [
             // so the whole mark scales as one unit and re-records on the flip.)
 
             draw(d: Draw) {
-                // the DAY is read HERE, directly — a face() that reads live
-                // state (the calendar's) would never re-record otherwise:
-                // reads inside a called method are not wired from a class body
-                void app.clock.dayName
-                void app.clock.dayNum
                 d.scale(this.width / 48, this.width / 48)
                 const a = classroot.ap()
                 if (a != null) a.face(d)
@@ -2001,8 +1997,20 @@ The surface:
 */
 
 class WinManager extends Node [
-    frontWin: Window = null,
-    winCount: number = 0,                        // ever-opened count — record ids + spawn-position stagger
+    // WHO IS FRONT is data too — the record's id. `frontWin` DERIVES from it,
+    // so the moment an insert's settle materializes the window, every reader
+    // (shadows, the menu bar, activeApp) sees it — no wait-for-the-view step
+    // anywhere.
+
+    frontId: string = "",
+    frontWin: Window = { this.winOf(this.frontId) },
+
+    // two counters, one job each: `idSeq` mints record IDENTITY, `winCount`
+    // staggers spawn POSITIONS — conflating them once made the welcome jot
+    // shift every boot window by a stagger step
+
+    idSeq: number = 0,
+    winCount: number = 0,
 
     // the records. `recs()` reads through the TRACKED accessor, so a
     // constraint that derives from the list re-derives on every insert/move/
@@ -2042,6 +2050,8 @@ class WinManager extends Node [
 
     spawn() -> number { winCount = winCount + 1; return winCount },
 
+    mintId() -> string { idSeq = idSeq + 1; return "w" + idSeq },
+
     // an open INSERTS before the minimized tail — top of the normal band
 
     addWin(rec: object) {
@@ -2051,12 +2061,7 @@ class WinManager extends Node [
         this.list.insert(["wins"], at, rec)
         },
 
-    // focus the window a just-inserted record materializes: the view exists
-    // once the settle has reconciled the slots, so the step waits for its close
-
-    focusNew(id: string) {
-        afterSettle(() => { const w = this.winOf(id); if (w != null) this.frontWin = w })
-        },
+    focusNew(id: string) { this.frontId = id },
 
     // a raise is a MOVE to the top of the normal band (just under the
     // minimized tail); the tail's own order is the band's business
@@ -2153,7 +2158,7 @@ class WinManager extends Node [
         const from = this.idxOf(w.recId)
         if (from >= 0) this.list.move(["wins"], from, this.recs().length - 1)   // to the very top: the band's newest
         this.renumberMinis()
-        if (frontWin == w) frontWin = null
+        if (frontId == w.recId) frontId = ""
         this.startPark(w)
         },
 
@@ -2194,7 +2199,7 @@ class WinManager extends Node [
         // app — `plain` is the discriminator, so closing "About Markdown" never
         // decrements the viewer count
         if (!w.plain && w.forApp != null) w.forApp.count = w.forApp.count - 1
-        if (frontWin == w) frontWin = null
+        if (frontId == w.recId) frontId = ""
         this.removeWin(w.recId)                  // the record goes; replication discards slot + window
         this.renumberMinis()                     // a Quit can take a minimized window's tile with it
         },
@@ -2285,23 +2290,11 @@ class Launcher extends Node [
     // identity, order, and the ONE LIVE FLAG as DECLARED DATA, for the dock's
     // datapath (a cursor can only point into a Dataset, and a node reference
     // never enters data-shaped state — each icon resolves its instance back
-    // from the id). The rows are ENUMERATED with direct reads, not a
-    // roster.map closure: a class-body constraint wires only the member
-    // chains written in its own text (the read-through gap — probe pins
-    // pending), and `running` must wake the dock's dots.
+    // from the id). The closure over the roster is LIVE: reads the extractor
+    // can see but not name (`a.running`, through the map) put this constraint
+    // on the runtime-tracking path, where every one of them wakes it.
 
-    data: Dataset [ contents = { ({ apps: [
-        ({ id: classroot.files.id, ix: 0, running: classroot.files.running }),
-        ({ id: classroot.markdown.id, ix: 1, running: classroot.markdown.running }),
-        ({ id: classroot.viewer.id, ix: 2, running: classroot.viewer.running }),
-        ({ id: classroot.calendar.id, ix: 3, running: classroot.calendar.running }),
-        ({ id: classroot.jots.id, ix: 4, running: classroot.jots.running }),
-        ({ id: classroot.birds.id, ix: 5, running: classroot.birds.running }),
-        ({ id: classroot.write.id, ix: 6, running: classroot.write.running }),
-        ({ id: classroot.mail.id, ix: 7, running: classroot.mail.running }),
-        ({ id: classroot.music.id, ix: 8, running: classroot.music.running }),
-        ({ id: classroot.terminal.id, ix: 9, running: classroot.terminal.running }),
-        ] }) } ],
+    data: Dataset [ contents = { ({ apps: classroot.roster.map((a, i) => ({ id: a.id, ix: i, running: a.running })) }) } ],
 
     // THE LAUNCH GATE, once for every application. A first open (not running,
     // not launching) is a launch: the dock icon bounces and the window
@@ -2354,7 +2347,7 @@ class Launcher extends Node [
         },
     openAbout(a: DesktopApp) {
         const n = app.wm.spawn()
-        this.openWin("w" + n, "AboutWindow", a,
+        this.openWin(app.wm.mintId(), "AboutWindow", a,
             ({ wx: (app.width - 280) / 2 + (n % 3) * 16, wy: 110 + (n % 3) * 14 }), null)
         },
 
@@ -2369,7 +2362,7 @@ class Launcher extends Node [
         this.dismissAbouts()
         // spawn positions cascade, wrapping after a handful
         const n = app.wm.spawn()
-        this.openWin("w" + n, "FilesWindow", this.files,
+        this.openWin(app.wm.mintId(), "FilesWindow", this.files,
             ({ wx: 90 + (n % 7) * 28, wy: 46 + (n % 7) * 26 }), null)
         },
 
@@ -2382,7 +2375,7 @@ class Launcher extends Node [
         this.dismissAbouts()
         const n = app.wm.spawn()
         const depth = ("" + folderPath).split("\n").length - 1
-        this.openWin("w" + n, "FilesWindow", this.files,
+        this.openWin(app.wm.mintId(), "FilesWindow", this.files,
             ({ wx: 90 + (n % 7) * 28, wy: 46 + (n % 7) * 26, selPath: "" + folderPath, focusDepth: depth }), v)
         },
 
@@ -2427,7 +2420,7 @@ class Launcher extends Node [
             const wx = 160 + (n % 7) * 28
             const wy = 36 + (n % 7) * 26
             const o = this.originOf(v)
-            this.openWin("w" + n, "ViewerWindow", this.markdown,
+            this.openWin(app.wm.mintId(), "ViewerWindow", this.markdown,
                 ({ ...(props as object), wx: wx, wy: wy,
                     bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - app.menuBarH : -1 }), v)
             })
@@ -2467,7 +2460,7 @@ class Launcher extends Node [
                 wx = Math.round((app.width - ww) / 2)
                 }
             const o = this.originOf(v)
-            this.openWin("w" + n, "AppWindow", a,
+            this.openWin(app.wm.mintId(), "AppWindow", a,
                 ({ appPath: "" + a.prog, appTitle: "" + a.title, wx: wx, wy: wy,
                     width: ww, height: wh,
                     extraEnv: envExtra != "" ? envExtra : "" + a.env,
@@ -2495,17 +2488,16 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         this.gated(this.jots, () => {
             this.dismissAbouts()
             const n = app.wm.spawn()
-            this.openWin("w" + n, "JotWindow", this.jots,
+            this.openWin(app.wm.mintId(), "JotWindow", this.jots,
                 ({ note: "" + (txt || "*A new note.*"),
                     wx: 480 + (n % 5) * 26, wy: 90 + (n % 5) * 24 }), null)
             })
         },
     openWelcome() {
         this.jots.running = true
-        // its own id, off the spawn counter: the welcome is furniture, and
-        // must not consume the first stagger step (the boot Files window's
-        // position — and every later window's — would shift by one)
-        this.openWin("welcome", "JotWindow", this.jots,
+        // no spawn(): the welcome is furniture and takes no stagger step —
+        // identity (mintId) and position (spawn) are separate counters
+        this.openWin(app.wm.mintId(), "JotWindow", this.jots,
             ({ note: this.welcomeNote,
                 width: 400, height: 385, wx: Math.max(440, app.width - 490), wy: 120 }), null)
         }
@@ -2646,7 +2638,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         else if (id.indexOf("win:") == 0) app.wm.focusWin(app.wm.windows()[+id.slice(4)])
         },
 
-    dockDismiss() { app.bar.mb.menu.rootClose() },
+    dockDismiss() { app.bar.dismissMenus() },
 
     onPointerDown() { app.launcher.dismissAbouts() },
 
@@ -2666,14 +2658,15 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     // 15s ticks catch the minute flip well within a minute-precision display
 
-    // Both boot windows open one tick later: the welcome note's position
-    // derives from app.width, which is not yet live inside onInit (the host
-    // wires sizes after construction) — an immediate open would land on the
-    // fallback floor. Order is deliberate: the note opens first, then the Files
-    // window on top of it, so you arrive with Files frontmost and the greeting
-    // resting behind.
+    // The boot windows open at onReady — the first settle's close, tree
+    // standing and geometry LIVE (the welcome's position derives from
+    // app.width, which onInit cannot yet see; this retired a setTimeout(0)
+    // workaround). Order is deliberate: the note opens first, then the Files
+    // window on top of it, so you arrive with Files frontmost and the
+    // greeting resting behind.
 
-    onInit() { this.docsModel.fetch(); setTimeout(() => { app.launcher.openWelcome(); app.launcher.newFiles() }, 0) },
+    onInit() { this.docsModel.fetch() },
+    onReady() { app.launcher.openWelcome(); app.launcher.newFiles() },
 
     keys: Keys [
         onKeyDown(e: KeyEvent) {
@@ -2893,6 +2886,11 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
         keyRegistry: array = { (app.bar.menus || [])
             .flatMap((m) => (m.items || []).filter((r) => r.key).map((r) => ({ menu: "" + m.label, ...r }))) },
+
+        // the menu chain's OWNER offers the dismiss: outsiders (the dock, the
+        // App's command seam) ask the bar, never its internals
+
+        dismissMenus() { this.mb.menu.rootClose() },
 
         mb: MenuBar [ x = 10, height = { parent.height }, menus = { app.bar.menus }, ink = { parent.menuInk },
             picked(id: string) { app.command(id) }
