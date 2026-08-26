@@ -416,6 +416,45 @@ right order for a pin to be born in. The DOM-vs-canvas perceptual suite holds
 at 123/123, and the desktop's states are unmoved (39/39): the dock icons now
 re-raster at their resting scale, and their baselines did not notice.
 
+## C.5 The policy as it stands — task #28, closed (2026-08-26)
+
+DT's ruling shaped this: the PROMISE is uniform, the MECHANISM is per renderer
+(and, where measurement said so, per engine). What every renderer keeps:
+
+- No author manages rasters. Content is exact at rest; transitional frames may
+  be approximate for the one at-rest beat (`RASTER_GRACE_MS` = 120, the same
+  beat the visibility facts flush on). Memory never blows up; a refused raster
+  is slow, never wrong.
+- The shared vocabulary lives in `draw.ts` and is pure over the recording:
+  per-op `extents`, `replayArea` with the measured per-kind weights,
+  `rasterPad`, the caps in viewport units, culling that is byte-identical by
+  construction.
+
+What each renderer does with it:
+
+| | holds a drawing as | under a transform | admission | eviction / release | ceiling |
+|---|---|---|---|---|---|
+| **canvas** | a memo raster, discardable | stretch for the beat, exact at rest (memo key) | `ops × 1 µs + weighted px × 50 µs/Mpx ≥ 1 ms` | relevance (not painted last frame), then value density | discovered: null ctx / throw / blank halves the budget |
+| **DOM** | a per-view canvas, obligatory | stretch for the beat, re-raster at the at-rest composed scale (`setRasterScale`) | none — the canvas is the content | hidden view releases its store, raster owed on show | cap honoured by clamping density to dpr, counted |
+| **mac** | described CALayers (fills, gradients, strokes, shadows); CG raster for text, focal radials, filters | described: exact at any scale, nothing to do; rasterized: stretched (the seam table's stated gap) | n/a | n/a | n/a |
+
+And per engine, from the measurement pass: Firefox's cliff is gradient fills
+and the canvas memo is what hides it; Safari's is only extreme overdraw and it
+ignores `ctx.filter`, which the fallback in `canvas-filter.ts` covers; the Mac
+host's was shadows, now described. Chrome never regressed under any of it.
+
+**Not built, on evidence:** size grace (no engine drops a frame under the naive
+shape at six times the wallpaper's load), the DOM raster window and tiling (the
+extent case is an authoring shape that `ignoreScroll`'s paint order, shelved by
+DT, would make unnecessary), cap calibration by sweep (a ceiling measured on one
+machine is an anecdote).
+
+**Still owed:** the Mac host's rasterized remainder under a view scale (the seam
+row), and the desktop's two reference-box workarounds, which the measurements
+say are for a cost that is not there and which are the desktop owner's to
+retire — the dock icon's `face` doubly so now that a scaled drawing is exact at
+rest on every renderer that holds pixels.
+
 ## D. Canvas, per runtime — the platform attributes
 
 Same recording throughout (`artSunnySky`, two full-surface gradient fills at
