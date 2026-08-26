@@ -1,0 +1,280 @@
+// THE SYNTHETIC BENCHMARK — everything the raster policy has to carry, in one
+// program, driven by attributes so every engine can run it the same way.
+//
+// What is in it, and why each piece is here:
+//   mesh    — a wallpaper-class drawing at LIVE size: five full-surface radial
+//             washes under a blur with `lighten` compositing. Reads d.w/d.h,
+//             so it re-records on every resize step. The naive shape, no
+//             reference box.
+//   icons   — twelve dock-style icons: gradient plate, drawn art in a 48-unit
+//             box, a 1px rim — each springing its own magnification toward a
+//             target the `phase` knob flips. Motion and scale, per icon.
+//   glass   — three frosted panels (backdrop blur + saturate) over the mesh,
+//             with a few lines of text each. Frost samples what moves beneath.
+//   spinner — a gradient-filled drawn medallion under `rotation`, sprung.
+//   zoomed  — a drawn card under `scale`, sprung — the zoom egg's shape.
+//   ledger  — a column of text lines, because text is 8.5× a fill per pixel
+//             and a real app is mostly text.
+//
+// KNOBS (the driver sets these; nothing else moves):
+//   phase      0/1 — icons magnify in a wave; the spinner and zoom retarget
+//   spinTarget degrees the medallion springs toward
+//   zoomTarget the card's scale target
+//   tick       forces a re-record of the mesh without changing its shape
+//
+// NO DECLARED App SIZE: the program takes the host's, so a resize reaches it
+// and the iOS Simulator's viewport fits it.
+
+class Icon extends View [
+    ix: number = 0,
+    kind: string = "calendar",
+    hue1: Color = #4A90D9,
+    hue2: Color = #2E5FA3,
+    rest: number = 56,
+
+    // each icon's own spring, toward a target that depends on `phase` and its
+    // place in the row — a wave, not a lockstep
+
+    mag: number = 1,
+    magTarget: number = { app.phase == 1 ? 1 + 0.6 * Math.abs(Math.sin((this.ix + 1) * 0.9)) : 1 },
+    magSpring: Spring [ attribute = mag, to = { classroot.magTarget }, stiffness = 1300, damping = 62, epsilon = 0.002 ],
+    width = { this.rest * this.mag },
+    height = { this.width },
+    y = { parent.height - this.height - 12 },
+    x = { 16 + this.ix * (this.rest + 12) },
+    cornerRadius = { this.width * 0.23 }, clip = true,
+    fill = { gradient(this.hue1, this.hue2) },
+
+    // the art at LIVE size — no reference box; the platform re-rasters at rest
+
+    art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
+        draw(d: Draw) {
+            d.scale(this.width / 48, this.width / 48)
+            const k = classroot.kind
+            if (k == "calendar") {
+                d.fillStyle = 0xFFFFFF
+                d.fillRect(0, 0, 48, 48)
+                d.fillStyle = 0xFB4238
+                d.fillRect(0, 0, 48, 13)
+                d.textAlign = "center"
+                d.fillStyle = 0xFFFFFF
+                d.font = "bold 7.5px system-ui, sans-serif"
+                d.textBaseline = "middle"
+                d.fillText("MON", 24, 7)
+                d.fillStyle = 0x1D1D1F
+                d.font = "27px system-ui, sans-serif"
+                d.fillText("26", 24, 31)
+                }
+            else if (k == "bird") {
+                d.fillStyle = "#FFFFFF"
+                d.beginPath()
+                d.ellipse(24, 26, 13, 9, 0, 0, Math.PI * 2, false)
+                d.fill()
+                d.beginPath()
+                d.arc(33, 18, 6, 0, Math.PI * 2, false)
+                d.fill()
+                d.fillStyle = "#F5B700"
+                d.beginPath()
+                d.moveTo(38, 18); d.lineTo(44, 20); d.lineTo(38, 22); d.closePath()
+                d.fill()
+                d.strokeStyle = "rgba(0,0,0,0.35)"
+                d.lineWidth = 1.5
+                d.beginPath()
+                d.moveTo(14, 30); d.quadraticCurveTo(6, 34, 8, 40)
+                d.stroke()
+                }
+            else if (k == "terminal") {
+                d.fillStyle = "#101418"
+                d.beginPath(); d.roundRect(5, 7, 38, 34, 4); d.fill()
+                d.strokeStyle = "#7CFF9A"
+                d.lineWidth = 2
+                d.beginPath(); d.moveTo(11, 16); d.lineTo(17, 21); d.lineTo(11, 26); d.stroke()
+                d.beginPath(); d.moveTo(20, 26); d.lineTo(30, 26); d.stroke()
+                }
+            else if (k == "pencil") {
+                d.save()
+                d.translate(24, 24)
+                d.rotate(-Math.PI / 4)
+                d.fillStyle = "#FFD54F"
+                d.fillRect(-4, -18, 8, 28)
+                d.fillStyle = "#F5F5F5"
+                d.beginPath(); d.moveTo(-4, 10); d.lineTo(4, 10); d.lineTo(0, 18); d.closePath(); d.fill()
+                d.fillStyle = "#E57373"
+                d.fillRect(-4, -22, 8, 4)
+                d.restore()
+                }
+            else {
+                // "mail": an envelope, gradient-filled — a gradient in a small drawing
+                const g = d.createLinearGradient(0, 8, 0, 40)
+                g.addColorStop(0, "#FFFFFF")
+                g.addColorStop(1, "#DDE3EA")
+                d.fillStyle = g
+                d.beginPath(); d.roundRect(6, 10, 36, 28, 3); d.fill()
+                d.strokeStyle = "#5C7CA8"
+                d.lineWidth = 1.5
+                d.beginPath(); d.moveTo(6, 12); d.lineTo(24, 26); d.lineTo(42, 12); d.stroke()
+                }
+            }
+        ],
+
+    // the glossy rim at live size
+
+    rim: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
+        draw(d: Draw) {
+            const w = this.width
+            const r = w * 0.23
+            const g = d.createLinearGradient(0, 0, 0, w)
+            g.addColorStop(0, "rgba(255,255,255,0.55)")
+            g.addColorStop(0.5, "rgba(255,255,255,0.08)")
+            g.addColorStop(1, "rgba(255,255,255,0)")
+            d.strokeStyle = g
+            d.lineWidth = 1
+            d.beginPath()
+            d.roundRect(0.5, 0.5, w - 1, w - 1, r)
+            d.stroke()
+            }
+        ]
+    ]
+
+
+class Glass extends View [ cornerRadius = 14, clip = true,
+    backdrop = { frost(18, 1.6) },
+    fill = #FFFFFF22,
+    title: string = "Glass",
+    t1: Text [ x = 14, y = 12, textColor = #FFFFFF, fontSize = 15, fontWeight = semibold, text = { classroot.title } ],
+    t2: Text [ x = 14, y = 36, textColor = #FFFFFFCC, fontSize = 12, text = "Frost samples what moves beneath it." ],
+    t3: Text [ x = 14, y = 54, textColor = #FFFFFFCC, fontSize = 12, text = "Blur 18, saturate 1.6 — the weather card's glass." ]
+    ]
+
+
+App [ fill = #0B0E12,
+
+    phase: number = 0,
+    spinTarget: number = 0,
+    zoomTarget: number = 1,
+    tick: number = 0,
+    spin: number = 0,
+    spinSpring: Spring [ attribute = spin, to = { app.spinTarget }, stiffness = 120, damping = 16, epsilon = 0.05 ],
+    zoom: number = 1,
+    zoomSpring: Spring [ attribute = zoom, to = { app.zoomTarget }, stiffness = 200, damping = 22, epsilon = 0.002 ],
+
+    // ── the mesh, at live size ──
+
+    mesh: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
+        draw(d: Draw) {
+            const W = d.w
+            const H = d.h
+            const hsl = (h, s, l) => "hsl(" + (((h % 360) + 360) % 360) + "," + s + "%," + l + "%)"
+            const t = app.tick
+            d.fillStyle = hsl(220, 52, 5)
+            d.fillRect(0, 0, W, H)
+            const spots = [[0.17, 0.24], [0.82, 0.20], [0.50, 0.54], [0.20, 0.82], [0.83, 0.80]]
+            d.save()
+            d.filter = "blur(" + Math.round(Math.max(W, H) * 0.05) + "px)"
+            d.globalCompositeOperation = "lighten"
+            for (let i = 0; i < 5; i = i + 1) {
+                const p = spots[i]
+                const px = p[0] * W
+                const py = p[1] * H
+                const r = (0.36 + 0.05 * i) * Math.max(W, H)
+                const g = d.createRadialGradient(px, py, 0, px, py, r)
+                g.addColorStop(0, hsl(200 + i * 61 + t * 7, 80, 50))
+                g.addColorStop(0.5, hsl(200 + i * 61 + t * 7, 80, 31))
+                g.addColorStop(1, "rgba(0,0,0,0)")
+                d.fillStyle = g
+                d.fillRect(0, 0, W, H)
+                }
+            d.restore()
+            const v = d.createRadialGradient(W / 2, H * 0.45, H * 0.1, W / 2, H * 0.5, W * 0.72)
+            v.addColorStop(0, "rgba(0,0,0,0)")
+            v.addColorStop(1, "rgba(0,0,6,0.62)")
+            d.fillStyle = v
+            d.fillRect(0, 0, W, H)
+            }
+        ],
+
+    // ── the ledger: text, which a real app is mostly made of ──
+
+    ledger: View [ x = 24, y = 24, width = 260, height = { app.height - 220 },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        l0: Text [ textColor = #FFFFFFDD, fontSize = 13, text = "Synthetic bench — the raster policy under load" ],
+        l1: Text [ textColor = #FFFFFF99, fontSize = 12, text = "mesh: five washes under blur, live size" ],
+        l2: Text [ textColor = #FFFFFF99, fontSize = 12, text = "icons: twelve, sprung, drawn at live size" ],
+        l3: Text [ textColor = #FFFFFF99, fontSize = 12, text = "glass: three frosted panels over the mesh" ],
+        l4: Text [ textColor = #FFFFFF99, fontSize = 12, text = "spinner: a gradient medallion under rotation" ],
+        l5: Text [ textColor = #FFFFFF99, fontSize = 12, text = "zoomed: a drawn card under scale" ],
+        l6: Text [ textColor = #FFFFFF99, fontSize = 12, text = "phase · spinTarget · zoomTarget · tick" ],
+        l7: Text [ textColor = #FFFFFF66, fontSize = 11, text = { "phase " + app.phase + " · spin " + Math.round(app.spin) + " · zoom " + (Math.round(app.zoom * 100) / 100) } ]
+        ],
+
+    // ── glass ──
+
+    g1: Glass [ x = { app.width - 300 }, y = 24, width = 276, height = 80, title = "Glass one" ],
+    g2: Glass [ x = { app.width - 300 }, y = 116, width = 276, height = 80, title = "Glass two" ],
+    g3: Glass [ x = { app.width - 300 }, y = 208, width = 276, height = 80, title = "Glass three" ],
+
+    // ── the spinner: rotation ──
+
+    spinner: View [ x = { app.width / 2 - 70 }, y = { app.height / 2 - 110 }, width = 140, height = 140,
+        pivotX = 70, pivotY = 70,
+        rotation = { app.spin },
+        draw(d: Draw) {
+            const g = d.createConicGradient(0, 70, 70)
+            g.addColorStop(0, "#FF5252")
+            g.addColorStop(0.34, "#69F0AE")
+            g.addColorStop(0.67, "#448AFF")
+            g.addColorStop(1, "#FF5252")
+            d.fillStyle = g
+            d.beginPath()
+            d.arc(70, 70, 64, 0, Math.PI * 2, false)
+            d.fill()
+            d.strokeStyle = "rgba(255,255,255,0.8)"
+            d.lineWidth = 3
+            for (let i = 0; i < 12; i = i + 1) {
+                const a = (i / 12) * Math.PI * 2
+                d.beginPath()
+                d.moveTo(70 + Math.cos(a) * 48, 70 + Math.sin(a) * 48)
+                d.lineTo(70 + Math.cos(a) * 60, 70 + Math.sin(a) * 60)
+                d.stroke()
+                }
+            d.fillStyle = "#101418"
+            d.beginPath(); d.arc(70, 70, 22, 0, Math.PI * 2, false); d.fill()
+            }
+        ],
+
+    // ── the zoomed card: scale ──
+
+    zoomed: View [ x = { app.width / 2 + 90 }, y = { app.height / 2 - 60 }, width = 160, height = 100,
+        pivotX = 80, pivotY = 50,
+        scale = { app.zoom },
+        cornerRadius = 12, clip = true, fill = #1B2733,
+        draw(d: Draw) {
+            d.strokeStyle = "#7FB3FF"
+            d.lineWidth = 1
+            for (let gx = 0.5; gx < 160; gx = gx + 10) { d.beginPath(); d.moveTo(gx, 0); d.lineTo(gx, 100); d.stroke() }
+            for (let gy = 0.5; gy < 100; gy = gy + 10) { d.beginPath(); d.moveTo(0, gy); d.lineTo(160, gy); d.stroke() }
+            d.fillStyle = "#FFFFFF"
+            d.font = "600 11px system-ui, sans-serif"
+            d.textAlign = "center"
+            d.textBaseline = "middle"
+            d.fillText("exact at rest", 80, 50)
+            }
+        ],
+
+    // ── the icon row ──
+
+    row: View [ x = 0, y = { app.height - 110 }, width = { app.width }, height = 110,
+        i0: Icon [ ix = 0, kind = "calendar", hue1 = #F6F6F6, hue2 = #DADADA ],
+        i1: Icon [ ix = 1, kind = "bird", hue1 = #66C95F, hue2 = #2E8B3E ],
+        i2: Icon [ ix = 2, kind = "terminal", hue1 = #4A4A55, hue2 = #1F1F26 ],
+        i3: Icon [ ix = 3, kind = "pencil", hue1 = #FFB74D, hue2 = #E08A1E ],
+        i4: Icon [ ix = 4, kind = "mail", hue1 = #4A90D9, hue2 = #2E5FA3 ],
+        i5: Icon [ ix = 5, kind = "calendar", hue1 = #F6F6F6, hue2 = #DADADA ],
+        i6: Icon [ ix = 6, kind = "bird", hue1 = #66C95F, hue2 = #2E8B3E ],
+        i7: Icon [ ix = 7, kind = "terminal", hue1 = #4A4A55, hue2 = #1F1F26 ],
+        i8: Icon [ ix = 8, kind = "pencil", hue1 = #FFB74D, hue2 = #E08A1E ],
+        i9: Icon [ ix = 9, kind = "mail", hue1 = #4A90D9, hue2 = #2E5FA3 ],
+        i10: Icon [ ix = 10, kind = "calendar", hue1 = #F6F6F6, hue2 = #DADADA ],
+        i11: Icon [ ix = 11, kind = "bird", hue1 = #66C95F, hue2 = #2E8B3E ]
+        ]
+    ]

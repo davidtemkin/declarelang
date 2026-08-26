@@ -263,6 +263,7 @@ const AGENT = `(async () => {
     };
     const before = px();
     if ("__DRIVE__" === "scroll-app") { app.scrollY = 0; await raf(); await raf(); app.scrollY = Math.max(0, app.height - (app.hostHeight || window.innerHeight)) * 0.5; }
+    else if ("__DRIVE__" === "motion-app") { const i = 1; DRIVE_STEP; }
     else bump();
     await raf(); await raf();
     driveWorks = px() !== before;
@@ -368,7 +369,7 @@ function agentFor(drive, knobs, steps, noCadence = false, phase = "drive") {
     // a resize probe measures whether the recording re-records under the
     // gesture; a flush pass that bumps the recording per step would answer
     // "yes" for every mode and pollute the trace with its own re-rasters
-    .replace(/NOFLUSH/g, String(drive === "resize"))
+    .replace(/NOFLUSH/g, String(drive === "resize" || drive === "motion-app" || drive === "scroll-app"))
     .replace(/STEPS/g, String(steps))
     .replace("KNOBS", JSON.stringify(knobs));
 }
@@ -454,6 +455,7 @@ async function chromeEngine({ headless }) {
     },
     async resize(w, h) { await page.setViewport({ width: w, height: h, deviceScaleFactor: 2 }); },
     async runUntraced(src) { return await page.evaluate(src); },
+    async screenshot(file) { await page.screenshot({ path: file }); },
     async run(src) {
       if (!trace) return await page.evaluate(src);
       const out = path.join(TRACE_DIR, `t-${traceN++}.json`);
@@ -560,6 +562,10 @@ async function safariEngine(extraCaps = {}, label = "safari") {
       if (out && out.error) throw new Error(out.error);
       return out;
     },
+    async screenshot(file) {
+      const b64 = await call("GET", `/session/${sid}/screenshot`);
+      writeFileSync(file, Buffer.from(b64, "base64"));
+    },
     async close() {
       try { await call("DELETE", `/session/${sid}`); } catch { /* already gone */ }
       proc.kill();
@@ -589,6 +595,7 @@ async function firefoxEngine() {
     },
     async resize(w, h) { await page.setViewport({ width: w, height: h, deviceScaleFactor: 2 }); },
     async run(src) { return await page.evaluate(src); },
+    async screenshot(file) { await page.screenshot({ path: file }); },
     async close() { await browser.close(); },
   };
 }
@@ -655,11 +662,18 @@ const renderers = flag("renderers", "dom,canvas").split(",");
 // does to weather; the report is the same columns, and on Chrome --trace gives
 // the paint breakdown. No knobs, one row per renderer.
 const appPath = flag("app", null);
+// --drive-js "<js>": the per-step stimulus for --app, evaluated with `i` and
+// `STEPS` in scope — `app.phase = i % 2`, `app.scaleSeed = i` — for MOTION.
+// Without it the drive is the root scroll. --drive resize takes the rig's
+// resize gesture instead.
+const driveJs = flag("drive-js", null);
+const driveKind = flag("drive", null);
 if (appPath) {
+  if (driveJs) DRIVES["motion-app"] = driveJs;
   PROBES.app = {
     file: appPath,
-    drive: "scroll-app",
-    sweeps: [{ name: `scroll ${appPath.replace(/^.*\//, "")}`, hold: {}, axis: "pass", values: [1] }],
+    drive: driveKind === "resize" ? "resize" : driveJs ? "motion-app" : "scroll-app",
+    sweeps: [{ name: `${driveKind === "resize" ? "resize" : driveJs ? "motion" : "scroll"} ${appPath.replace(/^.*\//, "")}`, hold: {}, axis: "pass", values: [1] }],
   };
 }
 const probes = flag("probe", appPath ? "app" : Object.keys(PROBES).join(",")).split(",");
@@ -691,6 +705,9 @@ const willChange = has("will-change");
 // every engine (the Safari engine has no document-start hook, so this is how a
 // lever reaches it). An A/B is two runs differing only in this.
 const pre = flag("pre", null);
+// --shot <file.png>: a screenshot of the settled page after the run, on every
+// engine — the deviation test (memo on vs off must be the same picture)
+const shot = flag("shot", null);
 const jsonOut = flag("json", null);
 
 if (headless) console.log("⚠ --headless: Chrome rasterizes on SwiftShader here. Structural runs only — these are not GPU numbers.\n");
@@ -765,6 +782,7 @@ for (const engineName of engines) {
           // a trace of the drive never contains their readbacks
           const checks = await (engine.runUntraced ?? engine.run).call(engine, agentFor(probe.drive, knobs, steps, engine.noCadence === true, "checks"));
           out = { ...checks, ...out };
+          if (shot && engine.screenshot) { await sleep(400); await engine.screenshot(shot); console.log(`      ↳ shot: ${shot}`); }
           const mb = (out.bytes / (1 << 20)).toFixed(1);
           const cad = (x) => (engine.noCadence ? "—" : String(x));
           console.log(
