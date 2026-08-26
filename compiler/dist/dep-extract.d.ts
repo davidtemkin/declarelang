@@ -15,6 +15,12 @@ export interface ExtractedConstraint {
     offset: number;
     node: CodeValue | null;
     reads: string[];
+    /** True when the body (transitively) reads cells through a local alias or
+     *  an iterator closure — reads that are REAL but not nameable as static
+     *  paths. Such a constraint must stay on the runtime-tracking path: wiring
+     *  its nameable reads alone would silently miss the rest (the staleness
+     *  class the DYNAMIC sentinel exists for). */
+    dynamic?: boolean;
     errors: {
         message: string;
         offset: number;
