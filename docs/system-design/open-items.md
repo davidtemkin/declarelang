@@ -16,8 +16,8 @@ Narrative context and the session in which each was found lives in
 
 | ID | Area | Item | Weight | Status |
 |---|---|---|---|---|
-| L-1 | language | Structural collection change is not a reactive event | **high** | open |
-| L-2 | language | No typed child collection → `any`-seams and dead guards | high | open |
+| L-1 | language | Structural collection change is not a reactive event | **high** | **largely addressed** (2026-08-25) |
+| L-2 | language | No typed child collection → `any`-seams and dead guards | high | open — narrowed |
 | L-3 | runtime | Component identity rides `constructor.name` | medium | worked around |
 | L-4 | compiler | No fragment-compile entry point | medium | open |
 | L-5 | runtime | A slot cannot be rebound, only bound once | medium | worked around |
@@ -30,8 +30,19 @@ Narrative context and the session in which each was found lives in
 | L-12 | tooling | `declarec` omitted the runtime body-services | — | **fixed** |
 | L-13 | tooling | `appName` never reached the page title in AOT builds | — | **fixed** |
 | L-14 | language | User `prevailing` needs a shared base class | low | open |
-| L-15 | runtime | No bridge into an embedded child app | medium | open |
+| L-15 | runtime | No bridge into an embedded child app | medium | **half done** (island bridge 2026-08-20) |
 | L-16 | naming | `HeadlessBackend` means engine-less, not headless | low | open |
+| L-17 | compiler | A shadowed name silently dropped a dependency | — | **fixed** |
+| L-18 | library | A house component's themed self-chrome falls back silently | medium | open |
+| L-19 | platform | Unknown URL parameters pass silently | — | **RULED — leave** |
+| L-20 | language | Component-typed slots cannot be constrained (DECLARE2000) | **high** | open |
+| L-21 | compiler | Method calls resolve by NAME when the receiver is unknowable | high | open |
+| L-22 | language | Datapath/record edges are untyped — the coercion tax | **high** | open |
+| L-23 | language | Plain `.value` property reads wire only the value slot | high | open |
+| L-24 | compiler | The projection refusal (7001) could degrade to tracking | low | sketched |
+| L-25 | library | `Time` — wall-clock as a source component | medium | **designed** (2026-08-26) |
+| L-26 | language | `host = browser` marking for DOM-touching script files | low | open (awaiting ruling) |
+| L-27 | compiler | Alias/closure reads silently dropped from static deps | — | **fixed** (6e13f2e3) |
 
 ---
 
@@ -65,6 +76,16 @@ bumps and the argument-threading idiom both disappear.
 **Interim mitigation** (no language change): funnel every structural change through
 one or two methods that bump the counter once, so 11 sites become 2.
 
+**Update 2026-08-25 — largely addressed, from two directions.** `childViews` is now a
+tracked (structural-cell) read, and `desktop.declare`'s windows became RECORDS in a
+Dataset (windows-as-data): every `winSeq` bump site, `nudge()`, and the
+deps-as-arguments idiom (`windowItems(seq, front)`, `seatCheck(...)`) are gone — the
+consumers derive from the records (through the tracked `read`) and from `childViews`
+walks. What remains of this item: the extractor still silently tolerates plain
+`.children` walks in constraint-reachable code (see the NOTE in dep-extract's
+classifyChain); with `winSeq` retired, that tolerance should become a refusal
+pointing at `childViews` — the ruled follow-up (David, 2026-08-24).
+
 ## L-2 — No typed child collection · high
 
 `wins.children` is `View[]`, so every subclass attribute is invisible and each read
@@ -87,6 +108,12 @@ coercions, and most of the accessors at once.
 stragglers (`appPath`, `forApp`, `homing`) would let ~8 of the 11 methods collapse to
 direct reads. Keep the *names* (`isMin` reads better than `w.dockSlot >= 0` at nine
 call sites); drop the defensiveness.
+
+**Update 2026-08-25:** windows-as-data removed "the one cast"
+(`wins.children as Window[]`) — the views resolve through typed `WinSlot.win` slots —
+and the accessor count shrank with the records refactor. The general ask (a container
+declaring what it `holds`) stands; the sharper modern form of this item is now
+[L-22](#l-22) (untyped record edges), where the same disease costs more.
 
 ## L-3 — Component identity rides `constructor.name` · medium · worked around
 
@@ -179,6 +206,11 @@ probe turns this class of bug from an hour into seconds.
 must default `null` and be initialised in `onInit`, and every reader needs
 `|| ({ })`. Cf. `language-learnings.md` §11, whose general object attribute landed;
 this is its remaining edge.
+
+**Re-hit 2026-08-25:** the desktop's `borns` side-channel (windows-as-data) needed
+exactly this — `borns: object` with `onInit() { this.borns = ({}) }` — because a
+`{ ({}) }` computed default would mint a fresh object per read. Twice-independent
+evidence; the item stands.
 
 ## L-9 — `TextInput.text` will not two-way bind to a plain attribute · low
 
@@ -428,3 +460,133 @@ across four layers:
 plus one **non-keyed** form any future checker must not misread: the launcher's bare
 path, `index.html?apps/calendar` (boot-uniform.js `launchTarget()`), positional and
 distinguished by a `/` before any `=`.
+
+## L-20 — Component-typed slots cannot be constrained (DECLARE2000) · **high**
+
+`forApp = { app.launcher.files }` is refused: "a component slot takes a member or
+null — constraining it is not yet surface." The ruled interim idiom (2026-08-25):
+**ids flow through constraints, nodes are stored only by assignment** — and it works,
+but its cost is visible in `desktop.declare` as the *accessor farm*: `DockIcon`/
+`AppGlyph` hold an `appId` string plus an `ap()` resolver, and `Launcher` carries six
+near-identical attribute-returning accessors (`hue1Of`, `hue2Of`, `glyphOf`,
+`gsizeOf`, `drawnOf`, `labelOf`) that exist only because a constraint may read an
+attribute *through a method that returns it* but not off a returned node (see L-24).
+An independent cold read (2026-08-25) called this "pure ceremony; in any conventional
+framework you'd pass the object." The application-as-node pattern — now the house
+model-layer idiom — runs into this on day one.
+
+**Candidate.** Allow constraining component-typed slots with identity-valued
+constraints (the value is a node reference; re-derivation compares identity), which
+also gives replicated use-sites the natural spelling `forApp = { byId(:id) }`.
+
+## L-21 — Method calls resolve by NAME when the receiver is unknowable · high
+
+Typed residence exists (the 2026-08-20 `open` collision fix): a resolvable receiver
+gets exactly its class-chain's method. But an *unresolvable* receiver falls back to
+following **every same-named candidate in the merged source** — so declaring an app
+verb can change the analysis of unrelated library code. Re-hit verbatim 2026-08-25:
+a `DesktopApp.open(v)` verb re-collided with the combobox's `open()`, resurfacing the
+phantom ".start() unresolved [in included library source, line 1245]" — with the
+position misattributed into the prelude (the file:line rebaser fix exists in the
+declare-ben tree and arrives with its merge). The desktop now documents "the verb is
+`launch`, not `open`" as a trap comment, which is the wrong place for that knowledge
+to live.
+
+**Candidate.** Bound the fallback by the receiver's *declared type* wherever one
+exists (a `DesktopApp`-typed value should never follow a combobox body); where
+genuinely ambiguous, say so in a diagnostic instead of silently unioning.
+
+## L-22 — Datapath and record edges are untyped — the coercion tax · **high**
+
+Every replicated read pays it: `"" + (:id ?? "")`, `Number(:ix ?? 0)`,
+`!!:hasKids` — dozens of sites in `desktop.declare` alone — and record-shaped state
+(`pendingItem: object`, the window records, `props as Record<string, unknown>`)
+crosses every boundary as an untyped bag. The independent cold read named this one of
+the two things "the platform should fix" ("TypeScript being placated rather than
+used"). The machinery half-exists: a `DataSource.schema` already type-checks `:path`s
+against a declared shape at compile time. Records built *in the program* (windows-as-
+data rows, launcher rows) have no way to declare a shape at all, and datapath reads
+without a schema default to stringly-null.
+
+**Candidate.** Declared record shapes (`type WinRec = [ id: string, cls: string, … ]`
+or schema-on-Dataset made ergonomic for program-built data), with `:path` reads typed
+from them — retiring the `""+` tax and the `!`/cast escapes in one move. Related:
+component-typed attr reads scaffold as `T | null` even where provably fed
+(`activeApp!`).
+
+## L-23 — Plain `.value` property reads wire only the value slot · high
+
+`{ list.value.wins.length }` compiles, works at boot, and **goes silently stale**
+under `insert`/`removeAt`/`move`/`set` — mutations wake region cells, which only the
+tracked accessors (`:path`, `read([…])`) subscribe to; a plain JS property chain
+wires the `value` slot alone, and mutation never replaces `value`'s identity. Found
+building windows-as-data (the desktop's `recs()` must read
+`list.read(["wins"])`, and says why in a comment — again the wrong home for the
+knowledge). Same silent-staleness family as L-17/L-27, and the extractor can SEE the
+`.value.` chain statically.
+
+**Candidate.** Cheapest honest fix: an extractor warning/refusal when a constraint
+reads *through* `.value` past the first step, naming `read`/`:path`. The deeper fix —
+tracking plain property reads on data trees — changes read cost everywhere and needs
+its own design.
+
+## L-24 — The projection refusal could degrade to tracking · low · sketched
+
+`ap().hue1` is refused (DECLARE7001: "returns a value chosen at run time… would
+silently stop updating") — correct under prewiring, but since the alias/closure
+sentinel exists (L-27), the same shape *could* mark the constraint dynamic and stay
+live on the tracking path instead of refusing. Trade: refusal is explicit and keeps
+programs prewirable; degrading is convenient and silent. If refusal stays, its
+message should name the accessor idiom (return the attribute, not the node) — which
+it now does — and L-20's resolution may moot this entirely.
+
+## L-25 — `Time`: wall-clock as a source component · medium · **designed 2026-08-26**
+
+Any `{ }` reading `new Date()` / `Date.now()` is a stopped clock: an ambient read
+with no cell behind it evaluates once and never again (same anatomy as
+`Math.random()` in the tilt egg). The desktop's hand-rolled `Clock` node is the
+worked example of the correct shape — ambient state sampled by a node that owns
+cells. Design settled in discussion (David, 2026-08-26):
+
+- **A source component, cadence in the declaration**: `Time [ every = minute ]`,
+  with `second | minute | hour | day` as **calendar-aligned flips** (aim at the next
+  boundary, not an interval) — correct at the flip, drift-free, sleep-safe. No
+  arbitrary periods: those are timing rules (`setTimeout`) by doctrine.
+- **Live getters** for the facts (`clock.minute` computes from the ambient clock at
+  the read), so a handler read is always fresh regardless of subscriptions — no
+  demand-dependent freshness, no magic. Demand controls only whether the flip-alarm
+  is armed (idle-zero thrift, zero observable semantics). The demand-*inferred*
+  cadence variant was considered and rejected: a source's declaration must state its
+  subject.
+- **`second` is the floor** deliberately: sub-second wall-clock is never a calendar
+  fact — a stopwatch is elapsed-time integration (Heartbeat), a sweeping hand is
+  motion (Spring/Animator). Time completes the family, it does not replace Heartbeat:
+  Animator/Spring for motion *toward*, Heartbeat for integration *by*, Time for
+  derivation *from*.
+
+Companions: a compile-time warning for `new Date()`/`Date.now()`/`Math.random()` in
+`{ }` bodies (the DECLARE4006 family — "this reads the ambient world; derive from a
+Clock, or from a seed"), and optionally a prelude `rand(seed, key)` so the pure
+seeded-random idiom reads as one call instead of inline mulberry32.
+
+## L-26 — `host = browser` for DOM-touching script files · low · awaiting ruling
+
+A `script [ "file.ts" ]` that touches the DOM runs on exactly one renderer; nothing
+marks that fact or protects the canvas/native paths from it. Deferred from the
+2026-08-24 script/module ratification; needs a ruling on whether the marking is a
+tag, a lint, or nothing.
+
+## L-27 — Alias/closure reads silently dropped from static deps · **fixed** (6e13f2e3)
+
+The L-17 family's biggest member. `const a = roster.find(…); a.running` and
+`team.filter((p) => p.online)` produced reads the extractor could SEE but not NAME as
+static paths — and dropped them silently, so a prewired constraint missed the edge
+forever. Found as the desktop's vanished running-dot (caught only by the R6 pixel
+gate); the records-array design it replaced had been *load-bearing* precisely because
+array replacement is a directly-read wake. Fixed with the `~dynamic` sentinel: such a
+body is marked dynamic, flows up the summary graph, and the constraint stays on the
+runtime-tracking path where every one of those reads is live — the seam the module
+header always reserved for "genuinely dynamic reads". Pinned three ways in
+`test/static-constraint.test.mjs` (find-alias wakes; iterator-closure wakes; a pure
+projection off an alias *keeps* the static path). Measured cost: ~8% of each large
+app's constraints move to tracking — exactly the ones that were stale before.
