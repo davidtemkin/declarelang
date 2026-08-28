@@ -549,20 +549,28 @@ worked example of the correct shape — ambient state sampled by a node that own
 cells. Design settled in discussion (David, 2026-08-26):
 
 - **A source component, cadence in the declaration**: `Time [ every = minute ]`,
-  with `second | minute | hour | day` as **calendar-aligned flips** (aim at the next
-  boundary, not an interval) — correct at the flip, drift-free, sleep-safe. No
-  arbitrary periods: those are timing rules (`setTimeout`) by doctrine.
+  with `frame | second | minute | hour | day`. The calendar tiers are
+  **calendar-aligned flips** (aim at the next boundary, not an interval) — correct at
+  the flip, drift-free, sleep-safe. No arbitrary periods: those are timing rules
+  (`setTimeout`) by doctrine.
+- **`every = frame` unlocks `time.now`** (revised on David's push-back, 2026-08-28 —
+  the first design wrongly banished this to Heartbeat): wall-clock ms at display
+  cadence, riding the one shared clock, ticking only while subscribed and visible.
+  It exists because *derivation from the current time* is not integration — a
+  stopwatch readout, a countdown, progress toward a deadline are pure functions of
+  `now` (`text = { fmt(time.now - app.startedAt) }`), and forcing them through a
+  Heartbeat accumulator makes an integrator imitate a formula. The three-way split,
+  keyed to the shape of the dependence: derive from **Time** when the value is a
+  pure function of the current time; integrate with **Heartbeat** when the next
+  value depends on the previous; declare a destination with **Spring/Animator**
+  when it is motion. (`x = { time.now * v }` as motion remains the taught
+  anti-pattern — a teaching line, not a withheld primitive.)
 - **Live getters** for the facts (`clock.minute` computes from the ambient clock at
   the read), so a handler read is always fresh regardless of subscriptions — no
-  demand-dependent freshness, no magic. Demand controls only whether the flip-alarm
-  is armed (idle-zero thrift, zero observable semantics). The demand-*inferred*
+  demand-dependent freshness, no magic. Demand controls only whether the alarm is
+  armed (idle-zero thrift, zero observable semantics). The demand-*inferred*
   cadence variant was considered and rejected: a source's declaration must state its
   subject.
-- **`second` is the floor** deliberately: sub-second wall-clock is never a calendar
-  fact — a stopwatch is elapsed-time integration (Heartbeat), a sweeping hand is
-  motion (Spring/Animator). Time completes the family, it does not replace Heartbeat:
-  Animator/Spring for motion *toward*, Heartbeat for integration *by*, Time for
-  derivation *from*.
 
 Companions: a compile-time warning for `new Date()`/`Date.now()`/`Math.random()` in
 `{ }` bodies (the DECLARE4006 family — "this reads the ambient world; derive from a
