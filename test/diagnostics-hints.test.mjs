@@ -175,7 +175,7 @@ await test("a host global in a body is refused at resolution with the Declare wa
   await says(`App [ Text [ text = "x", onClick() { console.log(document.title) } ] ]`, "the tree IS the program");
   await says(`App [ Text [ text = "x", onClick() { console.log(process.env.HOME) } ] ]`, "'process' is the host's");
   await says(`App [ Text [ text = "x", onClick() { localStorage.setItem("k", "v") } ] ]`, "Persistence is not in the language yet");
-  await says(`App [ Text [ text = "x", onClick() { requestAnimationFrame(() => {}) } ] ]`, "Heartbeat [ onFrame(dt) ]");
+  await says(`App [ Text [ text = "x", onClick() { requestAnimationFrame(() => {}) } ] ]`, "Time [ tick = frame, onTick(dt) ]");
   await silent(`App [ Text [ text = "x", onClick() { console.log(document.title) } ] ]`, "lib");
   await silent(`App [ Text [ text = "x", onClick() { console.log(process.env.HOME) } ] ]`, "@types/node");
   // the ES built-ins and the prelude stay in scope
@@ -210,24 +210,49 @@ await test("assigning a Dataset's value is answered with the mutation verbs and 
   await silent(src, "Cannot assign to");
 });
 
-// ── a Heartbeat that ignores dt is polling — a WARNING naming the reflex ────
+// ── a per-frame Time that ignores dt is polling — a WARNING naming the reflex ─
 // "Nothing waits" (declare.md §1): the per-frame handler that checks state is
 // the one imperative habit every field report has shown.
-await test("a Heartbeat whose onFrame never reads dt warns that it is polling; one that integrates does not", async () => {
+await test("a per-frame Time whose onTick never reads dt warns that it is polling; one that integrates, or a calendar tick, does not", async () => {
   const warnText = async (src) => {
     const r = await compile(src, { originDir: process.cwd() });
     assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("\n"));
     return r.warnings.map((w) => w.message).join("\n");
   };
   const polls = await warnText(`App [ ready: boolean = false, data: DataSource [ url = "x.json" ],
-    Heartbeat [ onFrame(dt: number) { if (app.data.loaded) { app.ready = true } } ] ]`);
+    Time [ tick = frame, onTick(dt: number) { if (app.data.loaded) { app.ready = true } } ] ]`);
   assert.ok(polls.includes("never reads 'dt'"), polls);
   assert.ok(polls.includes("Nothing waits"), polls);
-  const integrates = await warnText(`App [ x0: number = 0, Heartbeat [ onFrame(dt: number) { app.x0 = app.x0 + 60 * dt } ] ]`);
+  const integrates = await warnText(`App [ x0: number = 0, Time [ tick = frame, onTick(dt: number) { app.x0 = app.x0 + 60 * dt } ] ]`);
   assert.equal(integrates, "");
-  // 'dt' inside a string is not a read; a handler on a non-Heartbeat is not judged
-  const inString = await warnText(`App [ Heartbeat [ onFrame(dt: number) { console.log("dt") } ] ]`);
+  // 'dt' inside a string is not a read
+  const inString = await warnText(`App [ Time [ tick = frame, onTick(dt: number) { console.log("dt") } ] ]`);
   assert.ok(inString.includes("never reads 'dt'"));
+  // a CALENDAR tick is an event, not a poll: ignoring dt there is the normal case
+  const minuteTurns = await warnText(`App [ n: number = 0, Time [ tick = minute, onTick(dt: number) { app.n = app.n + 1 } ] ]`);
+  assert.equal(minuteTurns, "", "tick = minute: onTick is 'when the minute turns'");
+  const defaultTick = await warnText(`App [ n: number = 0, Time [ onTick() { app.n = app.n + 1 } ] ]`);
+  assert.equal(defaultTick, "", "the default tick is second — a calendar tier");
+});
+
+// ── a { } that reads the ambient clock is a stopped clock — a WARNING (L-25) ──
+await test("a { } reading Date.now() / new Date() warns that it evaluates once; a projection of a value, or a handler, does not", async () => {
+  const warnText = async (src) => {
+    const r = await compile(src, { originDir: process.cwd() });
+    assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("\n"));
+    return r.warnings.map((w) => w.message).join("\n");
+  };
+  const stopped = await warnText(`App [ Text [ text = { "" + new Date() } ] ]`);
+  assert.ok(stopped.includes("reads new Date()") && stopped.includes("once and never again"), stopped);
+  assert.ok(stopped.includes("Time member"), "names the member that carries time: " + stopped);
+  const dateNow = await warnText(`App [ t: number = { Date.now() } ]`);
+  assert.ok(dateNow.includes("reads Date.now()"), dateNow);
+  // a value projected through Date is a derivation, not an ambient read
+  const projected = await warnText(`App [ clock: Time [ tick = minute ], Text [ text = { new Date(app.clock.now).toLocaleTimeString() } ] ]`);
+  assert.equal(projected, "", "new Date(value) is a projection");
+  // a handler is a moment, and may read the moment
+  const handler = await warnText(`App [ t: number = 0, onClick() { app.t = Date.now() } ]`);
+  assert.equal(handler, "");
 });
 
 summarize("diagnostics-hints");

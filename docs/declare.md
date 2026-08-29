@@ -784,15 +784,17 @@ slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping 
 
 Motion is the one place time is legitimately an input (§1, *nothing waits*): `Animator` for a
 value that changes *over* a duration, `Spring` for one that moves *toward* a target — the house
-idiom — and `Heartbeat` only to **integrate**, the previous value being the input; an `onFrame`
-that ignores `dt` is polling. `setTimeout` is for a timing rule — a debounce, a request timeout —
+idiom — and `Time` for the clock itself — its facts (`now`, `minute`, …) are inputs a
+constraint derives from, and its `onTick(dt)` at `tick = frame` is the one per-frame handler, there
+only to **integrate**, the previous value being the input; a per-frame `onTick` that ignores `dt` is
+polling. `setTimeout` is for a timing rule — a debounce, a request timeout —
 and a timer does not die with its node, so cancel it yourself. (Finishing after your own change
 has landed is neither — that is `afterSettle`, §5.)
 
 Because states, springs, and layout all sit on one reactive core, *arrangement* animates: spring
 a few geometry scalars and every constraint derived from them moves in lock-step.
 
-→ `State`, `Spring`, `Animator`, `Heartbeat` attributes: the model reference · the idiom at scale:
+→ `State`, `Spring`, `Animator`, `Time` attributes: the model reference · the idiom at scale:
 `apps/calendar/calendar.declare`
 
 ## 11. The standard library

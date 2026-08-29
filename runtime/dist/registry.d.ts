@@ -6,7 +6,9 @@ import { Animator, AnimatorGroup } from "./animator.js";
 import { State } from "./state.js";
 type ViewCtor = new () => View;
 /** Tag → runtime View class (the tree tags). `Node` is registered so a user can
- *  subclass it for a non-visual node (`class Store [ … ]`). */
+ *  subclass it for a non-visual node (`class Store [ … ]`); `Time` (time.ts) is
+ *  a Node component on the same generic path — carrying declarations and
+ *  subclassable — rather than a SOURCE, which the source path would seal. */
 export declare const TAGS: Readonly<Record<string, ViewCtor>>;
 /** Tag → buildable layout-strategy class (R7) — built only as a component-typed
  *  attribute value, never a tree tag. */

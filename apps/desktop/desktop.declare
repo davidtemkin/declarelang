@@ -1676,22 +1676,15 @@ face, and an About window's date all read the same node. Self-driving — it
 arms its own 15-second timer at init, so no host wiring exists to forget.
 */
 
-class Clock extends Node [
-    text: string = "",
-    dayName: string = "",
-    dayNum: number = 0,
+class DesktopClock extends Time [ tick = minute,
+    // Numbers in, this desktop's words out: the facts are Time's, the format is
+    // the app's. `minute` is the resolution both readouts need, so the menu bar
+    // and the calendar icon flip together, on the minute — aligned, drift-free,
+    // and paused by itself on a page nobody can see.
 
-    tick() {
-        const d = new Date()
-        const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]
-        const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]
-        const h12 = d.getHours() % 12 == 0 ? 12 : d.getHours() % 12
-        const mm = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
-        this.text = wd + " " + mo + " " + d.getDate() + "  " + h12 + ":" + mm + " " + (d.getHours() >= 12 ? "PM" : "AM")
-        this.dayName = wd.toUpperCase()
-        this.dayNum = d.getDate()
-        },
-    onInit() { this.tick(); setInterval(() => this.tick(), 15000) }
+    text: string = { ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][this.weekday - 1] + " " + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][this.month - 1] + " " + this.day + "  " + (this.hour % 12 == 0 ? 12 : this.hour % 12) + ":" + (this.minute < 10 ? "0" : "") + this.minute + " " + (this.hour >= 12 ? "PM" : "AM") },
+    dayName: string = { ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"][this.weekday - 1] },
+    dayNum: number = { this.day }
     ]
 
 
@@ -2532,7 +2525,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // WinManager header above) — every fact the desktop's views bind is app.wm.*
 
     wm: WinManager [ ],
-    clock: Clock [ ],
+    clock: DesktopClock [ ],
     launcher: Launcher [ ],
     minWidth = 800, minHeight = 600,                 // the floors: in a smaller viewport the browser pans (and pinches) the held frame natively — frame-driven, not a scroll anyone declares
     theme = { Themes.cupertino(app.darkMode) },

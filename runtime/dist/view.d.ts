@@ -716,7 +716,7 @@ export declare class App extends View {
      *  (boot.ts wireVisibility feeds it; the native host feeds the same slot from
      *  its occlusion signal). Ambient motion gates itself on it —
      *  `running = { … && app.pageVisible }` — and because clock membership is
-     *  constraint-driven, the Heartbeat leaving empties the frame loop: a hidden
+     *  constraint-driven, a `Time` (which pauses itself on this fact) leaving empties the frame loop: a hidden
      *  page books nothing. Read-only to user code; schema.ts has the caveats
      *  (Safari does not report window occlusion). */
     pageVisible: boolean;
@@ -924,7 +924,7 @@ export declare class App extends View {
      *  retry itself is load-bearing — a target's geometry can finish arriving
      *  via browser-async work (an image decode, a rich flow's measurement) that
      *  produces no settle to hook. Perpetual (never holds settleMotion open),
-     *  like a Heartbeat. A held intent whose anchor never appears keeps the pump
+     *  like a Time. A held intent whose anchor never appears keeps the pump
      *  alive — exactly the old loops' behavior, now scoped to the one page that
      *  asked for an anchor. */
     private pumpOn;

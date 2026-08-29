@@ -113,37 +113,102 @@ What neither does alone is move whole *arrangements* — grids reshaping, one su
 becoming another. That takes the two of them plus one idiom, and it is the next
 chapter — the one the language exists for.
 
-## The heartbeat
+## Time
 
-One member completes the motion family. `Heartbeat` calls `onFrame(dt)` once per
-animation frame with the real elapsed seconds — for the rare case where you are
-integrating something yourself (a physics engine, a simulation) rather than
-declaring a destination:
+`Time` brings the clock into your program as a member, the way `Keys` brings the
+keyboard and `DataSource` brings a server. Declare one, and the current time becomes a
+set of reactive facts any constraint can derive from:
+
+```declare
+App [ width = 240, height = 80, fill = midnightblue, textColor = whitesmoke,
+    clock: Time [ tick = second ],
+    face: Text [ x = 20, y = 24, fontSize = 26,
+        text = { app.clock.hour + ":" + (app.clock.minute < 10 ? "0" : "") + app.clock.minute + ":" + (app.clock.second < 10 ? "0" : "") + app.clock.second } ]
+    ]
+```
+
+The facts are `now` — the instant, in milliseconds — and the local-zone components
+`year`, `month`, `day`, `hour`, `minute`, `second`, `weekday`: numbers, never strings
+(`month` runs 1–12, `weekday` 1–7 with Monday first). Reading one is an ordinary
+dependency, exactly like reading `app.width`, so a label bound to `clock.minute`
+updates when the minute turns and nothing else about it needs writing. Like every
+member, it lives and dies with the node that declares it; there is nothing to start,
+stop, or unsubscribe. Formatting is yours: a subclass attribute over the facts
+(`class Wall extends Time [ tick = minute, text: string = { … } ]`), or
+`new Date(this.now)` and `Intl` when you want "Wednesday" in the reader's language.
+
+### `tick` — the resolution
+
+`tick` names how finely this instance ticks: `frame | second | minute | hour | day`.
+Choose the coarsest tier your derivations need — a wall clock wants `second`, a "3
+hours ago" label wants `minute`, a dateline wants `day`. The calendar tiers are
+**aligned**: `tick = minute` fires when the minute *turns*, not sixty seconds after you
+happened to boot, so a clock built on it is right at the flip, and a page that was
+asleep for an hour gets one tick on return, not sixty. Inside a `{ }` the facts are as
+of the last tick — the resolution you declared; in a handler they are live, sampled at
+that moment. Nothing ticks until something reads a fact or handles a tick, and a hidden
+page pauses it; `running` is the live gate when you want one of your own.
+
+`tick = frame` is for things that move continuously. It updates `now` once per display
+frame, and anything that is a **pure function of the current time** becomes a one-line
+constraint:
+
+```declare-fragment
+stopwatch: Time [ tick = frame ],
+startedAt: number = 0,
+readout: Text [ text = { ((app.stopwatch.now - app.startedAt) / 1000).toFixed(1) + " s" } ],
+```
+
+No accumulator, no timer to clear: the readout *is* a formula over now.
+
+### `onTick` — when the next value depends on the previous
+
+Some work is not a function of now but of *what came before* — physics, a custom scroll
+engine, a simulation. That is integration, and it belongs in `Time`'s handler:
 
 ```declare
 App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
     x0: number = 20,
     v: number = 60,
-    physics: Heartbeat [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }
+    physics: Time [ tick = frame, onTick(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }
         ],
     dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise ]
     ]
 ```
 
-`running` gates it (`running = { app.simulating }`), `dt` is clamped so a backgrounded
-tab does not resume with one enormous step, and it rides the same clock every `Spring`
-and `Animator` uses — so it costs nothing until it runs, and there is no second frame
-loop. Reach for it when you are integrating; for "move this there, smoothly," a
-`Spring` is less code and better behaved.
+`dt` is the elapsed step in seconds, clamped — a tab returning from the background
+resumes with a plausible step, not a sixty-second leap — and it rides the same clock
+every `Spring` and `Animator` uses, so there is no second frame loop. `running` is a
+live slot (`running = { app.simulating }`), so the loop pauses and resumes
+declaratively. `onTick` exists on every tier: at `tick = minute` it means "when the
+minute turns" — an event, not a loop.
 
-Before you write one, ask which of the other two you are about to re-implement. A value
-that should *arrive* somewhere is a `Spring`. A value that should *advance* — a replay
-cursor sweeping a day in ninety seconds, a progress running 0→1 — is an `Animator`: it is
-scrubbable, pausable and interruptible for free, and everything derived from it follows
-with no per-frame code at all. A `Heartbeat` is right only when the next value depends
-on the last in a way no curve states. In practice a `Heartbeat` in a program deserves a
-second look: it is usually one of the other two in disguise, and its per-frame handler
-is where a program's only imperative state tends to collect.
+### Choosing among a fact, `onTick`, and a Spring
+
+The choice is about the *shape of the dependence*, not about speed:
+
+| the value is… | reach for |
+|---|---|
+| a pure function of the current time — a readout, a countdown, progress toward a deadline | a **`Time` fact** |
+| dependent on its own previous value — integration | **`onTick(dt)`** at `tick = frame` |
+| something that should move *toward* a destination — anything that reads as animation | **`Spring` / `Animator`**: say where it belongs; never compute the path |
+
+Before writing an `onTick`, ask which of the other two you are about to re-implement. A
+value that should *arrive* somewhere is a `Spring`. A value that should *advance* — a
+replay cursor sweeping a day in ninety seconds, a progress running 0→1 — is an
+`Animator`: scrubbable, pausable and interruptible for free, with everything derived from
+it following. A per-frame `onTick` is right only when the next value depends on the last
+in a way no curve states, and in practice one deserves a second look: it is usually one
+of the other two in disguise, and its handler is where a program's only imperative state
+tends to collect.
+
+**A note on the clock you cannot reach for directly.** `text = { new Date().toLocaleTimeString() }`
+compiles and shows the right time once, at boot, and never changes: a constraint re-runs
+when something it *read* changes, and the host's clock is not something in the tree. The
+compiler warns. Read time through `Time`; `Date.now()` belongs in a handler, which runs
+at a moment. And a per-frame `onTick` that ignores `dt` to *check whether something has
+happened yet* is polling — the compiler warns there too, and the answer is a constraint
+on the thing you were waiting for. Nothing waits.
 
 ---
 

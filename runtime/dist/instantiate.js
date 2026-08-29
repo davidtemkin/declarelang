@@ -293,7 +293,7 @@ function initTree(view) {
         // boot-equal-to-default case never wakes, so priming cannot be lazy).
         if (child instanceof Spring)
             child.prime();
-        // Sources (Keys/Focus/Tip/Heartbeat) wire their subscriptions here, with the
+        // Sources (Keys/Focus/Tip; a Time joins its clock or arms its alarm) wire here, with the
         // animators' auto-start: construction-complete, so every declared handler
         // is installed and the source can tell which channels to subscribe.
         if (child instanceof Animator || child instanceof AnimatorGroup)
@@ -901,7 +901,7 @@ function constructAnimator(el, schema, outer, ctx) {
     return node;
 }
 /** Construct a SOURCE node — a non-visual member whose handlers are called from
- *  outside the tree (sources.ts: `Keys`, `Focus`, `Tip`; heartbeat.ts: `Heartbeat`).
+ *  outside the tree (sources.ts: `Keys`, `Focus`, `Tip`; streams.ts: the transports).
  *  Like an animator it carries attributes plus handlers; unlike one it drives no
  *  slot, so none of the animator's target checking applies. Its subscriptions
  *  are wired by initTree's autoStart — the same lifecycle hook an animator uses,

@@ -459,8 +459,8 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     /// fully covered by other windows, miniaturized, or on a sleeping display
     /// all read as hidden — strictly more honest than the browsers' signal
     /// (Safari cannot see covered-by-window). One boolean across the bridge;
-    /// the app's own constraints do the rest: a Heartbeat gated on the fact
-    /// leaves the shared clock, and an occluded window's program goes truly
+    /// the runtime does the rest: a Time pauses itself on the fact
+    /// (leaving the shared clock), and an occluded window's program goes truly
     /// idle instead of integrating motion nobody composites.
     func windowDidChangeOcclusionState(_ n: Notification) {
         let visible = window.occlusionState.contains(.visible)

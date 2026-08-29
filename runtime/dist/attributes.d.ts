@@ -30,6 +30,13 @@ export interface AttrSpec<S, V> {
      *  fires it: a fact nobody binds needs no feeder. Costs one WeakSet probe
      *  per tracked read, and only on slots that declare it. */
     onTrack?: (self: S) => void;
+    /** A LIVE answer for UNTRACKED readers (a handler, a method, the Inspector):
+     *  the stored value is what tracked readers see — the value as of the last
+     *  write, the cell bumping on change, the reactive contract untouched —
+     *  while an untracked read samples the world at that moment. Time's facts
+     *  (time.ts): `clock.second` in a handler is the real second, whatever the
+     *  declared tick. Never consulted under tracking. */
+    live?: (self: S) => V;
 }
 /** Declare a class's reactive attributes: defaults + pushes, installed as
  *  prototype accessors. Call once per class, at module load, right under the

@@ -627,7 +627,7 @@ class CityRow extends View [ width = 100%, height = { ROW_H }, cursor = "pointer
         fontWeight = medium, fontSize = 19, x = 14, y = 12, text = :name ],
     rowClock: Text [ pointerEvents = "none", wrap = false, textColor = #FFFFFFC0,
         fontSize = 13, x = 14, y = 38,
-        text = { localTime(app.nowMs, :tz) } ],
+        text = { localTime(app.clock.now, :tz) } ],
     bigTemp: Text [ pointerEvents = "none", wrap = false, textColor = white,
         fontWeight = thin, fontSize = 34, y = 8,
         x = { parent.width - 14 - this.width }, text = { fmtTemp(:temp) } ],
@@ -765,7 +765,7 @@ class CityView extends View [
     rowClock: Text [ pointerEvents = "none", wrap = false, textColor = #FFFFFFC0,
         fontSize = 13, x = 14, y = 38,
         opacity = { fadeOut(classroot.open, 3) },
-        text = { classroot.city == null ? "" : localTime(app.nowMs, classroot.city.tz) } ],
+        text = { classroot.city == null ? "" : localTime(app.clock.now, classroot.city.tz) } ],
 
     bigTemp: Text [ pointerEvents = "none", wrap = false, textColor = white,
         fontWeight = thin,
@@ -1153,17 +1153,13 @@ App [ textColor = whitesmoke, appName = "Weather",
 
     // ── the shared clock ──────────────────────────────────────────────────
     // Every row's local time is the SAME instant read through its own
-    // offset: one fact, twenty-five readings of it. A plain interval is the
-    // right instrument — waiting is not motion, and a Heartbeat would hold
-    // the frame loop open forever to answer a question that changes twice a
-    // minute (the runtime's idle-zero-rAF invariant is a property worth
-    // keeping; a per-frame handler that only watches a wall clock spends it).
+    // offset: one fact, twenty-five readings of it. A Time at `minute` is the
+    // instrument: the readouts show minutes, so the minute turning is the only
+    // moment anything changes, and the alarm is aligned to it — right at the
+    // flip, and no frame loop held open to watch a wall clock (the runtime's
+    // idle-zero invariant is a property worth keeping).
 
-    nowMs: number = 0,
-    onInit() {
-        app.nowMs = Date.now()
-        setInterval(() => { app.nowMs = Date.now() }, 10000)
-        },
+    clock: Time [ tick = minute ],
 
     // ── the dialect switch ────────────────────────────────────────────────
     // One number decides which app this is; `cols` is how many small cards

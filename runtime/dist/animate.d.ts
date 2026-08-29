@@ -57,7 +57,7 @@ export interface Ticker {
     tick(now: number): boolean;
     /** Life, not transition (RULED 2026-08-06, David — verify-and-evals.md
      *  "Settle and ambient motion"): a ticker whose perpetuity is DERIVED from
-     *  its own declaration — a Heartbeat (runs while `running`, never arrives
+     *  its own declaration — a Time (ticks while `running`, never arrives
      *  anywhere) or an Animator with `repeat = Infinity`. It keeps painting but
      *  does not hold `settling` open, so settleMotion waits only for
      *  transitions. Never an author-facing flag — derivation, not declaration,

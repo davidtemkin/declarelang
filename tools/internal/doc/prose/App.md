@@ -74,8 +74,8 @@ attribute and read `app.dark` as the "auto" case.
 hidden, the window minimized, or the display asleep; `true` again on return (the
 Page Visibility fact; the native host feeds the same slot from its window's occlusion
 state, which also covers covered-by-another-window). Gate ambient motion on it —
-`running = { … && app.pageVisible }` — and the constraint stopping the Heartbeat
-empties the frame clock: a page nobody can see books nothing. A browser window merely
+`running = { … && app.pageVisible }` — (a `Time` member pauses itself on it, ticks and alarms
+both) — and the frame clock empties: a page nobody can see books nothing. A browser window merely
 covered by another window may still read `true` (Safari does not report occlusion;
 Chrome and the native host do). Per-document, so an embedded app inherits its page's.
 

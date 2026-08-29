@@ -9,7 +9,7 @@
 // prefix is a naming convention, not syntax. A second, syntactically distinct
 // way to receive an event contradicted that ruling: one category, two
 // spellings. Non-visual members are a category the language already has
-// (Dataset, Animator, Spring, State, Heartbeat), so a source needs no operator, no
+// (Dataset, Animator, Spring, State, Time), so a source needs no operator, no
 // grammar production, and no subscribable-source table. The classes below are
 // ordinary registry components, so the ones an app never mentions are dropped
 // from its bundle like any other component. (Measured caveat, so nobody repeats

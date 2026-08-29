@@ -40,7 +40,7 @@ Narrative context and the session in which each was found lives in
 | L-22 | language | Datapath/record edges are untyped — the coercion tax | **high** | open |
 | L-23 | language | Plain `.value` property reads wire only the value slot | high | open |
 | L-24 | compiler | The projection refusal (7001) could degrade to tracking | low | sketched |
-| L-25 | library | `Time` — wall-clock as a source component | medium | **designed** (2026-08-26) |
+| L-25 | library | `Time` — wall-clock as a source component | medium | **built** (2026-08-29) |
 | L-26 | language | `host = browser` marking for DOM-touching script files | low | open (awaiting ruling) |
 | L-27 | compiler | Alias/closure reads silently dropped from static deps | — | **fixed** (6e13f2e3) |
 
@@ -540,7 +540,7 @@ programs prewirable; degrading is convenient and silent. If refusal stays, its
 message should name the accessor idiom (return the attribute, not the node) — which
 it now does — and L-20's resolution may moot this entirely.
 
-## L-25 — `Time`: wall-clock as a source component · medium · **designed 2026-08-26**
+## L-25 — `Time`: wall-clock as a source component · medium · **built 2026-08-29**
 
 Any `{ }` reading `new Date()` / `Date.now()` is a stopped clock: an ambient read
 with no cell behind it evaluates once and never again (same anatomy as
@@ -595,6 +595,17 @@ Companions: a compile-time warning for `new Date()`/`Date.now()`/`Math.random()`
 `{ }` bodies (the DECLARE4006 family — "this reads the ambient world; derive from a
 Clock, or from a seed"), and optionally a prelude `rand(seed, key)` so the pure
 seeded-random idiom reads as one call instead of inline mulberry32.
+
+**Built 2026-08-29** — `runtime/src/time.ts` (Heartbeat retired across the corpus): a
+Node component on the GENERIC construction path (registry `TAGS`, like `Node`), which is
+what lets it carry declarations and be subclassed — the source path would have sealed
+both; the facts get an `AttrSpec.live` hook (attributes.ts) so an untracked read samples
+the real clock while a tracked read keeps the slot's contract; the clock protocol lives on
+a delegate ticker because `tick` is the attribute. DECLARE4006 (`onTick` ignoring `dt`)
+is judged only at `tick = frame`; DECLARE4007 warns on `Date.now()` / `new Date()` /
+`performance.now()` inside a `{ }`. NOT built: the `Math.random()` arm of that warning and
+the `rand(seed, key)` prelude — the desktop's tilt egg samples `Math.random()` in a `{ }`
+on purpose (a fresh roll per toggle), and a warning there needs the prelude to point at.
 
 ## L-26 — `host = browser` for DOM-touching script files · low · awaiting ruling
 

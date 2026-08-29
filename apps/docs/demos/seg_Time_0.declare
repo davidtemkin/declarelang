@@ -1,0 +1,11 @@
+App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
+    clock: Time [ tick = second ],
+    face: Text [ x = 20, y = 16, fontSize = 22,
+        text = { app.clock.hour + ":" + (app.clock.minute < 10 ? "0" : "") + app.clock.minute + ":" + (app.clock.second < 10 ? "0" : "") + app.clock.second } ],
+    x0: number = 20,
+    physics: Time [ tick = frame,
+        onTick(dt: number) { app.x0 = (app.x0 + 60 * dt) % 200 }
+        ],
+    dot: View [ x = { app.x0 }, y = 70, width = 30, height = 30, cornerRadius = 15,
+        fill = turquoise ]
+    ]

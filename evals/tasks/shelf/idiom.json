@@ -5,7 +5,7 @@
       "id": "timer-motion",
       "re": "set(Timeout|Interval)\\s*\\(",
       "weight": 3,
-      "why": "motion or scheduling by timer — a Spring drives an attribute toward a live target (interruptible for free); Animator for clock-shaped cases; Heartbeat for per-frame integration"
+      "why": "motion or scheduling by timer — a Spring drives an attribute toward a live target (interruptible for free); Animator for clock-shaped cases; a per-frame Time (tick = frame) for integration"
     },
     {
       "id": "geometry-from-data",

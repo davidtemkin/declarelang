@@ -58,6 +58,7 @@ import { scanDatapaths, rewriteDatapaths, fillDatapaths } from "../runtime/dist/
 import { provideTransport } from "../runtime/dist/data.js";
 import { explain } from "../runtime/dist/inspect.js";
 import { sample, motionToken, MOTION_TOKENS, Clock, setClock, sharedClock } from "../runtime/dist/animate.js";
+import { setTimeHost } from "../runtime/dist/time.js";
 import { Animator, AnimatorGroup } from "../runtime/dist/animator.js";
 
 const SAMPLE = `App [ width=240, height=160, fill=#1E3A49,
@@ -1761,18 +1762,18 @@ await test("3.2: settleMotion waits for transitions, not for life (perpetual tic
   try {
     const app = build(`App [ width = 100, height = 100,
       v: number = 0,
-      beat: Heartbeat [ onFrame(dt: number) { this.parent.v = this.parent.v + dt } ],
+      beat: Time [ tick = frame, onTick(dt: number) { this.parent.v = this.parent.v + dt } ],
       box: View [ x = 0, width = 10, height = 10,
         s: Spring [ attribute = x, to = 50 ] ],
     ]`);
     try {
-      assert.equal(clock.busy, true, "the heartbeat ticks (life paints)");
+      assert.equal(clock.busy, true, "the Time ticks (life paints)");
       // drive frames until the spring rests: settling must FALL even though
-      // the heartbeat never stops
+      // the Time never stops
       let steps = 0;
       while (clock.settling && steps < 600) { tNow += 16.7; const cb = pending; pending = null; if (cb) cb(tNow); steps++; }
       assert.equal(clock.settling, false, "the spring's transition settled");
-      assert.equal(clock.busy, true, "…while the heartbeat keeps the clock alive");
+      assert.equal(clock.busy, true, "…while the Time keeps the clock alive");
       assert.ok(steps < 600, "settled by convergence, not by cap");
     } finally { app.discard(); }
   } finally { setClock(new Clock()); }
@@ -7468,17 +7469,17 @@ await test("device profile: an app may not WRITE the profile (the runtime owns i
   }
 });
 
-// ── Heartbeat: the frame heartbeat as a component (heartbeat.ts) ──────────────────
+// ── Time: the clock as a component (time.ts) — the per-frame door ─────────────
 
-await test("Heartbeat: onFrame(dt) is called per frame, with dt in SECONDS", () => {
-  // the clock must be the fake one BEFORE the tree builds: a Heartbeat member
+await test("Time [ tick = frame ]: onTick(dt) is called per frame, with dt in SECONDS", () => {
+  // the clock must be the fake one BEFORE the tree builds: a Time member
   // joins the clock at init (autoStart), like an animator
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = build(`App [ width = 100, height = 100,
     ticks: number = 0,
     elapsed: number = 0,
-    f: Heartbeat [ onFrame(dt: number) { this.parent.ticks = this.parent.ticks + 1; this.parent.elapsed = this.parent.elapsed + dt } ],
+    f: Time [ tick = frame, onTick(dt: number) { this.parent.ticks = this.parent.ticks + 1; this.parent.elapsed = this.parent.elapsed + dt } ],
     ]`);
   settle();
   sched.frame(0);      // the first frame only establishes the baseline
@@ -7490,13 +7491,13 @@ await test("Heartbeat: onFrame(dt) is called per frame, with dt in SECONDS", () 
   assert.equal(app.ticks, 2);
 });
 
-await test("Heartbeat: `running` gates the heartbeat — a live slot, and dt never jumps on resume", () => {
+await test("Time: `running` gates the tick — a live slot, and dt never jumps on resume", () => {
   const app = build(`App [ width = 100, height = 100,
     go: boolean = false,
     ticks: number = 0,
     biggest: number = 0,
-    f: Heartbeat [ running = { this.parent.go },
-        onFrame(dt: number) { this.parent.ticks = this.parent.ticks + 1; if (dt > this.parent.biggest) this.parent.biggest = dt } ],
+    f: Time [ tick = frame, running = { this.parent.go },
+        onTick(dt: number) { this.parent.ticks = this.parent.ticks + 1; if (dt > this.parent.biggest) this.parent.biggest = dt } ],
     ]`);
   const sched = fakeScheduler();
   setClock(new Clock(sched));
@@ -7509,6 +7510,120 @@ await test("Heartbeat: `running` gates the heartbeat — a live slot, and dt nev
   // a long gap (a backgrounded tab) is CLAMPED, so an integrator cannot explode
   sched.frame(60116);
   assert.ok(app.biggest <= 1 / 15 + 1e-9, `dt clamped to the max step, got ${app.biggest}`);
+});
+
+// ── Time: the calendar tiers — aligned alarms, two read paths, demand, the page ──
+
+/** A hand-driven wall clock + alarm (time.ts setTimeHost): `t` is epoch ms. */
+const fakeTimeHost = (start) => {
+  const h = {
+    t: start, timers: [],
+    now: () => h.t,
+    setTimeout: (fn, ms) => { const id = { fn, at: h.t + ms, ms }; h.timers.push(id); return id; },
+    clearTimeout: (id) => { h.timers = h.timers.filter((x) => x !== id); },
+    /** run the earliest alarm, moving the clock to its due time */
+    fire: () => { const id = h.timers.shift(); if (id === undefined) throw new Error("no alarm armed"); h.t = Math.max(h.t, id.at); id.fn(); },
+  };
+  return h;
+};
+/** 10:15:42 local on Wednesday 2026-08-26 — 42s into a minute, so boundary math is checkable */
+const T0 = new Date(2026, 7, 26, 10, 15, 42, 0).getTime();
+
+await test("Time [ tick = minute ]: facts stand at boot, the alarm aims at the flip, a tracked read wakes there, an untracked read is live", () => {
+  const h = fakeTimeHost(T0);
+  setTimeHost(h);
+  try {
+    const app = build(`App [ width = 100, height = 100,
+      clock: Time [ tick = minute, onTick(dt: number) { this.parent.ticks = this.parent.ticks + 1; this.parent.lastDt = dt } ],
+      ticks: number = 0, lastDt: number = 0,
+      // bound VIEW attributes: real constraints with cells (an App-level x: number = { ... }
+      // is a per-read declaration default, which a JS read would evaluate untracked)
+      m: View [ width = { this.parent.clock.minute } ], s: View [ width = { this.parent.clock.second } ],
+      ]`);
+    settle();
+    assert.equal(app.m.width, 15, "the minute fact stands from the first settle");
+    assert.equal(app.s.width, 42, "…and so does the second — as of the boot tick");
+    assert.equal(app.clock.month, 8, "month is 1–12 (Temporal), not Date's 0–11");
+    assert.equal(app.clock.weekday, 3, "weekday is ISO: Monday = 1, so a Wednesday is 3");
+    assert.equal(h.timers.length, 1, "one alarm armed");
+    assert.equal(h.timers[0].ms, 18_000, "aimed at the minute's turn, not 60s from boot");
+    h.fire(); settle();
+    assert.equal(app.m.width, 16, "the tracked reader woke at the flip");
+    assert.equal(app.s.width, 0, "…and sees the flip's second");
+    assert.equal(app.ticks, 1, "onTick fired once");
+    assert.equal(app.lastDt, 60, "dt is the elapsed period, in seconds");
+    assert.equal(h.timers.length, 1, "re-armed for the next flip");
+    assert.equal(h.timers[0].ms, 60_000);
+    // an untracked read samples the real clock: 5s later, no tick has fired
+    h.t += 5000;
+    assert.equal(app.clock.second, 5, "a handler-style read is live");
+    assert.equal(app.s.width, 0, "the tracked snapshot is as of the last tick — the declared resolution");
+    app.discard();
+    assert.equal(h.timers.length, 0, "a discarded Time leaves nothing armed");
+  } finally { setTimeHost(null); }
+});
+
+await test("Time: nothing arms until something reads a fact or handles a tick; `running` is the live gate", () => {
+  const h = fakeTimeHost(T0);
+  setTimeHost(h);
+  try {
+    const idle = build(`App [ width = 100, height = 100, clock: Time [ tick = second ] ]`);
+    settle();
+    assert.equal(h.timers.length, 0, "no reader, no handler: no alarm (idle-zero)");
+    assert.equal(idle.clock.second, 42, "…yet an untracked read is answered, live");
+    idle.discard();
+    const app = build(`App [ width = 100, height = 100, clock: Time [ tick = second ], s: View [ width = { this.parent.clock.second } ] ]`);
+    settle();
+    assert.equal(h.timers.length, 1, "a tracked read arms the alarm");
+    assert.equal(h.timers[0].ms, 1000, "the default tick is second, aligned");
+    app.clock.running = false; settle();
+    assert.equal(h.timers.length, 0, "running = false drops the alarm");
+    app.clock.running = true; settle();
+    assert.equal(h.timers.length, 1, "…and true re-arms it");
+    app.discard();
+  } finally { setTimeHost(null); }
+});
+
+await test("Time: a hidden page pauses the tick; on return the facts refresh at once and the alarm re-aims", () => {
+  const h = fakeTimeHost(T0);
+  setTimeHost(h);
+  try {
+    const app = build(`App [ width = 100, height = 100, clock: Time [ tick = minute ], m: View [ width = { this.parent.clock.minute } ] ]`);
+    settle();
+    assert.equal(h.timers.length, 1);
+    app.pageVisible = false; settle();
+    assert.equal(h.timers.length, 0, "hidden: no alarm booked");
+    h.t += 3 * 60_000;                                   // three minutes pass unseen
+    assert.equal(app.m.width, 15, "nothing woke while hidden");
+    app.pageVisible = true; settle();
+    assert.equal(app.m.width, 18, "back on screen: the facts caught up without waiting for a flip");
+    assert.equal(h.timers.length, 1, "…and the alarm is re-aimed");
+    assert.equal(h.timers[0].ms, 18_000);
+    app.discard();
+  } finally { setTimeHost(null); }
+});
+
+await test("Time is subclassable: a class body formats the facts (numbers in, the app's words out)", async () => {
+  const h = fakeTimeHost(T0);
+  setTimeHost(h);
+  try {
+    const r = await compile(`
+      class Wall extends Time [ tick = minute,
+          text: string = { (this.hour % 12 == 0 ? 12 : this.hour % 12) + ":" + (this.minute < 10 ? "0" : "") + this.minute + (this.hour >= 12 ? " PM" : " AM") } ]
+      App [ width = 100, height = 100, clock: Wall [ ], label: Text [ text = { app.clock.text } ] ]`);
+    assert.deepEqual(r.errors.map((e) => e.message), []);
+    const app = settleHeadless(r.source, { deps: r.deps });
+    try {
+      assert.equal(app.label.text, "10:15 AM");
+      h.fire(); settle();
+      assert.equal(app.label.text, "10:16 AM", "the subclass attribute follows the flip");
+    } finally { app.discard(); }
+  } finally { setTimeHost(null); }
+});
+
+await test("Time's facts are read-only: writing one is refused at compile", async () => {
+  const r = await compile(`App [ width = 100, height = 100, clock: Time [ minute = 5 ] ]`);
+  assert.ok(r.errors.some((e) => /read-only|readonly/i.test(e.message)), r.errors.map((e) => e.message).join("\n"));
 });
 
 // ── the settle's close, exposed (language §7: afterSettle / onReady / onArrive) ──

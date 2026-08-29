@@ -120,7 +120,7 @@ export function importedNames(st) {
  *  A body receives every script binding as a `const` copy (expr.ts
  *  scriptPrelude), so a read of a `let` sees its value at that moment and a
  *  write throws at runtime — "Assignment to constant variable", once per
- *  frame from a Heartbeat, with a minified stack naming nothing (field report
+ *  frame from a per-frame Time, with a minified stack naming nothing (field report
  *  2026-08-21). The resolver refuses the write instead. */
 function topLevelMutableBindings(src) {
     const names = [];
@@ -176,6 +176,45 @@ function bodyMentions(src, name) {
     };
     visit(sf);
     return found;
+}
+/** Does a { } body read the AMBIENT clock — `Date.now()`, `new Date()` with no
+ *  argument, `performance.now()`? A read with no cell behind it: the body
+ *  evaluates once and never again (the stopped clock, open-items L-25). The
+ *  current time is a Time member's facts. `new Date(value)` projects a VALUE
+ *  and is not judged. Returns the spelling found, or null. */
+function ambientRead(src) {
+    let sf;
+    try {
+        sf = ts.createSourceFile("body.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    }
+    catch {
+        return null;
+    }
+    let found = null;
+    const visit = (n) => {
+        if (found !== null)
+            return;
+        if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.expression)
+            && n.expression.name.text === "now" && (n.expression.expression.text === "Date" || n.expression.expression.text === "performance")) {
+            found = `${n.expression.expression.text}.now()`;
+            return;
+        }
+        if (ts.isNewExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "Date" && (n.arguments === undefined || n.arguments.length === 0)) {
+            found = "new Date()";
+            return;
+        }
+        ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    return found;
+}
+/** Is this element's `tick` written `frame` at its own site? Conservative: an
+ *  inherited class default is not seen and a `{ }` is unknown — no warning. */
+function tickIsFrame(el) {
+    for (const a of el.attrs)
+        if (a.name === "tick")
+            return a.value.kind === "ident" && a.value.name === "frame";
+    return false;
 }
 import { setBodySyntaxValidator } from "../../runtime/dist/expr.js";
 // Bodies are authored as TypeScript: when the compiler is present, the
@@ -996,6 +1035,13 @@ class Resolver {
             this.errors.push(new DeclareError(`'${a.name} <-> ${wrote}' has no data to edit — a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one, so the binding would do nothing in either direction. Put the editor inside a view with 'datapath = { … }' over a Dataset — or, to drive an ordinary slot, use the value pattern instead: '${a.name} = { app.slot }' one-way plus ${writeBack} to write back`, a.pos));
         }
     }
+    /** A { } that reads the ambient clock is a stopped clock (open-items L-25):
+     *  a warning naming the spelling and the member that carries time. */
+    warnAmbient(src, pos) {
+        const what = ambientRead(src);
+        if (what !== null)
+            this.warnings.push(Diag.ambientRead(what, pos));
+    }
     /** Walk one body root (a class body, or the main tree — `mainRoot` set
      *  there enables the lexical `App` self-name). `ancestors` is innermost
      *  first and ends at the body root. `scope` names WHICH kind of body this is,
@@ -1005,8 +1051,10 @@ class Resolver {
         const levels = [el, ...ancestors];
         this.checkTwoWayScope(el, levels, mainRoot);
         for (const a of el.attrs) {
-            if (a.value.kind === "code")
+            if (a.value.kind === "code") {
                 this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot, scope, a.name);
+                this.warnAmbient(a.value.src, a.value.pos);
+            }
         }
         // A declaration default that is a binding (the styling rung's ruled R6
         // unlock — `labelColor: Color = { theme.buttonText }`) resolves at the
@@ -1014,19 +1062,23 @@ class Resolver {
         // `this` = the instance (attributes.ts evalDefault), so `theme` means
         // `this.theme` exactly as it would in a set.
         for (const d of el.decls) {
-            if (d.def?.kind === "code")
+            if (d.def?.kind === "code") {
                 this.resolveBody(d.def.src, d.def.pos, true, [], levels, mainRoot, scope);
+                this.warnAmbient(d.def.src, d.def.pos);
+            }
         }
         for (const m of el.methods) {
             this.resolveBody(m.body, m.bodyPos, false, m.params.map((p) => p.name), levels, mainRoot, scope);
-            // A Heartbeat that never reads its frame step is not integrating — it is
-            // polling (declare.md §1, "nothing waits"). A warning: the program runs,
-            // but the handler's condition names what it was really waiting for.
-            if (m.name === "onFrame" && m.params.length > 0) {
+            // A per-frame Time whose onTick never reads its step is not integrating —
+            // it is polling (declare.md §1, "nothing waits"). A warning: the program
+            // runs, but the handler's condition names what it was really waiting
+            // for. Judged only at `tick = frame`: on a calendar tick, an onTick that
+            // ignores dt is the "when the minute turns" event, not a poll.
+            if (m.name === "onTick" && m.params.length > 0 && tickIsFrame(el)) {
                 const schema = this.schemas[el.tag];
-                const isHeartbeat = schema !== undefined && (schema.name === "Heartbeat" || descendsFrom(schema, "Heartbeat"));
-                if (isHeartbeat && !bodyMentions(m.body, m.params[0].name))
-                    this.warnings.push(Diag.heartbeatPolls(m.params[0].name, m.bodyPos));
+                const isTime = schema !== undefined && (schema.name === "Time" || descendsFrom(schema, "Time"));
+                if (isTime && !bodyMentions(m.body, m.params[0].name))
+                    this.warnings.push(Diag.timePolls(m.params[0].name, m.bodyPos));
             }
         }
         for (const child of el.children)

@@ -76,7 +76,7 @@ to learn it, or jump to the chapter your task needs:
 | your own component, control, icon, or layout | `docs/guide/11-make-your-own.md` |
 | menus, dialogs, popovers, tooltips — anything over the flow | `docs/guide/12-above-the-flow.md` |
 | deep links, the URL, `location`, `waypoint`, history, crawlability, `onFollow`/`onArrive` | `docs/guide/13-location.md` |
-| states, springs, animation, `Heartbeat` | `docs/guide/14-motion-and-states.md` |
+| states, springs, animation, `Time` | `docs/guide/14-motion-and-states.md` |
 | whole arrangements moving as one — the sprung-scalar idiom | `docs/guide/15-arrangement.md` |
 | touch, gesture ownership, pinch/wheel zoom | `docs/guide/16-gestures.md` |
 | the canvas renderer, the native Mac host, choosing a target | `docs/guide/17-renderers.md` |

@@ -79,16 +79,16 @@ Motion must be assertable and screenshots reproducible, so the clock must be dri
   one determinism primitive timed out (assessment 3.2). The fix is NOT an
   `ambient` flag (an app-side declaration could drift from the motion it
   describes); perpetuity is already derivable from the motion declarations
-  themselves: a `Heartbeat` is life by KIND (it runs while `running` — never a
+  themselves: a `Time` is life by KIND (it ticks while `running` — never a
   transition); an `Animator` declares its own perpetuity (`loop`/`repeat`); a
   `Spring` settles by definition. So settleMotion's predicate narrows to the
-  FINITE motion — springs and non-looping animators — and Heartbeats/looping
+  FINITE motion — springs and non-looping animators — and Times/looping
   animators keep painting without holding settle open. The one residual shape,
   a spring perpetually re-armed from its own rest (ping-pong), is detected by
   non-convergence: after K re-arms of the same source within one settle, stop
   and NAME it ("app.pulse re-armed 6× — driven by its own rest; treated as
   ambient") — a diagnosed note, never a silent timeout. IMPLEMENTED 2026-08-06:
-  `Ticker.perpetual` (Heartbeat by kind; Animator when `repeat = Infinity`),
+  `Ticker.perpetual` (Time by kind; Animator when `repeat = Infinity`),
   `Clock.settling` as the finite-motion predicate, settleMotion rides it —
   pinned in unit ("settleMotion waits for transitions, not for life"). The
   ping-pong non-convergence NAMING remains future polish; the timeout it

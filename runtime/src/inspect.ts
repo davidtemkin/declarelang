@@ -410,7 +410,7 @@ export const clock = {
     return () => { const i = stepped.indexOf(fn); if (i >= 0) stepped.splice(i, 1); };
   },
   /** Run all in-flight FINITE motion to rest (springs settle, non-looping
-   *  animators finish), frame by frame. Perpetual motion — a Heartbeat, an
+   *  animators finish), frame by frame. Perpetual motion — a Time, an
    *  `repeat = Infinity` animator — is life, not transition (RULED
    *  2026-08-06; Ticker.perpetual): it keeps ticking under the steps but
    *  never holds settle open, so a pulsing indicator no longer makes the one

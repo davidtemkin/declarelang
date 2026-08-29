@@ -70,8 +70,8 @@
   "deep link": "App.location",
   "route": "App.location",
   "navigation": "App.location",
-  "heartbeat": "Heartbeat",
-  "ticker": "Heartbeat",
+  "heartbeat": "Time",
+  "ticker": "Time",
   "wheel": "View.event.wheel",
   "trackpad": "View.event.wheel",
   "arrangement": "View.layout",
@@ -258,7 +258,7 @@
     "animation loop",
     "timer animation"
    ],
-   "answer": "No `requestAnimationFrame` — and though `setTimeout`/`setInterval` exist for host chores, they are never the motion system. Motion is declared: a `Spring` drives an attribute toward a live target (interruptible for free), an `Animator` is the clock-shaped sibling, and per-frame integration (physics you step yourself) is `Heartbeat [ onFrame(dt) ]`, which rides the one shared frame clock. A setTimeout-driven animation fights the settle loop and cannot be interrupted mid-flight; see the guide's Motion & states chapter."
+   "answer": "No `requestAnimationFrame` — and though `setTimeout`/`setInterval` exist for host chores, they are never the motion system. Motion is declared: a `Spring` drives an attribute toward a live target (interruptible for free), an `Animator` is the clock-shaped sibling, and per-frame integration (physics you step yourself) is `Time [ tick = frame, onTick(dt) ]`, which rides the one shared frame clock; a value that is a function of the current time — a clock face, a countdown — derives from a `Time` member's facts (`now`, `minute`, …). A setTimeout-driven animation fights the settle loop and cannot be interrupted mid-flight; see the guide's Motion & states chapter."
   },
   {
    "terms": [
@@ -277,7 +277,7 @@
     "timer",
     "busy wait"
    ],
-   "answer": "No polling — nothing waits. A program never checks whether something has happened yet: readiness is a value to constrain on, completion an event to take — a loop or timer that checks whether something has happened yet is a constraint or an event written by hand, and almost always the wrong path. Ask what it is waiting for: a fetch landing → `visible = { data.loaded }` or `onLoad`; a view existing or having a size → `onInit`, `onReady`, `afterSettle`, `onArrive`; a value changing → a constraint on it (the constraint IS the notification); geometry after your own write → `afterSettle(step)`, same frame. Time is only ever an input: `Animator` over a duration, `Spring` toward a target, `Heartbeat [ onFrame(dt) ]` to integrate (a handler that ignores `dt` is polling), `setTimeout` for a genuine timing rule — a debounce, a request timeout — never to let things settle. See the guide's Thinking in Declare chapter, \"Nothing waits\"."
+   "answer": "No polling — nothing waits. A program never checks whether something has happened yet: readiness is a value to constrain on, completion an event to take — a loop or timer that checks whether something has happened yet is a constraint or an event written by hand, and almost always the wrong path. Ask what it is waiting for: a fetch landing → `visible = { data.loaded }` or `onLoad`; a view existing or having a size → `onInit`, `onReady`, `afterSettle`, `onArrive`; a value changing → a constraint on it (the constraint IS the notification); geometry after your own write → `afterSettle(step)`, same frame. Time is only ever an input: `Animator` over a duration, `Spring` toward a target, a `Time` fact (`clock.minute`, `clock.now`) to derive from, `Time [ tick = frame, onTick(dt) ]` to integrate (a per-frame handler that ignores `dt` is polling), `setTimeout` for a genuine timing rule — a debounce, a request timeout — never to let things settle. See the guide's Thinking in Declare chapter, \"Nothing waits\"."
   }
  ],
  "forms": [

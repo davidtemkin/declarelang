@@ -73,6 +73,7 @@ export function defineAttributes(ctor, specs) {
         const readOnly = spec.readOnly === true;
         const onTrack = spec.onTrack;
         const trackedOnce = onTrack !== undefined ? new WeakSet() : null;
+        const live = spec.live;
         Object.defineProperty(ctor.prototype, name, {
             get() {
                 const self = this;
@@ -82,6 +83,9 @@ export function defineAttributes(ctor, specs) {
                         trackedOnce.add(self);
                         onTrack(self);
                     }
+                }
+                else if (live !== undefined) {
+                    return live(self);
                 }
                 if ((follows || defBinding !== undefined) && !provided(self, name)) {
                     // A prevailing slot with no local provision FOLLOWS the nearest

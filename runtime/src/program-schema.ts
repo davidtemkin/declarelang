@@ -152,7 +152,9 @@ export function programSchemas(classes: readonly ClassDecl[]): {
     // real runtime chain) — so the three are named directly, which is what the
     // rule always meant: View (visual), Layout (a strategy), and Node itself
     // (the plain atom). Dataset/Animator remain a wiring gap, not a law.
-    const NODE_ROOTS = ["Dataset", "DataSource", "Animator", "AnimatorGroup", "Heartbeat", "Keys", "Focus", "Tip", "State"];
+    // (Time is NOT listed: a Node component built on the generic path — time.ts
+    // — so `class DesktopClock extends Time [ … ]` is wired like any Node subclass.)
+    const NODE_ROOTS = ["Dataset", "DataSource", "Animator", "AnimatorGroup", "Keys", "Focus", "Tip", "State"];
     const wired = descendsFrom(base, "View") || descendsFrom(base, "Layout") ||
       (descendsFrom(base, "Node") && !NODE_ROOTS.some((n) => descendsFrom(base, n)));
     if (!wired) {

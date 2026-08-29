@@ -12,7 +12,8 @@ down 60px one second after boot. If the hypothesis holds, `still` pans and
 App [ width = { app.hostWidth }, height = 1600, fill = 0x101418,
 
     t: number = 0,
-    clock: Heartbeat [ onFrame(dt: number) { if (app.t < 2) app.t = app.t + dt }
+    clock: Time [ tick = frame,
+        onTick(dt: number) { if (app.t < 2) app.t = app.t + dt }
         ],
 
     still: Text [ x = 12, y = 150, width = { app.width - 24 }, selectable = true,

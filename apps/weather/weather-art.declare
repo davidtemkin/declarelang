@@ -183,8 +183,9 @@ class WIcon extends View [
 
 // ── the skies ──────────────────────────────────────────────────────────────
 // Every sky fills its parent and sits behind everything. The photographic
-// skies drift very slowly — ambient motion, driven by a Heartbeat because
-// TIME itself is the input, which no reactive value carries.
+// skies drift very slowly — ambient motion, driven by a per-frame Time because
+// the pan ACCUMULATES: the next offset depends on the previous one, which is
+// integration, not a formula over the clock.
 
 class SkyPhoto extends View [ clip = true,
     source: string = "",
@@ -202,12 +203,12 @@ class SkyPhoto extends View [ clip = true,
     // hair. Banking dt and landing it in steps a tenth of a second wide is
     // visually identical at this speed. (`driftAcc` has no dependents, so its
     // per-frame write wakes nothing — only the `driftT` write below reaches
-    // the pipeline.) `app.pageVisible` gates the beat too: a page nobody can
-    // see banks nothing, and the constraint re-running on return is what
-    // restarts it — no handler, no listener, the fact does the work.
+    // the pipeline.) A hidden PAGE pauses a Time by itself — a page nobody can
+    // see banks nothing — so only the view-level gate is written here; the
+    // constraint re-running is what stops and restarts it.
 
-    beat: Heartbeat [ running = { classroot.visible && classroot.height > 200 && app.pageVisible },
-        onFrame(dt: number) {
+    beat: Time [ tick = frame, running = { classroot.visible && classroot.height > 200 },
+        onTick(dt: number) {
             classroot.driftAcc = classroot.driftAcc + dt
             if (classroot.driftAcc >= 0.1) {
                 classroot.driftT = classroot.driftT + classroot.driftAcc

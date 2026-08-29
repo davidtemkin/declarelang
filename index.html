@@ -59,14 +59,14 @@
 <h6>→</h6>
 <a href="apps/tracker/tracker.declare"><img src="apps/homepage/shots/tracker.webp"></a>
 <p>1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code</p>
-<p>1565 lines — 1148 code, 215 comment · 102 KB over the wire, before its data · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies</p>
+<p>1564 lines — 1148 code, 215 comment · 103 KB over the wire, before its data · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies</p>
 <a href="apps/tracker/tracker.declare?viewer"><p>View &amp; edit source →</p></a>
 <a href="apps/desktop/desktop.declare"><h6>3</h6></a>
 <h6>Declare Desktop</h6>
 <h6>→</h6>
 <a href="apps/desktop/desktop.declare"><img src="apps/homepage/shots/desktop.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3182 lines — 1716 code, 955 comment · 115 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3175 lines — 1705 code, 959 comment · 117 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -442,9 +442,9 @@ bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ]
 <p>A state is driven by its condition (<code>applied = { … }</code>) or imperatively by the verbs — <code>apply()</code>/<code>remove()</code>/<code>toggle()</code> from a handler. One or the other: the gate owns <code>applied</code>, so a gated state changes when what the gate reads changes.</p>
 <p>A <strong><code>Spring</code></strong> drives one attribute toward a reactive target. Declare where the thing belongs and the spring finds the path, so a change of target mid-flight is simply a new destination and interruption needs no code.</p>
 <pre><code class="language-declare-fragment">slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ]</code></pre>
-<p>Motion is the one place time is legitimately an input (§1, <em>nothing waits</em>): <code>Animator</code> for a value that changes <em>over</em> a duration, <code>Spring</code> for one that moves <em>toward</em> a target — the house idiom — and <code>Heartbeat</code> only to <strong>integrate</strong>, the previous value being the input; an <code>onFrame</code> that ignores <code>dt</code> is polling. <code>setTimeout</code> is for a timing rule — a debounce, a request timeout — and a timer does not die with its node, so cancel it yourself. (Finishing after your own change has landed is neither — that is <code>afterSettle</code>, §5.)</p>
+<p>Motion is the one place time is legitimately an input (§1, <em>nothing waits</em>): <code>Animator</code> for a value that changes <em>over</em> a duration, <code>Spring</code> for one that moves <em>toward</em> a target — the house idiom — and <code>Time</code> for the clock itself — its facts (<code>now</code>, <code>minute</code>, …) are inputs a constraint derives from, and its <code>onTick(dt)</code> at <code>tick = frame</code> is the one per-frame handler, there only to <strong>integrate</strong>, the previous value being the input; a per-frame <code>onTick</code> that ignores <code>dt</code> is polling. <code>setTimeout</code> is for a timing rule — a debounce, a request timeout — and a timer does not die with its node, so cancel it yourself. (Finishing after your own change has landed is neither — that is <code>afterSettle</code>, §5.)</p>
 <p>Because states, springs, and layout all sit on one reactive core, <em>arrangement</em> animates: spring a few geometry scalars and every constraint derived from them moves in lock-step.</p>
-<p>→ <code>State</code>, <code>Spring</code>, <code>Animator</code>, <code>Heartbeat</code> attributes: the model reference · the idiom at scale: <code>apps/calendar/calendar.declare</code></p>
+<p>→ <code>State</code>, <code>Spring</code>, <code>Animator</code>, <code>Time</code> attributes: the model reference · the idiom at scale: <code>apps/calendar/calendar.declare</code></p>
 <h2>11. The standard library</h2>
 <p>Declare ships a standard component library in <code>library/</code>, written in Declare itself with no privileged API underneath. It <strong>auto-includes by bare tag</strong> — no import, no module ceremony — components follow the prevailing <code>theme</code>, and focus behavior (Tab traversal, activation, a traveling focus indicator) is provided undeclared. Check there before building a control by hand.</p>
 <p>Two contracts are worth learning because your own components should obey them too.</p>
@@ -489,7 +489,7 @@ Slider   [ value = { app.volume },
 <pre><code class="language-bash">git clone https://github.com/davidtemkin/declarelang.git &amp;&amp; cd declarelang</code></pre>
 <p>Get the repository.</p>
 <pre><code class="language-bash">npm install</code></pre>
-<p>Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run.</p>
+<p>Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run. pnpm works too — the repo pre-approves esbuild's install script; if you instead add declarelang to another project as a git dependency, approve its build (<code>pnpm approve-builds</code>, or <code>"pnpm": { "onlyBuiltDependencies": ["declarelang"] }</code>) so its prepare step runs.</p>
 <pre><code class="language-bash">npm start</code></pre>
 <p>Start the dev server on http://127.0.0.1:8200/ — browse to any .declare file's URL and the server compiles and returns the running app.</p>
 <p>Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-apps/hello.declare — the program URL is the app's address. </p>
@@ -567,7 +567,7 @@ Slider   [ value = { app.volume },
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, measured from the deployed production artifacts:</p>
-<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 84 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,565 lines: 1,148 of code and 215 of comments, and no dependencies. It ships at 102 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 84 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,564 lines: 1,148 of code and 215 of comments, and no dependencies. It ships at 103 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -648,7 +648,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=17023f9bf7b6";
+  import boot from "./bundles/declare-boot.js?v=0b42af5554c7";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

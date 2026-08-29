@@ -30,7 +30,7 @@ const FONT_WEIGHT = enumType("FontWeight", "thin", "extralight", "light", "regul
 // explicit `clip` (the recorded lean).
 // Node is the root of the whole tree — the plain atom every other kind of
 // member descends from at RUNTIME (`class View extends Node`, and likewise
-// Layout / Dataset / Animator / AnimatorGroup / Heartbeat / State / the Sources).
+// Layout / Dataset / Animator / AnimatorGroup / Time / State / the Sources).
 // Declared first so those schemas can name it as their base: the chain the
 // runtime has always had, finally recorded here too (2026-07-28) — before
 // this, every one of them was a schema ROOT and Node's members were
@@ -368,7 +368,7 @@ const AppSchema = {
         // window minimized, or the display asleep; true again on return. The
         // native host feeds the same slot from its own occlusion signal. Ambient
         // motion gates itself on it — `running = { … && app.pageVisible }` — and
-        // the constraint stopping the Heartbeat empties the clock, so a hidden
+        // a `Time` member pauses itself on it (time.ts), emptying the clock, so a hidden
         // page books no frames at all. (A browser window merely COVERED by
         // another window may still read true — Safari does not report occlusion;
         // Chrome and the mac host do.) Same fact for an embedded app: visibility
@@ -954,20 +954,33 @@ const SpringSchema = {
         epsilon: { kind: "number" },
     },
 };
-// Heartbeat (heartbeat.ts) — the frame heartbeat as a component: a non-visual member
-// that calls `onFrame(dt)` once per animation frame while `running`. Springs and
-// Animators are the DECLARATIVE half of motion (say where a thing belongs); this
-// is the raw heartbeat an app running its own integrator needs — custom gesture
-// physics, a simulation, a game loop. A component rather than a new subscription
-// operator: an event is just a member that gets called, and non-visual members
-// are a category the language already has.
-const HeartbeatSchema = {
-    name: "Heartbeat",
+// Time (time.ts) — the clock as a component: a non-visual member whose FACTS
+// (`now`, and the local-zone `year month day hour minute second weekday`) are
+// reactive inputs any { } derives from, and whose `onTick(dt)` is the one
+// per-frame handler, for integration. `tick` names the resolution — `frame`
+// rides the shared clock; the calendar tiers are aligned alarms (`minute`
+// fires when the minute turns). Numbers, never strings: formatting is the
+// app's (a subclass attribute + Intl). Built on the GENERIC path (registry
+// TAGS, like Node), so it is subclassable — `class DesktopClock extends Time
+// [ tick = minute, text: string = { … this.now … } ]`. Heartbeat folded in
+// here 2026-08-29: it was exactly `Time [ tick = frame ]`.
+const TimeSchema = {
+    name: "Time",
     base: NodeSchema,
     attrs: {
+        tick: enumType("Tick", "frame", "second", "minute", "hour", "day"),
         running: { kind: "boolean" },
+        now: { kind: "number" },
+        year: { kind: "number" },
+        month: { kind: "number" },
+        day: { kind: "number" },
+        hour: { kind: "number" },
+        minute: { kind: "number" },
+        second: { kind: "number" },
+        weekday: { kind: "number" },
     },
-    events: ["frame"],
+    readOnly: ["now", "year", "month", "day", "hour", "minute", "second", "weekday"],
+    events: ["tick"],
 };
 // The runtime SERVICES as components (sources.ts): non-visual members whose
 // handlers are called from outside the tree. Each declares the events it calls;
@@ -1084,7 +1097,7 @@ export const SCHEMAS = {
     Animator: AnimatorSchema,
     AnimatorGroup: AnimatorGroupSchema,
     Spring: SpringSchema,
-    Heartbeat: HeartbeatSchema,
+    Time: TimeSchema,
     Keys: KeysSchema,
     Focus: FocusSchema,
     Tip: TipSchema,
@@ -1179,7 +1192,7 @@ export const EVENT_PAYLOAD = {
     link: "string", // RichText: the href
     follow: "string", // App: the reference being followed (onFollow returns the one to proceed with; "" vetoes)
     arrive: "View", // App: the landed-on view — the destination the followed address names, measured
-    frame: "number", // Heartbeat: dt, in SECONDS
+    tick: "number", // Time: dt — seconds since the previous tick, clamped
     focusChange: "View", // Focus: the newly focused view
     geometry: "FocusGeometry",
     tip: "TipEvent",

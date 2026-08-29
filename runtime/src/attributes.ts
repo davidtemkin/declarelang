@@ -59,6 +59,13 @@ export interface AttrSpec<S, V> {
    *  fires it: a fact nobody binds needs no feeder. Costs one WeakSet probe
    *  per tracked read, and only on slots that declare it. */
   onTrack?: (self: S) => void;
+  /** A LIVE answer for UNTRACKED readers (a handler, a method, the Inspector):
+   *  the stored value is what tracked readers see — the value as of the last
+   *  write, the cell bumping on change, the reactive contract untouched —
+   *  while an untracked read samples the world at that moment. Time's facts
+   *  (time.ts): `clock.second` in a handler is the real second, whatever the
+   *  declared tick. Never consulted under tracking. */
+  live?: (self: S) => V;
 }
 
 type Push = (self: object, v: unknown) => void;
@@ -131,12 +138,15 @@ export function defineAttributes<S extends object>(
     const readOnly = spec.readOnly === true;
     const onTrack = spec.onTrack as ((self: object) => void) | undefined;
     const trackedOnce = onTrack !== undefined ? new WeakSet<object>() : null;
+    const live = spec.live as ((self: object) => unknown) | undefined;
     Object.defineProperty(ctor.prototype, name, {
       get(this: object): unknown {
         const self = this as Carrier;
         if (isTracking()) {
           cellFor(self, name).track();
           if (trackedOnce !== null && !trackedOnce.has(self)) { trackedOnce.add(self); onTrack!(self); }
+        } else if (live !== undefined) {
+          return live(self);
         }
         if ((follows || defBinding !== undefined) && !provided(self, name)) {
           // A prevailing slot with no local provision FOLLOWS the nearest

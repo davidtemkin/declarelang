@@ -22,15 +22,18 @@ import { Layout, TweenLayout } from "./layout.js";
 import { Dataset, DataSource } from "./data.js";
 import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
-import { Heartbeat } from "./heartbeat.js";
+import { Time } from "./time.js";
 import { KeysSource, FocusSource, TipSource } from "./sources.js";
 import { EventStream, Socket } from "./streams.js";
 import { State } from "./state.js";
 /** Tag → runtime View class (the tree tags). `Node` is registered so a user can
- *  subclass it for a non-visual node (`class Store [ … ]`). */
+ *  subclass it for a non-visual node (`class Store [ … ]`); `Time` (time.ts) is
+ *  a Node component on the same generic path — carrying declarations and
+ *  subclassable — rather than a SOURCE, which the source path would seal. */
 export const TAGS = {
     App, View, Text, Image, Video, Audio, DOMIsland, TextInput, Markdown, HTMLText,
     Node: Node,
+    Time: Time,
 };
 /** Tag → buildable layout-strategy class (R7) — built only as a component-typed
  *  attribute value, never a tree tag. */
@@ -52,7 +55,6 @@ export const ANIMATORS = { Animator, Spring };
  *  checking applies, and because being ordinary components is what lets an app
  *  that never listens drop the service code entirely (slim-registry). */
 export const SOURCES = {
-    Heartbeat,
     Keys: KeysSource,
     Focus: FocusSource,
     Tip: TipSource,
@@ -86,13 +88,13 @@ export const REGISTRY_MANIFEST = [
     { name: "Markdown", table: "TAGS", module: "markdown.js", export: "Markdown" },
     { name: "HTMLText", table: "TAGS", module: "markdown.js", export: "HTMLText" },
     { name: "Node", table: "TAGS", module: "node.js", export: "Node" },
+    { name: "Time", table: "TAGS", module: "time.js", export: "Time" },
     { name: "Layout", table: "LAYOUT_BASES", module: "layout.js", export: "Layout" },
     { name: "TweenLayout", table: "LAYOUT_BASES", module: "layout.js", export: "TweenLayout" },
     { name: "Dataset", table: "DATA", module: "data.js", export: "Dataset" },
     { name: "DataSource", table: "DATA", module: "data.js", export: "DataSource" },
     { name: "Animator", table: "ANIMATORS", module: "animator.js", export: "Animator" },
     { name: "Spring", table: "ANIMATORS", module: "spring.js", export: "Spring" },
-    { name: "Heartbeat", table: "SOURCES", module: "heartbeat.js", export: "Heartbeat" },
     { name: "Keys", table: "SOURCES", module: "sources.js", export: "KeysSource" },
     { name: "Focus", table: "SOURCES", module: "sources.js", export: "FocusSource" },
     { name: "Tip", table: "SOURCES", module: "sources.js", export: "TipSource" },

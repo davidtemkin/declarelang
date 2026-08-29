@@ -235,11 +235,15 @@ export const Diag = {
   // the slot's own word, which is a string inside an expression.
   enumTokenInExpr: (token: string, slot: string, pos: Pos): DeclareError =>
     err(code4(4005), `'${token}' is one of ${slot}'s values — bare only as the whole slot (${slot} = ${token}); inside { } write it as a string: "${token}"`, pos),
-  // A WARNING: a Heartbeat whose onFrame never reads its dt is not integrating —
+  // A WARNING: a per-frame onTick that never reads its dt is not integrating —
   // it is polling, the one imperative habit the language exists to retire
   // (declare.md §1, "nothing waits").
-  heartbeatPolls: (param: string, pos: Pos): DeclareError =>
-    err(code4(4006), `this onFrame never reads '${param}' — a Heartbeat that does not integrate is polling. Nothing waits in Declare: what is this handler waiting for? A fetch landing is 'data.loaded' (constrain on it, or onLoad); a view existing or settling is onInit / onReady / afterSettle / onArrive; a value changing is a constraint on it; a value that should advance over time is an Animator, one that should reach a target a Spring. Keep the Heartbeat only if the next value is computed from the last, each frame`, pos),
+  timePolls: (param: string, pos: Pos): DeclareError =>
+    err(code4(4006), `this onTick never reads '${param}' — a per-frame Time that does not integrate is polling. Nothing waits in Declare: what is this handler waiting for? A fetch landing is 'data.loaded' (constrain on it, or onLoad); a view existing or settling is onInit / onReady / afterSettle / onArrive; a value changing is a constraint on it; a value that is a function of the current time derives from the Time's facts (now, second, minute, …); one that should advance over time is an Animator, one that should reach a target a Spring; something to do when the minute turns is onTick on tick = minute. Keep the per-frame onTick only if the next value is computed from the last, each frame`, pos),
+  // A WARNING: a { } that reads the host's clock has no cell behind the read —
+  // it evaluates once and never again (the stopped clock, open-items L-25).
+  ambientRead: (what: string, pos: Pos): DeclareError =>
+    err(code4(4007), `this { } reads ${what} — the ambient world, not the tree: a constraint re-runs when something it READ changes, and nothing here can change, so this evaluates once and never again. The current time is a Time member's facts (time.now, time.minute, …), which a { } derives from like any attribute; Date.now() belongs in a handler`, pos),
   scriptWrite: (name: string, pos: Pos): DeclareError =>
     err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
   // `classroot` reaches the root of the component (class) you are defining, so it
@@ -342,7 +346,8 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4003), phase: "name", summary: "a body writes a script { } variable (a body holds a copy — state lives on a node)" },
   { code: code4(4004), phase: "name", summary: "a body names a host global (document, window, process, …) — the Declare way is named" },
   { code: code4(4005), phase: "name", summary: "a bare enum token inside { } — the quoted form is named" },
-  { code: code4(4006), phase: "name", summary: "a Heartbeat's onFrame ignores dt — polling, not integration (warning)" },
+  { code: code4(4006), phase: "name", summary: "a per-frame Time's onTick ignores dt — polling, not integration (warning)" },
+  { code: code4(4007), phase: "name", summary: "a { } reads the ambient clock (Date.now(), new Date()) — a stopped clock (warning)" },
   { code: code4(5000), phase: "module", summary: "include/module error (unclassified)" },
   { code: code4(5001), phase: "module", summary: "two included files declare the same class" },
   { code: code4(5002), phase: "module", summary: "an include path cannot be found" },

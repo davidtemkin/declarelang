@@ -110,7 +110,7 @@ derivation is runtime-truthful rather than compile-time-lexical.
 | `lz.History` + back button | `app.location` — two-way reactive URL slice, crawler-indexable | answered, much better |
 | `lz.History.setPersist`, cookies dance | no construct; `localStorage` **is** in the compiler's known-globals (`compile.ts` BROWSER_GLOBALS), so handlers reach it | soft gap: capability open, doctrine absent |
 | `lz.Browser.setClipboard` | no construct; `navigator` reachable in handlers | soft gap, same shape |
-| `lz.Timer` / `lz.Idle` | `setTimeout`/`setInterval` / `Heartbeat` | answered — but "cancel it yourself" collides with no-teardown, §5.2 |
+| `lz.Timer` / `lz.Idle` | `setTimeout`/`setInterval` / `Time` | answered — but "cancel it yourself" collides with no-teardown, §5.2 |
 | `lz.ModeManager` (modal stack, event locking) | Dialog scrim (geometric modality) + `focusTrap` | answered differently |
 | `lz.Focus`, `focusable/focusTrap`, `getNextSelection` | `Focus` service, same attrs, `tabOrder()`; no numeric tabindex | answered, better |
 | `lz.Keys.callOnKeyCombo` | `Keys` source; chords implemented (`keys.ts`) but not in `LANGUAGE_STATICS` | exposure gap, small |
@@ -209,7 +209,7 @@ architecture removed — worth recording so nobody "restores" them:
    window, and Field's deferred note line.
 2. **No teardown hook.** `onInit` has no counterpart. The runtime's
    `discard()`/`onDiscard` machinery is built and used internally
-   (`editor.ts`, `heartbeat.ts`, `replicate.ts`) but unexposed. The doc's own
+   (`editor.ts`, `time.ts`, `replicate.ts`) but unexposed. The doc's own
    ruling "a timer does not die with its node, so cancel it yourself" is
    *impossible to obey* inside a replicated instance or State subtree that gets
    torn down. Sources being lifetime-managed covers most cases; timers and

@@ -60,11 +60,11 @@ await test("a thrown handler is logged with its name and node path — and the b
     `the log names the handler AND the node: ${JSON.stringify(lines)}`);
 });
 
-await test("a throwing onFrame cannot wedge the tab: three in a row stop the Heartbeat, restartably", async () => {
+await test("a throwing onTick cannot wedge the tab: three in a row stop the Time, restartably", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const r = await compile(`App [ width = 100, height = 100,
-    hb: Heartbeat [ onFrame(dt: number) { (null as any).x } ],
+    hb: Time [ tick = frame, onTick(dt: number) { (null as any).x } ],
   ]`);
   assert.deepEqual(r.errors.map((e) => e.message), []);
   let a;
@@ -73,8 +73,8 @@ await test("a throwing onFrame cannot wedge the tab: three in a row stop the Hea
     // frame 0 is the baseline; 16/32/48 each throw; the third stops it
     for (const t of [0, 16, 32, 48, 64, 80]) sched.frame(t);
   });
-  assert.equal(a.hb.running, false, "three consecutive throws turn the heartbeat off");
-  assert.equal(lines.filter((l) => l.includes("onFrame on Heartbeat 'hb' threw")).length, 3,
+  assert.equal(a.hb.running, false, "three consecutive throws turn the Time off");
+  assert.equal(lines.filter((l) => l.includes("onTick on Time 'hb' threw")).length, 3,
     `exactly the three throws are logged (then it is OFF, not throwing 60Hz): ${JSON.stringify(lines)}`);
   assert.ok(lines.some((l) => l.includes("stopped") && l.includes("running = true")),
     "the stop line says how to restart");
@@ -83,7 +83,7 @@ await test("a throwing onFrame cannot wedge the tab: three in a row stop the Hea
     a.hb.running = true; settle();
     sched.frame(100); sched.frame(116);
   });
-  assert.ok(again.some((l) => l.includes("onFrame on Heartbeat 'hb' threw")), "restarted and ticking again");
+  assert.ok(again.some((l) => l.includes("onTick on Time 'hb' threw")), "restarted and ticking again");
 });
 
 await test("a throwing onLoad does NOT mark the source failed — the data arrived", async () => {

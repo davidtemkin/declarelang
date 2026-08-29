@@ -259,8 +259,8 @@
   // wireVisibility reads `document.visibilityState` and listens for
   // `visibilitychange`, exactly as in a browser — and the native signal is
   // strictly better, since AppKit reports covered-by-another-window, which
-  // Safari never does. The app's `pageVisible` fact follows; a Heartbeat
-  // gated on it leaves the clock, and an occluded window goes truly idle.
+  // Safari never does. The app's `pageVisible` fact follows; a Time
+  // pauses itself on it (leaving the clock), and an occluded window goes truly idle.
   let pageVisible = true;
   Object.defineProperty(doc, "visibilityState", { get: () => (pageVisible ? "visible" : "hidden") });
   g.__declareVisibilityChanged = (visible) => {

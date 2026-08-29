@@ -92,14 +92,15 @@ such loop is waiting for something specific; ask what, and depend on that instea
 | "wait 100ms, then read the geometry" | layout | `afterSettle(() => …)` — same frame, geometry real |
 | tick to advance a cursor or a progress | time itself | an `Animator` (time → value) |
 | tick to move something toward a target | a target | a `Spring` |
-| tick to step a simulation | the previous value | a `Heartbeat` — the one legitimate per-frame handler |
+| show the time, a countdown, an age | the clock | a `Time` fact — `clock.minute`, `clock.now` — an ordinary dependency |
+| tick to step a simulation | the previous value | `Time [ tick = frame ]` with `onTick(dt)` — the one legitimate per-frame handler |
 | a timer to debounce input, or time out a request | a timing rule | `setTimeout` — legitimate, as a host chore |
 
-Time, then, is only ever an *input*: a duration to animate over, a frame step to
-integrate by, a timing rule to apply. The test for a `Heartbeat` in particular is
-whether its handler uses the `dt` it was given — one that doesn't is not integrating
-anything; it is polling, and the condition inside it names what it was really waiting
-for. [Motion and states](declare-docs:guide:motion-and-states) has the three
+Time, then, is only ever an *input*: a clock fact to derive from, a duration to animate
+over, a frame step to integrate by, a timing rule to apply. The test for a per-frame
+`onTick` in particular is whether it uses the `dt` it was given — one that doesn't is not
+integrating anything; it is polling, and the condition inside it names what it was really
+waiting for. [Motion and states](declare-docs:guide:motion-and-states) has the
 time-based members and when each is the honest choice.
 
 ## Why a new language? Why now?
