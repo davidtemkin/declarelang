@@ -571,6 +571,25 @@ cells. Design settled in discussion (David, 2026-08-26):
   armed (idle-zero thrift, zero observable semantics). The demand-*inferred*
   cadence variant was considered and rejected: a source's declaration must state its
   subject.
+- **Surface, settled 2026-08-29 (David: "I buy this")** — `tick` (not `every`; a
+  noun, pairs with `onTick`) · `running` · the facts `now` (the instant, epoch ms)
+  and `year month day hour minute second weekday` (numeric, local zone —
+  Temporal's Instant/PlainDateTime split) · `onTick(dt)`. **Numbers, never
+  strings**: no `text`, no `dayName` — formatting and localization are the app's,
+  as a subclass attribute (`class DesktopClock extends Time [ tick = minute,
+  text: string = { new Date(this.now).toLocaleTimeString(…) } ]` — legal and
+  reactive today, since `now` is the tracked input and `new Date(value)` +
+  `toLocale…` are pure projections). `onTick` stays on Time (sources fire on
+  themselves, like Keys/EventStream). Visibility: the PAGE hidden pauses Time
+  (idle-zero; facts refresh and `dt` clamps on return); a merely hidden VIEW does
+  not (visibility gates layout and input, never derivation — an author who wants
+  the pause writes `running = { this.visible }`).
+- **Heartbeat folds in** (David, 2026-08-29): it is exactly `Time [ tick = frame ]`
+  through the handler door; `running`, the dt clamp, the three-throws auto-stop,
+  and DECLARE4006 transfer verbatim, and `onTick` on a calendar tier gains the
+  "when the minute turns" event that had no spelling. A rename, not an alias
+  (L-19); its docs sweep (declare.md §10, guide 14, concepts.json, Heartbeat.md)
+  rides the build.
 
 Companions: a compile-time warning for `new Date()`/`Date.now()`/`Math.random()` in
 `{ }` bodies (the DECLARE4006 family — "this reads the ambient world; derive from a
