@@ -136,6 +136,15 @@ and `Animator` uses — so it costs nothing until it runs, and there is no secon
 loop. Reach for it when you are integrating; for "move this there, smoothly," a
 `Spring` is less code and better behaved.
 
+Before you write one, ask which of the other two you are about to re-implement. A value
+that should *arrive* somewhere is a `Spring`. A value that should *advance* — a replay
+cursor sweeping a day in ninety seconds, a progress running 0→1 — is an `Animator`: it is
+scrubbable, pausable and interruptible for free, and everything derived from it follows
+with no per-frame code at all. A `Heartbeat` is right only when the next value depends
+on the last in a way no curve states. In practice a `Heartbeat` in a program deserves a
+second look: it is usually one of the other two in disguise, and its per-frame handler
+is where a program's only imperative state tends to collect.
+
 ---
 
 **What you can now say:** you can declare where things belong and let physics take

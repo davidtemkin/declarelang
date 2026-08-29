@@ -8,6 +8,12 @@ body is an ordinary `DataSource` POST, and the stream carries the reply. The pla
 and no error is reported; `retry`/`onError` concern only **terminal** failure — the
 platform giving up.
 
+A declared stream **holds a live connection** for as long as it is `active` and its node
+lives — every open tab is one held server connection (browsers cap ~6 per host over
+HTTP/1.1, so a dev server's tabs can exhaust the pool). The lifecycle is the declaration:
+`active = { app.chatId != "" }` releases the connection the moment the condition goes
+false, and a discarded node closes its own — there is nothing to unsubscribe.
+
 ```declare-fragment
 answer: string = "",
 reply: EventStream [ url = { `/api/chat?id=${app.chatId}` },

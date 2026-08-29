@@ -66,7 +66,7 @@ Click the view and the label updates; resize the window and it re-centers. You w
 logic for either, and there is nowhere to put any. Every section below is this same idea
 applied to structure, space, data, style, and time.
 
-### Six differences
+### Seven differences
 
 1. **`{ }` is TypeScript, and only TypeScript.** Bare slots have their own literal vocabulary,
    and it stops at the brace: `width = { 100% }` is a syntax error, and a color inside braces is
@@ -87,6 +87,11 @@ applied to structure, space, data, style, and time.
    constraints on `app.width`. (§6, §9)
 6. **Events do not bubble.** A handler fires on the node that declares it, and a child reports
    to its owner by calling a method. (§8)
+7. **Nothing waits.** A program never polls: readiness is a value to constrain on, completion
+   an event to take (`onLoad`, `onArrive`, `afterSettle`). A loop or timer that checks whether
+   something has happened yet is a constraint or an event written by hand — almost always the
+   wrong path. Time is only ever an input — a duration to animate over, a frame step to
+   integrate by. (§5, §10)
 
 ## 2. Two delimiters
 
@@ -237,8 +242,11 @@ to name its type.
 
 Besides `class`, the top level holds `script`, `include`, `use`, `font`, `style`, and
 `stylesheet` — that is the complete set, **in any order**, before or after the root instance;
-`extends` may name a class declared later in the file. **`script { … }`** holds free TypeScript, models and
-helpers; a constraint may call one and the compiler reads through it (§5). **`include
+`extends` may name a class declared later in the file. **`script { … }`** holds free TypeScript — helpers,
+models, whole libraries — and may **`import`** ES modules (a file, or an npm package by bare
+specifier; bundled at compile). **`script [ "file.ts" ]`** is the same block loaded from a
+file, spelled like `include` and tracked like one — edit the file and the program recompiles;
+a constraint may call into script, opaquely (§5). **`include
 [ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
 a component the build would otherwise drop, for when your code constructs it by name at runtime
 (`createView`, §7). **`font Name [ … ]`** declares a font family (a use site picks with
@@ -292,11 +300,14 @@ text = { data.failed ? data.error : "Loading…" }
 **Dependencies are extracted statically, by the compiler.** Nothing is tracked at runtime: the
 compiler reads your expression, reads *through* what it calls, and wires the result once.
 
-**A constraint stays live through everything it reaches**, which is what decides how freely you
-can write. Call your own methods, chain array operations, read through a closure, call a free
-function in `script { }` — every read inside all of it is a wired dependency, rebased onto what
-you passed, so `{ price(app.cart) }` depends on whatever `price` reads of the cart. The analysis
-collects *potential* reads, not observed ones: `{ a ? b : c }` depends on all three.
+**A constraint stays live through everything Declare it reaches.** Call your own methods, chain
+array operations, read through a closure — every read inside all of it is a wired dependency,
+rebased onto what you passed, so `{ this.price(app.cart) }` depends on whatever the `price`
+*method* reads of the cart. The analysis collects *potential* reads, not observed ones:
+`{ a ? b : c }` depends on all three. A `script { }` function is the one opaque call: script is
+outside the reactive system, so `{ fmt(app.total) }` depends on `app.total` — the values you
+pass — and never on what `fmt` does inside. Pass values, not nodes (a node reference never
+changes, so a node-typed argument is refused); a helper that should be *analyzed* is a method.
 
 **Assignment is the setter.** `count = count + 1` updates the value and notifies everything
 bound to it; there is no bypass. Reads are symmetric — a bare read **is** the tracked read.
@@ -382,10 +393,17 @@ them:
   override and is a cycle by construction. Derive from a base: the app's `theme`, or the
   parent's.
 
-A `script { }` helper called from a constraint may not read **mutable module state**: a
-top-level `let` has no cell, so nothing could notice it change. Keep that state in a reactive
-attribute. Handler code is under none of these rules — it is unrestricted TypeScript, and
-genuinely dynamic work belongs there or in the framework's own primitives.
+**`script { }` is foreign code — wholly outside the reactive system.** It may hold arbitrary
+TypeScript: stateful helpers, caches, classes, whole libraries. The compiler never reads a
+script body; a call is opaque, and its own state is invisible — if a function's answer can
+change without your inputs changing, hold that state in a node. Two direct uses stay refused
+in reactive code: a constraint naming a script `let` (a snapshot with no wake-up), and any
+body *writing* one (each body holds a copy, so the write lands nowhere — state that changes
+is an attribute). Handler code is under none of the *reactivity* rules above — it is ordinary
+TypeScript: locals, loops, `switch`, the host's `fetch`/`URL`/timers — and genuinely dynamic
+work belongs there or in the framework's own primitives. (Two things it is not: `async` — a
+handler is synchronous, a value the screen derives from is a `DataSource` — and a door to
+bare browser globals; see Vocabulary → Types and functions for what every body may name.)
 
 Only declared reactive attributes participate at all, so locals and plain objects in
 `script { }` cost nothing.
@@ -764,11 +782,12 @@ interruption needs no code.
 slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ]
 ```
 
-`Animator` is the time-based sibling for the cases that want a clock, and `Heartbeat` is the raw
-per-frame heartbeat for when the app integrates motion itself. Springs are the house idiom.
-Deferred work is plain TypeScript — `setTimeout` behaves in a handler as it always does — but
-unlike a source member, a timer does not die with its node, so cancel it yourself. (Finishing
-after your own change has landed is not deferred work — that is `afterSettle`, §5.)
+Motion is the one place time is legitimately an input (§1, *nothing waits*): `Animator` for a
+value that changes *over* a duration, `Spring` for one that moves *toward* a target — the house
+idiom — and `Heartbeat` only to **integrate**, the previous value being the input; an `onFrame`
+that ignores `dt` is polling. `setTimeout` is for a timing rule — a debounce, a request timeout —
+and a timer does not die with its node, so cancel it yourself. (Finishing after your own change
+has landed is neither — that is `afterSettle`, §5.)
 
 Because states, springs, and layout all sit on one reactive core, *arrangement* animates: spring
 a few geometry scalars and every constraint derived from them moves in lock-step.

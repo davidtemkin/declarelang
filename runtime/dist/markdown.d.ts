@@ -6,6 +6,7 @@ import type { Fill } from "./value.js";
 export declare abstract class RichText extends View {
     lineHeight: number;
     bodyColor: number | null;
+    linkUnderline: boolean;
     scale: number;
     /** Color-scheme override (null = follow the App's OS `dark`). */
     dark: boolean | null;

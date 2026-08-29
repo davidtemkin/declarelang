@@ -10,6 +10,18 @@
 // imports this file, so dist/index.js remains zero-dependency and
 // browser-loadable (HANDOFF §R6 records the split).
 import ts from "typescript";
+/** Is this identifier the direct target of an assignment or an update? */
+function isAssigned(id) {
+    const p = id.parent;
+    if (ts.isBinaryExpression(p) && p.left === id) {
+        const k = p.operatorToken.kind;
+        return k >= ts.SyntaxKind.FirstAssignment && k <= ts.SyntaxKind.LastAssignment;
+    }
+    if ((ts.isPrefixUnaryExpression(p) || ts.isPostfixUnaryExpression(p)) && p.operand === id) {
+        return p.operator === ts.SyntaxKind.PlusPlusToken || p.operator === ts.SyntaxKind.MinusMinusToken;
+    }
+    return false;
+}
 /** All free value-position identifiers of a body, in source order — or null
  *  when the body does not parse (the checker's compileExpr gate owns
  *  reporting syntax errors; resolution has nothing sound to say about a
@@ -109,6 +121,7 @@ export function freeIdentifiers(src, opts) {
                     end: node.end + delta,
                     shorthand: kind === "shorthand",
                     callee: ts.isCallExpression(node.parent) && node.parent.expression === node,
+                    assigned: isAssigned(node),
                 });
             }
             return;

@@ -282,5 +282,16 @@ test("datapath = { :detail } re-anchor cycles even WITHOUT a replication beneath
   assert.equal(app.host.det.t.text, "Grace", "leaf mutation flows through the re-anchor");
 });
 
+test("set([], v) replaces the WHOLE document — the guide's draft-lands spelling — and wakes readers", async () => {
+  // field report 2026-08-21: this threw "assign .value to replace it", which
+  // the typechecker refuses (value is read-only) — a dead-end loop. The empty
+  // path now IS the whole-document replace, one reactive write.
+  const app = await build(BASIC);
+  app.store.set([], { rec: { name: "Dora" } });
+  settle();
+  assert.equal(app.store.value.rec.name, "Dora", "the document was replaced");
+  assert.equal(app.form.field.text, "Dora", "readers woke — arrival semantics");
+});
+
 console.log(`\ndatabinding: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

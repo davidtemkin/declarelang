@@ -1,6 +1,6 @@
 import { type Pos } from "./errors.js";
 import { View } from "./view.js";
-import type { Node } from "./node.js";
+import { type Node } from "./node.js";
 import { type PathSeg } from "./datapath.js";
 import type { AttrType } from "./value.js";
 /** Bind `name = { src }`: compile, install as the slot's owner, evaluate

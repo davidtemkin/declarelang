@@ -14,7 +14,7 @@ import { Constraint } from "./reactive.js";
 import { followedValue, markPercent, own, setBound } from "./attributes.js";
 import { compileExpr, type ExprFn } from "./expr.js";
 import { View, inheritedCursor, withCursorDefining } from "./view.js";
-import type { Node } from "./node.js";
+import { authoredName, type Node } from "./node.js";
 import { coerceData, toCursor } from "./data.js";
 import { splitPath, type PathSeg } from "./datapath.js";
 import type { AttrType } from "./value.js";
@@ -132,7 +132,12 @@ export function bindCursor(view: View, src: string, pos: Pos, classroot: View | 
     throw new DeclareError(`${view.constructor.name}.datapath = { … } ${c.error}`, pos);
   }
   const fn = c.fn;
-  const label = `${view.constructor.name}.datapath`;
+  // The label names the NODE, not just its class: "View.datapath" sent an
+  // author bisecting a 400-line file with perl to find which of thirty Views
+  // meant (field report 2026-08-21). The name is how the author wrote it —
+  // the member key on the parent or classroot — when there is one.
+  const name = authoredName(view);
+  const label = `${view.constructor.name}${name === null ? "" : ` '${name}'`}.datapath`;
   const k = new Constraint(
     label,
     () => withCursorDefining(view, () => toCursor(fn.call(view, view.parent, classroot), label)),

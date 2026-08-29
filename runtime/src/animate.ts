@@ -315,7 +315,15 @@ export class Clock {
     try {
       const running = [...this.tickers];
       for (const t of running) {
-        if (!t.tick(now)) this.tickers.delete(t);
+        // The backstop under every ticker's own guard: one throwing ticker
+        // must not kill the frame for the rest, and must not wedge the loop —
+        // it is dropped from the clock, loudly.
+        try {
+          if (!t.tick(now)) this.tickers.delete(t);
+        } catch (e) {
+          this.tickers.delete(t);
+          console.error(`[Declare] a ${((t as object).constructor?.name ?? "ticker")} threw during its frame and was removed from the clock: ${(e as Error)?.message ?? e}`, e);
+        }
       }
     } finally {
       this.ticking = false;

@@ -37,6 +37,13 @@ deterministic by the driven clock.
 | `--states <script.mjs>` · `--baselines <dir>` | rung-6 named states and their baseline images (default: `baselines/` beside the states script) |
 | `--bless` | write current renders as the baselines |
 | `--wrap` | wrap a bare `class … extends` in a probe app, so a library component verifies standalone |
+| `--only <file>` | verify the whole program, print only the diagnostics positioned in that one file (an include, by the path you would write it). The others are counted, and still fail the rung |
+
+Positions name their file: an error in the program file reads `(line 12, col 7)`;
+one in an included file reads `(rooms/pulse.declare:118:23)` — relative to the
+program's directory, editor-clickable. An include-only file (classes, no `App`) is not
+a program: `verify` says so and points at `--only` and `--wrap` rather than parsing it
+to `eof`.
 
 ## What a rung cannot see
 

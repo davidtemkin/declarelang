@@ -74,6 +74,7 @@ interface TsDiag {
   code: number;
   message: string;
   line: number;
+  character: number; // 0-based column within `line` of the case file
 }
 
 /** One emitted check-block's line footprint. A TS diagnostic can land on the
@@ -88,6 +89,7 @@ interface Unit {
   blockEnd: number; // last case-file line
   bodyStart: number; // case-file line of the body's first line
   origStartLine: number; // source line of the body's first line
+  origStartCol: number; // source column of the `{` that opens the body (the first body line follows it)
   lineCount: number;
   tag: string; // the element the body is written on
   slot: string | null; // the attribute/declaration name; null for a method body
@@ -122,8 +124,12 @@ export function typecheckBodies(resolved: string, program: Program): DeclareErro
   // their declarations are real signatures, so appending the source to the
   // scaffold is what makes `dbl(app.v)` typecheck against the actual function
   // rather than resolving to `any` — and what makes a wrong argument an error
-  // at the call site, in the body, where the author can act on it.
-  for (const b of program.scripts) scaffold += "\n" + b.src + "\n";
+  // at the call site, in the body, where the author can act on it. An `import`
+  // cannot ride along (one module statement flips the whole scaffold from a
+  // script into a module and every ambient name dies) — each import is
+  // replaced by `declare const <name>: any` per binding: the imported surface
+  // types as `any` here, and the bundler makes it real.
+  for (const b of program.scripts) scaffold += "\n" + ambientScript(b.src) + "\n";
   // Pass 2 — the check-blocks, typed by the instance types pass 1 assigned.
   for (const cls of rprog.classes) emitter.walkElement(cls.body, [], true);
   emitter.walkElement(rprog.root, [], false);
@@ -145,8 +151,16 @@ export function typecheckBodies(resolved: string, program: Program): DeclareErro
     }
     // Clamp into the body's line range: an assignment error on the wrapper line
     // maps to the body's first line; a body-internal error maps line-for-line.
+    // The COLUMN maps too, because the body is emitted verbatim: on a later
+    // body line tsc's character IS the source column; on the first line the
+    // body text follows the `{`, so it is offset by the brace's column. An
+    // error on the wrapper itself (rel clamped) lands at the brace. Before
+    // 2026-08-23 every typecheck position said col 1 — five files and a line
+    // number into the wrong one was the whole of "is this mine?".
+    const inBody = d.line >= u.bodyStart && d.line < u.bodyStart + u.lineCount;
     const rel = Math.min(Math.max(d.line - u.bodyStart, 0), u.lineCount - 1);
-    out.push(Diag.typeError(explainTs(d, u, synthTags), posOfLine(u.origStartLine + rel, starts), d.code));
+    const col = !inBody ? u.origStartCol : rel === 0 ? u.origStartCol + 1 + d.character : d.character + 1;
+    out.push(Diag.typeError(explainTs(d, u, synthTags), posAt(u.origStartLine + rel, col, starts), d.code));
   }
   // Deterministic report: same input → same diagnostics, same order (position,
   // then TS code, then text — the loop-stability guarantee evals depend on).
@@ -236,12 +250,39 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
           : `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
       }
       return msg;
+    // `await` in a body. A handler is synchronous by design: a value the screen
+    // derives from is a DataSource (arrival is a write burst the tree settles
+    // on), and a one-off sequence chains .then(). Said in Declare's words,
+    // not TypeScript's ("only allowed within async functions" names a fix the
+    // language does not have — there is no `async` handler).
+    // Assigning a read-only intrinsic. For `.value` the answer is the verb the
+    // guide teaches — `set([], v)` replaces the whole document — because the
+    // raw TS text sends an author to a dead end (field report 2026-08-21:
+    // guide says set([], v), runtime said "assign .value", TS refused that).
+    case 2540:
+      m = msg.match(/Cannot assign to '(.+?)'/s);
+      if (m?.[1] === "value") return `'value' is read-only — data changes through the verbs: set(path, v) writes one place, set([], v) replaces the whole document, insert/removeAt/move reshape arrays; a source's value changes by arrival (fetch/reload)`;
+      if (m !== null) return `'${m[1]}' is read-only — a fact the component maintains; write the thing it derives from, not the fact`;
+      return msg;
+    case 1308:
+      return `a { } body is synchronous — there is no 'await' (and no async handler). For a value the screen derives from, declare a DataSource and read .value/.loaded; for a one-off sequence (a POST, then a write), chain .then(): fetch(url, init).then((r) => r.json()).then((j) => { app.x = j })`;
+    // A host global the resolver let through (it admits only the prelude and
+    // the ES built-ins, so this is rare) — never TypeScript's advice to add
+    // lib.dom or @types/node, which names a fix the language does not take.
+    case 2584:
+    case 2591:
+      m = msg.match(/Cannot find name '(.+?)'/s);
+      if (m !== null) return `'${m[1]}' is the host's, not Declare's — a program runs on three renderers and names none of their globals; see Vocabulary → Types and functions for what a body may name`;
+      return msg;
     // A bare name that resolved to nothing (scope resolution already rewrote
     // members, so what is left must be a parameter, a local, or a global).
     case 2304:
       m = msg.match(/Cannot find name '(.+?)'/s);
       if (m !== null) {
-        return `nothing in scope is named '${m[1]}' — a bare name in a { } body is a member (written this.${m[1]}, or via parent/classroot/app), a method parameter, or a global`;
+        // Name what "a global" means, because the old wording listed it as an
+        // option and an author whose `fetch` had just been refused read that as
+        // "fetch is a global, so why not?" — and reached for (globalThis as any).
+        return `nothing in scope is named '${m[1]}' — a bare name in a { } body is a member (written this.${m[1]}, or via parent/classroot/app), a method parameter, or one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …); '${m[1]}' is none of these`;
       }
       return msg;
     // Arithmetic over a non-number.
@@ -560,6 +601,7 @@ class CaseEmitter {
       blockEnd: this.lines.length,
       bodyStart,
       origStartLine: brace.line,
+      origStartCol: brace.col,
       lineCount: bodyLines.length,
       tag: levels[0].tag,
       slot,
@@ -657,11 +699,15 @@ function runTsc(scaffold: string, caseSrc: string): TsDiag[] {
   if (sf === undefined) return [];
   return [...program.getSyntacticDiagnostics(sf), ...program.getSemanticDiagnostics(sf)]
     .filter((d) => !UNSATISFIABLE.has(d.code))
-    .map((d) => ({
-      code: d.code,
-      message: ts.flattenDiagnosticMessageText(d.messageText, "\n"),
-      line: d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start).line + 1 : 0,
-    }));
+    .map((d) => {
+      const lc = d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start) : null;
+      return {
+        code: d.code,
+        message: ts.flattenDiagnosticMessageText(d.messageText, "\n"),
+        line: lc ? lc.line + 1 : 0,
+        character: lc ? lc.character : 0,                 // 0-based, within that case-file line
+      };
+    });
 }
 
 /** TS's implicit-`any` family: each of these demands a WRITTEN type annotation
@@ -687,7 +733,35 @@ function lineStarts(src: string): number[] {
   return starts;
 }
 
-function posOfLine(line: number, starts: readonly number[]): Pos {
-  const offset = starts[Math.min(line - 1, starts.length - 1)] ?? 0;
-  return { line, col: 1, offset };
+/** A script block's source made scaffold-safe: every `import` declaration is
+ *  replaced (same length is NOT needed — the ambient copy carries no positions)
+ *  by `declare const <name>: any;` per value binding it introduces. */
+function ambientScript(src: string): string {
+  let sf: ts.SourceFile;
+  try {
+    sf = ts.createSourceFile("s.ts", src, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+  } catch { return src; }
+  const edits: { start: number; end: number; text: string }[] = [];
+  for (const st of sf.statements) {
+    if (!ts.isImportDeclaration(st)) continue;
+    const names: string[] = [];
+    const c = st.importClause;
+    if (c !== undefined && !c.isTypeOnly) {
+      if (c.name !== undefined) names.push(c.name.text);
+      const b = c.namedBindings;
+      if (b !== undefined) {
+        if (ts.isNamespaceImport(b)) names.push(b.name.text);
+        else for (const s of b.elements) if (!s.isTypeOnly) names.push(s.name.text);
+      }
+    }
+    edits.push({ start: st.getStart(sf), end: st.end, text: names.map((n) => `declare const ${n}: any;`).join(" ") });
+  }
+  let out = src;
+  for (const e of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, e.start) + e.text + out.slice(e.end);
+  return out;
+}
+
+function posAt(line: number, col: number, starts: readonly number[]): Pos {
+  const lineStart = starts[Math.min(line - 1, starts.length - 1)] ?? 0;
+  return { line, col, offset: lineStart + Math.max(0, col - 1) };
 }

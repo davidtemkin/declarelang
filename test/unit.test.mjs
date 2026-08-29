@@ -601,6 +601,24 @@ await test("bounds: an arc takes the full circle's box; ops union", () => {
   assert.deepEqual(bounds, { x: 0, y: 0, w: 60, h: 60 });
 });
 
+await test("bounds: text OVERSTATES around its anchor — every textAlign stays inside (field report 2026-08-21)", () => {
+  // right-aligned ink lies wholly LEFT of the anchor; the old anchor-point
+  // floor clipped it to nothing on the DOM backend's bounds-sized raster.
+  const r = record((d) => {
+    d.font = "20px sans-serif";
+    d.textAlign = "right";
+    d.fillText("HELLO", 100, 35);
+  });
+  assert.equal(r.exact, false, "text bounds are declared inexact");
+  // MEASURED, not estimated (2026-08-25 the recorder asks the shared measurer;
+  // the field-report fix had bounded 1em per glyph): the box starts where the
+  // measured run starts — left of the anchor by the run's advance, which for
+  // five 20px glyphs is at least 40px under any measurer.
+  assert.ok(r.bounds.x <= 100 - 40, `covers the measured run left of the anchor, got x=${r.bounds.x}`);
+  assert.ok(r.bounds.x + r.bounds.w >= 100, "reaches the anchor");
+  assert.ok(r.bounds.y < 35 && r.bounds.y + r.bounds.h > 35, "covers ascent and descent");
+});
+
 await test("bounds: an unpainted path contributes nothing; empty list is null", () => {
   const traced = record((d) => {
     d.beginPath();
@@ -2068,7 +2086,7 @@ await test("compile(): an unresolvable bare name is a positioned error naming th
   const r = await compile(`App [ width=1, height=1, count: number = 0,\n  Text [ text = { "" + coutn } ] ]`);
   assert.equal(r.source, null);
   assert.equal(r.errors.length, 1);
-  assert.match(r.errors[0].message, /cannot resolve 'coutn' — not a member of Text → App, a parameter, or a global \(line 2, col 24\)/);
+  assert.match(r.errors[0].message, /cannot resolve 'coutn' — not a member of Text → App, a parameter, or one of the globals a body may use \(fetch, URL, setTimeout, console, Math, JSON, …\) \(line 2, col 24\)/);
 });
 
 await test("compile(): shadowing a user-declared outer member warns, with the qualified spelling", async () => {
@@ -2846,7 +2864,11 @@ await test("replacing the whole value wakes every reader; a cursor gained later 
 await test("mutation API errors are pointed; paths address strictly", () => {
   const d = new Dataset();
   d.value = { a: { b: 1 }, list: [1] };
-  assert.throws(() => d.set("", 1), /assign \.value to replace it/);
+  // "" and [] address the WHOLE document (RFC 6901): set replaces it — the
+  // guide's draft-lands spelling — while a structural verb has no array to work on
+  d.set("", { a: { b: 2 }, list: [1] });
+  assert.equal(d.read(["a", "b"]), 2, "the empty path replaced the document");
+  assert.throws(() => d.insert([], 0, 1), /set\(\[\], v\) replaces it/);
   assert.throws(() => d.set(["a", "zip", "deep"], 1), /'\/a\/zip\/deep' addresses nothing — '\/a\/zip' is missing/);
   assert.throws(() => d.insert(["a"], 0, 1), /'\/a' is not an array/);
   d.set(["a", "c"], 3); // the FINAL field may be new
@@ -5368,6 +5390,44 @@ await test("include resolves a class declared in another file", async () => {
   assert.equal(app.children.length, 1, "the included class instantiated as a child");
   assert.ok(app.children[0] instanceof View, "Card instance is a View");
   assert.equal(app.children[0].constructor.name, "Card", "instantiated as the included class Card");
+});
+
+// An error INSIDE an included file is positioned in that file, by name — not
+// at a line in the merged program labelled "included library source" (field
+// report 2026-08-21: five agents, five included rooms, every red run began
+// with `wc -l`). Main-file positions are unchanged, so every other test here
+// keeps reading "(line N, col M)".
+await test("include: an error in an included file names the file and its OWN line/col", async () => {
+  const host = memHost({
+    "/rooms/card.declare": "class Card extends View [\n  widht = 1\n]",
+  });
+  const r = await compile(
+    'include [ "rooms/card.declare" ]\nApp [ width=10, height=10, Card [ ] ]',
+    { host, originDir: "/" }
+  );
+  assert.equal(r.errors.length, 1);
+  const e = r.errors[0];
+  assert.equal(e.pos.file, "rooms/card.declare", "the file, relative to the program's directory");
+  assert.equal(e.pos.line, 2, "the line in card.declare, not in the merged text");
+  assert.match(e.message, /\(rooms\/card\.declare:2:\d+\)$/, "rendered as file:line:col");
+  assert.ok(!e.message.includes("included library source"), "the old label is gone");
+  // the same position reaches the Diagnostic's rendered form
+  assert.match(r.diagnostics[0].rendered, /\(rooms\/card\.declare:2:\d+\)/);
+  // and the error text itself is the ordinary one
+  assert.match(e.message, /widht/);
+});
+
+await test("include: a typecheck error in an included file's { } body is positioned in that file", async () => {
+  const host = memHost({
+    "/lib/helper.declare": "class Helper extends View [\n  n: number = 1,\n  Text [ text = { this.n + undefinedName } ]\n]",
+  });
+  const r = await compile(
+    'include [ "lib/helper.declare" ]\nApp [ width=10, height=10, Helper [ ] ]',
+    { host, originDir: "/" }
+  );
+  assert.ok(r.errors.length >= 1);
+  assert.equal(r.errors[0].pos.file, "lib/helper.declare");
+  assert.equal(r.errors[0].pos.line, 3);
 });
 
 await test("include is a flat namespace: an included class extends another included class", async () => {

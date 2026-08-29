@@ -46,7 +46,7 @@
 import { parseProgram } from "../../runtime/dist/parser.js";
 import { DeclareError, DeclareErrors } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
-import { SCHEMAS, descendsFrom } from "../../runtime/dist/schema.js";
+import { SCHEMAS, descendsFrom, attrType } from "../../runtime/dist/schema.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks } from "../../runtime/dist/links.js";
 import { annotateProgram } from "./dep-extract.js";
@@ -90,8 +90,92 @@ function topLevelBindings(src) {
             for (const d of st.declarationList.declarations)
                 addFromName(d.name);
         }
+        else if (ts.isImportDeclaration(st)) {
+            names.push(...importedNames(st));
+        }
     }
     return [...new Set(names)];
+}
+/** The value bindings one `import` declaration introduces — default, namespace,
+ *  and named (as-renamed) alike. Type-only imports bind nothing at runtime. */
+export function importedNames(st) {
+    const names = [];
+    const c = st.importClause;
+    if (c === undefined || c.isTypeOnly)
+        return names;
+    if (c.name !== undefined)
+        names.push(c.name.text);
+    const b = c.namedBindings;
+    if (b !== undefined) {
+        if (ts.isNamespaceImport(b))
+            names.push(b.name.text);
+        else
+            for (const s of b.elements)
+                if (!s.isTypeOnly)
+                    names.push(s.name.text);
+    }
+    return names;
+}
+/** The MUTABLE subset of a script block's top-level bindings: `let` and `var`.
+ *  A body receives every script binding as a `const` copy (expr.ts
+ *  scriptPrelude), so a read of a `let` sees its value at that moment and a
+ *  write throws at runtime — "Assignment to constant variable", once per
+ *  frame from a Heartbeat, with a minified stack naming nothing (field report
+ *  2026-08-21). The resolver refuses the write instead. */
+function topLevelMutableBindings(src) {
+    const names = [];
+    const addFromName = (n) => {
+        if (ts.isIdentifier(n)) {
+            names.push(n.text);
+            return;
+        }
+        for (const el of n.elements)
+            if (ts.isBindingElement(el))
+                addFromName(el.name);
+    };
+    let sf;
+    try {
+        sf = ts.createSourceFile("script.ts", src, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+    }
+    catch {
+        return names;
+    }
+    for (const st of sf.statements) {
+        if (ts.isVariableStatement(st) && (st.declarationList.flags & ts.NodeFlags.Const) === 0) {
+            for (const d of st.declarationList.declarations)
+                addFromName(d.name);
+        }
+    }
+    return names;
+}
+/** Does a method body READ the named binding anywhere (as a value, not as a
+ *  property name or a declaration)? The parser's word, not a regex: `dt` inside
+ *  a string or a comment is not a read. */
+function bodyMentions(src, name) {
+    let sf;
+    try {
+        sf = ts.createSourceFile("body.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    }
+    catch {
+        return true;
+    } // unparseable → not our call; the checker reports it
+    let found = false;
+    const visit = (n) => {
+        if (found)
+            return;
+        if (ts.isIdentifier(n) && n.text === name) {
+            const p = n.parent;
+            const isName = (ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n)
+                || ((ts.isVariableDeclaration(p) || ts.isParameter(p)) && p.name === n);
+            if (!isName) {
+                found = true;
+                return;
+            }
+        }
+        ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    return found;
 }
 import { setBodySyntaxValidator } from "../../runtime/dist/expr.js";
 // Bodies are authored as TypeScript: when the compiler is present, the
@@ -103,7 +187,9 @@ import { freeIdentifiers, hexColor8Literals } from "./free-idents.js";
 import { fillDatapaths, scanDatapaths, splitPath } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
-import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES } from "../../runtime/dist/include.js";
+import { hostGlobalHint } from "../../runtime/dist/teach.js";
+import { PRELUDE_NAMES } from "./scaffold.js";
+import { resolveIncludes, resolveAutoIncludes, spliceScriptFiles, NO_INCLUDES } from "../../runtime/dist/include.js";
 import { typecheckBodies } from "./typecheck.js";
 import { Diag, toDiagnostic, renderReport } from "../../runtime/dist/diagnostics.js";
 /** The names resolution leaves alone in CALLEE position: the four value
@@ -181,20 +267,35 @@ function smallFieldWarnings(program, mainStart) {
  *  (there is no component to root there) and pass it through untouched in a
  *  class body, where the runtime binds it. */
 const BOUND = ["parent", "arguments"];
-// Browser globals a body may reasonably touch that a Node-side compile does
-// not have in ITS globalThis. A curated list, not magic: the tsc compiler
-// path replaces this whole global story with lib.dom types.
-const BROWSER_GLOBALS = new Set([
-    "window", "document", "navigator", "location", "history", "screen",
-    "devicePixelRatio", "innerWidth", "innerHeight", "requestAnimationFrame",
-    "cancelAnimationFrame", "getComputedStyle", "matchMedia", "localStorage",
-    "sessionStorage", "alert", "confirm", "prompt",
+// What a bare name in a { } body may resolve to beyond the tree — ONE list,
+// the same on every host, and the checker's prelude is the law:
+//   1. the ES built-ins (a fixed set — NOT `name in globalThis`, which on a
+//      Node compile admitted `process` and `Buffer`, and in a browser compile
+//      `document`, each then refused at the typecheck with TypeScript's own
+//      advice: "change lib to dom", "npm i @types/node");
+//   2. the host chores the prelude declares by hand (timers, console, the
+//      fetch/URL family — scaffold.ts), the same shape on all three renderers;
+//   3. the runtime services in body scope (expr.ts setBodyServices).
+// Everything else is unresolved — and a known host global (document, window,
+// process, …) is refused BY NAME with the Declare way (teach.ts).
+// `globalThis` is on the ES list, so `(globalThis as any).x` remains the one
+// visible, greppable escape (library/menu.declare uses it for rAF).
+const ES_GLOBALS = new Set([
+    "globalThis", "Object", "Function", "Array", "Number", "Boolean", "String", "Symbol", "BigInt",
+    "Date", "RegExp", "Math", "JSON", "Intl", "Reflect", "Proxy", "Promise",
+    "Error", "AggregateError", "EvalError", "RangeError", "ReferenceError", "SyntaxError", "TypeError", "URIError",
+    "Map", "Set", "WeakMap", "WeakSet", "WeakRef", "FinalizationRegistry",
+    "ArrayBuffer", "SharedArrayBuffer", "DataView", "Atomics",
+    "Int8Array", "Uint8Array", "Uint8ClampedArray", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array",
+    "Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array",
+    "parseInt", "parseFloat", "isNaN", "isFinite", "Infinity", "NaN", "undefined", "eval",
+    "encodeURI", "encodeURIComponent", "decodeURI", "decodeURIComponent", "escape", "unescape",
 ]);
 // The runtime services in body scope (expr.ts setBodyServices): bare `Focus`
 // in a handler is the service, never a member to resolve. `afterSettle` is the
 // one function-shaped entry — "finish after your change has taken effect".
 const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Themes", "Inspect", "afterSettle"]);
-const isKnownGlobal = (name) => name in globalThis || BROWSER_GLOBALS.has(name) || RUNTIME_SERVICES.has(name);
+const isKnownGlobal = (name) => ES_GLOBALS.has(name) || PRELUDE_NAMES.has(name) || RUNTIME_SERVICES.has(name);
 /** Compile a Declare source: full diagnostics (include resolve + check + scope
  *  resolution), and a SELF-CONTAINED resolved source the zero-dependency
  *  runtime consumes with NO include host. Included libraries are spliced in
@@ -244,8 +345,18 @@ export async function compile(source, opts = {}) {
     // included component libraries (both dependency-first, their own directives
     // cut), then the main file (its directives cut). With no includes and no
     // magic tags this is `source` unchanged, so single-file offsets are identical.
-    let mainSource = exciseSpans(source, main.includeSpans);
+    // Script files splice in and include directives cut out in ONE pass (both
+    // span sets are in the original text's coordinates). A missing script file
+    // reports like a missing include.
+    const scriptFileErrors = [];
+    let mainSource = await spliceScriptFiles(source, main.scriptFiles, main.scriptFileSpans, opts.originDir ?? "", host, scriptFileErrors, main.includeSpans);
+    if (scriptFileErrors.length > 0) {
+        return { source: null, errors: scriptFileErrors, warnings: [], ...diagnose(scriptFileErrors, [], "module") };
+    }
     const libSources = [...resolved.sources, ...auto.sources];
+    // Parallel to libSources: which FILE each prelude segment is, so a position
+    // that lands in the prelude is rebased onto that file (makeRebaser).
+    const libIds = [...resolved.sourceIds, ...auto.sourceIds];
     // Library-provided singletons ride in by MANIFEST RULE (`$provide` in
     // autoincludes.json): the FocusRing with any Control descendant (OL's
     // `canvas.focusclass` default, reborn), the Tooltip with any `tip`
@@ -346,6 +457,7 @@ export async function compile(source, opts = {}) {
                     if (lib === null || lib === undefined || resolved.visited.has(lib.canonical))
                         continue;
                     libSources.push(lib.source);
+                    libIds.push(lib.canonical);
                     const comment = typeof r.comment === "string" ? r.comment : `${cls} — provided with the component library`;
                     mainSource = spliceLast(mainSource, `\n    // ${comment}\n\n    ${cls} [ ],\n`);
                 }
@@ -356,14 +468,21 @@ export async function compile(source, opts = {}) {
         ? libSources.join("\n") + "\n" + mainSource
         : mainSource;
     // Every phase below indexes into `merged`; the author indexes into their own
-    // file. `rb` closes that gap on the way out (see makeRebaser). The prelude
-    // length is captured BEFORE the shows-lowering below edits the main region.
-    const preludeLen = merged.length - mainSource.length;
-    let preludeLines = 0;
-    for (let i = preludeLen - 1; i >= 0; i--)
-        if (merged[i] === "\n")
-            preludeLines++;
-    const rb = makeRebaser(mainSource, preludeLines);
+    // files. `rb` closes that gap on the way out (see makeRebaser): the prelude is
+    // a sequence of whole files, each `source + "\n"`, so its segment table is
+    // known exactly here — captured BEFORE the shows-lowering below edits the
+    // main region.
+    const preludeLen = merged.length - mainSource.length; // bytes; smallFieldWarnings scopes by it
+    const segments = [];
+    {
+        let startLine = 1;
+        for (let i = 0; i < libSources.length; i++) {
+            const lines = countLines(libSources[i]);
+            segments.push({ file: displayFile(libIds[i], opts.originDir ?? ""), source: libSources[i], startLine, lines });
+            startLine += lines; // the joining "\n" closes the segment's last line; no blank line is added
+        }
+    }
+    const rb = makeRebaser(mainSource, segments);
     const rbAll = (es) => es.map(rb);
     // Re-parse the merged source so every later phase indexes into ONE text.
     // (Each piece parsed cleanly on its own as a library / program, and a run of
@@ -451,6 +570,7 @@ export async function compile(source, opts = {}) {
     // Resolve EVERY body — the main tree's and every included class/stylesheet/
     // style's — so no unresolved bare name reaches the self-contained output.
     const r = new Resolver(merged, program);
+    r.canBundleScripts = opts.bundleScripts !== undefined;
     r.checkScripts(program);
     for (const cls of program.classes)
         r.resolveElement(cls.body, [], null);
@@ -542,7 +662,40 @@ export async function compile(source, opts = {}) {
             sp = parseProgram(out);
         }
         catch { /* reported by the dep-extract parse */ }
-        if (sp !== null && sp.scripts.length > 0) {
+        const hasImports = (src) => {
+            try {
+                const sf = ts.createSourceFile("s.ts", src, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+                return sf.statements.some((st) => ts.isImportDeclaration(st));
+            }
+            catch {
+                return false;
+            }
+        };
+        if (sp !== null && sp.scripts.length > 0 && opts.bundleScripts !== undefined
+            && sp.scripts.some((s) => !s.src.includes(BINDINGS_MARK) && hasImports(s.src))) {
+            // IMPORTS PRESENT → the program's script module is real: every block, in
+            // source order, concatenates into ONE module (cross-block references and
+            // hoisted imports are the module's own semantics), the host's bundler
+            // resolves and inlines the imports, and the result is re-embedded as a
+            // single block — as a STRING LITERAL evaluated with `new Function`, so
+            // the artifact stays self-contained source and no brace of the bundled
+            // JS ever meets the tokenizer.
+            const blocks = [...sp.scripts].sort((a, b) => a.span.start - b.span.start);
+            const entry = blocks.map((s) => s.src).join("\n\n");
+            const visible = [...new Set(blocks.flatMap((s) => topLevelBindings(s.src)))];
+            const bundled = await opts.bundleScripts(entry + `\nmodule.exports = { ${visible.join(", ")} };\n`, opts.originDir ?? ".");
+            if ("error" in bundled) {
+                const es = rbAll([new DeclareError(`script imports failed to bundle — ${bundled.error}`, posOf(out, blocks[0].span.start))]);
+                return { source: null, errors: es, warnings: [], ...diagnose(es, [], "module") };
+            }
+            const blockSrc = ` const js = ${JSON.stringify(bundled.code)}; const module = { exports: {} }; new Function("module", "exports", js)(module, module.exports); ${BINDINGS_MARK} return module.exports; `;
+            for (const s of [...blocks].reverse()) {
+                const bodyOpen = s.span.end - s.src.length - 1; // just past the `{`
+                const replacement = s === blocks[0] ? blockSrc : " ";
+                out = out.slice(0, bodyOpen) + replacement + out.slice(bodyOpen + s.src.length);
+            }
+        }
+        else if (sp !== null && sp.scripts.length > 0) {
             for (const s of [...sp.scripts].sort((a, b) => b.span.start - a.span.start)) {
                 if (s.src.includes(BINDINGS_MARK))
                     continue; // already compiled once
@@ -613,43 +766,61 @@ export async function compile(source, opts = {}) {
     const okWarnings = rbAll([...r.warnings, ...regWarnings]);
     return { source: out, deps: serializeDeps(depProgram), links: serializeLinks(depProgram), linkRegistry, errors: [], warnings: okWarnings, ...diagnose([], okWarnings, "name") };
 }
-/** Rebase positions from the MERGED source onto the author's own file.
- *
- *  Every phase after the source merge — check, resolution, typecheck, the dep
- *  residue — indexes into one merged text whose prelude is the included library
- *  source. A position straight out of those phases therefore names a line in a
- *  file the author never wrote: a four-line program that instantiates a library
- *  component reported its typo at *line 332*. Parse-phase errors precede the
- *  merge and were always right, which is why this went unnoticed; the fix has to
- *  reach every later phase.
- *
- *  Rebasing is done in LINES, not bytes: the merge splices whole sources, and the
- *  later edits (identifier rewrites, type strips) are intra-line splices, so the
- *  prelude's line count is invariant across `merged`, the resolved text, and the
- *  stripped text — while its byte length is not. The offset is then recomputed
- *  against the author's source, so it is exact in the coordinates the caller
- *  actually holds.
- *
- *  A position landing INSIDE the prelude is a library-source problem. It keeps
- *  its own coordinates and says so, rather than being mapped to a nonsense line
- *  in the app — the author cannot act on it either way, but a labelled position
- *  is debuggable and a silently wrong one is not. */
-function makeRebaser(mainSource, preludeLines) {
-    if (preludeLines <= 0)
+function countLines(s) {
+    let n = 1;
+    for (let i = 0; i < s.length; i++)
+        if (s[i] === "\n")
+            n++;
+    return n;
+}
+/** A canonical include id as the author would write it: relative to the
+ *  program's directory when it lives under it (the usual `rooms/x.declare`),
+ *  else as the host named it (a library file, an absolute path, a URL). */
+function displayFile(id, originDir) {
+    if (originDir !== "") {
+        const dir = originDir.endsWith("/") ? originDir : originDir + "/";
+        if (id.startsWith(dir))
+            return id.slice(dir.length);
+    }
+    // a component-library file (auto-included, so never under the program's
+    // directory): name it from its `library/` root, the way the map names it
+    const lib = id.lastIndexOf("/library/");
+    if (lib >= 0)
+        return id.slice(lib + 1);
+    return id;
+}
+function makeRebaser(mainSource, segments) {
+    if (segments.length === 0)
         return (e) => e;
-    const lineStarts = [0];
-    for (let i = 0; i < mainSource.length; i++)
-        if (mainSource[i] === "\n")
-            lineStarts.push(i + 1);
+    const last = segments[segments.length - 1];
+    const preludeLines = last.startLine + last.lines - 1;
+    const lineStartsOf = (source) => {
+        const starts = [0];
+        for (let i = 0; i < source.length; i++)
+            if (source[i] === "\n")
+                starts.push(i + 1);
+        return starts;
+    };
+    const mainStarts = lineStartsOf(mainSource);
+    const segStarts = new Map();
     return (e) => {
         const p = e.pos;
         if (p === undefined)
             return e;
         const line = p.line - preludeLines;
         if (line < 1) {
-            return new DeclareError(`${e.rawMessage} [in included library source, line ${p.line}]`, p, { code: e.code, hint: e.hint });
+            // inside the prelude: find the segment, rebase onto its own lines
+            const seg = segments.find((s) => p.line >= s.startLine && p.line < s.startLine + s.lines) ?? last;
+            let starts = segStarts.get(seg);
+            if (starts === undefined) {
+                starts = lineStartsOf(seg.source);
+                segStarts.set(seg, starts);
+            }
+            const segLine = p.line - seg.startLine + 1;
+            const base = starts[segLine - 1] ?? 0;
+            return new DeclareError(e.rawMessage, { line: segLine, col: p.col, offset: base + Math.max(0, p.col - 1), file: seg.file }, { code: e.code, hint: e.hint });
         }
-        const base = lineStarts[line - 1] ?? 0;
+        const base = mainStarts[line - 1] ?? 0;
         return new DeclareError(e.rawMessage, { line, col: p.col, offset: base + Math.max(0, p.col - 1) }, { code: e.code, hint: e.hint });
     };
 }
@@ -681,9 +852,15 @@ class Resolver {
      *  like any global — they ARE globals, of the program's own module scope —
      *  so they resolve here rather than being reported unresolved. */
     scriptNames;
+    /** The `let`/`var` subset of scriptNames — readable from a body (a copy),
+     *  never writable (see topLevelMutableBindings). */
+    scriptMutable;
+    /** Whether this compile can bundle script imports (CompileOptions.bundleScripts). */
+    canBundleScripts = false;
     constructor(source, program) {
         this.schemas = programSchemas(program.classes).schemas; // check-clean: no errors
         this.scriptNames = new Set(program.scripts.flatMap((b) => topLevelBindings(b.src)));
+        this.scriptMutable = new Set(program.scripts.flatMap((b) => topLevelMutableBindings(b.src)));
         for (let i = 0; i < source.length; i++) {
             if (source[i] === "\n")
                 this.lineStarts.push(i + 1);
@@ -739,18 +916,19 @@ class Resolver {
             }
             for (const st of sf.statements) {
                 const pos = (n) => this.posAt(bodyOpen + n.getStart(sf));
-                if (ts.isImportDeclaration(st) || ts.isImportEqualsDeclaration(st)) {
-                    // NOT the same case as `export`. ES import inside a script block is
-                    // the RULED mechanism for pulling in JS modules (composition.md §2:
-                    // `include` moves Declare declarations, `import` moves JS bindings) —
-                    // it is unbuilt, not unwanted, so the message says "not yet" and
-                    // names the door that IS open rather than denying the design.
-                    //
-                    // Two things are missing, and the second is the deeper one:
-                    // resolution is deferred with the dev-env rung (§3), AND a block is
-                    // emitted as a `new Function` body with a `return { … }` bindings
-                    // tail, where an import statement is illegal outright.
-                    this.errors.push(new DeclareError(`a script { } block cannot import yet — the block is evaluated as a function body, where an import statement has nowhere to go, and module resolution is unbuilt (docs/system-design/composition.md §2); for now inline what you need, or bring in Declare source with a top-level include [ "file.declare" ]`, pos(st)));
+                if (ts.isImportEqualsDeclaration(st)) {
+                    this.errors.push(new DeclareError(`a script { } block imports with ES \`import\`, not \`import =\` (the CommonJS-interop form)`, pos(st)));
+                    continue;
+                }
+                if (ts.isImportDeclaration(st)) {
+                    // ES import inside a script block IS the JS-module mechanism
+                    // (composition.md §2: \`include\` moves Declare declarations,
+                    // \`import\` moves JS bindings) — real wherever the compile host can
+                    // bundle (Node: the dev server, declarec, verify). The in-browser
+                    // compiler cannot resolve modules, so it refuses with the reason.
+                    if (!this.canBundleScripts) {
+                        this.errors.push(new DeclareError(`a script { } import needs a compile host with a bundler — the dev server, declarec, or verify. This compiler (the in-browser one) cannot resolve modules; run against the dev server, or ship a build`, pos(st)));
+                    }
                     continue;
                 }
                 if (ts.isExportDeclaration(st) || ts.isExportAssignment(st)) {
@@ -828,7 +1006,7 @@ class Resolver {
         this.checkTwoWayScope(el, levels, mainRoot);
         for (const a of el.attrs) {
             if (a.value.kind === "code")
-                this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot, scope);
+                this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot, scope, a.name);
         }
         // A declaration default that is a binding (the styling rung's ruled R6
         // unlock — `labelColor: Color = { theme.buttonText }`) resolves at the
@@ -839,8 +1017,18 @@ class Resolver {
             if (d.def?.kind === "code")
                 this.resolveBody(d.def.src, d.def.pos, true, [], levels, mainRoot, scope);
         }
-        for (const m of el.methods)
+        for (const m of el.methods) {
             this.resolveBody(m.body, m.bodyPos, false, m.params.map((p) => p.name), levels, mainRoot, scope);
+            // A Heartbeat that never reads its frame step is not integrating — it is
+            // polling (declare.md §1, "nothing waits"). A warning: the program runs,
+            // but the handler's condition names what it was really waiting for.
+            if (m.name === "onFrame" && m.params.length > 0) {
+                const schema = this.schemas[el.tag];
+                const isHeartbeat = schema !== undefined && (schema.name === "Heartbeat" || descendsFrom(schema, "Heartbeat"));
+                if (isHeartbeat && !bodyMentions(m.body, m.params[0].name))
+                    this.warnings.push(Diag.heartbeatPolls(m.params[0].name, m.bodyPos));
+            }
+        }
         for (const child of el.children)
             this.resolveElement(child, levels, mainRoot);
     }
@@ -870,7 +1058,7 @@ class Resolver {
                 this.resolveBody(a.value.src, a.value.pos, true, [], [VIEW_LEVEL], null, "bundle");
         }
     }
-    resolveBody(src, brace, expression, params, levels, mainRoot, scope) {
+    resolveBody(src, brace, expression, params, levels, mainRoot, scope, slot) {
         const bodyStart = brace.offset + 1; // the body begins just after `{`
         // Datapath islands (R8) resolve HERE, at compile time (data-paths.md §5's
         // emitted plans): each island becomes its explicit runtime form over
@@ -926,6 +1114,14 @@ class Resolver {
                 continue;
             }
             const pos = this.posAt(bodyStart + id.start);
+            // A write to a script block's `let` from a body: the body holds a const
+            // COPY of the binding (expr.ts scriptPrelude), so the write can only
+            // throw — and nothing else in the program could have noticed it anyway.
+            // Refused here, where the name is known, with the Declare shape named.
+            if (id.assigned && this.scriptMutable.has(id.name)) {
+                this.errors.push(Diag.scriptWrite(id.name, pos));
+                continue;
+            }
             let k = levels.findIndex((lv) => this.surfaceOf(lv).all.has(id.name));
             let selfName = false;
             if (k === -1 && mainRoot !== null && id.name === "App") {
@@ -934,11 +1130,25 @@ class Resolver {
             }
             if (k === -1) {
                 if (!isKnownGlobal(id.name) && !this.scriptNames.has(id.name)) {
+                    const hostHint = hostGlobalHint(id.name);
+                    // A bare enum token inside { } — `fontWeight = { bold ? semibold : regular }`
+                    // — is the slot's OWN vocabulary spoken without quotes. The bare form is
+                    // the literal-slot spelling (`fontWeight = semibold`); inside a body a
+                    // token is a string. Name the quoted form rather than a flat "unresolved".
+                    const slotSchema = slot !== undefined && levels.length > 0 ? this.schemas[levels[0].tag] : undefined;
+                    const slotType = slotSchema !== undefined && slot !== undefined ? attrType(slotSchema, slot) : null;
+                    if (slotType !== null && slotType.kind === "enum" && slotType.tokens.includes(id.name)) {
+                        this.errors.push(Diag.enumTokenInExpr(id.name, slot, pos));
+                        continue;
+                    }
                     if (Object.hasOwn(CSS_COLORS, id.name)) {
                         // A bare CSS color name inside { } — a bare-slot literal, not an
                         // identifier here; name the 0x form rather than a flat "unresolved".
                         const hex = "0x" + CSS_COLORS[id.name].toString(16).padStart(6, "0");
                         this.errors.push(Diag.namedColorInExpr(id.name, hex, pos));
+                    }
+                    else if (hostHint !== null) {
+                        this.errors.push(Diag.hostGlobal(id.name, hostHint, pos));
                     }
                     else {
                         this.errors.push(Diag.unresolved(id.name, levels.map(describe).join(" → "), pos));

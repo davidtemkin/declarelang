@@ -3,11 +3,25 @@
 // carries a position so messages point at the offending text; DeclareErrors
 // aggregates a whole check pass into one throw.
 
-/** A source position: 1-based line & column, 0-based byte offset. */
+/** A source position: 1-based line & column, 0-based byte offset — in the
+ *  file named by `file` when present, else in the author's own (main) file.
+ *  A multi-file program is merged into one text before checking; every
+ *  position is rebased onto the file the author wrote, and for an included
+ *  file that means naming it. Absent for the main file, so single-file
+ *  messages read exactly as they always did. */
 export interface Pos {
   line: number;
   col: number;
   offset: number;
+  file?: string;
+}
+
+/** The position's rendered form: `(line 3, col 7)` in the main file,
+ *  `(rooms/pulse.declare:118:23)` in an included one — the editor-clickable
+ *  shape, because an author with five files edited by five hands asks "is
+ *  this mine?" before anything else. */
+export function describePos(pos: Pos): string {
+  return pos.file !== undefined ? `(${pos.file}:${pos.line}:${pos.col})` : `(line ${pos.line}, col ${pos.col})`;
 }
 
 /** Extra metadata a diagnostic carries beyond message + position: a stable
@@ -31,7 +45,7 @@ export class DeclareError extends Error {
   readonly code?: string;
   readonly hint?: string;
   constructor(message: string, pos?: Pos, meta?: DiagMeta) {
-    super(pos ? `${message} (line ${pos.line}, col ${pos.col})` : message);
+    super(pos ? `${message} ${describePos(pos)}` : message);
     this.name = "DeclareError";
     this.rawMessage = message;
     if (pos) this.pos = pos;

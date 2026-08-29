@@ -257,6 +257,12 @@ export interface Program {
     uses: string[];
     /** Top-level `script { … }` blocks, in source order. */
     scripts: ScriptBlock[];
+    /** `script [ "file.ts" ]` directives — script from a FILE, spelled like
+     *  `include` (composition.md §2). The compile splices each file's contents in
+     *  as a synthesized `script { … }` block, so downstream nothing knows the
+     *  difference. Optional: most Program literals are built without them. */
+    scriptFiles?: IncludeRef[];
+    scriptFileSpans?: Span[];
     root: Element;
     /** Stamped `true` by the compiler ONLY on a program it fully checked
      *  (declarec's build). instantiate.ts then routes attributes by value kind
@@ -283,6 +289,10 @@ export interface Library {
     /** A library may declare its own `script { … }` helpers; the source-merge
      *  folds these into the program's blocks, in include order. */
     scripts: ScriptBlock[];
+    /** A library's own `script [ "file.ts" ]` directives — spliced into its
+     *  source (relative to the library's directory) before the merge. */
+    scriptFiles?: IncludeRef[];
+    scriptFileSpans?: Span[];
 }
 /** Parse a component fragment — one element, no class declarations. The
  *  entry tools and tests use for pieces; a whole source goes through

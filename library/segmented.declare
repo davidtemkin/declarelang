@@ -192,6 +192,13 @@ class Segmented extends View [
     value: object = null,
     disabled: boolean = false,
 
+    // The group honors View's own `replace` (§6 — "fine-grained movement within
+    // a place must not bury Back"): with `replace = true`, a pick of a choice
+    // that carries a `location` REPLACES the history entry instead of pushing
+    // one — the viewer's Reader/Source/Edit, where Back should return to the
+    // previous PLACE, never the previous tab. Default false: a switch that is
+    // itself navigation (the docs' Guide/Reference) keeps pushing.
+
     height = 30,
     cornerRadius = 8,
     fill = { theme.control },
@@ -331,7 +338,12 @@ class SegmentedItem extends Control [
     press()   { if (!disabled) (this.parent as Segmented).pick(:id) },
     onClick() {
         if (disabled) return
-        if (classroot.location != "") app.location = classroot.location
+        if (classroot.location != "") {
+            // the group's `replace` picks the history verb; the `app.location =`
+            // branch stays first so link extraction keeps reading this edge
+            if ((this.parent as Segmented).replace) app.follow("#" + classroot.location, true)
+            else app.location = classroot.location
+            }
         press()
         },
 

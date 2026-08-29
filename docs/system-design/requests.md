@@ -160,6 +160,17 @@ compiler, so it *can* build a bundle and emit segments — those are follow-ups.
   workers, so the block is baked by `declarec --crawler`, the homepage bake
   (`tools/internal/bake-homepage-crawler.mjs`), or the prewarm seo tier — not embedded at request
   time by the SW.
+- **The dev server names itself.** `GET /__identity` answers `{ pid, root, platform,
+  started, toolchain }` — the same record the startup banner prints, that every page it
+  emits carries as `window.__declareServer`, and that every `/compile` answer stamps
+  (`build: { at, main, files, server }`, surfaced as `__declare.build` and one console
+  line per load). A dev server refuses to start on a port where another already answers,
+  and `tools/reload-dev.mjs` names a server it finds but did not start. None of this
+  exists on a static host — there is no process to be. The reason is the one failure a
+  cache cannot explain: a page faithfully rendering a fresh compile of a *different
+  checkout* (two servers can share a port number — one bound to `127.0.0.1`, one to
+  `0.0.0.0` — each serving its own tree) reads exactly like a stale build unless
+  something says whose build it is.
 
 ## The navigate/fetch discrimination
 

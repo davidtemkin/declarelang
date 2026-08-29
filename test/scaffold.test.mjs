@@ -309,7 +309,10 @@ await test("a schema readOnly slot is `readonly` in the typed surface too", asyn
     ["View.contentWidth", "v: View [ ], onClick() { this.v.contentWidth = 5 }"],
     ["DataSource.loaded", 'd: DataSource [ url = "/x" ], onClick() { this.d.loaded = true }'],
   ]) {
-    assert.match(await errs(`App [ width = 1, height = 1, ${body} ]`), /read-only property/,
+    // the 2540 remap answers in Declare's words (a fact the component
+    // maintains), not TS's "read-only property" — the pin holds BOTH facts:
+    // the scaffold makes the slot readonly, and the remap names the way out
+    assert.match(await errs(`App [ width = 1, height = 1, ${body} ]`), /is read-only — a fact the component maintains/,
       `${what} must be readonly in the scaffold`);
   }
   // and a normal slot is still assignable

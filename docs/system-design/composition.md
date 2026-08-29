@@ -171,7 +171,7 @@ Declare does **not** invent a module system; it rides ES modules.
   module scope. Declare's own output is already zero-dep ESM (`dist/index.js`), so a
   compiled app sits in the module graph naturally: it imports and is imported.
 
-The worked case — **the intended shape, not yet accepted** (see the refusal below):
+The worked case — **BUILT 2026-08-24** (with `script [ "file.ts" ]`, the file-loaded twin):
 
 ```
 script {
@@ -185,63 +185,50 @@ There is no Declare-specific module story to design — "how do they work / what
 they do" is the standard ES answer. The work is **resolution** (§3) and the
 **emission shape** (below).
 
-### What actually blocks it today (2026-08-03)
+### How it was built (2026-08-24 — supersedes the 2026-08-03 blockers)
 
-Two things, and the second was not previously recorded here — it is the deeper
-one, because no amount of resolution infra removes it:
+The two recorded blockers dissolved together, and neither needed the full
+Declare-file-as-one-ES-module emission:
 
-1. **Resolution** (§3), as written below.
-2. **The emission shape.** A `script { }` block is not emitted at module top
-   level. `compile.ts` transpiles it and splices it back with a trailing
-   `return { … }` bindings tail, and the runtime evaluates that with
-   `new Function` — there is no other way to enumerate a function's scope, and
-   doing it this way is what keeps the artifact self-contained. An `import`
-   statement is illegal in a function body, so it has nowhere to go regardless
-   of whether the specifier could be resolved. Item 2 of §4's *To build* — the
-   full Declare-file-as-one-ES-module emission — is what removes this.
+1. **The emission shape.** All of a program's script blocks (its own, then its
+   includes', in source order) concatenate into ONE module — cross-block
+   references and hoisted imports are the module's own semantics. When any
+   block imports, the compile hands that module to the host's BUNDLER
+   (`CompileOptions.bundleScripts` — esbuild on every Node host: the dev
+   server, declarec, verify), and re-embeds the bundled CommonJS as a string
+   literal inside a single `script { }` block evaluated with `new Function` —
+   the artifact stays self-contained source, and the runtime is unchanged.
+   `script [ "file.ts" ]` (the include-spelled file form) splices the file in
+   as a block before any of this, its relative import specifiers rebased onto
+   the file's own directory, its path recorded in the dependency closure
+   (dev-loop freshness for free).
+2. **The typecheck scaffold.** Each block is appended with its `import`
+   declarations replaced by `declare const <name>: any` per binding — the
+   imported surface types as `any`; the bundler makes it real.
 
-   The tractable path, if this is picked up before that lands: rewrite static
-   imports to dynamic ones in the transpile pass already running
-   (`import { f } from "m"` → `const { f } = await import("m")`), harvest the
-   import bindings into the `return { … }` tail, and evaluate a block that has
-   imports as an *async* function. The typecheck scaffold (`typecheck.ts`)
-   needs the same rewritten form appended rather than the raw source — a
-   top-level `import` there turns the scaffold from a script into a module and
-   every ambient declaration stops being a global at once. Browser runtime
-   parity then needs a server-emitted import map; browser *typecheck* fidelity
-   does not follow, since in-browser tsc has no `node_modules`, and whether
-   that asymmetry is acceptable is what the same-experience ruling below
-   decides.
+**Where no bundler exists, the compiler refuses by name** — the in-browser
+compiler (a static host's live compile) says so and points at the dev server
+or a build. This supersedes the same-experience clause below for imports
+specifically: bundling is a BUILD act, and a static host serves builds — a
+deployed program with imports ships precompiled (prewarm / declarec) and runs
+everywhere; only the *in-browser compile of its source* declines. The opacity
+ruling (script is wholly outside the reactive system; a constraint's script
+call depends on the values it passes — declare.md §5) is what freed script to
+hold arbitrary imported code in the first place.
 
-**Until then the compiler refuses it, by name.** An `import` in a script block
-is a positioned error reading *"cannot import yet"* and citing this section —
-deliberately worded as unbuilt rather than unwanted, since this document rules
-the feature in. Before that check existed, the module-ification described above
-sprayed unresolved-name errors across the whole program with nothing pointing at
-the import; `test/script-block.test.mjs` pins both the refusal and its wording.
+`test/script-module.test.mjs` pins the whole contract: the file form, library
+includes carrying their own script files, closure tracking, the bundle serving
+inline and file imports alike, module-once evaluation, and the no-bundler
+refusal.
 
 
-## 3. Module resolution — deferred with the dev-env
+## 3. Module resolution — the Node hosts resolve; the browser compile declines
 
-Resolution splits along the line already drawn for the compile modes:
-
-- **CLI / server:** trivial — Node/bundler resolution and tsc's
-  `node_modules`/`@types` resolution work the moment Declare emits the import
-  through.
-- **Browser (in-browser compile):** needs the import-map / CDN / fetch-the-types
-  story — the *same* host module-resolution the tsc typecheck needs, and part of
-  the **deferred dev-env infra**.
-
-The **same-experience-across-modes** ruling gates this: we do not ship
-server-only imports that break in the browser. So `import` interop lands
-**uniformly across all three modes at once**, when the resolution story lands —
-the plumbing defers *with* the dev-env, not as a separate can.
-
-**Stance ruled now; plumbing deferred.** The stance is worth pinning today
-because the emission model it implies — *Declare file as one ES module, bodies in
-its scope* — is **already required** by the typecheck and `new`/attach work
-(instantiation.md). Writing it down makes the module story a consequence, not a
-surprise.
+- **CLI / server / verify:** esbuild resolution over the filesystem and
+  `node_modules`, at the `bundleScripts` seam.
+- **Browser (in-browser compile):** no resolution story — refused with the
+  reason. If an import-map/CDN path is ever wanted, it plugs into the same
+  seam; nothing else changes.
 
 
 ## 4. Status

@@ -259,6 +259,25 @@
     "timer animation"
    ],
    "answer": "No `requestAnimationFrame` — and though `setTimeout`/`setInterval` exist for host chores, they are never the motion system. Motion is declared: a `Spring` drives an attribute toward a live target (interruptible for free), an `Animator` is the clock-shaped sibling, and per-frame integration (physics you step yourself) is `Heartbeat [ onFrame(dt) ]`, which rides the one shared frame clock. A setTimeout-driven animation fights the settle loop and cannot be interrupted mid-flight; see the guide's Motion & states chapter."
+  },
+  {
+   "terms": [
+    "poll",
+    "polling",
+    "wait for",
+    "wait until",
+    "wait for load",
+    "wait for data",
+    "wait for layout",
+    "sleep",
+    "delay until",
+    "check every",
+    "retry until",
+    "interval",
+    "timer",
+    "busy wait"
+   ],
+   "answer": "No polling — nothing waits. A program never checks whether something has happened yet: readiness is a value to constrain on, completion an event to take — a loop or timer that checks whether something has happened yet is a constraint or an event written by hand, and almost always the wrong path. Ask what it is waiting for: a fetch landing → `visible = { data.loaded }` or `onLoad`; a view existing or having a size → `onInit`, `onReady`, `afterSettle`, `onArrive`; a value changing → a constraint on it (the constraint IS the notification); geometry after your own write → `afterSettle(step)`, same frame. Time is only ever an input: `Animator` over a duration, `Spring` toward a target, `Heartbeat [ onFrame(dt) ]` to integrate (a handler that ignores `dt` is polling), `setTimeout` for a genuine timing rule — a debounce, a request timeout — never to let things settle. See the guide's Thinking in Declare chapter, \"Nothing waits\"."
   }
  ],
  "forms": [
@@ -288,7 +307,7 @@
     "helper function",
     "plain typescript"
    ],
-   "answer": "`script { … }` — a top-level block of plain TypeScript: constants, functions, model types. Its top-level names are visible from every `{ }` body in the same file, and a constraint may call one — the compiler reads THROUGH the call to find what the body depends on, so a helper does not break reactivity (declare.md §5).\nThis is where arithmetic and formatting live, so the tree stays about the tree. Guide: 03-relationships, 04-tree."
+   "answer": "`script { … }` — a top-level block of plain TypeScript, wholly OUTSIDE the reactive system: constants, functions, stateful helpers, whole libraries. It may `import` ES modules (a relative file, or an npm package by bare specifier — bundled at compile by a Node host: the dev server, declarec, verify), and `script [ \"file.ts\" ]` loads the same block from a file, spelled like `include`. Its top-level names are visible from every `{ }` body; a constraint may call one OPAQUELY — the constraint depends on the values it passes, never on what the function does inside, so pass values, not nodes (declare.md §5). This is where arithmetic, formatting, and imported JS live, so the tree stays about the tree. Guide: 03-relationships, 04-tree."
   },
   {
    "terms": [

@@ -194,8 +194,16 @@ export class Stream extends Node {
      *  declared — pay-per-use, like every source. */
     fire(name, arg) {
         const fn = this[name];
-        if (typeof fn === "function")
-            fn.call(this, arg);
+        if (typeof fn === "function") {
+            // Loud and attributed, never fatal: a throwing onMessage must not kill
+            // the stream (or the arrival burst it rode in on).
+            try {
+                fn.call(this, arg);
+            }
+            catch (e) {
+                console.error(`[Declare] ${name} on ${this.constructor.name} threw: ${e?.message ?? e}`, e);
+            }
+        }
     }
 }
 defineAttributes(Stream, {

@@ -154,4 +154,28 @@ await test("--json returns parseable data for hit and miss alike", () => {
   assert.equal(miss.kind, "miss");
 });
 
+// ── a synonym's answer says it is one ────────────────────────────────────────
+// `declare-help Popover` printed Menu with no word about why — read as a wrong
+// lookup rather than an answer (field report 2026-08-21).
+await test("a concept synonym announces the Declare name it answers with", () => {
+  const r = help("Popover");
+  assert.equal(r.code, 0);
+  assert.ok(r.out.startsWith("'Popover' is not a Declare name — the Declare concept is Menu:"), `got:\n${r.out.slice(0, 160)}`);
+  assert.ok(r.out.includes("\nMenu — class"));
+  // an exact concept name carries no preface
+  assert.ok(help("Menu").out.startsWith("Menu — "));
+});
+
+await test("a class member table shows method SIGNATURES, not bare names", () => {
+  const r = help("Dataset");
+  assert.ok(r.out.includes("insert(path: string | readonly (string | number)[], index: number, v: unknown): void — method"), `got:\n${r.out}`);
+});
+
+await test("a host global answers with the compiler's own refusal and the Declare way", () => {
+  const r = help("localStorage");
+  assert.equal(r.code, 0);
+  assert.ok(r.out.startsWith("'localStorage' is the host's, not Declare's"), `got:\n${r.out.slice(0, 160)}`);
+  assert.ok(r.out.includes("hold the state in a Dataset"));
+});
+
 summarize("declare-help");

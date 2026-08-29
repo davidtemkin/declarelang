@@ -292,6 +292,12 @@ export interface Program {
   uses: string[];
   /** Top-level `script { … }` blocks, in source order. */
   scripts: ScriptBlock[];
+  /** `script [ "file.ts" ]` directives — script from a FILE, spelled like
+   *  `include` (composition.md §2). The compile splices each file's contents in
+   *  as a synthesized `script { … }` block, so downstream nothing knows the
+   *  difference. Optional: most Program literals are built without them. */
+  scriptFiles?: IncludeRef[];
+  scriptFileSpans?: Span[];
   root: Element;
   /** Stamped `true` by the compiler ONLY on a program it fully checked
    *  (declarec's build). instantiate.ts then routes attributes by value kind
@@ -319,6 +325,10 @@ export interface Library {
   /** A library may declare its own `script { … }` helpers; the source-merge
    *  folds these into the program's blocks, in include order. */
   scripts: ScriptBlock[];
+  /** A library's own `script [ "file.ts" ]` directives — spliced into its
+   *  source (relative to the library's directory) before the merge. */
+  scriptFiles?: IncludeRef[];
+  scriptFileSpans?: Span[];
 }
 
 // ── Tokenizer ───────────────────────────────────────────────────────────────
@@ -1128,6 +1138,34 @@ class Parser {
     return t.kind === "ident" && t.text === "script" && u.kind === "code";
   }
 
+  /** At a `script [ "file.ts" ]` directive — script from a FILE: the ident
+   *  `script` followed by `[` (the `{` form is the inline block above). */
+  atScriptFiles(): boolean {
+    const t = this.tokens[this.i];
+    const u = this.tokens[this.i + 1];
+    return t.kind === "ident" && t.text === "script" && u.kind === "lbracket";
+  }
+
+  /** `'script' '[' STRING ( ',' STRING )* ','? ']'` — the include-shaped list
+   *  of script files, each a quoted path relative to this file's directory. */
+  parseScriptFiles(): { refs: IncludeRef[]; span: Span } {
+    const kw = this.expect("ident", "'script'");
+    this.expect("lbracket", "'['");
+    const refs: IncludeRef[] = [];
+    while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
+      const t = this.peek();
+      if (t.kind !== "string") {
+        throw new DeclareError("a script file path is a quoted string", t.pos);
+      }
+      this.next();
+      refs.push({ path: t.str!, pos: t.pos });
+      if (this.peek().kind === "comma") this.next();
+      else break;
+    }
+    const rb = this.expect("rbracket", "']'");
+    return { refs, span: { start: kw.pos.offset, end: rb.pos.offset + rb.text.length } };
+  }
+
   /** `'script' '{' … '}'` — the body is captured raw; TypeScript judges it. */
   parseScript(): ScriptBlock {
     const kw = this.next();                       // 'script'
@@ -1242,6 +1280,8 @@ function parseTopDecls(p: Parser): {
   includeSpans: Span[];
   uses: string[];
   scripts: ScriptBlock[];
+  scriptFiles: IncludeRef[];
+  scriptFileSpans: Span[];
 } {
   const classes: ClassDecl[] = [];
   const stylesheets: TopDecl[] = [];
@@ -1251,6 +1291,8 @@ function parseTopDecls(p: Parser): {
   const includeSpans: Span[] = [];
   const uses: string[] = [];
   const scripts: ScriptBlock[] = [];
+  const scriptFiles: IncludeRef[] = [];
+  const scriptFileSpans: Span[] = [];
   for (;;) {
     if (p.atInclude()) {
       const { refs, span } = p.parseIncludeDirective();
@@ -1258,6 +1300,11 @@ function parseTopDecls(p: Parser): {
       includeSpans.push(span);
     }
     else if (p.atUse()) uses.push(...p.parseUseDirective());
+    else if (p.atScriptFiles()) {
+      const { refs, span } = p.parseScriptFiles();
+      scriptFiles.push(...refs);
+      scriptFileSpans.push(span);
+    }
     else if (p.atScript()) scripts.push(p.parseScript());
     else if (p.atClass()) classes.push(p.parseClass());
     else if (p.atTop("stylesheet")) stylesheets.push(p.parseTopDecl("stylesheet"));
@@ -1265,7 +1312,7 @@ function parseTopDecls(p: Parser): {
     else if (p.atTop("font")) fonts.push(p.parseTopDecl("font"));
     else break;
   }
-  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts };
+  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans };
 }
 
 /** Parse a whole Declare source: `include`s and top-level declarations
@@ -1290,9 +1337,11 @@ export function parseProgram(source: string): Program {
   const includeSpans = [...before.includeSpans, ...after.includeSpans];
   const uses = [...before.uses, ...after.uses];
   const scripts = [...before.scripts, ...after.scripts];
+  const scriptFiles = [...(before.scriptFiles ?? []), ...(after.scriptFiles ?? [])];
+  const scriptFileSpans = [...(before.scriptFileSpans ?? []), ...(after.scriptFileSpans ?? [])];
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
-  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, root };
+  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans, root };
 }
 
 /** Parse an INCLUDED file (composition.md §1): the same top-level

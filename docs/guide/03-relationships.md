@@ -174,7 +174,7 @@ in-between. It is tied to your change, not to a clock: no interval, no frame
 callback, nothing left standing afterward. And if you catch yourself wanting it to
 wait for something more — data arriving, motion finishing — stop: those are values
 changing (`data.loaded`, `open.atRest`), and values changing is what constraints
-are for.
+are for ([nothing waits](declare-docs:guide:thinking-in-declare)).
 
 One settle has no handler anywhere inside it: the first, when the program boots.
 Its close is *delivered* instead — **`onReady()`**, an event on the App only, fires
@@ -196,9 +196,11 @@ rather than a silent surprise. Five instincts trigger it:
   ([chapter 9](declare-docs:guide:data));
 - aggregating over the live view tree (`children.map(v => v.x)`) → that is what a
   `layout` is for ([chapter 5](declare-docs:guide:space));
-- calling something the compiler can't see into (host interop, a function-valued
-  attribute) → call an in-program method or a builtin — neither is a compromise,
-  since both are read through;
+- passing a *node* into a `script { }` function → script is outside the reactive
+  system, so a script call is **opaque**: the constraint depends on the values you
+  pass, and a node reference never changes. Pass the attributes themselves
+  (`fmt(this.width)`), or make it a method — a method is Declare code, and its
+  parameter reads are analyzed;
 - and the quiet one: **a slot reading itself.** `theme = { { ...theme, accent: red } }`
   looks like a harmless override and is a cycle by construction — the constraint
   invalidates itself on every run. The compiler refuses it and names the fix: derive

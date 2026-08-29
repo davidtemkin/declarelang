@@ -75,6 +75,7 @@ let BODY: { size: number; weight: FontWeight; tracking: number } = { size: 16, w
 // an app-wide override but look right with zero config.
 let HEADINGW: FontWeight = "bold";
 let HEADINGC = 0, LINKC = 0, CODEC = 0;
+let LINKU = false;                               // underline links (schema `linkUnderline`)
 // Code face + size — resolved per rebuild from the prevailing codeSize/codeFamily
 // slots, with the house code style (PROSE.codeSize / PROSE.mono) as the fallback.
 // One value drives every monospace region: inline code, fenced blocks, and the
@@ -206,7 +207,7 @@ function richRunsOf(inline: Inline[], style: Style, family: string): RichRun[] {
       family: s.mono ? CODEFAM : family, strike: s.strike, color: s.color, tracking: s.tracking,
     };
     // inline code reads as a colored mono word, not a filled chip/button
-    if (s.link !== undefined) run.href = s.link;
+    if (s.link !== undefined) { run.href = s.link; if (LINKU) run.underline = true; }
     if (s.fill !== undefined) run.fill = s.fill;   // a themed accent fill (gradient/solid) overrides `color`
     return run;
   });
@@ -871,6 +872,7 @@ function buildQuote(b: Extract<Block, { t: "blockquote" }>, width: number, ctx: 
 export abstract class RichText extends View {
   declare lineHeight: number;
   declare bodyColor: number | null;
+  declare linkUnderline: boolean;
   declare scale: number;
   /** Color-scheme override (null = follow the App's OS `dark`). */
   declare dark: boolean | null;
@@ -1012,6 +1014,7 @@ export abstract class RichText extends View {
     HEADINGW = this.headingWeight || "bold";
     HEADINGC = this.headingColor ?? C.headingColor;
     LINKC = this.linkColor ?? C.link;
+    LINKU = this.linkUnderline === true;
     CODEC = this.codeColor ?? C.code;
     CODESIZE = this.codeSize || PROSE.codeSize;
     CODEFAM = this.codeFamily || PROSE.mono;

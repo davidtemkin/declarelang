@@ -24,6 +24,23 @@ export interface FreeIdent {
    *  layer keep the value CONSTRUCTORS (styling rung) out of member
    *  resolution: `stroke` alone is the slot, `stroke(…)` the constructor. */
   callee: boolean;
+  /** The occurrence is WRITTEN: the target of `=` or a compound assignment,
+   *  or of `++`/`--`. A body may read a script block's `let` (it sees a copy);
+   *  writing one is the silent-loss case the compile layer refuses. */
+  assigned: boolean;
+}
+
+/** Is this identifier the direct target of an assignment or an update? */
+function isAssigned(id: ts.Identifier): boolean {
+  const p = id.parent;
+  if (ts.isBinaryExpression(p) && p.left === id) {
+    const k = p.operatorToken.kind;
+    return k >= ts.SyntaxKind.FirstAssignment && k <= ts.SyntaxKind.LastAssignment;
+  }
+  if ((ts.isPrefixUnaryExpression(p) || ts.isPostfixUnaryExpression(p)) && p.operand === id) {
+    return p.operator === ts.SyntaxKind.PlusPlusToken || p.operator === ts.SyntaxKind.MinusMinusToken;
+  }
+  return false;
 }
 
 /** All free value-position identifiers of a body, in source order — or null
@@ -121,6 +138,7 @@ export function freeIdentifiers(
           end: node.end + delta,
           shorthand: kind === "shorthand",
           callee: ts.isCallExpression(node.parent) && node.parent.expression === node,
+          assigned: isAssigned(node),
         });
       }
       return;

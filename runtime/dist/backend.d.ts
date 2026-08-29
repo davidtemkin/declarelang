@@ -22,6 +22,7 @@ export type RichRun = {
     fill?: Fill;
     chipBg?: number;
     href?: string;
+    underline?: boolean;
 } | {
     br: true;
 };

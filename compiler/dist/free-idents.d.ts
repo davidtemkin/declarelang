@@ -10,6 +10,10 @@ export interface FreeIdent {
      *  layer keep the value CONSTRUCTORS (styling rung) out of member
      *  resolution: `stroke` alone is the slot, `stroke(…)` the constructor. */
     callee: boolean;
+    /** The occurrence is WRITTEN: the target of `=` or a compound assignment,
+     *  or of `++`/`--`. A body may read a script block's `let` (it sees a copy);
+     *  writing one is the silent-loss case the compile layer refuses. */
+    assigned: boolean;
 }
 /** All free value-position identifiers of a body, in source order — or null
  *  when the body does not parse (the checker's compileExpr gate owns

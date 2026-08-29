@@ -9,7 +9,7 @@
 // Zero-dependency like the rest of the runtime; pay-per-use (nothing here
 // allocates until asked). The `__declare` page bridge is installed by boot.ts
 // for top-level apps.
-import { Node } from "./node.js";
+import { Node, authoredName } from "./node.js";
 import { hitAt, traceHitAt, rootFrameOrigin, rootFrameBox } from "./interaction.js";
 import { View } from "./view.js";
 import { declarationsOf, isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
@@ -121,17 +121,7 @@ function safeAttr(v, depth = 0, seen = new Set()) {
  *  and its classroot (named children are installed as properties on both
  *  scopes' owners, depending on where they were declared). */
 export function nameOf(node) {
-    for (const holder of [node.parent, node.classroot]) {
-        if (holder === null || holder === undefined)
-            continue;
-        for (const k of Object.keys(holder)) {
-            if (k.startsWith("$") || k === "parent" || k === "children" || k === "classroot")
-                continue;
-            if (holder[k] === node)
-                return k;
-        }
-    }
-    return null;
+    return authoredName(node);
 }
 /** The whole subtree as data. `path` seeds the root's address ("app"). */
 export function inspect(node, path = "app") {
@@ -456,6 +446,10 @@ export function bridgeFor(root) {
          *  the one place this answer lands). */
         help: () => BRIDGE_HELP,
         clock,
+        /** The build stamp — filled by the host that compiled the page (the dev
+         *  server's boot: when, from which files, by which server). Null where no
+         *  such record exists (a precompiled static page, a test harness). */
+        build: null,
     };
 }
 /** One line per bridge call — what it answers and the shape it takes. */
@@ -471,6 +465,7 @@ const BRIDGE_HELP = {
     stats: "stats() — node/constraint counts for the whole tree",
     evaluate: "evaluate(path, src) — run Declare in the node's scope: read ('width'), compute ('1+2'), set ('width = 40'), bind ('width = { parent.width/2 }'). Returns {ok, text, value} synchronously once primed",
     clock: "clock — the driven clock: manual()/auto()/step(ms)/settleMotion() for deterministic motion in tests",
+    build: "build — what this page runs: compiled-at, the main file, every included file, and the dev server (pid, root) that built it. Null on a static host. Check this FIRST when an edit seems not to show",
     help: "help() — this table",
 };
 /** The dotted address of a live node under `root` — the inverse of find(). */

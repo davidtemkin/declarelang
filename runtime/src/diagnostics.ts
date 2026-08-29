@@ -30,7 +30,7 @@
 // so EVERY compile error flows through this mechanism and carries a code today,
 // and the migration to specific codes is incremental.
 
-import { DeclareError, type Pos } from "./errors.js";
+import { DeclareError, describePos, type Pos } from "./errors.js";
 
 export type Severity = "error" | "warning";
 
@@ -222,8 +222,26 @@ export const Diag = {
 
   // 4xxx name resolution
   unresolved: (name: string, scope: string, pos: Pos): DeclareError =>
-    err(code4(4001), `cannot resolve '${name}' — not a member of ${scope}, a parameter, or a global`, pos),
+    err(code4(4001), `cannot resolve '${name}' — not a member of ${scope}, a parameter, or one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …)`, pos),
   shadowing: (message: string, pos: Pos): DeclareError => err(code4(4002), message, pos),
+  // A body assigns a `let`/`var` a script { } block declared. Each body gets
+  // its own const copy of every script binding, so the write throws at runtime
+  // and no reader could ever have seen it — state that changes lives on a node.
+  // A body names a host global (document, window, process, …). Refused by name,
+  // with the Declare way beside it (teach.ts HOST_GLOBAL_HINTS).
+  hostGlobal: (name: string, hint: string, pos: Pos): DeclareError =>
+    err(code4(4004), `'${name}' is the host's, not Declare's — a program runs on three renderers and names none of their globals. ${hint.charAt(0).toUpperCase()}${hint.slice(1)}`, pos),
+  // A bare enum token inside a { } body (`{ active ? semibold : regular }`):
+  // the slot's own word, which is a string inside an expression.
+  enumTokenInExpr: (token: string, slot: string, pos: Pos): DeclareError =>
+    err(code4(4005), `'${token}' is one of ${slot}'s values — bare only as the whole slot (${slot} = ${token}); inside { } write it as a string: "${token}"`, pos),
+  // A WARNING: a Heartbeat whose onFrame never reads its dt is not integrating —
+  // it is polling, the one imperative habit the language exists to retire
+  // (declare.md §1, "nothing waits").
+  heartbeatPolls: (param: string, pos: Pos): DeclareError =>
+    err(code4(4006), `this onFrame never reads '${param}' — a Heartbeat that does not integrate is polling. Nothing waits in Declare: what is this handler waiting for? A fetch landing is 'data.loaded' (constrain on it, or onLoad); a view existing or settling is onInit / onReady / afterSettle / onArrive; a value changing is a constraint on it; a value that should advance over time is an Animator, one that should reach a target a Spring. Keep the Heartbeat only if the next value is computed from the last, each frame`, pos),
+  scriptWrite: (name: string, pos: Pos): DeclareError =>
+    err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
   // `classroot` reaches the root of the component (class) you are defining, so it
   // is meaningful ONLY inside a class body. `where` names the non-class body the
   // code is actually in ("the App", "a stylesheet", "a style bundle").
@@ -283,7 +301,7 @@ export function toDiagnostic(e: DeclareError, severity: Severity, fallbackPhase:
  *  text — ANSI color is a caller-side decoration, never a second format. */
 export function formatDiagnostic(d: Omit<Diagnostic, "rendered">): string {
   const sev = d.severity === "warning" ? "warning: " : "";
-  const at = d.pos ? ` (line ${d.pos.line}, col ${d.pos.col})` : "";
+  const at = d.pos ? ` ${describePos(d.pos)}` : "";
   const hint = d.hint ? `\n  hint: ${d.hint}` : "";
   return `${sev}${d.message} [${d.code}]${at}${hint}`;
 }
@@ -321,6 +339,10 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4000), phase: "name", summary: "name-resolution error (unclassified)" },
   { code: code4(4001), phase: "name", summary: "a bare name resolves to nothing in scope" },
   { code: code4(4002), phase: "name", summary: "a bare name shadows an outer member (warning)" },
+  { code: code4(4003), phase: "name", summary: "a body writes a script { } variable (a body holds a copy — state lives on a node)" },
+  { code: code4(4004), phase: "name", summary: "a body names a host global (document, window, process, …) — the Declare way is named" },
+  { code: code4(4005), phase: "name", summary: "a bare enum token inside { } — the quoted form is named" },
+  { code: code4(4006), phase: "name", summary: "a Heartbeat's onFrame ignores dt — polling, not integration (warning)" },
   { code: code4(5000), phase: "module", summary: "include/module error (unclassified)" },
   { code: code4(5001), phase: "module", summary: "two included files declare the same class" },
   { code: code4(5002), phase: "module", summary: "an include path cannot be found" },

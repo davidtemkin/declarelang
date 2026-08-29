@@ -1,5 +1,9 @@
 import { DeclareError } from "../../runtime/dist/errors.js";
 import { type SerializedLink } from "../../runtime/dist/links.js";
+import ts from "typescript";
+/** The value bindings one `import` declaration introduces — default, namespace,
+ *  and named (as-renamed) alike. Type-only imports bind nothing at runtime. */
+export declare function importedNames(st: ts.ImportDeclaration): string[];
 import { type IncludeHost } from "../../runtime/dist/include.js";
 import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
 /** A compile result. `source` is the resolved program (null when there are
@@ -51,6 +55,19 @@ export interface CompileOptions {
      *  latency-critical loop (a debounced per-keystroke compile) — a visible,
      *  greppable choice, never a wiring accident. */
     typecheck?: boolean;
+    /** Bundle the program's script module — the seam that makes ES `import`
+     *  inside `script { }` real (composition.md §2). Handed the concatenated
+     *  script sources (TypeScript, imports included) and the directory bare
+     *  and relative specifiers resolve against; returns the bundled CommonJS
+     *  text, or an error to report. Node hosts (the dev server, declarec,
+     *  verify) supply an esbuild-backed implementation (compile-node); the
+     *  in-browser compiler has none, so a program with script imports is
+     *  refused there with the reason. */
+    bundleScripts?: (entry: string, resolveDir: string) => Promise<{
+        code: string;
+    } | {
+        error: string;
+    }>;
 }
 /** Compile a Declare source: full diagnostics (include resolve + check + scope
  *  resolution), and a SELF-CONTAINED resolved source the zero-dependency

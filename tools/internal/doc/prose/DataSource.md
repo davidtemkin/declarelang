@@ -112,8 +112,12 @@ Nothing has been asked for yet, or `clear()` returned it here. `= { status == "i
 A request is in flight. `= { status == "loading" }` — the slot to hang a spinner on.
 
 ## loaded
-The value arrived and validated. `= { status == "loaded" }`. This is the usual one: a
-screen derives from it (`visible = { data.loaded }`) rather than being toggled by hand.
+The *latest* fetch finished and validated. `= { status == "loaded" }`. It is about the
+request, not the value: a refetch (a changed `url` under `auto`, or `fetch()` again) drops
+it to `false` until the new response lands, while `value` still holds the previous one. So
+`visible = { data.loaded }` blinks on every refresh; a screen that should stay put while
+data refreshes guards on presence instead — `visible = { data.value != null }` — and keeps
+`loaded`/`loading` for what they name, the request's state.
 
 ## failed
 The request, or the schema check, refused. `= { status == "failed" }`. Read `error` for

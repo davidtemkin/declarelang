@@ -14,6 +14,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { test, summarize } from "./harness.mjs";
 import { createMounts, MountError } from "../server/mounts.mjs";
 import { createProxy } from "../server/proxy.mjs";
@@ -159,6 +160,53 @@ await (async () => {
         { method: "POST", body: "App [ label: Text [ text = \"hi\" ] ]" });
       const j = await r.json();
       assert.ok(j.source, "expected a compiled source back");
+    });
+    // ── identity: the server says who it is, everywhere a page or a tool can ask ──
+    // (field report 2026-08-21: a page faithfully serving a different checkout's
+    // tree read as "a stale build", because nothing named the server behind it)
+    await test("identity: GET /__identity names the server — pid, root, platform, started, toolchain", async () => {
+      const j = await (await fetch(`http://127.0.0.1:${port}/__identity`)).json();
+      assert.equal(j.pid, process.pid);
+      assert.equal(j.root, ROOT);
+      assert.equal(j.platform, ROOT);
+      assert.ok(!Number.isNaN(Date.parse(j.started)), "started is an ISO timestamp");
+      assert.match(j.toolchain, /^[0-9a-f]{8}$/);
+      assert.deepEqual(j, server.identity(), "the factory's identity() and the route agree");
+    });
+    await test("identity: the page marker carries the identity, not just `true`", async () => {
+      const html = await (await GET(port, "/apps/lzx-weather/lzx-weather.declare")).text();
+      const m = html.match(/window\.__declareServer=(\{.*?\})<\/script>/);
+      assert.ok(m, "the marker is an object literal");
+      const id = JSON.parse(m[1]);
+      assert.equal(id.pid, process.pid);
+      assert.equal(id.root, ROOT);
+    });
+    await test("identity: every /compile answer carries a build stamp — when, main, the files read, the server", async () => {
+      const main = "/apps/lzx-weather/lzx-weather.declare";
+      const r = await fetch(`http://127.0.0.1:${port}/compile?main=${encodeURIComponent(main)}`,
+        { method: "POST", body: "App [ label: Text [ text = \"stamped\" ] ]" });
+      const j = await r.json();
+      assert.ok(j.source);
+      assert.ok(!Number.isNaN(Date.parse(j.build.at)));
+      assert.equal(j.build.main, D("apps/lzx-weather/lzx-weather.declare"));
+      assert.ok(Array.isArray(j.build.files) && j.build.files.every((f) => f !== j.build.main), "files are the OTHER files the compile read");
+      assert.equal(j.build.server.pid, process.pid);
+      assert.equal(j.build.server.root, ROOT);
+    });
+    await test("identity: a second server refuses a port another Declare server already answers on", async () => {
+      // 0.0.0.0 against a 127.0.0.1 listener is the overlap the OS permits — the
+      // case that split one port number across two trees. index.mjs probes first.
+      // (Async spawn: THIS process is the server the child must reach for
+      // /__identity, so a blocking spawnSync would make it look like a stranger.)
+      const r = await new Promise((resolve) => {
+        const c = spawn(process.execPath, [D("server/index.mjs"), "--no-config", "--host", "0.0.0.0", String(port)], { stdio: ["ignore", "pipe", "pipe"] });
+        let stderr = "";
+        c.stderr.on("data", (d) => { stderr += d; });
+        c.on("exit", (status) => resolve({ status, stderr }));
+      });
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, new RegExp(`port ${port} is already taken by another Declare dev server — pid ${process.pid}`));
+      assert.match(r.stderr, /kill \d+/);
     });
   } finally { s.close(); }
 })();

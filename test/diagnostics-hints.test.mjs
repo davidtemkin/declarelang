@@ -111,4 +111,123 @@ await test("a real modulo is not mistaken for a percentage", async () => {
   await silent(`App [ n: number = 7, View [ width = { 100 % app.n } ] ]`, "no percentages");
 });
 
+// ── the globals a body may use are IN SCOPE for the checker ──────────────────
+// The resolver admits `fetch` (it is in Node's globalThis) but the checker
+// loads no DOM lib, so until the prelude declared them by hand, `fetch`, `URL`
+// and `AbortController` failed R3 with "nothing in scope is named 'fetch' …
+// or a global" — which three agents read as an invitation to
+// `(globalThis as any).fetch` (field report 2026-08-21).
+await test("a handler may call fetch, build a URL, and cancel with an AbortController", async () => {
+  const src = `App [ Text [ text = "x", onClick() {
+    const u = new URL("/x?a=1", "http://h"); u.searchParams.set("b", "2");
+    const c = new AbortController();
+    fetch(u, { method: "POST", body: JSON.stringify({ a: 1 }), headers: { "content-type": "application/json" }, signal: c.signal })
+      .then((r) => r.ok ? r.json() : null).then((j) => console.log(j, encodeURIComponent("x y")));
+  } ] ]`;
+  const text = await errText(src);
+  assert.equal(text, "", `expected a clean compile, got:\n  ${text}`);
+});
+
+await test("an unknown bare name names what a global IS, instead of offering 'a global' as the answer", async () => {
+  await says(`App [ Text [ text = "x", onClick() { bogus(1) } ] ]`, "one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …)");
+});
+
+// ── a typecheck error has a COLUMN ──────────────────────────────────────────
+// Bodies are emitted verbatim into the check file, so tsc's character is the
+// source column — offset by the `{` on a body's first line. Every typecheck
+// position used to say col 1 (field report 2026-08-21).
+await test("a typecheck error is positioned at its column — first body line, later line, expression body", async () => {
+  const at = async (src) => {
+    const r = await compile(src, { originDir: process.cwd() });
+    assert.equal(r.errors.length, 1, r.errors.map((e) => e.message).join("\n"));
+    return { line: r.errors[0].pos.line, col: r.errors[0].pos.col };
+  };
+  assert.deepEqual(await at(`App [\n  Text [ text = "x", onClick() { const s = "a"; s.nope() } ]\n]`), { line: 2, col: 51 });
+  assert.deepEqual(await at(`App [\n  Text [ text = "x", onClick() {\n      const s = "a"\n      s.nope()\n  } ]\n]`), { line: 4, col: 9 });
+  assert.deepEqual(await at(`App [\n  Text [ text = { "a".nope() } ]\n]`), { line: 2, col: 23 });
+});
+
+// ── a body may not WRITE a script { } variable ──────────────────────────────
+// A body receives a const copy of every script binding; writing one threw
+// "Assignment to constant variable" once per frame with a stack naming nothing,
+// and passed every compile rung (field report 2026-08-21).
+await test("a handler that assigns a script { } let is refused at resolution, naming the Declare shape", async () => {
+  await says(`script { let counter = 0 }\nApp [ Text [ text = "x", onClick() { counter = counter + 1 } ] ]`, "'counter' is a script { } variable");
+  await says(`script { let counter = 0 }\nApp [ Text [ text = "x", onClick() { counter += 1 } ] ]`, "'counter' is a script { } variable");
+  {
+    const r = await compile(`script { let counter = 0 }\nApp [ Text [ text = "x", onClick() { counter += 1 } ] ]`, { originDir: process.cwd() });
+    assert.equal(r.diagnostics[0].code, "DECLARE4003");
+  }
+  await says(`script { var n = 0 }\nApp [ Text [ text = "x", onClick() { n++ } ] ]`, "'n' is a script { } variable");
+  // reading one stays allowed (a body sees the value), and a const is untouched
+  await silent(`script { let counter = 0 }\nApp [ Text [ text = "x", onClick() { console.log(counter) } ] ]`, "script { } variable");
+  await silent(`script { const LIMIT = 3 }\nApp [ Text [ text = "x", onClick() { console.log(LIMIT) } ] ]`, "script { } variable");
+  // a body-local of the same name shadows it and is writable
+  await silent(`script { let counter = 0 }\nApp [ Text [ text = "x", onClick() { let counter = 1; counter = 2 } ] ]`, "script { } variable");
+});
+
+// ── host globals are refused BY NAME, with the Declare way ──────────────────
+// Until 2026-08-23 the resolver admitted `document`/`process` (curated list +
+// Node's globalThis) and the checker then refused them with TypeScript's own
+// advice ("change lib to dom", "npm i @types/node").
+await test("a host global in a body is refused at resolution with the Declare way, never TypeScript's lib advice", async () => {
+  await says(`App [ Text [ text = "x", onClick() { console.log(document.title) } ] ]`, "'document' is the host's, not Declare's");
+  await says(`App [ Text [ text = "x", onClick() { console.log(document.title) } ] ]`, "the tree IS the program");
+  await says(`App [ Text [ text = "x", onClick() { console.log(process.env.HOME) } ] ]`, "'process' is the host's");
+  await says(`App [ Text [ text = "x", onClick() { localStorage.setItem("k", "v") } ] ]`, "Persistence is not in the language yet");
+  await says(`App [ Text [ text = "x", onClick() { requestAnimationFrame(() => {}) } ] ]`, "Heartbeat [ onFrame(dt) ]");
+  await silent(`App [ Text [ text = "x", onClick() { console.log(document.title) } ] ]`, "lib");
+  await silent(`App [ Text [ text = "x", onClick() { console.log(process.env.HOME) } ] ]`, "@types/node");
+  // the ES built-ins and the prelude stay in scope
+  await silent(`App [ Text [ text = "x", onClick() { console.log(Math.max(1, 2), JSON.stringify({}), new Map(), Date.now(), structuredClone({})) } ] ]`, "host's");
+});
+
+await test("await in a body is refused in Declare's words, naming the DataSource and .then() shapes", async () => {
+  await says(`App [ Text [ text = "x", onClick() { const r = await fetch("/x"); console.log(r) } ] ]`, "a { } body is synchronous — there is no 'await'");
+  await silent(`App [ Text [ text = "x", onClick() { const r = await fetch("/x"); console.log(r) } ] ]`, "async functions");
+});
+
+// ── a bare enum token inside { } names its quoted form ──────────────────────
+// `fontWeight = { active ? semibold : regular }` read as "cannot resolve
+// 'semibold'" — the fix is mechanical and was not in the message (field report
+// 2026-08-21).
+await test("a bare enum token inside a { } body is answered with the quoted form", async () => {
+  await says(`App [ on: boolean = true, Text [ text = "x", fontWeight = { app.on ? semibold : regular } ] ]`, `'semibold' is one of fontWeight's values`);
+  await says(`App [ on: boolean = true, Text [ text = "x", fontWeight = { app.on ? semibold : regular } ] ]`, `write it as a string: "semibold"`);
+  await says(`App [ on: boolean = true, Text [ text = "x", textAlign = { app.on ? right : left } ] ]`, `"right"`);
+  // a token of ANOTHER slot is still simply unresolved
+  await silent(`App [ on: boolean = true, Text [ text = { app.on ? semibold : "x" } ] ]`, "is one of");
+});
+
+// ── assigning read-only `.value` names the verbs, not TS's bare refusal ─────
+// Field report 2026-08-21: guide says set([], v), the runtime's old advice said
+// "assign .value", and TS 2540 refused that with no way forward. The remap
+// closes the loop: the verbs, with the whole-document replace spelled out.
+await test("assigning a Dataset's value is answered with the mutation verbs and set([], v)", async () => {
+  const src = `App [ d: Dataset { { "n": 1 } }, Text [ text = "x", onClick() { app.d.value = ({ "n": 2 }) } ] ]`;
+  await says(src, "'value' is read-only — data changes through the verbs");
+  await says(src, "set([], v) replaces the whole document");
+  await silent(src, "Cannot assign to");
+});
+
+// ── a Heartbeat that ignores dt is polling — a WARNING naming the reflex ────
+// "Nothing waits" (declare.md §1): the per-frame handler that checks state is
+// the one imperative habit every field report has shown.
+await test("a Heartbeat whose onFrame never reads dt warns that it is polling; one that integrates does not", async () => {
+  const warnText = async (src) => {
+    const r = await compile(src, { originDir: process.cwd() });
+    assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("\n"));
+    return r.warnings.map((w) => w.message).join("\n");
+  };
+  const polls = await warnText(`App [ ready: boolean = false, data: DataSource [ url = "x.json" ],
+    Heartbeat [ onFrame(dt: number) { if (app.data.loaded) { app.ready = true } } ] ]`);
+  assert.ok(polls.includes("never reads 'dt'"), polls);
+  assert.ok(polls.includes("Nothing waits"), polls);
+  const integrates = await warnText(`App [ x0: number = 0, Heartbeat [ onFrame(dt: number) { app.x0 = app.x0 + 60 * dt } ] ]`);
+  assert.equal(integrates, "");
+  // 'dt' inside a string is not a read; a handler on a non-Heartbeat is not judged
+  const inString = await warnText(`App [ Heartbeat [ onFrame(dt: number) { console.log("dt") } ] ]`);
+  assert.ok(inString.includes("never reads 'dt'"));
+});
+
 summarize("diagnostics-hints");

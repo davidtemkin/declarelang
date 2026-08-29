@@ -19,7 +19,7 @@ Get the repository.
 ```bash
 npm install
 ```
-Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run.
+Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run. pnpm works too — the repo pre-approves esbuild's install script; if you instead add declarelang to another project as a git dependency, approve its build (`pnpm approve-builds`, or `"pnpm": { "onlyBuiltDependencies": ["declarelang"] }`) so its prepare step runs.
 
 ```bash
 npm start
@@ -96,7 +96,7 @@ You already have the whole development loop:
 Then break it on purpose. Change `count` to `kount` in the label and reload:
 
 ```
-cannot resolve 'kount' — not a member of Text → App, a parameter, or a global [DECLARE4001] (line 5, col 31)
+cannot resolve 'kount' — not a member of Text → App, a parameter, or one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …) [DECLARE4001] (line 5, col 31)
 ```
 
 The diagnostic names the fix: the name is not in scope, and it shows the exact

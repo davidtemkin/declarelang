@@ -20,7 +20,7 @@ provideMeasurer(approximateMeasurer());
 const SRC = readFileSync(new URL("../apps/tracker/tracker.declare", import.meta.url), "utf8");
 
 async function boot(n = 10000) {
-  const b = await compileProgram(SRC, { originDir: process.cwd() + "/library", stripPos: false });
+  const b = await compileProgram(SRC, { originDir: new URL("../apps/tracker", import.meta.url).pathname, stripPos: false });
   assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
   const app = instantiate(b.program);
   app.width = 1200;
@@ -268,7 +268,7 @@ await test("criterion 12: the differ — the same script, windowed vs full, iden
   const a = await boot(N);
   const wa = script(a);
   const SRC_ALL = SRC.replace("virtualize = true ]", "virtualize = false ]");
-  const b = await compileProgram(SRC_ALL, { originDir: process.cwd() + "/library", stripPos: false });
+  const b = await compileProgram(SRC_ALL, { originDir: new URL("../apps/tracker", import.meta.url).pathname, stripPos: false });
   assert.equal(b.errors.length, 0);
   const appB = instantiate(b.program);
   appB.width = 1200; appB.height = 800;

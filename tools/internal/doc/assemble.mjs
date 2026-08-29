@@ -175,7 +175,10 @@ function sharedTypes() {
   const lines = prelude.split("\n");
   const splitMembers = (s) => s.split(";").map((x) => x.trim()).filter((x) => x && !x.startsWith("//"));
   for (let i = 0; i < lines.length; i++) {
-    const head = lines[i].match(/^interface\s+([A-Za-z]\w*)(?:\s+extends\s+([A-Za-z]\w*))?\s*\{(.*)$/);
+    // `declare class X { … }` is the same shape for the reader's purposes — a
+    // named set of members (the host classes a body constructs: URL,
+    // AbortController). Projected as an interface; the `new` is implied.
+    const head = lines[i].match(/^(?:interface|declare class)\s+([A-Za-z]\w*)(?:\s+extends\s+([A-Za-z]\w*))?\s*\{(.*)$/);
     if (!head) continue;
     const [, name, base, rest] = head;
     let members = [];
@@ -494,6 +497,26 @@ const VOCAB_NOTE = {
   clearTimeout: "cancel a `setTimeout`",
   setInterval: "repeating work — same caveat as `setTimeout`",
   clearInterval: "cancel a `setInterval`",
+  // The network and URL globals (scaffold PRELUDE, declared by hand because the
+  // checker loads no DOM lib). Prefer a `DataSource` for data the screen derives
+  // from — these are for the imperative remainder: a POST that returns nothing
+  // the view reads, a one-off probe, a URL to build.
+  fetch: "the host's `fetch` — for an imperative request; a `DataSource` is the declarative one, and the usual answer",
+  Response: "what `fetch` resolves to — `ok`, `status`, `json()`, `text()`",
+  RequestInit: "the options `fetch` takes — `method`, `headers`, `body`, `signal`",
+  Headers: "a response's headers — `get(name)`",
+  Blob: "a binary body",
+  FormData: "a multipart body",
+  AbortController: "cancel an in-flight `fetch` — pass `.signal`, call `.abort()`",
+  AbortSignal: "the cancellation handle an `AbortController` issues",
+  URL: "parse or build a URL — `new URL(path, base)`, then `.searchParams`, `.pathname`, `.href`",
+  URLSearchParams: "a query string as a map — `get`, `set`, `append`, `toString()`",
+  queueMicrotask: "run after the current turn, before anything else",
+  structuredClone: "a deep copy",
+  encodeURIComponent: "percent-encode one query value",
+  decodeURIComponent: "the inverse of `encodeURIComponent`",
+  encodeURI: "percent-encode a whole URL, keeping its structure",
+  decodeURI: "the inverse of `encodeURI`",
 };
 
 const sharedTypesDoc = (spine) => {
@@ -510,7 +533,16 @@ const sharedTypesDoc = (spine) => {
   const out = ["# Types and functions", "",
     "*The shared vocabulary every `{ }` body can name. The scaffold declares all of it into",
     "each program's check block, so it is typechecked for your code exactly as for the",
-    "standard library's.*", ""];
+    "standard library's.*", "",
+    "Beyond the tree, a bare name in a body may be one of three things, the same on every",
+    "renderer: an **ES built-in** (`Math`, `JSON`, `Date`, `Promise`, `Map`, …); one of the",
+    "**host chores declared below** (timers, `console`, `fetch` and the `URL` family) — each",
+    "with the one narrow shape it has everywhere Declare runs; or a **runtime service**",
+    "(`Focus`, `Keys`, `Themes`, `afterSettle`). Nothing else: `document`, `window`,",
+    "`localStorage`, `process` are the host's, and the compiler refuses each by name with the",
+    "Declare way beside it. A capability the language lacks arrives through an `external`",
+    "attribute the host supplies, never through a bare global. A body is synchronous — there",
+    "is no `await`; a value the screen derives from is a `DataSource`.", ""];
 
   out.push("## `Draw` — drawing as a tracked computation", "",
     "A `draw(d: Draw)` member is **not** a paint callback and not an escape hatch. It records a",

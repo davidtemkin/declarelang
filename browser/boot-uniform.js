@@ -329,7 +329,7 @@ export default async function boot(cfg) {
   pruneBuckets(build);
   const key = lookupKey(mainId, props, build);
 
-  let program = null, deps = undefined, pageSource = null, path = "slow", toCache = null;
+  let program = null, deps = undefined, pageSource = null, path = "slow", toCache = null, stamp = null;
 
   // LOAD A BUILD — the first of the two requests this boot can make, and a
   // different question from the one below it (docs/system-design/hosting.md).
@@ -417,6 +417,16 @@ export default async function boot(cfg) {
     // Only the in-browser compile has a closure to cache; a server compile is
     // re-run each reload, so there is nothing (and no reason) to persist.
     if (!onServer) toCache = { program, deps, source, closure: out.closure };
+    // The BUILD STAMP (server/create.mjs): when, from which files, by which
+    // server. One console line on every load, so "is this my edit?" is
+    // answered by reading, not by clearing caches — and the same record is
+    // __declare.build once the app is up.
+    if (out.build) {
+      stamp = out.build;
+      const when = new Date(stamp.at).toLocaleTimeString();
+      const n = stamp.files.length;
+      console.log(`[Declare] built ${when} from ${stamp.main ?? "(source)"}${n > 0 ? ` + ${n} included file${n === 1 ? "" : "s"}` : ""} · dev server pid ${stamp.server.pid} · root ${stamp.server.root}`);
+    }
   }
 
   // Live-edit compile ("Edit this page" + demo previews). Warm-loaded in the
@@ -493,15 +503,27 @@ export default async function boot(cfg) {
   };
 
   const sRender = perfStage("render");
-  const app = await bootHost({                                     // render first — nothing below delays first paint
-    source: program, deps, backend: cfg.backend,
-    host: cfg.host,                                                // an explicit mount element — several apps per page, each in its own marked div
-    location: cfg.location,
-    mainAssetBase: mainDir.href,                                   // per-app asset AND data base — N tenants, each its own program dir
-    pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
-    seeds, demoBase, compile: liveCompile, prewarm: prewarmChild,
-  });
+  let app;
+  try {
+    app = await bootHost({                                         // render first — nothing below delays first paint
+      source: program, deps, backend: cfg.backend,
+      host: cfg.host,                                              // an explicit mount element — several apps per page, each in its own marked div
+      location: cfg.location,
+      mainAssetBase: mainDir.href,                                 // per-app asset AND data base — N tenants, each its own program dir
+      pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
+      seeds, demoBase, compile: liveCompile, prewarm: prewarmChild,
+    });
+  } catch (e) {
+    // A RUNTIME boot failure gets the same banner a compile error does — a
+    // blank page with an empty console is the one outcome this page must
+    // never produce (field report 2026-08-21: all five builders saw it).
+    console.error("[Declare] boot failed:", e);
+    return showError("boot failed — the program compiled but did not come up:\n\n" + ((e && e.stack) || e));
+  }
   sRender.end();
+  // The stamp lands on the bridge (runtime/src/inspect.ts declares the slot;
+  // only a host that compiled can fill it).
+  if (stamp !== null && window.__declare) window.__declare.build = stamp;
   // The number every stage leads to: the first frame the compositor PAINTS
   // after render (double-rAF — the second callback runs after the first
   // frame's paint has been committed).

@@ -10,7 +10,7 @@
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
 
-import { Node, onDiscard, runRetire } from "./node.js";
+import { Node, onDiscard, runRetire, authoredName } from "./node.js";
 import { DeclareError } from "./errors.js";
 import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
@@ -1441,11 +1441,33 @@ export function setFocusDiscardHook(fn: (view: View) => void): void {
   focusDiscardHook = fn;
 }
 
+/** A node's address for an error message: its authored-name path up the tree
+ *  (`app.pulse.card`), or its class when anonymous. Cheap, and built only once
+ *  a handler has already thrown. */
+export function nodeLabel(n: Node): string {
+  const parts: string[] = [];
+  let cur: Node | null = n;
+  for (let i = 0; cur !== null && cur.parent !== null && i < 12; i++, cur = cur.parent) {
+    parts.unshift(authoredName(cur) ?? (i === 0 ? cur.constructor.name : "…"));
+  }
+  return "app" + (parts.length > 0 ? "." + parts.join(".") : "");
+}
+
 export function fireEvent(view: Node, event: string, ...args: unknown[]): void {
   // typed at Node, not View: an event is a handler lookup on the instance, and
   // the faceless tier has a lifecycle too (a plain Node fires `init`)
   const h = (view as unknown as Record<string, unknown>)[handlerName(event)];
-  if (typeof h === "function") (h as (...a: unknown[]) => void).call(view, ...args);
+  if (typeof h === "function") {
+    // A throwing handler is LOUD and ATTRIBUTED, never fatal: the settle it
+    // fired in must survive (field report 2026-08-21 — a throwing onInit
+    // surfaced nothing across four console reads). The handler's name and the
+    // node's address are the two facts the console was missing.
+    try {
+      (h as (...a: unknown[]) => void).call(view, ...args);
+    } catch (e) {
+      console.error(`[Declare] ${handlerName(event)} on ${nodeLabel(view)} threw: ${(e as Error)?.message ?? e}`, e);
+    }
+  }
 }
 
 /** Resolve a reveal anchor name against a settled tree (location.md §6). One

@@ -432,6 +432,8 @@ function analyze(tokens) {
         parseBody(true);
       } else if (at("script", "code")) {
         p += 2; // `script { … }` — the body is opaque TS, passed through verbatim
+      } else if (at("script", "lb")) {
+        parseDirective("script"); // `script [ "file.ts", … ]` — file entries, include-shaped
       } else break;
     }
   };

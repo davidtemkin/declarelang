@@ -107,6 +107,47 @@ await test("the viewer inside the CANVAS desktop gets its host's data", async ()
   assert.ok(st.len > 100000, `the whole source arrived (got ${st.len})`);
 });
 
+// ── include links: a program's `include [ "…" ]` paths and bare library tags are
+// in-app links; following one views THAT file in place (the location names it),
+// arms ‹ ›, and an include's Edit tab says which program to edit instead.
+await test("viewer: an include path is a link that views the included file in place; Edit on it points back at the program", async () => {
+  await page.goto(`${B}/apps/weather/weather.declare?viewer=reader`, { waitUntil: "networkidle0", timeout: 60000 });
+  await sleep(2000);
+  const hrefs = await page.evaluate(() => [...document.querySelectorAll("a[href^='#reader/']")].map((a) => a.getAttribute("href")));
+  assert.ok(hrefs.includes("#reader/apps/weather/weather-art.declare"), `the include is a link, got ${JSON.stringify(hrefs.slice(0, 4))}`);
+  assert.ok(hrefs.some((h) => h.startsWith("#reader/") && h.endsWith("/library/simplelayout.declare")), "a bare library tag links to its library file");
+  const st = () => page.evaluate(() => { const a = window.__declare.find("app"); return { loc: a.location, file: a.filePath(), isInclude: a.isInclude }; });
+  await page.evaluate(() => window.__declare.find("app").follow("#reader/apps/weather/weather-art.declare"));
+  await sleep(2000);
+  let s = await st();
+  assert.equal(s.file, "apps/weather/weather-art.declare", "the included file is viewed in place");
+  assert.equal(s.isInclude, true);
+  assert.equal(await page.evaluate(() => location.hash), "#reader/apps/weather/weather-art.declare", "the fragment names the file");
+  // the REAL tab path: pick "Edit" through the switch — it must keep the viewed file
+  await page.evaluate(() => window.__declare.find("app.bar.modeSwitch").input("edit"));
+  await sleep(800);
+  const edit = await page.evaluate(() => { const a = window.__declare.find("app"); return { noRun: a.noRun.visible, live: a.live.visible, l1: a.noRun.l1.text, rowOn: a.noRun.row.visible, name: a.noRun.row.name.text, altOn: a.noRun.alt.visible }; });
+  assert.equal(edit.noRun, true); assert.equal(edit.live, false);
+  assert.equal(edit.l1, "This file declares components — there is no App to run.");
+  assert.equal(edit.rowOn, true); assert.equal(edit.name, "weather.declare"); assert.equal(edit.altOn, false);
+  assert.equal((await st()).loc, "edit/apps/weather/weather-art.declare", "the tab kept the viewed file");
+  // the walk is the HOST's: one browser Back returns to the program (the tab
+  // switch REPLACED its entry, so it is not a stop on the way)
+  await page.goBack(); await sleep(1000);
+  s = await st();
+  assert.equal(s.file, "apps/weather/weather.declare", "browser Back walks files, never tabs");
+});
+
+await test("viewer: a page opened DIRECTLY on an include points at no program — it cannot know one", async () => {
+  await page.goto(`${B}/apps/weather/weather-art.declare?viewer=edit`, { waitUntil: "load", timeout: 60000 });
+  await sleep(2000);
+  const st = await page.evaluate(() => { const a = window.__declare.find("app"); return { noRun: a.noRun.visible, rowOn: a.noRun.row.visible, altOn: a.noRun.alt.visible, alt: a.noRun.alt.text }; });
+  assert.equal(st.noRun, true);
+  assert.equal(st.rowOn, false, "no program named — the page opened on the include itself");
+  assert.equal(st.altOn, true);
+  assert.equal(st.alt, "Open a program that includes it to edit live.");
+});
+
 await browser.close();
 httpServer.close();
 summarize("reader-flow");

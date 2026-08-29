@@ -127,8 +127,13 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // recorder's growth is carried and the fallback is paid only where it can
   // render. The canvas backend's raster policy is not in this number at all: a
   // DOM production bundle does not ship canvas-backend.js.
+  //
+  // 86 (2026-08-29, the field-report merge): measured 84.3. The runtime guards
+  // the six-agent report asked for — a handler that keeps throwing is named and
+  // stopped, replay restores the paint state it inherited, set([], v) replaces a
+  // document — plus the remapped diagnostics. Product surface; carried.
   const gz = out.sizes.totalGzip;
-  assert.ok(gz > 20 * 1024 && gz < 84 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  assert.ok(gz > 20 * 1024 && gz < 86 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
 // THE STUB-DRIFT TRAP, made structural. The production build replaces

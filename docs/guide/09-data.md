@@ -92,8 +92,10 @@ report: View [ visible = {  weather.loaded }, … ],   // report screen — deri
 The lifecycle is `.idle` → `.loading` → `.loaded` / `.failed`, with `.value` and
 `.error`, and two methods: **`.fetch()`** — explicit, always; nothing loads because
 it was declared — and `.clear()`. The screens above are the pattern to internalize:
-**screens derive from data state.** There is no `isLoading` flag you set, no
-navigation code that shows the report when the fetch callback lands — and `.clear()`
+**screens derive from data state.** There is no `isLoading` flag you set, no timer
+polling `.loaded` (the constraint *is* the notification — [nothing
+waits](declare-docs:guide:thinking-in-declare)), no navigation code that shows the
+report when the fetch callback lands — and `.clear()`
 "navigates" back to the splash because both screens re-derive. This is the
 fetch-then-setState choreography from your current stack, deleted rather than
 abstracted.

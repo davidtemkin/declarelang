@@ -58,6 +58,10 @@ export declare const Diag: {
     type: (message: string, pos?: Pos) => DeclareError;
     unresolved: (name: string, scope: string, pos: Pos) => DeclareError;
     shadowing: (message: string, pos: Pos) => DeclareError;
+    hostGlobal: (name: string, hint: string, pos: Pos) => DeclareError;
+    enumTokenInExpr: (token: string, slot: string, pos: Pos) => DeclareError;
+    heartbeatPolls: (param: string, pos: Pos) => DeclareError;
+    scriptWrite: (name: string, pos: Pos) => DeclareError;
     classrootOutsideClass: (where: string, pos: Pos) => DeclareError;
     namedColorInExpr: (name: string, hex: string, pos: Pos) => DeclareError;
     includeCollision: (message: string, pos?: Pos) => DeclareError;

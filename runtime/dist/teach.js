@@ -87,4 +87,51 @@ export function cssAttributeHint(name) {
 export function hintedForeignName(name) {
     return name.length >= 5 ? nearestName(name, Object.keys(CSS_ATTRIBUTE_HINTS)) : null;
 }
+/** The HOST-GLOBAL table: the browser's (and Node's) names a body may reach
+ *  for, each answered with the Declare way. A Declare program runs on three
+ *  renderers, so a bare `document` or `process` is refused by NAME — with the
+ *  fact the author actually wanted named beside it — rather than admitted by
+ *  the resolver and then refused by the checker with TypeScript's own advice
+ *  ("change lib to dom", "npm i @types/node"), which is what happened until
+ *  2026-08-23. What a body MAY name is the prelude (scaffold.ts) plus the ES
+ *  built-ins: docs Vocabulary → Types and functions. A host capability the
+ *  language lacks arrives through an `external` attribute the host supplies,
+ *  never through a bare global. */
+export const HOST_GLOBAL_HINTS = {
+    window: "there is no window — the App fills its host, so the page's size is app.width / app.height, and host facts (app.pageVisible, app.darkMode) are attributes",
+    innerWidth: "the page's width is app.width (the App fills its host)",
+    innerHeight: "the page's height is app.height (the App fills its host)",
+    screen: "the page's size is app.width / app.height; pixel density is the renderer's concern, not the program's",
+    devicePixelRatio: "pixel density is the renderer's concern, not the program's — draw in points",
+    document: "there is no document — the tree IS the program: reach a node by its name (app.sidebar.list), never by a query",
+    navigator: "host facts are attributes (app.pageVisible, app.darkMode, app.width); a capability the language lacks is declared `external` and supplied by the host",
+    location: "the URL's fragment is app.location; follow a link with `link = …` or app.navigate(…)",
+    history: "back/forward is the (location, waypoint) pair the host walks; a program writes app.location",
+    requestAnimationFrame: "motion is declared: a Spring (target → value) or an Animator (time → value); per-frame integration is Heartbeat [ onFrame(dt) ]",
+    cancelAnimationFrame: "a Spring or Animator is interruptible by writing its target; a Heartbeat stops with `running = false`",
+    setImmediate: "setTimeout(fn, 0)",
+    getComputedStyle: "geometry is an attribute: x, y, width, height, bounds(), the visibleRect family — never a style query",
+    matchMedia: "responsive choices derive from app.width (or a Responsive plan) and app.darkMode",
+    localStorage: "persistence is not in the language yet — hold the state in a Dataset; a host can supply storage through an `external` attribute",
+    sessionStorage: "persistence is not in the language yet — hold the state in a Dataset; a host can supply storage through an `external` attribute",
+    indexedDB: "persistence is not in the language yet — hold the state in a Dataset; a host can supply storage through an `external` attribute",
+    alert: "a Dialog, declared in the tree and shown by an attribute",
+    confirm: "a Dialog, declared in the tree; its buttons' handlers are the answer",
+    prompt: "a Dialog with a TextInput, declared in the tree",
+    XMLHttpRequest: "a DataSource (declarative — the screen derives from it) or fetch (imperative)",
+    WebSocket: "a Socket node — messages arrive as onMessage events",
+    EventSource: "an EventStream node — messages arrive as onMessage events",
+    performance: "for wall time, Date.now(); for frame time, a Heartbeat's dt",
+    process: "Node's, not the program's — a program runs in a browser or the mac host; configuration comes through a DataSource or an `external` attribute",
+    require: "Node's — a program has no module loader; a script { } block holds helpers, and `import` is ruled but unbuilt (composition.md §2)",
+    module: "Node's — a script { } block has no module scope to export from",
+    Buffer: "Node's — binary data is an ArrayBuffer / Uint8Array",
+    global: "there is no global object to reach for — state lives on nodes; `globalThis` exists but is the host's, not the program's",
+    __dirname: "Node's — a program has no file system; a relative url resolves against the program's directory",
+    __filename: "Node's — a program has no file system",
+};
+/** The Declare answer for a host global, or null when the name is not one. */
+export function hostGlobalHint(name) {
+    return Object.hasOwn(HOST_GLOBAL_HINTS, name) ? HOST_GLOBAL_HINTS[name] : null;
+}
 //# sourceMappingURL=teach.js.map

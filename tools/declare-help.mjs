@@ -28,7 +28,7 @@
 import { readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CSS_ATTRIBUTE_HINTS, cssAttributeHint, hintedForeignName, nearestName } from "../runtime/dist/teach.js";
+import { CSS_ATTRIBUTE_HINTS, cssAttributeHint, hintedForeignName, hostGlobalHint, nearestName } from "../runtime/dist/teach.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -158,7 +158,10 @@ function sayClass(cls) {
     for (const [a, ty] of Object.entries(own.attrs)) rows.push(`  ${a}: ${ty}`);
     for (const e of own.events ?? []) rows.push(`  on${e.charAt(0).toUpperCase() + e.slice(1)}() — event`);
   }
-  for (const m of t?.methods ?? []) rows.push(`  ${m.name}() — method`);
+  // A method's signature inline, when the model carries one: `insert() — method`
+  // told an author nothing about where the index goes (it is the second argument,
+  // not part of the path), and the guide's "/rows/-" example invited folding it in.
+  for (const m of t?.methods ?? []) rows.push(`  ${m.signature ?? `${m.name}()`} — method`);
   const inherited = chain.slice(1);
   const cap = ALL ? Infinity : BUDGET_LINES - out.length - 3;
   say(`  members (own):`);
@@ -321,7 +324,12 @@ function answer() {
   // concept — the curated synonym table, then negative knowledge, then retrieval
   const norm = query.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
   const syn = CONCEPTS.synonyms[norm] ?? CONCEPTS.synonyms[query];
-  if (syn && REF[syn]) { sayEntry(REF[syn]); json = { kind: "entry", concept: norm, entry: REF[syn] }; return true; }
+  if (syn && REF[syn]) {
+    // Say that the answer is a SYNONYM's, so `declare-help Popover` printing
+    // Menu reads as an answer rather than a wrong lookup.
+    if (syn.toLowerCase() !== norm) say(`'${query}' is not a Declare name — the Declare concept is ${syn}:`);
+    sayEntry(REF[syn]); json = { kind: "entry", concept: norm, entry: REF[syn] }; return true;
+  }
   // terms are normalized the same way as the query — a stored "viewport-fit"
   // must match the query "viewport-fit" after both lose their hyphen
   const normTerm = (t) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
@@ -359,9 +367,18 @@ function answer() {
     for (let i = 0; i + span <= words.length; i++) {
       const phrase = words.slice(i, i + span).join(" ");
       const hit = CONCEPTS.synonyms[phrase];
-      if (hit && REF[hit]) { sayEntry(REF[hit]); json = { kind: "entry", concept: phrase, entry: REF[hit] }; return true; }
+      if (hit && REF[hit]) {
+        // Say that the answer is a SYNONYM's, so `declare-help Popover` printing
+        // Menu reads as an answer rather than a wrong lookup.
+        if (phrase !== norm || hit.toLowerCase() !== norm) say(`'${query}' is not a Declare name — the Declare concept is ${hit}:`);
+        sayEntry(REF[hit]); json = { kind: "entry", concept: phrase, entry: REF[hit] }; return true;
+      }
     }
   }
+  // a host global (document, localStorage, process …) — the compiler's own
+  // answer, verbatim, so the tool and the diagnostic cannot disagree
+  const hostHint = hostGlobalHint(query);
+  if (hostHint !== null) { say(`'${query}' is the host's, not Declare's — a program runs on three renderers and names none of their globals. ${hostHint.charAt(0).toUpperCase()}${hostHint.slice(1)}`); json = { kind: "host-global", name: query, hint: hostHint }; return true; }
   // foreign near-miss for the whole query (colour → color's hint)
   const hinted = hintedForeignName(query);
   if (hinted !== null) { say(`'${query}' is not a Declare name${cssAttributeHint(hinted)}`); json = { kind: "foreign", name: query, hint: cssAttributeHint(hinted) }; return true; }

@@ -66,3 +66,9 @@ export declare function onDiscard(node: Node, fn: () => void): void;
  *  base) and by View.discard (which re-implements the recursion rather than
  *  calling super — each discard path runs it exactly once). */
 export declare function runRetire(node: Node): void;
+/** The name the author gave `node`, if any: a named child is installed as a
+ *  property on its parent and on its classroot (whichever scope declared it),
+ *  so the name is the key under which one of them holds it. Null for an
+ *  anonymous node. Lives here, at the bottom of the import graph, so both the
+ *  inspector (inspect.ts) and a binding's error label (bind.ts) can ask. */
+export declare function authoredName(node: Node): string | null;

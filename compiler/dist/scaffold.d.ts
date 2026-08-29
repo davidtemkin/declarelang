@@ -1,6 +1,13 @@
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import type { AttrType } from "../../runtime/dist/value.js";
 import type { ClassDecl } from "../../runtime/dist/parser.js";
+/** Every name the PRELUDE declares — the resolver's second tier of "known
+ *  global" (compile.ts isKnownGlobal). Read off the prelude text itself, so
+ *  a name declared here is admitted there and nowhere else: the prelude is
+ *  the law, and the two layers cannot disagree again (they did, for `fetch`:
+ *  admitted by the resolver, refused by the checker — field report
+ *  2026-08-21). */
+export declare const PRELUDE_NAMES: ReadonlySet<string>;
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
  *  emitted in the prelude / near-use; component references the peer

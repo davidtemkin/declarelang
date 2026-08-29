@@ -70,6 +70,7 @@ let BODY = { size: 16, weight: "normal", tracking: 0 };
 // an app-wide override but look right with zero config.
 let HEADINGW = "bold";
 let HEADINGC = 0, LINKC = 0, CODEC = 0;
+let LINKU = false; // underline links (schema `linkUnderline`)
 // Code face + size — resolved per rebuild from the prevailing codeSize/codeFamily
 // slots, with the house code style (PROSE.codeSize / PROSE.mono) as the fallback.
 // One value drives every monospace region: inline code, fenced blocks, and the
@@ -214,8 +215,11 @@ function richRunsOf(inline, style, family) {
             family: s.mono ? CODEFAM : family, strike: s.strike, color: s.color, tracking: s.tracking,
         };
         // inline code reads as a colored mono word, not a filled chip/button
-        if (s.link !== undefined)
+        if (s.link !== undefined) {
             run.href = s.link;
+            if (LINKU)
+                run.underline = true;
+        }
         if (s.fill !== undefined)
             run.fill = s.fill; // a themed accent fill (gradient/solid) overrides `color`
         return run;
@@ -1137,6 +1141,7 @@ export class RichText extends View {
         HEADINGW = this.headingWeight || "bold";
         HEADINGC = this.headingColor ?? C.headingColor;
         LINKC = this.linkColor ?? C.link;
+        LINKU = this.linkUnderline === true;
         CODEC = this.codeColor ?? C.code;
         CODESIZE = this.codeSize || PROSE.codeSize;
         CODEFAM = this.codeFamily || PROSE.mono;

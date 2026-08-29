@@ -210,7 +210,12 @@ export abstract class Stream extends Node {
    *  declared — pay-per-use, like every source. */
   protected fire(name: string, arg?: unknown): void {
     const fn = (this as unknown as Record<string, unknown>)[name];
-    if (typeof fn === "function") (fn as (a?: unknown) => void).call(this, arg);
+    if (typeof fn === "function") {
+      // Loud and attributed, never fatal: a throwing onMessage must not kill
+      // the stream (or the arrival burst it rode in on).
+      try { (fn as (a?: unknown) => void).call(this, arg); }
+      catch (e) { console.error(`[Declare] ${name} on ${this.constructor.name} threw: ${(e as Error)?.message ?? e}`, e); }
+    }
   }
 }
 

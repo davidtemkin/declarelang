@@ -144,3 +144,19 @@ export function runRetire(node: Node): void {
     for (const fn of retire) fn();
   }
 }
+
+/** The name the author gave `node`, if any: a named child is installed as a
+ *  property on its parent and on its classroot (whichever scope declared it),
+ *  so the name is the key under which one of them holds it. Null for an
+ *  anonymous node. Lives here, at the bottom of the import graph, so both the
+ *  inspector (inspect.ts) and a binding's error label (bind.ts) can ask. */
+export function authoredName(node: Node): string | null {
+  for (const holder of [node.parent, node.classroot]) {
+    if (holder === null || holder === undefined) continue;
+    for (const k of Object.keys(holder)) {
+      if (k.startsWith("$") || k === "parent" || k === "children" || k === "classroot") continue;
+      if ((holder as unknown as Record<string, unknown>)[k] === node) return k;
+    }
+  }
+  return null;
+}

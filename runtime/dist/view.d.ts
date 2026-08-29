@@ -664,6 +664,10 @@ export declare function withCursorDefining<T>(view: View, fn: () => T): T;
  *  ANYWHERE on the chain wakes exactly the reads below it. */
 export declare function inheritedCursor(node: Node | null): Cursor | null;
 export declare function setFocusDiscardHook(fn: (view: View) => void): void;
+/** A node's address for an error message: its authored-name path up the tree
+ *  (`app.pulse.card`), or its class when anonymous. Cheap, and built only once
+ *  a handler has already thrown. */
+export declare function nodeLabel(n: Node): string;
 export declare function fireEvent(view: Node, event: string, ...args: unknown[]): void;
 /** The application root — the single visible tree at the top (OpenLaszlo's
  *  `<canvas>`). R0 treats it as the root View; it fills its host by default and

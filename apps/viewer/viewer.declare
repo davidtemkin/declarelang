@@ -15,6 +15,11 @@
 // (the source in an editor, the running program below it, compile errors sandwiched
 // between); the A stepper zooms every text size; the ☀/◐/☾ switch picks
 // Light / System / Dark.
+//
+// A program's `include [ "…" ]` paths and its bare library tags are LINKS: the
+// reader follows them in place (the location names the file), ‹ › appear
+// beside the brand once a link has been followed, and an include's Edit tab —
+// classes, no App, nothing to run — says which program to edit instead.
 
 
 font Mono [ family = "ui-monospace" ]
@@ -93,7 +98,11 @@ class Block extends View [ kind: string = "",
         body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrolls = x, height = { this.contentHeight },
             HTMLText [ x = 0, y = 0, width = { parent.width },
                 html = { classroot.html }, scale = { app.fontScale },
-                accents = { app.codeAccents() }, bodyColor = { app.codeFg() }, selectable = true ]
+                accents = { app.codeAccents() }, bodyColor = { app.codeFg() }, selectable = true,
+
+                // file links read as links: the conventional blue, underlined
+
+                linkColor = { app.isDark ? 0x58A6FF : 0x0969DA }, linkUnderline = true ]
             ]
         ]
     ]
@@ -120,7 +129,7 @@ App [ fill = { app.theme.bg },
     // the page title is the viewed file itself ("calendar.declare") — the seeds
     // land after boot, so the served title stands until the path arrives
 
-    appName = { ((app.env.program ? "" + app.env.program : (app.demoSources["__path__"] || "")).split("/").pop()) || "" },
+    appName = { app.baseName() },
 
     // EMBEDDED self-loading: a HOST (the desktop) passes `env.program` — a
     // program path valid in the host's transport base — and this app fetches
@@ -128,16 +137,32 @@ App [ fill = { app.theme.bg },
     // requests: the same bytes the serve wrapper seeds via demoSources,
     // pulled by the app itself, on either hosting mode. A seeded
     // demoSources still wins wherever both exist.
+    //
+    // FOLLOWING AN INCLUDE is the same self-loading, aimed elsewhere: the
+    // location names a file by its SERVED PATH (`reader/apps/weather/
+    // weather-art.declare` — the address bar's own spelling, minus the leading
+    // slash, so the fragment is honest shareable coordinates), and these two
+    // sources fetch IT — the seeds keep serving only the file the page was
+    // opened on.
 
-    segSrc: DataSource [ format = "text", auto = true, url = { app.env.program ? "" + app.env.program + "?segments" : "" } ],
+    segSrc: DataSource [ format = "text", auto = true, url = { app.srcUrl("?segments") } ],
 
     // when the raw file lands (the env-driven embedded case has no seeds),
     // PUBLISH it on the live channel: the edit pane's island then runs the
     // viewed program as soon as the tab opens — no first keystroke needed
 
-    rawSrc: DataSource [ format = "text", auto = true, url = { app.env.program ? "" + app.env.program + "?file" : "" },
-        onLoad() { if (app.liveCard == "") { app.liveCard = "__raw__"; app.liveSource = "" + (this.value || "") } }
+    rawSrc: DataSource [ format = "text", auto = true, url = { app.srcUrl("?file") },
+        onLoad() { if (app.liveCard == "" && app.fileRel == "") { app.liveCard = "__raw__"; app.liveSource = "" + (this.value || "") } }
         ],
+
+    // the url the two sources fetch: the host's program when embedded, the
+    // followed file when the location names one, nothing when the seeds serve
+
+    srcUrl(q: string) -> string {
+        if (app.env.program) return "" + app.env.program + q
+        if (app.fileRel == "") return ""
+        return "/" + app.fileRel + q
+        },
 
     barH: number = 52,
     topM: number = 40,    // reader top margin (foot matches it at the bottom)
@@ -149,7 +174,20 @@ App [ fill = { app.theme.bg },
     // location); a tab click writes `app.location` and this derives back from it, so
     // the tab is a single source of truth that back/forward walk for free.
 
-    mode: string = { app.location || "reader" },
+    // The location's grammar: `<mode>` alone views the file the page was
+    // opened on; `<mode>/<served path>` views another — an include or a
+    // library file the reader followed, named exactly as the host serves it
+    // (`reader/apps/weather/weather-art.declare`). One spelling for every
+    // file, and the fragment names the file to anyone it is handed to.
+
+    mode: string = { (app.location || "reader").split("/")[0] || "reader" },
+    fileRel: string = { (app.location || "").indexOf("/") < 0 ? "" : app.location.slice(app.location.indexOf("/") + 1) },
+
+    // The history walk is the HOST's — the browser's Back/Forward, the mac
+    // titlebar's ‹ › — because a followed file is one location entry and a tab
+    // switch REPLACES its entry (the Segmented's `replace`), so Back walks
+    // files, never tabs. The viewer draws no chrome of its own for it.
+
     fontScale: number = 0.9,    // reader font zoom (0.9 = the comfortable default; the A stepper drives it)
     proseMeasure: number = 560,    // prose reading measure (matches the docs); code runs wider off the same left edge
     proseTopPad: number = 22,    // space above a prose block — reads as the section break
@@ -186,7 +224,7 @@ App [ fill = { app.theme.bg },
     doc: Dataset [ contents = { app.parseDoc() } ],
 
     parseDoc() {
-        const raw = (app.demoSources && app.demoSources["__source__"]) || app.segSrc.value || "[]"
+        const raw = app.fileRel == "" ? ((app.demoSources && app.demoSources["__source__"]) || app.segSrc.value || "[]") : (app.segSrc.value || "[]")
         let segs = []
         // two shapes for one material: the seeded channel is the BARE array; the
         // ?segments request wraps it ({ path, segments }) — accept either
@@ -197,35 +235,114 @@ App [ fill = { app.theme.bg },
             const e = ("" + app.rawSrc.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
             segs = [({ kind: "code", html: "<pre>" + e + "</pre>" })]
             }
-        return ({ segments: segs.map((s, i) => ({ kind: s.kind, md: s.md || "", html: s.html || "", nested: s.nested == true,
+        return ({ segments: segs.map((s, i) => ({ kind: s.kind, md: s.md || "", html: s.kind == "code" ? app.linkFiles(s.html || "") : "", nested: s.nested == true,
             joinBelow: segs[i + 1] != null && segs[i + 1].nested == true })) })
+        },
+
+    // INCLUDE LINKS. A code segment's html is the highlighter's <pre> of
+    // <span class=…> tokens; two token shapes name another file, and each
+    // becomes an in-app link — an <a href="#reader/…"> the reader follows
+    // through app.follow, so it works on every renderer and the history
+    // walks it. (1) the path strings inside an `include [ … ]` directive,
+    // resolved against the viewed file's directory; (2) a bare library tag
+    // (`Button [`), resolved through the manifest the server seeds
+    // (__library__) — the way to read the library from any program.
+
+    linkFiles(html: string) -> string {
+        const dir = app.viewedDir()
+        const lib = app.library()
+        const base = app.mode
+        const q = String.fromCharCode(34)                     // the double quote, kept out of this body's regexes
+        const inc = new RegExp('<span class=' + q + 'k' + q + '>(include|script)<\\/span>\\s*\\[([\\s\\S]*?)\\]', 'g')
+        const str = new RegExp('<span class=' + q + 's' + q + '>' + q + '([^' + q + ']+)' + q + '<\\/span>', 'g')
+        const tag = new RegExp('<span class=' + q + 't' + q + '>([A-Z]\\w*)<\\/span>', 'g')
+        // the anchor's text is BARE (no accent span inside): the accent would
+        // compose over the link color, and a link should read as a link —
+        // linkColor + linkUnderline on the HTMLText style it. The QUOTE MARKS
+        // stay outside the anchor, in the string accent: the file is the link,
+        // its quoting is syntax.
+        const quote = '<span class=' + q + 's' + q + '>' + q + '</span>'
+        let out = html.replace(inc, (m, kw, body) =>
+            '<span class=' + q + 'k' + q + '>' + kw + '</span> [' + body.replace(str, (m2, p) =>
+                quote + '<a href=' + q + '#' + base + '/' + app.resolveRel(dir, p) + q + '>' + p + '</a>' + quote) + ']')
+        if (lib != null) {
+            const libDir = ('' + lib.base).replace(/^\/+/, '')
+            out = out.replace(tag, (m, t) =>
+                lib.manifest[t] ? '<a href=' + q + '#' + base + '/' + libDir + lib.manifest[t] + q + '>' + t + '</a>' : m)
+            }
+        return out
+        },
+
+    // a path relative to `dir`, normalised: `rooms/../art.declare` → `art.declare`
+
+    resolveRel(dir: string, p: string) -> string {
+        const parts = (dir + p).split("/")
+        const stack = []
+        for (const s of parts) { if (s == "..") stack.pop(); else if (s != "." && s != "") stack.push(s) }
+        return stack.join("/")
+        },
+
+    // the seeded library manifest, or null where no host seeded one
+
+    library() -> object {
+        try { return JSON.parse((app.demoSources && app.demoSources["__library__"]) || "null") } catch (e) { return null }
         },
 
     // the verbatim file as one escaped, monospace <pre> — the plain-text view
 
     plainHtml() {
-        const raw = (app.demoSources && app.demoSources["__raw__"]) || app.rawSrc.value || ""
-        const e = raw.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        const e = app.rawText().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
         return "<pre>" + e + "</pre>"
         },
 
-    // the file's tree-relative path, split so the header can bold the filename
+    // the verbatim text of the VIEWED file — the seeds' for the opened file,
+    // the fetched one for a followed include
 
-    filePath() { return (app.demoSources && app.demoSources["__path__"]) || (app.env.program ? "" + app.env.program : "source") },
+    rawText() -> string {
+        return app.fileRel == "" ? ((app.demoSources && app.demoSources["__raw__"]) || app.rawSrc.value || "") : ("" + (app.rawSrc.value || ""))
+        },
+
+    // an include declares classes and no App — it cannot run on its own, so
+    // the Edit tab shows where to edit instead (the program that includes it)
+
+    // (the comment-stripping regex is built from a string: a literal `/*` inside
+    // a { } body reads as a block comment to the body scanner)
+
+    hasApp(src: string) -> boolean { return src != "" && /^\s*App\s*\[/m.test(src.replace(new RegExp('\\/\\*[\\s\\S]*?\\*\\/', 'g'), "")) },
+    isInclude: boolean = { app.rawText() != "" && !app.hasApp(app.rawText()) },
+
+    // is the file this page OPENED ON a runnable program? False when the page
+    // was opened directly on an include — then there is no program to point at.
+
+    seededRunnable: boolean = { app.hasApp((app.demoSources && app.demoSources["__raw__"]) || (app.fileRel == "" ? app.rawText() : "")) },
+
+    // the file's tree-relative path, split so the header can bold the filename:
+    // the opened program's, or the followed file's resolved against it
+
+    seededPath() -> string { return (app.demoSources && app.demoSources["__path__"]) || (app.env.program ? "" + app.env.program : "source") },
+
+    // the viewed file's served path: the followed file's own, else the opened program's
+
+    filePath() { return app.fileRel == "" ? app.seededPath() : app.fileRel },
+    seededDir() -> string { const p = app.seededPath(); const i = p.lastIndexOf("/"); return i < 0 ? "" : p.slice(0, i + 1) },
+
+    // the VIEWED file's directory (served), the base an include path in it resolves against
+
+    viewedDir() -> string { const p = app.filePath(); const i = p.lastIndexOf("/"); return i < 0 ? "" : p.slice(0, i + 1) },
 
     // the compiler's line count for the viewed file (host-seeded __metrics__:
     // lineMetrics() — total / code / comment / blank), rendered beside the title
 
     metaLabel() {
         let m = null
-        try { m = JSON.parse((app.demoSources && app.demoSources["__metrics__"]) || "null") } catch (e) { m = null }
+        if (app.fileRel == "") { try { m = JSON.parse((app.demoSources && app.demoSources["__metrics__"]) || "null") } catch (e) { m = null } }
         // self-loading: the ?segments payload carries the same metrics
         if (m == null && app.segSrc.value) {
             try { const p = JSON.parse(app.segSrc.value); m = (p && p.metrics) || null } catch (e) { m = null }
             }
         // a static host serves the raw file but answers no ?segments — count
         // the lines HERE, so the label holds on every hosting mode
-        if (m == null && app.rawSrc.value) m = this.localMetrics(app.rawSrc.value)
+        if (m == null && app.rawText() != "") m = this.localMetrics(app.rawText())
         return m == null ? "" : "· " + m.total + " lines, " + m.code + " code"
         },
 
@@ -391,7 +508,45 @@ App [ fill = { app.theme.bg },
     // render while it shows). A file with no App declaration reports instead of
     // running — honest, if unglamorous.
 
-    live: View [ visible = { app.mode == "edit" }, x = 0, y = { app.barH },
+    // An INCLUDE on the Edit tab: it declares components and no App, so there
+    // is nothing to run — one centred line points at the one program this page
+    // actually knows, the one it opened on. (Which programs include a file is
+    // unknowable in general — any program may — so the message claims nothing
+    // about inclusion.)
+
+    noRun: View [ visible = { app.mode == "edit" && app.isInclude }, x = 0, y = { app.barH },
+        width = { app.hostWidth }, height = { app.hostHeight - app.barH }, fill = { app.theme.surface },
+
+        // two centred lines with a blank line between; the second names the
+        // page's own program when it has one, and claims nothing otherwise
+
+        l1: Text [ x = center, y = { parent.height / 2 - 44 * app.fontScale }, wrap = false,
+            fontSize = { 15 * app.fontScale }, textColor = { app.theme.textMuted },
+            text = "This file declares components — there is no App to run." ],
+
+        row: View [ visible = { app.seededRunnable }, x = center, y = { parent.l1.y + 44 * app.fontScale },
+            layout: SimpleLayout [ axis = x, spacing = 0 ],
+            Text [ wrap = false, fontSize = { 15 * app.fontScale }, textColor = { app.theme.textMuted }, text = "Edit " ],
+            name: Text [ wrap = false, fontSize = { 15 * app.fontScale }, fontWeight = semibold,
+                textColor = { app.isDark ? 0x58A6FF : 0x0969DA },
+
+                // a location WRITE, not a `link` attr: "edit" is the viewer's own
+                // location grammar, not a `shows` destination — the registry
+                // (rightly) refuses the literal form, and the write is the same
+                // edge the tabs emit
+
+                text = { app.seededPath().split("/").pop() || "" },
+                onClick() { app.location = "edit" }
+                ],
+            Text [ wrap = false, fontSize = { 15 * app.fontScale }, textColor = { app.theme.textMuted }, text = ", the program this page opened on." ]
+            ],
+
+        alt: Text [ visible = { !app.seededRunnable }, x = center, y = { parent.l1.y + 44 * app.fontScale }, wrap = false,
+            fontSize = { 15 * app.fontScale }, textColor = { app.theme.textMuted },
+            text = "Open a program that includes it to edit live." ]
+        ],
+
+    live: View [ visible = { app.mode == "edit" && !app.isInclude }, x = 0, y = { app.barH },
         width = { app.hostWidth }, height = { app.hostHeight - app.barH },
         fill = { app.theme.surface },
 
@@ -512,16 +667,28 @@ App [ fill = { app.theme.bg },
 
         modeSwitch: Segmented [ y = { (app.barH - 30) / 2 }, height = 30, width = 244,
             x = { Math.max(200, (app.hostWidth - 244) / 2) },
+            replace = true,        // a tab switch never buries Back — the walk is between FILES
             value = { app.mode },
-            input(v: object) { app.location = "" + v },
+
+            // KEEP the viewed file across tabs: a bare `location = v` here
+            // silently dropped the followed include (the choice's own location
+            // carries the suffix, but this write ran after it and won the
+            // settle). The keyboard path (Enter on a segment) arrives only
+            // here, so this must build the full location itself — and replace,
+            // like the click path, so no tab switch ever buries Back.
+
+            input(v: object) { app.follow("#" + ("" + v) + (app.fileRel == "" ? "" : "/" + app.fileRel), true) },
 
             // each tab states its location, which is what makes the switch a LINK
             // the crawler can follow — without it this app emits one document
             // (the default) and Source and Edit are unreachable to extraction
 
-            choices = { [ ({ id: "reader", label: "Reader", location: "reader" }),
-                          ({ id: "source", label: "Source", location: "source" }),
-                          ({ id: "edit",   label: "Edit",   location: "edit"   }) ] }
+            // …and keeps the viewed FILE: switching tabs on a followed include
+            // stays on that include
+
+            choices = { [ ({ id: "reader", label: "Reader", location: "reader" + (app.fileRel == "" ? "" : "/" + app.fileRel) }),
+                          ({ id: "source", label: "Source", location: "source" + (app.fileRel == "" ? "" : "/" + app.fileRel) }),
+                          ({ id: "edit",   label: "Edit",   location: "edit" + (app.fileRel == "" ? "" : "/" + app.fileRel) }) ] }
             ],
 
         size: View [ y = { (app.barH - 30) / 2 }, x = { parent.themeSwitch.x - this.width - 8 }, height = 30,

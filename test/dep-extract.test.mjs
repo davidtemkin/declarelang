@@ -167,16 +167,24 @@ test("aggregation over DATA is fine (not node) — no error", async () => {
   assert.equal(errsOf(r, "width").length, 0, "data aggregation should be analyzable");
 });
 
-// ── A2. `script { }` free functions are the FOURTH analyzable callee kind ──
+// ── A2. `script { }` calls are OPAQUE (the 2026-08-24 ruling) ──
 //
-// A script block is module scope: no receiver, no scope nouns. So a script
-// function's only door to reactive state is its PARAMETERS, and following one
-// means rebasing each read through a parameter onto the path the call site
-// passed. Before this, a script call was simply not followed, and a constraint
-// that ALSO named a slot directly got PARTIAL deps — statically wired to the
-// reads it happened to see, permanently stale on the one it dropped. Silent, and
-// worse than the error it replaced.
-console.log("\n─ A2. script { } functions: the fourth analyzable callee kind ─");
+// Reactivity lives only in Declare syntax; script is wholly outside the
+// reactive system. A script call from a constraint depends on the Declare
+// VALUES the call site passes — the argument expressions' own reads — and the
+// compiler never reads the function's body (which is what lets a script block
+// hold arbitrary TypeScript: state, imports, libraries). The one refusal the
+// contract needs: an argument that IS a node — its reference never changes, so
+// fields the function reads off it would go permanently stale. Pass values,
+// not nodes; a helper that wants analyzed parameter reads is a METHOD.
+console.log("\n─ A2. script { } calls are opaque: values in, value out ─");
+
+/** Compile expecting REFUSAL; returns the error messages. */
+async function refusedBy(src) {
+  const r = await compile(src, {});
+  assert.ok(!r.source, "expected the compile to refuse");
+  return r.errors.map((e) => e.message);
+}
 
 /** Compile, annotate, instantiate — then move a slot and report whether the
  *  constraint actually re-ran. The extractor can only be trusted about a
@@ -194,32 +202,31 @@ async function rerendersOn(src, mutate, read) {
   return { before, after: read(app) };
 }
 
-test("a script call's reads are followed and rebased onto the call-site argument", async () => {
-  const r = await extract(`script { function vOf(node: any) { return node.v } }
+test("refused — a script call passed a NODE (the silent-staleness shape)", async () => {
+  // `vOf(app)` reads app.v INSIDE the body, invisibly. Wiring only `w` and
+  // going stale (the pre-phase-4 failure) and reading through the body (the
+  // phase-4 answer) are both retired: the shape is refused, with the fix named.
+  const e = await refusedBy(`script { function vOf(node: any) { return node.v } }
 App [ v: number = 10, w: number = 2, b: View [ width = { vOf(app) + app.w } ] ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.v", "this.root.w"]);
+  assert.ok(e.some((x) => /passed the node 'this\.root'/.test(x)), JSON.stringify(e));
+  assert.ok(e.some((x) => /make it a method/.test(x)), "the fix is named");
 });
 
-test("REGRESSION: a script helper's dependency re-renders — no partial deps", async () => {
-  // The exact hole phase 4 closes. `vOf(app)` reads app.v inside the script body
-  // while `app.w` is named directly: the constraint used to wire ONLY `w`, so
-  // `app.v = 50` moved nothing. Both the extracted set and the LIVE program are
-  // asserted, because a dep list that is right on paper and dead at runtime is
-  // the failure being fixed.
-  const src = `script { function vOf(node: any) { return node.v } }
-App [ v: number = 10, w: number = 2, b: View [ width = { vOf(app) + app.w } ] ]`;
-  const { before, after } = await rerendersOn(src, (app) => { app.v = 50; }, (app) => app.b.width);
-  assert.equal(before, 12, "10 + 2");
-  assert.equal(after, 52, "app.v = 50 must re-run the constraint (was STALE at 12)");
+test("refused — `this` passed to a script call is a node like any other", async () => {
+  const e = await refusedBy(`script { function twice(node: any) { return node.n * 2 } }
+App [ w: number = 3, b: View [ n: number = 10, width = { twice(this) + app.w } ] ]`);
+  assert.ok(e.some((x) => /passed the node 'this'/.test(x)), JSON.stringify(e));
 });
 
-test("a script helper reached through `this` rebases onto the owning node", async () => {
-  const src = `script { function twice(node: any) { return node.n * 2 } }
-App [ w: number = 3, b: View [ n: number = 10, width = { twice(this) + app.w } ] ]`;
-  assert.deepEqual(readsOf(await extract(src), "width"), ["this.n", "this.root.w"]);
+test("the SAME helper as a METHOD stays fully analyzed — the named fix works", async () => {
+  // The refusal's advice, proven: a method's parameter reads wire through the
+  // call site (the phase-4 half-close), so the migration is mechanical.
+  const src = `class Card extends View [ n: number = 10 ]
+App [ w: number = 3, vOf(node: Card) -> number { return node.n },
+  b: Card [ width = { app.vOf(this) + app.w } ] ]`;
   const { before, after } = await rerendersOn(src, (app) => { app.b.n = 50; }, (app) => app.b.width);
-  assert.equal(before, 23);
-  assert.equal(after, 103);
+  assert.equal(before, 13);
+  assert.equal(after, 53, "the method-parameter edge re-runs the constraint");
 });
 
 test("a script helper over plain VALUES stays analyzable (nothing to rebase)", async () => {
@@ -230,22 +237,34 @@ App [ v: number = 10, w: number = 3, b: View [ width = { pick(app.v, app.w) } ] 
   assert.deepEqual(readsOf(r, "width"), ["this.root.v", "this.root.w"]);
 });
 
-test("script calls compose — through a method, and script-to-script", async () => {
-  const r = await extract(`script {
+test("refused — a node reaching a script call THROUGH a method's parameter", async () => {
+  // calc() hands its caller's node onward; the rebase resolves the argument to
+  // the program root, and the node rule fires there — depth does not launder it.
+  const e = await refusedBy(`script {
   function inner(node: any) { return node.v }
   function outer(node: any) { return inner(node) + 1 }
 }
 App [ v: number = 10, b: View [ width = { app.calc() } ], calc() { return outer(app) } ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.v"]);
+  assert.ok(e.some((x) => /passed the node/.test(x)), JSON.stringify(e));
 });
 
-test("refused — a script body reading MUTABLE module state", async () => {
-  // A module `let` has no cell, so neither prewiring nor runtime tracking could
-  // ever notice it move: unrepresentable, and refused rather than wired to nothing.
-  const e = await residueErrors(`script { let bias = 5
+test("a helper's own module state is INVISIBLE — allowed, and on the author (the opacity contract)", async () => {
+  // Before 2026-08-24 a helper reading a module `let` was refused; now the body
+  // is never read, so the state is simply outside the reactive world: the
+  // constraint re-runs when app.v changes and NOT when bias moves. That is the
+  // contract ("if its answer changes without your inputs changing, hold that
+  // state in a node"), and it is what lets script hold real, stateful libraries.
+  const r = await extract(`script { let bias = 5
 function biased(n: number) { return n + bias } }
 App [ v: number = 10, b: View [ width = { biased(app.v) } ] ]`);
-  assert.ok(e.some((x) => /mutable state in a script/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
+  assert.deepEqual(readsOf(r, "width"), ["this.root.v"]);
+  assert.equal(errsOf(r, "width").length, 0, JSON.stringify(errsOf(r, "width")));
+});
+
+test("still refused — a constraint reading a script `let` DIRECTLY (a snapshot with no wake is a lie)", async () => {
+  const e = await refusedBy(`script { let bias = 5 }
+App [ v: number = 10, b: View [ width = { app.v + bias } ] ]`);
+  assert.ok(e.some((x) => /mutable state in a script/.test(x)), JSON.stringify(e));
 });
 
 test("a script body reading a module CONST is fine (a frozen constant)", async () => {
@@ -256,40 +275,39 @@ App [ v: number = 10, b: View [ width = { scaled(app.v) } ] ]`);
   assert.equal(errsOf(r, "width").length, 0);
 });
 
-test("refused — an argument that is not a nameable path, where it is read through", async () => {
-  const e = await residueErrors(`script { function vOf(node: any) { return node.v } }
-App [ v: number = 10, b: View [ width = { vOf(app.pick()) } ], pick() { return app } ]`);
-  assert.ok(e.some((x) => /not a nameable path/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
+test("an argument that is no nameable path is fine — its own reads are the deps", async () => {
+  // pick() is a method; its reads (none) wire through the method summary, and
+  // the script call adds nothing. Nothing left to refuse: no body is read.
+  const r = await extract(`script { function fmt(v: any) { return "" + v } }
+App [ v: number = 10, b: View [ width = { fmt(app.pick()) ? app.v : 0 } ], pick() { return this.v } ]`);
+  assert.deepEqual(readsOf(r, "width"), ["this.root.v"]);
+  assert.equal(errsOf(r, "width").length, 0, JSON.stringify(errsOf(r, "width")));
 });
 
-test("refused — a parameter that ESCAPES into a local (the aliasing trap)", async () => {
-  // `const m = node; return m.v` extracts clean and goes stale — the read roots at
-  // a name the call site never wrote.
-  const e = await residueErrors(`script { function vOf(node: any) { const m = node
-  return m.v } }
-App [ v: number = 10, w: number = 2, b: View [ width = { vOf(app) + app.w } ] ]`);
-  assert.ok(e.some((x) => /parameter escape/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
+test("a helper aliasing its parameter is the author's business now — values in, value out", async () => {
+  // `const m = n; return m + 1` was the 7001 aliasing refusal; with the body
+  // unread there is nothing to trace and nothing to refuse.
+  const r = await extract(`script { function inc(n: number) { const m = n
+  return m + 1 } }
+App [ v: number = 10, w: number = 2, b: View [ width = { inc(app.v) + app.w } ] ]`);
+  assert.deepEqual(readsOf(r, "width"), ["this.root.v", "this.root.w"]);
+  assert.equal(errsOf(r, "width").length, 0, JSON.stringify(errsOf(r, "width")));
 });
 
-test("refused — a script function PASSED as a value, when it reads through a parameter", async () => {
-  const e = await residueErrors(`script { function vOf(node: any) { return node.v } }
-App [ v: number = 10, b: View [ width = { [app].map(vOf).length } ] ]`);
-  assert.ok(e.some((x) => /passed as a value/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
+test("a script function passed as a VALUE is opaque — the receiver chain's reads are the deps", async () => {
+  const r = await extract(`script { function double(n: number) { return n * 2 } }
+App [ rows: number[] = [], b: View [ width = { app.rows.map(double).length } ] ]`);
+  assert.deepEqual(readsOf(r, "width"), ["this.root.rows"]);
+  assert.equal(errsOf(r, "width").length, 0, JSON.stringify(errsOf(r, "width")));
 });
 
-test("WIRED — reading through a result that may be a parameter handed back", async () => {
-  // Was refused, on the reasoning that "which node came back is not knowable
-  // here". It is knowable — not which ONE, but the finite set the call site
-  // passed — so both candidates are wired, the same over-approximation a
-  // conditional's arms already get. An extra dependency costs a recomputation;
-  // the refusal cost correct code. (Changed 2026-08-03 with findings §A1.)
-  const r = await extract(`script { function pick(a: any, b: any) { return a.n > b.n ? a : b } }
+test("refused — nodes passed for the callee to CHOOSE between (the projection shape)", async () => {
+  // `pick(cardA, cardB).label` was wired by reading the body's return; with the
+  // body unread the arguments are nodes, and the node rule refuses both.
+  const e = await refusedBy(`script { function pick(a: any, b: any) { return a.n > b.n ? a : b } }
 App [ cardA: View [ n: number = 1, label: string = "a" ], cardB: View [ n: number = 2, label: string = "b" ],
   b: Text [ text = { pick(app.cardA, app.cardB).label } ] ]`);
-  assert.equal(errsOf(r, "text").length, 0, JSON.stringify(errsOf(r, "text")));
-  const deps = readsOf(r, "text");
-  assert.ok(deps.includes("this.root.cardA.label") && deps.includes("this.root.cardB.label"),
-    `expected BOTH candidates; got ${JSON.stringify(deps)}`);
+  assert.ok(e.some((x) => /passed the node 'this\.root\.cardA'/.test(x)), JSON.stringify(e));
 });
 
 test("a script function that returns a parameter is fine when the result is NOT projected", async () => {
@@ -298,15 +316,14 @@ App [ v: number = 4, w: number = 9, b: View [ width = { pick(app.v, app.w) } ] ]
   assert.equal(errsOf(r, "width").length, 0, JSON.stringify(errsOf(r, "width")));
 });
 
-test("refused — `new` of a script CLASS (its constructor's reads are invisible)", async () => {
-  // Checked on the typecheck opt-out, as the opaque-call residue above is: with
-  // the type phase on, an untyped script class dies earlier as a member miss —
-  // same defect, earlier and better-worded message.
-  const src = `script { class Box { constructor(node: any) { this.v = node.v } } }
-App [ v: number = 10, w: number = 2, b: View [ width = { new Box(app).v + app.w } ] ]`;
+test("`new` of a script CLASS is opaque — the instance is a value; the arguments carry the deps", async () => {
+  // (typecheck off: an untyped script class is a member miss under the type
+  // phase — a separate, earlier answer.) The constructor's reads are invisible
+  // by contract now, exactly as a function's are.
+  const src = `script { class Acc { constructor(n: number) { this.v = n } } }
+App [ v: number = 10, w: number = 2, b: View [ width = { new Acc(app.v).v + app.w } ] ]`;
   const r = await compile(src, { typecheck: false });
-  assert.ok(!r.source, "expected the unanalyzable constructor to block compilation");
-  assert.ok(r.errors.some((x) => /constructor reads can't be analyzed/.test(x.message)), JSON.stringify(r.errors.map((x) => x.message)));
+  assert.ok(r.source, "an opaque construction compiles: " + r.errors.map((x) => x.message).join("; "));
 });
 
 test("handlers stay UNRESTRICTED — a method never reached from a constraint is not analyzed", async () => {

@@ -227,7 +227,39 @@ declare function setTimeout(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearTimeout(id: number): void;
 declare function setInterval(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearInterval(id: number): void;
-declare const console: { log(...args: unknown[]): void; warn(...args: unknown[]): void; error(...args: unknown[]): void };`;
+declare const console: { log(...args: unknown[]): void; warn(...args: unknown[]): void; error(...args: unknown[]): void };
+/* The network and URL globals a handler reaches for. The checker deliberately
+ * loads no DOM lib (its Text / Image would collide with the components), so
+ * these are declared by hand — the narrow, honest shape each actually has in
+ * every host Declare runs in. Three agents in one session wrote
+ * \`(globalThis as any).fetch\` because the checker said fetch was not in
+ * scope (field report 2026-08-21); it is. */
+interface Headers { get(name: string): string | null; has(name: string): boolean; forEach(fn: (value: string, key: string) => void): void }
+interface AbortSignal { readonly aborted: boolean; addEventListener(type: "abort", fn: () => void): void }
+declare class AbortController { readonly signal: AbortSignal; abort(reason?: unknown): void }
+interface RequestInit { method?: string; headers?: Record<string, string> | [string, string][]; body?: string | FormData | Blob | ArrayBuffer | null; credentials?: "omit" | "same-origin" | "include"; mode?: "cors" | "no-cors" | "same-origin"; cache?: string; redirect?: "follow" | "error" | "manual"; signal?: AbortSignal | null; keepalive?: boolean }
+interface Response { readonly ok: boolean; readonly status: number; readonly statusText: string; readonly url: string; readonly headers: Headers; readonly bodyUsed: boolean; json(): Promise<any>; text(): Promise<string>; arrayBuffer(): Promise<ArrayBuffer>; blob(): Promise<Blob>; clone(): Response }
+interface Blob { readonly size: number; readonly type: string; text(): Promise<string>; arrayBuffer(): Promise<ArrayBuffer> }
+interface FormData { append(name: string, value: string | Blob, fileName?: string): void; get(name: string): string | Blob | null; has(name: string): boolean }
+declare function fetch(input: string | URL, init?: RequestInit): Promise<Response>;
+declare class URLSearchParams { constructor(init?: string | Record<string, string> | [string, string][]); get(name: string): string | null; getAll(name: string): string[]; has(name: string): boolean; set(name: string, value: string): void; append(name: string, value: string): void; delete(name: string): void; forEach(fn: (value: string, key: string) => void): void; toString(): string }
+declare class URL { constructor(url: string | URL, base?: string | URL); href: string; readonly origin: string; protocol: string; host: string; hostname: string; port: string; pathname: string; search: string; hash: string; readonly searchParams: URLSearchParams; toString(): string }
+declare function queueMicrotask(fn: () => void): void;
+declare function structuredClone<T>(value: T): T;
+declare function encodeURIComponent(s: string | number | boolean): string;
+declare function decodeURIComponent(s: string): string;
+declare function encodeURI(s: string): string;
+declare function decodeURI(s: string): string;`;
+
+/** Every name the PRELUDE declares — the resolver's second tier of "known
+ *  global" (compile.ts isKnownGlobal). Read off the prelude text itself, so
+ *  a name declared here is admitted there and nowhere else: the prelude is
+ *  the law, and the two layers cannot disagree again (they did, for `fetch`:
+ *  admitted by the resolver, refused by the checker — field report
+ *  2026-08-21). */
+export const PRELUDE_NAMES: ReadonlySet<string> = new Set(
+  [...PRELUDE.matchAll(/^(?:declare\s+)?(?:interface|type|function|const|var|let|class|enum|namespace)\s+([A-Za-z]\w*)/gm)].map((m) => m[1])
+);
 
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)

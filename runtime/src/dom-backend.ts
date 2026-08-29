@@ -1646,6 +1646,7 @@ class DomSurface implements Surface {
           }
         }
         if (r.tracking !== 0) rs.letterSpacing = r.tracking + "px";
+        if (r.underline) rs.textDecoration = "underline";  // wins over the link default of "none" set above
         if (r.strike) rs.textDecoration = "line-through";
         if (r.chipBg !== undefined) {
           rs.backgroundColor = colorToCss(r.chipBg);

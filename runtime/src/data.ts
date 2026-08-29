@@ -38,7 +38,7 @@
 // datapointer objects, and string-event plumbing are exactly what this
 // module's plain-JSON + region-cells design sheds (APPROACH §2/§6).
 
-import { Node } from "./node.js";
+import { Node, authoredName } from "./node.js";
 import { Cell, isTracking, settle } from "./reactive.js";
 import { DeclareError } from "./errors.js";
 import { defineAttributes, setBound } from "./attributes.js";
@@ -213,6 +213,15 @@ export class Dataset extends Node {
    *  is just the key "-". Equality-gated: writing the value already there
    *  wakes nothing. */
   set(path: string | readonly (string | number)[], v: unknown): void {
+    // An EMPTY path addresses the whole document (guide ch. 9's draft-lands
+    // spelling: `record.set([], app.draft.value)`) — one reactive write
+    // through the value slot: retag and wake every reader, exactly like
+    // arrival. (Field report 2026-08-21: this threw advice to "assign
+    // .value", which the typechecker refuses as read-only — a dead end.)
+    if (toSegs(path).length === 0) {
+      this.value = v;
+      return;
+    }
     const segs = this.segs(path);
     const { chain, container, key: at } = this.locate(segs);
     // `/-` append: resolve to the real index so the tag, the wake, and the
@@ -264,7 +273,7 @@ export class Dataset extends Node {
   private segs(path: string | readonly (string | number)[]): string[] {
     const segs = toSegs(path);
     if (segs.length === 0) {
-      throw new DeclareError(`an empty path addresses the whole dataset — assign .value to replace it`);
+      throw new DeclareError(`an empty path addresses the whole document — set([], v) replaces it; a structural edit (insert/removeAt/move) needs the path of an array`);
     }
     return segs;
   }
@@ -528,7 +537,16 @@ export class DataSource extends Dataset {
       // work a constraint must not do — publish, chain a dependent fetch. The
       // status booleans stay the constraint-facing surface.
       const h = (this as unknown as Record<string, unknown>)["onLoad"];
-      if (typeof h === "function") h.call(this);
+      // Its OWN catch: a throwing onLoad used to fall into the fetch's catch
+      // below and mark the SOURCE as failed — the data had arrived; the
+      // handler was the problem. Loud, attributed, never re-labelled.
+      if (typeof h === "function") {
+        try { h.call(this); }
+        catch (e) {
+          const nm = authoredName(this);
+          console.error(`[Declare] onLoad on ${this.constructor.name}${nm !== null ? ` '${nm}'` : ""} threw: ${(e as Error)?.message ?? e}`, e);
+        }
+      }
     } catch (e) {
       if (seq !== this.seq) return;
       setBound(this, "error", e instanceof Error ? e.message : String(e));

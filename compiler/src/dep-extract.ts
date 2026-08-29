@@ -39,6 +39,13 @@ const SCOPE_ROOTS = new Set(["parent", "classroot"]); // `this` via ThisKeyword;
  *  is live per run — the seam the header reserves for genuinely dynamic
  *  reads. The cost is one constraint's prewiring, never its correctness. */
 const DYNAMIC = "~dynamic";
+
+/** The root of a chain — `this.a.b` → `this`. */
+function baseOfChain(n: ts.Node): ts.Node {
+  let c: ts.Node = n;
+  while (ts.isPropertyAccessExpression(c) || ts.isElementAccessExpression(c) || ts.isNonNullExpression(c) || ts.isParenthesizedExpression(c)) c = c.expression;
+  return c;
+}
 const GLOBALS = new Set(["Inspect","Math","Object","JSON","Array","Number","String","Boolean","Date","console","parseInt","parseFloat","isNaN","isFinite","Infinity","NaN","undefined","null","RegExp","Symbol","Map","Set","Promise","Intl","Error"]);
 // …plus colorWithAlpha, the lowered-alpha helper compile.ts now resolves in
 // callee position (its arguments carry any deps; the call itself is pure).
@@ -174,68 +181,13 @@ function nameablePath(n: ts.Node): string | null {
   return null;
 }
 
-/** Where a reference to a PARAMETER carries its value.
- *
- *  Rebasing a parameter read onto the call-site argument is only sound while the
- *  extractor can still see every attribute read that the passed value reaches. A
- *  parameter is `safe` when it is READ THROUGH (`p.x` — the case we rebase),
- *  PASSED ON to a callee we follow, used as an INDEX, or CONSUMED BY AN OPERATOR
- *  (`p * 2`, `` `${p}` ``, `p > 3`) — which destroys node-ness, so no attribute read
- *  can hide downstream. Assigning it into a reactive slot is safe too: the slot is
- *  a cell, and readers subscribe to that.
- *
- *  `returned` — the value flows out as the call's result, so a read of it happens
- *  at the CALL SITE, where the extractor can still see it. Refused only when the
- *  call site actually projects the result (`pick(a, b).title`).
- *
- *  `stored` — bound to a local (`const m = p`), pushed somewhere, assigned to a
- *  non-reactive place. The read can then happen through a name the extractor never
- *  connects back (`const m = p; return m.v` extracts clean and goes stale), so it
- *  is refused rather than guessed at. Anything unrecognized lands here.
- *
- *  (Destructuring a parameter is the same act written in the parameter list, and
- *  is refused the same way — see `paramsOf`.) */
-type Escape = "safe" | "returned" | "stored";
+// (The parameter-ESCAPE analysis that lived here — `paramEscape`, its `Escape`
+// verdicts, and the DECLARE7001 refusals it produced for script helpers — was
+// retired 2026-08-24 with the opacity ruling: a script call's body is never
+// read, so where a parameter's value travels inside it is no longer this
+// file's business. METHODS keep their parameter-roots analysis; their escapes
+// were already deliberately tolerated — see buildMethodSummaries.)
 
-function paramEscape(ref: ts.Node, followed: (call: ts.CallExpression | ts.NewExpression) => boolean): Escape {
-  let n: ts.Node = ref;
-  for (;;) {
-    const p: ts.Node | undefined = n.parent;
-    if (p === undefined) return "stored";
-    if ((ts.isPropertyAccessExpression(p) || ts.isElementAccessExpression(p)) && p.expression === n) return "safe";
-    if (ts.isElementAccessExpression(p) && p.argumentExpression === n) return "safe";       // an index is a value, not the node
-    if (ts.isCallExpression(p) || ts.isNewExpression(p)) {
-      if (p.expression === n) return "stored";                                              // CALLING a parameter — unfollowable
-      return followed(p) ? "safe" : "stored";                                               // an argument, only if we follow the callee
-    }
-    if (ts.isParenthesizedExpression(p) || ts.isNonNullExpression(p) || ts.isAsExpression(p) || ts.isTypeAssertionExpression(p)) { n = p; continue; }
-    if (ts.isConditionalExpression(p)) { if (p.condition === n) return "safe"; n = p; continue; }
-    if (ts.isBinaryExpression(p)) {
-      const op = p.operatorToken.kind;
-      if (op >= ts.SyntaxKind.FirstAssignment && op <= ts.SyntaxKind.LastAssignment) {
-        // Into a reactive slot the value gets a cell and readers subscribe to it;
-        // into a local it disappears from the analysis.
-        return p.right === n && isPureNodeNav(baseOfChain(p.left)) ? "safe" : "stored";
-      }
-      if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.AmpersandAmpersandToken || op === ts.SyntaxKind.QuestionQuestionToken) { n = p; continue; }
-      return "safe"; // an arithmetic/comparison operator — the result is no longer the node
-    }
-    if (ts.isPrefixUnaryExpression(p) || ts.isPostfixUnaryExpression(p) || ts.isTypeOfExpression(p) || ts.isTemplateSpan(p)) return "safe";
-    // A literal is the value's new carrier — keep climbing, so `return { hit: p }`
-    // is `returned` (call-site gated) while `const o = { hit: p }` is `stored`.
-    if (ts.isPropertyAssignment(p) || ts.isArrayLiteralExpression(p) || ts.isObjectLiteralExpression(p) || ts.isSpreadElement(p) || ts.isShorthandPropertyAssignment(p)) { n = p; continue; }
-    if (ts.isReturnStatement(p)) return "returned";
-    if (ts.isArrowFunction(p) && p.body === n) return "returned";                            // a concise body IS the return
-    return "stored";
-  }
-}
-
-/** The root of a chain — `this.a.b` → `this`. */
-function baseOfChain(n: ts.Node): ts.Node {
-  let c: ts.Node = n;
-  while (ts.isPropertyAccessExpression(c) || ts.isElementAccessExpression(c) || ts.isNonNullExpression(c) || ts.isParenthesizedExpression(c)) c = c.expression;
-  return c;
-}
 
 /** A `script { }` free function the extractor can follow: its simple parameter
  *  names (in order) and its body. `params: null` marks a function with a
@@ -269,6 +221,19 @@ function scriptFunctions(sources: readonly string[]): { fns: Map<string, ScriptF
     for (const st of sf.statements) {
       if (ts.isFunctionDeclaration(st) && st.name !== undefined && st.body !== undefined) {
         fns.set(st.name.text, { params: paramsOf(st.parameters), body: st.body });
+      } else if (ts.isImportDeclaration(st)) {
+        // Imported bindings are script-tier names: opaque callables/values.
+        // Folding them into `fns` is what routes a call through the opaque
+        // script path (node-arg check included) instead of "unresolved target".
+        const c = st.importClause;
+        if (c !== undefined && !c.isTypeOnly) {
+          if (c.name !== undefined) fns.set(c.name.text, { params: null, body: st });
+          const b = c.namedBindings;
+          if (b !== undefined) {
+            if (ts.isNamespaceImport(b)) fns.set(b.name.text, { params: null, body: st });
+            else for (const s of b.elements) if (!s.isTypeOnly) fns.set(s.name.text, { params: null, body: st });
+          }
+        }
       } else if (ts.isClassDeclaration(st) && st.name !== undefined) {
         classes.add(st.name.text);
       } else if (ts.isVariableStatement(st)) {
@@ -644,10 +609,8 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
       return;
     }
     if (ts.isNewExpression(n) && ts.isIdentifier(n.expression) && !locals.has(n.expression.text) && SCRIPT_CLASSES.has(n.expression.text)) {
-      // Same hazard as a script FUNCTION, one constructor deeper: the reads a
-      // `new` performs are invisible here, so the deps would come out partial.
-      // Constructors are not followed (a script function is the analyzable unit).
-      errors.push(new DepError(`new ${n.expression.text}() — a script class's constructor reads can't be analyzed from a { }; call a script function that returns the value, or build it in a method`, n.getStart()));
+      // `new` of a script class: OPAQUE, like a script call — the instance is a
+      // value, and the arguments' reads are the dependency (walked here).
       if (n.arguments) for (const a of n.arguments) walk(a);
       return;
     }
@@ -816,56 +779,6 @@ function rebaseIn(path: string, frame: Frame): Rebased {
   }
   if (frame.receiver !== null) return { ok: true, path: rebase(path, frame.receiver) };
   return { ok: false, error: new DepError(`'${root}' inside script function ${frame.who}() — a script block is module scope, not a node: it has no this/parent/classroot; take the node as a parameter`) };
-}
-
-/** Is this call one the extractor FOLLOWS — so a node handed to it stays visible —
- *  or a pure builtin, which can't hide an attribute read? Used by the parameter
- *  escape analysis to decide whether passing a parameter onward is safe. */
-function followedCallee(call: ts.CallExpression | ts.NewExpression, locals: Set<string>, roots: ReadonlySet<string>): boolean {
-  const callee = call.expression;
-  if (ts.isIdentifier(callee)) {
-    const nm = callee.text;
-    return !locals.has(nm) && (SCRIPT_FUNCTIONS.has(nm) || GLOBALS.has(nm) || CONSTRUCTORS.has(nm));
-  }
-  if (ts.isPropertyAccessExpression(callee)) {
-    const m = callee.name.text;
-    if (PURE_METHODS.has(m) || ITER.has(m) || LANGUAGE_METHOD_EFFECTS.has(m)) return true;
-    const base = baseOfChain(callee.expression);
-    if (ts.isIdentifier(base) && GLOBALS.has(base.text) && !locals.has(base.text)) return true;
-    // A user method is followed only on a reactive receiver — that is the only
-    // shape classifyChain records a call for.
-    const reactiveBase = base.kind === ts.SyntaxKind.ThisKeyword
-      || (ts.isIdentifier(base) && (SCOPE_ROOTS.has(base.text) || roots.has(base.text)) && !locals.has(base.text));
-    return USER_METHODS.has(m) && reactiveBase;
-  }
-  return false;
-}
-
-/** Refuse the parameter uses that would make rebasing unsound, and report which
- *  parameters leave through the RETURN (gated at the call site instead). */
-function checkParams(
-  body: ts.Node, params: readonly string[], locals: Set<string>, roots: ReadonlySet<string>, who: string,
-): { errors: DepError[]; returned: Set<string> } {
-  const errors: DepError[] = [];
-  const returned = new Set<string>();
-  const named = new Set(params);
-  const followed = (c: ts.CallExpression | ts.NewExpression): boolean => followedCallee(c, locals, roots);
-  const visit = (n: ts.Node): void => {
-    if (ts.isIdentifier(n) && named.has(n.text) && !locals.has(n.text) && !isNamePosition(n)) {
-      const e = paramEscape(n, followed);
-      if (e === "returned") returned.add(n.text);
-      else if (e === "stored") {
-        // Name the REAL triggers (closure capture, opaque callees) and the
-        // real escape hatch: plain property reads are already fine, and the
-        // identical code as a METHOD is accepted — for a primitive parameter
-        // "read through it" was advice that could not be followed.
-        errors.push(new DepError(`${who} lets its '${n.text}' parameter escape — captured by a closure, stored, or handed to a callee the compiler can't read through (regex.test(${n.text}), a library call), so reads past that point can't be traced to the call site. Plain property reads (${n.text}.someAttr) are fine as-is; for anything more, make it a method — the identical code is accepted there, because a method's reads are analyzed at its own call sites`, n.getStart()));
-      }
-    }
-    ts.forEachChild(n, visit);
-  };
-  visit(body);
-  return { errors, returned };
 }
 
 /** One callable's own (un-closed) deps, plus what a caller needs to know to
@@ -1051,27 +964,15 @@ function buildMethodSummaries(): Summaries {
       else own.set(name, { ...d, ...NO_PARAMS, ret: sf ? returnedPaths(sf, collectLocals(sf, [])) : NO_RET });
     }
   }
-  // `script { }` functions join the same callable graph. Their bodies are
-  // STATEMENTS (not an expression), and — the phase-4 difference — their
-  // parameters are reactive ROOTS: a script body has no scope nouns, so its only
-  // door to reactive state is what the caller handed it. `inlinable` is left off
-  // (the name-only fallback), as for a method summary: a script body's frame isn't
-  // an element, so no owner test is possible.
-  const scriptOwn = new Map<string, Summary>();
-  for (const [name, fn] of SCRIPT_FUNCTIONS) {
-    const params = fn.params;
-    const roots = new Set<string>(params ?? []);
-    const locals = collectLocals(fn.body, []);
-    for (const p of roots) locals.delete(p); // a parameter is a root here, not a local
-    const d = extractBody(fn.body, locals, undefined, roots);
-    const { errors, returned } = checkParams(fn.body, [...roots], locals, roots, `script function ${name}()`);
-    d.errors.push(...errors);
-    // A script body has no scope nouns (no `this`, no `classroot`), so it cannot
-    // return a receiver-relative PATH — but it CAN hand back a parameter, and the
-    // call site knows what it passed. Same join as a method's, so a script and a
-    // method behave alike; before this a method resolved and a script refused.
-    scriptOwn.set(name, { ...d, params, returned, ret: returnedPaths(fn.body, locals, params ?? []) });
-  }
+  // `script { }` functions are OPAQUE (the 2026-08-24 ruling: reactivity lives
+  // only in Declare syntax; script is wholly outside the reactive system). A
+  // script call from a constraint depends on the Declare VALUES the call site
+  // passes — the argument expressions' own reads, which extractBody already
+  // records — and the compiler never reads the function's body. That is what
+  // lets a script block hold arbitrary TypeScript (state, imports, libraries):
+  // nothing here needs to understand it. The one refusal this contract needs
+  // lives in follow1 below: an argument that IS a node, whose reference never
+  // changes.
 
   const memo = new Map<string, { reads: Set<string>; errors: DepError[] }>();
 
@@ -1122,11 +1023,29 @@ function buildMethodSummaries(): Summaries {
   const projectionGate = (_o: Summary, _c: Call): DepError[] => [];
 
   const follow1 = (c: Call, stack: Set<string>, ctx: FollowCtx): { reads: Set<string>; errors: DepError[] } => {
-    const script = c.kind !== "method";
+    // SCRIPT calls: opaque. The arguments' reads were recorded at the call
+    // site; the body contributes nothing. The one unsound shape is refused: an
+    // argument that resolves to a NODE — its reference never changes, so any
+    // field the function reads off it would go permanently stale, silently.
+    if (c.kind === "script") {
+      const errors: DepError[] = [];
+      if (ctx !== null) {
+        for (const a of c.args) {
+          if (a === null) continue;
+          if (receiverElementDeep(a, ctx.owner, ctx.classRoot) !== undefined) {
+            errors.push(new DepError(
+              `${c.name}(…) is passed the node '${a}' — a script call is opaque: this constraint depends on the VALUES it passes, and a node reference never changes, so the fields ${c.name}() reads would go permanently stale. Pass the attributes themselves (${c.name}(${a}.<attr>, …)), or make it a method — a method's parameter reads are analyzed at its call sites`));
+          }
+        }
+      }
+      return { reads: new Set(), errors };
+    }
+    // A script function handed around as a VALUE (`rows.map(fmt)`): opaque too —
+    // the receiver chain's own reads are what the constraint is wired to.
+    if (c.kind === "scriptValue") return { reads: new Set(), errors: [] };
     let o: Summary | undefined;
     let tag: string;
-    if (script) { o = scriptOwn.get(c.name); tag = "s:" + c.name; }
-    else if (COMPUTED_DEFAULTS.has(c.name)) {
+    if (COMPUTED_DEFAULTS.has(c.name)) {
       // a computed-default read (or a name that doubles as one): the name-level
       // merged summary, exactly as before typed residences existed
       o = own.get(c.name); tag = "m:" + c.name;

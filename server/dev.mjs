@@ -41,7 +41,12 @@ let reloading = false;
 const cleanup = () => { try { unlinkSync(PID_FILE); } catch { /* already gone */ } };
 
 const start = () => {
-  child = spawn(process.execPath, [SERVER, ...process.argv.slice(2)], { stdio: "inherit", env: { ...process.env } });
+  // The fourth stdio slot is an IPC channel the child never sends on: its one
+  // job is to CLOSE when this process dies, however it dies (index.mjs exits on
+  // 'disconnect'). Without it a crashed or kill -9'd supervisor left the server
+  // running as an orphan — holding the port, serving the modules it was born
+  // with, and invisible to reload-dev (its pid file gone with this process).
+  child = spawn(process.execPath, [SERVER, ...process.argv.slice(2)], { stdio: ["inherit", "inherit", "inherit", "ipc"], env: { ...process.env } });
   child.on("exit", (code, signal) => {
     child = null;
     if (reloading) { reloading = false; start(); return; } // a build-signaled respawn
@@ -49,6 +54,10 @@ const start = () => {
     process.exit(code ?? (signal ? 1 : 0));                // the server stopped on its own → so do we
   });
 };
+
+// The ordinary-exit half of the same promise: whatever ends this process
+// through the normal path (an uncaught error, process.exit) takes the child.
+process.on("exit", () => { if (child !== null) { try { child.kill("SIGTERM"); } catch { /* already gone */ } } });
 
 // Build-signaled reload — the ONLY thing that restarts the server.
 process.on("SIGUSR2", () => {

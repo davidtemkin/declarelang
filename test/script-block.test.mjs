@@ -63,22 +63,18 @@ await test("every export FORM is caught", async () => {
   }
 });
 
-await test("`import` is refused as NOT YET, never as a prohibition", async () => {
-  // composition.md §2 RULES import-in-a-script-block as the way JS modules
-  // arrive (`include` moves Declare declarations, `import` moves JS bindings).
-  // It is unbuilt, not unwanted — resolution is deferred with the dev-env rung,
-  // and the block is emitted as a `new Function` body where an import statement
-  // is illegal outright. A diagnostic that said "cannot import" would contradict
-  // the design document; today the same source sprays unresolved names instead,
-  // which is worse than either. So: refuse, and say which it is.
+await test("`import` is REAL on a bundling host — an unresolvable specifier fails the bundle, by name", async () => {
+  // composition.md §2's ruling, BUILT 2026-08-24: import-in-a-script-block is
+  // the way JS modules arrive, bundled at the compile host's seam. The happy
+  // paths are pinned in test/script-module.test.mjs; here, the failure shape:
+  // a specifier nothing can resolve is a bundle error naming it — never the
+  // old "cannot import yet", and never a spray of unresolved names.
   const e = await only(`script {
-    import { z } from "./z.js"
+    import { z } from "./no-such-module.js"
     }
 App [ Text [ text = "x" ] ]`);
-  assert.match(e.message, /cannot import yet/, `it must read as unbuilt; got: ${e.message}`);
-  assert.match(e.message, /composition\.md/, "and point at the ruling");
-  assert.ok(!/has no meaning|nothing imports it/.test(e.message),
-    `it must not borrow the export message's finality; got: ${e.message}`);
+  assert.match(e.message, /script imports failed to bundle/, `got: ${e.message}`);
+  assert.ok(!/cannot import yet/.test(e.message), "the not-yet era is over");
 });
 
 await test("the same block WITHOUT export compiles clean", async () => {

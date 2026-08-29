@@ -225,6 +225,10 @@ const ViewSchema: ComponentSchema = {
     headingColor: { kind: "color" },
     headingWeight: FONT_WEIGHT,
     linkColor: { kind: "color" },
+    // Underline links (the conventional web rendering). Off by default — the
+    // house prose style colors links without underlining; a surface whose links
+    // sit inside colored code (the viewer's include links) turns it on.
+    linkUnderline: { kind: "boolean" },
     codeColor: { kind: "color" },
     // Code face + size — the twin of `codeColor` for monospace regions (inline
     // code, fenced/`<pre>` blocks). Default `0`/`""` = the house code style

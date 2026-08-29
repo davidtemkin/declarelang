@@ -1,10 +1,6 @@
-import { type Program, type Span, type Element } from "./parser.js";
+import { type Program, type Span, type Element, type IncludeRef } from "./parser.js";
 import { DeclareError } from "./errors.js";
-/** Cut a source's `include [ … ]` directives out of its text, leaving the rest
- *  byte-for-byte (offsets after each cut shift left by its length). Splicing
- *  highest-offset first keeps earlier spans valid; directives never overlap.
- *  This is how a library's — or the main file's — source is made splice-ready
- *  for the merged, self-contained program (composition.md §1). */
+export declare function spliceScriptFiles(source: string, refs: readonly IncludeRef[] | undefined, spans: readonly Span[] | undefined, fromDir: string, host: IncludeHost, errors: DeclareError[], excise?: readonly Span[]): Promise<string>;
 export declare function exciseSpans(source: string, spans: readonly Span[]): string;
 /** The file-access abstraction include resolution rides (composition.md §1).
  *  `resolve` maps an include path (relative to the including file's dir) to a
@@ -58,6 +54,7 @@ export declare function resolveIncludesHostless(program: Program): {
 export declare function resolveIncludes(program: Program, host: IncludeHost, originDir: string): Promise<{
     program: Program;
     sources: string[];
+    sourceIds: string[];
     errors: DeclareError[];
     visited: Set<string>;
 }>;
@@ -95,5 +92,6 @@ export declare function referencedComponentNames(program: Program): string[];
 export declare function resolveAutoIncludes(program: Program, root: Element, host: IncludeHost, visited: Set<string>): Promise<{
     program: Program;
     sources: string[];
+    sourceIds: string[];
     errors: DeclareError[];
 }>;

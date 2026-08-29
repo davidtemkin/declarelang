@@ -73,7 +73,26 @@ export async function compile(source, opts = {}) {
     return compileCore(source, {
         ...opts,
         host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT),
+        bundleScripts: opts.bundleScripts ?? nodeBundleScripts,
     });
+}
+/** The Node host's script-module bundler (CompileOptions.bundleScripts): esbuild
+ *  over the concatenated script sources, resolving relative files from disk and
+ *  bare specifiers from node_modules, emitting one CommonJS text the compile
+ *  re-embeds. Lazy import — a program with no script imports never loads it. */
+async function nodeBundleScripts(entry, resolveDir) {
+    try {
+        const esbuild = await import("esbuild");
+        const r = await esbuild.build({
+            stdin: { contents: entry, resolveDir, loader: "ts" },
+            bundle: true, write: false, format: "cjs", platform: "browser", target: "es2022",
+            logLevel: "silent",
+        });
+        return { code: r.outputFiles[0].text };
+    }
+    catch (e) {
+        return { error: String(e?.message ?? e) };
+    }
 }
 /** `compile`, additionally returning the compile's full dependency CLOSURE
  *  (closure.ts) — the main file, every `include`, every auto-included component
@@ -88,6 +107,7 @@ export async function compileTracked(source, opts = {}) {
     const result = await compileCore(source, {
         ...opts,
         host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT, tracker),
+        bundleScripts: opts.bundleScripts ?? nodeBundleScripts,
     });
     return { ...result, closure: tracker.closure(opts.props ?? {}) };
 }

@@ -737,6 +737,30 @@ export function replay(ctx: CanvasRenderingContext2D, list: DisplayList, clip?: 
 
 function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bounds | null): void {
   ctx.save();
+  // A recording replays as onto a FRESH context: the canvas defaults, not
+  // whatever paint/text state the caller last left on the shared scene ctx.
+  // (Field report 2026-08-21 fallout: on the canvas backend a draw() that set
+  // no fillStyle inherited the compositor's last fill — text painted in the
+  // background's color, i.e. invisible. The DOM path was only accidentally
+  // right, replaying into its own fresh raster canvas.) Transform is NOT
+  // reset — the caller's CTM is where the drawing goes.
+  ctx.fillStyle = "#000000";
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = 1;
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "miter";
+  ctx.miterLimit = 10;
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "start";
+  ctx.textBaseline = "alphabetic";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "rgba(0, 0, 0, 0)";
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
   ctx.beginPath();
   for (let i = 0; i < list.ops.length; i++) {
     const o = list.ops[i];

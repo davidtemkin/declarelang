@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "29f9bc8cf4a5",
+  "buildId": "17023f9bf7b6",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -72,6 +72,7 @@
      "headingColor": "color",
      "headingWeight": "enum(thin|extralight|light|regular|normal|medium|semibold|bold|extrabold|black)",
      "linkColor": "color",
+     "linkUnderline": "boolean",
      "codeColor": "color",
      "codeSize": "number",
      "codeFamily": "font",
@@ -1391,6 +1392,115 @@
        "readonly type: string",
        "readonly id: string"
       ]
+     },
+     {
+      "name": "Headers",
+      "extends": null,
+      "members": [
+       "get(name: string): string | null",
+       "has(name: string): boolean",
+       "forEach(fn: (value: string, key: string) => void): void"
+      ]
+     },
+     {
+      "name": "AbortSignal",
+      "extends": null,
+      "members": [
+       "readonly aborted: boolean",
+       "addEventListener(type: \"abort\", fn: () => void): void"
+      ]
+     },
+     {
+      "name": "AbortController",
+      "extends": null,
+      "members": [
+       "readonly signal: AbortSignal",
+       "abort(reason?: unknown): void"
+      ]
+     },
+     {
+      "name": "RequestInit",
+      "extends": null,
+      "members": [
+       "method?: string",
+       "headers?: Record<string, string> | [string, string][]",
+       "body?: string | FormData | Blob | ArrayBuffer | null",
+       "credentials?: \"omit\" | \"same-origin\" | \"include\"",
+       "mode?: \"cors\" | \"no-cors\" | \"same-origin\"",
+       "cache?: string",
+       "redirect?: \"follow\" | \"error\" | \"manual\"",
+       "signal?: AbortSignal | null",
+       "keepalive?: boolean"
+      ]
+     },
+     {
+      "name": "Response",
+      "extends": null,
+      "members": [
+       "readonly ok: boolean",
+       "readonly status: number",
+       "readonly statusText: string",
+       "readonly url: string",
+       "readonly headers: Headers",
+       "readonly bodyUsed: boolean",
+       "json(): Promise<any>",
+       "text(): Promise<string>",
+       "arrayBuffer(): Promise<ArrayBuffer>",
+       "blob(): Promise<Blob>",
+       "clone(): Response"
+      ]
+     },
+     {
+      "name": "Blob",
+      "extends": null,
+      "members": [
+       "readonly size: number",
+       "readonly type: string",
+       "text(): Promise<string>",
+       "arrayBuffer(): Promise<ArrayBuffer>"
+      ]
+     },
+     {
+      "name": "FormData",
+      "extends": null,
+      "members": [
+       "append(name: string, value: string | Blob, fileName?: string): void",
+       "get(name: string): string | Blob | null",
+       "has(name: string): boolean"
+      ]
+     },
+     {
+      "name": "URLSearchParams",
+      "extends": null,
+      "members": [
+       "constructor(init?: string | Record<string, string> | [string, string][])",
+       "get(name: string): string | null",
+       "getAll(name: string): string[]",
+       "has(name: string): boolean",
+       "set(name: string, value: string): void",
+       "append(name: string, value: string): void",
+       "delete(name: string): void",
+       "forEach(fn: (value: string, key: string) => void): void",
+       "toString(): string"
+      ]
+     },
+     {
+      "name": "URL",
+      "extends": null,
+      "members": [
+       "constructor(url: string | URL, base?: string | URL)",
+       "href: string",
+       "readonly origin: string",
+       "protocol: string",
+       "host: string",
+       "hostname: string",
+       "port: string",
+       "pathname: string",
+       "search: string",
+       "hash: string",
+       "readonly searchParams: URLSearchParams",
+       "toString(): string"
+      ]
      }
     ],
     "aliases": [
@@ -1483,6 +1593,34 @@
      {
       "name": "clearInterval",
       "signature": "clearInterval(id: number): void"
+     },
+     {
+      "name": "fetch",
+      "signature": "fetch(input: string | URL, init?: RequestInit): Promise<Response>"
+     },
+     {
+      "name": "queueMicrotask",
+      "signature": "queueMicrotask(fn: () => void): void"
+     },
+     {
+      "name": "structuredClone",
+      "signature": "structuredClone<T>(value: T): T"
+     },
+     {
+      "name": "encodeURIComponent",
+      "signature": "encodeURIComponent(s: string | number | boolean): string"
+     },
+     {
+      "name": "decodeURIComponent",
+      "signature": "decodeURIComponent(s: string): string"
+     },
+     {
+      "name": "encodeURI",
+      "signature": "encodeURI(s: string): string"
+     },
+     {
+      "name": "decodeURI",
+      "signature": "decodeURI(s: string): string"
      }
     ],
     "namespaces": [
@@ -2204,6 +2342,8 @@
     "DECLARE4002",
     "DECLARE4003",
     "DECLARE4004",
+    "DECLARE4005",
+    "DECLARE4006",
     "DECLARE5000",
     "DECLARE5001",
     "DECLARE5002",
@@ -2272,7 +2412,7 @@
      {
       "id": "install",
       "cmd": "npm install",
-      "description": "Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run.",
+      "description": "Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run. pnpm works too — the repo pre-approves esbuild's install script; if you instead add declarelang to another project as a git dependency, approve its build (`pnpm approve-builds`, or `\"pnpm\": { \"onlyBuiltDependencies\": [\"declarelang\"] }`) so its prepare step runs.",
       "test": false
      },
      {
@@ -2625,7 +2765,7 @@
       "helper function",
       "plain typescript"
      ],
-     "answer": "`script { … }` — a top-level block of plain TypeScript: constants, functions, model types. Its top-level names are visible from every `{ }` body in the same file, and a constraint may call one — the compiler reads THROUGH the call to find what the body depends on, so a helper does not break reactivity (declare.md §5).\nThis is where arithmetic and formatting live, so the tree stays about the tree. Guide: 03-relationships, 04-tree."
+     "answer": "`script { … }` — a top-level block of plain TypeScript, wholly OUTSIDE the reactive system: constants, functions, stateful helpers, whole libraries. It may `import` ES modules (a relative file, or an npm package by bare specifier — bundled at compile by a Node host: the dev server, declarec, verify), and `script [ \"file.ts\" ]` loads the same block from a file, spelled like `include`. Its top-level names are visible from every `{ }` body; a constraint may call one OPAQUELY — the constraint depends on the values it passes, never on what the function does inside, so pass values, not nodes (declare.md §5). This is where arithmetic, formatting, and imported JS live, so the tree stays about the tree. Guide: 03-relationships, 04-tree."
     },
     {
      "terms": [
@@ -2852,6 +2992,25 @@
       "timer animation"
      ],
      "answer": "No `requestAnimationFrame` — and though `setTimeout`/`setInterval` exist for host chores, they are never the motion system. Motion is declared: a `Spring` drives an attribute toward a live target (interruptible for free), an `Animator` is the clock-shaped sibling, and per-frame integration (physics you step yourself) is `Heartbeat [ onFrame(dt) ]`, which rides the one shared frame clock. A setTimeout-driven animation fights the settle loop and cannot be interrupted mid-flight; see the guide's Motion & states chapter."
+    },
+    {
+     "terms": [
+      "poll",
+      "polling",
+      "wait for",
+      "wait until",
+      "wait for load",
+      "wait for data",
+      "wait for layout",
+      "sleep",
+      "delay until",
+      "check every",
+      "retry until",
+      "interval",
+      "timer",
+      "busy wait"
+     ],
+     "answer": "No polling — nothing waits. A program never checks whether something has happened yet: readiness is a value to constrain on, completion an event to take — a loop or timer that checks whether something has happened yet is a constraint or an event written by hand, and almost always the wrong path. Ask what it is waiting for: a fetch landing → `visible = { data.loaded }` or `onLoad`; a view existing or having a size → `onInit`, `onReady`, `afterSettle`, `onArrive`; a value changing → a constraint on it (the constraint IS the notification); geometry after your own write → `afterSettle(step)`, same frame. Time is only ever an input: `Animator` over a duration, `Spring` toward a target, `Heartbeat [ onFrame(dt) ]` to integrate (a handler that ignores `dt` is polling), `setTimeout` for a genuine timing rule — a debounce, a request timeout — never to let things settle. See the guide's Thinking in Declare chapter, \"Nothing waits\"."
     }
    ]
   }
@@ -6403,6 +6562,11 @@
     "title": "View.linkColor",
     "kind": "reference"
    },
+   "View.linkUnderline": {
+    "path": "docs/declare-model.json",
+    "title": "View.linkUnderline",
+    "kind": "reference"
+   },
    "View.method.$data": {
     "path": "docs/declare-model.json",
     "title": "View.method.$data",
@@ -6976,10 +7140,12 @@
     "guide:data",
     "guide:location",
     "guide:space",
+    "guide:thinking-in-declare",
     "guide:tree",
     "operational:inspector"
    ],
    "docs/guide/04-tree.md": [
+    "guide:relationships",
     "guide:space"
    ],
    "docs/guide/05-space.md": [
@@ -7013,7 +7179,8 @@
    "docs/guide/09-data.md": [
     "guide:interaction",
     "guide:relationships",
-    "guide:scale"
+    "guide:scale",
+    "guide:thinking-in-declare"
    ],
    "docs/guide/10-scale.md": [
     "guide:interaction",
@@ -7059,6 +7226,7 @@
    ],
    "docs/guide/18-embedding.md": [
     "guide:run-check-ship",
+    "guide:tree",
     "operational:embedding"
    ],
    "docs/guide/19-run-check-ship.md": [
@@ -7152,7 +7320,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1258
+    "line": 1266
    },
    "parent": "View",
    "seeAlso": [],
@@ -7176,7 +7344,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1259
+    "line": 1267
    },
    "parent": "View",
    "seeAlso": [],
@@ -7200,7 +7368,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1260
+    "line": 1268
    },
    "parent": "View",
    "seeAlso": [],
@@ -7224,7 +7392,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1261
+    "line": 1269
    },
    "parent": "View",
    "seeAlso": [],
@@ -7259,7 +7427,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1262
+    "line": 1270
    },
    "parent": "View",
    "seeAlso": [],
@@ -7283,7 +7451,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1263
+    "line": 1271
    },
    "parent": "View",
    "seeAlso": [],
@@ -7355,7 +7523,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1281
+    "line": 1289
    },
    "parent": "View",
    "seeAlso": [],
@@ -7379,7 +7547,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1282
+    "line": 1290
    },
    "parent": "View",
    "seeAlso": [],
@@ -7403,7 +7571,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1283
+    "line": 1291
    },
    "parent": "View",
    "seeAlso": [],
@@ -7427,7 +7595,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1264
+    "line": 1272
    },
    "parent": "View",
    "seeAlso": [],
@@ -7451,7 +7619,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1265
+    "line": 1273
    },
    "parent": "View",
    "seeAlso": [],
@@ -7475,7 +7643,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1266
+    "line": 1274
    },
    "parent": "View",
    "seeAlso": [],
@@ -7499,7 +7667,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1284
+    "line": 1292
    },
    "parent": "View",
    "seeAlso": [],
@@ -7523,7 +7691,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1285
+    "line": 1293
    },
    "parent": "View",
    "seeAlso": [],
@@ -7547,7 +7715,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1286
+    "line": 1294
    },
    "parent": "View",
    "seeAlso": [],
@@ -7571,7 +7739,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1287
+    "line": 1295
    },
    "parent": "View",
    "seeAlso": [],
@@ -7595,7 +7763,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1294
+    "line": 1302
    },
    "parent": "View",
    "seeAlso": [],
@@ -7619,7 +7787,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1295
+    "line": 1303
    },
    "parent": "View",
    "seeAlso": [],
@@ -7643,7 +7811,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1296
+    "line": 1304
    },
    "parent": "View",
    "seeAlso": [],
@@ -7667,7 +7835,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1297
+    "line": 1305
    },
    "parent": "View",
    "seeAlso": [],
@@ -7691,7 +7859,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1300
+    "line": 1308
    },
    "parent": "View",
    "seeAlso": [],
@@ -7726,7 +7894,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1301
+    "line": 1309
    },
    "parent": "View",
    "seeAlso": [],
@@ -7750,7 +7918,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1326
+    "line": 1334
    },
    "parent": "View",
    "seeAlso": [],
@@ -7774,7 +7942,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1331
+    "line": 1339
    },
    "parent": "View",
    "seeAlso": [],
@@ -7798,7 +7966,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1341
+    "line": 1349
    },
    "parent": "View",
    "seeAlso": [],
@@ -7822,7 +7990,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1332
+    "line": 1340
    },
    "parent": "View",
    "seeAlso": [],
@@ -7846,7 +8014,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1340
+    "line": 1348
    },
    "parent": "View",
    "seeAlso": [],
@@ -7870,7 +8038,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1342
+    "line": 1350
    },
    "parent": "View",
    "seeAlso": [],
@@ -7894,7 +8062,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1346
+    "line": 1354
    },
    "parent": "View",
    "seeAlso": [],
@@ -7918,7 +8086,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1354
+    "line": 1362
    },
    "parent": "View",
    "seeAlso": [],
@@ -7942,7 +8110,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1355
+    "line": 1363
    },
    "parent": "View",
    "seeAlso": [],
@@ -7966,7 +8134,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1356
+    "line": 1364
    },
    "parent": "View",
    "seeAlso": [],
@@ -7990,7 +8158,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1357
+    "line": 1365
    },
    "parent": "View",
    "seeAlso": [],
@@ -8014,7 +8182,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1358
+    "line": 1366
    },
    "parent": "View",
    "seeAlso": [],
@@ -8038,7 +8206,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1361
+    "line": 1369
    },
    "parent": "View",
    "seeAlso": [],
@@ -8062,7 +8230,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1362
+    "line": 1370
    },
    "parent": "View",
    "seeAlso": [],
@@ -8086,13 +8254,32 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1363
+    "line": 1371
    },
    "parent": "View",
    "seeAlso": [],
    "type": "Color",
    "default": "null",
    "prevailing": true,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "View.linkUnderline": {
+   "id": "View.linkUnderline",
+   "name": "linkUnderline",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "View",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": null,
+   "prevailing": false,
    "readOnly": false,
    "inheritedFrom": null
   },
@@ -8110,7 +8297,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1364
+    "line": 1372
    },
    "parent": "View",
    "seeAlso": [],
@@ -8134,7 +8321,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1365
+    "line": 1373
    },
    "parent": "View",
    "seeAlso": [],
@@ -8158,7 +8345,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1366
+    "line": 1374
    },
    "parent": "View",
    "seeAlso": [],
@@ -8182,7 +8369,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1367
+    "line": 1375
    },
    "parent": "View",
    "seeAlso": [],
@@ -8206,7 +8393,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1368
+    "line": 1376
    },
    "parent": "View",
    "seeAlso": [],
@@ -8230,7 +8417,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1369
+    "line": 1377
    },
    "parent": "View",
    "seeAlso": [],
@@ -8254,7 +8441,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1370
+    "line": 1378
    },
    "parent": "View",
    "seeAlso": [],
@@ -8278,7 +8465,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1347
+    "line": 1355
    },
    "parent": "View",
    "seeAlso": [],
@@ -8302,7 +8489,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1288
+    "line": 1296
    },
    "parent": "View",
    "seeAlso": [],
@@ -8326,7 +8513,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1289
+    "line": 1297
    },
    "parent": "View",
    "seeAlso": [],
@@ -8350,7 +8537,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1371
+    "line": 1379
    },
    "parent": "View",
    "seeAlso": [],
@@ -8374,7 +8561,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1374
+    "line": 1382
    },
    "parent": "View",
    "seeAlso": [],
@@ -8398,7 +8585,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1375
+    "line": 1383
    },
    "parent": "View",
    "seeAlso": [],
@@ -8422,7 +8609,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1388
+    "line": 1396
    },
    "parent": "View",
    "seeAlso": [],
@@ -8446,7 +8633,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1302
+    "line": 1310
    },
    "parent": "View",
    "seeAlso": [],
@@ -8470,7 +8657,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1303
+    "line": 1311
    },
    "parent": "View",
    "seeAlso": [],
@@ -8494,7 +8681,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1307
+    "line": 1315
    },
    "parent": "View",
    "seeAlso": [],
@@ -8513,7 +8700,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1313
+    "line": 1321
    },
    "parent": "View",
    "seeAlso": [],
@@ -8532,7 +8719,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1320
+    "line": 1328
    },
    "parent": "View",
    "seeAlso": [],
@@ -8551,7 +8738,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1325
+    "line": 1333
    },
    "parent": "View",
    "seeAlso": [],
@@ -9172,7 +9359,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 982
+    "line": 984
    },
    "parent": "View",
    "seeAlso": [],
@@ -9193,7 +9380,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 988
+    "line": 990
    },
    "parent": "View",
    "seeAlso": [],
@@ -9214,7 +9401,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1015
+    "line": 1017
    },
    "parent": "View",
    "seeAlso": [],
@@ -9235,7 +9422,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1046
+    "line": 1048
    },
    "parent": "View",
    "seeAlso": [],
@@ -9256,7 +9443,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1062
+    "line": 1064
    },
    "parent": "View",
    "seeAlso": [],
@@ -9277,7 +9464,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1069
+    "line": 1071
    },
    "parent": "View",
    "seeAlso": [],
@@ -9298,7 +9485,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1095
+    "line": 1097
    },
    "parent": "View",
    "seeAlso": [],
@@ -9319,7 +9506,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1100
+    "line": 1102
    },
    "parent": "View",
    "seeAlso": [],
@@ -9335,7 +9522,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1159
+    "line": 1161
    },
    "parent": "View",
    "seeAlso": [],
@@ -9351,7 +9538,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1209
+    "line": 1217
    },
    "parent": "View",
    "seeAlso": [],
@@ -9367,7 +9554,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1227
+    "line": 1235
    },
    "parent": "View",
    "seeAlso": [],
@@ -9916,6 +10103,7 @@
     "View.headingColor",
     "View.headingWeight",
     "View.linkColor",
+    "View.linkUnderline",
     "View.codeColor",
     "View.codeSize",
     "View.codeFamily",
@@ -10032,7 +10220,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2069
+    "line": 2099
    },
    "parent": "App",
    "seeAlso": [],
@@ -10056,7 +10244,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2070
+    "line": 2100
    },
    "parent": "App",
    "seeAlso": [],
@@ -10080,7 +10268,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2071
+    "line": 2101
    },
    "parent": "App",
    "seeAlso": [],
@@ -10104,7 +10292,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2072
+    "line": 2102
    },
    "parent": "App",
    "seeAlso": [],
@@ -10128,7 +10316,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2074
+    "line": 2104
    },
    "parent": "App",
    "seeAlso": [],
@@ -10152,7 +10340,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2073
+    "line": 2103
    },
    "parent": "App",
    "seeAlso": [],
@@ -10176,7 +10364,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2075
+    "line": 2105
    },
    "parent": "App",
    "seeAlso": [],
@@ -10200,7 +10388,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2076
+    "line": 2106
    },
    "parent": "App",
    "seeAlso": [],
@@ -10224,7 +10412,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2077
+    "line": 2107
    },
    "parent": "App",
    "seeAlso": [],
@@ -10248,7 +10436,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2080
+    "line": 2110
    },
    "parent": "App",
    "seeAlso": [],
@@ -10272,7 +10460,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2081
+    "line": 2111
    },
    "parent": "App",
    "seeAlso": [],
@@ -10296,7 +10484,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2082
+    "line": 2112
    },
    "parent": "App",
    "seeAlso": [],
@@ -10320,7 +10508,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2083
+    "line": 2113
    },
    "parent": "App",
    "seeAlso": [],
@@ -10344,7 +10532,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2084
+    "line": 2114
    },
    "parent": "App",
    "seeAlso": [],
@@ -10368,7 +10556,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2094
+    "line": 2124
    },
    "parent": "App",
    "seeAlso": [],
@@ -10392,7 +10580,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2099
+    "line": 2129
    },
    "parent": "App",
    "seeAlso": [],
@@ -10416,7 +10604,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2103
+    "line": 2133
    },
    "parent": "App",
    "seeAlso": [],
@@ -10440,7 +10628,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2118
+    "line": 2148
    },
    "parent": "App",
    "seeAlso": [],
@@ -10464,7 +10652,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2119
+    "line": 2149
    },
    "parent": "App",
    "seeAlso": [],
@@ -10488,7 +10676,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2113
+    "line": 2143
    },
    "parent": "App",
    "seeAlso": [],
@@ -10512,7 +10700,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2123
+    "line": 2153
    },
    "parent": "App",
    "seeAlso": [],
@@ -10536,7 +10724,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2133
+    "line": 2163
    },
    "parent": "App",
    "seeAlso": [],
@@ -10582,7 +10770,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2138
+    "line": 2168
    },
    "parent": "App",
    "seeAlso": [],
@@ -10606,7 +10794,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2142
+    "line": 2172
    },
    "parent": "App",
    "seeAlso": [],
@@ -10630,7 +10818,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2143
+    "line": 2173
    },
    "parent": "App",
    "seeAlso": [],
@@ -10654,7 +10842,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2145
+    "line": 2175
    },
    "parent": "App",
    "seeAlso": [],
@@ -10673,7 +10861,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2060
+    "line": 2090
    },
    "parent": "App",
    "seeAlso": [],
@@ -10692,7 +10880,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2064
+    "line": 2094
    },
    "parent": "App",
    "seeAlso": [],
@@ -10711,7 +10899,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1525
+    "line": 1555
    },
    "parent": "App",
    "seeAlso": [],
@@ -10732,7 +10920,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1673
+    "line": 1703
    },
    "parent": "App",
    "seeAlso": [],
@@ -10753,7 +10941,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1683
+    "line": 1713
    },
    "parent": "App",
    "seeAlso": [],
@@ -10769,7 +10957,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1693
+    "line": 1723
    },
    "parent": "App",
    "seeAlso": [],
@@ -10790,7 +10978,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1698
+    "line": 1728
    },
    "parent": "App",
    "seeAlso": [],
@@ -10811,7 +10999,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1719
+    "line": 1749
    },
    "parent": "App",
    "seeAlso": [],
@@ -10832,7 +11020,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1795
+    "line": 1825
    },
    "parent": "App",
    "seeAlso": [],
@@ -10853,7 +11041,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1805
+    "line": 1835
    },
    "parent": "App",
    "seeAlso": [],
@@ -10869,7 +11057,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1824
+    "line": 1854
    },
    "parent": "App",
    "seeAlso": [],
@@ -10890,7 +11078,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1889
+    "line": 1919
    },
    "parent": "App",
    "seeAlso": [],
@@ -10906,7 +11094,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1897
+    "line": 1927
    },
    "parent": "App",
    "seeAlso": [],
@@ -10922,7 +11110,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1939
+    "line": 1969
    },
    "parent": "App",
    "seeAlso": [],
@@ -10938,7 +11126,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1956
+    "line": 1986
    },
    "parent": "App",
    "seeAlso": [],
@@ -10954,7 +11142,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2006
+    "line": 2036
    },
    "parent": "App",
    "seeAlso": [],
@@ -10970,7 +11158,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2034
+    "line": 2064
    },
    "parent": "App",
    "seeAlso": [],
@@ -12426,7 +12614,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/markdown.ts",
-    "line": 909
+    "line": 911
    },
    "parent": "RichText",
    "seeAlso": [],
@@ -12442,7 +12630,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/markdown.ts",
-    "line": 929
+    "line": 931
    },
    "parent": "RichText",
    "seeAlso": [],
@@ -12740,7 +12928,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2375
+    "line": 2405
    },
    "parent": "DOMIsland",
    "seeAlso": [],
@@ -12764,7 +12952,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2376
+    "line": 2406
    },
    "parent": "DOMIsland",
    "seeAlso": [],
@@ -13788,7 +13976,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 232
+    "line": 241
    },
    "parent": "Dataset",
    "seeAlso": [],
@@ -13809,7 +13997,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 241
+    "line": 250
    },
    "parent": "Dataset",
    "seeAlso": [],
@@ -13830,7 +14018,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 255
+    "line": 264
    },
    "parent": "Dataset",
    "seeAlso": [],
@@ -14108,10 +14296,10 @@
    "id": "DataSource.loaded",
    "name": "loaded",
    "kind": "attribute",
-   "doc": "The value arrived and validated. `= { status == \"loaded\" }`. This is the usual one: a\nscreen derives from it (`visible = { data.loaded }`) rather than being toggled by hand.",
+   "doc": "The *latest* fetch finished and validated. `= { status == \"loaded\" }`. It is about the\nrequest, not the value: a refetch (a changed `url` under `auto`, or `fetch()` again) drops\nit to `false` until the new response lands, while `value` still holds the previous one. So\n`visible = { data.loaded }` blinks on every refresh; a screen that should stay put while\ndata refreshes guards on presence instead — `visible = { data.value != null }` — and keeps\n`loaded`/`loading` for what they name, the request's state.",
    "docSegs": [
     {
-     "md": "The value arrived and validated. `= { status == \"loaded\" }`. This is the usual one: a\nscreen derives from it (`visible = { data.loaded }`) rather than being toggled by hand.",
+     "md": "The *latest* fetch finished and validated. `= { status == \"loaded\" }`. It is about the\nrequest, not the value: a refetch (a changed `url` under `auto`, or `fetch()` again) drops\nit to `false` until the new response lands, while `value` still holds the previous one. So\n`visible = { data.loaded }` blinks on every refresh; a screen that should stay put while\ndata refreshes guards on presence instead — `visible = { data.value != null }` — and keeps\n`loaded`/`loading` for what they name, the request's state.",
      "code": []
     }
    ],
@@ -14233,7 +14421,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 419
+    "line": 428
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14251,7 +14439,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 420
+    "line": 429
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14269,7 +14457,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 421
+    "line": 430
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14287,7 +14475,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 422
+    "line": 431
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14305,7 +14493,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 433
+    "line": 442
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14326,7 +14514,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 478
+    "line": 487
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14347,7 +14535,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 540
+    "line": 558
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -15886,10 +16074,10 @@
    "id": "Heartbeat",
    "name": "Heartbeat",
    "kind": "class",
-   "doc": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Heartbeat` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).\n\n```declare\nApp [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Heartbeat [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }\n        ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ]\n    ]\n```",
+   "doc": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Heartbeat` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\n**Before a Heartbeat, ask which of the other two you are about to re-implement.** A value that\nshould *arrive* somewhere is a `Spring` (target → value). A value that should *advance* — a\nreplay cursor sweeping a day in ninety seconds, a progress that runs 0→1 — is an `Animator`\n(time → value): it is scrubbable, pausable, and interruptible for free, and everything that\nderives from it (seventy glyph opacities, a rule) follows with no per-frame code. A Heartbeat\nis right only when the next value depends on the last in a way no curve states — a body under\nforces, a particle system, a gesture you integrate yourself. In practice a `Heartbeat` in a\nprogram is worth a second look: it is usually one of the other two in disguise, and the\nper-frame handler it carries is where the program's only imperative state tends to collect.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).\n\n```declare\nApp [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Heartbeat [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }\n        ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ]\n    ]\n```",
    "docSegs": [
     {
-     "md": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Heartbeat` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).",
+     "md": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Heartbeat` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\n**Before a Heartbeat, ask which of the other two you are about to re-implement.** A value that\nshould *arrive* somewhere is a `Spring` (target → value). A value that should *advance* — a\nreplay cursor sweeping a day in ninety seconds, a progress that runs 0→1 — is an `Animator`\n(time → value): it is scrubbable, pausable, and interruptible for free, and everything that\nderives from it (seventy glyph opacities, a rule) follows with no per-frame code. A Heartbeat\nis right only when the next value depends on the last in a way no curve states — a body under\nforces, a particle system, a gesture you integrate yourself. In practice a `Heartbeat` in a\nprogram is worth a second look: it is usually one of the other two in disguise, and the\nper-frame handler it carries is where the program's only imperative state tends to collect.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).",
      "code": []
     },
     {
@@ -16725,10 +16913,10 @@
    "id": "EventStream",
    "name": "EventStream",
    "kind": "class",
-   "doc": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
+   "doc": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\nA declared stream **holds a live connection** for as long as it is `active` and its node\nlives — every open tab is one held server connection (browsers cap ~6 per host over\nHTTP/1.1, so a dev server's tabs can exhaust the pool). The lifecycle is the declaration:\n`active = { app.chatId != \"\" }` releases the connection the moment the condition goes\nfalse, and a discarded node closes its own — there is nothing to unsubscribe.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
    "docSegs": [
     {
-     "md": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
+     "md": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\nA declared stream **holds a live connection** for as long as it is `active` and its node\nlives — every open tab is one held server connection (browsers cap ~6 per host over\nHTTP/1.1, so a dev server's tabs can exhaust the pool). The lifecycle is the declaration:\n`active = { app.chatId != \"\" }` releases the connection the moment the condition goes\nfalse, and a discarded node closes its own — there is nothing to unsubscribe.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
      "code": []
     }
    ],
@@ -16769,7 +16957,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/streams.ts",
-    "line": 257
+    "line": 262
    },
    "parent": "Socket",
    "seeAlso": [],
@@ -26676,7 +26864,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1258
+      "line": 1266
      },
      "parent": "View",
      "seeAlso": [],
@@ -26700,7 +26888,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1259
+      "line": 1267
      },
      "parent": "View",
      "seeAlso": [],
@@ -26724,7 +26912,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1260
+      "line": 1268
      },
      "parent": "View",
      "seeAlso": [],
@@ -26748,7 +26936,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1261
+      "line": 1269
      },
      "parent": "View",
      "seeAlso": [],
@@ -26783,7 +26971,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1262
+      "line": 1270
      },
      "parent": "View",
      "seeAlso": [],
@@ -26807,7 +26995,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1263
+      "line": 1271
      },
      "parent": "View",
      "seeAlso": [],
@@ -26879,7 +27067,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1281
+      "line": 1289
      },
      "parent": "View",
      "seeAlso": [],
@@ -26903,7 +27091,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1282
+      "line": 1290
      },
      "parent": "View",
      "seeAlso": [],
@@ -26927,7 +27115,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1283
+      "line": 1291
      },
      "parent": "View",
      "seeAlso": [],
@@ -26951,7 +27139,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1264
+      "line": 1272
      },
      "parent": "View",
      "seeAlso": [],
@@ -26975,7 +27163,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1265
+      "line": 1273
      },
      "parent": "View",
      "seeAlso": [],
@@ -26999,7 +27187,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1266
+      "line": 1274
      },
      "parent": "View",
      "seeAlso": [],
@@ -27023,7 +27211,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1284
+      "line": 1292
      },
      "parent": "View",
      "seeAlso": [],
@@ -27047,7 +27235,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1285
+      "line": 1293
      },
      "parent": "View",
      "seeAlso": [],
@@ -27071,7 +27259,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1286
+      "line": 1294
      },
      "parent": "View",
      "seeAlso": [],
@@ -27095,7 +27283,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1287
+      "line": 1295
      },
      "parent": "View",
      "seeAlso": [],
@@ -27119,7 +27307,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1294
+      "line": 1302
      },
      "parent": "View",
      "seeAlso": [],
@@ -27143,7 +27331,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1295
+      "line": 1303
      },
      "parent": "View",
      "seeAlso": [],
@@ -27167,7 +27355,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1296
+      "line": 1304
      },
      "parent": "View",
      "seeAlso": [],
@@ -27191,7 +27379,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1297
+      "line": 1305
      },
      "parent": "View",
      "seeAlso": [],
@@ -27215,7 +27403,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1300
+      "line": 1308
      },
      "parent": "View",
      "seeAlso": [],
@@ -27250,7 +27438,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1301
+      "line": 1309
      },
      "parent": "View",
      "seeAlso": [],
@@ -27274,7 +27462,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1326
+      "line": 1334
      },
      "parent": "View",
      "seeAlso": [],
@@ -27298,7 +27486,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1331
+      "line": 1339
      },
      "parent": "View",
      "seeAlso": [],
@@ -27322,7 +27510,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1341
+      "line": 1349
      },
      "parent": "View",
      "seeAlso": [],
@@ -27346,7 +27534,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1332
+      "line": 1340
      },
      "parent": "View",
      "seeAlso": [],
@@ -27370,7 +27558,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1340
+      "line": 1348
      },
      "parent": "View",
      "seeAlso": [],
@@ -27394,7 +27582,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1342
+      "line": 1350
      },
      "parent": "View",
      "seeAlso": [],
@@ -27418,7 +27606,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1346
+      "line": 1354
      },
      "parent": "View",
      "seeAlso": [],
@@ -27442,7 +27630,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1354
+      "line": 1362
      },
      "parent": "View",
      "seeAlso": [],
@@ -27466,7 +27654,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1355
+      "line": 1363
      },
      "parent": "View",
      "seeAlso": [],
@@ -27490,7 +27678,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1356
+      "line": 1364
      },
      "parent": "View",
      "seeAlso": [],
@@ -27514,7 +27702,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1357
+      "line": 1365
      },
      "parent": "View",
      "seeAlso": [],
@@ -27538,7 +27726,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1358
+      "line": 1366
      },
      "parent": "View",
      "seeAlso": [],
@@ -27562,7 +27750,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1361
+      "line": 1369
      },
      "parent": "View",
      "seeAlso": [],
@@ -27586,7 +27774,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1362
+      "line": 1370
      },
      "parent": "View",
      "seeAlso": [],
@@ -27610,7 +27798,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1363
+      "line": 1371
      },
      "parent": "View",
      "seeAlso": [],
@@ -27634,7 +27822,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1364
+      "line": 1372
      },
      "parent": "View",
      "seeAlso": [],
@@ -27658,7 +27846,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1365
+      "line": 1373
      },
      "parent": "View",
      "seeAlso": [],
@@ -27682,7 +27870,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1366
+      "line": 1374
      },
      "parent": "View",
      "seeAlso": [],
@@ -27706,7 +27894,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1367
+      "line": 1375
      },
      "parent": "View",
      "seeAlso": [],
@@ -27730,7 +27918,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1368
+      "line": 1376
      },
      "parent": "View",
      "seeAlso": [],
@@ -27754,7 +27942,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1369
+      "line": 1377
      },
      "parent": "View",
      "seeAlso": [],
@@ -27778,7 +27966,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1370
+      "line": 1378
      },
      "parent": "View",
      "seeAlso": [],
@@ -27802,7 +27990,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1347
+      "line": 1355
      },
      "parent": "View",
      "seeAlso": [],
@@ -27826,7 +28014,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1288
+      "line": 1296
      },
      "parent": "View",
      "seeAlso": [],
@@ -27850,7 +28038,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1289
+      "line": 1297
      },
      "parent": "View",
      "seeAlso": [],
@@ -27874,7 +28062,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1371
+      "line": 1379
      },
      "parent": "View",
      "seeAlso": [],
@@ -27898,7 +28086,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1374
+      "line": 1382
      },
      "parent": "View",
      "seeAlso": [],
@@ -27922,7 +28110,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1375
+      "line": 1383
      },
      "parent": "View",
      "seeAlso": [],
@@ -27946,7 +28134,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1388
+      "line": 1396
      },
      "parent": "View",
      "seeAlso": [],
@@ -27970,7 +28158,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1302
+      "line": 1310
      },
      "parent": "View",
      "seeAlso": [],
@@ -27994,7 +28182,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1303
+      "line": 1311
      },
      "parent": "View",
      "seeAlso": [],
@@ -28018,7 +28206,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1307
+      "line": 1315
      },
      "parent": "View",
      "seeAlso": [],
@@ -28790,7 +28978,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 982
+      "line": 984
      },
      "parent": "View",
      "seeAlso": [],
@@ -28811,7 +28999,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 988
+      "line": 990
      },
      "parent": "View",
      "seeAlso": [],
@@ -28832,7 +29020,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1015
+      "line": 1017
      },
      "parent": "View",
      "seeAlso": [],
@@ -28853,7 +29041,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1046
+      "line": 1048
      },
      "parent": "View",
      "seeAlso": [],
@@ -28874,7 +29062,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1062
+      "line": 1064
      },
      "parent": "View",
      "seeAlso": [],
@@ -28895,7 +29083,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1069
+      "line": 1071
      },
      "parent": "View",
      "seeAlso": [],
@@ -28916,7 +29104,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1095
+      "line": 1097
      },
      "parent": "View",
      "seeAlso": [],
@@ -28937,7 +29125,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1100
+      "line": 1102
      },
      "parent": "View",
      "seeAlso": [],
@@ -29004,7 +29192,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2069
+      "line": 2099
      },
      "parent": "App",
      "seeAlso": [],
@@ -29028,7 +29216,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2070
+      "line": 2100
      },
      "parent": "App",
      "seeAlso": [],
@@ -29052,7 +29240,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2071
+      "line": 2101
      },
      "parent": "App",
      "seeAlso": [],
@@ -29076,7 +29264,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2072
+      "line": 2102
      },
      "parent": "App",
      "seeAlso": [],
@@ -29100,7 +29288,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2074
+      "line": 2104
      },
      "parent": "App",
      "seeAlso": [],
@@ -29124,7 +29312,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2073
+      "line": 2103
      },
      "parent": "App",
      "seeAlso": [],
@@ -29148,7 +29336,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2075
+      "line": 2105
      },
      "parent": "App",
      "seeAlso": [],
@@ -29172,7 +29360,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2076
+      "line": 2106
      },
      "parent": "App",
      "seeAlso": [],
@@ -29196,7 +29384,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2077
+      "line": 2107
      },
      "parent": "App",
      "seeAlso": [],
@@ -29220,7 +29408,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2080
+      "line": 2110
      },
      "parent": "App",
      "seeAlso": [],
@@ -29244,7 +29432,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2081
+      "line": 2111
      },
      "parent": "App",
      "seeAlso": [],
@@ -29268,7 +29456,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2082
+      "line": 2112
      },
      "parent": "App",
      "seeAlso": [],
@@ -29292,7 +29480,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2083
+      "line": 2113
      },
      "parent": "App",
      "seeAlso": [],
@@ -29316,7 +29504,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2084
+      "line": 2114
      },
      "parent": "App",
      "seeAlso": [],
@@ -29340,7 +29528,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2094
+      "line": 2124
      },
      "parent": "App",
      "seeAlso": [],
@@ -29364,7 +29552,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2099
+      "line": 2129
      },
      "parent": "App",
      "seeAlso": [],
@@ -29388,7 +29576,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2103
+      "line": 2133
      },
      "parent": "App",
      "seeAlso": [],
@@ -29412,7 +29600,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2118
+      "line": 2148
      },
      "parent": "App",
      "seeAlso": [],
@@ -29436,7 +29624,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2119
+      "line": 2149
      },
      "parent": "App",
      "seeAlso": [],
@@ -29460,7 +29648,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2113
+      "line": 2143
      },
      "parent": "App",
      "seeAlso": [],
@@ -29484,7 +29672,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2123
+      "line": 2153
      },
      "parent": "App",
      "seeAlso": [],
@@ -29508,7 +29696,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2133
+      "line": 2163
      },
      "parent": "App",
      "seeAlso": [],
@@ -29554,7 +29742,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2138
+      "line": 2168
      },
      "parent": "App",
      "seeAlso": [],
@@ -29578,7 +29766,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2142
+      "line": 2172
      },
      "parent": "App",
      "seeAlso": [],
@@ -29602,7 +29790,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2143
+      "line": 2173
      },
      "parent": "App",
      "seeAlso": [],
@@ -29626,7 +29814,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2145
+      "line": 2175
      },
      "parent": "App",
      "seeAlso": [],
@@ -29714,7 +29902,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1673
+      "line": 1703
      },
      "parent": "App",
      "seeAlso": [],
@@ -29735,7 +29923,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1683
+      "line": 1713
      },
      "parent": "App",
      "seeAlso": [],
@@ -29756,7 +29944,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1698
+      "line": 1728
      },
      "parent": "App",
      "seeAlso": [],
@@ -29777,7 +29965,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1719
+      "line": 1749
      },
      "parent": "App",
      "seeAlso": [],
@@ -29798,7 +29986,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1795
+      "line": 1825
      },
      "parent": "App",
      "seeAlso": [],
@@ -29819,7 +30007,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1805
+      "line": 1835
      },
      "parent": "App",
      "seeAlso": [],
@@ -29840,7 +30028,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1889
+      "line": 1919
      },
      "parent": "App",
      "seeAlso": [],
@@ -31143,7 +31331,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2375
+      "line": 2405
      },
      "parent": "DOMIsland",
      "seeAlso": [],
@@ -31167,7 +31355,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2376
+      "line": 2406
      },
      "parent": "DOMIsland",
      "seeAlso": [],
@@ -32048,7 +32236,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 232
+      "line": 241
      },
      "parent": "Dataset",
      "seeAlso": [],
@@ -32069,7 +32257,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 241
+      "line": 250
      },
      "parent": "Dataset",
      "seeAlso": [],
@@ -32090,7 +32278,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 255
+      "line": 264
      },
      "parent": "Dataset",
      "seeAlso": [],
@@ -32348,10 +32536,10 @@
      "id": "DataSource.loaded",
      "name": "loaded",
      "kind": "attribute",
-     "doc": "The value arrived and validated. `= { status == \"loaded\" }`. This is the usual one: a\nscreen derives from it (`visible = { data.loaded }`) rather than being toggled by hand.",
+     "doc": "The *latest* fetch finished and validated. `= { status == \"loaded\" }`. It is about the\nrequest, not the value: a refetch (a changed `url` under `auto`, or `fetch()` again) drops\nit to `false` until the new response lands, while `value` still holds the previous one. So\n`visible = { data.loaded }` blinks on every refresh; a screen that should stay put while\ndata refreshes guards on presence instead — `visible = { data.value != null }` — and keeps\n`loaded`/`loading` for what they name, the request's state.",
      "docSegs": [
       {
-       "md": "The value arrived and validated. `= { status == \"loaded\" }`. This is the usual one: a\nscreen derives from it (`visible = { data.loaded }`) rather than being toggled by hand.",
+       "md": "The *latest* fetch finished and validated. `= { status == \"loaded\" }`. It is about the\nrequest, not the value: a refetch (a changed `url` under `auto`, or `fetch()` again) drops\nit to `false` until the new response lands, while `value` still holds the previous one. So\n`visible = { data.loaded }` blinks on every refresh; a screen that should stay put while\ndata refreshes guards on presence instead — `visible = { data.value != null }` — and keeps\n`loaded`/`loading` for what they name, the request's state.",
        "code": []
       }
      ],
@@ -32502,7 +32690,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 478
+      "line": 487
      },
      "parent": "DataSource",
      "seeAlso": [],
@@ -32523,7 +32711,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 540
+      "line": 558
      },
      "parent": "DataSource",
      "seeAlso": [],
@@ -33445,10 +33633,10 @@
   {
    "id": "Heartbeat",
    "name": "Heartbeat",
-   "doc": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Heartbeat` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).\n\n```declare\nApp [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Heartbeat [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }\n        ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ]\n    ]\n```",
+   "doc": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Heartbeat` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\n**Before a Heartbeat, ask which of the other two you are about to re-implement.** A value that\nshould *arrive* somewhere is a `Spring` (target → value). A value that should *advance* — a\nreplay cursor sweeping a day in ninety seconds, a progress that runs 0→1 — is an `Animator`\n(time → value): it is scrubbable, pausable, and interruptible for free, and everything that\nderives from it (seventy glyph opacities, a rule) follows with no per-frame code. A Heartbeat\nis right only when the next value depends on the last in a way no curve states — a body under\nforces, a particle system, a gesture you integrate yourself. In practice a `Heartbeat` in a\nprogram is worth a second look: it is usually one of the other two in disguise, and the\nper-frame handler it carries is where the program's only imperative state tends to collect.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).\n\n```declare\nApp [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Heartbeat [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }\n        ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ]\n    ]\n```",
    "docSegs": [
     {
-     "md": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Heartbeat` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).",
+     "md": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Heartbeat` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\n**Before a Heartbeat, ask which of the other two you are about to re-implement.** A value that\nshould *arrive* somewhere is a `Spring` (target → value). A value that should *advance* — a\nreplay cursor sweeping a day in ninety seconds, a progress that runs 0→1 — is an `Animator`\n(time → value): it is scrubbable, pausable, and interruptible for free, and everything that\nderives from it (seventy glyph opacities, a rule) follows with no per-frame code. A Heartbeat\nis right only when the next value depends on the last in a way no curve states — a body under\nforces, a particle system, a gesture you integrate yourself. In practice a `Heartbeat` in a\nprogram is worth a second look: it is usually one of the other two in disguise, and the\nper-frame handler it carries is where the program's only imperative state tends to collect.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).",
      "code": []
     },
     {
@@ -34189,10 +34377,10 @@
   {
    "id": "EventStream",
    "name": "EventStream",
-   "doc": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
+   "doc": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\nA declared stream **holds a live connection** for as long as it is `active` and its node\nlives — every open tab is one held server connection (browsers cap ~6 per host over\nHTTP/1.1, so a dev server's tabs can exhaust the pool). The lifecycle is the declaration:\n`active = { app.chatId != \"\" }` releases the connection the moment the condition goes\nfalse, and a discarded node closes its own — there is nothing to unsubscribe.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
    "docSegs": [
     {
-     "md": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
+     "md": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\nA declared stream **holds a live connection** for as long as it is `active` and its node\nlives — every open tab is one held server connection (browsers cap ~6 per host over\nHTTP/1.1, so a dev server's tabs can exhaust the pool). The lifecycle is the declaration:\n`active = { app.chatId != \"\" }` releases the connection the moment the condition goes\nfalse, and a discarded node closes its own — there is nothing to unsubscribe.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
      "code": []
     }
    ],
@@ -34273,7 +34461,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/streams.ts",
-      "line": 257
+      "line": 262
      },
      "parent": "Socket",
      "seeAlso": [],
@@ -42024,8 +42212,10 @@
    "short": "Start here",
    "part": "The idea",
    "teaches": {
+    "Animator": 1,
     "App": 2,
-    "Spring": 1,
+    "Heartbeat": 2,
+    "Spring": 2,
     "Text": 4,
     "View": 2
    }
@@ -42297,11 +42487,11 @@
    "short": "Motion & states",
    "part": "Continuity",
    "teaches": {
-    "Animator": 2,
+    "Animator": 3,
     "AnimatorGroup": 1,
     "App": 3,
-    "Heartbeat": 2,
-    "Spring": 5,
+    "Heartbeat": 4,
+    "Spring": 6,
     "State": 2,
     "Text": 3,
     "View": 3
@@ -42579,7 +42769,7 @@
    "name": "1 SATOR",
    "segs": [
     {
-     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 82 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 84 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
      "code": []
     }
    ]
@@ -42657,7 +42847,7 @@
        "subtitle": "",
        "kind": "tenet",
        "label": "Tenet",
-       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 82 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 84 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
        "preview": "Delivery, hosting, and the honest posture — the promises about running and shipping a Declare program. SATOR-1 — Programs are data A compiled program is data the toolchain can read, so one compiler powers the documentation system, static ex…"
       },
       {
@@ -43080,7 +43270,7 @@
        "subtitle": "extends Dataset",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# DataSource\n\n*Built-in element — [Dataset](declare-docs:Dataset) → [Node](declare-docs:Node)*\n\nA `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load** (`auto = true` is a\ndeliberate opt-in for reactive addresses, not the default). Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The\nresponse is parsed JSON by default; `format = \"text\"` fetches textual material instead —\na Markdown article, a source file — as one string (see `format`).\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `format` | string |  |  |\n| `method` | string |  |  |\n| `body` | object |  |  |\n| `auto` | boolean |  |  |\n| `credentials` | omit | sameOrigin | include |  |  |\n| `status` | idle | loading | loaded | failed |  | read-only |\n| `idle` | boolean |  | read-only |\n| `loading` | boolean |  | read-only |\n| `loaded` | boolean |  | read-only |\n| `failed` | boolean |  | read-only |\n| `error` | string |  | read-only |\n| `statusCode` | number |  | read-only |\n| `errorBody` | object |  | read-only |\n\n**`url`** — The resource URL — a literal or a `{ }` constraint, so the source **re-points reactively**:\nchange a dependency (a zip, a filter) and the *next* `fetch()` hits the new URL. Setting\n`url` does not load on its own — fetching stays explicit unless you opt into `auto`.\n\n**`format`** — What the fetched bytes **are**: `\"json\"` (the default) parses the response and tags it for\n`:path` navigation; `\"text\"` delivers the raw bytes as **one string** in `.value`. Text is\na first-class material, not a detail — it is how an authored Markdown file is loaded\n*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || \"\" }`.\nA string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,\n`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,\n`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML\ncomments in the file are annotation, and annotation never renders.\n\n```declare-fragment\narticle: DataSource [ url = \"guide.md\", format = \"text\" ],\ndoc: Markdown [ visible = { article.loaded }, text = { article.value || \"\" } ]\n```\n\n**`method`** — The HTTP verb — `\"GET\"` by default. A body-carrying verb (`\"POST\"`, `\"PUT\"`, `\"PATCH\"`)\nsends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.\n\n**`body`** — The payload for a non-GET `method` — an object or array (JSON-encoded on the way out), or a\nstring (sent as-is). Ignored on a GET. Like `url` it can be a `{ }` constraint, so the\npayload re-derives from live state; also like `url`, changing it sends nothing until the\nnext `fetch()`.\n\n**`auto`** — Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.\n**Off by default, and the default is the discipline** — explicit loading is what stops a\nsource firing requests nobody asked for as unrelated dependencies settle. Turn it on when\nthe address *is* the reactive thing: a detail pane whose `url` derives from the current\nselection, where \"the URL changed\" and \"load it\" are the same event. With `auto` off,\nchanging `url` arms the next `fetch()` and does nothing else.\n\n```declare-fragment\ndetail: DataSource [ auto = true, url = { \"/api/issue/\" + app.selectedId } ]\n```\n\n**`credentials`** — How to handle cookies, TLS client certificates, and authentication headers — the\nFetch API's three modes, spelled as tokens.\n- `sameOrigin` — the default, send only when `url` shares the page's origin\n- `omit` — never send credentials or cookies with the request\n- `include` — send cross-origin too, so an app can carry a session\n  cookie/header/cert to a separately-hosted authenticated API. This only takes\n  effect if that origin's CORS response allows credentials explicitly — a\n  wildcard `Access-Control-Allow-Origin: *` cannot combine with it; the response\n  must echo back the specific requesting origin instead.\n\n`sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is\nsubtraction, so it cannot be a token) — the same translation `blend` makes for\nCSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends\ncredentials wherever that expression resolves: keep the address under your own\ncontrol.\n\n```declare-fragment\nnotes: DataSource [ url = \"https://api.example.com/notes\", credentials = include ]\n```\n\n**`status`** — The lifecycle as one fact: `\"idle\"` before anything is asked, `\"loading\"` in flight, then\n`\"loaded\"` or `\"failed\"`. Read-only — `fetch()` and `clear()` move it. The four booleans\nbelow derive from it, so they can never disagree with it or with each other.\n\n**`idle`** — Nothing has been asked for yet, or `clear()` returned it here. `= { status == \"idle\" }`.\n\n**`loading`** — A request is in flight. `= { status == \"loading\" }` — the slot to hang a spinner on.\n\n**`loaded`** — The value arrived and validated. `= { status == \"loaded\" }`. This is the usual one: a\nscreen derives from it (`visible = { data.loaded }`) rather than being toggled by hand.\n\n**`failed`** — The request, or the schema check, refused. `= { status == \"failed\" }`. Read `error` for\nthe one-line reason, `statusCode` and `errorBody` for what the server actually said.\n\n**`error`** — Why the last fetch failed, as one line — an HTTP status, a transport message, or the\nschema mismatch with its pointed path. `null` when nothing has gone wrong. It is the\n*message*; the server's own account is `errorBody`.\n\n**`statusCode`** — The HTTP status of the last reply — `404`, `422`, `200`. **`0` means no reply arrived**:\nnothing asked yet, or the request never reached a server at all. That distinction is the\npoint of the slot, since it separates \"retry\" from \"report\" without parsing `error`.\n\n**`errorBody`** — What the server said when it refused — parsed if it was JSON, the raw text otherwise,\n`null` if the body was empty. This is the part that names *which* field failed or *when*\nthe rate limit resets; a refusal reported as a status number alone throws it away.\n`value` is untouched by a failure, so the last good data is still there.\n\n## Events\n\n- `onLoad()` — Fires when a fetch settles successfully, after `value` and the flags are consistent — a\nhandler reading `value` sees the arrived data, never the previous one. Failures do not fire\nit; they set `failed` and `error`. **You usually do not need this**: any binding reading\n`.value` or a `:path` beneath it already updates on arrival, which is the entire reactive\npoint. Reach for `onLoad` only when arrival must cause something a binding cannot express —\nfocusing the first result, chaining a follow-up fetch, announcing to a screen reader.\n\n## Methods\n\n- `fetch(): Promise<void>` — Loads (or reloads) the resource from the current `url`, then settles `value` and the status\nflags **together**, a frame ahead. Loading is a verb you call, not something that happens\nto you, so you decide *when* (usually in `onInit`, or on a user action). Calling it again\nre-fetches; change `url`'s dependencies first to fetch a new address. Returns a `Promise`\nyou can `await`, but the reactive flags are the idiomatic path.\n- `clear(): void` — Returns the source to the idle state — drops `value`, `error`, and the loaded/failed flags,\nas if it had never fetched. For resetting a search field's results, or releasing a large\nresponse you no longer need.\n\n## Inherited from [Dataset](declare-docs:Dataset)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `contents` | object |  |  |\n| `schema` | dataschema |  |  |\n| `value` | object |  | read-only |\n\n**`contents`** — Makes the `Dataset` **derived**: a `{ }` constraint (in place of a JSON body) that computes\nthe value from other reactive state — `matches: Dataset [ contents = { app.filter() } ]`. It\nrecomputes exactly when what it reads changes, dep-gated like any constraint. Pair a derived\nlist with `key = :field` on its replicated child so a recompute reconciles by that stable\nfield (O(changed) instances) instead of by object identity (rebuild-all).\n\n**`schema`** — The optional data shape (`schema = [ city: string, rows[]: [ id: string, n?: number ] ]`):\narrivals validate against it at the boundary (a malformed response lands in `.failed` with\nthe pointed path; an embedded body fails at build), and every `:path` under a direct cursor\nis checked statically against it. Validation only — identity is not declared here or\nanywhere: a record's `id` field is its identity by convention (`key = :field` overrides an\nunconventional name). Presence is the only switch; the `:path` surface never changes.\n\n**`value`** — The parsed data. `contents` is the slot you *write* (or a JSON body, or a fetch); this is\nthe one you read, and it is read-only — a dataset changes through the structural verbs\n(`set`, `insert`, `removeAt`, `move`) or by a `DataSource` fetch landing, never by\nassignment. `:path` reads resolve against it, and a write wakes exactly the bindings that\nread the region that changed.\n\n### Methods\n\n- `read(path: string | readonly (string | number)[]): unknown` — Tracked region read: `data.read([ \"cols\" ])` returns the value at that path AND subscribes\nthe caller to it, so a derivation (or any constraint) that reads through `read` re-runs on an\nin-place `.set` edit to that region — the granular counterpart to reading `.value` (which\ntracks only a wholesale replacement).\n- `set(path: string | readonly (string | number)[], v: unknown): void` — Writes `v` at a path inside the value, waking exactly the readers of that place — the\nsurgical alternative to swapping the whole `.value`. A path is a **segments array**\n(`data.set([\"cols\", 0, \"label\"], \"Mon\")` — numbers welcome, no escaping ever) or an\n**RFC 6901 pointer** string (`data.set(\"/cols/0/label\", \"Mon\")`; against an array, the\nfinal token `-` appends: `set(\"/rows/-\", v)`). The path's containers must exist (a\npointed error names the first missing step); the final field may be new.\n- `insert(path: string | readonly (string | number)[], index: number, v: unknown): void` — Splices `v` into the array at `path`, at `index` — every replicated view bound to that array\n(`:arr[]`) gains one instance in the same settle, no manual list bookkeeping.\n- `removeAt(path: string | readonly (string | number)[], index: number): unknown` — Removes and returns the element at `index` of the array at `path`; the replicated instance\nfor it is torn down in the same settle.\n- `move(path: string | readonly (string | number)[], from: number, to: number): void` — Reorders the array at `path`, moving the element at `from` to `to` — the replicated views\nfollow the new order (a reorder, not a destroy-and-rebuild), so their state rides along.\n\n## Inherited from [Node](declare-docs:Node)\n\n### Events\n\n- `onInit()` — Fires once when the node has finished constructing and its subtree exists — the place for\nsetup that needs the built tree. Every node gets it, **faceless subclasses included**\n(the init walk covers non-View children since 2026-08-20 — before that, only views were\nvisited and a Node's `onInit` silently never fired). Answered by `onInit()`.\n",
+       "doc": "# DataSource\n\n*Built-in element — [Dataset](declare-docs:Dataset) → [Node](declare-docs:Node)*\n\nA `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load** (`auto = true` is a\ndeliberate opt-in for reactive addresses, not the default). Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The\nresponse is parsed JSON by default; `format = \"text\"` fetches textual material instead —\na Markdown article, a source file — as one string (see `format`).\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `format` | string |  |  |\n| `method` | string |  |  |\n| `body` | object |  |  |\n| `auto` | boolean |  |  |\n| `credentials` | omit | sameOrigin | include |  |  |\n| `status` | idle | loading | loaded | failed |  | read-only |\n| `idle` | boolean |  | read-only |\n| `loading` | boolean |  | read-only |\n| `loaded` | boolean |  | read-only |\n| `failed` | boolean |  | read-only |\n| `error` | string |  | read-only |\n| `statusCode` | number |  | read-only |\n| `errorBody` | object |  | read-only |\n\n**`url`** — The resource URL — a literal or a `{ }` constraint, so the source **re-points reactively**:\nchange a dependency (a zip, a filter) and the *next* `fetch()` hits the new URL. Setting\n`url` does not load on its own — fetching stays explicit unless you opt into `auto`.\n\n**`format`** — What the fetched bytes **are**: `\"json\"` (the default) parses the response and tags it for\n`:path` navigation; `\"text\"` delivers the raw bytes as **one string** in `.value`. Text is\na first-class material, not a detail — it is how an authored Markdown file is loaded\n*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || \"\" }`.\nA string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,\n`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,\n`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML\ncomments in the file are annotation, and annotation never renders.\n\n```declare-fragment\narticle: DataSource [ url = \"guide.md\", format = \"text\" ],\ndoc: Markdown [ visible = { article.loaded }, text = { article.value || \"\" } ]\n```\n\n**`method`** — The HTTP verb — `\"GET\"` by default. A body-carrying verb (`\"POST\"`, `\"PUT\"`, `\"PATCH\"`)\nsends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.\n\n**`body`** — The payload for a non-GET `method` — an object or array (JSON-encoded on the way out), or a\nstring (sent as-is). Ignored on a GET. Like `url` it can be a `{ }` constraint, so the\npayload re-derives from live state; also like `url`, changing it sends nothing until the\nnext `fetch()`.\n\n**`auto`** — Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.\n**Off by default, and the default is the discipline** — explicit loading is what stops a\nsource firing requests nobody asked for as unrelated dependencies settle. Turn it on when\nthe address *is* the reactive thing: a detail pane whose `url` derives from the current\nselection, where \"the URL changed\" and \"load it\" are the same event. With `auto` off,\nchanging `url` arms the next `fetch()` and does nothing else.\n\n```declare-fragment\ndetail: DataSource [ auto = true, url = { \"/api/issue/\" + app.selectedId } ]\n```\n\n**`credentials`** — How to handle cookies, TLS client certificates, and authentication headers — the\nFetch API's three modes, spelled as tokens.\n- `sameOrigin` — the default, send only when `url` shares the page's origin\n- `omit` — never send credentials or cookies with the request\n- `include` — send cross-origin too, so an app can carry a session\n  cookie/header/cert to a separately-hosted authenticated API. This only takes\n  effect if that origin's CORS response allows credentials explicitly — a\n  wildcard `Access-Control-Allow-Origin: *` cannot combine with it; the response\n  must echo back the specific requesting origin instead.\n\n`sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is\nsubtraction, so it cannot be a token) — the same translation `blend` makes for\nCSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends\ncredentials wherever that expression resolves: keep the address under your own\ncontrol.\n\n```declare-fragment\nnotes: DataSource [ url = \"https://api.example.com/notes\", credentials = include ]\n```\n\n**`status`** — The lifecycle as one fact: `\"idle\"` before anything is asked, `\"loading\"` in flight, then\n`\"loaded\"` or `\"failed\"`. Read-only — `fetch()` and `clear()` move it. The four booleans\nbelow derive from it, so they can never disagree with it or with each other.\n\n**`idle`** — Nothing has been asked for yet, or `clear()` returned it here. `= { status == \"idle\" }`.\n\n**`loading`** — A request is in flight. `= { status == \"loading\" }` — the slot to hang a spinner on.\n\n**`loaded`** — The *latest* fetch finished and validated. `= { status == \"loaded\" }`. It is about the\nrequest, not the value: a refetch (a changed `url` under `auto`, or `fetch()` again) drops\nit to `false` until the new response lands, while `value` still holds the previous one. So\n`visible = { data.loaded }` blinks on every refresh; a screen that should stay put while\ndata refreshes guards on presence instead — `visible = { data.value != null }` — and keeps\n`loaded`/`loading` for what they name, the request's state.\n\n**`failed`** — The request, or the schema check, refused. `= { status == \"failed\" }`. Read `error` for\nthe one-line reason, `statusCode` and `errorBody` for what the server actually said.\n\n**`error`** — Why the last fetch failed, as one line — an HTTP status, a transport message, or the\nschema mismatch with its pointed path. `null` when nothing has gone wrong. It is the\n*message*; the server's own account is `errorBody`.\n\n**`statusCode`** — The HTTP status of the last reply — `404`, `422`, `200`. **`0` means no reply arrived**:\nnothing asked yet, or the request never reached a server at all. That distinction is the\npoint of the slot, since it separates \"retry\" from \"report\" without parsing `error`.\n\n**`errorBody`** — What the server said when it refused — parsed if it was JSON, the raw text otherwise,\n`null` if the body was empty. This is the part that names *which* field failed or *when*\nthe rate limit resets; a refusal reported as a status number alone throws it away.\n`value` is untouched by a failure, so the last good data is still there.\n\n## Events\n\n- `onLoad()` — Fires when a fetch settles successfully, after `value` and the flags are consistent — a\nhandler reading `value` sees the arrived data, never the previous one. Failures do not fire\nit; they set `failed` and `error`. **You usually do not need this**: any binding reading\n`.value` or a `:path` beneath it already updates on arrival, which is the entire reactive\npoint. Reach for `onLoad` only when arrival must cause something a binding cannot express —\nfocusing the first result, chaining a follow-up fetch, announcing to a screen reader.\n\n## Methods\n\n- `fetch(): Promise<void>` — Loads (or reloads) the resource from the current `url`, then settles `value` and the status\nflags **together**, a frame ahead. Loading is a verb you call, not something that happens\nto you, so you decide *when* (usually in `onInit`, or on a user action). Calling it again\nre-fetches; change `url`'s dependencies first to fetch a new address. Returns a `Promise`\nyou can `await`, but the reactive flags are the idiomatic path.\n- `clear(): void` — Returns the source to the idle state — drops `value`, `error`, and the loaded/failed flags,\nas if it had never fetched. For resetting a search field's results, or releasing a large\nresponse you no longer need.\n\n## Inherited from [Dataset](declare-docs:Dataset)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `contents` | object |  |  |\n| `schema` | dataschema |  |  |\n| `value` | object |  | read-only |\n\n**`contents`** — Makes the `Dataset` **derived**: a `{ }` constraint (in place of a JSON body) that computes\nthe value from other reactive state — `matches: Dataset [ contents = { app.filter() } ]`. It\nrecomputes exactly when what it reads changes, dep-gated like any constraint. Pair a derived\nlist with `key = :field` on its replicated child so a recompute reconciles by that stable\nfield (O(changed) instances) instead of by object identity (rebuild-all).\n\n**`schema`** — The optional data shape (`schema = [ city: string, rows[]: [ id: string, n?: number ] ]`):\narrivals validate against it at the boundary (a malformed response lands in `.failed` with\nthe pointed path; an embedded body fails at build), and every `:path` under a direct cursor\nis checked statically against it. Validation only — identity is not declared here or\nanywhere: a record's `id` field is its identity by convention (`key = :field` overrides an\nunconventional name). Presence is the only switch; the `:path` surface never changes.\n\n**`value`** — The parsed data. `contents` is the slot you *write* (or a JSON body, or a fetch); this is\nthe one you read, and it is read-only — a dataset changes through the structural verbs\n(`set`, `insert`, `removeAt`, `move`) or by a `DataSource` fetch landing, never by\nassignment. `:path` reads resolve against it, and a write wakes exactly the bindings that\nread the region that changed.\n\n### Methods\n\n- `read(path: string | readonly (string | number)[]): unknown` — Tracked region read: `data.read([ \"cols\" ])` returns the value at that path AND subscribes\nthe caller to it, so a derivation (or any constraint) that reads through `read` re-runs on an\nin-place `.set` edit to that region — the granular counterpart to reading `.value` (which\ntracks only a wholesale replacement).\n- `set(path: string | readonly (string | number)[], v: unknown): void` — Writes `v` at a path inside the value, waking exactly the readers of that place — the\nsurgical alternative to swapping the whole `.value`. A path is a **segments array**\n(`data.set([\"cols\", 0, \"label\"], \"Mon\")` — numbers welcome, no escaping ever) or an\n**RFC 6901 pointer** string (`data.set(\"/cols/0/label\", \"Mon\")`; against an array, the\nfinal token `-` appends: `set(\"/rows/-\", v)`). The path's containers must exist (a\npointed error names the first missing step); the final field may be new.\n- `insert(path: string | readonly (string | number)[], index: number, v: unknown): void` — Splices `v` into the array at `path`, at `index` — every replicated view bound to that array\n(`:arr[]`) gains one instance in the same settle, no manual list bookkeeping.\n- `removeAt(path: string | readonly (string | number)[], index: number): unknown` — Removes and returns the element at `index` of the array at `path`; the replicated instance\nfor it is torn down in the same settle.\n- `move(path: string | readonly (string | number)[], from: number, to: number): void` — Reorders the array at `path`, moving the element at `from` to `to` — the replicated views\nfollow the new order (a reorder, not a destroy-and-rebuild), so their state rides along.\n\n## Inherited from [Node](declare-docs:Node)\n\n### Events\n\n- `onInit()` — Fires once when the node has finished constructing and its subtree exists — the place for\nsetup that needs the built tree. Every node gets it, **faceless subclasses included**\n(the init walk covers non-View children since 2026-08-20 — before that, only views were\nvisited and a Node's `onInit` silently never fired). Answered by `onInit()`.\n",
        "preview": "A Dataset whose value arrives over HTTP — a reactive remote resource. The one thing to know: fetch() is explicit — a DataSource does not auto-load (auto = true is a deliberate opt-in for reactive addresses, not the default). Call it when th…"
       },
       {
@@ -43112,7 +43302,7 @@
        "subtitle": "extends Node",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# Heartbeat\n\n*Built-in element — [Node](declare-docs:Node)*\n\nThe **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Heartbeat` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).\n\n```declare\nApp [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Heartbeat [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }\n        ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ]\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `running` | boolean |  |  |\n\n**`running`** — Is the heartbeat live? A plain reactive slot, so the usual idiom is a constraint —\n`running = { app.simulating }` — which starts and stops the loop as the app's own state\nchanges. The first frame after a start establishes the time baseline and reports no step.\n\n## Events\n\n- `onFrame(dt: number)` — `onFrame(dt)` — one call per animation frame while `running`, with the seconds elapsed\nsince the previous frame.\n\n## Inherited from [Node](declare-docs:Node)\n\n### Events\n\n- `onInit()` — Fires once when the node has finished constructing and its subtree exists — the place for\nsetup that needs the built tree. Every node gets it, **faceless subclasses included**\n(the init walk covers non-View children since 2026-08-20 — before that, only views were\nvisited and a Node's `onInit` silently never fired). Answered by `onInit()`.\n",
+       "doc": "# Heartbeat\n\n*Built-in element — [Node](declare-docs:Node)*\n\nThe **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Heartbeat` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\n**Before a Heartbeat, ask which of the other two you are about to re-implement.** A value that\nshould *arrive* somewhere is a `Spring` (target → value). A value that should *advance* — a\nreplay cursor sweeping a day in ninety seconds, a progress that runs 0→1 — is an `Animator`\n(time → value): it is scrubbable, pausable, and interruptible for free, and everything that\nderives from it (seventy glyph opacities, a rule) follows with no per-frame code. A Heartbeat\nis right only when the next value depends on the last in a way no curve states — a body under\nforces, a particle system, a gesture you integrate yourself. In practice a `Heartbeat` in a\nprogram is worth a second look: it is usually one of the other two in disguise, and the\nper-frame handler it carries is where the program's only imperative state tends to collect.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).\n\n```declare\nApp [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Heartbeat [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }\n        ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ]\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `running` | boolean |  |  |\n\n**`running`** — Is the heartbeat live? A plain reactive slot, so the usual idiom is a constraint —\n`running = { app.simulating }` — which starts and stops the loop as the app's own state\nchanges. The first frame after a start establishes the time baseline and reports no step.\n\n## Events\n\n- `onFrame(dt: number)` — `onFrame(dt)` — one call per animation frame while `running`, with the seconds elapsed\nsince the previous frame.\n\n## Inherited from [Node](declare-docs:Node)\n\n### Events\n\n- `onInit()` — Fires once when the node has finished constructing and its subtree exists — the place for\nsetup that needs the built tree. Every node gets it, **faceless subclasses included**\n(the init walk covers non-View children since 2026-08-20 — before that, only views were\nvisited and a Node's `onInit` silently never fired). Answered by `onInit()`.\n",
        "preview": "The frame heartbeat as a member: calls your onFrame(dt) once per animation frame, with dt the real elapsed time in seconds. Spring and Animator are the declarative half of motion — say where a thing belongs and the runtime finds the path; H…"
       },
       {
@@ -43152,7 +43342,7 @@
        "subtitle": "extends Stream",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# EventStream\n\n*Built-in element — [Stream](declare-docs:Stream) → [Node](declare-docs:Node)*\n\nServer-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `listenTo` | array |  |  |\n\n**`listenTo`** — The **named** SSE event types to deliver — `listenTo = [\"content_block_delta\",\n\"message_stop\"]`. Required for any stream that labels messages with `event:` lines\n(Anthropic-style AI streams do): the platform's `EventSource` physically cannot deliver a\nnamed event it was not asked to listen for, so an undeclared name is silently invisible —\nif `onMessage` sees nothing but the connection is `open`, this is the first thing to\ncheck. The name carries the contract: you hear what you listen to. Unnamed (default)\nmessages always arrive; `e.type` says which kind each one is.\n\n## Inherited from [Stream](declare-docs:Stream)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `active` | boolean |  |  |\n| `retry` | number |  |  |\n| `status` | closed | connecting | open | retrying | failed |  | read-only |\n| `error` | string |  | read-only |\n| `last` | string |  | read-only |\n| `open` | boolean |  | read-only |\n\n**`url`** — Where to connect — a literal or a `{ }` constraint. Unlike `DataSource.url`, a change acts\n**immediately**: the old connection closes and a new one opens at the new address (there is\nno fetch() moment to wait for). `\"\"` means detached — the idiom for \"no conversation yet\"\nis deriving emptiness: `url = { app.chatId != \"\" ? \"/api/chat/\" + app.chatId : \"\" }`.\n\n**`active`** — The gate. `false` closes the connection (and cancels any pending retry); flipping back\n`true` reopens it. Bind it to app state — `active = { app.live }` — rather than toggling\nimperatively.\n\n**`retry`** — Reconnect policy, **visible in the declaration**: seconds to wait before re-dialing after\nthe connection is lost and the platform won't bring it back on its own — a `Socket`'s\nunexpected close, an `EventStream`'s terminal failure. `0` (the default) means no retry:\nthe stream lands in `status = \"failed\"` and the app decides. A declared retry keeps trying\nwhile `active` is true, at a **fixed** interval — no invisible backoff, no give-up count.\nA structural failure (the factory itself refuses — headless extraction, a missing host\nservice) never loops, whatever `retry` says.\n\n**`status`** — The connection lifecycle as **one fact**, like `DataSource.status`: `\"closed\"`,\n`\"connecting\"`, `\"open\"`, `\"retrying\"`, or `\"failed\"` (down, and will not reconnect).\n**Read-only** — computed for you; assigning it is a compile error. `\"retrying\"` covers\nboth the platform's own recovery (SSE) and a declared `retry` waiting to re-dial.\n\n**`error`** — The last failure reason, `\"\"` when none; cleared when a connection opens. **Read-only** —\nthe state side of `onError` (the event side). A status line is\n`text = { feed.error != \"\" ? feed.error : feed.status }`.\n\n**`last`** — The most recent message's `data`, reactive. **Read-only.** The zero-handler tier: a ticker\nthat only shows the latest value needs no handler at all — `text = { feed.last }`.\n\n**`open`** — The boolean view of `status == \"open\"`, as `DataSource.loaded` is of its status — one\nfact, two spellings, never in disagreement. **Read-only.** The connection dot is\n`visible = { feed.open }`.\n\n### Events\n\n- `onMessage(e: StreamMessage)` — `onMessage(e: StreamMessage)` — every message. `e.data` is always a **string**: parse it\nyourself if it is JSON, concatenate it if it is streamed text; the runtime never guesses.\n`e.type` is the SSE named event (`\"message\"` for unnamed messages and every socket frame);\n`e.id` is the SSE last-event-id (`\"\"` on sockets).\n- `onOpen()` — The connection is live — fires each time one opens, including reopens after a retry.\nPrefer deriving from `open`/`status` for anything a constraint can express; the handler is\nfor work state cannot do (send a subscription frame, log).\n- `onClose()` — A connection that had opened went away — the app closed it (`active`, a url change, node\nremoval at discard is silent), the server ended it, or it failed. Fires once per\nconnection, before any retry dials the next one.\n- `onError()` — Something failed: a terminal connection loss, a refused transport, a `send` on a socket\nthat is not open. The reason is in `error` when the handler runs. The platform's own\nin-flight retries (SSE) are **not** errors and stay quiet.\n\n## Inherited from [Node](declare-docs:Node)\n\n### Events\n\n- `onInit()` — Fires once when the node has finished constructing and its subtree exists — the place for\nsetup that needs the built tree. Every node gets it, **faceless subclasses included**\n(the init walk covers non-View children since 2026-08-20 — before that, only views were\nvisited and a Node's `onInit` silently never fired). Answered by `onInit()`.\n",
+       "doc": "# EventStream\n\n*Built-in element — [Stream](declare-docs:Stream) → [Node](declare-docs:Node)*\n\nServer-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\nA declared stream **holds a live connection** for as long as it is `active` and its node\nlives — every open tab is one held server connection (browsers cap ~6 per host over\nHTTP/1.1, so a dev server's tabs can exhaust the pool). The lifecycle is the declaration:\n`active = { app.chatId != \"\" }` releases the connection the moment the condition goes\nfalse, and a discarded node closes its own — there is nothing to unsubscribe.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `listenTo` | array |  |  |\n\n**`listenTo`** — The **named** SSE event types to deliver — `listenTo = [\"content_block_delta\",\n\"message_stop\"]`. Required for any stream that labels messages with `event:` lines\n(Anthropic-style AI streams do): the platform's `EventSource` physically cannot deliver a\nnamed event it was not asked to listen for, so an undeclared name is silently invisible —\nif `onMessage` sees nothing but the connection is `open`, this is the first thing to\ncheck. The name carries the contract: you hear what you listen to. Unnamed (default)\nmessages always arrive; `e.type` says which kind each one is.\n\n## Inherited from [Stream](declare-docs:Stream)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `active` | boolean |  |  |\n| `retry` | number |  |  |\n| `status` | closed | connecting | open | retrying | failed |  | read-only |\n| `error` | string |  | read-only |\n| `last` | string |  | read-only |\n| `open` | boolean |  | read-only |\n\n**`url`** — Where to connect — a literal or a `{ }` constraint. Unlike `DataSource.url`, a change acts\n**immediately**: the old connection closes and a new one opens at the new address (there is\nno fetch() moment to wait for). `\"\"` means detached — the idiom for \"no conversation yet\"\nis deriving emptiness: `url = { app.chatId != \"\" ? \"/api/chat/\" + app.chatId : \"\" }`.\n\n**`active`** — The gate. `false` closes the connection (and cancels any pending retry); flipping back\n`true` reopens it. Bind it to app state — `active = { app.live }` — rather than toggling\nimperatively.\n\n**`retry`** — Reconnect policy, **visible in the declaration**: seconds to wait before re-dialing after\nthe connection is lost and the platform won't bring it back on its own — a `Socket`'s\nunexpected close, an `EventStream`'s terminal failure. `0` (the default) means no retry:\nthe stream lands in `status = \"failed\"` and the app decides. A declared retry keeps trying\nwhile `active` is true, at a **fixed** interval — no invisible backoff, no give-up count.\nA structural failure (the factory itself refuses — headless extraction, a missing host\nservice) never loops, whatever `retry` says.\n\n**`status`** — The connection lifecycle as **one fact**, like `DataSource.status`: `\"closed\"`,\n`\"connecting\"`, `\"open\"`, `\"retrying\"`, or `\"failed\"` (down, and will not reconnect).\n**Read-only** — computed for you; assigning it is a compile error. `\"retrying\"` covers\nboth the platform's own recovery (SSE) and a declared `retry` waiting to re-dial.\n\n**`error`** — The last failure reason, `\"\"` when none; cleared when a connection opens. **Read-only** —\nthe state side of `onError` (the event side). A status line is\n`text = { feed.error != \"\" ? feed.error : feed.status }`.\n\n**`last`** — The most recent message's `data`, reactive. **Read-only.** The zero-handler tier: a ticker\nthat only shows the latest value needs no handler at all — `text = { feed.last }`.\n\n**`open`** — The boolean view of `status == \"open\"`, as `DataSource.loaded` is of its status — one\nfact, two spellings, never in disagreement. **Read-only.** The connection dot is\n`visible = { feed.open }`.\n\n### Events\n\n- `onMessage(e: StreamMessage)` — `onMessage(e: StreamMessage)` — every message. `e.data` is always a **string**: parse it\nyourself if it is JSON, concatenate it if it is streamed text; the runtime never guesses.\n`e.type` is the SSE named event (`\"message\"` for unnamed messages and every socket frame);\n`e.id` is the SSE last-event-id (`\"\"` on sockets).\n- `onOpen()` — The connection is live — fires each time one opens, including reopens after a retry.\nPrefer deriving from `open`/`status` for anything a constraint can express; the handler is\nfor work state cannot do (send a subscription frame, log).\n- `onClose()` — A connection that had opened went away — the app closed it (`active`, a url change, node\nremoval at discard is silent), the server ended it, or it failed. Fires once per\nconnection, before any retry dials the next one.\n- `onError()` — Something failed: a terminal connection loss, a refused transport, a `send` on a socket\nthat is not open. The reason is in `error` when the handler runs. The platform's own\nin-flight retries (SSE) are **not** errors and stay quiet.\n\n## Inherited from [Node](declare-docs:Node)\n\n### Events\n\n- `onInit()` — Fires once when the node has finished constructing and its subtree exists — the place for\nsetup that needs the built tree. Every node gets it, **faceless subclasses included**\n(the init walk covers non-View children since 2026-08-20 — before that, only views were\nvisited and a Node's `onInit` silently never fired). Answered by `onInit()`.\n",
        "preview": "Server-Sent Events (text/event-stream) as a source — the streaming-AI shape: the server pushes, the app receives, an onMessage that concatenates is the whole consumer. See Stream for the shared surface (url/active/retry, the read-only statu…"
       },
       {
@@ -43544,8 +43734,8 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Types and functions\n\n*The shared vocabulary every `{ }` body can name. The scaffold declares all of it into\neach program's check block, so it is typechecked for your code exactly as for the\nstandard library's.*\n\n## `Draw` — drawing as a tracked computation\n\nA `draw(d: Draw)` member is **not** a paint callback and not an escape hatch. It records a\n**display list** that both renderers replay, and it is a tracked computation like any\nconstraint: it re-runs when what it *read* changes, **never per frame**. So a drawing composes\nwith attributes and constraints instead of escaping them — `ink`, `width` and state are\nordinary reads, and changing one re-records.\n\nThis is how the library draws every mark a font cannot give it: a `Checkbox`'s tick and the\nwhole `Icon` set are recorded paths, not glyphs. Author an icon in a 16×16 box and scale it\ninside the body (see `Icon`); **never animate a drawing's size** — reading size inside `draw`\nmakes the recording size-dependent, so an animated size re-records and reallocates its backing\ncanvas every frame.\n\n```declare-fragment\ndraw(d: Draw) {\n    d.fillStyle = theme.accent\n    d.beginPath()\n    d.arc(width / 2, height / 2, 6, 0, Math.PI * 2, false)\n    d.fill()\n    }\n```\n\n`d.w` / `d.h` are the view's own size, for a drawing that sizes itself. Reading one is\nwhat opts a drawing into re-recording when the view resizes — a body that never mentions\nthem never pays for the resize. (There is no `d.x`/`d.y`: a recording's origin IS the\nview's top-left, so they could only be 0.)\n\n**State you set:** `w: number` · `h: number` · `fillStyle: string \\| Color \\| DrawGradient` · `strokeStyle: string \\| Color \\| DrawGradient` · `lineWidth: number` · `lineCap: string` · `lineJoin: string` · `miterLimit: number` · `lineDashOffset: number` · `globalAlpha: number` · `globalCompositeOperation: string` · `shadowBlur: number` · `shadowColor: string \\| Color` · `shadowOffsetX: number` · `shadowOffsetY: number` · `filter: string` · `imageSmoothingEnabled: boolean` · `imageSmoothingQuality: string` · `font: string` · `textAlign: string` · `textBaseline: string` · `direction: string` · `letterSpacing: string` · `wordSpacing: string` · `fontKerning: string`\n\n**Calls:** `arc(x: number, y: number, r: number, a0: number, a1: number, ccw?: boolean): void` · `arcTo(x1: number, y1: number, x2: number, y2: number, r: number): void` · `beginPath(): void` · `bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void` · `clearRect(x: number, y: number, w: number, h: number): void` · `clip(rule?: string): void` · `closePath(): void` · `createConicGradient(startAngle: number, x: number, y: number): DrawGradient` · `createLinearGradient(x0: number, y0: number, x1: number, y1: number): DrawGradient` · `createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): DrawGradient` · `ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw?: boolean): void` · `fill(rule?: string): void` · `fillRect(x: number, y: number, w: number, h: number): void` · `fillText(text: string, x: number, y: number, maxWidth?: number): void` · `lineTo(x: number, y: number): void` · `list(): any` · `moveTo(x: number, y: number): void` · `quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void` · `rect(x: number, y: number, w: number, h: number): void` · `resetTransform(): void` · `restore(): void` · `rotate(angle: number): void` · `roundRect(x: number, y: number, w: number, h: number, radii: number | number[]): void` · `save(): void` · `scale(x: number, y: number): void` · `setLineDash(segments: number[]): void` · `setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void` · `stroke(): void` · `strokeRect(x: number, y: number, w: number, h: number): void` · `strokeText(text: string, x: number, y: number, maxWidth?: number): void` · `transform(a: number, b: number, c: number, d: number, e: number, f: number): void` · `translate(x: number, y: number): void`\n\n\n## Event payloads\n\n*What a handler's argument carries.*\n\n| type | what it is | members |\n|---|---|---|\n| `PointerEvent` | a pointer went down, moved, or a view was clicked | `x: number` · `y: number` |\n| `PointerUpEvent` | a pointer release — carries **`canceled`**, true when the browser reclaimed the gesture | `x: number` · `y: number` · `canceled: boolean` |\n| `WheelEvent` | a wheel or trackpad gesture — carries **`pinch`**, true for a trackpad pinch | `x: number` · `y: number` · `deltaX: number` · `deltaY: number` · `pinch: boolean` |\n| `TouchEvent` | the multi-finger stream — carries the finger list | `x: number` · `y: number` · `touches: readonly Touch[]` · `changed: readonly Touch[]` |\n| `Touch` | one finger within a `TouchEvent` | `id: number` · `x: number` · `y: number` |\n| `KeyEvent` | a key went down or up — `key`, `code`, and modifier flags; never a numeric code | `code: string` · `key: string` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `repeat: boolean` |\n| `FocusGeometry` | the focused control's live silhouette, for a focus indicator | `x: number` · `y: number` · `w: number` · `h: number` · `rad: number` · `view: View` · `root: View` · `scroller: View` · `homeX: number` · `homeY: number` · `homeW: number` · `homeH: number` · `homeRad: number` |\n| `TipEvent` | a tooltip request from the `Tip` service | `readonly text: string` · `readonly x: number` · `readonly y: number` · `readonly w: number` · `readonly h: number` · `readonly root: View` |\n| `StreamMessage` | one arrival from an `EventStream` or `Socket` | `readonly data: string` · `readonly type: string` · `readonly id: string` |\n\n## Value types\n\n| type | what it is | shape |\n|---|---|---|\n| `Percent` | what a bare `50%` literal becomes; you never write the type | `{ percent: number }` |\n| `Length` | a number of pixels, or a `Percent` from a bare `50%` literal | `number \\| Percent` |\n| `Color` | a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black. **Alpha, by context**: a constant carries it in the literal — `0xRRGGBBAA` (or `#RRGGBBAA`), in bare slots and `{ }` bodies alike; a computed alpha calls `colorWithAlpha(rgb, a)` in a body; inside `draw()` the canvas takes its own CSS string (`\"rgba(51,102,153,0.5)\"`). `rgba(…)` is never a slot spelling | `number \\| null` |\n| `Shape` | a clip shape | `string \\| null` |\n| `Fill` | what paints a box: a `Color` or a `Gradient` | `Color \\| Gradient` |\n| `Theme` | the prevailing token record; see **Theme tokens** for the vocabulary components read | `Readonly<Record<string, any>>` |\n| `MotionCurve` | an easing curve for an `Animator` | `{ readonly __motion: true }` |\n| `Gradient` | an angle plus colour stops — build it with `gradient(…)` | `angle: number` · `stops: readonly { offset: number \\| null` · `color: Color }[]` |\n| `Stroke` | a width and a colour — build it with `stroke(w, c)`. A border *is* a stroke | `width: number` · `color: Color` |\n| `Shadow` | offset, blur and colour — build it with `shadow(dx, dy, blur, c)` | `dx: number` · `dy: number` · `blur: number` · `color: Color` |\n| `Backdrop` | the frost a `backdrop` slot holds — blur radius and saturation, from `frost(…)` | `blur: number` · `saturate: number` |\n| `Cursor` | a datapath's resolved position — `.data` and `.path` | `readonly data: any` · `readonly path: readonly string[]` |\n| `IslandPost` | | `readonly topic: string` · `readonly payload: unknown` |\n| `DrawGradient` | a gradient built inside a drawing, via `d.createLinearGradient(…)` | `addColorStop(offset: number, color: string \\| Color): void` |\n| `PinchEvent` | | `scale: number` · `center: { readonly x: number` · `readonly y: number }` |\n\n## Global functions\n\n| call | what it does |\n|---|---|\n| `gradient(...args: (Color \\| string \\| { offset: number \\| null; color: Color })[]): Gradient` | build a `Gradient` from an angle and colours |\n| `stroke(width: number, color: Color): Stroke` | build a `Stroke` |\n| `stop(offset: number, color: Color): { offset: number; color: Color }` | one colour stop, for `gradient(…)` |\n| `shadow(dx: number, dy: number, blur: number, color: Color): Shadow` | build a `Shadow` |\n| `frost(radius: number, saturation?: number): Backdrop` | build a `Backdrop` — blur (and optionally saturate) what lies beneath the view, under its own fill |\n| `colorWithAlpha(rgb: number, a: number): number` | an `0xRRGGBB` plus an alpha, as the packed form the paint slots take |\n| `cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve` | a custom easing curve |\n| `back(overshoot: number): MotionCurve` | an overshooting easing curve |\n| `steps(n: number, jump?: \"jumpStart\" \\| \"jumpEnd\"): MotionCurve` | a stepped easing curve |\n| `laszlo(beginPole: number, endPole: number): MotionCurve` | the OpenLaszlo easing curve, kept |\n| `afterSettle(step: () => void): void` |  |\n| `setTimeout(fn: (...args: any[]) => void, ms?: number): number` | deferred work — **a timer does not die with its node; cancel it yourself** |\n| `clearTimeout(id: number): void` | cancel a `setTimeout` |\n| `setInterval(fn: (...args: any[]) => void, ms?: number): number` | repeating work — same caveat as `setTimeout` |\n| `clearInterval(id: number): void` | cancel a `setInterval` |\n\n## `Themes`\n\nThe shipped theme presets — each takes a dark flag and returns a complete token record. **This is what you build a theme from**; an empty record is not a theme. Available without an include.\n\n| call | |\n|---|---|\n| `Themes.sanFrancisco(dark?: boolean): Record<string, unknown>` |  |\n| `Themes.cupertino(dark?: boolean): Record<string, unknown>` |  |\n| `Themes.mountainView(dark?: boolean): Record<string, unknown>` |  |\n| `Themes.redmond(dark?: boolean): Record<string, unknown>` |  |\n| `Themes.tint(c: number, dark?: boolean): number` |  |\n\n## `Inspect`\n\nThe running program's introspection surface, behind the same door as `__declare.explain` — dev tooling, stubbed in a production build unless you pass `declarec --debug`.\n\n| call | |\n|---|---|\n| `Inspect.ready(): boolean` |  |\n| `Inspect.rows(open: Record<string, boolean>): { path: string` |  |\n| `Inspect.name: string` |  |\n| `Inspect.kind: string` |  |\n| `Inspect.depth: number` |  |\n| `Inspect.hasKids: boolean` |  |\n| `Inspect.visible: boolean` |  |\n| `Inspect.constrained: boolean` |  |\n| `Inspect.motion: boolean }[]` |  |\n| `Inspect.node(path: string): any` |  |\n| `Inspect.kindOf(path: string): string` |  |\n| `Inspect.slots(path: string): { attr: string` |  |\n| `Inspect.text: string` |  |\n| `Inspect.kind: string` |  |\n| `Inspect.open: boolean` |  |\n| `Inspect.origin: string` |  |\n| `Inspect.motion: boolean` |  |\n| `Inspect.viewKind?: string` |  |\n| `Inspect.color?: string }[]` |  |\n| `Inspect.explain(path: string, attr: string): any` |  |\n| `Inspect.depValue(path: string, readPath: string): string` |  |\n| `Inspect.depTargetPath(path: string, readPath: string): string` |  |\n| `Inspect.expand(path: string, attr: string, trail: readonly string[]): any` |  |\n| `Inspect.dependents(attr: string): { path: string` |  |\n| `Inspect.attr: string` |  |\n| `Inspect.label: string }[]` |  |\n| `Inspect.rect(path: string): { x: number` |  |\n| `Inspect.y: number` |  |\n| `Inspect.width: number` |  |\n| `Inspect.height: number } \\| null` |  |\n| `Inspect.at(x: number, y: number, pierce?: boolean): string` |  |\n| `Inspect.stats(): { nodes: number` |  |\n| `Inspect.ownedSlots: number` |  |\n| `Inspect.motionBusy: boolean }` |  |\n| `Inspect.hasData(path: string): boolean` |  |\n| `Inspect.dataKeys(path: string): string[]` |  |\n| `Inspect.dataRows(path: string): { key: string` |  |\n| `Inspect.text: string` |  |\n| `Inspect.kind: string` |  |\n| `Inspect.open: boolean }[]` |  |\n| `Inspect.dataPreview(path: string): string` |  |\n| `Inspect.evaluate(path: string, src: string): { ok: boolean` |  |\n| `Inspect.input: string` |  |\n| `Inspect.text: string` |  |\n| `Inspect.verb: string` |  |\n| `Inspect.temporary?: boolean }` |  |\n| `Inspect.clock: { manual(): void` |  |\n| `Inspect.auto(): void` |  |\n| `Inspect.step(ms?: number): void` |  |\n| `Inspect.settleMotion(maxMs?: number): boolean` |  |\n| `Inspect.now(): number }` |  |",
-     "preview": "The shared vocabulary every { } body can name. The scaffold declares all of it into each program's check block, so it is typechecked for your code exactly as for the standard library's. Draw — drawing as a tracked computation A draw(d: Draw…"
+     "doc": "# Types and functions\n\n*The shared vocabulary every `{ }` body can name. The scaffold declares all of it into\neach program's check block, so it is typechecked for your code exactly as for the\nstandard library's.*\n\nBeyond the tree, a bare name in a body may be one of three things, the same on every\nrenderer: an **ES built-in** (`Math`, `JSON`, `Date`, `Promise`, `Map`, …); one of the\n**host chores declared below** (timers, `console`, `fetch` and the `URL` family) — each\nwith the one narrow shape it has everywhere Declare runs; or a **runtime service**\n(`Focus`, `Keys`, `Themes`, `afterSettle`). Nothing else: `document`, `window`,\n`localStorage`, `process` are the host's, and the compiler refuses each by name with the\nDeclare way beside it. A capability the language lacks arrives through an `external`\nattribute the host supplies, never through a bare global. A body is synchronous — there\nis no `await`; a value the screen derives from is a `DataSource`.\n\n## `Draw` — drawing as a tracked computation\n\nA `draw(d: Draw)` member is **not** a paint callback and not an escape hatch. It records a\n**display list** that both renderers replay, and it is a tracked computation like any\nconstraint: it re-runs when what it *read* changes, **never per frame**. So a drawing composes\nwith attributes and constraints instead of escaping them — `ink`, `width` and state are\nordinary reads, and changing one re-records.\n\nThis is how the library draws every mark a font cannot give it: a `Checkbox`'s tick and the\nwhole `Icon` set are recorded paths, not glyphs. Author an icon in a 16×16 box and scale it\ninside the body (see `Icon`); **never animate a drawing's size** — reading size inside `draw`\nmakes the recording size-dependent, so an animated size re-records and reallocates its backing\ncanvas every frame.\n\n```declare-fragment\ndraw(d: Draw) {\n    d.fillStyle = theme.accent\n    d.beginPath()\n    d.arc(width / 2, height / 2, 6, 0, Math.PI * 2, false)\n    d.fill()\n    }\n```\n\n`d.w` / `d.h` are the view's own size, for a drawing that sizes itself. Reading one is\nwhat opts a drawing into re-recording when the view resizes — a body that never mentions\nthem never pays for the resize. (There is no `d.x`/`d.y`: a recording's origin IS the\nview's top-left, so they could only be 0.)\n\n**State you set:** `w: number` · `h: number` · `fillStyle: string \\| Color \\| DrawGradient` · `strokeStyle: string \\| Color \\| DrawGradient` · `lineWidth: number` · `lineCap: string` · `lineJoin: string` · `miterLimit: number` · `lineDashOffset: number` · `globalAlpha: number` · `globalCompositeOperation: string` · `shadowBlur: number` · `shadowColor: string \\| Color` · `shadowOffsetX: number` · `shadowOffsetY: number` · `filter: string` · `imageSmoothingEnabled: boolean` · `imageSmoothingQuality: string` · `font: string` · `textAlign: string` · `textBaseline: string` · `direction: string` · `letterSpacing: string` · `wordSpacing: string` · `fontKerning: string`\n\n**Calls:** `arc(x: number, y: number, r: number, a0: number, a1: number, ccw?: boolean): void` · `arcTo(x1: number, y1: number, x2: number, y2: number, r: number): void` · `beginPath(): void` · `bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void` · `clearRect(x: number, y: number, w: number, h: number): void` · `clip(rule?: string): void` · `closePath(): void` · `createConicGradient(startAngle: number, x: number, y: number): DrawGradient` · `createLinearGradient(x0: number, y0: number, x1: number, y1: number): DrawGradient` · `createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): DrawGradient` · `ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw?: boolean): void` · `fill(rule?: string): void` · `fillRect(x: number, y: number, w: number, h: number): void` · `fillText(text: string, x: number, y: number, maxWidth?: number): void` · `lineTo(x: number, y: number): void` · `list(): any` · `moveTo(x: number, y: number): void` · `quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void` · `rect(x: number, y: number, w: number, h: number): void` · `resetTransform(): void` · `restore(): void` · `rotate(angle: number): void` · `roundRect(x: number, y: number, w: number, h: number, radii: number | number[]): void` · `save(): void` · `scale(x: number, y: number): void` · `setLineDash(segments: number[]): void` · `setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void` · `stroke(): void` · `strokeRect(x: number, y: number, w: number, h: number): void` · `strokeText(text: string, x: number, y: number, maxWidth?: number): void` · `transform(a: number, b: number, c: number, d: number, e: number, f: number): void` · `translate(x: number, y: number): void`\n\n\n## Event payloads\n\n*What a handler's argument carries.*\n\n| type | what it is | members |\n|---|---|---|\n| `PointerEvent` | a pointer went down, moved, or a view was clicked | `x: number` · `y: number` |\n| `PointerUpEvent` | a pointer release — carries **`canceled`**, true when the browser reclaimed the gesture | `x: number` · `y: number` · `canceled: boolean` |\n| `WheelEvent` | a wheel or trackpad gesture — carries **`pinch`**, true for a trackpad pinch | `x: number` · `y: number` · `deltaX: number` · `deltaY: number` · `pinch: boolean` |\n| `TouchEvent` | the multi-finger stream — carries the finger list | `x: number` · `y: number` · `touches: readonly Touch[]` · `changed: readonly Touch[]` |\n| `Touch` | one finger within a `TouchEvent` | `id: number` · `x: number` · `y: number` |\n| `KeyEvent` | a key went down or up — `key`, `code`, and modifier flags; never a numeric code | `code: string` · `key: string` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `repeat: boolean` |\n| `FocusGeometry` | the focused control's live silhouette, for a focus indicator | `x: number` · `y: number` · `w: number` · `h: number` · `rad: number` · `view: View` · `root: View` · `scroller: View` · `homeX: number` · `homeY: number` · `homeW: number` · `homeH: number` · `homeRad: number` |\n| `TipEvent` | a tooltip request from the `Tip` service | `readonly text: string` · `readonly x: number` · `readonly y: number` · `readonly w: number` · `readonly h: number` · `readonly root: View` |\n| `StreamMessage` | one arrival from an `EventStream` or `Socket` | `readonly data: string` · `readonly type: string` · `readonly id: string` |\n\n## Value types\n\n| type | what it is | shape |\n|---|---|---|\n| `Percent` | what a bare `50%` literal becomes; you never write the type | `{ percent: number }` |\n| `Length` | a number of pixels, or a `Percent` from a bare `50%` literal | `number \\| Percent` |\n| `Color` | a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black. **Alpha, by context**: a constant carries it in the literal — `0xRRGGBBAA` (or `#RRGGBBAA`), in bare slots and `{ }` bodies alike; a computed alpha calls `colorWithAlpha(rgb, a)` in a body; inside `draw()` the canvas takes its own CSS string (`\"rgba(51,102,153,0.5)\"`). `rgba(…)` is never a slot spelling | `number \\| null` |\n| `Shape` | a clip shape | `string \\| null` |\n| `Fill` | what paints a box: a `Color` or a `Gradient` | `Color \\| Gradient` |\n| `Theme` | the prevailing token record; see **Theme tokens** for the vocabulary components read | `Readonly<Record<string, any>>` |\n| `MotionCurve` | an easing curve for an `Animator` | `{ readonly __motion: true }` |\n| `Gradient` | an angle plus colour stops — build it with `gradient(…)` | `angle: number` · `stops: readonly { offset: number \\| null` · `color: Color }[]` |\n| `Stroke` | a width and a colour — build it with `stroke(w, c)`. A border *is* a stroke | `width: number` · `color: Color` |\n| `Shadow` | offset, blur and colour — build it with `shadow(dx, dy, blur, c)` | `dx: number` · `dy: number` · `blur: number` · `color: Color` |\n| `Backdrop` | the frost a `backdrop` slot holds — blur radius and saturation, from `frost(…)` | `blur: number` · `saturate: number` |\n| `Cursor` | a datapath's resolved position — `.data` and `.path` | `readonly data: any` · `readonly path: readonly string[]` |\n| `IslandPost` | | `readonly topic: string` · `readonly payload: unknown` |\n| `DrawGradient` | a gradient built inside a drawing, via `d.createLinearGradient(…)` | `addColorStop(offset: number, color: string \\| Color): void` |\n| `PinchEvent` | | `scale: number` · `center: { readonly x: number` · `readonly y: number }` |\n| `Headers` | a response's headers — `get(name)` | `get(name: string): string \\| null` · `has(name: string): boolean` · `forEach(fn: (value: string, key: string) => void): void` |\n| `AbortSignal` | the cancellation handle an `AbortController` issues | `readonly aborted: boolean` · `addEventListener(type: \"abort\", fn: () => void): void` |\n| `AbortController` | cancel an in-flight `fetch` — pass `.signal`, call `.abort()` | `readonly signal: AbortSignal` · `abort(reason?: unknown): void` |\n| `RequestInit` | the options `fetch` takes — `method`, `headers`, `body`, `signal` | `method?: string` · `headers?: Record<string, string> \\| [string, string][]` · `body?: string \\| FormData \\| Blob \\| ArrayBuffer \\| null` · `credentials?: \"omit\" \\| \"same-origin\" \\| \"include\"` · `mode?: \"cors\" \\| \"no-cors\" \\| \"same-origin\"` · `cache?: string` · `redirect?: \"follow\" \\| \"error\" \\| \"manual\"` · `signal?: AbortSignal \\| null` · `keepalive?: boolean` |\n| `Response` | what `fetch` resolves to — `ok`, `status`, `json()`, `text()` | `readonly ok: boolean` · `readonly status: number` · `readonly statusText: string` · `readonly url: string` · `readonly headers: Headers` · `readonly bodyUsed: boolean` · `json(): Promise<any>` · `text(): Promise<string>` · `arrayBuffer(): Promise<ArrayBuffer>` · `blob(): Promise<Blob>` · `clone(): Response` |\n| `Blob` | a binary body | `readonly size: number` · `readonly type: string` · `text(): Promise<string>` · `arrayBuffer(): Promise<ArrayBuffer>` |\n| `FormData` | a multipart body | `append(name: string, value: string \\| Blob, fileName?: string): void` · `get(name: string): string \\| Blob \\| null` · `has(name: string): boolean` |\n| `URLSearchParams` | a query string as a map — `get`, `set`, `append`, `toString()` | `constructor(init?: string \\| Record<string, string> \\| [string, string][])` · `get(name: string): string \\| null` · `getAll(name: string): string[]` · `has(name: string): boolean` · `set(name: string, value: string): void` · `append(name: string, value: string): void` · `delete(name: string): void` · `forEach(fn: (value: string, key: string) => void): void` · `toString(): string` |\n| `URL` | parse or build a URL — `new URL(path, base)`, then `.searchParams`, `.pathname`, `.href` | `constructor(url: string \\| URL, base?: string \\| URL)` · `href: string` · `readonly origin: string` · `protocol: string` · `host: string` · `hostname: string` · `port: string` · `pathname: string` · `search: string` · `hash: string` · `readonly searchParams: URLSearchParams` · `toString(): string` |\n\n## Global functions\n\n| call | what it does |\n|---|---|\n| `gradient(...args: (Color \\| string \\| { offset: number \\| null; color: Color })[]): Gradient` | build a `Gradient` from an angle and colours |\n| `stroke(width: number, color: Color): Stroke` | build a `Stroke` |\n| `stop(offset: number, color: Color): { offset: number; color: Color }` | one colour stop, for `gradient(…)` |\n| `shadow(dx: number, dy: number, blur: number, color: Color): Shadow` | build a `Shadow` |\n| `frost(radius: number, saturation?: number): Backdrop` | build a `Backdrop` — blur (and optionally saturate) what lies beneath the view, under its own fill |\n| `colorWithAlpha(rgb: number, a: number): number` | an `0xRRGGBB` plus an alpha, as the packed form the paint slots take |\n| `cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve` | a custom easing curve |\n| `back(overshoot: number): MotionCurve` | an overshooting easing curve |\n| `steps(n: number, jump?: \"jumpStart\" \\| \"jumpEnd\"): MotionCurve` | a stepped easing curve |\n| `laszlo(beginPole: number, endPole: number): MotionCurve` | the OpenLaszlo easing curve, kept |\n| `afterSettle(step: () => void): void` |  |\n| `setTimeout(fn: (...args: any[]) => void, ms?: number): number` | deferred work — **a timer does not die with its node; cancel it yourself** |\n| `clearTimeout(id: number): void` | cancel a `setTimeout` |\n| `setInterval(fn: (...args: any[]) => void, ms?: number): number` | repeating work — same caveat as `setTimeout` |\n| `clearInterval(id: number): void` | cancel a `setInterval` |\n| `fetch(input: string \\| URL, init?: RequestInit): Promise<Response>` | the host's `fetch` — for an imperative request; a `DataSource` is the declarative one, and the usual answer |\n| `queueMicrotask(fn: () => void): void` | run after the current turn, before anything else |\n| `structuredClone<T>(value: T): T` | a deep copy |\n| `encodeURIComponent(s: string \\| number \\| boolean): string` | percent-encode one query value |\n| `decodeURIComponent(s: string): string` | the inverse of `encodeURIComponent` |\n| `encodeURI(s: string): string` | percent-encode a whole URL, keeping its structure |\n| `decodeURI(s: string): string` | the inverse of `encodeURI` |\n\n## `Themes`\n\nThe shipped theme presets — each takes a dark flag and returns a complete token record. **This is what you build a theme from**; an empty record is not a theme. Available without an include.\n\n| call | |\n|---|---|\n| `Themes.sanFrancisco(dark?: boolean): Record<string, unknown>` |  |\n| `Themes.cupertino(dark?: boolean): Record<string, unknown>` |  |\n| `Themes.mountainView(dark?: boolean): Record<string, unknown>` |  |\n| `Themes.redmond(dark?: boolean): Record<string, unknown>` |  |\n| `Themes.tint(c: number, dark?: boolean): number` |  |\n\n## `Inspect`\n\nThe running program's introspection surface, behind the same door as `__declare.explain` — dev tooling, stubbed in a production build unless you pass `declarec --debug`.\n\n| call | |\n|---|---|\n| `Inspect.ready(): boolean` |  |\n| `Inspect.rows(open: Record<string, boolean>): { path: string` |  |\n| `Inspect.name: string` |  |\n| `Inspect.kind: string` |  |\n| `Inspect.depth: number` |  |\n| `Inspect.hasKids: boolean` |  |\n| `Inspect.visible: boolean` |  |\n| `Inspect.constrained: boolean` |  |\n| `Inspect.motion: boolean }[]` |  |\n| `Inspect.node(path: string): any` |  |\n| `Inspect.kindOf(path: string): string` |  |\n| `Inspect.slots(path: string): { attr: string` |  |\n| `Inspect.text: string` |  |\n| `Inspect.kind: string` |  |\n| `Inspect.open: boolean` |  |\n| `Inspect.origin: string` |  |\n| `Inspect.motion: boolean` |  |\n| `Inspect.viewKind?: string` |  |\n| `Inspect.color?: string }[]` |  |\n| `Inspect.explain(path: string, attr: string): any` |  |\n| `Inspect.depValue(path: string, readPath: string): string` |  |\n| `Inspect.depTargetPath(path: string, readPath: string): string` |  |\n| `Inspect.expand(path: string, attr: string, trail: readonly string[]): any` |  |\n| `Inspect.dependents(attr: string): { path: string` |  |\n| `Inspect.attr: string` |  |\n| `Inspect.label: string }[]` |  |\n| `Inspect.rect(path: string): { x: number` |  |\n| `Inspect.y: number` |  |\n| `Inspect.width: number` |  |\n| `Inspect.height: number } \\| null` |  |\n| `Inspect.at(x: number, y: number, pierce?: boolean): string` |  |\n| `Inspect.stats(): { nodes: number` |  |\n| `Inspect.ownedSlots: number` |  |\n| `Inspect.motionBusy: boolean }` |  |\n| `Inspect.hasData(path: string): boolean` |  |\n| `Inspect.dataKeys(path: string): string[]` |  |\n| `Inspect.dataRows(path: string): { key: string` |  |\n| `Inspect.text: string` |  |\n| `Inspect.kind: string` |  |\n| `Inspect.open: boolean }[]` |  |\n| `Inspect.dataPreview(path: string): string` |  |\n| `Inspect.evaluate(path: string, src: string): { ok: boolean` |  |\n| `Inspect.input: string` |  |\n| `Inspect.text: string` |  |\n| `Inspect.verb: string` |  |\n| `Inspect.temporary?: boolean }` |  |\n| `Inspect.clock: { manual(): void` |  |\n| `Inspect.auto(): void` |  |\n| `Inspect.step(ms?: number): void` |  |\n| `Inspect.settleMotion(maxMs?: number): boolean` |  |\n| `Inspect.now(): number }` |  |",
+     "preview": "The shared vocabulary every { } body can name. The scaffold declares all of it into each program's check block, so it is typechecked for your code exactly as for the standard library's. Beyond the tree, a bare name in a body may be one of t…"
     },
     {
      "name": "Theme tokens",
@@ -43576,7 +43766,7 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Diagnostic codes\n\n*Every compiler diagnostic carries a `DECLARE####` code, and its message names the fix.*\n\n`DECLARE1000` · `DECLARE1001` · `DECLARE2000` · `DECLARE2001` · `DECLARE2002` · `DECLARE2003` · `DECLARE2004` · `DECLARE3000` · `DECLARE3001` · `DECLARE3002` · `DECLARE3003` · `DECLARE3004` · `DECLARE3005` · `DECLARE4000` · `DECLARE4001` · `DECLARE4002` · `DECLARE4003` · `DECLARE4004` · `DECLARE5000` · `DECLARE5001` · `DECLARE5002` · `DECLARE5003` · `DECLARE6000` · `DECLARE6001` · `DECLARE7000` · `DECLARE7001`",
+     "doc": "# Diagnostic codes\n\n*Every compiler diagnostic carries a `DECLARE####` code, and its message names the fix.*\n\n`DECLARE1000` · `DECLARE1001` · `DECLARE2000` · `DECLARE2001` · `DECLARE2002` · `DECLARE2003` · `DECLARE2004` · `DECLARE3000` · `DECLARE3001` · `DECLARE3002` · `DECLARE3003` · `DECLARE3004` · `DECLARE3005` · `DECLARE4000` · `DECLARE4001` · `DECLARE4002` · `DECLARE4003` · `DECLARE4004` · `DECLARE4005` · `DECLARE4006` · `DECLARE5000` · `DECLARE5001` · `DECLARE5002` · `DECLARE5003` · `DECLARE6000` · `DECLARE6001` · `DECLARE7000` · `DECLARE7001`",
      "preview": "Every compiler diagnostic carries a DECLARE code, and its message names the fix. DECLARE1000 · DECLARE1001 · DECLARE2000 · DECLARE2001 · DECLARE2002 · DECLARE2003 · DECLARE2004 · DECLARE3000 · DECLARE3001 · DECLARE3002 · DECLARE3003 · DECLA…"
     },
     {

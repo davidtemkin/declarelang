@@ -56,9 +56,14 @@ const flags = {
   baselines: argVal("baselines"),
   bless: args.includes("--bless"),
   wrap: args.includes("--wrap"),
+  // --only <file>: verify the whole program, report only the diagnostics in
+  // ONE of its files (an include, by the path the author would write it). For
+  // a room in a many-room shell edited by several hands at once: "is this red
+  // mine?" answered without a scratch harness (field report 2026-08-21).
+  only: argVal("only"),
 };
 if (!file) {
-  console.error("usage: node tools/verify.mjs <app.declare> [--no-typecheck] [--json] [--rung=N]");
+  console.error("usage: node tools/verify.mjs <app.declare> [--no-typecheck] [--json] [--rung=N] [--only <include>] [--wrap]");
   process.exit(2);
 }
 
@@ -87,7 +92,17 @@ let probeNote = null;
 // probe instantiate a class that exists only inside a comment. Stripped text is
 // used for these two regexes ONLY, never for compiling, so the crude strip is safe.
 const bare = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-if (flags.wrap && !/^\s*App\s*\[/m.test(bare)) {
+const hasApp = /^\s*App\s*\[/m.test(bare);
+// A file that declares classes but no App is an INCLUDE, not a program, and the
+// parser's honest "expected a component name, got 'eof'" says nothing an author
+// can act on. Name the two real moves instead.
+if (!flags.wrap && !hasApp && /^\s*class\s+[A-Za-z_]\w*\s+extends\b/m.test(bare)) {
+  console.error(`verify: ${file} declares classes but no App — it is an include, not a program.`);
+  console.error(`  verify the program that includes it (add --only ${file} to see just this file's diagnostics),`);
+  console.error(`  or --wrap to probe its classes standalone in a synthesized App.`);
+  process.exit(2);
+}
+if (flags.wrap && !hasApp) {
   // A layout strategy is an ATTRIBUTE, not a child (language §5) — probe it in
   // the `layout:` slot of a view with a couple of children to arrange.
   const decls = [...bare.matchAll(/^\s*class\s+([A-Za-z_]\w*)\s+extends\s+([A-Za-z_]\w*)/gm)]
@@ -111,9 +126,34 @@ if (flags.wrap && !/^\s*App\s*\[/m.test(bare)) {
 // include (2026-08-08) and verify alone could not find a file sitting beside
 // the program.
 const out = await compile(source, { typecheck: flags.typecheck, originDir: dirname(resolve(file)) });
+// --only: keep the diagnostics positioned in the named file. Matched by path
+// suffix so `--only rooms/pulse.declare` and `--only pulse.declare` both work;
+// the main file itself is `--only <the program file>`. The others are counted,
+// not hidden silently — a red run elsewhere still blocks the ladder.
+let onlyNote = null;
+const allDiagnostics = out.diagnostics;
+if (flags.only !== null) {
+  const want = flags.only.replace(/^\.\//, "");
+  const mainName = resolve(file);
+  const inFile = (d) => {
+    const f = d.pos?.file;
+    if (f === undefined) return mainName.endsWith("/" + want) || mainName === resolve(want);
+    return f === want || f.endsWith("/" + want) || resolve(dirname(resolve(file)), f) === resolve(want);
+  };
+  const hiddenErrs = out.diagnostics.filter((d) => !inFile(d) && d.severity === "error").length;
+  const hiddenWarns = out.diagnostics.filter((d) => !inFile(d) && d.severity !== "error").length;
+  out.diagnostics = out.diagnostics.filter(inFile);
+  onlyNote = `--only ${flags.only}: ${out.diagnostics.length} diagnostic(s) in this file`
+    + (hiddenErrs > 0 ? `, ${hiddenErrs} error(s) elsewhere in the program (not shown — they still fail the rung)` : "")
+    + (hiddenWarns > 0 ? `, ${hiddenWarns} warning(s) elsewhere (not shown)` : "");
+}
 const failing = out.diagnostics.filter((d) => d.severity === "error");
 const warnings = out.diagnostics.filter((d) => d.severity === "warning");
-let failedRung = failing.length ? Math.min(...failing.map((d) => rungOf(d.phase))) : null;
+// The rung fails on EVERY error the compile found, shown or not: --only narrows
+// what is printed, never what is true (a program with a red sibling room
+// cannot boot, and saying R2 ✓ would be a lie the next rung exposes).
+const failingAll = allDiagnostics.filter((d) => d.severity === "error");
+let failedRung = failingAll.length ? Math.min(...failingAll.map((d) => rungOf(d.phase))) : null;
 
 // ── rung 4: headless boot ─────────────────────────────────────────────────
 // The synthetic measurer: measure.ts creates one offscreen 2D context lazily
@@ -241,6 +281,7 @@ if (flags.json) {
     builtThrough: BUILT_THROUGH,
     typecheck: flags.typecheck ? "on" : "off (--no-typecheck)",
     probe: probeNote,
+    only: onlyNote,
     stats: { constraints: out.deps?.length ?? 0, bootNodes: boot.nodes, bootMs: boot.ms },
     boot: boot.ran ? { ok: boot.ok, errors: boot.errors, notes: boot.notes } : null,
     behavior: behave.ran ? { ok: behave.ok, failures: behave.failures, steps: behave.log } : null,
@@ -270,6 +311,7 @@ if (flags.json) {
     }
   }
   if (probeNote) console.log(`  note ${probeNote}`);
+  if (onlyNote) console.log(`  note ${onlyNote}`);
   for (const w of warnings) console.log(`  warn ${show(w)}`);
   for (const n of boot.notes) console.log(`  note ${n}`);
   if (failedRung === null) {

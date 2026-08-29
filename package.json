@@ -29,8 +29,15 @@
     "esbuild": "^0.28.1",
     "typescript": "^5.9.3"
   },
+  "optionalDependencies": {
+    "puppeteer-core": "^23.11.1"
+  },
   "devDependencies": {
-    "puppeteer-core": "^23.11.1",
     "ws": "^8.21.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

@@ -115,8 +115,12 @@ One small decision tree, which the rest of the language keeps reinforcing:
 - a single **computed attribute** → a small **function bound inline**, *not* a wrapper
   class — `Image [ source = { weatherIcon(:code) } ]`, never `class WeatherIcon`;
 - behavior operating on a component's own state → a **method**;
-- **stateless** logic shared across the tree → a free function in a top-level
-  `script { … }` block, which is where plain-TypeScript models and helpers live.
+- logic that is **not about the tree at all** → a top-level `script { … }` block, which
+  is where plain TypeScript lives: models, helpers, and imported libraries (`import` works
+  there — a relative file or an npm package — and `script [ "helpers.ts" ]` loads a whole
+  block from a file, the way `include` loads Declare source). Script is outside the
+  reactive system: a constraint that calls into it depends on the values it passes
+  ([chapter 3](declare-docs:guide:relationships)).
 
 ## Reach: three nouns
 

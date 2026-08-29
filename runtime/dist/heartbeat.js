@@ -22,7 +22,7 @@
 // `dt` is seconds since the previous frame, clamped — a backgrounded tab
 // resumes with a plausible step instead of one enormous jump that would launch
 // any integrator into the weeds.
-import { Node, onDiscard } from "./node.js";
+import { Node, onDiscard, authoredName } from "./node.js";
 import { sharedClock } from "./animate.js";
 import { defineAttributes } from "./attributes.js";
 /** The largest step handed to `onFrame`, in seconds. A tab that was hidden for
@@ -88,10 +88,32 @@ export class Heartbeat extends Node {
         // −0.72s, which ran an integrated fling backwards under rung 5.
         const dt = Math.min(Math.max((now - prev) / 1000, 0), MAX_DT);
         const fn = this.onFrame;
-        if (typeof fn === "function")
-            fn.call(this, dt);
+        if (typeof fn === "function") {
+            // A per-frame exception must not wedge the tab: one that keeps throwing
+            // ran for nine minutes at 60Hz with a minified stack naming nothing
+            // (field report 2026-08-21). Each throw is logged with the node named;
+            // three CONSECUTIVE throws stop the heartbeat — the author restarts it
+            // with `running = true` after fixing the handler.
+            try {
+                fn.call(this, dt);
+                this.throws = 0;
+            }
+            catch (e) {
+                this.throws++;
+                const name = authoredName(this);
+                console.error(`[Declare] onFrame on Heartbeat${name !== null ? ` '${name}'` : ""} threw: ${e?.message ?? e}`, e);
+                if (this.throws >= 3) {
+                    console.error(`[Declare] Heartbeat${name !== null ? ` '${name}'` : ""} stopped — onFrame threw ${this.throws} frames in a row; set running = true to restart it`);
+                    this.throws = 0;
+                    this.running = false;
+                    return false;
+                }
+            }
+        }
         return this.running;
     }
+    /** Consecutive onFrame throws — the stop-the-wedge counter. */
+    throws = 0;
     /** Construction-complete (instantiate.ts fires this on animators; Heartbeat
      *  joins the same lifecycle) — start if `running` was left true. */
     autoStart() {

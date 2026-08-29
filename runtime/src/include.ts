@@ -18,7 +18,7 @@
 // (the merged program stays instantiable). Within-file duplicates stay the
 // checker's job, so the main program seeds the origin table with no self-check.
 
-import { parseLibrary, type Program, type Library, type ClassDecl, type TopDecl, type Span, type Element, type ScriptBlock } from "./parser.js";
+import { parseLibrary, type Program, type Library, type ClassDecl, type TopDecl, type Span, type Element, type ScriptBlock, type IncludeRef } from "./parser.js";
 import { DeclareError } from "./errors.js";
 import { Diag } from "./diagnostics.js";
 
@@ -27,6 +27,74 @@ import { Diag } from "./diagnostics.js";
  *  highest-offset first keeps earlier spans valid; directives never overlap.
  *  This is how a library's — or the main file's — source is made splice-ready
  *  for the merged, self-contained program (composition.md §1). */
+/** Splice each `script [ "file.ts" ]` directive's span with the file's contents
+ *  as a synthesized `script { … }` block — after which nothing downstream knows
+ *  the script came from a file: the typecheck ambient, the resolver's names, the
+ *  transpile pass, and the runtime all see an ordinary block. Paths resolve
+ *  against `fromDir` (the directive's own file), through the same host as
+ *  `include` — so the dependency closure records the file and the dev loop's
+ *  freshness covers it. `export` modifiers on declarations are stripped (the
+ *  module idiom, tolerated); a missing file is a positioned error. */
+/** `dir` + a relative path, normalized with a plain segment stack — the include
+ *  host's canonical coordinates (absolute paths on disk, URLs elsewhere). */
+function joinPath(dir: string, rel: string): string {
+  const lead = dir.startsWith("/") ? "/" : "";
+  const stack = dir.replace(/\/+$/, "").split("/").filter((s) => s !== "");
+  for (const seg of rel.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    else if (seg === "..") stack.pop();
+    else stack.push(seg);
+  }
+  return lead + stack.join("/");
+}
+
+export async function spliceScriptFiles(
+  source: string,
+  refs: readonly IncludeRef[] | undefined,
+  spans: readonly Span[] | undefined,
+  fromDir: string,
+  host: IncludeHost,
+  errors: DeclareError[],
+  excise: readonly Span[] = []
+): Promise<string> {
+  if ((!refs || refs.length === 0 || !spans || spans.length === 0) && excise.length === 0) return source;
+  // One directive may name several files; its span is replaced by their blocks
+  // in order. Group refs to spans by position: a ref belongs to the last span
+  // that starts before it.
+  const bySpan = (spans ?? []).map((s) => ({ span: s, texts: [] as string[] }));
+  for (const ref of refs ?? []) {
+    let home = bySpan[0];
+    for (const b of bySpan) if (b.span.start <= ref.pos.offset) home = b;
+    const resolved = await host.resolve(fromDir, ref.path);
+    if (resolved === null) {
+      errors.push(Diag.missingInclude(ref.path, ref.pos));
+      continue;
+    }
+    // `export function f` → `function f` (and const/let/var/class/enum): the
+    // file is written as a module; here its top-level names enter program scope
+    // the way an inline block's do. (`export { … }` lists and `export default`
+    // stay — checkScripts refuses them with the reason.)
+    let body = resolved.source.replace(/\bexport\s+(?=(async\s+)?(function|const|let|var|class|enum)\b)/g, "");
+    // The file's own RELATIVE imports resolve against the FILE's directory —
+    // but the spliced text lives in the program, whose bundler resolves
+    // against the program's directory. Rewrite each relative specifier onto
+    // the file's dir so the bundle reads the file the author meant.
+    body = body.replace(/(\bfrom\s+|\bimport\s*\(\s*)(["'])(\.{1,2}\/[^"']*)\2/g,
+      (_m, lead: string, q: string, spec: string) => `${lead}${q}${joinPath(resolved.dir, spec)}${q}`);
+    home.texts.push(`script {\n${body}\n}`);
+  }
+  // ONE back-to-front pass over splices and excisions together: every span is
+  // in the ORIGINAL text's coordinates, and applying either kind first would
+  // shift the other's.
+  const edits = [
+    ...bySpan.map((b) => ({ start: b.span.start, end: b.span.end, text: b.texts.join("\n\n") })),
+    ...excise.map((s) => ({ start: s.start, end: s.end, text: "" })),
+  ].sort((a, c) => c.start - a.start);
+  let out = source;
+  for (const e of edits) out = out.slice(0, e.start) + e.text + out.slice(e.end);
+  return out;
+}
+
 export function exciseSpans(source: string, spans: readonly Span[]): string {
   let out = source;
   for (const s of [...spans].sort((a, b) => b.start - a.start)) {
@@ -92,7 +160,7 @@ export async function resolveIncludes(
   program: Program,
   host: IncludeHost,
   originDir: string
-): Promise<{ program: Program; sources: string[]; errors: DeclareError[]; visited: Set<string> }> {
+): Promise<{ program: Program; sources: string[]; sourceIds: string[]; errors: DeclareError[]; visited: Set<string> }> {
   const errors: DeclareError[] = [];
   const classes: ClassDecl[] = [...program.classes];
   const stylesheets: TopDecl[] = [...program.stylesheets];
@@ -106,6 +174,9 @@ export async function resolveIncludes(
   // before anything that could reference it downstream.
   const scripts: ScriptBlock[] = [...program.scripts];
   const sources: string[] = [];
+  // `sourceIds[i]` is the canonical identity of `sources[i]` — what compile()
+  // needs to rebase a merged-text position back onto the file it came from.
+  const sourceIds: string[] = [];
 
   // name → the file that declared it. The main program seeds it as "the app"
   // (composition.md §1's wording) with NO self-collision check: two decls of
@@ -169,9 +240,11 @@ export async function resolveIncludes(
       for (const f of lib.fonts) if (fold(f.name, f.pos, from)) fonts.push(f);
       uses.push(...lib.uses);
       scripts.push(...lib.scripts);
-      // Its splice-ready source — own include directives cut out — after its
+      // Its splice-ready source — script files spliced in and include
+      // directives cut out, in ONE coordinate-safe pass — after its
       // dependencies' sources (the post-order recursion just ran).
-      sources.push(exciseSpans(resolved.source, lib.includeSpans));
+      sources.push(await spliceScriptFiles(resolved.source, lib.scriptFiles, lib.scriptFileSpans, resolved.dir, host, errors, lib.includeSpans));
+      sourceIds.push(resolved.canonical);
     }
   };
   await walk(program.includes, originDir);
@@ -179,6 +252,7 @@ export async function resolveIncludes(
   return {
     program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
     sources,
+    sourceIds,
     errors,
     visited,
   };
@@ -253,10 +327,10 @@ export async function resolveAutoIncludes(
   root: Element,
   host: IncludeHost,
   visited: Set<string>
-): Promise<{ program: Program; sources: string[]; errors: DeclareError[] }> {
+): Promise<{ program: Program; sources: string[]; sourceIds: string[]; errors: DeclareError[] }> {
   const auto = host as Partial<AutoIncludeHost>;
   if (typeof auto.autoincludes !== "function" || typeof auto.resolveLibrary !== "function") {
-    return { program, sources: [], errors: [] };
+    return { program, sources: [], sourceIds: [], errors: [] };
   }
   const manifest = auto.autoincludes();
   // Record what COULD have been auto-included, for the checker's near-miss.
@@ -278,6 +352,7 @@ export async function resolveAutoIncludes(
   // library's `use [ … ]` (its by-name construction deps) joins the program's
   const uses: string[] = [...program.uses];
   const sources: string[] = [];
+  const sourceIds: string[] = [];                         // parallel to `sources`, as in resolveIncludes
 
   // name → the file that declared it (main + explicit includes seed it). A
   // referenced tag not present here and present in the manifest gets pulled;
@@ -329,7 +404,8 @@ export async function resolveAutoIncludes(
     for (const f of lib.fonts) if (foldOne(f.name, f.pos, path)) fonts.push(f);
     scripts.push(...lib.scripts);
     uses.push(...lib.uses);
-    sources.push(exciseSpans(resolved.source, lib.includeSpans));
+    sources.push(await spliceScriptFiles(resolved.source, lib.scriptFiles, lib.scriptFileSpans, resolved.dir, host, errors, lib.includeSpans));
+    sourceIds.push(resolved.canonical);
   };
 
   for (const r of referencedTags(root, program.classes)) await pull(r.tag, r.pos);
@@ -349,6 +425,7 @@ export async function resolveAutoIncludes(
     // which broke by-name construction inside components).
     program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
     sources,
+    sourceIds,
     errors,
   };
 }

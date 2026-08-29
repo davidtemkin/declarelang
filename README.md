@@ -119,7 +119,7 @@ zooming rectangle — normally a bespoke project on its own:
 
 | <!--stat:calendar.code-->498<!--/stat--> | lines of Declare — four views, continuous zoom, drag, and edit |
 |----:|:---|
-| **<!--stat:calendar.wireKB-->82<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
+| **<!--stat:calendar.wireKB-->84<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
 | **0** | lines written by hand — an LLM wrote it; the compiler kept it honest |
 
 → How to think in it: [the guide](docs/guide/01-thinking-in-declare.md). The language in
@@ -153,7 +153,7 @@ Get the repository.
 ```bash
 npm install
 ```
-Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run.
+Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run. pnpm works too — the repo pre-approves esbuild's install script; if you instead add declarelang to another project as a git dependency, approve its build (`pnpm approve-builds`, or `"pnpm": { "onlyBuiltDependencies": ["declarelang"] }`) so its prepare step runs.
 
 ```bash
 npm start

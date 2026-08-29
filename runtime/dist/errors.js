@@ -2,6 +2,13 @@
 // Every syntax / unknown-component / unknown-attribute / bad-value failure
 // carries a position so messages point at the offending text; DeclareErrors
 // aggregates a whole check pass into one throw.
+/** The position's rendered form: `(line 3, col 7)` in the main file,
+ *  `(rooms/pulse.declare:118:23)` in an included one — the editor-clickable
+ *  shape, because an author with five files edited by five hands asks "is
+ *  this mine?" before anything else. */
+export function describePos(pos) {
+    return pos.file !== undefined ? `(${pos.file}:${pos.line}:${pos.col})` : `(line ${pos.line}, col ${pos.col})`;
+}
 /** An error in Declare source. `pos`, when present, is folded into the message
  *  so callers get a legible "… (line 2, col 12)" without extra plumbing.
  *  `rawMessage` keeps the message WITHOUT that suffix (the Diagnostic carries
@@ -13,7 +20,7 @@ export class DeclareError extends Error {
     code;
     hint;
     constructor(message, pos, meta) {
-        super(pos ? `${message} (line ${pos.line}, col ${pos.col})` : message);
+        super(pos ? `${message} ${describePos(pos)}` : message);
         this.name = "DeclareError";
         this.rawMessage = message;
         if (pos)

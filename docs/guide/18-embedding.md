@@ -15,6 +15,14 @@ All three are DOM-renderer stories today — the canvas renderer draws a single
 sealed surface, and these seams are exactly the places where two renderings
 must interleave.
 
+One boundary this chapter does *not* own: bringing foreign **code** into a
+program, rather than a foreign **rendering** into a box. A JS/TS library —
+date math, a physics engine, a parser — enters through `script { }` and its
+`import`, or `script [ "file.ts" ]` ([chapter 4](declare-docs:guide:tree)):
+it computes for the program, opaquely, and renders nothing. Reach for an
+island or a hosted box only when the foreign thing *draws*; reach for script
+when it *computes*.
+
 ## A Declare app inside your page
 
 A page embeds a Declare app by giving it a **sized element marked as the

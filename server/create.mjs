@@ -171,12 +171,32 @@ export function createDeclareServer(config = {}) {
   const bootURL = (rel) => bootPrefix + rel;               // platform boot asset → its ROOT-consistent URL
   const VIEWER_DIR = path.join(PLATFORM_DIR, "apps", "viewer");
 
-  // ── the no-SW marker (unchanged) ───────────────────────────────────────────
+  // ── this server's IDENTITY ─────────────────────────────────────────────────
+  // Who is answering: pid, the root it serves, when it started. Printed in the
+  // banner, carried into every page's marker (window.__declareServer), answered
+  // at GET /__identity, and stamped on every compile. This exists because a
+  // page that faithfully renders a fresh compile of the WRONG TREE is
+  // indistinguishable from a stale build — and two dev servers can share a
+  // port number (one on 127.0.0.1, one on 0.0.0.0), each serving a different
+  // checkout, with curl reaching one and a remote browser the other. Six agents
+  // lost ~25 minutes to exactly that (field report 2026-08-21); a stamp makes
+  // it one glance.
+  const identity = Object.freeze({
+    pid: process.pid,
+    root: mounts.root.dir,
+    platform: PLATFORM_DIR,
+    started: new Date().toISOString(),
+  });
+  const describeIdentity = () => ({ ...identity, toolchain: toolchain.fingerprint() });
+
+  // ── the no-SW marker ───────────────────────────────────────────────────────
   // Every HTML page the server emits carries a marker that short-circuits the
   // service worker's registration — under this server the SW is redundant and
   // would cache-fight the edit loop. A dumb static host serves pages verbatim
   // (no marker) → the SW registers there, where it is the only browse-to-run.
-  const SERVER_MARKER = '<script>window.__declareServer=true</script>\n';
+  // The marker's value is the identity above (truthy, as every reader expects),
+  // so the page can say which server it came from without a second request.
+  const SERVER_MARKER = `<script>window.__declareServer=${JSON.stringify(identity).replace(/</g, "\\u003c")}</script>\n`;
   function withServerMarker(html) {
     const s = typeof html === "string" ? html : html.toString("utf8");
     const i = s.indexOf('<script type="module"');
@@ -255,6 +275,17 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
     } catch { return []; }
   }
 
+  /** tag → library file, from library/autoincludes.json (the `$provide` rules
+   *  dropped). Read per page — the file is small and a library edit shows. */
+  function libraryManifest() {
+    try {
+      const m = JSON.parse(readFileSync(path.join(PLATFORM_DIR, "library", "autoincludes.json"), "utf8"));
+      const out = {};
+      for (const [k, v] of Object.entries(m)) if (!k.startsWith("$") && typeof v === "string") out[k] = v;
+      return out;
+    } catch { return {}; }
+  }
+
   async function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
     const r = await toolchain.compile(readFileSync(path.join(VIEWER_DIR, "viewer.declare"), "utf8"), { originDir: VIEWER_DIR });
     if (r.source === null) {
@@ -273,7 +304,10 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
       // the child's render outright and leave the edit pane blank
       assetBase: "/" + relPath.replace(/^\/+/, "").replace(/[^/]*$/, ""),
       seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath,
-        __metrics__: JSON.stringify(await toolchain.metrics(rawSource)) },
+        __metrics__: JSON.stringify(await toolchain.metrics(rawSource)),
+        // the component library's tag → file manifest, with the URL the files are
+        // served at, so the viewer can link a bare `Button [` to button.declare
+        __library__: JSON.stringify({ base: platURL("library/"), manifest: libraryManifest() }) },
     };
     // The editor's live recompile carries the file's own url as ?main= so the
     // Node compiler resolves includes and relative data against the file being
@@ -475,6 +509,14 @@ bootHost(cfg);
       COMPILE_CACHE.clear();
     }
 
+    // Who is answering (see `identity` above). The one request that tells a
+    // browser, a curl, and tools/reload-dev.mjs whether they are talking to the
+    // SAME server — and to the checkout they think they are.
+    if (p === "/__identity") {
+      res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+      return res.end(JSON.stringify(describeIdentity()));
+    }
+
     // The SW eviction stub (defined above, beside the marker it completes) —
     // matched at the distro root and at the platform mount, before any static
     // file handling can serve the real worker's bytes. `no-cache` so the
@@ -584,7 +626,19 @@ bootHost(cfg);
         if (out === null) {
           try {
             const r = await toolchain.compileTracked(body, { ...(originDir ? { originDir } : {}), ...(mainAbs ? { mainId: mainAbs } : {}) });
-            out = { source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report };
+            // The BUILD STAMP: when this program was compiled, from which main
+            // file, reading which other files, by which server. It rides with the
+            // compile (a cache hit keeps its original stamp — that IS when the
+            // program was built), reaches the page console and `__declare.build`,
+            // and is the page's answer to "am I looking at my edit?".
+            const files = (r.closure?.entries ?? []).filter((e) => e.kind === "file").map((e) => e.id);
+            const build = {
+              at: new Date().toISOString(),
+              main: mainAbs ?? null,
+              files: files.filter((f) => f !== mainAbs),
+              server: { pid: identity.pid, root: identity.root, started: identity.started },
+            };
+            out = { source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report, build };
             // Only a SUCCESSFUL compile is worth remembering: a failing one is the
             // state the author is actively fixing, and its closure is incomplete.
             if (key !== null && r.source !== null && r.closure) {
@@ -703,5 +757,5 @@ bootHost(cfg);
     socket.destroy();
   }
 
-  return { handler, upgrade, mounts, proxy, buildCache, watch, describeMounts, toolchain };
+  return { handler, upgrade, mounts, proxy, buildCache, watch, describeMounts, toolchain, identity: describeIdentity };
 }

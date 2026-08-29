@@ -69,6 +69,39 @@ Declare hides that machinery — because in this model the machinery has no job 
 A re-render exists to reconcile a UI that drifted from its state. Here, nothing
 drifts.
 
+## Nothing waits
+
+The same fact has a second face, and it is the one imperative habit that survives
+longest in people arriving from other tools: **a Declare program never checks
+whether something has happened yet.** There is nothing to check. If a value depends
+on another value, you write the dependency as a constraint, and the runtime
+re-evaluates it the moment the other value changes — *the constraint is the
+notification*. If you need to act when something finishes — a request landing, a
+view arriving, layout settling — there is an event for it, delivered once, at the
+moment it is true.
+
+So any loop or timer that repeatedly *looks* at the program is a constraint or an
+event written by hand, and it will be late, racy, and invisible to `explain`. Every
+such loop is waiting for something specific; ask what, and depend on that instead:
+
+| the reflex | what it was waiting for | the Declare form |
+|---|---|---|
+| poll until a fetch lands | the request's state | `visible = { data.loaded }`, or `onLoad` |
+| poll until a view exists, or has a size | the tree settling | `onInit`, `onReady`, `afterSettle`, `onArrive` |
+| poll a value until it changes | the value | a constraint on it |
+| "wait 100ms, then read the geometry" | layout | `afterSettle(() => …)` — same frame, geometry real |
+| tick to advance a cursor or a progress | time itself | an `Animator` (time → value) |
+| tick to move something toward a target | a target | a `Spring` |
+| tick to step a simulation | the previous value | a `Heartbeat` — the one legitimate per-frame handler |
+| a timer to debounce input, or time out a request | a timing rule | `setTimeout` — legitimate, as a host chore |
+
+Time, then, is only ever an *input*: a duration to animate over, a frame step to
+integrate by, a timing rule to apply. The test for a `Heartbeat` in particular is
+whether its handler uses the `dt` it was given — one that doesn't is not integrating
+anything; it is polling, and the condition inside it names what it was really waiting
+for. [Motion and states](declare-docs:guide:motion-and-states) has the three
+time-based members and when each is the honest choice.
+
 ## Why a new language? Why now?
 
 A framework lives inside a general-purpose language, so the things it cares about —
