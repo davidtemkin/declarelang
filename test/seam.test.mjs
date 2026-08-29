@@ -180,7 +180,7 @@ const TABLE = {
   },
   scrollToX: {
     dom: true,
-    canvas: "GAP (found 2026-07-31, not yet fixed) — canvas has setScrollX, so a pane CAN scroll horizontally there, but the programmatic write half is missing: `view.scrollX = n` and scrollIntoView's x arm do nothing. Its scrollToY twin is implemented, which is what makes this look like an oversight rather than a decision",
+    canvas: true,   // built 2026-08-29 — the Files browser's column strip found the gap live (see canvas-backend setScrollX)
     mac: true,
     headless: NOT_APPLICABLE,
   },

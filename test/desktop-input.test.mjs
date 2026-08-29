@@ -84,6 +84,55 @@ const drag = async (x1, y1, x2, y2) => {
   await new Promise((r) => setTimeout(r, 250));
 };
 
+/** The Files browser's column REVEAL: select a folder, then an item in the new
+ *  column — the third column lands past the window's edge and the strip must
+ *  glide to show it (its own reveal animator writing `scrollX`; the platform
+ *  clamps the write). Canvas only — DOM never lacked it, and a symmetric pin
+ *  would cost a desktop boot to guard nothing. Found dead on canvas 2026-08-29: the compositor had no
+ *  horizontal write half, so the strip never moved — and the hit walk, shifted
+ *  by scrollX on the View side, disagreed with the paint. Fresh boot: the Files
+ *  window is front, with nothing selected. */
+async function filesReveal(url) {
+  await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
+  await page.waitForFunction(() => globalThis.__declare?.find?.("app.wins") != null, { timeout: 30000 });
+  await new Promise((r) => setTimeout(r, 1500));
+  // The window's columns as SCREEN geometry — every row's center walked up the
+  // tree with each scrolling ancestor's offset subtracted, so a click aimed at a
+  // revealed column lands only if paint and hit really shifted with scrollX.
+  const probe = () => page.evaluate(() => {
+    const w = globalThis.__declare.find("app.wins").children.map((c) => c.win ?? c).find((c) => c.constructor.name === "FilesWindow");
+    const kids = (v) => v.childViews ?? v.children ?? [];
+    const walk = (v, pred) => { if (pred(v)) return v; for (const c of kids(v)) { const r = walk(c, pred); if (r) return r; } return null; };
+    const strip = walk(w, (v) => v.scrolls === "x");
+    const cols = kids(kids(strip)[0]);
+    const abs = (v) => { let x = 0, y = 0; for (let n = v; n; n = n.parent) { x += n.x ?? 0; y += n.y ?? 0; if (n.parent) { x -= n.parent.scrollX ?? 0; y -= n.parent.scrollY ?? 0; } } return { x, y }; };
+    const rows = (col) => kids(col.lst.inner).map((r) => { const a = abs(r); return { name: r.nm.text, x: Math.round(a.x + r.width / 2), y: Math.round(a.y + r.height / 2) }; });
+    return { cols: cols.map((c) => ({ x: c.x, w: c.width, rows: rows(c) })), scrollX: strip.scrollX, stripW: strip.width, depth: w.selPath === "" ? 0 : String(w.selPath).split("\n").length };
+  });
+  const clickRow = async (col, name) => {
+    const g = await probe();
+    const r = g.cols[col].rows.find((x) => x.name === name) ?? g.cols[col].rows[0];
+    assert.ok(r, `column ${col} has a row ${name}`);
+    await page.mouse.click(r.x, r.y);
+    await new Promise((res) => setTimeout(res, 700));
+  };
+  await clickRow(0, "Guide");
+  if ((await probe()).depth < 1) await clickRow(0, "Guide");        // a background window's first click only activates it
+  await clickRow(1, "The idea");                                    // a folder inside a folder: the third column is a list
+  await new Promise((r) => setTimeout(r, 900));                     // the reveal waits out the double-click window (440ms), then glides 260ms
+  let g = await probe();
+  assert.equal(g.depth, 2, "Guide → The idea selected");
+  assert.ok(g.cols.length >= 3 && g.cols[2].rows.length > 0, `a third, list column opened (${g.cols.length})`);
+  assert.ok(g.cols[2].x + g.cols[2].w > g.stripW, `the third column overflows the window (${g.cols[2].x + g.cols[2].w} > ${g.stripW}) — else there is nothing to reveal`);
+  assert.ok(g.scrollX > 0, `the strip revealed it: scrollX ${g.scrollX}`);
+  assert.ok(g.cols[2].x + g.cols[2].w <= g.scrollX + g.stripW + 1, `…fully: right edge ${g.cols[2].x + g.cols[2].w} within ${g.scrollX + g.stripW}`);
+  // the discriminating click: the revealed column's first row, at its SCREEN
+  // position — lands only where paint and hit shifted by scrollX together
+  await clickRow(2, g.cols[2].rows[0].name);
+  g = await probe();
+  assert.equal(g.depth, 3, `a click in the revealed column selects there (depth ${g.depth}; scrollX ${g.scrollX})`);
+}
+
 try {
   // ── DOM renderer ─────────────────────────────────────────────────────────
   await openReader(`${B}/apps/desktop/desktop.declare`);
@@ -283,6 +332,10 @@ try {
     await zoomOn();
     await zoomDragResize();
     await zoomOff();
+  });
+
+  await test("canvas: the Files browser reveals a freshly opened column — the compositor's own horizontal scroll", async () => {
+    await filesReveal(`${B}/apps/desktop/desktop.declare?render=canvas`);
   });
 } finally {
   await browser.close();

@@ -410,7 +410,9 @@ class Compositor {
         e.preventDefault();
         return;
       }
-      if (this.root.scrollBy(x, y, e.deltaY)) {
+      const dx = e.shiftKey ? (e.deltaX || e.deltaY) : e.deltaX;
+      const dy = e.shiftKey ? 0 : e.deltaY;
+      if (this.root.scrollBy(x, y, dx, dy)) {
         e.preventDefault();
         this.invalidate();
       }
@@ -424,11 +426,12 @@ class Compositor {
       const walk = (sf: CanvasSurface, lx: number, ly: number, ax: number, ay: number): { s: CanvasSurface; ax: number; ay: number } | null => {
         if (!sf.visible) return null;
         const inBox = lx >= 0 && ly >= 0 && lx < sf.width && ly < sf.height;
-        if (sf.scrolls && !inBox) return null;
+        if ((sf.scrolls || sf.scrollsX) && !inBox) return null;
         for (let i = sf.children.length - 1; i >= 0; i--) {
           const c = sf.children[i];
           const shift = sf.scrolls && !c.ignoresScroll ? sf.scrollOffset : 0;
-          const hit = walk(c, lx - c.x, ly + shift - c.y, ax + c.x, ay + c.y - shift);
+          const shiftX = sf.scrollsX && !c.ignoresScroll ? sf.scrollXOffset : 0;
+          const hit = walk(c, lx + shiftX - c.x, ly + shift - c.y, ax + c.x - shiftX, ay + c.y - shift);
           if (hit !== null) return hit;
         }
         if (sf.scrolls && !sf.pageRoot && inBox && lx >= sf.width - 16 && sf.barGeom() !== null) return { s: sf, ax, ay };
@@ -670,6 +673,11 @@ class CanvasSurface implements Surface {
   rotationDeg = 0;
   scrolls = false;
   scrollOffset = 0;
+  /** The HORIZONTAL twin (setScrollX / scrollToX): a pane may scroll one axis
+   *  or both; each axis keeps its own flag and offset, and every walk that
+   *  shifts by `scrollOffset` shifts by `scrollXOffset` beside it. */
+  scrollsX = false;
+  scrollXOffset = 0;
   /** A windowed block's LOGICAL extent (setVirtualExtent — replicate.ts):
    *  the scroll range's floor when only a window of rows exists. */
   virtualExtent = 0;
@@ -702,6 +710,7 @@ class CanvasSurface implements Surface {
     this.compositor.invalidate();
   }
   private onScrollCb: ((y: number) => void) | null = null;
+  private onScrollXCb: ((x: number) => void) | null = null;
   parent: CanvasSurface | null = null;
   readonly children: CanvasSurface[] = [];
 
@@ -1211,11 +1220,12 @@ class CanvasSurface implements Surface {
     const cp = this.clipPathObj();
     if (cp !== null && !hitCtx().isPointInPath(cp, lx, ly)) return null;
     const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-    if (this.scrolls && !inBox) return null;
+    if ((this.scrolls || this.scrollsX) && !inBox) return null;
     const cy = this.scrolls ? ly + this.scrollOffset : ly;
+    const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
     for (let i = this.children.length - 1; i >= 0; i--) {
       const c = this.children[i];
-      const r = c.wheelTo(lx, c.ignoresScroll ? ly : cy, deltaX, deltaY, pinch);
+      const r = c.wheelTo(c.ignoresScroll ? lx : cx, c.ignoresScroll ? ly : cy, deltaX, deltaY, pinch);
       if (r !== null) return r;
     }
     if (this.wants?.wantsWheel === true && this.sink !== null && inBox) {
@@ -1223,7 +1233,7 @@ class CanvasSurface implements Surface {
       return "claimed";
     }
     // the page root's wheel is the browser's own — never consumed here
-    return this.scrolls && !this.pageRoot && inBox ? "scroller" : null;
+    return (this.scrolls || this.scrollsX) && !this.pageRoot && inBox ? "scroller" : null;
   }
 
   setEditable(spec: EditableSpec | null): void {
@@ -1330,7 +1340,7 @@ class CanvasSurface implements Surface {
       if (!s.visible) shown = false;
       // A SCROLLER frame-bounds its subtree exactly as paint does — without
       // this, a scrolled-away field's overlay floated outside the pane.
-      if (s.clipData !== null || s.boxClip || s.scrolls) {
+      if (s.clipData !== null || s.boxClip || s.scrolls || s.scrollsX) {
         // Every calendar clip is a box (clip=true → rect(0,0,width,height)); an
         // ancestor's box, expressed in this surface's local space, is [-ax..width-ax].
         clipped = true;
@@ -1346,6 +1356,7 @@ class CanvasSurface implements Surface {
       // TRANSLATES its content — the overlay must ride the same translation
       const p: CanvasSurface | null = s.parent;
       if (p !== null && p.scrolls && !s.ignoresScroll) ay -= p.scrollOffset;
+      if (p !== null && p.scrollsX && !s.ignoresScroll) ax -= p.scrollXOffset;
     }
     // one geometry, applied to every overlay this surface carries — the
     // editable field and/or a foreign island's box (both are host-level
@@ -1419,10 +1430,11 @@ class CanvasSurface implements Surface {
     if (cpHit !== null && !hitCtx().isPointInPath(cpHit, lx, ly)) {
       // outside this surface's clip only its ignoreClip children remain live
       const cyx = this.scrolls ? ly + this.scrollOffset : ly;
+      const cxx = this.scrollsX ? lx + this.scrollXOffset : lx;
       for (let i = this.children.length - 1; i >= 0; i--) {
         const c = this.children[i];
         if (!c.ignoresClip) continue;
-        const t = c.hit(lx, cyx);
+        const t = c.hit(cxx, cyx);
         if (t !== null) return t;
       }
       return null;
@@ -1430,9 +1442,10 @@ class CanvasSurface implements Surface {
     // A scroll container clips to its box and offsets its content — hit-test
     // children in the SAME frame the paint walk draws them.
     const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-    if (this.scrolls && !inBox) return null;
+    if ((this.scrolls || this.scrollsX) && !inBox) return null;
     const cy = this.scrolls ? ly + this.scrollOffset : ly;
-    if (this.scrolls) {
+    const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
+    if (this.scrolls || this.scrollsX) {
       // frame chrome (ignoreScroll) rides the frame and paints ABOVE the
       // scrolled content — hit it first, at UNSHIFTED coordinates
       for (let i = this.children.length - 1; i >= 0; i--) {
@@ -1444,8 +1457,8 @@ class CanvasSurface implements Surface {
     }
     for (let i = this.children.length - 1; i >= 0; i--) {
       const c = this.children[i];
-      if (this.scrolls && c.ignoresScroll) continue;
-      const t = c.hit(lx, cy);
+      if ((this.scrolls || this.scrollsX) && c.ignoresScroll) continue;
+      const t = c.hit(cx, cy);
       if (t !== null) return t;
     }
     // A pointer-transparent view is a corridor, not a target: its children were
@@ -1485,9 +1498,10 @@ class CanvasSurface implements Surface {
       const cp = c.clipPathObj();
       if (cp !== null && !hitCtx().isPointInPath(cp, lx, ly)) continue;
       const inBox = lx >= 0 && ly >= 0 && lx < c.width && ly < c.height;
-      if (c.scrolls && !inBox) continue;
+      if ((c.scrolls || c.scrollsX) && !inBox) continue;
       const cy2 = c.scrolls ? ly + c.scrollOffset : ly;
-      const deep = c.cursorProbe(lx, cy2);
+      const cx2 = c.scrollsX ? lx + c.scrollXOffset : lx;
+      const deep = c.cursorProbe(cx2, cy2);
       if (deep !== undefined) return deep;
       if (inBox && c.pe !== "none" && c.cursorStyle !== "") return c.cursorStyle;
     }
@@ -1514,10 +1528,37 @@ class CanvasSurface implements Surface {
     return extent;
   }
 
-  // Horizontal scroll is a DOM-backend affordance for now (code blocks); the canvas
-  // compositor's x-scroll is a later addition, so this is a no-op here (over-wide
-  // content simply isn't clipped on canvas — the docs render on DOM).
-  setScrollX(_on: boolean, _onScroll?: (x: number) => void): void {}
+  /** The horizontal scroll regime — the exact twin of setScroll: clip to the
+   *  box, translate the content by the offset, mirror the user's pan into
+   *  `scrollX` through the callback. Found unbuilt by the Files browser's column
+   *  strip (2026-08-29): its reveal animator wrote `strip.scrollX` and the
+   *  attribute push optional-called a scrollToX that did not exist, so a fresh
+   *  column never slid into view on this renderer alone — while the hit walk,
+   *  which the View side already shifts by scrollX, disagreed with the paint. */
+  setScrollX(on: boolean, onScroll?: (x: number) => void): void {
+    this.scrollsX = on;
+    this.onScrollXCb = on ? (onScroll ?? null) : null;
+    if (!on) this.scrollXOffset = 0;
+    this.compositor.invalidate();
+  }
+
+  /** Content extent along x — the widest a child reaches (contentExtent's twin;
+   *  no virtual floor: windowing is vertical). */
+  private contentExtentX(): number {
+    let extent = 0;
+    for (const c of this.children) if (c.visible && !c.ignoresScroll) extent = Math.max(extent, c.x + c.width);
+    return extent;
+  }
+
+  /** The write half of `scrollX` — clamped exactly as a wheel would be. */
+  scrollToX(v: number): void {
+    if (!this.scrollsX) return;
+    const next = Math.min(Math.max(0, this.contentExtentX() - this.width), Math.max(0, v));
+    if (next === this.scrollXOffset) return;
+    this.scrollXOffset = next;
+    this.onScrollXCb?.(next);
+    this.compositor.invalidate();
+  }
 
   // Native rich-text flow is a DOM affordance; on canvas the RichText component lays
   // the runs out as child views itself. -1 signals "not handled, fall back".
@@ -1537,8 +1578,7 @@ class CanvasSurface implements Surface {
   }
 
   /** The write half of `scrollY` — same clamp as scrollBy, so a program write
-   *  lands exactly where a user scroll would. (No scrollToX: this backend has
-   *  no horizontal scroll state yet — the attribute push optional-calls.) */
+   *  lands exactly where a user scroll would. */
   scrollToY(v: number): void {
     if (!this.scrolls) return;
     const extent = this.contentExtent();
@@ -1558,6 +1598,29 @@ class CanvasSurface implements Surface {
    *  when it is already visible (the keyboard traversal's reveal). */
   scrollIntoView(align: "start" | "nearest" | number = 0, _smooth = false, inset = 0): void {
     const within = (typeof align === "number" ? align : 0) - inset;
+    // the x arm (the mac backend's revealX, verbatim in spirit): the nearest
+    // HORIZONTAL scroller reveals this surface's box on its own axis
+    {
+      let cx: CanvasSurface = this;
+      let offX = 0;
+      while (cx.parent !== null && !cx.parent.scrollsX) { offX += cx.x; cx = cx.parent; }
+      const scx = cx.parent;
+      if (scx !== null && !scx.pageRoot) {
+        offX += cx.x;
+        const maxX = Math.max(0, scx.contentExtentX() - scx.width);
+        let nextX = Math.min(maxX, Math.max(0, offX));
+        if (align === "nearest") {
+          const left = scx.scrollXOffset, right = left + scx.width;
+          if (offX >= left && offX + this.width <= right) nextX = scx.scrollXOffset;   // already visible
+          else nextX = offX < left ? Math.max(0, offX) : Math.min(maxX, offX + this.width - scx.width);
+        }
+        if (nextX !== scx.scrollXOffset) {
+          scx.scrollXOffset = nextX;
+          scx.onScrollXCb?.(nextX);
+          this.compositor.invalidate();
+        }
+      }
+    }
     let cur: CanvasSurface = this;
     let off = 0;
     while (cur.parent !== null && !cur.parent.scrolls) { off += cur.y; cur = cur.parent; }
@@ -1640,7 +1703,7 @@ class CanvasSurface implements Surface {
   /** Route a wheel delta to the innermost scrolling surface under (px,py) in
    *  PARENT-local space; true when consumed. Mirrors hit's transform so it
    *  targets exactly what the user sees; the compositor requests the repaint. */
-  scrollBy(px: number, py: number, dy: number): boolean {
+  scrollBy(px: number, py: number, dx: number, dy: number): boolean {
     // Opacity is paint, not presence — a wheel is input, routed by position, and
     // it reaches a transparent scroller exactly as a click reaches a transparent
     // sink (see hit()). Only `visible` means "not there".
@@ -1650,14 +1713,27 @@ class CanvasSurface implements Surface {
     const cpScroll = this.clipPathObj();
       if (cpScroll !== null && !hitCtx().isPointInPath(cpScroll, lx, ly)) return false;
     const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-    if (this.scrolls && !inBox) return false;
+    if ((this.scrolls || this.scrollsX) && !inBox) return false;
     const cy = this.scrolls ? ly + this.scrollOffset : ly;
+    const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
     for (let i = this.children.length - 1; i >= 0; i--) {
       const c = this.children[i];
-      if (c.scrollBy(lx, this.scrolls && c.ignoresScroll ? ly : cy, dy)) return true;
+      if (c.scrollBy(this.scrollsX && c.ignoresScroll ? lx : cx, this.scrolls && c.ignoresScroll ? ly : cy, dx, dy)) return true;
     }
     // the page root's own scroll is the browser's — never consumed here
-    if (this.scrolls && !this.pageRoot && inBox) {
+    if (this.pageRoot || !inBox) return false;
+    // a horizontal pane takes the horizontal delta and lets a vertical one pass
+    // to whatever scrolls vertically here or above (the DOM backend's rule)
+    if (this.scrollsX && dx !== 0) {
+      const maxX = Math.max(0, this.contentExtentX() - this.width);
+      const nextX = Math.min(maxX, Math.max(0, this.scrollXOffset + dx));
+      if (nextX !== this.scrollXOffset) {
+        this.scrollXOffset = nextX;
+        this.onScrollXCb?.(nextX);
+      }
+      if (!this.scrolls) return true;
+    }
+    if (this.scrolls) {
       const max = Math.max(0, this.contentExtent() - this.height);
       const next = Math.min(max, Math.max(0, this.scrollOffset + dy));
       if (next !== this.scrollOffset) {
@@ -1984,16 +2060,17 @@ class CanvasSurface implements Surface {
       if (restoreShadow) ctx.restore();
       if (this.letterSpacing !== 0) lsCtx.letterSpacing = "0px";
     }
-    if (this.scrolls) {
+    if (this.scrolls || this.scrollsX) {
       // Scroll container: clip to the box and offset the content — the canvas
-      // realization of native `overflow`. Siblings outside this surface are
-      // untouched, so fixed chrome draws at its own coordinates: no reposition,
-      // no jitter. (Mirror this transform in `hit` and `scrollBy`.)
+      // realization of native `overflow`, on whichever axes scroll. Siblings
+      // outside this surface are untouched, so fixed chrome draws at its own
+      // coordinates: no reposition, no jitter. (Mirror this transform in `hit`
+      // and `scrollBy`.)
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, 0, this.width, this.height);
       ctx.clip();
-      ctx.translate(0, -this.scrollOffset);
+      ctx.translate(this.scrollsX ? -this.scrollXOffset : 0, this.scrolls ? -this.scrollOffset : 0);
       for (const child of this.children) { if ((skipExempt && child.ignoresClip) || child.ignoresScroll) continue; child.paint(ctx); }
       ctx.restore();
       // frame chrome (ignoreScroll): rides the frame — painted unshifted,

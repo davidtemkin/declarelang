@@ -1580,6 +1580,46 @@ await test("draw(d) { … } — the language surface — rides the recorded-draw
   assert.deepEqual(pushes()[1][1].bounds, { x: 0, y: 0, w: 30, h: 5 }, "re-recorded against the new width");
 });
 
+// ── the canvas HORIZONTAL scroll regime (setScrollX / scrollToX / scrollBy dx) ──
+// Found live in the Files browser (2026-08-29): the strip's reveal animator wrote
+// scrollX, the canvas surface had no write half, and the hit walk (which the
+// View side shifts by scrollX) disagreed with the paint. Pure geometry, no browser.
+
+await test("canvas horizontal scroll: scrollToX shifts paint-space hits, clamps to the content, mirrors into scrollX; a wheel's dx drives it", () => {
+  const backend = new CanvasBackend();
+  const surf = (x, y, w, h, sink = null) => {
+    const s = backend.createSurface();
+    s.setX(x); s.setY(y); s.setWidth(w); s.setHeight(h);
+    if (sink) s.setInput(sink);
+    return s;
+  };
+  const sink = (name) => (type, x, y) => name;
+  const root = surf(0, 0, 200, 100);
+  const strip = surf(0, 0, 200, 100);                       // the scroller: three 150-wide columns in a 200 box
+  const a = surf(0, 0, 150, 100, sink("a")), b = surf(150, 0, 150, 100, sink("b")), c = surf(300, 0, 150, 100, sink("c"));
+  root.insertChild(strip, null); strip.insertChild(a, null); strip.insertChild(b, null); strip.insertChild(c, null);
+  let mirrored = -1;
+  strip.setScrollX(true, (x) => { mirrored = x; });
+  assert.equal(root.hit(160, 50).key, b, "unscrolled: b under x=160");
+  strip.scrollToX(150);
+  assert.equal(mirrored, 150, "the write half mirrors into the read half (scrollX)");
+  assert.equal(root.hit(160, 50).key, c, "scrolled by 150: c now sits under x=160 — hit follows paint");
+  assert.equal(root.hit(10, 50).key, b, "…and b under x=10");
+  strip.scrollToX(10_000);
+  assert.equal(mirrored, 250, "clamped to content extent − width (450 − 200), like a user pan");
+  assert.equal(root.hit(199, 50).key, c, "the right edge shows c's end");
+  assert.equal(root.hit(40, 50).key, b, "b's tail (150..300 → −100..50) still hittable");
+  strip.scrollToX(-5);
+  assert.equal(mirrored, 0, "clamped at 0");
+  // the wheel: a horizontal delta is this pane's; a vertical one is not (it passes to whatever scrolls y)
+  assert.equal(root.scrollBy(100, 50, 30, 0), true, "dx is consumed");
+  assert.equal(mirrored, 30);
+  assert.equal(root.scrollBy(100, 50, 0, 40), false, "dy alone is not a horizontal pane's");
+  assert.equal(mirrored, 30, "…and moves nothing");
+  strip.setScrollX(false);
+  assert.equal(root.hit(160, 50).key, b, "off: the offset resets, b back under x=160");
+});
+
 // ── R5: the canvas hit walk (pure geometry — no browser needed) ────────────
 
 await test("canvas hit walk: topmost wins, transparency falls through, pruning", () => {
