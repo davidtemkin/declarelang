@@ -203,6 +203,19 @@ function refineBodyError(src: string, raw: string, expression: boolean): string 
     const frac = Number((Number(pct[1]) / 100).toFixed(6));
     return `${head} — there are no percentages: read the parent and scale, so ${pct[1]}% is { parent.width * ${frac} }`;
   }
+  // A BARE OBJECT LITERAL (issue #24): `cfg: object = { a: 1, b: 2 }` hands this
+  // body ` a: 1, b: 2 `, and TS guesses an arrow-function head ("'=>' expected")
+  // or a label. The outer { } is Declare's constraint delimiter, so the object
+  // needs its own — and the PROBE is authoritative, never a heuristic: the same
+  // body must parse clean once wrapped as an object literal.
+  if (expression) {
+    const wrapped = `({${src}
+})`;
+    const clean = syntaxValidator !== null ? syntaxValidator(wrapped, true) === null : !("error" in compileExpr(wrapped));
+    if (clean) {
+      return `${head} — this reads as an object literal, and the outer { } is the constraint's own delimiter; give the object its own parentheses: { ({ a: 1, b: 2 }) }`;
+    }
+  }
   if (expression && looksLikeStatements(src, raw)) {
     return `${head} — an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })`;
   }

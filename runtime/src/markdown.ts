@@ -37,6 +37,7 @@ const PROSE = {
   codeSize: 13,   // the house code rendition size — shared by inline, fenced, and <pre> code
   codeRadius: 8,
   codePad: 14,
+  codeGutter: 10, // slack below code when a line overflows: the DOM overlay scrollbar's seat (#25)
   codeRuleWidth: 2,   // the `codeRule` left accent bar's thickness
   codeRuleGap: 12,    // extra left padding for code text when a `codeRule` bar is present
   mono: "ui-monospace, SFMono-Regular, monospace",
@@ -697,6 +698,10 @@ function buildPre(b: Extract<Block, { t: "pre" }>, width: number, bodyColor: num
   const fm = fontMetrics(fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" }));
   const lead = (fm.ascent + fm.descent) / sz(CODESIZE);
   const flow = flowView([{ tag: "pre", runs, gapBefore: 0, lineHeight: lead, fontSize: sz(CODESIZE), pre: true }], flowW, ctx);
+  // the widest line, for the gutter decision below — the runs' own text, priced
+  // with the code face (a pre never wraps, so this is the scroll-overflow test)
+  const preFont = fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" });
+  const preMaxW = runs.map((r) => ("br" in r ? "\n" : r.text)).join("").split("\n").reduce((m, l) => Math.max(m, textWidth(l, preFont)), 0);
   if (!boxed) return flow;                          // today's behaviour when no chrome is set
   // Chrome opted in: wrap the flow in the same tinted box (+ optional bar) a fenced
   // block gets, so a highlighted `<pre>` and a fenced ``` render coherently. The box
@@ -713,12 +718,18 @@ function buildPre(b: Extract<Block, { t: "pre" }>, width: number, bodyColor: num
   flow.x = 0; flow.y = 0;
   scroller.appendChild(flow);
   box.appendChild(scroller);
-  const c = new Constraint("RichText.codeBox", () => `${flow.height}`, () => {
-    const h = Math.max(1, flow.height + 2 * PROSE.codePad);
+  // THE SCROLLBAR GUTTER (#25): a DOM overlay scrollbar reserves no space of
+  // its own, so without slack it renders ON the last line of code. Reserve a few
+  // px below the text exactly when a long line makes a bar possible; a block
+  // that fits keeps today's height.
+  const size = (): void => {
+    const g = preMaxW > scroller.width + 0.5 ? PROSE.codeGutter : 0;
+    const h = Math.max(1, flow.height + 2 * PROSE.codePad + g);
     box.height = h;
-    scroller.height = flow.height;
+    scroller.height = flow.height + g;
     if (rule !== null) rule.height = h;
-  }, 0);
+  };
+  const c = new Constraint("RichText.codeBox", () => `${flow.height}`, size, 0);
   c.run();
   onDiscard(box, () => c.dispose());
   // The box's height already follows `flow.height` through the constraint above,
@@ -728,6 +739,7 @@ function buildPre(b: Extract<Block, { t: "pre" }>, width: number, bodyColor: num
     const fw = w - padL - padR;
     scroller.width = fw;
     flow.reflow(fw);
+    size();
   });
   return box;
 }
@@ -740,25 +752,37 @@ function buildCode(b: Extract<Block, { t: "code" }>, width: number): View {
   const fm = fontMetrics(fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" }));
   const bar = CODERULE !== null;
   const padL = codePadLeft(bar);
-  const lines = b.text === "" ? 1 : b.text.split("\n").length;
-  const h = Math.ceil(lines * (fm.ascent + fm.descent)) + 2 * PROSE.codePad;
-  const box = rectView(width, h, CODEBG ?? C.codeBg, PROSE.codeRadius);
+  const codeFont = fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" });
+  const textLines = b.text === "" ? [""] : b.text.split("\n");
+  const maxW = textLines.reduce((m, l) => Math.max(m, textWidth(l, codeFont)), 0);
+  const baseH = Math.ceil(textLines.length * (fm.ascent + fm.descent)) + 2 * PROSE.codePad;
+  const box = rectView(width, baseH, CODEBG ?? C.codeBg, PROSE.codeRadius);
   box.clip = true;   // round the box + trim the full-height bar to the corner radius
-  if (bar) { const rule = rectView(PROSE.codeRuleWidth, h, CODERULE!); rule.x = 0; rule.y = 0; box.appendChild(rule); }
+  const rule = bar ? rectView(PROSE.codeRuleWidth, baseH, CODERULE!) : null;
+  if (rule !== null) { rule.x = 0; rule.y = 0; box.appendChild(rule); }
   // an inner scroller holds the text — long lines scroll while the bar stays fixed
   const scroller = new View();
-  scroller.x = padL; scroller.y = PROSE.codePad; scroller.width = width - padL - PROSE.codePad; scroller.height = h - 2 * PROSE.codePad; scroller.scrolls = "x";
+  scroller.x = padL; scroller.y = PROSE.codePad; scroller.scrolls = "x";
   const t = textView(width - padL - PROSE.codePad, sz(CODESIZE), C.codeFg, "normal", b.text);
   t.x = 0; t.y = 0; t.wrap = false; t.fontFamily = CODEFAM;
   scroller.appendChild(t);
   box.appendChild(scroller);
-  // Width sets three widths and nothing else: `h` comes from the LINE COUNT and
-  // the text does not wrap, so neither the runs nor the height depend on it.
-  setRewidth(box, (w) => {
-    box.width = w;
+  // Width sets the widths and the GUTTER (#25): the height itself comes from the
+  // LINE COUNT (the text does not wrap), plus the overlay scrollbar's seat
+  // exactly when a line is longer than the box — see buildPre's twin.
+  const size = (w: number): void => {
     const iw = w - padL - PROSE.codePad;
+    const g = maxW > iw + 0.5 ? PROSE.codeGutter : 0;
+    box.height = baseH + g;
+    scroller.height = baseH - 2 * PROSE.codePad + g;
+    if (rule !== null) rule.height = baseH + g;
     scroller.width = iw;
     t.width = iw;
+  };
+  size(width);
+  setRewidth(box, (w) => {
+    box.width = w;
+    size(w);
   });
   return box;
 }

@@ -255,4 +255,15 @@ await test("a { } reading Date.now() / new Date() warns that it evaluates once; 
   assert.equal(handler, "");
 });
 
+// ── a bare object literal inside { } — the #24 dead end, named (probe-based) ──
+await test("a bare object literal inside { } names the real mistake; the parenthesized form compiles; other errors keep their fragment", async () => {
+  const r = await compile('App [ width = 100, height = 100, cfg: object = { a: "one", b: "two" } ]', { originDir: process.cwd() });
+  assert.ok(r.errors.length > 0, "still an error");
+  assert.ok(r.errors[0].message.includes("its own parentheses"), r.errors[0].message);
+  const ok = await compile('App [ width = 100, height = 100, cfg: object = { ({ a: "one", b: "two" }) } ]', { originDir: process.cwd() });
+  assert.deepEqual(ok.errors.map((e) => e.message), []);
+  const other = await compile('App [ width = 100, height = 100, n: number = { foo bar } ]', { originDir: process.cwd() });
+  assert.ok(other.errors.length > 0 && !other.errors[0].message.includes("its own parentheses"), other.errors[0]?.message);
+});
+
 summarize("diagnostics-hints");
