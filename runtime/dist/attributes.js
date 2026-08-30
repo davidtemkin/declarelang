@@ -74,6 +74,7 @@ export function defineAttributes(ctor, specs) {
         const onTrack = spec.onTrack;
         const trackedOnce = onTrack !== undefined ? new WeakSet() : null;
         const live = spec.live;
+        const trackedHook = spec.tracked;
         Object.defineProperty(ctor.prototype, name, {
             get() {
                 const self = this;
@@ -106,7 +107,8 @@ export function defineAttributes(ctor, specs) {
                         return evalDefault(self, name, defBinding, defOuter);
                     }
                 }
-                return (self.$attrs ?? defaults)[name];
+                const v = (self.$attrs ?? defaults)[name];
+                return trackedHook !== undefined && isTracking() ? trackedHook(self, v) : v;
             },
             set(v) {
                 if (readOnly) {

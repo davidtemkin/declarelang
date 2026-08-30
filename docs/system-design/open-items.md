@@ -38,11 +38,12 @@ Narrative context and the session in which each was found lives in
 | L-20 | language | Component-typed slots cannot be constrained (DECLARE2000) | **high** | open |
 | L-21 | compiler | Method calls resolve by NAME when the receiver is unknowable | high | open |
 | L-22 | language | Datapath/record edges are untyped — the coercion tax | **high** | open |
-| L-23 | language | Plain `.value` property reads wire only the value slot | high | open |
+| L-23 | language | Plain `.value` property reads wire only the value slot | high | **built** (2026-08-30) |
 | L-24 | compiler | The projection refusal (7001) could degrade to tracking | low | sketched |
 | L-25 | library | `Time` — wall-clock as a source component | medium | **built** (2026-08-29) |
 | L-26 | language | `host = browser` marking for DOM-touching script files | low | open (awaiting ruling) |
 | L-27 | compiler | Alias/closure reads silently dropped from static deps | — | **fixed** (6e13f2e3) |
+| L-28 | data | Dataset persistence — IndexedDB-shaped (GH #23) | design | open |
 
 ---
 
@@ -514,7 +515,7 @@ from them — retiring the `""+` tax and the `!`/cast escapes in one move. Relat
 component-typed attr reads scaffold as `T | null` even where provably fed
 (`activeApp!`).
 
-## L-23 — Plain `.value` property reads wire only the value slot · high
+## L-23 — Plain `.value` property reads wire only the value slot · high · **built 2026-08-30**
 
 `{ list.value.wins.length }` compiles, works at boot, and **goes silently stale**
 under `insert`/`removeAt`/`move`/`set` — mutations wake region cells, which only the
@@ -525,10 +526,18 @@ building windows-as-data (the desktop's `recs()` must read
 knowledge). Same silent-staleness family as L-17/L-27, and the extractor can SEE the
 `.value.` chain statically.
 
-**Candidate.** Cheapest honest fix: an extractor warning/refusal when a constraint
-reads *through* `.value` past the first step, naming `read`/`:path`. The deeper fix —
-tracking plain property reads on data trees — changes read cost everywhere and needs
-its own design.
+**Built (2026-08-30, GH #15):** the spelling is CORRECT now, not warned about.
+`Dataset.value` hands TRACKED readers a memoized proxy of the tree
+(data.ts trackedView, via the new `AttrSpec.tracked` hook — `live`'s dual):
+each property step tracks the same per-key region cell `read([…])` uses, nested
+containers proxied lazily; untracked readers (handlers, methods) keep the raw
+tree, so structuredClone and identity checks are untouched. bind.ts routes
+`.value.`-shaped deps to the tracking path (region cells are recreated with the
+value; fixed prewired edges cannot follow them). Boundaries unwrap (RAW symbol):
+toCursor — so `datapath = { d.value.rss.channel }` still resolves — and the
+verbs/value-push, so a tracked view is never stored. Null guards keep their
+meaning (`value != null ? … : -1` never collapses — the reason the .read()
+rewrite option was rejected). Pins in databinding.
 
 ## L-24 — The projection refusal could degrade to tracking · low · sketched
 
@@ -628,3 +637,18 @@ header always reserved for "genuinely dynamic reads". Pinned three ways in
 `test/static-constraint.test.mjs` (find-alias wakes; iterator-closure wakes; a pure
 projection off an alias *keeps* the static path). Measured cost: ~8% of each large
 app's constraints move to tracking — exactly the ones that were stale before.
+
+## L-28 — Dataset persistence, IndexedDB-shaped · design · GH #23
+
+The offline-notes request (ultrasaurus, 2026-08-19): a persisted Dataset should serve
+its last-known value at boot, independent of any fetch resolving. The issue's four
+design questions are the right ones and the data round starts from them: (1) single
+value vs keyed COLLECTION (a notes store keyed by filename, secondary index on tags —
+IndexedDB-shaped): which is `persistence`'s unit? (2) offline-first read at boot;
+(3) WRITE DURABILITY before a same-tab navigation — an awaitable commit, not
+fire-and-forget; (4) graceful degradation where storage itself throws (private
+browsing, quota) as a documented, handleable state, not a defensive wrap. localStorage
+is ruled out by the mirror case (~5–10MB cap). Interim path, verified 2026-08-30: a
+`script [ "store.ts" ]` module is plain bundled TypeScript outside the { }
+host-global rule — an app keeps its own IndexedDB mirror there and feeds a Dataset
+from handlers (the teach hints for localStorage/indexedDB now say so).

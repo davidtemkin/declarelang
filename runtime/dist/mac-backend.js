@@ -34,6 +34,7 @@ export const OP = {
     IGNORESCROLL: 33, RICHWIDTH: 34, BLEND: 35, BACKDROP: 36, TINT: 37,
     ROTATE: 38, MEDIA: 39,
     RASTERSCALE: 40,
+    EDITSEL: 41,
 };
 function host() {
     const h = globalThis.__declareMacHost;
@@ -614,6 +615,8 @@ class MacSurface {
         });
     }
     activateEditable(active) { emit(OP.EDITFOCUS, this.id, active ? 1 : 0); }
+    /** TextInput.select's write half (#22) — the overlay clamps and applies. */
+    setSelection(start, end) { emit(OP.EDITSEL, this.id, start, end); }
     insertChild(child, before) {
         const c = child;
         const b = before;

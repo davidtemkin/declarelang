@@ -157,10 +157,43 @@ export class TextInput extends Editor {
         fireEvent(this, "input", v);
     }
     /** Declare focus arrived/left — give or take the platform caret (Layer 2 hook,
-     *  separate from the author's onFocus/onBlur). */
+     *  separate from the author's onFocus/onBlur). A held select() applies HERE,
+     *  after activation — so Tab and programmatic focus land where the program
+     *  said. A pointer CLICK is the exception, by the platform's own ordering:
+     *  the browser places the click's caret at mouseup, after focus handlers —
+     *  and that is the right ranking, because a deliberate click names a spot. */
     focusChanged(focused) {
         this.focused = focused; // the reactive fact themes and the house edge read
         this.surface?.activateEditable(focused);
+        if (focused)
+            this.applySelection();
+    }
+    /** Place the caret or select a range (#22) — the write half of the native
+     *  selection, one verb: a caret IS a zero-length range. `select(7)` puts the
+     *  caret at 7; `select(3, 9)` selects the range; the word forms need no
+     *  lengths — `select("start")`, `select("end")`, `select("all")`. Numbers
+     *  clamp to the text, like every scroll write. Applied now if the field
+     *  holds focus; otherwise HELD and applied at the next non-pointer focus
+     *  (Tab, or a program's), re-resolved against the text of that moment — a
+     *  click into the field keeps the clicked caret. */
+    select(at, end) {
+        this.pendingSel = { at, end };
+        if (this.focused)
+            this.applySelection();
+    }
+    pendingSel = null;
+    applySelection() {
+        const p = this.pendingSel;
+        if (p === null)
+            return;
+        this.pendingSel = null;
+        const len = this.text.length;
+        const clamp = (n) => Math.max(0, Math.min(len, Math.floor(n)));
+        const [s, e] = p.at === "start" ? [0, 0]
+            : p.at === "end" ? [len, len]
+                : p.at === "all" ? [0, len]
+                    : [clamp(p.at), clamp(p.end ?? p.at)];
+        this.surface?.setSelection?.(Math.min(s, e), Math.max(s, e));
     }
 }
 defineAttributes(TextInput, {

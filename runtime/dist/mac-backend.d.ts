@@ -44,6 +44,7 @@ export declare const OP: {
     readonly ROTATE: 38;
     readonly MEDIA: 39;
     readonly RASTERSCALE: 40;
+    readonly EDITSEL: 41;
 };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
@@ -261,6 +262,8 @@ declare class MacSurface implements Surface {
     setInput(sink: InputSink | null, wants?: InputWants): void;
     setEditable(spec: EditableSpec | null): void;
     activateEditable(active: boolean): void;
+    /** TextInput.select's write half (#22) — the overlay clamps and applies. */
+    setSelection(start: number, end: number): void;
     insertChild(child: Surface, before: Surface | null): void;
     destroy(): void;
     /** Content extent for scrolling: the furthest child bottom. */

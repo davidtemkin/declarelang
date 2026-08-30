@@ -50,7 +50,11 @@ deps) {
     // subscription is the data-binding primitive's to own (docs/system-design/constraints.md §3),
     // so such a constraint stays on the tracking path. (The extractor still lists
     // the region read-path, for legibility/tooling.)
-    const regionReactive = deps !== undefined && deps.some((rp) => rp.startsWith(":") || rp.includes(".read("));
+    // `.value.<field>` — a plain chain INTO a data tree — joins them (#15): the
+    // dataset's tracked view (data.ts trackedView) makes such reads subscribe to
+    // region cells, which live on the value tree and are recreated with it, so
+    // the tracking path (re-tracked each run) is the only honest wiring here too.
+    const regionReactive = deps !== undefined && deps.some((rp) => rp.startsWith(":") || rp.includes(".read(") || rp.includes(".value."));
     if (deps !== undefined && deps.length > 0 && !regionReactive) {
         // Each read-path is an analyzable expression (`this.root.n`, `this.theme`);
         // compile once and read it under tracking to wire the (stable) edge.

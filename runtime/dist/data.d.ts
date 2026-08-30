@@ -7,6 +7,7 @@ export interface Cursor {
     readonly data: Dataset;
     readonly path: readonly string[];
 }
+export declare function unwrapValue<T>(v: T): T;
 /** A Dataset holds embedded JSON (language §9: `events: Dataset { … }` — the
  *  `{ }` carries its JSON meaning there) and is the data half every source
  *  shares: the reactive `value` slot, region reads, and the mutation API.

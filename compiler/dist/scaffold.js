@@ -537,6 +537,10 @@ export const LANGUAGE_API = {
     // The edit-session VERBS (editor.ts): `dirty`/`valid`/`error` are schema
     // attrs (readable state), but committing/reverting the draft are calls.
     Editor: [`  commit(): void;`, `  revert(): void;`],
+    // The selection write half (#22): one verb — a caret is a zero-length range.
+    // "start" / "end" / "all" are the word forms; numbers clamp; `end` omitted
+    // means a caret at `at`.
+    TextInput: [`  select(at: number | "start" | "end" | "all", end?: number): void;`],
     // The State verbs (state.ts): drive `applied` imperatively — legal only on
     // an UNGATED state (gate XOR verbs; a gated state throws with the rule named).
     // Implemented and advertised since the start; unreachable from source until

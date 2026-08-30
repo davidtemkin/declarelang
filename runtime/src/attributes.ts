@@ -66,6 +66,13 @@ export interface AttrSpec<S, V> {
    *  (time.ts): `clock.second` in a handler is the real second, whatever the
    *  declared tick. Never consulted under tracking. */
   live?: (self: S) => V;
+  /** A view for TRACKED readers — `live`'s dual: transforms the stored value
+   *  on its way into a { } (never to an untracked read). Dataset.value
+   *  (data.ts) hands tracked readers a TRACKING VIEW of its tree, so plain
+   *  property chains subscribe to the same per-key region cells read([…])
+   *  uses (#15 / open-items L-23). Applied on the plain-storage path only —
+   *  no carrier of this hook follows or defBinds. */
+  tracked?: (self: S, v: V) => V;
 }
 
 type Push = (self: object, v: unknown) => void;
@@ -139,6 +146,7 @@ export function defineAttributes<S extends object>(
     const onTrack = spec.onTrack as ((self: object) => void) | undefined;
     const trackedOnce = onTrack !== undefined ? new WeakSet<object>() : null;
     const live = spec.live as ((self: object) => unknown) | undefined;
+    const trackedHook = spec.tracked as ((self: object, v: unknown) => unknown) | undefined;
     Object.defineProperty(ctor.prototype, name, {
       get(this: object): unknown {
         const self = this as Carrier;
@@ -166,7 +174,8 @@ export function defineAttributes<S extends object>(
             return evalDefault(self, name, defBinding, defOuter);
           }
         }
-        return (self.$attrs ?? defaults)[name];
+        const v = (self.$attrs ?? defaults)[name];
+        return trackedHook !== undefined && isTracking() ? trackedHook(self, v) : v;
       },
       set(this: object, v: unknown): void {
         if (readOnly) {

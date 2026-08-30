@@ -52,6 +52,46 @@ const CELLS = new WeakMap();
 // come back out as a place: the value itself knows where it lives.
 const TAGS = new WeakMap();
 const isContainer = (v) => typeof v === "object" && v !== null;
+// ── the tracked VIEW of a value tree (#15 / open-items L-23) ────────────────
+// A { } reading `db.value.issues` gets a PROXY of the tree: each property step
+// tracks the SAME per-key region cell read([…]) subscribes to, and nested
+// containers come back proxied, lazily. Untracked readers (handlers, methods)
+// get the raw tree — plain JS, one-time reads, structuredClone-safe. One proxy
+// per raw container (memoized), so identity is stable across reads; the raw
+// container stays reachable (RAW) for the identity-keyed lookups (TAGS/
+// toCursor, the verbs), which unwrap at their boundaries.
+const RAW = Symbol("declare.raw");
+const VIEWS = new WeakMap();
+export function unwrapValue(v) {
+    if (isContainer(v)) {
+        const raw = v[RAW];
+        if (raw !== undefined)
+            return raw;
+    }
+    return v;
+}
+function trackedView(v) {
+    if (!isContainer(v))
+        return v;
+    let view = VIEWS.get(v);
+    if (view === undefined) {
+        view = new Proxy(v, {
+            get(t, key, recv) {
+                if (key === RAW)
+                    return t;
+                const out = Reflect.get(t, key, recv);
+                if (typeof key === "string") {
+                    if (isTracking())
+                        cellAt(t, key).track();
+                    return trackedView(out);
+                }
+                return out; // symbols (iterators, brands) pass raw
+            },
+        });
+        VIEWS.set(v, view);
+    }
+    return view;
+}
 function cellAt(container, key) {
     let cells = CELLS.get(container);
     if (cells === undefined)
@@ -152,7 +192,7 @@ export class Dataset extends Node {
      *  unresolved (a missing region); consumers surface it as null. Takes the
      *  path currency: segments, or an RFC 6901 pointer string. */
     read(path) {
-        let cur = this.value; // tracked: whole-value replacement wakes every reader
+        let cur = unwrapValue(this.value); // the machinery navigates the RAW tree (tracked views are the { } boundary's) // tracked: whole-value replacement wakes every reader
         let container = null;
         let key = "";
         for (const seg of toSegs(path)) {
@@ -183,6 +223,7 @@ export class Dataset extends Node {
      *  is just the key "-". Equality-gated: writing the value already there
      *  wakes nothing. */
     set(path, v) {
+        v = unwrapValue(v); // never store a tracked view
         // An EMPTY path addresses the whole document (guide ch. 9's draft-lands
         // spelling: `record.set([], app.draft.value)`) — one reactive write
         // through the value slot: retag and wake every reader, exactly like
@@ -213,6 +254,7 @@ export class Dataset extends Node {
     }
     /** Insert `v` at `index` of the array at `path`. */
     insert(path, index, v) {
+        v = unwrapValue(v); // never store a tracked view
         const { arr, chain, segs } = this.array(path);
         arr.splice(index, 0, v);
         tagTree(this, v, [...segs, String(index)]);
@@ -252,7 +294,7 @@ export class Dataset extends Node {
     /** Walk `segs` from the root, collecting the (container, key) step chain —
      *  which is exactly the ancestor set a write must wake. */
     locate(segs) {
-        let cur = this.value;
+        let cur = unwrapValue(this.value); // the machinery navigates the RAW tree (tracked views are the { } boundary's)
         const chain = [];
         for (let i = 0;; i++) {
             if (!isContainer(cur)) {
@@ -284,7 +326,22 @@ defineAttributes(Dataset, {
     // lets `datapath = { … }` expressions turn dereferenced values back into
     // places. The write itself is ordinary reactive machinery: every data read
     // tracked this slot, so replacement wakes them all.
-    value: { def: null, push: (d, v) => tagTree(d, v, []) },
+    value: {
+        def: null,
+        // arriving values are stored RAW: a computed contents that embedded another
+        // dataset's tracked view normalizes back before tagging
+        push: (d, v) => {
+            const raw = unwrapValue(v);
+            if (raw !== v) {
+                setBound(d, "value", raw);
+                return;
+            }
+            tagTree(d, v, []);
+        },
+        // a TRACKED reader gets the tracking view (see trackedView above);
+        // untracked readers — handlers, methods — keep the raw tree
+        tracked: (_d, v) => trackedView(v),
+    },
     schema: { def: null },
     // A derived Dataset's `contents = { … }` binds here; its push mirrors the
     // computed value into `value` through value's own reactive setter — so a
@@ -529,6 +586,7 @@ defineAttributes(DataSource, {
 export function toCursor(v, context) {
     if (v === null || v === undefined)
         return null;
+    v = unwrapValue(v); // a tracked view unwraps to the tagged raw container
     if (!isContainer(v)) {
         throw new DeclareError(`${context}: a datapath is a place in a dataset — got ${typeof v} (point at an object or array; read leaf fields with :path)`);
     }
@@ -537,7 +595,7 @@ export function toCursor(v, context) {
         throw new DeclareError(`${context}: this value belongs to no Dataset/DataSource — a cursor can only point into declared data`);
     }
     if (resolveTracked(tag.data, tag.path) !== v) {
-        const healed = locateByIdentity(tag.data.value, v, []);
+        const healed = locateByIdentity(unwrapValue(tag.data.value), v, []);
         if (healed === null) {
             throw new DeclareError(`${context}: this value is no longer anywhere in its dataset`);
         }
@@ -549,7 +607,7 @@ export function toCursor(v, context) {
 /** Navigate `path`, registering a tracked read at EVERY step (unlike
  *  Dataset.read's deepest-slot rule): a cursor stands on its whole chain. */
 function resolveTracked(data, path) {
-    let cur = data.value; // tracked
+    let cur = unwrapValue(data.value); // tracked (the slot edge), then the RAW tree
     for (const seg of path) {
         if (!isContainer(cur))
             return undefined;

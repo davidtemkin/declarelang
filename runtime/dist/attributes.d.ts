@@ -37,6 +37,13 @@ export interface AttrSpec<S, V> {
      *  (time.ts): `clock.second` in a handler is the real second, whatever the
      *  declared tick. Never consulted under tracking. */
     live?: (self: S) => V;
+    /** A view for TRACKED readers — `live`'s dual: transforms the stored value
+     *  on its way into a { } (never to an untracked read). Dataset.value
+     *  (data.ts) hands tracked readers a TRACKING VIEW of its tree, so plain
+     *  property chains subscribe to the same per-key region cells read([…])
+     *  uses (#15 / open-items L-23). Applied on the plain-storage path only —
+     *  no carrier of this hook follows or defBinds. */
+    tracked?: (self: S, v: V) => V;
 }
 /** Declare a class's reactive attributes: defaults + pushes, installed as
  *  prototype accessors. Call once per class, at module load, right under the

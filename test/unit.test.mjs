@@ -1580,6 +1580,75 @@ await test("draw(d) { … } — the language surface — rides the recorded-draw
   assert.deepEqual(pushes()[1][1].bounds, { x: 0, y: 0, w: 30, h: 5 }, "re-recorded against the new width");
 });
 
+// ── #15: plain .value.<field> reads are reactive (the tracked view) ─────────
+
+await test("a { } reading db.value.issues wakes on region writes; null guards keep their meaning; handlers get the raw tree", async () => {
+  const r = await compile(`App [ width = 200, height = 80,
+    db: Dataset { { "issues": [] } },
+    shown: Dataset [ contents = { ({ total: ((app.db.value.issues ?? []).length) }) } ],
+    src: DataSource [ url = "never.json" ],
+    guard: View [ width = { app.src.value != null ? 50 : 7 }, height = 5 ],
+    derived: View [ width = { (app.shown.value.total ?? 0) + 1 }, height = 5 ],
+    plain: View [ width = { ((app.db.value.issues ?? []).length) + 1 }, height = 5 ],
+    grab() -> object { return app.db.value },
+  ]`, { originDir: process.cwd() });
+  assert.deepEqual(r.errors.map((e) => e.message), []);
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.plain.width, 1);
+    assert.equal(app.derived.width, 1);
+    assert.equal(app.guard.width, 7, "a null-guarded read keeps its null branch");
+    app.db.insert(["issues"], 0, { t: "a" }); settle();
+    assert.equal(app.plain.width, 2, "the plain .value.<field> read woke");
+    assert.equal(app.derived.width, 2, "…and the reader of a derived dataset's value woke too");
+    app.db.insert(["issues"], 1, { t: "b" }); settle();
+    assert.equal(app.plain.width, 3);
+    assert.equal(app.derived.width, 3);
+    app.db.removeAt(["issues"], 0); settle();
+    assert.equal(app.plain.width, 2);
+    const got = app.grab();
+    assert.doesNotThrow(() => structuredClone(got), "a handler's read is the raw tree — clonable");
+  } finally { app.discard(); }
+});
+
+await test("datapath = { d.value.<branch> } still resolves through the tracked view", async () => {
+  const r = await compile(`App [ width = 200, height = 80,
+    d: Dataset { { "rss": { "channel": { "items": [ { "n": 3 }, { "n": 4 } ] } } } },
+    list: View [ width = 100, height = 50, datapath = { app.d.value.rss.channel },
+      View [ datapath = :items[], width = :n, height = 2 ] ],
+  ]`, { originDir: process.cwd() });
+  assert.deepEqual(r.errors.map((e) => e.message), []);
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.deepEqual(app.list.children.map((v) => v.width), [3, 4]);
+    app.d.insert(["rss", "channel", "items"], 2, { n: 5 }); settle();
+    assert.deepEqual(app.list.children.map((v) => v.width), [3, 4, 5], "replication follows a region write under the same cursor");
+  } finally { app.discard(); }
+});
+
+// ── markdown code blocks: the overlay scrollbar's gutter (#25) ─────────────
+
+await test("a code block reserves a scrollbar gutter exactly when a line overflows", () => {
+  const mk = (line) => {
+    const app = build(`App [ width = 300, height = 200, md: Markdown [ x = 10, y = 10, width = 260 ] ]`);
+    app.attach(new CanvasBackend(), null);   // blocks build only against a surface (render() needs one)
+    app.md.text = "\`\`\`\n" + line + "\n\`\`\`";
+    settle();
+    let hit = null;
+    const walk = (v) => { for (const c of v.children ?? []) { if (c.scrolls === "x") hit = { scroller: c, box: c.parent }; walk(c); } };
+    walk(app);
+    return { app, hit };
+  };
+  const short = mk("x = 1");
+  assert.ok(short.hit, "found the code scroller");
+  const long = mk("a single very long line of code that overflows the fenced block width by a lot, forcing horizontal scrolling");
+  assert.ok(long.hit, "found the overflowing scroller");
+  assert.ok(long.hit.box.height > short.hit.box.height, "the overflowing block is taller — the gutter");
+  assert.equal(long.hit.box.height - short.hit.box.height, 10, "…by exactly the gutter");
+  assert.ok(long.hit.scroller.height > short.hit.scroller.height, "the scroller carries the slack, so the bar sits below the text");
+  short.app.discard(); long.app.discard();
+});
+
 // ── the canvas HORIZONTAL scroll regime (setScrollX / scrollToX / scrollBy dx) ──
 // Found live in the Files browser (2026-08-29): the strip's reveal animator wrote
 // scrollX, the canvas surface had no write half, and the hit walk (which the

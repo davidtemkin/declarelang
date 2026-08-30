@@ -1319,6 +1319,33 @@ class CanvasSurface {
         this.compositor.registerEditable(this);
         this.reposition();
     }
+    /** The caret/selection write half (TextInput.select, #22): land the range on
+     *  the native element. For a collapsed range at either extreme, bring the
+     *  caret's end of the box into view — the platform reveals mid-text carets
+     *  itself once typing starts. */
+    setSelection(start, end) {
+        const el = this.editEl;
+        if (el === null)
+            return;
+        const len = el.value.length;
+        const s = Math.max(0, Math.min(len, start));
+        const e = Math.max(0, Math.min(len, end));
+        try {
+            el.setSelectionRange(s, e, "forward");
+        }
+        catch {
+            return;
+        } // input types without selection
+        if (s === e) {
+            if (e <= 0) {
+                el.scrollTop = 0;
+                el.scrollLeft = 0;
+            }
+            else if (e >= len) {
+                el.scrollTop = el.scrollHeight;
+            }
+        }
+    }
     activateEditable(active) {
         if (this.editEl === null)
             return;
