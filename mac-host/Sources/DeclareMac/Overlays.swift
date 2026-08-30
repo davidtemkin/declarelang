@@ -657,6 +657,23 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
         return false
     }
 
+    /// EDITSEL — the caret/selection write half (TextInput.select, #22).
+    /// Clamped to the current string. The single-line path goes through the
+    /// field editor, which exists once the field has focus — the runtime
+    /// orders EDITFOCUS first and re-sends a held selection at focus.
+    func setSelection(_ start: Int, _ end: Int) {
+        if let tv = textView {
+            let n = (tv.string as NSString).length
+            let s = max(0, min(n, start)), e = max(0, min(n, end))
+            tv.setSelectedRange(NSRange(location: s, length: e - s))
+            tv.scrollRangeToVisible(NSRange(location: s == e ? s : e, length: 0))
+        } else if let f = field, let ed = f.currentEditor() {
+            let n = (ed.string as NSString).length
+            let s = max(0, min(n, start)), e = max(0, min(n, end))
+            ed.selectedRange = NSRange(location: s, length: e - s)
+        }
+    }
+
     func setFocus(_ on: Bool) {
         let responder: NSView? = multiline ? textView : field
         if on { view.window?.makeFirstResponder(responder) }

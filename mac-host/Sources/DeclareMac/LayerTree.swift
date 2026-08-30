@@ -632,6 +632,8 @@ final class LayerTree {
             } else { n.editable?.remove(); n.editable = nil }
         case 25: // EDITFOCUS
             nodes[id]?.editable?.setFocus(num(a(0)) != 0)
+        case 41: // EDITSEL — the caret/selection write half (TextInput.select)
+            nodes[id]?.editable?.setSelection(Int(num(a(0))), Int(num(a(1))))
         case 26: // RICH — handled synchronously by richLayout(); nothing here
             break
         case 28: // EMBED — the host reads markers from JS; nothing to draw here,

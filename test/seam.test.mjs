@@ -184,6 +184,13 @@ const TABLE = {
     mac: true,
     headless: NOT_APPLICABLE,
   },
+  // The caret/selection write half (TextInput.select, GH #22, 2026-08-30): DOM
+  // setSelectionRange, the canvas overlay (same element), mac EDITSEL → the
+  // editable overlay's setSelectedRange.
+  setSelection: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
   watchVisibility: {
     dom: true,
     canvas: "NOT A GAP — deliberate division of labor (2026-08-19): the runtime computes the visibility facts itself off the ancestor walk (view.ts, the generic feed — exact for everything the language expresses) wherever the backend lacks PAGE context. The backend member exists for backends that can see what the app cannot (a host page's scroll/transform over an embedded box) — on canvas that composition (root-element IO ∩ the walk) is the recorded follow-on for the embedded-canvas case",
@@ -310,7 +317,8 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 22,   // +setRasterScale (2026-08-26): the at-rest composed scale, for a backend that holds pixels — DOM implements, canvas/mac replay/describe
+  assert.equal(members.length, 23,   // +setSelection (2026-08-30): the caret write half, TextInput.select — all three implement
+                                     // +setRasterScale (2026-08-26): the at-rest composed scale, for a backend that holds pixels — DOM implements, canvas/mac replay/describe
                                      // +refreshVisibility (2026-08-20): the watch's pull half — DOM-only, the sprung-camera fix
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +

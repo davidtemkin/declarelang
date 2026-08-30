@@ -1132,6 +1132,38 @@ await test("full gesture control: focus locks the viewport, blur releases it", a
   await page.waitForFunction(() => document.querySelector('meta[name="viewport"]') === null, { timeout: 5000 });
 });
 
+
+await test("TextInput.select: words and numbers place the caret; a held select applies at focus and beats the platform (#22)", async () => {
+  await open("/dom-lock");
+  const sel = () => page.evaluate(() => {
+    const el = document.activeElement;
+    return { s: el.selectionStart, e: el.selectionEnd, tag: el.tagName };
+  });
+  // held BEFORE focus: Tab (a non-pointer focus) delivers the held selection —
+  // while a CLICK keeps its clicked caret, by the platform's own ordering
+  // (the click caret lands at mouseup, after focus handlers), which is the
+  // ranking we want: a deliberate click names a spot.
+  await page.evaluate(() => { const f = window.__app.field; f.text = "0123456789"; f.select("start"); });
+  await page.keyboard.press("Tab");
+  await new Promise((r) => setTimeout(r, 120));
+  let g = await sel();
+  assert.equal(g.tag, "INPUT", "Tab focused the native field");
+  assert.deepEqual([g.s, g.e], [0, 0], "the held select(\"start\") applied at focus");
+  // focused: immediate application, every form
+  await page.evaluate(() => window.__app.field.select(2, 5));
+  g = await sel(); assert.deepEqual([g.s, g.e], [2, 5], "a range");
+  await page.evaluate(() => window.__app.field.select("end"));
+  g = await sel(); assert.deepEqual([g.s, g.e], [10, 10], "the word form end");
+  await page.evaluate(() => window.__app.field.select("all"));
+  g = await sel(); assert.deepEqual([g.s, g.e], [0, 10], "select all");
+  await page.evaluate(() => window.__app.field.select(3));
+  g = await sel(); assert.deepEqual([g.s, g.e], [3, 3], "one number = a caret");
+  await page.evaluate(() => window.__app.field.select(-4));
+  g = await sel(); assert.deepEqual([g.s, g.e], [0, 0], "clamped low");
+  await page.evaluate(() => window.__app.field.select(99));
+  g = await sel(); assert.deepEqual([g.s, g.e], [10, 10], "clamped high");
+});
+
 await browser.close();
 server.close();
 summarize("gesture");

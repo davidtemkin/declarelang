@@ -384,6 +384,11 @@ export interface Surface {
    *  host/mock omits them, so callers optional-call. */
   scrollToY?(v: number): void;
   scrollToX?(v: number): void;
+  /** Place the caret / select a range in this surface's native editable — the
+   *  write half of TextInput.select (#22). Both ends are already resolved and
+   *  ordered by the caller; the backend clamps to its element's value. A no-op
+   *  where no editable exists; optional like the scroll writes. */
+  setSelection?(start: number, end: number): void;
   /** Reveal a heading anchor INSIDE a native rich-text flow (location.md §6). A
    *  flow coalesces its headings into one element/region, so revealing one is not
    *  a whole-surface `scrollIntoView`. `slug` names the heading; `within` is its

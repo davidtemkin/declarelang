@@ -72,3 +72,16 @@ Fires on every edit, carrying the new text — for live validation or search-as-
 Fires when the user submits a single-line field (Return). On a `multiline` field Return
 makes a newline and this never fires.
 
+
+## select()
+`select(at, end?)` — place the caret or select a range; the write half of the native
+selection (the read half — selection facts — is not modeled yet). One verb, because a
+caret **is** a zero-length range: `select(7)` puts the caret at 7, `select(3, 9)`
+selects the range, and the word forms need no lengths — `select("start")`,
+`select("end")`, `select("all")`. Numbers clamp to the text, like a scroll write.
+Applied immediately while the field holds focus; otherwise **held** and applied at the
+next non-pointer focus (Tab, or a program's), re-resolved against the text of that
+moment — so `field.select("start")` on a freshly loaded draft puts the caret at the
+top instead of the platform's end-of-value default. A pointer click into the field
+keeps the clicked caret: a deliberate click names a spot, and outranks a held
+selection by the platform's own ordering.
