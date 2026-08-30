@@ -24,8 +24,14 @@ internal pushes needs no release at all.
 ## How
 
 1. Make sure the tree is green and pushed (`npm test`, derive fresh).
-2. Bump `"version"` in package.json (minor for new surface, patch for a
-   fix to surface already released), commit, push.
+2. Bump `"version"` in package.json — **patch** (0.4.x) for the rolling
+   cadence, which is almost every release: new forms, new verbs and facts,
+   sharpened semantics of what already shipped — the language evolving in
+   place. **Minor** only for a milestone that reframes what the language
+   is — a new pillar of the model, a rework that re-teaches the guide.
+   (Ruled 2026-08-30, after 0.4.0: the earlier "minor for new surface"
+   rule would have cut a minor at nearly every release and marched the
+   number to 1.0 long before the language is there.) Commit, push.
 3. Write the notes. Teach, don't enumerate: what the new form is, why it
    exists, a small example — a reader should be able to use the feature from
    the notes alone. Commit messages are not release notes.
