@@ -66,6 +66,7 @@ const SUITE = [
   "test/draw-bounds.test.mjs",     // text bounds, per-op extents, replayArea, byte-identical culling
   "test/island.test.mjs",
   "test/island-browser.test.mjs",
+  "test/two-way.test.mjs",         // the apps/two-way showcase: the whole embedder surface on one page
   "test/verify-apps.test.mjs",
   "test/eval-references.test.mjs",
 ];

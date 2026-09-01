@@ -1,0 +1,65 @@
+// dial.declare — "the dial", a Declare app written to live INSIDE an ordinary
+// HTML page (Scenario I of the two-way demo — see index.html beside this file).
+//
+// The whole conversation with the page happens through TWO channels, and
+// neither of them appears in this file as plumbing — that is the point:
+//
+//   page → app   the page holds the boot handle (also el.__declareApp) and
+//                simply WRITES `app.hue = v`. A declared attribute is a fact;
+//                assigning it re-derives every constraint below, exactly as if
+//                the slider here had moved. No API on this side, no event.
+//
+//   app → page   the page WATCHES `observe(() => app.hue, cb)` — one callback
+//                per settle in which the value actually changed. This app never
+//                calls out; it just keeps its facts true, and the page listens.
+//
+// Compare crossings.declare (Scenario II): there the same two directions are
+// spelled as `external` declarations and the HOST'S CONSTRAINTS do the wiring.
+// Here the host is plain JS, so the wiring lives in the page script instead.
+
+App [ width = 340, height = 220, fill = #14181D,
+
+    // The one fact this app trades in. The slider writes it, the page writes
+    // it, and everything colored below derives from it — a single place, so
+    // the two writers can never disagree for longer than one settle.
+
+    hue: number = 210,
+
+    // hue → packed 0xRRGGBB. A Declare color is a plain number, so computing
+    // one is ordinary arithmetic (standard HSL → RGB, s/l as 0…1 fractions).
+
+    hueColor(h: number, s: number, l: number) -> number {
+        const f = (n) => {
+            const k = (n + h / 30) % 12
+            const c = l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+            return Math.round(c * 255)
+            }
+        return (f(0) << 16) | (f(8) << 8) | f(4)
+        },
+
+    tag: Text [ x = 12, y = 10, textColor = #6C7683, fontSize = 11,
+        text = "DECLARE APP · THE DIAL" ],
+
+    // The swatch IS the fact, made visible: its fill re-derives from `hue`
+    // whether the write came from the slider below or from the page outside.
+    // Nothing here can tell the difference — which is what makes the page's
+    // writes first-class.
+
+    swatch: View [ width = 96, height = 96, cornerRadius = 48,
+        x = { (parent.width - width) / 2 }, y = 38,
+        fill = { app.hueColor(app.hue, 0.62, 0.55) } ],
+
+    readout: Text [ y = 142, x = { (parent.width - width) / 2 },
+        textColor = #E7EEF2, fontSize = 15, fontWeight = medium,
+        text = { "hue " + Math.round(app.hue) + "°" } ],
+
+    // The value pattern (guide ch. 8): the slider FOLLOWS the fact — so a
+    // write from the page moves this handle too — and its `input` override
+    // DELIVERS drags back to the same fact rather than keeping them private.
+
+    dial: Slider [ x = { (parent.width - width) / 2 }, y = 172, width = 260,
+        min = 0, max = 360, step = 1,
+        value = { app.hue },
+        input(v: number) { app.hue = v }
+        ]
+    ]

@@ -44,6 +44,18 @@ for (const f of apps) {
   test(`example ${f} — clean through R4 (compile, typecheck, boot)`, () => assertClean(verify(f), f));
 }
 
+// A directory whose ENTRY is an HTML page (not a name-matched program) escapes
+// the sweep above; its programs are runnable examples all the same and list
+// themselves here. (two-way: the embedding showcase — three apps, one page.)
+const htmlEntryPrograms = [
+  "apps/two-way/dial.declare",
+  "apps/two-way/pulse.declare",
+  "apps/two-way/crossings.declare",
+];
+for (const f of htmlEntryPrograms) {
+  test(`example ${f} — clean through R4 (compile, typecheck, boot)`, () => assertClean(verify(f), f));
+}
+
 // ── every component-library source, under the probe wrapper ──────────────────
 const libDir = join(ROOT, "library");
 const libFiles = existsSync(libDir)

@@ -21,7 +21,9 @@ tools/internal/pointer
 
 # your own scratch apps: the getting-started home (operational:getting-started,
 # guide:loop) is yours, local, and never part of the distro — the committed
-# examples live in apps/.
+# examples live in apps/. RULE: in the main distro checkout my-apps/ stays
+# EMPTY — scratch is fine while working, but it is deleted before any
+# commit/push; anything worth keeping graduates into apps/.
 my-apps/
 
 # misc

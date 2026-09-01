@@ -1,0 +1,81 @@
+// pulse.declare — "the pulse", the second Declare tenant of Scenario I
+// (see index.html). Same two page-facing channels as dial.declare, pointed
+// the other way around:
+//
+//   page → app   the page writes `app.hue` (it forwards the dial's hue, so
+//                the two Declare apps stay in step THROUGH the page — in
+//                Scenario I the HTML page is the bus, and the wiring between
+//                apps is imperative JS in the page script).
+//
+//   app → page   this app OWNS `beats` — every click in here bumps it — and
+//                the page observes it out into an ordinary <output> element.
+//                The app never notifies anyone; it just writes its own fact.
+
+// One of the eight bars: every slot a pure function of the app's two facts —
+// color from `hue` (written by the page), height from `beats` (written by the
+// click handler). Either write lands, the whole row re-derives.
+
+class Bar extends View [ i: number = 0,
+    width = 26, cornerRadius = 4,
+    height = { 24 + 90 * Math.abs(Math.sin((this.i + 1) * (app.beats + 1) * 0.83)) },
+    y = { 120 - height },
+    fill = { app.hueColor((app.hue + this.i * 9) % 360, 0.55, 0.38 + 0.04 * this.i) }
+    ]
+
+
+App [ width = 340, height = 220, fill = #14181D,
+
+    // Imported fact: the page writes it. Nothing in this app changes hue —
+    // ownership stays clear even without the bridge's referee, by discipline.
+
+    hue: number = 210,
+
+    // Exported fact: this app writes it, the page only reads (observes) it.
+
+    beats: number = 0,
+
+    // Same helper as dial.declare. Programs are separate compilation worlds —
+    // the twin lives there on purpose; sharing would need an include, and two
+    // dozen characters don't earn one.
+
+    hueColor(h: number, s: number, l: number) -> number {
+        const f = (n) => {
+            const k = (n + h / 30) % 12
+            const c = l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+            return Math.round(c * 255)
+            }
+        return (f(0) << 16) | (f(8) << 8) | f(4)
+        },
+
+    tag: Text [ x = 12, y = 10, textColor = #6C7683, fontSize = 11,
+        text = "DECLARE APP · THE PULSE" ],
+
+    hint: Text [ x = 12, y = 196, textColor = #6C7683, fontSize = 11,
+        text = "click anywhere in here" ],
+
+    counter: Text [ y = 10, x = { parent.width - width - 12 },
+        textColor = #E7EEF2, fontSize = 15, fontWeight = semibold,
+        text = { app.beats + (app.beats == 1 ? " beat" : " beats") } ],
+
+    // Eight bars, every one a pure function of the two facts above: color
+    // from `hue` (written by the page), height from `beats` (written by the
+    // click below). Either write lands, the whole row re-derives — the same
+    // update model whichever side of the boundary the write came from.
+
+    row: View [ x = 24, y = 60, width = { parent.width - 48 }, height = 120,
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Bar [ i = 0 ],
+        Bar [ i = 1 ],
+        Bar [ i = 2 ],
+        Bar [ i = 3 ],
+        Bar [ i = 4 ],
+        Bar [ i = 5 ],
+        Bar [ i = 6 ],
+        Bar [ i = 7 ]
+        ],
+
+    // The exported fact's only writer. The page's observe() sees the new value
+    // at the close of this settle — one callback, no polling, no event bus.
+
+    onClick() { beats = beats + 1 }
+    ]

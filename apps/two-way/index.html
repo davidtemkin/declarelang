@@ -1,0 +1,252 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Two-Way Street — Declare ⇄ the web</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="256x256" href="../../assets/favicon.png">
+<!--
+  TWO-WAY STREET — one page, both embedding directions, both directions LIVE.
+
+  Scenario I (top):    an ordinary HTML page hosts two Declare apps in
+                       <div data-declare-embed> boxes. The page writes facts
+                       INTO the apps (plain property writes on the boot
+                       handle) and watches facts OUT with observe() — the
+                       wiring between everything is imperative JS, down in
+                       the <script> at the bottom.
+
+  Scenario II (bottom): the mirror image. ONE Declare app (crossings.declare)
+                       hosts two foreign web apps (tally.js, orbit.js) in
+                       DOMIsland boxes. There the wiring is CONSTRAINTS: the
+                       crossing facts are declared `external` on each island,
+                       typed and ownership-refereed, and the host's normal
+                       reactive machinery does everything this script does by
+                       hand for Scenario I.
+
+  One value — HUE — threads the whole page, so the traffic is visible: move
+  ANY of the five hue controls (the page's range input, the dial app's slider,
+  the crossings app's master slider — and watch the pulse bars, the tally
+  button, the orbit dots, and this page's own headings all follow).
+-->
+<style>
+  :root { --hue: 210; color-scheme: dark; }
+  body { margin: 0; background: #0B0E12; color: #C6CFD9;
+         font: 15px/1.55 -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; }
+  header { padding: 40px 24px 8px; max-width: 1060px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 30px; color: #F0F4F8; letter-spacing: 0.3px; }
+  h1 .accent { color: hsl(var(--hue) 70% 60%); }         /* ← follows the shared fact */
+  .sub { color: #77828F; margin: 0; }
+  main { max-width: 1060px; margin: 0 auto; padding: 8px 24px 80px; }
+
+  section { margin-top: 36px; border: 1px solid #1D2530; border-radius: 16px;
+            padding: 22px 26px 26px; background: #0E1319;
+            border-top: 3px solid hsl(var(--hue) 55% 45%); }  /* ← and so does this */
+  h2 { margin: 0 0 2px; font-size: 19px; color: #E7EEF2; }
+  h2 .dir { color: hsl(var(--hue) 70% 65%); font-weight: 600; }
+  .how { color: #77828F; font-size: 13.5px; margin: 2px 0 18px; max-width: 72em; }
+  code { font: 12.5px/1.4 ui-monospace, Menlo, monospace; color: hsl(var(--hue) 45% 70%);
+         background: #151C25; border-radius: 4px; padding: 1px 5px; }
+
+  .row { display: flex; gap: 22px; flex-wrap: wrap; align-items: stretch; }
+  .cell { display: flex; flex-direction: column; gap: 8px; }
+  .box { border-radius: 12px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
+  .caption { font-size: 12px; color: #77828F; max-width: 340px; }
+  .caption b { color: #A9B4C0; font-weight: 600; }
+
+  /* the page's OWN readout card for scenario I — plain HTML, fed by observe() */
+  .card { flex: 1 1 220px; min-width: 220px; background: #131A22; border: 1px solid #1D2530;
+          border-radius: 12px; padding: 18px 20px; align-self: flex-start; }
+  .card h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: 1px; color: #6C7683; }
+  .stat { display: flex; justify-content: space-between; padding: 7px 0;
+          border-top: 1px solid #1D2530; font-size: 14px; }
+  .stat output { color: #F0F4F8; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat.flash output { animation: pop 0.35s ease-out; }
+  @keyframes pop { from { color: hsl(var(--hue) 80% 70%); transform: scale(1.25); } }
+  .pagectl { display: flex; align-items: center; gap: 12px; margin: 0 0 18px; font-size: 13px;
+             color: #A9B4C0; }
+  .pagectl input { flex: 0 1 320px; accent-color: hsl(var(--hue) 62% 55%); }
+  .pagectl .chip { width: 22px; height: 22px; border-radius: 50%;
+                   background: hsl(var(--hue) 62% 55%); }
+  footer { text-align: center; color: #4A5560; font-size: 12.5px; padding: 26px;
+           border-top: 1px solid #161D26; }
+</style>
+
+<header>
+  <h1>Two-Way <span class="accent">Street</span></h1>
+  <p class="sub">bidirectional bridges between Declare and the rest of the web —
+  one hue, five controls, every surface follows.</p>
+</header>
+
+<main>
+  <!-- ============================================================ -->
+  <!-- SCENARIO I — an HTML page hosting Declare apps               -->
+  <!-- ============================================================ -->
+  <section id="scenario-one">
+    <h2>I. HTML page <span class="dir">hosting</span> Declare apps</h2>
+    <p class="how">
+      Each dark box is a <code>&lt;div data-declare-embed&gt;</code> with a full
+      Declare app booted into it. The page holds each app's boot handle:
+      it <b>writes facts in</b> as plain property assignments
+      (<code>dial.hue = v</code> — constraints inside re-derive on their own) and
+      <b>watches facts out</b> with <code>observe(() =&gt; dial.hue, cb)</code> —
+      one callback per settle the value changed, nothing polling. The wiring
+      between the two apps and this page is the imperative script at the bottom
+      of this file; scenario II does the same job with constraints.
+    </p>
+
+    <!-- the page's OWN control: an ordinary range input. Its input events
+         WRITE into all three Declare apps; observe() from any app writes back
+         into it. The page is the bus in this scenario. -->
+    <div class="pagectl">
+      <span class="chip"></span>
+      <label for="page-hue">page hue control (plain <code>&lt;input&gt;</code>)</label>
+      <input id="page-hue" type="range" min="0" max="360" step="1" value="210">
+      <output id="page-hue-out">210°</output>
+    </div>
+
+    <div class="row">
+      <div class="cell">
+        <div id="dial-box" class="box" style="width: 340px; height: 220px" data-declare-embed></div>
+        <p class="caption"><b>dial.declare</b> — owns the hue. Drag its slider
+        and <code>observe()</code> carries the value out to this page, which
+        forwards it everywhere else. Drag the page control above and the page
+        writes <code>dial.hue</code>; the disc and slider follow.</p>
+      </div>
+      <div class="cell">
+        <div id="pulse-box" class="box" style="width: 340px; height: 220px" data-declare-embed></div>
+        <p class="caption"><b>pulse.declare</b> — receives <code>hue</code> from
+        the page, owns <code>beats</code>: click inside it and the readout card
+        here updates through <code>observe(() =&gt; pulse.beats, …)</code>.</p>
+      </div>
+      <div class="card">
+        <h3>PAGE READOUT (PLAIN HTML)</h3>
+        <div class="stat" id="stat-hue"><span>shared hue</span><output id="out-hue">210°</output></div>
+        <div class="stat" id="stat-beats"><span>beats in pulse</span><output id="out-beats">0</output></div>
+        <div class="stat" id="stat-src"><span>last writer</span><output id="out-src">—</output></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SCENARIO II — a Declare app hosting foreign web apps         -->
+  <!-- ============================================================ -->
+  <section id="scenario-two">
+    <h2>II. Declare app <span class="dir">hosting</span> web apps</h2>
+    <p class="how">
+      One Declare app (<code>crossings.declare</code>) fills the box below, and
+      the two inner panels are <b>foreign</b>: plain-JS apps this page mounts
+      into the app's two <code>DOMIsland</code> views. What crosses is declared
+      on each island as typed <code>external</code> facts — the master slider is
+      pushed <b>down</b> to both tenants, tally's tap count flows <b>up</b> into
+      the host's gauge <i>and onward into orbit's dot count</i> (a constraint
+      chain crossing two app boundaries), orbit's speed flows up into the
+      caption — and commands cross as <code>post</code>/<code>onPost</code>
+      verbs (the reset button, tally's milestones, orbit's double-click burst).
+      No wiring script: every arrow in that diagram is a one-line constraint.
+    </p>
+
+    <div class="cell">
+      <div id="cross-box" class="box" style="width: 100%; height: 600px" data-declare-embed></div>
+      <p class="caption" style="max-width: none"><b>crossings.declare</b> hosts
+      <b>tally.js</b> (plain DOM) and <b>orbit.js</b> (canvas, its own rAF clock,
+      a native range input). Tap in tally → dots appear in orbit → the Declare
+      gauge grows. Drag the master slider → both tenants recolor. Double-click
+      the canvas → the host's log line reports the verb.</p>
+    </div>
+  </section>
+</main>
+
+<footer>apps/two-way — scenario I wires by script, scenario II wires by constraint;
+the traffic is the same in both: facts one way or the other, verbs for the rest.</footer>
+
+<script type="module">
+  // The platform, once, for the whole page: `boot` mounts Declare apps into
+  // marked elements; `observe` is the notification half of the embedder API —
+  // it MUST come from this same bundle (a second runtime instance would track
+  // its constraints in a graph these apps never notify).
+  import boot, { observe } from "../../bundles/declare-boot.js?v=6510dd61468a";
+  import { mountTally } from "./tally.js";
+  import { mountOrbit } from "./orbit.js";
+
+  // ── boot the three Declare apps, each into its own marked box ──────────
+  // (multi-embed: pass each boot its host element; every app keeps its own
+  // input routing and asset base, and none touches the page's title/URL.
+  // `demos: []` says "these programs seed no live-edit demo panels" — without
+  // it, boot probes for a demos.json beside each program and a page like this
+  // one opens its console to a 404 per app.)
+
+  const dial  = await boot({ main: "./dial.declare",      host: document.getElementById("dial-box"),  demos: [] });
+  const pulse = await boot({ main: "./pulse.declare",     host: document.getElementById("pulse-box"), demos: [] });
+  const cross = await boot({ main: "./crossings.declare", host: document.getElementById("cross-box"), demos: [] });
+
+  // ── SCENARIO I WIRING: the page is the bus ─────────────────────────────
+  // One shared fact (hue), four parties: the page's range input, dial (which
+  // both shows and edits it), pulse (display only), and — so the whole page
+  // agrees — the crossings app's master slider from scenario II. This is the
+  // imperative counterpart of what crossings.declare writes as constraints:
+  // read it side by side with the island declarations there.
+
+  const pageHue  = document.getElementById("page-hue");
+  const pageOut  = document.getElementById("page-hue-out");
+  const outHue   = document.getElementById("out-hue");
+  const outSrc   = document.getElementById("out-src");
+
+  let hue = 210;
+  function setHue(v, from) {
+    v = Math.round(v);
+    if (v === hue) return;                       // the bus's echo guard
+    hue = v;
+    // fan OUT: write every party that didn't originate the change. A write of
+    // an equal value would be harmless (observers gate on change), but not
+    // writing the originator keeps the flow legible in a debugger.
+    if (from !== "dial")  dial.hue = v;          // page → Declare app: a plain write
+    if (from !== "pulse") pulse.hue = v;
+    if (from !== "cross") cross.masterHue = v;
+    if (from !== "page")  pageHue.value = String(v);
+    // …and the page's own chrome follows the same fact via a CSS variable.
+    document.documentElement.style.setProperty("--hue", String(v));
+    pageOut.textContent = v + "°";
+    outHue.textContent = v + "°";
+    outSrc.textContent = from;
+    flash("stat-hue");
+  }
+
+  // facts OUT of the Declare apps: observe() fires once per settle in which
+  // the read value changed — the page never polls, the apps never call out.
+  observe(() => dial.hue,        v => setHue(v, "dial"));
+  observe(() => cross.masterHue, v => setHue(v, "cross"));
+
+  // facts INTO the Declare apps: the page's own control writes all three.
+  pageHue.addEventListener("input", () => setHue(Number(pageHue.value), "page"));
+
+  // pulse's exported fact, out into ordinary HTML:
+  const outBeats = document.getElementById("out-beats");
+  observe(() => pulse.beats, n => { outBeats.textContent = String(n); flash("stat-beats"); });
+
+  function flash(id) {
+    const el = document.getElementById(id);
+    el.classList.remove("flash");
+    void el.offsetWidth;                         // restart the animation
+    el.classList.add("flash");
+  }
+
+  // ── SCENARIO II MOUNTING: hand the islands their tenants ───────────────
+  // crossings.declare declared two DOMIslands (slot = "tally" / "orbit").
+  // On the DOM renderer each renders as an element marked data-declare-slot,
+  // carrying the bridge handle __declareIsland once the island has realized.
+  // Realization is async (the compile ladder), so wait for the handle; the
+  // tenant modules then never touch the page again — everything they do goes
+  // through the handle.
+
+  async function islandBox(root, slot) {
+    for (let tries = 0; tries < 200; tries++) {
+      const el = root.querySelector(`[data-declare-slot="${slot}"]`);
+      if (el && el.__declareIsland) return el;
+      await new Promise(r => setTimeout(r, 50));
+    }
+    throw new Error(`island "${slot}" never realized`);
+  }
+
+  const crossBox = document.getElementById("cross-box");
+  mountTally(await islandBox(crossBox, "tally"));
+  mountOrbit(await islandBox(crossBox, "orbit"));
+</script>

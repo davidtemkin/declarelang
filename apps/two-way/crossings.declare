@@ -1,0 +1,181 @@
+// crossings.declare — Scenario II of the two-way demo: a DECLARE app hosting
+// two FOREIGN web apps (plain JS — tally.js and orbit.js, mounted by the page
+// into the two DOMIsland boxes below).
+//
+// Everything that crosses the boundary is DECLARED, right here, as the
+// islands' `external` surface (guide ch. 18) — a typed contract, not an open
+// door. Read the two island bodies below as the whole wiring diagram:
+//
+//   host → tenant    the class declares `external hue: number` and the
+//                    instance BINDS it (`hue = { app.masterHue }`) — so the
+//                    host owns the slot: whenever masterHue changes, the
+//                    runtime pushes the new value to the tenant (which sees it
+//                    via handle.observe). A tenant write to a host-bound slot
+//                    is REFUSED, loudly, naming the constraint — ownership is
+//                    refereed, not hoped for.
+//
+//   tenant → host    `external readonly count: number = 0` — `readonly` means
+//                    readonly TO THE HOST: the tenant owns the fact and pushes
+//                    it (handle.set); here it is an ordinary reactive value,
+//                    so `app.tally.count` below drives a gauge, a caption, and
+//                    even the OTHER tenant, all by constraint.
+//
+//   tenant ⇄ tenant  `dots = { app.tally.count }` on the orbit island — a
+//                    fact that LEAVES one foreign app, crosses into Declare,
+//                    and is pushed into the second foreign app by a one-line
+//                    constraint. Two boundary crossings, no wiring code
+//                    anywhere.
+//
+//   verbs            post()/onPost() — commands, consumed once, never
+//                    re-readable. The reset button posts DOWN to both tenants;
+//                    each tenant posts UP (milestones, bursts) into the
+//                    islands' onPost handlers, which feed the log line.
+//
+// Compare Scenario I (dial/pulse + index.html): same two directions, but with
+// an HTML host the wiring is imperative page JS. Here it is constraints.
+
+// The islands' declared surfaces — each class IS the boundary contract, in
+// full. `readonly` reads from the HOST's side: the tenant owns that fact and
+// pushes it (handle.set); the host reads, derives, and provably never writes.
+// The host-owned slots (hue, dots) are declared here WITHOUT bindings and
+// bound at the instances below — see the "spelling matters" note there.
+// (Corpus convention: classes first, the App closes the file.)
+
+class TallyIsland extends DOMIsland [
+
+    // host → tenant: the master hue, pushed each settle it changes
+
+    external hue: number = 0,
+
+    // tenant → host: tally.js owns the tap count
+
+    external readonly count: number = 0
+    ]
+
+
+class OrbitIsland extends DOMIsland [
+
+    external hue: number = 0,
+
+    // host → tenant, but SOURCED from the other tenant (bound below to
+    // app.tally.count) — the fact that crosses two app boundaries
+
+    external dots: number = 0,
+
+    // tenant → host: orbit.js owns its speed
+
+    external readonly speed: number = 1
+    ]
+
+
+App [ width = 960, height = 600, fill = #101820,
+
+    // The master fact. The Declare slider writes it, and the PAGE writes it
+    // too (the demo keeps one hue everywhere — the page forwards the dial's).
+
+    masterHue: number = 210,
+
+    // The last verb heard from a tenant — posts are consumed, so anything
+    // worth showing later must be written down as a fact.
+
+    log: string = "no messages from the tenants yet",
+
+    hueColor(h: number, s: number, l: number) -> number {
+        const f = (n) => {
+            const k = (n + h / 30) % 12
+            const c = l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+            return Math.round(c * 255)
+            }
+        return (f(0) << 16) | (f(8) << 8) | f(4)
+        },
+
+    // ── the host's own chrome: master slider, swatch, reset ──
+
+    tag: Text [ x = 24, y = 16, textColor = #6C7683, fontSize = 11,
+        text = "DECLARE APP · CROSSINGS — the host" ],
+
+    swatch: View [ x = 24, y = 38, width = 26, height = 26, cornerRadius = 13,
+        fill = { app.hueColor(app.masterHue, 0.62, 0.55) } ],
+
+    master: Slider [ x = 62, y = 38, width = 300, min = 0, max = 360, step = 1,
+        value = { app.masterHue },
+        input(v: number) { app.masterHue = v }
+        ],
+
+    masterOut: Text [ x = 374, y = 42, textColor = #E7EEF2, fontSize = 14,
+        fontWeight = medium, text = { "master hue " + Math.round(app.masterHue) + "°" } ],
+
+    // A VERB, not a fact: "become zero again" is a command the tenants apply
+    // to state the host cannot see (tally's count, orbit's speed are theirs).
+
+    reset: Button [ y = 34, x = { parent.width - width - 24 }, label = "reset the tenants",
+        onClick() {
+            app.tally.post("reset", null)
+            app.orbit.post("reset", null)
+            }
+        ],
+
+    // ── the two islands: sized and placed by constraints like any view, ──
+    // ── interiors owned by foreign code the host never reaches into     ──
+
+    tallyLabel: Text [ x = 24, y = 84, textColor = #6C7683, fontSize = 11,
+        text = "FOREIGN TENANT · TALLY.JS (PLAIN DOM)" ],
+
+    // SPELLING MATTERS here, and it is worth reading closely. The externals
+    // are declared on the island CLASSES (above) and BOUND on these
+    // instances — the STRICT input spelling. An instance bind is a standing,
+    // owning constraint: a tenant push to `hue` is refused, loudly, naming it.
+    // Writing `external hue: number = { app.masterHue }` directly on the
+    // instance would DECLARE-with-a-default instead, and a declaration default
+    // is a soft input by the language's own rank rules — a tenant push would
+    // silently displace the binding and the host feed would be severed.
+
+    tally: TallyIsland [ x = 24, y = 102, height = 320,
+        width = { (parent.width - 72) / 2 },
+        fill = #1A222C, cornerRadius = 10, slot = "tally",
+
+        // host-owned: pushed to the tenant whenever masterHue settles
+
+        hue = { app.masterHue },
+
+        onPost(m: IslandPost) { app.log = "tally posted \"" + m.topic + "\" at " + m.payload }
+        ],
+
+    orbitLabel: Text [ y = 84, textColor = #6C7683, fontSize = 11,
+        x = { (parent.width - 72) / 2 + 48 },
+        text = "FOREIGN TENANT · ORBIT.JS (CANVAS)" ],
+
+    orbit: OrbitIsland [ y = 102, height = 320,
+        x = { (parent.width - 72) / 2 + 48 },
+        width = { (parent.width - 72) / 2 },
+        fill = #1A222C, cornerRadius = 10, slot = "orbit",
+
+        hue = { app.masterHue },
+
+        // the cross-tenant chain: one tenant's fact, fed to the other through
+        // a host constraint — tally clicks become orbiting dots next door
+
+        dots = { app.tally.count },
+
+        onPost(m: IslandPost) { app.log = "orbit posted \"" + m.topic + "\" with " + m.payload + " dots" }
+        ],
+
+    // ── readouts: host constraints DERIVING from tenant-owned facts ──
+
+    gaugeTrack: View [ x = 24, y = 446, height = 10, cornerRadius = 5,
+        width = { parent.width - 48 }, fill = #1A222C ],
+
+    gaugeFill: View [ x = 24, y = 446, height = 10, cornerRadius = 5,
+        width = { Math.min(app.tally.count, 60) / 60 * (parent.width - 48) },
+        fill = { app.hueColor(app.masterHue, 0.62, 0.55) } ],
+
+    derived: Text [ x = 24, y = 468, textColor = #E7EEF2, fontSize = 14,
+        text = { app.tally.count + " taps in tally · orbit spinning "
+            + app.tally.count + " dots at speed " + app.orbit.speed.toFixed(1) } ],
+
+    logOut: Text [ x = 24, y = 494, textColor = #6C7683, fontSize = 12, italic = true,
+        text = { "last verb heard: " + app.log } ],
+
+    key: Text [ x = 24, y = 560, textColor = #46505C, fontSize = 11,
+        text = "facts cross as `external` (typed, refereed) · commands cross as post/onPost · the interiors never do" ]
+    ]
