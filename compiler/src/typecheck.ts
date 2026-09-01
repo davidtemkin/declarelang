@@ -100,14 +100,14 @@ interface Unit {
  *  self-contained program whose bare names are already paths). Returns coded
  *  DECLARE6001 diagnostics (empty when clean). Never throws on TS internals: a
  *  body that cannot be framed is skipped, not failed. */
-export function typecheckBodies(resolved: string, program: Program): DeclareError[] {
+export function typecheckBodies(resolved: string, program: Program): { errors: DeclareError[]; oracle: TypeOracle | null } {
   const { schemas } = programSchemas(program.classes);
 
   let rprog: Program;
   try {
     rprog = parseProgram(resolved);
   } catch {
-    return []; // resolved is our own output — if it will not re-parse, skip typecheck
+    return { errors: [], oracle: null }; // resolved is our own output — if it will not re-parse, skip typecheck
   }
 
   const emitter = new CaseEmitter(schemas);
@@ -133,9 +133,9 @@ export function typecheckBodies(resolved: string, program: Program): DeclareErro
   // Pass 2 — the check-blocks, typed by the instance types pass 1 assigned.
   for (const cls of rprog.classes) emitter.walkElement(cls.body, [], true);
   emitter.walkElement(rprog.root, [], false);
-  if (emitter.units.length === 0) return [];
+  if (emitter.units.length === 0) return { errors: [], oracle: null };
 
-  const diags = runTsc(scaffold, emitter.caseSrc);
+  const { diags, program: tsProgram } = runTsc(scaffold, emitter.caseSrc);
   const starts = lineStarts(resolved);
   const synthTags = emitter.synthTags;
   const out: DeclareError[] = [];
@@ -165,7 +165,79 @@ export function typecheckBodies(resolved: string, program: Program): DeclareErro
   // Deterministic report: same input → same diagnostics, same order (position,
   // then TS code, then text — the loop-stability guarantee evals depend on).
   out.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0) || a.message.localeCompare(b.message));
-  return out;
+  return { errors: out, oracle: buildOracle(tsProgram, emitter) };
+}
+
+/** The L-21 TYPE ORACLE (RULED 2026-09-01: method calls resolve with TS
+ *  semantics, no deviation). Dependency extraction asks, for a { } body it is
+ *  walking and a method name called there, what the CHECKER says the
+ *  receivers' static types are — answered from the very ts.Program the
+ *  typecheck just ran, so the answer is exactly TypeScript's. The extractor
+ *  then follows only that family's bodies; a receiver TS types as `any` sends
+ *  the constraint to the runtime tracking path instead of any name-keyed union. */
+export interface TypeOracle {
+  /** The static targets of every `<recv>.<method>(…)` call inside the body
+   *  whose opening `{` sits at (line, col) in the resolved source. `classes`
+   *  are class/tag names, resolved by the extractor through its class chain
+   *  (plus the override closure); `braces` are INSTANCE methods, identified by
+   *  their own body's `{` position. "any" = some receiver is untypeable, or
+   *  the call could not be located; null = the body is unknown to the check.
+   *  The caller treats both as: go dynamic. */
+  methodTargets(line: number, col: number, method: string):
+    { classes: string[]; braces: { line: number; col: number }[] } | "any" | null;
+}
+
+function buildOracle(tsProgram: import("typescript").Program, emitter: CaseEmitter): TypeOracle | null {
+  const sf = tsProgram.getSourceFile("case.ts");
+  if (sf === undefined) return null;
+  const checker = tsProgram.getTypeChecker();
+  const byKey = new Map<string, Unit>();
+  for (const u of emitter.units) byKey.set(u.origStartLine + ":" + u.origStartCol, u);
+  const instEls = emitter.instElements;
+  const text = sf.text;
+  const starts: number[] = [0];
+  for (let i = 0; i < text.length; i++) if (text[i] === "\n") starts.push(i + 1);
+  const lineStart = (line1: number): number => starts[Math.min(line1 - 1, starts.length - 1)] ?? 0;
+  return {
+    methodTargets(line, col, method) {
+      const u = byKey.get(line + ":" + col);
+      if (u === undefined) return null;
+      // the block's character span in case.ts — the search never leaves it
+      const from = lineStart(u.blockStart);
+      const to = u.blockEnd < starts.length ? lineStart(u.blockEnd + 1) : text.length;
+      const classes = new Set<string>();
+      const braces: { line: number; col: number }[] = [];
+      let any = false;
+      let found = false;
+      const consider = (t: import("typescript").Type): void => {
+        if (t.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)) return;   // strict-null unions strip
+        if (t.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) { any = true; return; }
+        if (t.isUnion()) { for (const p of t.types) consider(p); return; }
+        const name = t.getSymbol()?.getName();
+        if (name === undefined || name === "" || name.startsWith("__")) { any = true; return; }
+        const el = instEls.get(name);
+        if (el !== undefined) {
+          // a synthesized one-off subclass: its OWN method wins, else its tag's chain
+          const m = el.methods.find((mm) => mm.name === method);
+          if (m !== undefined) braces.push({ line: m.bodyPos.line, col: m.bodyPos.col });
+          else classes.add(el.tag);
+        } else {
+          classes.add(name);
+        }
+      };
+      const visit = (n: import("typescript").Node): void => {
+        if (n.getEnd() < from || n.getStart(sf) >= to) return;
+        if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === method) {
+          found = true;
+          consider(checker.getTypeAtLocation(n.expression.expression));
+        }
+        n.forEachChild(visit);
+      };
+      visit(sf);
+      if (!found || any) return "any";
+      return { classes: [...classes], braces };
+    },
+  };
 }
 
 // ── The message layer — a tsc diagnostic, re-said for the language's primary
@@ -618,6 +690,15 @@ class CaseEmitter {
     return m;
   }
 
+  /** Synthesized instance-type name → its ELEMENT — the L-21 oracle's bridge:
+   *  an `_E<n>`-typed receiver resolves to that element's own method (by its
+   *  body's brace position), else falls to its tag's class chain. */
+  get instElements(): ReadonlyMap<string, Element> {
+    const m = new Map<string, Element>();
+    for (const [el, name] of this.instType) if (name !== el.tag) m.set(name, el);
+    return m;
+  }
+
   /** The block whose case-file span contains `line`, or null. */
   unitAt(line: number): Unit | null {
     for (const u of this.units) {
@@ -658,7 +739,7 @@ export function provideLib(provider: (name: string) => string | undefined): void
 /** Run stock tsc over the scaffold + the case file in an in-memory host (libs
  *  via the registered provider), under `strict`. Returns the case file's
  *  diagnostics. */
-function runTsc(scaffold: string, caseSrc: string): TsDiag[] {
+function runTsc(scaffold: string, caseSrc: string): { diags: TsDiag[]; program: import("typescript").Program } {
   const files: Record<string, string> = { "scaffold.ts": scaffold, "case.ts": caseSrc };
   // A lib request may arrive as a bare name or prefixed by the default-lib
   // location ("./lib.es2021.d.ts") — normalize to the basename for the provider.
@@ -696,8 +777,8 @@ function runTsc(scaffold: string, caseSrc: string): TsDiag[] {
   };
   const program = ts.createProgram(["scaffold.ts", "case.ts"], options, host);
   const sf = program.getSourceFile("case.ts");
-  if (sf === undefined) return [];
-  return [...program.getSyntacticDiagnostics(sf), ...program.getSemanticDiagnostics(sf)]
+  if (sf === undefined) return { diags: [], program };
+  const diags = [...program.getSyntacticDiagnostics(sf), ...program.getSemanticDiagnostics(sf)]
     .filter((d) => !UNSATISFIABLE.has(d.code))
     .map((d) => {
       const lc = d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start) : null;
@@ -708,6 +789,7 @@ function runTsc(scaffold: string, caseSrc: string): TsDiag[] {
         character: lc ? lc.character : 0,                 // 0-based, within that case-file line
       };
     });
+  return { diags, program };
 }
 
 /** TS's implicit-`any` family: each of these demands a WRITTEN type annotation

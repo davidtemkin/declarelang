@@ -3,9 +3,14 @@
 // definition silently won — so declaring a node verb `open` re-aimed every
 // `.open()` call in the compile (the combobox's own included) at the new
 // body, surfacing as phantom residue errors positioned inside library source.
-// Now a call resolves by (receiver's element/class chain, name); an
-// unresolvable receiver falls back to the union of every candidate (sound);
-// a knowable receiver with NO such method contributes nothing.
+// Now a call resolves by (receiver's element/class chain, name); a receiver
+// unresolvable HERE is typed by the CHECKER (L-21, RULED 2026-09-01: TS
+// semantics, answered from the typecheck's own ts.Program — the declared
+// class plus its override closure, or the exact instance method); a receiver
+// TS calls `any` sends the constraint to the runtime tracking path (the
+// ~dynamic sentinel), so no stranger's body is ever walked and no phantom
+// error can leave its family; a knowable receiver with NO such method
+// contributes nothing.
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
@@ -93,6 +98,112 @@ App [ width = 100, height = 100,
     out: Text [ text = { app.brain.log } ],
     ]`);
   assert.equal(app.out.text, "inner;brain", "children first, then the node — initTree's own order");
+});
+
+await test("a CAST receiver resolves to its class — TS semantics — and never a same-named stranger's family", async () => {
+  // `(childViews[0] as Chip).boost()` — textually unknowable (an indexed
+  // receiver), typed exactly by the checker through the cast. The oracle
+  // follows Chip's family alone: the old union would have walked Motor's
+  // same-named verb too and wired its reads into a stranger's constraint.
+  const src = `
+class Chip extends View [
+    boost() -> number { return app.gain * 2 },
+    ]
+class Motor extends Node [
+    boost() -> number { return app.rpm * 3 },
+    ]
+App [ width = 100, height = 100,
+    gain: number = 1, rpm: number = 1,
+    chip: Chip [ width = 10, height = 10 ],
+    m: Motor [ ],
+    out: Text [ text = { "" + (app.childViews[0] as Chip).boost() } ],
+    ]`;
+  const r = await compile(src, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const flat = JSON.stringify(r.deps);
+  assert.ok(flat.includes("gain"), "the cast family's read is wired: " + flat);
+  assert.ok(!flat.includes("rpm"), "…and the stranger's read is NOT (the union would have leaked it): " + flat);
+  const app = await boot(src);
+  assert.equal(app.out.text, "2");
+  app.gain = 5;
+  settle();
+  assert.equal(app.out.text, "10", "the family's input is a live edge");
+  app.rpm = 100;
+  settle();
+  assert.equal(app.out.text, "10", "the stranger's input does not stir it");
+});
+
+await test("an `any` receiver goes to the tracking path — no union, no stranger's body, still live", async () => {
+  // TWO classes declare open(); the constraint reaches open() through a chain
+  // the checker types `any` (an object slot behind a cast). The old union
+  // followed every same-named body and could export another family's
+  // resolution errors; now the constraint goes DYNAMIC — empty deps — and the
+  // runtime's tracking keeps it live where static wiring cannot see.
+  const src = `
+class Widgetry extends View [
+    grow: Animator [ attribute = height, to = 180 ],
+    open() { this.grow.start() },
+    ]
+class Doc extends Node [
+    opens: number = 0,
+    open(v: View?) -> number { return this.opens + 1 },
+    ]
+App [ width = 200, height = 100,
+    current: Doc [ ],
+    w: Widgetry [ width = 10, height = 10 ],
+    bag: object = null,
+    onInit() { this.bag = ({ x: this.current }) },
+    status: Text [ text = { app.bag != null ? "" + (app.bag as any).x.open(null) : "-" } ],
+    ]`;
+  const r = await compile(src, {});
+  assert.equal(r.errors.length, 0, "no phantom from a stranger's body: " + r.errors.map((e) => e.message).join("; "));
+  assert.deepEqual(r.deps, [[]], "the constraint went dynamic (empty deps), not unioned: " + JSON.stringify(r.deps));
+  const app = await boot(src);
+  assert.equal(app.status.text, "1");
+  app.current.opens = 5;
+  settle();
+  assert.equal(app.status.text, "6", "tracking observed the read through the any-typed chain — live, not stale");
+});
+
+await test("L-20: a pointer slot repoints live — and the through-read follows the NEW node, not the old", async () => {
+  const src = `
+class Doc extends Node [ hue: number = 3 ]
+App [ width = 100, height = 100,
+    a: Doc [ hue = 5 ], b: Doc [ hue = 7 ],
+    which: boolean = true,
+    ap: Doc = { this.which ? this.a : this.b },
+    out: Text [ text = { "" + app.ap!.hue } ],
+    ]`;
+  const r = await compile(src, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  assert.deepEqual(r.deps[r.deps.length - 1], [], "the through-read rides tracking (a prewired edge would pin the old node)");
+  const app = await boot(src);
+  assert.equal(app.out.text, "5");
+  app.which = false; settle();
+  assert.equal(app.out.text, "7", "repointing wakes the reader");
+  app.b.hue = 9; settle();
+  assert.equal(app.out.text, "9", "the NEW node's cell is live after the repoint");
+  app.a.hue = 100; settle();
+  assert.equal(app.out.text, "9", "…and the OLD node's no longer stirs it");
+});
+
+await test("L-24: reading through an opaque return (find over an array) is legal and live", async () => {
+  const src = `
+class Doc extends Node [ id: string = "", hue: number = 3 ]
+App [ width = 100, height = 100,
+    a: Doc [ id = "a", hue = 5 ], b: Doc [ id = "b", hue = 7 ],
+    roster: object = null,
+    onInit() { this.roster = [this.a, this.b] },
+    byId(id: string) -> Doc { const r = this.roster as any; return r != null ? r.find((d) => (d as any).id == id) : null },
+    out: Text [ text = { app.roster != null ? "" + app.byId("b")!.hue : "-" } ],
+    ]`;
+  const r = await compile(src, {});
+  assert.equal(r.errors.length, 0, "the accessor-farm shape compiles: " + r.errors.map((e) => e.message).join("; "));
+  assert.deepEqual(r.deps[r.deps.length - 1], [], "dynamic — tracking, not refusal");
+  const app = await boot(src);
+  assert.equal(app.out.text, "7");
+  app.b.hue = 12; settle();
+  assert.equal(app.out.text, "12", "the found node's cell is observed by tracking — live");
 });
 
 summarize("dep-typed");

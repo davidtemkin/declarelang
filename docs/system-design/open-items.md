@@ -35,15 +35,16 @@ Narrative context and the session in which each was found lives in
 | L-17 | compiler | A shadowed name silently dropped a dependency | — | **fixed** |
 | L-18 | library | A house component's themed self-chrome falls back silently | medium | open |
 | L-19 | platform | Unknown URL parameters pass silently | — | **RULED — leave** |
-| L-20 | language | Component-typed slots cannot be constrained (DECLARE2000) | **high** | open |
-| L-21 | compiler | Method calls resolve by NAME when the receiver is unknowable | high | open |
+| L-20 | language | Component-typed slots cannot be constrained (DECLARE2000) | **high** | **built** (2026-09-01): pointer slots; layout excluded |
+| L-21 | compiler | Method calls resolve by NAME when the receiver is unknowable | high | **built** (2026-09-01) |
 | L-22 | language | Datapath/record edges are untyped — the coercion tax | **high** | open |
 | L-23 | language | Plain `.value` property reads wire only the value slot | high | **built** (2026-08-30) |
-| L-24 | compiler | The projection refusal (7001) could degrade to tracking | low | sketched |
+| L-24 | compiler | The projection refusal (7001) could degrade to tracking | low | **built** (2026-09-01): ruled must-fix |
 | L-25 | library | `Time` — wall-clock as a source component | medium | **built** (2026-08-29) |
 | L-26 | language | `host = browser` marking for DOM-touching script files | low | open (awaiting ruling) |
 | L-27 | compiler | Alias/closure reads silently dropped from static deps | — | **fixed** (6e13f2e3) |
 | L-28 | data | Dataset persistence — IndexedDB-shaped (GH #23) | design | open |
+| L-29 | compiler | Chain classification breaks at inner calls and computed-default segs | high | open — found building L-21 |
 
 ---
 
@@ -476,9 +477,26 @@ An independent cold read (2026-08-25) called this "pure ceremony; in any convent
 framework you'd pass the object." The application-as-node pattern — now the house
 model-layer idiom — runs into this on day one.
 
-**Candidate.** Allow constraining component-typed slots with identity-valued
-constraints (the value is a node reference; re-derivation compares identity), which
-also gives replicated use-sites the natural spelling `forApp = { byId(:id) }`.
+**Built (2026-09-01; DT: "why *not* fix L-20?").** Not a semantics change — both
+halves already existed (slots hold node references via assignment; `{ }` computes
+values); only the combination was refused. The `{ }` now computes WHICH existing
+node a component-typed slot points at: a pointer, re-derived like any value —
+never creation, never ownership; repointing tears nothing down. The ONE slot
+kept member-or-null is `layout` (a layout ATTACHES — kernel lifecycle, not a
+pointer; check.ts gates on `type.of === "Layout"` with its own message).
+Correctness rule, enforced in dep-extract: reads THROUGH a node-typed slot keep
+the SLOT as their wired edge and take the `~dynamic` sentinel for the rest — a
+prewired edge would pin the PREVIOUS node's cells across a repoint (NODE_SLOTS,
+name-keyed over program classes + builtin tags; the arm sits BEFORE the
+computed-default inline, which would otherwise silently drop the tail — L-29's
+shape). Note: a DECL-form pointer slot (`ap: Doc = { … }`) is a computed
+default — per-read evaluation, no cell of its own — which is exactly right for
+a pointer: always fresh, liveness through the reader's tracking. The desktop is
+the proof: DockIcon/AppGlyph carry `ap: DesktopApp = { app.launcher.byId(this.appId)
+?? app.launcher.files }` (total — the transient first-settle read before a
+replicated row's id lands must not throw) and every face/hue/glyph/dot read goes
+through the slot. Pins in dep-typed: repoint wakes; the NEW node's cells are
+live after; the OLD node's no longer stir.
 
 ## L-21 — Method calls resolve by NAME when the receiver is unknowable · high
 
@@ -493,9 +511,39 @@ declare-ben tree and arrives with its merge). The desktop now documents "the ver
 `launch`, not `open`" as a trap comment, which is the wrong place for that knowledge
 to live.
 
-**Candidate.** Bound the fallback by the receiver's *declared type* wherever one
-exists (a `DesktopApp`-typed value should never follow a combobox body); where
-genuinely ambiguous, say so in a diagnostic instead of silently unioning.
+**RULED (DT, 2026-09-01): adopt TS semantics, no deviation.** Method calls have
+exact OOP/TS resolution and the TS compiler ships in every configuration (the
+in-browser compile included) — the deviation was never a design, only an artifact:
+the extractor uses TS's parser but not its checker, and grew its own receiver
+resolver with a by-name fallback. The fix: extraction resolves a call the way TS
+does — the receiver's static type from the typecheck's own `ts.Program` → that
+class chain's method (plus same-family overrides, the standard sound closure);
+a receiver TS types as `any` is genuinely unresolvable and takes the `~dynamic`
+sentinel to the tracking path — no unions, no followed strangers, no phantom
+errors. Engineering shape: share (or query) the typecheck's program from the
+extractor instead of running an independent text pass. Interaction: L-22's typed
+records shrink the `any` receivers, so static resolution widens as it lands.
+
+**Built (2026-09-01).** `typecheckBodies` keeps its `ts.Program` and returns a
+TYPE ORACLE beside its errors; `compile()` threads it into `annotateProgram`.
+The extractor's unknown-receiver arm asks the oracle — it locates the call in
+the check-block's own AST (position mapping is line-keyed by each body's `{`,
+immune to the datapath/type-strip splices) and hands back the receiver's
+static type — then follows ONLY that family: the declared class through the
+extractor's chain plus the OVERRIDE CLOSURE over its descendants, or the exact
+instance method by its body's brace. A receiver TS types `any` takes the
+`~dynamic` sentinel to the tracking path. The all-candidates union — and the
+single-candidate and name-keyed fallbacks — are deleted: no stranger's body is
+ever walked, no phantom can leave its family. Pins in dep-typed (a CAST
+receiver wires its family and provably not the stranger's; an `any` chain goes
+dynamic and stays LIVE through tracking). Desktop: 439/462 wired, unchanged;
+corpus 42/42; compile cost unchanged (~1–2% checker queries on an
+already-run program). REACHABILITY, learned while building: with typed
+signatures (params can't be untyped), the alias door (L-27), and the
+param-lenient tier, the arm's real customers are cast receivers, chains
+through object/record members, and indexed receivers — class-body `parent.*`
+calls are refused earlier by the resolver. Two ADJACENT breaks discovered en
+route are filed as L-29, not silently absorbed.
 
 ## L-22 — Datapath and record edges are untyped — the coercion tax · **high**
 
@@ -541,13 +589,16 @@ rewrite option was rejected). Pins in databinding.
 
 ## L-24 — The projection refusal could degrade to tracking · low · sketched
 
-`ap().hue1` is refused (DECLARE7001: "returns a value chosen at run time… would
-silently stop updating") — correct under prewiring, but since the alias/closure
-sentinel exists (L-27), the same shape *could* mark the constraint dynamic and stay
-live on the tracking path instead of refusing. Trade: refusal is explicit and keeps
-programs prewirable; degrading is convenient and silent. If refusal stays, its
-message should name the accessor idiom (return the attribute, not the node) — which
-it now does — and L-20's resolution may moot this entirely.
+**Built (2026-09-01; DT: "an immediate must-fix, that's pretty glaring").** The
+7001 projection refusal (opaque return / unresolvable argument, read through) is
+retired: such a constraint takes the `~dynamic` sentinel to the tracking path,
+where the real read is observed each run. Statically nameable projections keep
+the wired path (the join still wires `pick().hue` when pick's returns are
+paths). The desktop's accessor farm — hue1Of/hue2Of/glyphOf/gsizeOf/drawnOf/
+labelOf — is DELETED; `byId(id).hue1`-shaped reads (find over roster) are legal
+and live. Desktop wiring: 428 of 464 static (was 439/462 — the delta is the
+through-slot reads, honestly on tracking). Pins in dep-typed (opaque find, live)
+and dep-projection (the old refusal pin flipped to the new contract).
 
 ## L-25 — `Time`: wall-clock as a source component · medium · **built 2026-08-29**
 
@@ -652,3 +703,25 @@ is ruled out by the mirror case (~5–10MB cap). Interim path, verified 2026-08-
 `script [ "store.ts" ]` module is plain bundled TypeScript outside the { }
 host-global rule — an app keeps its own IndexedDB mirror there and feeds a Dataset
 from handlers (the teach hints for localStorage/indexedDB now say so).
+
+## L-29 — Chain classification breaks at inner calls and computed-default segs · high · found 2026-09-01
+
+Two `break`s in the extractor's seg loop cut a chain short, discovered while
+probing L-21's oracle (both PREDATE it; the oracle made them visible):
+
+1. **Inner call**: `a.b().c()` classifies `b()` and stops — `c()` is never
+   recorded. The call-RESULT receiver family therefore never reaches method
+   following at all; it rides the PROJECTION JOIN (`pick().titled()` wires
+   pick's return paths joined with the tail — `a.titled`/`b.titled` — so the
+   conditional's INPUTS are live but titled's own body-reads are not: a
+   `label` change does not wake). The join is a designed approximation, but
+   now that the oracle can TYPE a call result (the checker knows
+   `pick() -> Doc`), extending classification past the inner call would make
+   these fully wired — the door L-21 opened.
+2. **Computed-default seg**: a chain THROUGH a `{ }` declaration default
+   (`bag: object = { … }` read as `bag.x.open()`) inlines the default and
+   `break`s — everything past it is silently DROPPED, reads and calls alike.
+   That is the L-17 silent-family: no error, no dynamic sentinel, a
+   permanently stale edge. Probed live 2026-09-01. The narrow fix: on a
+   computed-default seg with a longer tail, add the `~dynamic` sentinel
+   instead of breaking clean — honest tracking rather than a dropped edge.

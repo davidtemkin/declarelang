@@ -2383,8 +2383,10 @@ await test("a layout is an attribute, not a child — every misplacement is a po
       /App\.layout expects a Layout — 'View' is not one/],
     ["App [ width=1, height=1, layout = 5 ]",
       /App\.layout expects a Layout component \(a member like 'layout: SimpleLayout \[ … \]'\), or null for none, got the number 5/],
+    // L-20 opened every OTHER component slot to constraints; layout alone
+    // stays member-or-null (a layout attaches — lifecycle, not a pointer).
     ["App [ width=1, height=1, layout = { pick() } ]",
-      /App\.layout = \{ … \}: a component slot takes a member .* constraining it is not yet surface/],
+      /App\.layout = \{ … \}: the layout slot takes a member .* a layout attaches/],
   ];
   for (const [src, re] of cases) {
     const errs = await checkL((src));

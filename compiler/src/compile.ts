@@ -198,6 +198,7 @@ import { hostGlobalHint } from "../../runtime/dist/teach.js";
 import { PRELUDE_NAMES } from "./scaffold.js";
 import { resolveIncludes, resolveAutoIncludes, spliceScriptFiles, NO_INCLUDES, type IncludeHost, type AutoIncludeHost } from "../../runtime/dist/include.js";
 import { typecheckBodies } from "./typecheck.js";
+import type { TypeOracle } from "./typecheck.js";
 import { Diag, toDiagnostic, renderReport, type Diagnostic, type DiagPhase } from "../../runtime/dist/diagnostics.js";
 
 /** The names resolution leaves alone in CALLEE position: the four value
@@ -675,8 +676,11 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   // host — only the lib.d.ts SOURCE differs per host (typecheck.ts provideLib;
   // an unregistered provider throws, never silently skips). A type error
   // blocks emission like any other, mapped to its `.declare` line (DECLARE6001).
+  let typeOracle: TypeOracle | null = null;
   if (opts.typecheck !== false) {
-    const typeErrors = rbAll(typecheckBodies(out, program));
+    const tc = typecheckBodies(out, program);
+    typeOracle = tc.oracle;
+    const typeErrors = rbAll(tc.errors);
     if (typeErrors.length > 0) {
       const ws = rbAll(r.warnings);
       return { source: null, errors: typeErrors, warnings: ws, ...diagnose(typeErrors, ws, "typecheck") };
@@ -806,7 +810,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
       return { source: null, errors: schemaErrors, warnings: ws, ...diagnose(schemaErrors, ws, "structure") };
     }
   }
-  const residue = annotateProgram(depProgram).errors;
+  const residue = annotateProgram(depProgram, typeOracle).errors;
   if (residue.length > 0) {
     const errs = rbAll(residue
       .sort((a, b) => a.offset - b.offset)

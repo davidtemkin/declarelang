@@ -129,14 +129,17 @@ await test("an array's own properties reach no cell, so nothing is refused", asy
   }
 });
 
-await test("the refusal explains DETERMINABILITY, not types", async () => {
+await test("a runtime-chosen projection is no longer refused — it rides the tracking path (L-24)", async () => {
+  // The DETERMINABILITY refusal this pin used to hold ("chosen at run time …
+  // cannot be named at compile time") was retired 2026-09-01: the constraint
+  // takes the ~dynamic sentinel instead, and the runtime's tracking observes
+  // the real read each run. Statically nameable projections still wire.
   const r = await compile(`App [ i: number = 0, box: View [ width = 10 ],
       pick(): View { return this.childViews[app.i] as View },
       t: Text [ text = { "" + app.pick().width } ] ]`, { originDir: process.cwd() });
-  const msg = (r.errors ?? []).map((e) => e.message).join("\n");
-  assert.ok(/chosen at run time/.test(msg) && /cannot be named at compile time/.test(msg),
-    `the message should name the reason, not the return type; got:\n${msg}`);
-  assert.ok(!/node|component/i.test(msg), `it should not talk about node-ness; got:\n${msg}`);
+  assert.equal((r.errors ?? []).length, 0, (r.errors ?? []).map((e) => e.message).join("\n"));
+  const last = r.deps[r.deps.length - 1];
+  assert.deepEqual(last, [], "dynamic — empty deps, the tracking path: " + JSON.stringify(r.deps));
 });
 
 await test("a language method registered as PURE when it is not switches analysis off", async () => {
