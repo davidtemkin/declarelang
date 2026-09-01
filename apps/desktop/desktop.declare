@@ -740,23 +740,25 @@ window's badge.
 class AppGlyph extends View [ width = { this.edge }, height = { this.edge },
     edge: number = 64,
 
-    // the application BY ID (a component slot cannot be constrained —
-    // DECLARE2000; the id can, and ap() resolves it per read)
+    // the application — an L-20 POINTER SLOT: the { } computes WHICH launcher
+    // instance this glyph shows (a reference, re-derived when the id moves —
+    // never creation, never ownership). Reads through it ride the tracking
+    // path, so hue/glyph/drawn stay live on whichever node it points at.
 
     appId: string = "",
-    ap() -> DesktopApp { return app.launcher.byId(this.appId) },
+    ap: DesktopApp = { app.launcher.byId(this.appId) ?? app.launcher.files },   // total: the transient first-settle read (a replicated row before its id lands) falls to Files instead of throwing
     cornerRadius = { this.edge * 0.23 }, clip = true,
-    fill = { gradient(app.launcher.hue1Of(this.appId), app.launcher.hue2Of(this.appId)) },
+    fill = { gradient(this.ap!.hue1, this.ap!.hue2) },
 
     g: Text [ x = center, y = center, fontWeight = semibold, textColor = #FFFFFF,
-        fontSize = { classroot.edge * app.launcher.gsizeOf(classroot.appId) },
-        visible = { !app.launcher.drawnOf(classroot.appId) && app.launcher.glyphOf(classroot.appId) != "" },
-        text = { app.launcher.glyphOf(classroot.appId) } ],
+        fontSize = { classroot.edge * classroot.ap!.gsize },
+        visible = { !classroot.ap!.drawn && classroot.ap!.glyph != "" },
+        text = { classroot.ap!.glyph } ],
     art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
-        visible = { app.launcher.drawnOf(classroot.appId) },
+        visible = { classroot.ap!.drawn },
         draw(d: Draw) {
             d.scale(this.width / 48, this.width / 48)
-            const a = classroot.ap()
+            const a = classroot.ap
             if (a != null) a.face(d)
             }
         ]
@@ -1496,14 +1498,14 @@ class DockIcon extends View [
     ix: number = 0,                              // resting slot index
     slots: number = { app.launcher.roster.length },   // total icons — derived from the catalog
 
-    // THE application, held BY ID: a component slot cannot be constrained
-    // (DECLARE2000), but an id string can — and a constraint may freely READ
-    // the node ap() resolves, so face, hues, dot, pill, and the click all
-    // derive from the one instance, reactively re-resolving if the id moves
-    // (a MiniTile badge's does).
+    // THE application — an L-20 POINTER SLOT: the { } computes which launcher
+    // instance this icon is (a reference; re-pointing when the id moves — a
+    // MiniTile badge's does — and owning nothing). Face, hues, dot, pill, and
+    // the click all read the one instance THROUGH the slot; those reads ride
+    // the tracking path, so they stay live on whichever node it points at.
 
     appId: string = "",
-    ap() -> DesktopApp { return app.launcher.byId(this.appId) },
+    ap: DesktopApp = { app.launcher.byId(this.appId) ?? app.launcher.files },   // total: the transient first-settle read (a replicated row before its id lands) falls to Files instead of throwing
     running: boolean = false,                    // fed from the data row at the use site (the live flag rides the records)
 
     // shared geometry — one place for the numbers the constraints below share
@@ -1583,20 +1585,20 @@ class DockIcon extends View [
 
         scale = { classroot.width / classroot.face },
         cornerRadius = { this.width * 0.23 }, clip = true,
-        fill = { gradient(app.launcher.hue1Of(classroot.appId), app.launcher.hue2Of(classroot.appId)) },
+        fill = { gradient(classroot.ap!.hue1, classroot.ap!.hue2) },
 
         // Glyph sizes stay fractional — rounding them would tick the art in
         // whole-pixel steps while the plate glides subpixel, a visible jitter.
 
         g: Text [ x = center, y = center, fontWeight = semibold, textColor = 0xFFFFFF,
-            fontSize = { this.parent.width * app.launcher.gsizeOf(classroot.appId) },
-            visible = { !app.launcher.drawnOf(classroot.appId) && app.launcher.glyphOf(classroot.appId) != "" },
-            text = { app.launcher.glyphOf(classroot.appId) } ],
+            fontSize = { this.parent.width * classroot.ap!.gsize },
+            visible = { !classroot.ap!.drawn && classroot.ap!.glyph != "" },
+            text = { classroot.ap!.glyph } ],
 
         // Drawn app art, authored in a 48-unit box and scaled to fill the plate.
 
         art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
-            visible = { app.launcher.drawnOf(classroot.appId) },
+            visible = { classroot.ap!.drawn },
 
             // the illustration is drawn at the icon's LIVE size — a canvas
             // scale inside draw() (vector, recomputed every frame) rather than
@@ -1608,7 +1610,7 @@ class DockIcon extends View [
 
             draw(d: Draw) {
                 d.scale(this.width / 48, this.width / 48)
-                const a = classroot.ap()
+                const a = classroot.ap
                 if (a != null) a.face(d)
                 }
             ],
@@ -1663,7 +1665,7 @@ class DockIcon extends View [
         draw(d: Draw) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
         t: Text [ x = center, y = { (this.parent.bodyH - this.height) / 2 }, fontSize = 13,
             textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
-            text = { app.launcher.labelOf(classroot.appId) } ]
+            text = { classroot.ap!.label } ]
         ]
     ]
 
@@ -1697,10 +1699,12 @@ instance carries everything that is the app's own — identity (label, title,
 blurb), the icon (plate hues, a text glyph or a drawn `face`), launch state
 (`running`/`launching`/`count`, plain reactive attributes — assignment is the
 update, no record ceremony), policy (`alwaysRunning`, `canOpen`, `place`),
-and the `launch` verb behind its dock icon and menu items. (The verb is
-`launch`, not `open` — dep-extract resolves calls by NAME across the merged
-source, and `open` collides with the library combobox's `open()`: the
-phantom-".start()" trap this file has hit before.)
+and the `launch` verb behind its dock icon and menu items. (The verb was
+renamed from `open` when the extractor's old by-name call resolution collided
+it with the library combobox's `open()` — the phantom-".start()" trap this
+file hit twice. That resolution is gone: since L-21 (2026-09-01) calls
+resolve with TS semantics through the typecheck's own checker, so the name is
+free again; `launch` stays because it is the better verb for a dock icon.)
 
 One taxonomy covers every citizen. A BUILT-IN app (Files, Jots) opens windows
 of this very program. A HOSTED app (Calendar, 50 Birds, Declare Viewer) is a
@@ -2272,13 +2276,6 @@ class Launcher extends Node [
     // per-app flag, `running`, rides the data records above instead — a
     // class-body constraint does not wire reads made inside a method it
     // calls, so a mutation there would never wake it.
-
-    hue1Of(id: string) -> Color { const a = this.roster.find((x) => x.id == id); return a != null ? a.hue1 : 0x4A90D9 },
-    hue2Of(id: string) -> Color { const a = this.roster.find((x) => x.id == id); return a != null ? a.hue2 : 0x2E5FA3 },
-    glyphOf(id: string) -> string { const a = this.roster.find((x) => x.id == id); return a != null ? a.glyph : "" },
-    gsizeOf(id: string) -> number { const a = this.roster.find((x) => x.id == id); return a != null ? a.gsize : 0.42 },
-    drawnOf(id: string) -> boolean { const a = this.roster.find((x) => x.id == id); return a != null && a.drawn },
-    labelOf(id: string) -> string { const a = this.roster.find((x) => x.id == id); return a != null ? a.label : "" },
 
     // identity, order, and the ONE LIVE FLAG as DECLARED DATA, for the dock's
     // datapath (a cursor can only point into a Dataset, and a node reference
@@ -3095,7 +3092,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
                 ix = { Number(:ix ?? 0) },
                 appId = { "" + (:id ?? "") },
                 running = { :running == true },
-                onClick() { const a = this.ap(); if (a != null) app.wm.dockOpen(a, () => a.launch(this)) }
+                onClick() { const a = this.ap; if (a != null) app.wm.dockOpen(a, () => a.launch(this)) }
                 ]
             ],
 
