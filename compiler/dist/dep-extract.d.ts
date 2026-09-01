@@ -1,4 +1,5 @@
 import type { Program } from "../../runtime/dist/parser.js";
+import type { TypeOracle } from "./typecheck.js";
 /** A code value (`{ }`) with the extracted deps optionally attached. */
 type CodeValue = {
     kind: "code";
@@ -27,7 +28,7 @@ export interface ExtractedConstraint {
     }[];
 }
 /** Extract deps for every constraint in a RESOLVED program. */
-export declare function extractProgram(program: Program): ExtractedConstraint[];
+export declare function extractProgram(program: Program, oracle?: TypeOracle | null): ExtractedConstraint[];
 /** Extract deps and ATTACH them to the program AST (`attr.value.deps`), so the
  *  runtime can wire the static-constraint path. Returns residue errors (empty on
  *  the whole corpus). Mutates the program in place.
@@ -39,7 +40,7 @@ export declare function extractProgram(program: Program): ExtractedConstraint[];
  *  each run — the sound fallback (docs/system-design/constraints.md's "genuinely dynamic
  *  reads"). The returned `errors` name each such constraint for a caller that
  *  wants to surface or (in the design's end state) reject them. */
-export declare function annotateProgram(program: Program): {
+export declare function annotateProgram(program: Program, oracle?: TypeOracle | null): {
     errors: {
         message: string;
         offset: number;

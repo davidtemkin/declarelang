@@ -12,23 +12,23 @@
     "code": 498,
     "comment": 214,
     "blank": 140,
-    "wireGzip": 86966,
-    "programGzip": 17960
+    "wireGzip": 86956,
+    "programGzip": 17951
   },
   "tracker": {
     "total": 1564,
     "code": 1148,
     "comment": 215,
     "blank": 201,
-    "wireGzip": 105490,
-    "programGzip": 35795
+    "wireGzip": 105479,
+    "programGzip": 35782
   },
   "desktop": {
-    "total": 3175,
-    "code": 1705,
-    "comment": 959,
-    "blank": 511,
-    "wireGzip": 120700,
-    "programGzip": 38491
+    "total": 3172,
+    "code": 1699,
+    "comment": 963,
+    "blank": 510,
+    "wireGzip": 120292,
+    "programGzip": 38067
   }
 }

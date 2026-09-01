@@ -638,8 +638,11 @@ export async function compile(source, opts = {}) {
     // host — only the lib.d.ts SOURCE differs per host (typecheck.ts provideLib;
     // an unregistered provider throws, never silently skips). A type error
     // blocks emission like any other, mapped to its `.declare` line (DECLARE6001).
+    let typeOracle = null;
     if (opts.typecheck !== false) {
-        const typeErrors = rbAll(typecheckBodies(out, program));
+        const tc = typecheckBodies(out, program);
+        typeOracle = tc.oracle;
+        const typeErrors = rbAll(tc.errors);
         if (typeErrors.length > 0) {
             const ws = rbAll(r.warnings);
             return { source: null, errors: typeErrors, warnings: ws, ...diagnose(typeErrors, ws, "typecheck") };
@@ -788,7 +791,7 @@ export async function compile(source, opts = {}) {
             return { source: null, errors: schemaErrors, warnings: ws, ...diagnose(schemaErrors, ws, "structure") };
         }
     }
-    const residue = annotateProgram(depProgram).errors;
+    const residue = annotateProgram(depProgram, typeOracle).errors;
     if (residue.length > 0) {
         const errs = rbAll(residue
             .sort((a, b) => a.offset - b.offset)

@@ -75,7 +75,7 @@ export function typecheckBodies(resolved, program) {
         rprog = parseProgram(resolved);
     }
     catch {
-        return []; // resolved is our own output — if it will not re-parse, skip typecheck
+        return { errors: [], oracle: null }; // resolved is our own output — if it will not re-parse, skip typecheck
     }
     const emitter = new CaseEmitter(schemas);
     // Pass 1 — synthesize each element's INSTANCE type (language §5: an element
@@ -105,8 +105,8 @@ export function typecheckBodies(resolved, program) {
         emitter.walkElement(cls.body, [], true);
     emitter.walkElement(rprog.root, [], false);
     if (emitter.units.length === 0)
-        return [];
-    const diags = runTsc(scaffold, emitter.caseSrc);
+        return { errors: [], oracle: null };
+    const { diags, program: tsProgram } = runTsc(scaffold, emitter.caseSrc);
     const starts = lineStarts(resolved);
     const synthTags = emitter.synthTags;
     const out = [];
@@ -137,7 +137,80 @@ export function typecheckBodies(resolved, program) {
     // Deterministic report: same input → same diagnostics, same order (position,
     // then TS code, then text — the loop-stability guarantee evals depend on).
     out.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0) || a.message.localeCompare(b.message));
-    return out;
+    return { errors: out, oracle: buildOracle(tsProgram, emitter) };
+}
+function buildOracle(tsProgram, emitter) {
+    const sf = tsProgram.getSourceFile("case.ts");
+    if (sf === undefined)
+        return null;
+    const checker = tsProgram.getTypeChecker();
+    const byKey = new Map();
+    for (const u of emitter.units)
+        byKey.set(u.origStartLine + ":" + u.origStartCol, u);
+    const instEls = emitter.instElements;
+    const text = sf.text;
+    const starts = [0];
+    for (let i = 0; i < text.length; i++)
+        if (text[i] === "\n")
+            starts.push(i + 1);
+    const lineStart = (line1) => starts[Math.min(line1 - 1, starts.length - 1)] ?? 0;
+    return {
+        methodTargets(line, col, method) {
+            const u = byKey.get(line + ":" + col);
+            if (u === undefined)
+                return null;
+            // the block's character span in case.ts — the search never leaves it
+            const from = lineStart(u.blockStart);
+            const to = u.blockEnd < starts.length ? lineStart(u.blockEnd + 1) : text.length;
+            const classes = new Set();
+            const braces = [];
+            let any = false;
+            let found = false;
+            const consider = (t) => {
+                if (t.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined))
+                    return; // strict-null unions strip
+                if (t.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) {
+                    any = true;
+                    return;
+                }
+                if (t.isUnion()) {
+                    for (const p of t.types)
+                        consider(p);
+                    return;
+                }
+                const name = t.getSymbol()?.getName();
+                if (name === undefined || name === "" || name.startsWith("__")) {
+                    any = true;
+                    return;
+                }
+                const el = instEls.get(name);
+                if (el !== undefined) {
+                    // a synthesized one-off subclass: its OWN method wins, else its tag's chain
+                    const m = el.methods.find((mm) => mm.name === method);
+                    if (m !== undefined)
+                        braces.push({ line: m.bodyPos.line, col: m.bodyPos.col });
+                    else
+                        classes.add(el.tag);
+                }
+                else {
+                    classes.add(name);
+                }
+            };
+            const visit = (n) => {
+                if (n.getEnd() < from || n.getStart(sf) >= to)
+                    return;
+                if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === method) {
+                    found = true;
+                    consider(checker.getTypeAtLocation(n.expression.expression));
+                }
+                n.forEachChild(visit);
+            };
+            visit(sf);
+            if (!found || any)
+                return "any";
+            return { classes: [...classes], braces };
+        },
+    };
 }
 // ── The message layer — a tsc diagnostic, re-said for the language's primary
 // reader (diagnostics.md §4: name the fix, one canonical rewrite, quote the
@@ -587,6 +660,16 @@ class CaseEmitter {
                 m.set(name, el.tag);
         return m;
     }
+    /** Synthesized instance-type name → its ELEMENT — the L-21 oracle's bridge:
+     *  an `_E<n>`-typed receiver resolves to that element's own method (by its
+     *  body's brace position), else falls to its tag's class chain. */
+    get instElements() {
+        const m = new Map();
+        for (const [el, name] of this.instType)
+            if (name !== el.tag)
+                m.set(name, el);
+        return m;
+    }
     /** The block whose case-file span contains `line`, or null. */
     unitAt(line) {
         for (const u of this.units) {
@@ -665,8 +748,8 @@ function runTsc(scaffold, caseSrc) {
     const program = ts.createProgram(["scaffold.ts", "case.ts"], options, host);
     const sf = program.getSourceFile("case.ts");
     if (sf === undefined)
-        return [];
-    return [...program.getSyntacticDiagnostics(sf), ...program.getSemanticDiagnostics(sf)]
+        return { diags: [], program };
+    const diags = [...program.getSyntacticDiagnostics(sf), ...program.getSemanticDiagnostics(sf)]
         .filter((d) => !UNSATISFIABLE.has(d.code))
         .map((d) => {
         const lc = d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start) : null;
@@ -677,6 +760,7 @@ function runTsc(scaffold, caseSrc) {
             character: lc ? lc.character : 0, // 0-based, within that case-file line
         };
     });
+    return { diags, program };
 }
 /** TS's implicit-`any` family: each of these demands a WRITTEN type annotation
  *  on a BINDING — and while a `{ }` body may carry expression-level type syntax

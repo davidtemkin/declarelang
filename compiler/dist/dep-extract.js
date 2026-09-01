@@ -21,6 +21,7 @@
 import ts from "typescript";
 import { scanDatapaths, splitPath } from "../../runtime/dist/datapath.js";
 import { LANGUAGE_METHOD_EFFECTS } from "./effects.js";
+import { SCHEMAS } from "../../runtime/dist/schema.js";
 const SCOPE_ROOTS = new Set(["parent", "classroot"]); // `this` via ThisKeyword; `app` is `this.root`
 /** The DYNAMIC sentinel (the alias/closure door, 2026-08-25). A body whose
  *  cell reads the extractor can SEE but cannot NAME as static paths — an
@@ -395,7 +396,7 @@ function projectionTail(n) {
  *  `extraRoots` names identifiers that are reactive ROOTS for this body beyond the
  *  three scope nouns — a `script { }` function's parameters, whose reads rebase
  *  onto the call site's arguments rather than onto a receiver. */
-function extractBody(sf, locals, inlinable, extraRoots) {
+function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
     const reads = new Set();
     const calls = [];
     const errors = [];
@@ -559,6 +560,17 @@ function extractBody(sf, locals, inlinable, extraRoots) {
         for (const s of ordered) {
             if (ts.isPropertyAccessExpression(s) && s.parent && ts.isCallExpression(s.parent) && s.parent.expression === s)
                 continue;
+            if (ts.isPropertyAccessExpression(s) && NODE_SLOTS.has(s.name.text) && s !== ordered[ordered.length - 1]) {
+                // L-20: a chain THROUGH a node-typed slot. The slot read is the wired
+                // edge (repointing wakes every reader); everything beyond rides the
+                // tracking path — a prewired edge would pin the previous node's cells.
+                // Placed BEFORE the computed-default arm: a pointer slot with a { }
+                // default is both, and inlining would silently drop the tail (L-29).
+                reads.add(pathTextOf(s));
+                reads.add(DYNAMIC);
+                pathEnd = base;
+                break;
+            }
             if (ts.isPropertyAccessExpression(s) && COMPUTED_DEFAULTS.has(s.name.text)
                 && (inlinable === undefined || inlinable(pathTextOf(s.expression), s.name.text))) {
                 // A read of a computed `{ }` default is a formula: inline it like a method
@@ -572,7 +584,7 @@ function extractBody(sf, locals, inlinable, extraRoots) {
                 // file's standard over-approximation — a no-op wake, never a miss.
                 // A computed default takes no arguments and is inlined at the read, so it
                 // is never "projected through a returned parameter" — there are none.
-                calls.push({ kind: "method", name: s.name.text, receiver: pathTextOf(s.expression), args: [], projected: false, tail: null });
+                calls.push({ kind: "method", name: s.name.text, receiver: pathTextOf(s.expression), args: [], projected: false, tail: null, body: bodyPos });
                 reads.add(pathTextOf(s));
                 pathEnd = base;
                 break;
@@ -643,7 +655,7 @@ function extractBody(sf, locals, inlinable, extraRoots) {
                     }
                     else if (PURE_METHODS.has(m)) { /* pure projection */ }
                     else if (USER_METHODS.has(m))
-                        calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s) });
+                        calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
                     else if (LANGUAGE_METHOD_EFFECTS.has(m)) {
                         // A language-supplied method with a DECLARED reactive effect
                         // (effects.ts): union its read-paths, rebased to this receiver — as
@@ -663,7 +675,7 @@ function extractBody(sf, locals, inlinable, extraRoots) {
                     const nm = callee.text;
                     if (CONSTRUCTORS.has(nm) || GLOBALS.has(nm) || locals.has(nm) || SCRIPT_FUNCTIONS.has(nm)) { /* pure, or already recorded by noteScriptCall */ }
                     else if (USER_METHODS.has(nm))
-                        calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s) });
+                        calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
                     else if (LANGUAGE_METHOD_EFFECTS.has(nm)) {
                         for (const rp of LANGUAGE_METHOD_EFFECTS.get(nm))
                             reads.add(rebase(rp, "this"));
@@ -726,6 +738,14 @@ let SCRIPT_FUNCTIONS = new Map();
 let SCRIPT_MUTABLE = new Set();
 let SCRIPT_CLASSES = new Set();
 const EMPTY_ROOTS = new Set();
+/** The L-21 oracle (typecheck.ts): the checker's receiver types, per compile. */
+let ORACLE = null;
+/** Component-typed DECL names (L-20 pointer slots): a chain THROUGH one keeps
+ *  the slot as its wired edge and sends the rest to the tracking path — a
+ *  prewired edge would pin the PREVIOUS node's cells across a repoint.
+ *  Name-keyed (a sound over-approximation, like every name-keyed gate here). */
+let NODE_SLOTS = new Set();
+const COMPONENT_TAGS = new Set(Object.keys(SCHEMAS));
 // Computed `{ }` DECL DEFAULTS (`name: type = { … }`) by name. Unlike a `name =
 // { … }` ATTRIBUTE (a standing constraint that owns a cell), a computed default has
 // NO cell — it is evaluated inline on each read, its reads flowing to the reader.
@@ -962,7 +982,7 @@ function buildMethodSummaries() {
     // component-sampler), where helpers read attributes off nodes picked at runtime
     // out of `.children.filter(…)`. Those reads genuinely cannot be wired; closing
     // this door is a migration of its own, not a side effect of phase 4.
-    for (const [name, { params, body }] of USER_METHODS) {
+    for (const [name, { params, body, pos }] of USER_METHODS) {
         const sf = parseBody(body, false);
         if (!sf) {
             own.set(name, { reads: new Set(), calls: [], errors: [], ...NO_PARAMS, ret: NO_RET });
@@ -983,7 +1003,7 @@ function buildMethodSummaries() {
         const roots = new Set(params);
         for (const par of roots)
             locals.delete(par);
-        const d = extractBody(sf, locals, undefined, roots);
+        const d = extractBody(sf, locals, undefined, roots, pos);
         own.set(name, { ...d, params, returned: new Set(),
             ret: returnedPaths(sf, locals, params), returns: USER_METHODS.get(name)?.returns });
     }
@@ -993,9 +1013,8 @@ function buildMethodSummaries() {
     // stays for what it is still right about — the classification gate, the
     // computed-defaults merge, and the last-resort fallback.
     const ownEl = new Map();
-    const candidatesByName = new Map();
     for (const [el, mm] of METHODS_OF) {
-        for (const [name, { params, body, returns }] of mm) {
+        for (const [name, { params, body, returns, pos }] of mm) {
             const key = METHOD_EL_ID.get(el) + ":" + name;
             const sf = parseBody(body, false);
             if (!sf) {
@@ -1006,16 +1025,39 @@ function buildMethodSummaries() {
                 const roots = new Set(params);
                 for (const par of roots)
                     locals.delete(par);
-                const d = extractBody(sf, locals, undefined, roots);
+                const d = extractBody(sf, locals, undefined, roots, pos);
                 ownEl.set(key, { ...d, params, returned: new Set(), ret: returnedPaths(sf, locals, params), returns });
             }
-            const list = candidatesByName.get(name);
-            if (list)
-                list.push(key);
-            else
-                candidatesByName.set(name, [key]);
         }
     }
+    // The L-21 bridges (RULED 2026-09-01, TS semantics): instance-method
+    // summaries indexed by their body's `{` position (how the oracle names an
+    // instance method), and the class tree inverted for the OVERRIDE CLOSURE —
+    // a receiver statically typed C may hold any descendant of C at runtime, so
+    // C's family is the sound, bounded candidate set. Never a stranger's body.
+    const byBrace = new Map();
+    for (const [el, mm] of METHODS_OF) {
+        for (const [name, entry] of mm) {
+            if (entry.pos !== undefined)
+                byBrace.set(entry.pos.line + ":" + entry.pos.col + ":" + name, METHOD_EL_ID.get(el) + ":" + name);
+        }
+    }
+    const subclasses = new Map();
+    for (const [cls, base] of CLASS_BASE) {
+        const l = subclasses.get(base);
+        if (l)
+            l.push(cls);
+        else
+            subclasses.set(base, [cls]);
+    }
+    const overridesOf = (cls, name, into) => {
+        for (const d of subclasses.get(cls) ?? []) {
+            const del = CLASS_EL.get(d);
+            if (del !== undefined && METHODS_OF.get(del)?.has(name))
+                into.add(METHOD_EL_ID.get(del) + ":" + name);
+            overridesOf(d, name, into);
+        }
+    };
     // Computed `{ }` defaults join the same callable graph — a default's body is an
     // EXPRESSION (parseBody expr-mode), and same-named defaults union into one summary.
     for (const [name, bodies] of COMPUTED_DEFAULTS) {
@@ -1030,7 +1072,7 @@ function buildMethodSummaries() {
                     return true;
                 return DEFAULT_OWNERS.get(nm)?.has(el) === true;
             };
-            const d = sf ? extractBody(sf, collectLocals(sf, []), inlinable) : { reads: new Set(), calls: [], errors: [] };
+            const d = sf ? extractBody(sf, collectLocals(sf, []), inlinable, undefined, body.pos) : { reads: new Set(), calls: [], errors: [] };
             const ex = own.get(name);
             if (ex) {
                 for (const r of d.reads)
@@ -1144,12 +1186,17 @@ function buildMethodSummaries() {
             //   miss — the receiver is knowable and carries NO such method up its
             //          chain: a same-named call in a different family (a builtin's
             //          verb, a cast receiver) — not ours, contribute nothing;
-            //   unknown — receiver not statically knowable: follow EVERY candidate
-            //          and union (sound over-approximation; replaces the silent
-            //          last-definition-wins the name-keyed map used to produce).
-            const cands = candidatesByName.get(c.name) ?? [];
+            //   unknown — TS SEMANTICS (L-21, RULED 2026-09-01): the CHECKER answers.
+            //          The oracle types the receiver from the typecheck's own
+            //          ts.Program; only that family's bodies (declared class +
+            //          override closure, or the exact instance method) are followed.
+            //          A receiver TS calls `any` sends the constraint to the runtime
+            //          tracking path — the ~dynamic sentinel — where every real read
+            //          is observed live. The old all-candidates union (sound for
+            //          reads, but it exported OTHER classes' resolution errors into
+            //          any program that merely reused a name) is gone.
             let homeKey;
-            if (ctx !== null && cands.length > 0) {
+            if (ctx !== null) {
                 const el = receiverElementDeep(c.receiver, ctx.owner, ctx.classRoot);
                 if (el !== undefined) {
                     const home = methodHome(el, c.name);
@@ -1162,24 +1209,40 @@ function buildMethodSummaries() {
                 o = ownEl.get(homeKey);
                 tag = homeKey;
             }
-            else if (cands.length > 1) {
+            else {
+                const bp = c.kind === "method" ? c.body : undefined;
+                const t = ORACLE !== null && bp !== undefined ? ORACLE.methodTargets(bp.line, bp.col, c.name) : null;
+                if (t === null || t === "any")
+                    return { reads: new Set([DYNAMIC]), errors: [] };
+                const keys = new Set();
+                for (const b of t.braces) {
+                    const k = byBrace.get(b.line + ":" + b.col + ":" + c.name);
+                    if (k !== undefined)
+                        keys.add(k);
+                }
+                for (const cls of t.classes) {
+                    const el = CLASS_EL.get(cls);
+                    const home = el === undefined ? undefined : methodHome(el, c.name);
+                    if (home !== undefined)
+                        keys.add(METHOD_EL_ID.get(home) + ":" + c.name);
+                    overridesOf(cls, c.name, keys);
+                }
+                // typed, and no user body anywhere in the family: a builtin's verb —
+                // nothing to follow, nothing to wire (the hit arm's own miss answer)
+                if (keys.size === 0)
+                    return { reads: new Set(), errors: [] };
                 const reads = new Set();
                 const errors = [];
-                for (const k of cands) {
-                    const sub = followSummary(ownEl.get(k), k, c, stack, ctx);
+                for (const k of keys) {
+                    const s2 = ownEl.get(k);
+                    if (s2 === undefined)
+                        continue;
+                    const sub = followSummary(s2, k, c, stack, ctx);
                     for (const r of sub.reads)
                         reads.add(r);
                     errors.push(...sub.errors);
                 }
                 return { reads, errors };
-            }
-            else if (cands.length === 1) {
-                o = ownEl.get(cands[0]);
-                tag = cands[0];
-            }
-            else {
-                o = own.get(c.name);
-                tag = "m:" + c.name;
             }
         }
         if (o === undefined)
@@ -1251,15 +1314,25 @@ function buildMethodSummaries() {
         // Only a return that can carry reactive state can strand a cell.
         const carriesCells = c.kind !== "scriptValue" && mayCarryCells(o.returns);
         const tail = c.kind === "scriptValue" ? null : c.tail;
-        const refuse = tail !== null && (unresolvedParam || (opaqueReturn && carriesCells));
-        const projectionErrors = refuse
-            ? [new DepError(`${c.name}(…) returns a value chosen at run time, and this reads '.${tail}' off it — the dependency cannot be named at compile time, so it would silently stop updating. Read the attribute where the path is known (at the call site), or return the attribute itself rather than the object carrying it`)]
-            : [];
-        const withProjection = (r) => ({ reads: projected.size === 0 ? r.reads : new Set([...r.reads, ...projected]), errors: r.errors });
+        // L-24 (RULED must-fix 2026-09-01): a projection whose subject cannot be
+        // named at compile time — an opaque return, an unresolvable argument — is
+        // no longer REFUSED. The constraint takes the ~dynamic sentinel to the
+        // runtime tracking path, where the real read is observed each run:
+        // `ap().hue1` (the accessor-farm shape) is legal and LIVE. Statically
+        // nameable projections keep the wired path exactly as before.
+        const dynamicProjection = tail !== null && (unresolvedParam || (opaqueReturn && carriesCells));
+        const withProjection = (r) => {
+            if (projected.size === 0 && !dynamicProjection)
+                return r;
+            const reads = new Set([...r.reads, ...projected]);
+            if (dynamicProjection)
+                reads.add(DYNAMIC);
+            return { reads, errors: r.errors };
+        };
         const cached = memo.get(key);
         if (cached !== undefined) {
             const r = withProjection(cached);
-            return { reads: r.reads, errors: [...cached.errors, ...projectionGate(o, c), ...projectionErrors] };
+            return { reads: r.reads, errors: [...cached.errors, ...projectionGate(o, c)] };
         }
         const map = new Map();
         o.params.forEach((p, i) => map.set(p, args === null ? null : (args[i] ?? null)));
@@ -1268,14 +1341,15 @@ function buildMethodSummaries() {
         stack.delete(tag);
         memo.set(key, res); // memo holds the UNPROJECTED reads: the tail varies per call site
         const out = withProjection(res);
-        return { reads: out.reads, errors: [...res.errors, ...projectionGate(o, c), ...projectionErrors] };
+        return { reads: out.reads, errors: [...res.errors, ...projectionGate(o, c)] };
     };
     const trans = (name, receiver, ctx = null) => follow1({ kind: "method", name, receiver, args: [], projected: false, tail: null }, new Set(), ctx);
     const follow = (c, ctx = null) => follow1(c, new Set(), ctx);
     return { own, trans, follow };
 }
 /** Extract deps for every constraint in a RESOLVED program. */
-export function extractProgram(program) {
+export function extractProgram(program, oracle = null) {
+    ORACLE = oracle;
     USER_METHODS = new Map();
     METHODS_OF = new Map();
     METHOD_EL_ID = new Map();
@@ -1285,15 +1359,22 @@ export function extractProgram(program) {
     DEFAULT_OWNERS = new Map();
     PARENT_OF = new Map();
     PROGRAM_ROOT = program.root;
+    NODE_SLOTS = new Set();
+    const DECLARED_CLASSES = new Set(program.classes.map((c) => c.name));
     ({ fns: SCRIPT_FUNCTIONS, mutable: SCRIPT_MUTABLE, classes: SCRIPT_CLASSES } = scriptFunctions(program.scripts.map((s) => s.src)));
     const constraints = [];
     const collect = (el, classRoot) => {
+        for (const d of el.decls) {
+            const t = (d.type ?? "").replace(/\?$/, "");
+            if (t !== "" && (COMPONENT_TAGS.has(t) || DECLARED_CLASSES.has(t)))
+                NODE_SLOTS.add(d.name);
+        }
         for (const m of el.methods)
-            USER_METHODS.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns });
+            USER_METHODS.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns, pos: m.bodyPos });
         if (el.methods.length > 0) {
             const mm = new Map();
             for (const m of el.methods)
-                mm.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns });
+                mm.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns, pos: m.bodyPos });
             METHODS_OF.set(el, mm);
             METHOD_EL_ID.set(el, METHOD_EL_ID.size);
         }
@@ -1309,7 +1390,7 @@ export function extractProgram(program) {
                 // a `{ }` DECL default is an inline formula, not a cell — register it so reads
                 // of it are inlined (a `name = { }` attribute is a standing constraint, so it
                 // stays a normal subscribable read-path and is NOT registered here).
-                const entry = { src: v.src, owner: el, classRoot };
+                const entry = { src: v.src, owner: el, classRoot, pos: v.pos };
                 const prev = COMPUTED_DEFAULTS.get(d.name);
                 if (prev)
                     prev.push(entry);
@@ -1351,7 +1432,7 @@ export function extractProgram(program) {
                 return true;
             return DEFAULT_OWNERS.get(name)?.has(el) === true;
         };
-        const r = extractBody(sf, collectLocals(sf, []), inlinable);
+        const r = extractBody(sf, collectLocals(sf, []), inlinable, undefined, c.node.pos);
         const reads = new Set(r.reads);
         const errors = [...r.errors];
         for (const call of r.calls) {
@@ -1410,8 +1491,8 @@ export function extractProgram(program) {
  *  each run — the sound fallback (docs/system-design/constraints.md's "genuinely dynamic
  *  reads"). The returned `errors` name each such constraint for a caller that
  *  wants to surface or (in the design's end state) reject them. */
-export function annotateProgram(program) {
-    const out = extractProgram(program);
+export function annotateProgram(program, oracle = null) {
+    const out = extractProgram(program, oracle);
     const errors = [];
     for (const c of out) {
         // A DYNAMIC constraint (alias/closure-carried reads) attaches EMPTY deps —

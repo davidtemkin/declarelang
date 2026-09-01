@@ -1160,12 +1160,19 @@ export function checkAttr(schema, attr) {
         // Valid — fall through to the ordinary :path handling, which returns the
         // datapath; instantiate.ts routes a two-way attr to the editor wiring.
     }
-    if (attr.value.kind === "code" && type.kind === "component") {
-        // The doc promises a swappable/constrainable layout slot; the swap is a
-        // plain assignment today, the `{ }` form is a recorded open question.
+    if (attr.value.kind === "code" && type.kind === "component" && type.of === "Layout") {
+        // The ONE component slot that stays member-or-null: a layout ATTACHES
+        // (the kernel wires it, D-7), so swapping one is a lifecycle act, not a
+        // pointer write. Every OTHER component-typed slot may be constrained —
+        // L-20 (RULED 2026-09-01): the { } computes WHICH existing node the slot
+        // points at. A pointer, re-derived like any value: never creation, never
+        // ownership — the node's lifetime stays with its declaration, and
+        // repointing tears nothing down. Reads THROUGH such a slot ride the
+        // runtime tracking path (dep-extract sends them there): a prewired edge
+        // would pin the PREVIOUS node's cells across a repoint.
         return {
             ok: false,
-            error: new DeclareError(`${schema.name}.${attr.name} = { … }: a component slot takes a member ('${attr.name}: SimpleLayout [ … ]') or null — constraining it is not yet surface`, attr.value.pos),
+            error: new DeclareError(`${schema.name}.${attr.name} = { … }: the layout slot takes a member ('${attr.name}: SimpleLayout [ … ]') or null — a layout attaches; it is not a pointer to swap by constraint`, attr.value.pos),
         };
     }
     if (attr.value.kind === "code") {
