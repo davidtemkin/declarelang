@@ -37,7 +37,7 @@
 // Replicator is an ordinary Constraint, so N data edits in a turn coalesce
 // into one reconcile, whose Surface work lands in the backends' single rAF.
 import { Node } from "./node.js";
-import { View, inheritedCursor, onDiscard, markWindowedBlock, markEvicting, fireRetireTree, fireInitTree } from "./view.js";
+import { View, inheritedCursor, onDiscard, markWindowedBlock, markEvicting, fireRetireTree, fireInitTree, nodeLabel } from "./view.js";
 import { Constraint, Cell } from "./reactive.js";
 import { setBound, bindDerived, isSet, ownerOf, armDivergence, nodeDiverged } from "./attributes.js";
 import { splitPath, isSelective } from "./datapath.js";
@@ -788,6 +788,17 @@ export class Replicator {
             fresh.set(made.view, made.finish);
             next[miss.slot] = made.view;
         }
+        // Cursors, uniformly — and BEFORE anything attaches (field report
+        // 2026-09-01 finding 1: attach first-runs a draw() via flush → bindDraw,
+        // and a recording built ahead of the cursor read every :path as null; a
+        // throw there then aborted the rest of this reconcile — including the
+        // re-points an insert-at-front owes every shifted sibling, finding 2).
+        // The interned handle equality-gates every instance whose place is
+        // unchanged; a moved instance's bindings re-read equal values and the
+        // wave dies at the attribute layer's gate.
+        next.forEach((v, i) => {
+            setBound(v, "datapath", data === null ? null : data.cursorAt(nodes[i].path));
+        });
         // Leftovers: instances whose record left the WINDOW. A clean instance
         // discards freely (reconstruction is unobservable — §2); a TOUCHED one
         // (the divergence bit, or one still holding cells the user typed into)
@@ -854,20 +865,25 @@ export class Replicator {
                 let before = this.surfaceAfter(end);
                 for (let i = nextAll.length - 1; i >= 0; i--) {
                     const v = nextAll[i];
-                    if (v.surface === null)
-                        v.attach(this.parent.backend, ps, before);
-                    else
-                        ps.insertChild(v.surface, before);
-                    before = v.surface;
+                    // CONTAINED per instance: attach first-runs member machinery (a
+                    // draw() recording), and a program bug throwing there must cost
+                    // exactly its own instance — loudly, with the node's path — never
+                    // the siblings' cursors, finishes, and bookkeeping below (field
+                    // report 2026-09-01: one bad row wedged the whole block, and a
+                    // frame-fed draw re-threw forever).
+                    try {
+                        if (v.surface === null)
+                            v.attach(this.parent.backend, ps, before);
+                        else
+                            ps.insertChild(v.surface, before);
+                    }
+                    catch (e) {
+                        reportInstanceThrow(v, "attaching", e);
+                    }
+                    before = v.surface ?? before;
                 }
             }
         }
-        // Cursors, uniformly: the interned handle equality-gates every instance
-        // whose place is unchanged; a moved instance's bindings re-read equal
-        // values and the wave dies at the attribute layer's gate.
-        next.forEach((v, i) => {
-            setBound(v, "datapath", data === null ? null : data.cursorAt(nodes[i].path));
-        });
         // Recycled and freshly built instances are presenting a record they were
         // not presenting before: their springs take the arriving target outright
         // instead of sliding from the departed record's geometry (Spring.arrive).
@@ -981,9 +997,17 @@ export class Replicator {
         this.allViews = nextAll;
         // New instances finish (bindings + init) linked, attached, and cursored;
         // then their init is RECORDED against the membership, and divergence
-        // tracking arms (construct-phase writes never count as touch).
-        for (const finish of fresh.values())
-            finish();
+        // tracking arms (construct-phase writes never count as touch). Contained
+        // per instance, like attach above: one instance's throwing member is that
+        // instance's defect, reported with its path.
+        for (const [v, finish] of fresh) {
+            try {
+                finish();
+            }
+            catch (e) {
+                reportInstanceThrow(v, "finishing", e);
+            }
+        }
         // recycled instances presenting a NEW member fire that member's init on
         // the live subtree (cursored and placed by now), then re-arm divergence
         // exactly like fresh construction (init-handler writes never count).
@@ -1112,6 +1136,13 @@ function lastNodeOf(prev) {
     if (prev === null)
         return null;
     return prev instanceof Replicator ? prev.last() : prev;
+}
+/** A replicated instance's construction threw — surface it once, loudly,
+ *  with the node's path (the field-report contract), and let reconcile keep
+ *  going: the defect belongs to the instance whose member threw, and the
+ *  siblings' cursors and finishes must land regardless. */
+function reportInstanceThrow(v, phase, e) {
+    console.error(`[Declare] ${phase} a replicated ${v.constructor.name} instance (${nodeLabel(v)}) threw: ${e?.message ?? e}`, e);
 }
 /** Does the keyboard focus live inside this instance's subtree? A focused
  *  row is TOUCHED by definition (focus-as-touched — the D5 deferral, forced

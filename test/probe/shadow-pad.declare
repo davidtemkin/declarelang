@@ -1,0 +1,15 @@
+// The shadow-bleed probe (field report 2026-09-01 finding 3): one drawn view
+// whose only ink is a rect wearing a wide shadowBlur glow. The DOM backend's
+// per-view canvas must cover bounds + rasterPad, or the glow clips to a hard
+// rectangle at rest.
+
+App [ width = 600, height = 400, fill = #202020,
+    glow: View [ x = 100, y = 100, width = 100, height = 100,
+        draw(d: Draw) {
+            d.shadowColor = "#00FF00"
+            d.shadowBlur = 28
+            d.fillStyle = "#0088FF"
+            d.fillRect(30, 30, 40, 40)
+            }
+        ]
+    ]

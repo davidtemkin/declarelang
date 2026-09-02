@@ -61,6 +61,33 @@ await test("a list change re-derives — the memo never pins stale content", asy
   assert.notEqual(before, after, "the recording changed and the pixels followed");
 });
 
+await test("DOM per-view canvas covers the shadow bleed — a resting glow never clips to a hard box", async () => {
+  // finding 3 (field report 2026-09-01): bounds exclude blur/shadow bleed by
+  // design (draw.ts), and the canvas backend's memo already overscans by
+  // rasterPad — the DOM backend's retained canvas must too. Ink is a 40×40
+  // rect at (30,30) with shadowBlur 28 → pad ceil(2.5·28) = 70: the box
+  // starts at −40 and spans 180, and the glow is PAINTED outside the ink box.
+  await page.goto(`${B}/test/probe/shadow-pad.declare`, { waitUntil: "networkidle0", timeout: 60000 });
+  await page.waitForFunction(`window.__app != null`, { timeout: 30000 });
+  await sleep(500);
+  const probe = await page.evaluate(`(() => {
+    const c = document.querySelector("canvas");
+    if (c == null) return { missing: true };
+    const st = c.style;
+    // recording coords (25, 50): 5px LEFT of the ink box — glow, not ink
+    const kk = c.width / parseFloat(st.width);
+    const x = Math.round((25 - parseFloat(st.left)) * kk);
+    const y = Math.round((50 - parseFloat(st.top)) * kk);
+    const a = c.getContext("2d").getImageData(x, y, 1, 1).data[3];
+    return { left: st.left, top: st.top, w: st.width, h: st.height, alpha: a };
+  })()`);
+  assert.equal(probe.missing, undefined, "the drawn view's canvas exists");
+  assert.equal(probe.left, "-40px", "box starts pad left of the ink");
+  assert.equal(probe.top, "-40px", "…and pad above");
+  assert.equal(probe.w, "180px", "…and spans ink + 2·pad");
+  assert.ok(probe.alpha > 0, "the glow outside the ink box is painted, not clipped (alpha " + probe.alpha + ")");
+});
+
 await browser.close();
 httpServer.close();
 summarize("raster-memo");

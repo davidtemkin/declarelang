@@ -10,7 +10,8 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { build, settle } from "../runtime/dist/index.js";
+import { build, settle, HeadlessBackend, provideMeasurer } from "../runtime/dist/index.js";
+import { approximateMeasurer } from "../compiler/dist/headless.js";
 import { blocksOf, materializationInfo } from "../runtime/dist/replicate.js";
 
 const rows = (n) => Array.from({ length: n }, (_, i) => ({ n: i, label: "row " + i }));
@@ -464,6 +465,96 @@ await test("PREPEND anchoring (criterion 2): inserts above the window never yank
   assert.equal(Math.round(after.view.y - app.sc.scrollY), Math.round(before.screenY),
     "…at the SAME place on screen — the scroll compensated for the inserted extent");
   assert.ok(app.sc.scrollY > 15000, "the scroll moved by the inserted rows' extent");
+});
+
+// ── LATE-CREATED INSTANCES (field report 2026-09-01, findings 1–2) ─────────
+// A node replicating over `:rows[]` gains a record AFTER boot. The bug family:
+// reconcile attached fresh instances before binding their cursors, so a
+// draw()'s first recording read every :path as null — and the throw aborted
+// the REST of reconcile, leaving the new instance half-built and (on an
+// insert-at-front) every shifted sibling holding its pre-insert cursor: any
+// member that re-evaluated read its predecessor's record, forever. These pins
+// attach (headless), because attach is where the draw build lives.
+
+const LATE = `
+script {
+    function shout(id: string): number { return id.length }
+}
+class Row extends View [ height = 20, width = 200,
+    n: number = { shout(:id) },
+    ph: number = 0,
+    warm: Spring [ attribute = ph, to = { classroot.n }, stiffness = 60, damping = 10 ],
+    draw(d: Draw) {
+        const k = shout(:id)
+        d.fillStyle = "#446688"
+        d.fillRect(0, 0, 10 + k * 4, 12)
+        },
+    t: Text [ x = 60, text = :id ]
+    ]
+App [
+    d: Dataset { { "rows": [ { "id": "alpha" }, { "id": "beta" } ] } },
+    list: View [ x = 20, y = 20, datapath = { d.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Row [ datapath = :rows[] ]
+        ]
+    ]`;
+
+async function makeLate(src = LATE) {
+  provideMeasurer(approximateMeasurer());
+  const r = await compile(src);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.attach(new HeadlessBackend(), null);
+  settle();
+  return app;
+}
+const lateRows = (app) => app.list.children.filter((c) => c.constructor.name === "Row");
+
+await test("a late APPENDED instance builds cursored: draw, computed default, and spring all see the record", async () => {
+  const app = await makeLate();
+  app.d.set("/rows/-", { id: "gamma" });
+  settle();
+  const rows = lateRows(app);
+  assert.equal(rows.length, 3);
+  const g = rows[2];
+  assert.equal(g.t.text, "gamma", "direct bind evaluated");
+  assert.equal(g.n, 5, "computed default reads the bound cursor (draw's first build did not wedge it)");
+  assert.ok(g.ph > 0, "the sibling spring evaluated too — the instance is whole");
+});
+
+await test("insert-at-0 re-points every shifted sibling's cursor — computed defaults re-read their OWN record", async () => {
+  const app = await makeLate();
+  app.d.insert(["rows"], 0, { id: "gamma" });
+  settle();
+  const rows = lateRows(app);
+  assert.deepEqual(rows.map((r) => r.t.text), ["gamma", "alpha", "beta"], "data order");
+  for (const r of rows) {
+    assert.equal(r.$data(["id"]), r.t.text, "the instance's cursor points at the record it presents");
+    assert.equal(r.n, r.t.text.length, "a computed default over the datapath reads the same record — not a captured pre-insert cursor");
+  }
+});
+
+await test("a genuinely throwing member costs exactly its own instance — reported with the node's path, siblings unharmed", async () => {
+  // the defect trips only on the LATE record (boot rows never call bad(1)):
+  // a boot-time throw stays loud and fatal, as every { } does — containment
+  // is reconcile's, for the blast radius one bad row must not have
+  const BAD = LATE
+    .replace("function shout", 'function bad(x: number): number { if (x > 0) throw new Error("bad row"); return 0 }\n    function shout')
+    .replace("const k = shout(:id)", 'const k = shout(:id) + bad(:id == "gamma" ? 1 : 0)');
+  const app = await makeLate(BAD);
+  const errors = [];
+  const orig = console.error;
+  console.error = (...a) => errors.push(a.join(" "));
+  try {
+    app.d.insert(["rows"], 0, { id: "gamma" });
+    settle();
+  } finally {
+    console.error = orig;
+  }
+  const rows = lateRows(app);
+  assert.deepEqual(rows.map((r) => r.t.text), ["gamma", "alpha", "beta"], "reconcile completed: order, cursors, finishes all landed");
+  for (const r of rows) assert.equal(r.$data(["id"]), r.t.text, "every sibling re-pointed despite the throw");
+  assert.ok(errors.some((e) => e.includes("Row") && e.includes("app.list")), "the throw surfaced once, with the node's path: " + errors.join(" | "));
 });
 
 summarize("materialization");

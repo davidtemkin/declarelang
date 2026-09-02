@@ -22,7 +22,7 @@ import { allowedRef, notifyIslandSlot, type Bitmap, type EditableSpec, type Inpu
 import { colorToCss, isGradient, type Fill, type Shadow, type Stroke } from "./value.js";
 import { type BoxState } from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight, type TextStyle } from "./measure.js";
-import { replay, rasterEntryCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA, type DisplayList } from "./draw.js";
+import { replay, rasterEntryCap, rasterLooksBlank, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA, type DisplayList } from "./draw.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive } from "./input.js";
 import { lockFocusZoom } from "./viewport-lock.js";
@@ -2273,7 +2273,15 @@ class DomSurface implements Surface {
    *  a scaled drawing past the cap is soft, which is what it was before. */
   private rasterize(k?: number): void {
     const c = this.drawEl!;
-    const b = this.drawing!.bounds!;
+    // The canvas box is the recording's bounds PLUS the bleed pad: blur and
+    // shadow paint past the recorded shapes (bounds deliberately exclude
+    // them — draw.ts), and the canvas backend's memo already overscans by
+    // rasterPad; without the same pad here, a resting glow clipped to a hard
+    // rectangle at this box's edge (field report 2026-09-01 finding 3 — the
+    // one renderer whose drawn pixels live in a per-view canvas).
+    const b0 = this.drawing!.bounds!;
+    const pad = rasterPad(this.drawing!);
+    const b = pad === 0 ? b0 : { x: b0.x - pad, y: b0.y - pad, w: b0.w + 2 * pad, h: b0.h + 2 * pad };
     const dpr = window.devicePixelRatio || 1;
     let kk = Math.min(k ?? this.composedScale * dpr, this.maxK);
     const cap = rasterEntryCap(Math.max(1, window.innerWidth * dpr) * Math.max(1, window.innerHeight * dpr) * 4);

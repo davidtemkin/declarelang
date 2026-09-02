@@ -198,6 +198,29 @@ await test("slots: author-declared slots are enumerable — constraints and defa
   } finally { app.discard(); }
 });
 
+await test("evaluate: a :path whose field name collides with a node member reads the DATA (field report 2026-09-01 finding 4)", async () => {
+  // qualify() rewrites bare member names to `this.<name>` — it must never
+  // touch the names INSIDE a datapath island: `:done` on a node that also
+  // declares `done` was becoming `:this.done`, which reads nothing and
+  // answered null with a straight face.
+  const app = await boot(`App [ width = 100, height = 100,
+      store: Dataset { { "rec": { "done": true, "id": "x7" } } },
+      row: View [ datapath = { app.store.value.rec },
+          done: boolean = false,
+          ],
+      ]`);
+  try {
+    const { evaluateIn } = await import("../runtime/dist/inspect-service.js");
+    const collide = evaluateIn(app, "app.row", ":done");
+    assert.equal(collide.ok, true, "the read succeeds: " + collide.text);
+    assert.match(collide.text, /true/, "…and answers the record's field, not the member's default (got: " + collide.text + ")");
+    const plain = evaluateIn(app, "app.row", ":id");
+    assert.match(plain.text, /x7/, "a non-colliding field still reads");
+    const member = evaluateIn(app, "app.row", "done");
+    assert.match(member.text, /false/, "the bare member name still answers the MEMBER");
+  } finally { app.discard(); }
+});
+
 await test("explain: an unknown slot answers loudly, never with placid nothing", async () => {
   const app = await boot(`App [ width = 400, height = 300, fitS: number = 1 ]`);
   try {

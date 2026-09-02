@@ -209,9 +209,24 @@ const KEYWORDS = new Set([
     "this", "parent", "classroot", "void", "delete", "class", "extends", "yield", "await",
 ]);
 function qualify(node, src) {
+    // Datapath islands pass VERBATIM (field report 2026-09-01 finding 4):
+    // `:done` on a node that also has a member spelled `done` was qualifying
+    // the word — `:this.done` — which then read `$data(["this","done"])` and
+    // answered null with a straight face. A `:path`'s names are data fields,
+    // never free identifiers.
+    const islands = scanDatapaths(src);
+    let island = 0;
     let out = "";
     let i = 0;
     while (i < src.length) {
+        while (island < islands.length && islands[island].end <= i)
+            island++;
+        if (island < islands.length && islands[island].start === i) {
+            out += src.slice(i, islands[island].end);
+            i = islands[island].end;
+            island++;
+            continue;
+        }
         const ch = src[i];
         // skip string / template literals whole
         if (ch === '"' || ch === "'" || ch === "`") {
