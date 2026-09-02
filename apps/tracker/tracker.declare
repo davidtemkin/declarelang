@@ -55,6 +55,13 @@ script [ "tracker-data.ts" ]
 // TRIO, a person is an AVATAR. Text codes ("P2", "in-progress") retreat
 // to the places prose belongs — menus and the detail panel.
 
+schema Issue [ id: number, title: string, description: string,
+    status: "open" | "in-progress" | "blocked" | "closed",
+    priority: "P0" | "P1" | "P2" | "P3",
+    labels[]: string, assignee?: string,
+    created: number, updated: number, closedAt?: number, comments: number ]
+
+
 class StatusIcon extends View [ width = 14, height = 14,
     s: string = "open",
     ring: View [ x = 0, y = 0, width = 14, height = 14, cornerRadius = 7,
@@ -514,9 +521,9 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     // subscribe to, so the projection never woke. `read([…])` is the region
     // read the language tracks. One spelling, and the clock was redundant.
 
-    db: Dataset { { "issues": [] } },
+    db: Dataset [ schema = [ issues[]: Issue ] ] { { "issues": [] } },
 
-    src: DataSource [ url = "issues.json" ],
+    src: DataSource [ url = "issues.json", schema = [ issues[]: Issue ] ],
 
     booted: boolean = false,
     loadMs: number = 0,
@@ -636,15 +643,15 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     shown: Dataset [ contents = { app.project(app.fStatus, app.fAssignee, app.fLabel, app.query, app.sortOn, app.sortDir, app.groupBy, app.groupRev) } ],
 
-    issuesOf() -> array { return db.read(["issues"]) ?? [] },
+    issuesOf() -> Issue[] { return db.read(["issues"]) ?? [] },
 
     project(byStatus: string, byAssignee: string, byLabel: string, query: string, sortOn: string, sortDir: string, grouping: string, groupClock: number) -> object {
         let rows = this.issuesOf()
         if (byStatus != "" || byAssignee != "" || byLabel != "") {
             rows = rows.filter((it) =>
-                (byStatus == "" || (it as any).status == byStatus) &&
-                (byAssignee == "" || (it as any).assignee == byAssignee) &&
-                (byLabel == "" || (((it as any).labels ?? []) as any).includes(byLabel)))
+                (byStatus == "" || it.status == byStatus) &&
+                (byAssignee == "" || it.assignee == byAssignee) &&
+                (byLabel == "" || (it.labels ?? []).includes(byLabel)))
             }
         // the query NARROWS like any other filter (a tracker searches by
         // hiding what doesn't match, not by bolding what does); the scan is
@@ -656,8 +663,8 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
             const hay = ((this as any)._hay ??= new WeakMap())
             rows = rows.filter((it) => {
                 let h = hay.get(it)
-                if (h == null || (h as any).u != (it as any).updated) {
-                    h = ({ u: (it as any).updated, s: ((it as any).title + "\n" + ((it as any).description ?? "") + "\n" + (((it as any).labels ?? []) as any).join(" ") + "\n" + ((it as any).assignee ?? "")).toLowerCase() })
+                if (h == null || (h as any).u != it.updated) {
+                    h = ({ u: it.updated, s: (it.title + "\n" + (it.description ?? "") + "\n" + (it.labels ?? []).join(" ") + "\n" + (it.assignee ?? "")).toLowerCase() })
                     hay.set(it, h)
                     }
                 return (h as any).s.includes(needle)
@@ -668,16 +675,16 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         // lowest priority, A→Z. `desc` then reverses, uniformly, with no key
         // carrying a special case (so a new sort field inherits the rule).
         const RANK = ({ P0: 3, P1: 2, P2: 1, P3: 0 })
-        const asc = sortOn == "priority" ? (a, b) => (RANK as any)[(a as any).priority] - (RANK as any)[(b as any).priority] || (a as any).updated - (b as any).updated
-            : sortOn == "title" ? (a, b) => ((a as any).title < (b as any).title ? -1 : (a as any).title > (b as any).title ? 1 : 0)
-            : (a, b) => (a as any).updated - (b as any).updated
+        const asc = sortOn == "priority" ? (a, b) => RANK[a.priority] - RANK[b.priority] || a.updated - b.updated
+            : sortOn == "title" ? (a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : 0)
+            : (a, b) => a.updated - b.updated
         rows = [...rows].sort(sortDir == "desc" ? (a, b) => asc(b, a) : asc)
         if (grouping != "status") return ({ rows: rows, total: rows.length, searchMs: searchMs })
         const order = ["open", "in-progress", "blocked", "closed"]
         const collapsed = this.collapsedSet()
         const out = []
         for (const st of order) {
-            const members = rows.filter((it) => (it as any).status == st)
+            const members = rows.filter((it) => it.status == st)
             if (members.length == 0) continue
             out.push(({ kind: "hdr", id: "hdr:" + st, status: st, count: members.length }))
             if (!collapsed.includes(st)) out.push(...members)
@@ -692,11 +699,11 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         const DAY = 86400000
         let maxU = 0
         const issues = this.issuesOf()
-        for (const it of issues) if (((it as any).updated ?? 0) > maxU) maxU = (it as any).updated
+        for (const it of issues) if ((it.updated ?? 0) > maxU) maxU = it.updated
         const today = Math.floor(maxU / DAY)
         const days = new Array(14).fill(0)
         for (const it of issues) {
-            const c = (it as any).closedAt
+            const c = it.closedAt
             if (c == null) continue
             const d = today - Math.floor(c / DAY)
             if (d >= 0 && d < 14) days[13 - d] = days[13 - d] + 1
@@ -705,7 +712,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         },
     countStatuses() -> object {
         const c = ({ open: 0, "in-progress": 0, blocked: 0, closed: 0 })
-        for (const it of this.issuesOf()) (c as any)[(it as any).status] = ((c as any)[(it as any).status] ?? 0) + 1
+        for (const it of this.issuesOf()) (c as any)[it.status] = ((c as any)[it.status] ?? 0) + 1
         return c
         },
 
@@ -716,8 +723,8 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         const m = new Map()
         let un = 0
         for (const it of this.issuesOf()) {
-            if (("" + (it as any).status) == "closed") continue
-            const a = (it as any).assignee
+            if (("" + it.status) == "closed") continue
+            const a = it.assignee
             if (a == null) un = un + 1
             else m.set(a, (m.get(a) ?? 0) + 1)
             }
