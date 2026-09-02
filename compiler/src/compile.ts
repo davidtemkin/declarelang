@@ -1002,6 +1002,23 @@ class Resolver {
       try {
         sf = ts.createSourceFile("script.ts", b.src, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
       } catch { continue; }
+      // The DELIMITER CROSSING (2026-09-02): braces hold the code itself,
+      // brackets hold the files — so `script { "helpers.ts" }` is a legal
+      // block whose whole body is one string expression that evaluates to
+      // nothing, and the author's helpers silently never exist. The compiler
+      // sees exactly what was meant; say so.
+      if (sf.statements.length === 1 && ts.isExpressionStatement(sf.statements[0])) {
+        const e = sf.statements[0].expression;
+        if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) {
+          const fix = /\.(ts|tsx|js|mjs)$/.test(e.text)
+            ? `for script from a file write script [ ${JSON.stringify(e.text)} ]`
+            : `a script block declares functions and state; a lone string does nothing`;
+          this.errors.push(new DeclareError(
+            `script { ${JSON.stringify(e.text)} } holds one string and no code — braces hold the script ITSELF; ${fix}`,
+            this.posAt(bodyOpen + e.getStart(sf))));
+          continue;
+        }
+      }
       for (const st of sf.statements) {
         const pos = (n: ts.Node): Pos => this.posAt(bodyOpen + n.getStart(sf));
         if (ts.isImportEqualsDeclaration(st)) {

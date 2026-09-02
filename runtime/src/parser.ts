@@ -1277,7 +1277,7 @@ class Parser {
     while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
       const t = this.peek();
       if (t.kind !== "string") {
-        throw new DeclareError("a script file path is a quoted string", t.pos);
+        throw new DeclareError("a script file path is a quoted string — script [ \"helpers.ts\" ]; for inline code, braces hold the script itself: script { … }", t.pos);
       }
       this.next();
       refs.push({ path: t.str!, pos: t.pos });
