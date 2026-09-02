@@ -433,6 +433,17 @@
     "write batching"
    ],
    "answer": "The SETTLE is the unit in which anything happens at all: a handler's writes are applied together when it returns — constraints re-derive, views appear and retire where data now says so, layout places, sizes update — one indivisible step, run to completion. Nothing paints in the middle of one, and no time passes inside one; motion is many small settles (one per frame), never one long one. (An Animator standing at its destination reads `atRest` — a different fact, on a different clock.)\nTo finish after your own change has taken effect — aim a camera at a view your write just created — register one step at this settle's close: `afterSettle(app.step)`. Constraint first, afterSettle second, never for waiting. Boot's close is delivered instead: `onReady()`, on the App only.\ndocs/declare.md §5 \"The settle\"; the guide teaches it in ch 3 (relationships)."
+  },
+  {
+   "terms": [
+    "schema",
+    "declare a schema",
+    "data shape",
+    "typed data",
+    "record type",
+    "schema declaration"
+   ],
+   "answer": "`schema Name [ id: string, done: boolean, status: \"open\" | \"closed\", note?: string ]` — a named data shape, declared at the top level like a class. It is a TYPE in the one type system: use the name in any type position (`sel: Task = null`, `advance(t: Task) -> Task`, `owner: Person` inside another schema), and declare a dataset's document with it — `schema = [ tasks[]: Task ]`, `schema = TaskDoc`, or `schema = Task[]` for a bare-array response. The dataset's `.value` is then typed (a misspelled field dies at compile), arrival and the embedded body validate against it, and `set`/`insert` refuse a non-conforming write at the write. Field markers: `[]` array, `?` optional; field types are string | number | boolean | any, a literal union of strings or of numbers (\"open\" | \"closed\", 0 | 1 | 2), another schema's name, or a nested `[ … ]`. Extra keys always pass — a schema declares what the program relies on. Guide: data chapter, \"The shape is a type\"."
   }
  ]
 }

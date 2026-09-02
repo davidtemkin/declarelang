@@ -130,7 +130,7 @@ Three ways to run, one compiler, and the choice is only *where the compile happe
   compiler entirely.
 - **A production build** moves the compile ahead of time: `declarec` (or `?build` on
   any program URL) emits a self-contained artifact — the app and its runtime, about
-  <!--stat:calendar.wireKB-->85<!--/stat--> KB gzipped for the flagship calendar, the same
+  <!--stat:calendar.wireKB-->86<!--/stat--> KB gzipped for the flagship calendar, the same
   figure the homepage reports live from the deployed artifacts — deployable to any static host, no compiler
   aboard. `--crawler` bakes the extracted document into the built page.
 

@@ -50,7 +50,7 @@ export interface ClassInfo {
  *  order-free. The two unbuildable shapes are loud errors here: an `extends`
  *  cycle (the chain can never bottom out) and a class that (transitively)
  *  contains itself (it could never finish instantiating). */
-export declare function programSchemas(classes: readonly ClassDecl[]): {
+export declare function programSchemas(classes: readonly ClassDecl[], shapes?: ReadonlySet<string>): {
     infos: ClassInfo[];
     schemas: Record<string, ComponentSchema>;
     errors: DeclareError[];
@@ -86,11 +86,16 @@ export declare function checkDecl(schema: ComponentSchema, d: AttrDecl, owner?: 
  *  is fed from. The asymmetry was accidental: the `component` AttrType and its
  *  coercion already existed for schema slots (`layout: Layout`); only the
  *  DECLARATION path could not name one. */
-isComponent?: (n: string) => boolean): CheckedDecl;
+isComponent?: (n: string) => boolean, 
+/** Is this name a declared SCHEMA (typed data)? A record slot (`sel: Task
+ *  = null`) and an array of records (`picked: Task[]`) are ordinary
+ *  declarations whose type is the schema — the projection makes the name
+ *  real in every { } body; here it resolves to the record/array kinds. */
+isShape?: (n: string) => boolean): CheckedDecl;
 /** An element's schema plus its inline declarations — the anonymous one-off
  *  subclass of language §5, in the checker's currency. Validation of the
  *  decls themselves is the caller's (checkDecl); this only shapes the chain. */
-export declare function withDecls(schema: ComponentSchema, decls: readonly AttrDecl[], isComponent?: (n: string) => boolean): ComponentSchema;
+export declare function withDecls(schema: ComponentSchema, decls: readonly AttrDecl[], isComponent?: (n: string) => boolean, isShape?: (n: string) => boolean): ComponentSchema;
 /** The many-path attribute (`datapath = :items[]`) that makes an element a
  *  replication template, or null. Type-directed: a many-path on a
  *  cursor-typed slot — today, View.datapath — is what replicates. */

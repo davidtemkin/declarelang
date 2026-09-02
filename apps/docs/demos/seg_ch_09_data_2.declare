@@ -1,32 +1,9 @@
-App [ width = 400, height = 220, fill = white, textColor = black,
-    rec: Dataset { { "name": "Ada", "email": "ada@example.com" } },
-
-    canSave: boolean = { app.col.nameF.valid && app.col.mailF.valid
-                      && (app.col.nameF.dirty || app.col.mailF.dirty) },
-
-    col: View [ x = 20, y = 20, width = 360, datapath = { rec.value },
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
-
-        nameF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
-            commitOn = "manual", text <-> :name,
-            validate(v: string) -> string { return v.length > 0 ? "" : "Name is required" }
-            ],
-        mailF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
-            commitOn = "manual", text <-> :email,
-            validate(v: string) -> string { return v.includes("@") ? "" : "That is not an address" }
-            ],
-
-        msg: Text [ width = 340, textColor = firebrick,
-            text = { app.col.nameF.error != "" ? app.col.nameF.error : app.col.mailF.error } ],
-
-        row: View [ height = 30,
-            layout: SimpleLayout [ axis = x, spacing = 8 ],
-            Button [ label = "Save", primary = true, disabled = { !app.canSave },
-                onClick() { app.col.nameF.commit(); app.col.mailF.commit() }
-                ],
-            Button [ label = "Revert",
-                onClick() { app.col.nameF.revert(); app.col.mailF.revert() }
-                ]
+App [ width = 300, height = 120, fill = white, textColor = black,
+    people: Dataset { { "rows": [ { "name": "Ada" } ] } },
+    list: View [ x = 20, y = 20, datapath = { people.value },
+        View [ datapath = :rows[],
+            TextInput [ width = 200, height = 30, padding = 6, cornerRadius = 6, fill = gainsboro,
+                text <-> :name ]
             ]
         ]
     ]

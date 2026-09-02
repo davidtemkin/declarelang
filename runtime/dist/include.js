@@ -134,6 +134,7 @@ export function resolveIncludesHostless(program) {
 export async function resolveIncludes(program, host, originDir) {
     const errors = [];
     const classes = [...program.classes];
+    const shapes = [...(program.shapes ?? [])];
     const stylesheets = [...program.stylesheets];
     const styles = [...program.styles];
     const fonts = [...program.fonts];
@@ -155,6 +156,8 @@ export async function resolveIncludes(program, host, originDir) {
     const origin = new Map();
     for (const c of program.classes)
         origin.set(c.name, MAIN);
+    for (const d of program.shapes ?? [])
+        origin.set(d.name, MAIN);
     for (const s of program.stylesheets)
         origin.set(s.name, MAIN);
     for (const s of program.styles)
@@ -213,6 +216,9 @@ export async function resolveIncludes(program, host, originDir) {
             for (const c of lib.classes)
                 if (fold(c.name, c.pos, from))
                     classes.push(c);
+            for (const d of lib.shapes ?? [])
+                if (fold(d.name, d.pos, from))
+                    shapes.push(d);
             for (const s of lib.stylesheets)
                 if (fold(s.name, s.pos, from))
                     stylesheets.push(s);
@@ -233,7 +239,7 @@ export async function resolveIncludes(program, host, originDir) {
     };
     await walk(program.includes, originDir);
     return {
-        program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
+        program: { classes, shapes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
         sources,
         sourceIds,
         errors,
@@ -312,6 +318,7 @@ export async function resolveAutoIncludes(program, root, host, visited) {
     autoIncludable = Object.keys(manifest);
     const errors = [];
     const classes = [...program.classes];
+    const shapes = [...(program.shapes ?? [])];
     const stylesheets = [...program.stylesheets];
     const styles = [...program.styles];
     const fonts = [...program.fonts];
@@ -327,6 +334,8 @@ export async function resolveAutoIncludes(program, root, host, visited) {
     const origin = new Map();
     for (const c of program.classes)
         origin.set(c.name, "the app");
+    for (const d of program.shapes ?? [])
+        origin.set(d.name, "the app");
     for (const s of program.stylesheets)
         origin.set(s.name, "the app");
     for (const s of program.styles)
@@ -385,6 +394,9 @@ export async function resolveAutoIncludes(program, root, host, visited) {
             await pull(r.tag, r.pos);
         for (const c of mine)
             classes.push(c);
+        for (const d of lib.shapes ?? [])
+            if (foldOne(d.name, d.pos, path))
+                shapes.push(d);
         for (const s of lib.stylesheets)
             if (foldOne(s.name, s.pos, path))
                 stylesheets.push(s);
@@ -415,7 +427,7 @@ export async function resolveAutoIncludes(program, root, host, visited) {
         // `uses` is the FOLDED list — the root's plus every included library's
         // (returning the root's alone silently dropped a library's keep-list,
         // which broke by-name construction inside components).
-        program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
+        program: { classes, shapes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
         sources,
         sourceIds,
         errors,

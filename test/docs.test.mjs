@@ -79,7 +79,7 @@ for (const rel of COVERED) {
       // read `class Foo extends View [ … ]` as a run of members named `class`,
       // `Foo`, `extends`, which only "parsed" while the comma was optional.
       try { parseProgram(frag); return; } catch { /* not a whole program */ }
-      if (/^\s*(class|style|stylesheet|font|include|script|use)\b/.test(frag)) {
+      if (/^\s*(class|schema|style|stylesheet|font|include|script|use)\b/.test(frag)) {
         parseProgram(`${frag.trimEnd()}\n\nApp [ width = 1, height = 1 ]\n`);
         return;
       }

@@ -160,6 +160,7 @@ const RULES = [
     name: "extract",                 // the doc tree: intermediate model + the docs app's chapters and demo islands
     inputs: [{ dir: "tools/internal/doc", exclude: ["assemble.mjs"] }, "runtime/dist", "compiler/dist", "library",
              "docs/guide", "docs/tenets",
+             "tools/format.mjs",     // the generated islands are written THROUGH canonize — a formatter change changes them
              { dir: "apps/docs/demos", notPre: "seg_" }],       // the authored per-class examples it embeds
     outputs: [".derive/docs-extract.json", "apps/docs/chapters", "apps/docs/search-index.json",
               { dir: "apps/docs/demos", pre: "seg_" }],         // the generated islands, and only those

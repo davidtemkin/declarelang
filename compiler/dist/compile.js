@@ -47,6 +47,7 @@ import { parseProgram } from "../../runtime/dist/parser.js";
 import { DeclareError, DeclareErrors } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { SCHEMAS, descendsFrom, attrType } from "../../runtime/dist/schema.js";
+import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks } from "../../runtime/dist/links.js";
 import { annotateProgram } from "./dep-extract.js";
@@ -783,7 +784,10 @@ export async function compile(source, opts = {}) {
         throw e;
     }
     // Static `:path` checking against declared schemas (B4, language §9) —
-    // runs on the resolved parse, where cursor expressions are explicit.
+    // runs on the resolved parse, where cursor expressions are explicit. The
+    // named `schema =` forms resolve first (typed data — idempotent; errors
+    // were the main check()'s to report).
+    resolveShapes(depProgram);
     {
         const schemaErrors = rbAll(schemaCheck(depProgram));
         if (schemaErrors.length > 0) {
@@ -900,7 +904,7 @@ class Resolver {
     /** Whether this compile can bundle script imports (CompileOptions.bundleScripts). */
     canBundleScripts = false;
     constructor(source, program) {
-        this.schemas = programSchemas(program.classes).schemas; // check-clean: no errors
+        this.schemas = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name))).schemas; // check-clean: no errors
         this.scriptNames = new Set(program.scripts.flatMap((b) => topLevelBindings(b.src)));
         this.scriptMutable = new Set(program.scripts.flatMap((b) => topLevelMutableBindings(b.src)));
         for (let i = 0; i < source.length; i++) {

@@ -98,7 +98,10 @@ export type Length = number | Percent;
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Backdrop | Motion | readonly ShapeField[];
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Backdrop | Motion | readonly ShapeField[] | {
+    readonly arrayRoot: true;
+    readonly fields: readonly ShapeField[];
+};
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
 export declare function isPercent(v: AttrValue): v is Percent;
@@ -134,6 +137,7 @@ export type AttrType = {
 } | {
     readonly kind: "record";
     readonly name: string;
+    readonly data?: true;
 } | {
     readonly kind: "fill";
 } | {

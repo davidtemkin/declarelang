@@ -1,6 +1,6 @@
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import type { AttrType } from "../../runtime/dist/value.js";
-import type { ClassDecl } from "../../runtime/dist/parser.js";
+import type { ClassDecl, SchemaDecl } from "../../runtime/dist/parser.js";
 /** Every name the PRELUDE declares — the resolver's second tier of "known
  *  global" (compile.ts isKnownGlobal). Read off the prelude text itself, so
  *  a name declared here is admitted there and nowhere else: the prelude is
@@ -72,4 +72,15 @@ export declare function generateScaffold(schemas: Readonly<Record<string, Compon
 /** Written signature type names from INLINE elements too (the caller walks
  *  the whole tree; `classDecls` covers only `class` bodies). Enum/record
  *  aliases are collected from these as well as from attributes. */
-extraSignatureTypes?: readonly string[]): string;
+extraSignatureTypes?: readonly string[], 
+/** The program's `schema Name [ … ]` declarations (typed data) — each
+ *  projects as an ambient `interface Name`, which is what makes the name
+ *  real in every { } body, method signature, and script function. */
+shapes?: readonly SchemaDecl[]): string;
+/** A shape's TS object-type text — `{ id: string; n?: number; owner: Person;
+ *  status: "open" | "closed"; steps: { a: string }[] }`. A named ref prints
+ *  its NAME (the interface is emitted beside it); an inline nested shape
+ *  prints structurally. `any` stays `any` — the deliberate under-report a
+ *  declared escape hatch asks for. */
+export declare function shapeFieldTsType(f: SchemaDecl["fields"][number]): string;
+export declare function shapeObjectText(fields: readonly SchemaDecl["fields"][number][]): string;

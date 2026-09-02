@@ -74,7 +74,9 @@ import { Replicator, type VirtualizePolicy } from "./replicate.js";
 import { staticSegs, type PathSeg } from "./datapath.js";
 import { provideViewCreator } from "./view.js";
 import { toCursor, type Dataset } from "./data.js";
-import { validateShape } from "./data-schema.js";
+import { validateDoc } from "./data-schema.js";
+import { resolveShapes, shapeNames } from "./shape-resolve.js";
+import { trackedView, unwrapValue } from "./data.js";
 import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, SOURCES, STATES } from "./registry.js";
 
 type ViewCtor = new () => View;
@@ -101,6 +103,9 @@ interface UserClass {
 
 interface Ctx {
   tags: Record<string, ViewCtor>;
+  /** The program's declared schema names (typed data) — record-slot decl
+   *  resolution (`sel: Task = null`) asks these. */
+  shapes: ReadonlySet<string>;
   /** Layout classes by name (built-in bases + synthesized user layouts) — the
    *  layout-side twin of `tags`, since a strategy is never a tree tag. */
   layoutCtors: Record<string, abstract new () => Layout>;
@@ -175,6 +180,12 @@ export function instantiate(input: Element | Program): View {
   // and only then), so instantiation runs on the fast paths; anything else
   // (a hand-built tree, a test fragment) validates step by step, as ever.
   const trusted = program.trusted === true;
+  // Resolve schema declarations first (typed data): the named `schema =`
+  // forms rewrite to shape literals and refs resolve, so coercion and the
+  // embedded-body validation below see one representation. Errors are the
+  // CHECKER's to report (check() runs the same idempotent pass); here the
+  // resolution is for behavior.
+  resolveShapes(program);
   // A program's `script { … }` helpers are evaluated ONCE, here, before any
   // body is compiled — bodies bind their scope at compile time (bindConstraint
   // compiles eagerly), so the scope has to exist before the tree is built. The
@@ -194,7 +205,8 @@ export function instantiate(input: Element | Program): View {
 let CURRENT_SCRIPTS: Record<string, unknown> = {};
 
 function buildTree(program: Program, trusted: boolean): View {
-  const { infos, schemas, errors } = programSchemas(program.classes);
+  const programShapes = shapeNames(program);
+  const { infos, schemas, errors } = programSchemas(program.classes, programShapes);
   if (errors.length > 0) throw errors[0];
   const tags: Record<string, ViewCtor> = { ...TAGS };
   const layoutCtors: Record<string, abstract new () => Layout> = { ...LAYOUT_BASES };
@@ -206,18 +218,20 @@ function buildTree(program: Program, trusted: boolean): View {
     // registers back there — a strategy is never a tree tag; a View subclass
     // synthesizes against `tags` and joins it.
     const chain = [...(classes.get(info.decl.base)?.chain ?? []), info.decl.body];
+    const isShapeType = (n: string): boolean => programShapes.has(n);
     if (descendsFrom(info.schema, "Layout")) {
-      const ctor = synthesize(layoutCtors[info.schema.base!.name], info.decl.name, info.decl.body, () => info.defaults);
+      const ctor = synthesize(layoutCtors[info.schema.base!.name], info.decl.name, info.decl.body, () => info.defaults, false, isShapeType);
       layoutCtors[info.decl.name] = ctor as unknown as new () => Layout;
       classes.set(info.decl.name, { info, ctor: ctor as ViewCtor, chain });
     } else {
-      const ctor = synthesize(tags[info.schema.base!.name], info.decl.name, info.decl.body, () => info.defaults) as ViewCtor;
+      const ctor = synthesize(tags[info.schema.base!.name], info.decl.name, info.decl.body, () => info.defaults, false, isShapeType) as ViewCtor;
       classes.set(info.decl.name, { info, ctor, chain });
       tags[info.decl.name] = ctor;
     }
   }
   const ctx: Ctx = {
     tags,
+    shapes: programShapes,
     layoutCtors,
     schemas,
     classes,
@@ -445,7 +459,10 @@ function synthesize(
   defaults: () => Record<string, unknown>,
   /** Inline (use-site) declarations bind their default bindings' classroot
    *  outward; a class body's bind the instance itself (R6 member origin). */
-  outer = false
+  outer = false,
+  /** Is this written type name a declared SCHEMA (typed data)? Schema-typed
+   *  slots get the L-23 tracked-view hook below. */
+  isShapeType: (n: string) => boolean = () => false
 ): new () => object {
   const B = base as new () => object;
   const cls = class extends B {};
@@ -479,6 +496,15 @@ function synthesize(
         if ("error" in c) throw new DeclareError(`${name}.${d.name}'s default = { … } ${c.error}`, d.def.pos);
         defBinding = c.fn;
       }
+      // A SCHEMA-TYPED slot (`sel: Task`, `picked: Task[]`) is LIVE past its
+      // identity (typed data, 2026-09-02 — the L-23 rule extended): a tracked
+      // reader gets the tracking view of the held record, so `app.sel.title`
+      // in a { } wires the record's region cell and a later
+      // `set(["tasks", i, "title"], …)` wakes it — a record slot never shows
+      // a value that has since moved on. Untracked readers (handlers) keep
+      // the raw record; a tracked view assigned INTO the slot normalizes back
+      // to raw (the Dataset.value push pattern), so identity stays one thing.
+      const shapeSlot = isShapeType(d.type.endsWith("[]") ? d.type.slice(0, -2) : d.type);
       specs[d.name] = {
         def: Object.hasOwn(defs, d.name) ? defs[d.name] : undefined,
         // The runtime half of the slot's identity: a prevailing declaration
@@ -489,6 +515,13 @@ function synthesize(
         readOnly: d.readOnly || undefined,
         defBinding,
         defOuter: outer || undefined,
+        ...(shapeSlot ? {
+          push: (self: View, v: unknown) => {
+            const raw = unwrapValue(v);
+            if (raw !== v) setBound(self, d.name, raw);
+          },
+          tracked: (_self: View, v: unknown) => trackedView(v),
+        } : {}),
       };
       // The tooling record (attributes.ts DECLARED): a defBinding drops the
       // source at compile, and the introspection surface went blind exactly at
@@ -519,14 +552,14 @@ function synthesize(
  *  same prototype accessors, exactly as if the compiler had named the class. */
 const ANON = new WeakMap<Element, ViewCtor>();
 
-function ctorWithDecls(el: Element, base: ViewCtor, schema: ComponentSchema, isComponent: (n: string) => boolean): ViewCtor {
+function ctorWithDecls(el: Element, base: ViewCtor, schema: ComponentSchema, isComponent: (n: string) => boolean, isShape: (n: string) => boolean = () => false): ViewCtor {
   if (el.decls.length === 0) return base;
   let ctor = ANON.get(el);
   if (ctor === undefined) {
     const defaults = (): Record<string, unknown> => {
       const defs: Record<string, unknown> = {};
       for (const d of el.decls) {
-        const r = checkDecl(schema, d, schema.name, isComponent);
+        const r = checkDecl(schema, d, schema.name, isComponent, isShape);
         if (!r.ok) throw r.error;
         defs[d.name] = r.value;
       }
@@ -536,7 +569,7 @@ function ctorWithDecls(el: Element, base: ViewCtor, schema: ComponentSchema, isC
     // message — while the declared members make it the §5 one-off subtype.
     // Inline declarations are written at the USE SITE, so their default
     // bindings' classroot points outward.
-    ctor = synthesize(base, base.name, el, defaults, true) as ViewCtor;
+    ctor = synthesize(base, base.name, el, defaults, true, isShape) as ViewCtor;
     ANON.set(el, ctor);
   }
   return ctor;
@@ -572,13 +605,13 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   }
   if (baseCtor === null || schema === null) throw new DeclareError(`unknown component '${el.tag}'`, el.pos);
   const user = ctx.classes.get(el.tag);
-  const view = new (ctorWithDecls(el, baseCtor, schema, (n) => ctx.schemas[n] !== undefined))();
+  const view = new (ctorWithDecls(el, baseCtor, schema, (n) => ctx.schemas[n] !== undefined, (n) => ctx.shapes.has(n)))();
   view.classroot = outer;
   // The `classroot` for members written at THIS element's site: the enclosing
   // scope — or, at the tree root, the root itself (its members are written
   // in its own body: the anonymous App class's).
   const croot = outer ?? view;
-  const eff = withDecls(schema, el.decls, (n) => ctx.schemas[n] !== undefined);
+  const eff = withDecls(schema, el.decls, (n) => ctx.schemas[n] !== undefined, (n) => ctx.shapes.has(n));
 
   // Merge the member sources: class-body chain base→leaf (classroot = this
   // instance), then the use site (classroot = the outer scope). Same-named
@@ -896,7 +929,7 @@ function constructData(el: Element, schema: ComponentSchema, outer: View | null,
       // same way at arrival, landing in .failed).
       const shape = (node as Dataset).schema;
       if (shape !== null) {
-        const err = validateShape(value, shape);
+        const err = validateDoc(value, shape);
         if (err !== null) {
           throw new DeclareError(
             `${el.name ?? el.tag}: the embedded data does not match the schema — ${err}`,
@@ -1257,7 +1290,7 @@ function buildLayout(el: Element, owner: View, ctx: Ctx): Layout {
  *  enclosing scope. Attributes land as literals or `{ }` bindings over the
  *  layout's own slots (place()/retarget read them). */
 function installLayoutClass(layout: Layout, el: Element, uc: UserClass, owner: View, ctx: Ctx): void {
-  const eff = withDecls(ctx.schemas[el.tag], el.decls, (n) => ctx.schemas[n] !== undefined);
+  const eff = withDecls(ctx.schemas[el.tag], el.decls, (n) => ctx.schemas[n] !== undefined, (n) => ctx.shapes.has(n));
   const croot = owner.classroot ?? owner;
   const self = layout as unknown as Record<string, unknown>;
 

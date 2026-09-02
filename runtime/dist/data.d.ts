@@ -1,6 +1,7 @@
 import { Node } from "./node.js";
 import type { AttrType } from "./value.js";
 import { type ShapeField } from "./data-schema.js";
+import { type DataShape } from "./shape-resolve.js";
 /** A place in a dataset: the `datapath` attribute's value. Interned per
  *  dataset (see Dataset.cursorAt), so equal places are equal values. */
 export interface Cursor {
@@ -8,6 +9,7 @@ export interface Cursor {
     readonly path: readonly string[];
 }
 export declare function unwrapValue<T>(v: T): T;
+export declare function trackedView(v: unknown): unknown;
 /** A Dataset holds embedded JSON (language §9: `events: Dataset { … }` — the
  *  `{ }` carries its JSON meaning there) and is the data half every source
  *  shares: the reactive `value` slot, region reads, and the mutation API.
@@ -20,11 +22,12 @@ export declare class Dataset extends Node {
     /** A derived Dataset's write slot: `contents = { … }` binds here and its
      *  push mirrors the computed value into `value` (see defineAttributes). */
     contents: unknown;
-    /** The optional data shape (B4, language §9): parsed ShapeField
-     *  declarations, or null. Presence is the only switch — arrival validates
-     *  against it, the compiler checks `:path`s against it, and its declared
-     *  identity field keys records (D6 ladder rung 1). */
-    schema: readonly ShapeField[] | null;
+    /** The optional data shape (B4 + typed data 2026-09-01): the resolved
+     *  field list (a record document), the array-root wrapper (`schema =
+     *  Task[]`), or null. Presence is the only switch — arrival validates
+     *  against it, mutation verbs validate against it, and the compiler checks
+     *  `:path`s and types `{ }` reads from it. */
+    schema: DataShape | null;
     private readonly cursors;
     /** The interned cursor for `path` — one object per distinct place, so a
      *  re-derived cursor is `===` the old one and the equality gate holds.
@@ -54,6 +57,23 @@ export declare class Dataset extends Node {
      *  replicator's re-pointed cursors are the only item-side wake, and their
      *  equal re-reads die at the equality gate — replicate.ts). */
     move(path: string | readonly (string | number)[], from: number, to: number): void;
+    /** The ShapeField whose slot `segs` (root-relative) addresses under this
+     *  dataset's schema — the declared expectation both the verb wall below and
+     *  an editor's session floor (editor.ts) consult. `element` marks a path
+     *  that stepped INTO an array field (the slot holds one element). Null =
+     *  no schema, or the path leaves the declared world (an undeclared key, a
+     *  step through a scalar/`any`) — extras pass untouched, by design. */
+    declaredField(segs: readonly string[]): {
+        f: ShapeField;
+        element: boolean;
+    } | null;
+    /** The verb-side boundary (typed data, 2026-09-01): with a schema present,
+     *  a write is held to the declared shape at its target. Returns the first
+     *  mismatch, or null when the write conforms — or when the path leaves the
+     *  declared world (extras, `any` fields): a schema declares what the
+     *  program RELIES on, and validation stays permissive about the rest.
+     *  `mode` "insert" validates `v` as one ELEMENT of the array at the path. */
+    private writeError;
     private segs;
     /** Walk `segs` from the root, collecting the (container, key) step chain —
      *  which is exactly the ancestor set a write must wake. */

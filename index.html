@@ -47,7 +47,7 @@
 <p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
 <h4>498</h4>
 <p>lines of code, plus 214 of comments — four views, zoom, drag and edit</p>
-<h4>85 KB</h4>
+<h4>86 KB</h4>
 <p>over the wire, gzipped — app and runtime</p>
 <h4>0</h4>
 <p>lines written by hand — an LLM wrote it</p>
@@ -59,14 +59,14 @@
 <h6>→</h6>
 <a href="apps/tracker/tracker.declare"><img src="apps/homepage/shots/tracker.webp"></a>
 <p>1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code</p>
-<p>1564 lines — 1148 code, 215 comment · 103 KB over the wire, before its data · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies</p>
+<p>1571 lines — 1153 code, 215 comment · 105 KB over the wire, before its data · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies</p>
 <a href="apps/tracker/tracker.declare?viewer"><p>View &amp; edit source →</p></a>
 <a href="apps/desktop/desktop.declare"><h6>3</h6></a>
 <h6>Declare Desktop</h6>
 <h6>→</h6>
 <a href="apps/desktop/desktop.declare"><img src="apps/homepage/shots/desktop.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3172 lines — 1699 code, 963 comment · 117 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3172 lines — 1699 code, 963 comment · 118 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -372,6 +372,7 @@ login:   View [ shows = "account", visible = { !app.authed } ]   // location pre
 <p>A <code>Dataset</code>'s literal body is <strong>strict JSON</strong> — quoted keys, no trailing commas. The replicated node is anonymous, but names inside it resolve per instance. <strong>Identity is inferred</strong> — a record's <code>id</code> field is its identity by convention, so reconciliation reuses instances across sorts, filters and edits with nothing declared.</p>
 <p><strong>Count the data, not the tree.</strong> A Dataset's <code>.value</code> is the parsed data, so a count is ordinary TypeScript on it. Reach for this whenever you would have counted rendered rows.</p>
 <p><strong>A <code>DataSource</code> is a remote resource whose lifecycle is reactive state</strong> — <code>data: DataSource [ url = "data/events.json" ]</code>. <strong>Nothing loads on its own</strong> unless you set <code>auto = true</code>; forgetting <code>.fetch()</code> is legal, silent, and the common first bug, and <code>onInit()</code> is the usual place for it. Screens then derive from the resource (<code>shown = { data.loaded }</code>) rather than being toggled. An optional <code>schema = [ field: type, rows[]: [ … ] ]</code> declares the response's shape: it validates the payload on receipt — so malformed data yields <code>.failed</code> rather than <code>undefined</code> three bindings deep — and lets every <code>:path</code> be checked against the shape at compile time. Without one, paths are dynamic: an unresolved <code>:path</code> yields null and the bound attribute falls back to its default.</p>
+<p><strong>A schema is a named type — declare it once, at the top level, and use it in any type position.</strong> <code>schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]</code> is a declaration in the one type system: the name works in every type position (<code>sel: Task = null</code>, <code>advance(t: Task) -&gt; Task</code>, a field of another schema — <code>owner: Person</code>), a dataset declares its document with it (<code>schema = [ tasks[]: Task ]</code>, or <code>schema = Task[]</code> for a bare-array response), and its <code>.value</code> is then <em>typed</em> — <code>nest.value.tasks</code> is <code>Task[]</code> in every <code>{ }</code> body, so a misspelled field dies at compile time and the <code>as</code> casts go. The runtime enforces the same declaration at every boundary: arrival, the embedded body, and the mutation verbs (<code>set(["tasks", 0, "done"], "yes")</code> refuses at the write). The schema grammar is deliberately the subset of TypeScript a JSON document can carry — which is exactly what makes one declaration checkable by the compiler <em>and</em> enforceable against live data. Extra keys always pass: a schema declares what the program relies on.</p>
 <p><strong>Two-way binding is opt-in, with <code>&lt;-&gt;</code>, and for leaf editors only</strong> — <code>TextInput [ text &lt;-&gt; :title ]</code>: the right-hand side names a <em>place in data</em>, either a datapath or a <code>{ }</code> yielding a field name, resolved against the nearest enclosing <code>datapath</code> — an editor with none is a compile error. To drive an ordinary slot, use the value pattern: <code>text = { app.note }</code> plus <code>input(v: string) { app.note = v }</code>. One-way <code>:path</code> everywhere else. It is the only arrow in the language.</p>
 <p><strong>Datasets are mutable from handlers</strong> — <code>d.set(path, v)</code>, with <code>insert</code>, <code>removeAt</code> and <code>move</code> for collections. A path is a segments array (<code>["rows", 0, "name"]</code>) or a JSON Pointer string (RFC 6901 — <code>"/rows/0/name"</code>, and <code>"/rows/-"</code> appends). A write wakes exactly the bindings that read the changed region.</p>
 <p><strong>A derived dataset recomputes from its inputs</strong> — <code>cal: Dataset [ contents = { app.buildModel() } ]</code>.</p>
@@ -567,7 +568,7 @@ Slider   [ value = { app.volume },
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, measured from the deployed production artifacts:</p>
-<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 85 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,564 lines: 1,148 of code and 215 of comments, and no dependencies. It ships at 103 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 86 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,571 lines: 1,153 of code and 215 of comments, and no dependencies. It ships at 105 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -648,7 +649,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=6510dd61468a";
+  import boot from "./bundles/declare-boot.js?v=0c31198823f4";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

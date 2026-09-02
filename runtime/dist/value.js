@@ -162,8 +162,10 @@ export function coerce(type, lit) {
         case "dataschema":
             // The parsed ShapeField declarations pass through as plain data; null
             // is "no schema" (the default — schema presence is the only switch).
+            // An array-root document (`schema = Task[]`) passes as the wrapper
+            // shape-resolve.ts defines, so validation knows the root is an array.
             if (lit.kind === "schema")
-                return ok(lit.shape);
+                return ok(lit.arrayRoot === true ? { arrayRoot: true, fields: lit.shape } : lit.shape);
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
             return fail("a schema shape ([ field: type, rows[]: [ … ] ]), or null for none");
@@ -212,9 +214,17 @@ export function coerce(type, lit) {
                 return ok(lit.name);
             return fail("a slot name written as a bare token (like height or x)");
         case "record":
-            // No literal form, deliberately — not even null (an "empty" theme is
-            // the default record, so readers' `theme.token` never explodes).
-            // Values arrive from { } bindings or a stylesheet.
+            // A DATA record (schema-typed, `sel: Task = null`): null is the one
+            // literal form — the slot may be empty before anything feeds it,
+            // exactly like a component slot. A house token record (Theme) keeps
+            // its no-literal rule: an "empty" theme is the default record, so
+            // readers' `theme.token` never explodes; values arrive from { }
+            // bindings or a stylesheet.
+            if (type.data === true) {
+                if (lit.kind === "ident" && lit.name === "null")
+                    return ok(null);
+                return fail(`a ${type.name} record (provide one with a { } binding), or null for none`);
+            }
             return fail(`a ${type.name} (a token record — provide one with a { } binding or a stylesheet)`);
         case "fill":
             return coerceFill(lit);

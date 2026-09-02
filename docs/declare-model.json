@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "6510dd61468a",
+  "buildId": "0c31198823f4",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -2920,6 +2920,17 @@
       "write batching"
      ],
      "answer": "The SETTLE is the unit in which anything happens at all: a handler's writes are applied together when it returns — constraints re-derive, views appear and retire where data now says so, layout places, sizes update — one indivisible step, run to completion. Nothing paints in the middle of one, and no time passes inside one; motion is many small settles (one per frame), never one long one. (An Animator standing at its destination reads `atRest` — a different fact, on a different clock.)\nTo finish after your own change has taken effect — aim a camera at a view your write just created — register one step at this settle's close: `afterSettle(app.step)`. Constraint first, afterSettle second, never for waiting. Boot's close is delivered instead: `onReady()`, on the App only.\ndocs/declare.md §5 \"The settle\"; the guide teaches it in ch 3 (relationships)."
+    },
+    {
+     "terms": [
+      "schema",
+      "declare a schema",
+      "data shape",
+      "typed data",
+      "record type",
+      "schema declaration"
+     ],
+     "answer": "`schema Name [ id: string, done: boolean, status: \"open\" | \"closed\", note?: string ]` — a named data shape, declared at the top level like a class. It is a TYPE in the one type system: use the name in any type position (`sel: Task = null`, `advance(t: Task) -> Task`, `owner: Person` inside another schema), and declare a dataset's document with it — `schema = [ tasks[]: Task ]`, `schema = TaskDoc`, or `schema = Task[]` for a bare-array response. The dataset's `.value` is then typed (a misspelled field dies at compile), arrival and the embedded body validate against it, and `set`/`insert` refuse a non-conforming write at the write. Field markers: `[]` array, `?` optional; field types are string | number | boolean | any, a literal union of strings or of numbers (\"open\" | \"closed\", 0 | 1 | 2), another schema's name, or a nested `[ … ]`. Extra keys always pass — a schema declares what the program relies on. Guide: data chapter, \"The shape is a type\"."
     }
    ],
    "negative": [
@@ -4279,6 +4290,11 @@
    "Dataset.method.cursorAt": {
     "path": "docs/declare-model.json",
     "title": "Dataset.method.cursorAt",
+    "kind": "reference"
+   },
+   "Dataset.method.declaredField": {
+    "path": "docs/declare-model.json",
+    "title": "Dataset.method.declaredField",
     "kind": "reference"
    },
    "Dataset.method.insert": {
@@ -7257,7 +7273,7 @@
     "guide:tree"
    ],
    "docs/guide/09-data.md": [
-    "guide:interaction",
+    "guide:controls",
     "guide:relationships",
     "guide:scale",
     "guide:thinking-in-declare"
@@ -13863,7 +13879,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/editor.ts",
-    "line": 173
+    "line": 225
    },
    "parent": "Editor",
    "seeAlso": [],
@@ -13884,7 +13900,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/editor.ts",
-    "line": 178
+    "line": 230
    },
    "parent": "Editor",
    "seeAlso": [],
@@ -14015,7 +14031,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 211
+    "line": 213
    },
    "parent": "Dataset",
    "seeAlso": [],
@@ -14036,7 +14052,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 223
+    "line": 225
    },
    "parent": "Dataset",
    "seeAlso": [],
@@ -14057,7 +14073,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 252
+    "line": 254
    },
    "parent": "Dataset",
    "seeAlso": [],
@@ -14078,7 +14094,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 279
+    "line": 289
    },
    "parent": "Dataset",
    "seeAlso": [],
@@ -14099,7 +14115,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 289
+    "line": 303
    },
    "parent": "Dataset",
    "seeAlso": [],
@@ -14120,12 +14136,28 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 303
+    "line": 317
    },
    "parent": "Dataset",
    "seeAlso": [],
    "signature": "move(path: string | readonly (string | number)[], from: number, to: number): void",
    "returns": "void"
+  },
+  "Dataset.method.declaredField": {
+   "id": "Dataset.method.declaredField",
+   "name": "declaredField",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/data.ts",
+    "line": 332
+   },
+   "parent": "Dataset",
+   "seeAlso": [],
+   "signature": "declaredField(segs: readonly string[]): { f: ShapeField; element: boolean } | null",
+   "returns": "{ f: ShapeField; element: boolean } | null"
   },
   "Dataset": {
    "id": "Dataset",
@@ -14162,7 +14194,8 @@
     "Dataset.method.set",
     "Dataset.method.insert",
     "Dataset.method.removeAt",
-    "Dataset.method.move"
+    "Dataset.method.move",
+    "Dataset.method.declaredField"
    ],
    "events": [],
    "example": [
@@ -14523,7 +14556,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 479
+    "line": 540
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14541,7 +14574,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 480
+    "line": 541
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14559,7 +14592,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 481
+    "line": 542
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14577,7 +14610,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 482
+    "line": 543
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14595,7 +14628,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 493
+    "line": 554
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14616,7 +14649,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 538
+    "line": 599
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -14637,7 +14670,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 609
+    "line": 670
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -32401,7 +32434,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/editor.ts",
-      "line": 173
+      "line": 225
      },
      "parent": "Editor",
      "seeAlso": [],
@@ -32422,7 +32455,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/editor.ts",
-      "line": 178
+      "line": 230
      },
      "parent": "Editor",
      "seeAlso": [],
@@ -32543,7 +32576,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 223
+      "line": 225
      },
      "parent": "Dataset",
      "seeAlso": [],
@@ -32564,7 +32597,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 252
+      "line": 254
      },
      "parent": "Dataset",
      "seeAlso": [],
@@ -32585,7 +32618,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 279
+      "line": 289
      },
      "parent": "Dataset",
      "seeAlso": [],
@@ -32606,7 +32639,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 289
+      "line": 303
      },
      "parent": "Dataset",
      "seeAlso": [],
@@ -32627,7 +32660,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 303
+      "line": 317
      },
      "parent": "Dataset",
      "seeAlso": [],
@@ -33039,7 +33072,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 538
+      "line": 599
      },
      "parent": "DataSource",
      "seeAlso": [],
@@ -33060,7 +33093,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 609
+      "line": 670
      },
      "parent": "DataSource",
      "seeAlso": [],
@@ -42946,25 +42979,25 @@
    "short": "Data",
    "part": "Building",
    "teaches": {
-    "App": 4,
+    "App": 5,
     "Button": 4,
     "Checkbox": 1,
     "Column": 2,
-    "DataSource": 4,
-    "Dataset": 8,
+    "DataSource": 5,
+    "Dataset": 10,
     "Editor": 2,
     "EventStream": 2,
     "Layout": 1,
     "Markdown": 3,
     "RichText": 1,
     "Segmented": 1,
-    "SimpleLayout": 6,
+    "SimpleLayout": 7,
     "Slider": 1,
     "Socket": 2,
     "Stream": 2,
-    "Text": 6,
+    "Text": 9,
     "TextInput": 6,
-    "View": 12
+    "View": 14
    }
   },
   {
@@ -43336,7 +43369,7 @@
    "name": "1 SATOR",
    "segs": [
     {
-     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 85 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 86 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
      "code": []
     }
    ]
@@ -43414,7 +43447,7 @@
        "subtitle": "",
        "kind": "tenet",
        "label": "Tenet",
-       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 85 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 86 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
        "preview": "Delivery, hosting, and the honest posture — the promises about running and shipping a Declare program. SATOR-1 — Programs are data A compiled program is data the toolchain can read, so one compiler powers the documentation system, static ex…"
       },
       {

@@ -37,7 +37,7 @@ Narrative context and the session in which each was found lives in
 | L-19 | platform | Unknown URL parameters pass silently | — | **RULED — leave** |
 | L-20 | language | Component-typed slots cannot be constrained (DECLARE2000) | **high** | **built** (2026-09-01): pointer slots; layout excluded |
 | L-21 | compiler | Method calls resolve by NAME when the receiver is unknowable | high | **built** (2026-09-01) |
-| L-22 | language | Datapath/record edges are untyped — the coercion tax | **high** | open |
+| L-22 | language | Datapath/record edges are untyped — the coercion tax | **high** | **built** (2026-09-01): typed data |
 | L-23 | language | Plain `.value` property reads wire only the value slot | high | **built** (2026-08-30) |
 | L-24 | compiler | The projection refusal (7001) could degrade to tracking | low | **built** (2026-09-01): ruled must-fix |
 | L-25 | library | `Time` — wall-clock as a source component | medium | **built** (2026-08-29) |
@@ -45,6 +45,7 @@ Narrative context and the session in which each was found lives in
 | L-27 | compiler | Alias/closure reads silently dropped from static deps | — | **fixed** (6e13f2e3) |
 | L-28 | data | Dataset persistence — IndexedDB-shaped (GH #23) | design | open |
 | L-29 | compiler | Chain classification breaks at inner calls and computed-default segs | high | open — found building L-21 |
+| L-30 | compiler | Method BODIES are never checked against their written return type | medium | open — found building typed data |
 
 ---
 
@@ -116,6 +117,10 @@ call sites); drop the defensiveness.
 and the accessor count shrank with the records refactor. The general ask (a container
 declaring what it `holds`) stands; the sharper modern form of this item is now
 [L-22](#l-22) (untyped record edges), where the same disease costs more.
+
+**Update 2026-09-01:** L-22's record half is BUILT (typed data — named schemas as
+types). What remains of L-2 proper is the typed CHILD collection (`holds:`/childViews
+synthesis) — narrower still now that record-shaped state is typed.
 
 ## L-3 — Component identity rides `constructor.name` · medium · worked around
 
@@ -563,6 +568,50 @@ from them — retiring the `""+` tax and the `!`/cast escapes in one move. Relat
 component-typed attr reads scaffold as `T | null` even where provably fed
 (`activeApp!`).
 
+**Built 2026-09-01 — TYPED DATA (DT's ruling: "the whole language uses the same type
+system; dataset schemas are limited but they are a proper subset").** The elegant form
+ran the subset relation forward: a `schema Name [ … ]` top-level declaration IS a type —
+projected as an ambient TS interface (scaffold), resolvable in decl type positions
+(`sel: Task = null` → record kind, data-flagged), legal in method signatures and as a
+field of another schema (refs resolve by reference, so recursion is free), extended
+with literal unions (`status: "open" | "closed"` — JSON can say it, so the subset can).
+A dataset declares its document by type (`schema = [ tasks[]: Task ]`, `schema = TaskDoc`,
+or `schema = Task[]` for a bare-array response) and its `.value` NARROWS to the document
+type in every `{ }` body — the `as Task[]` casts retire at the source, and `t.don` dies
+at compile with the field named. The runtime enforces the same declaration at arrival,
+at the embedded body, and now at the VERBS (`set`/`insert` refuse a non-conforming write
+with the pointer path; extras still pass — permissive by design). One namespace of type
+names: a schema/class collision refuses. What remains open here: `{ }`-body `:path`
+ISLANDS are still unchecked/untyped (the attribute surface is where paths concentrate;
+schema-check's honesty-of-scope note), and a `:`-path cannot begin with an array
+selector, so a bare-array document replicates only through a derived wrapper. Guide
+ch. 9 "Schemas — the shape you rely on, declared once" is the teaching surface (with
+the enforcement map as its closing table); pins in dataschema/databinding tests.
+
+**Round 2 (2026-09-02, after the fresh-eyes review + DT's rulings):** number-literal
+unions (`col: 0 | 1 | 2` — JSON Schema's answer over JTD's strings-only); the `<->`
+SCHEMA FLOOR (the edit session commits the draft READ AS the field's declared type —
+"42" lands as 42; an unreadable draft is an invalid session, never a thrown write;
+boolean/record/array `<->` targets refuse at compile naming the right tool); the
+PRODUCER'S WALL (`contents` on a schema'd derived dataset checks against the document
+type at compile — the runtime guards data the program didn't construct, the compiler
+guards data it did); seven crossing diagnostics naming their rewrites (TS array
+spelling, type-suffix `?` both directions, field defaults, methods-in-schema,
+schema-extends, schema-as-tag). Related gap FILED below as L-30.
+
+**Round 3 (2026-09-02, second fresh-eyes review + DT's rulings):** SCHEMA-TYPED SLOTS
+ARE LIVE past their identity — the L-23 tracked-view rule extended: a record slot's
+tracked reader gets the tracking view, so `app.sel.title` in a { } wires the record's
+region cell and a verb write wakes it (the review's stale-view finding, killed at the
+root; raw normalizes on assignment, the Dataset.value push pattern). Verbs RULED
+permissive on undeclared keys (JSON culture; the trap documented in the guide's verbs
+paragraph along with the thrown-refusal semantics). The enforcement map moved to the
+chapter's end. NAMED NEXT INCREMENTS of the shape grammar, in standards order (both
+JSON Schema and JTD carry them): tagged record unions (`discriminator` — the one
+essential composite), dynamic-key maps (`values`); DEFERRED BY RULING: literal unions
+on attribute/parameter types (schema-only today), compile-checking literal verb
+writes; a JSON Schema/OpenAPI → `schema` import tool is the noted interop seam.
+
 ## L-23 — Plain `.value` property reads wire only the value slot · high · **built 2026-08-30**
 
 `{ list.value.wins.length }` compiles, works at boot, and **goes silently stale**
@@ -725,3 +774,15 @@ probing L-21's oracle (both PREDATE it; the oracle made them visible):
    permanently stale edge. Probed live 2026-09-01. The narrow fix: on a
    computed-default seg with a longer tail, add the `~dynamic` sentinel
    instead of breaking clean — honest tracking rather than a dropped edge.
+
+## L-30 — Method bodies are never checked against their written return type · medium
+
+Found 2026-09-02 building typed data's producer wall: `f() -> number { return "x" }`
+compiles clean — for EVERY return type, not just schemas. The method's check-block is
+emitted without a return annotation (the scaffold header's §R5 note), so the written
+`-> T` binds callers but never the body. The typed-data chain is still closed at the
+CALL SITE (`contents = { app.mk() }` checks mk's declared return against the document
+type), but the body-vs-signature seam is open. **Candidate:** annotate the emitted
+check-block function with the written return type — one line in emit(); the cost is a
+corpus sweep, since any existing method whose signature lies would start (correctly)
+erroring.

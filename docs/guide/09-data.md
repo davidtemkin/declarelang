@@ -7,6 +7,10 @@ In the stacks you know, data arrives as *events* — a fetch resolves, a callbac
 you copy values into state and schedule the update. Declare inverts this. Data is a
 **place**: you point part of the tree at it, and the tree derives — and when the data
 changes, the same derivation holds. Nothing arrives; things *are*, and views follow.
+And a place has a **shape**. You will read freely first — exploration is free here by
+design — and then declare the shape you rely on, once, so the compiler and the runtime
+hold every read and every write to it. That is this chapter's arc: point, read, trust,
+write.
 
 > **Point a cursor at the data; the tree derives — and repeats — from it.**
 
@@ -110,15 +114,162 @@ doc: Markdown [ visible = { article.loaded }, text = { article.value || "" } ]
 ```
 
 (That is how this site serves its FAQ and the language document — `.md` files,
-fetched as text, rendered by the native `Markdown` component.) And an optional
-`schema = [ field: type, rows[]: [ … ] ]` validates a response **at the boundary** —
-malformed data yields `.failed` with the exact path, never `undefined` three
-bindings deep — and lets every `:path` be checked statically against the shape
-(a typo'd `:labell` dies at compile time, with the schema's fields named).
-Mark a field `name?:` when the data may omit it. Identity needs no marking
-at all: a record's `id` field **is** its identity, by convention — selection,
-reconciliation, and windowed retention all key by it with nothing declared
-anywhere (`key = :field` remains only for an unconventionally-named one).
+fetched as text, rendered by the native `Markdown` component.) Identity needs no
+marking anywhere: a record's `id` field **is** its identity, by convention —
+selection, reconciliation, and windowed retention all key by it with nothing
+declared (`key = :field` remains only for an unconventionally-named one).
+
+Notice, though, what a source hands you: whatever was there. The embedded body you
+wrote yourself; the fetched one you did not. Dynamic reads are built for exactly
+that — and where an application comes to *rely* on part of a payload's shape,
+that reliance is worth declaring.
+
+## Schemas — the shape you rely on, declared once
+
+An application relies on a shape. The server renames `label` and three screens go
+blank; a field you assumed was a number arrives as a string; the `undefined`
+surfaces four bindings away from the fetch that caused it. Every stack meets this;
+most answer with a validation library on one side and type annotations on the
+other, glued by hand. Declare answers with one declaration — a **schema**:
+
+```declare-fragment
+schema Task [ id: string, title: string, done: boolean, born: number, note?: string ]
+```
+
+Before reading further, notice what vocabulary this is. Declare has **one type
+system, and you already know it: TypeScript.** Attribute declarations state TS
+types (`count: number = 0`); `{ }` bodies are TS expressions; method signatures
+are TS signatures. A schema brings *data* into that same system — squint past the
+brackets and you have written a TypeScript interface, and that is not a
+resemblance but the fact: `Task` is a real type name everywhere TypeScript
+reaches — declarations, method signatures, `script` function signatures, every
+`{ }`. (Two reading notes: a schema's brackets hold *fields*, never members —
+shape, not behavior, not defaults. And the one spelling that is not TS: the
+array marker rides the field's *name* — `tags[]: string` — because it rhymes
+with the path that reads it, `:tags[]`; type the TS form and the error names
+the rewrite.) And what the grammar holds back from full
+TypeScript is deliberate. A schema states facts about the *documents you will
+accept* — strings, numbers, booleans, literal unions (`"open" | "closed"`,
+`0 | 1 | 2`), records, arrays, `?` for a field the data may omit — exactly the
+facts that can be checked against each document as it arrives. It is where an
+API contract's prose — "`col` is 0, 1, or 2" — stops being something someone
+read once and becomes a wall. **A schema is the part of the type system that
+can be checked against live data**, so the one declaration is enforced twice:
+by the compiler at every read it can see, and by the runtime at every boundary
+data crosses.
+
+Point a dataset at it and both walls are up:
+
+```declare
+schema Task [ id: string, title: string, done: boolean, born: number, note?: string ]
+
+App [ width = 420, height = 240, fill = black, textColor = whitesmoke,
+    nest: Dataset [ schema = [ tasks[]: Task ] ] {
+        { "tasks": [ { "id": "t1", "title": "post the reading list", "done": false, "born": 1756700000000 },
+                     { "id": "t2", "title": "clear the gutters",     "done": true,  "born": 1756400000000 } ] }
+        },
+
+    sel: Task = null,
+    pick(id: string) { app.sel = (app.nest.value?.tasks ?? []).find(t => t.id == id) ?? null },
+
+    open: Text [ x = 20, y = 20, text = { (app.nest.value?.tasks ?? []).filter(t => !t.done).length + " open" } ],
+    list: View [ x = 20, y = 50, datapath = { nest.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ height = 22, datapath = :tasks[],
+            onClick() { app.pick(:id) },
+            t: Text [ text = :title ]
+            ]
+        ],
+    detail: Text [ x = 20, y = 200, text = { app.sel ? app.sel.title + (app.sel.done ? " — done" : "") : "nothing selected" } ]
+    ]
+```
+
+**The compiler checks every read it can see.** `text = :titel` dies at compile
+time with the schema's fields named — on attributes, on `key =`, on the
+replication path itself (`datapath = :task[]` when the schema says `tasks[]`).
+And because the dataset's *value* is typed, the plain-TS chain is typed too:
+`app.nest.value.tasks` is `Task[]` to every constraint and method — the `filter`
+above knows `t` is a `Task`, and misspelling `t.don` is a compile error with the
+field named. There is no `as Task[]` anywhere in that program, and nothing for
+one to do: the declaration made the shape the compiler's business.
+
+**The runtime validates at every boundary.** A fetched response that does not
+match lands in `.failed` with the exact pointer path — never `undefined` three
+bindings deep. An embedded body that does not match fails at build. And a
+mutation is held to the same shape: `set(["tasks", 0, "done"], "yes")` refuses
+*at the write*, naming the path and the expectation, instead of a view quietly
+deriving from a string (the mutation verbs themselves are the editing
+section's subject, below). Validation is deliberately **permissive about extras** —
+a schema declares what you *rely on*; keys it does not mention pass through
+untouched, because real data is ragged.
+
+**Your own state speaks the same names.** `sel: Task = null` is an ordinary
+declaration whose type is the schema — record-shaped program state says what it
+holds, instead of `object` and a cast at every read. A record slot may be null
+before anything feeds it, exactly like a component slot, so reads are
+`app.sel!.title` behind a null test — or total with `??`. And the slot is
+**live past its identity**: `detail`'s binding above re-derives not only when
+`sel` points at a different record but when the record's own field changes
+underneath it — a `set(["tasks", 0, "title"], …)` wakes it — so a record slot
+never shows a value that has since moved on. Methods too: `advance(t: Task)`
+and `pick() -> Task` are checked signatures, not documentation. (If your TS
+instinct was to write `interface Task` in a `script { }` block instead: the
+compiler will point you here — a schema is that interface, plus the runtime
+half.)
+
+Two things complete the picture. First, **schemas are optional — everywhere,
+permanently.** Nothing above changed the dynamic layer: a dataset with no schema
+reads, replicates, and mutates exactly as before, and plenty of real payloads —
+mixed-kind feeds, ragged converted trees, maps keyed by dates — have no regular
+shape to declare. A *partial* schema is the normal case, not a compromise:
+declare the two fields you rely on and let the rest flow (`meta: any` is the
+sanctioned door for an irregular subtree). Reliance is the test; where you have
+none, the dynamic reads above remain the right tool. (Two boundary notes: `?`
+means the data may *omit* the field or send null — JSON APIs rarely honor the
+difference, so the schema doesn't either; and a tagged union of record kinds —
+an activity feed's `{"type": "push", …} | {"type": "issue", …}` — is regular
+shape the grammar cannot yet say: today those fields are `any`, and the
+register carries the increment.)
+
+Second, **a schema is not a parser.** No transforms, no coerced dates, no
+renamed keys — a schema checks what arrives; it never rewrites it. When a
+payload needs reshaping — string ids to numbers, a ragged feed filtered to the
+records you keep — that work is ordinary code in a **derived dataset**: declare
+the *wire* shape on the raw source, project with a method or script function,
+and declare the *model* shape on the projection — the same wire/domain split a
+Codable or GraphQL hand already knows, with both ends checked. Type the
+projection's signature (`normalize() -> Board`) and the chain is verified end
+to end (the board at the end of this chapter runs the derived-dataset half of
+this pattern).
+
+A schema field can hold another schema, an array (`tags[]: string`), or a
+**literal union** — JSON can say those, so the subset can:
+
+```declare-fragment
+schema Person [ id: string, name: string ]
+schema Card [ id: string, title: string, status: "open" | "doing" | "closed", owner: Person, tags[]: string ]
+```
+
+…and `schema = Card[]` on a `DataSource` declares a response that is a bare
+array of records — validated on arrival and typed through `.value`. (One
+caveat rides that form: a `:path` cannot yet *begin* at an array, so to
+replicate over a bare-array response, derive a wrapper first —
+`rows: Dataset [ contents = { ({ rows: src.value ?? [] }) } ]` — and replicate
+`:rows[]`.) A schema also does not have to be named: the document's shape
+can be written inline at the dataset — `schema = [ city: string, rows[]: [ id:
+string ] ]` — the anonymous form, right for a one-off remote shape nothing else
+mentions. Name it the moment a second declaration would repeat it.
+
+> **From React:** compare the ritual this replaces — an `interface` for the
+> compiler, a zod/io-ts schema for the runtime, glue to keep the two agreeing,
+> and `as` casts where they don't reach. Here there is one declaration, and it
+> serves both sides *because* it is constrained to the subset both sides can
+> enforce. The constraint is not a limitation of the type system; it is the
+> definition of data.
+
+
+One map remains — who enforces what, where — and it belongs at the end of the
+chapter, once you have met every crossing it names.
 
 ## Streams — data that arrives while you watch
 
@@ -163,9 +314,11 @@ is asked for; and `Socket.send()` is legal only while `.open` — a send into a
 closed socket reports through `error`/`onError` instead of queueing silently.
 
 A stream is event-shaped — ordered arrivals, append-mostly, transient — where a
-dataset is record-shaped: navigable state, paths, mutation. They stay separate on
-purpose, and the bridge between them is one line of app code: parse the message,
-write into the dataset, and everything downstream re-derives.
+dataset is record-shaped: navigable state, paths, mutation, a schema to hold it.
+They stay separate on purpose, and the bridge between them is one line of app
+code: parse the message, write into the dataset, and everything downstream
+re-derives — with the dataset's schema, if it declares one, refusing a malformed
+message at the bridge instead of on screen.
 
 ## Editing: reads are one-way, editors opt in
 
@@ -185,14 +338,29 @@ App [ width = 300, height = 120, fill = white, textColor = black,
 ```
 
 Type in the field and the record follows; change the record and the field follows.
-`<->` is for editors only (`TextInput.text`, a slider's value) — everywhere else,
-one-way `:path`, and app-owned control state uses the derive-down/deliver-up pair
-from [chapter 7](declare-docs:guide:interaction). Mutating from code is just as
+And on a schema'd dataset, the session knows the field's declared type: a
+`number` field commits the *parsed* number (`"42"` lands as `42`), a literal
+union commits only a member, and a draft that cannot be read as the type simply
+leaves the session invalid — `valid` false, the reason in `error` — and never
+reaches the data. (A boolean or record field refuses `<->` at compile, naming
+the right tool.) `<->` is for editors only (`TextInput.text`, a slider's value)
+— everywhere else, one-way `:path`, and app-owned control state uses the
+derive-down/deliver-up pair from [chapter 8](declare-docs:guide:controls).
+Mutating from code is just as
 direct: `data.set(["rows", 0, "name"], "Ada L.")` writes one place and wakes exactly
 what derives from it; `insert`, `removeAt`, and `move` reshape collections the same
 way. A path is a segments array — numbers welcome, no escaping ever — or an RFC 6901
 pointer string (`"/rows/0/name"`; `set("/rows/-", v)` appends), so any key a JSON
-document can hold is addressable.
+document can hold is addressable. And on a dataset that declares a schema, every
+one of these writes is held to it — a wrong type, a broken record, or a value
+outside a declared union refuses at the write, with the path named. Two honest
+edges of that wall: a refusal is a **thrown error** — it stops the handler
+where it stands, so route user-typed values through an editor's session (which
+validates *before* writing, above) and keep the verbs for values the program
+vouches for; and a *misspelled field name* is not a refusal — undeclared keys
+pass, by the permissive rule, so `set(["tasks", 0, "donee"], true)` lands as a
+new key no read will find. The schema holds types on the fields it names; the
+names themselves are yours to spell.
 
 ## Forms: the draft, and when it lands
 
@@ -244,7 +412,10 @@ that happen.
 method you declare**, returning `""` for valid or the message otherwise. From those two,
 three reactive facts follow — `valid`, `error`, and `dirty` (does the draft differ from
 what is committed) — and **an invalid draft never reaches the dataset**; the error just
-sits in the session waiting to be shown.
+sits in the session waiting to be shown. Note the division of labor with the previous
+section: the *schema* holds structure — types, presence, unions — at every write, no
+session needed; `validate` holds *judgment* — what counts as acceptable input for this
+field, in this form.
 
 Then note what `canSave` is: an ordinary constraint over the fields' `valid` and `dirty`.
 There is no form object, no validation schema, no submit handler. *Submittability derives*,
@@ -286,11 +457,13 @@ checkboxes and sliders that have no `valid` slot of their own — the same move 
 ## The board — everything at once
 
 Here is the pattern that carries real applications, the same one the calendar runs
-at scale: **keep the raw data flat, derive the view model from it, and let every
-edit be a data write.** A task board — three columns, click a card to advance it,
-add cards at the bottom:
+at scale: **keep the raw data flat and typed, derive the view model from it, and let
+every edit be a data write.** A task board — three columns, click a card to advance
+it, add cards at the bottom:
 
 ```declare
+schema Card [ id: number, col: 0 | 1 | 2, t: string ]
+
 class BCard extends View [ width = { parent.width }, height = 30, cornerRadius = 10, fill = darkslategray,
     onClick() { app.advance(:id) },
     t: Text [ x = 10, y = 10, fontSize = 12, wrap = false, text = :t ]
@@ -300,12 +473,12 @@ class BCard extends View [ width = { parent.width }, height = 30, cornerRadius =
 class Column extends View [ width = 130,
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     name: Text [ fontSize = 12, fontWeight = bold, textColor = lightslategray, text = :name ],
-    BCard [ datapath = :cards[], key = :id ]
+    BCard [ datapath = :cards[] ]
     ]
 
 
 App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
-    raw: Dataset {
+    raw: Dataset [ schema = [ cards[]: Card ] ] {
         { "cards": [ { "id": 1, "col": 0, "t": "Outline the guide" },
                      { "id": 2, "col": 0, "t": "Fix the rail" },
                      { "id": 3, "col": 1, "t": "Draft the data chapter" },
@@ -315,13 +488,13 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
 
     colNames() { return ["To do", "Doing", "Done"] },
     buildCols() {
-        const cards = this.raw.read(["cards"]) ?? []
+        const cards = this.raw.value?.cards ?? []
         return { cols: this.colNames().map((n, i) => ({ name: n, cards: cards.filter(c => c.col == i) })) }
         },
     board: Dataset [ contents = { app.buildCols() } ],
 
-    advance(id: string) {
-        const cards = this.raw.read(["cards"])
+    advance(id: number) {
+        const cards = this.raw.value?.cards ?? []
         const i = cards.findIndex(c => c.id == id)
         if (i >= 0 && cards[i].col < 2) this.raw.set(["cards", i, "col"], cards[i].col + 1)
         },
@@ -349,24 +522,56 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
 ```
 
 Click cards; add a few. Now read the source top to bottom and notice what each part
-*is*. `raw` is the truth — a flat list, each card knowing only its column number.
-`board` is a **derived dataset**: `contents = { app.buildCols() }` recomputes when
-anything it reads changes, because the compiler read *through* `buildCols` and wired
-its dependencies ([chapter 3](declare-docs:guide:relationships), paying off).
-Columns and cards are nested replication over the derived shape. And both user
-actions are *one data write each*: `advance` sets a single field; `add` inserts a
-record. No view is ever touched by the handlers — the writes wake the derivation,
-the derivation reshapes the board, keyed replication rebuilds only what changed.
+*is*. `raw` is the truth — a flat list, each card knowing only its column number —
+and the truth is **typed**: the schema holds every write that follows (`add`'s
+record must be a whole `Card`; `advance` cannot move a card to a column that
+does not exist — `col` is `0 | 1 | 2`, not merely a number), and in
+`buildCols` the compiler knows `cards` is `Card[]`, so `c.col` is a number it
+vouches for. `board` is a **derived dataset**: `contents = { app.buildCols() }`
+recomputes when anything it reads changes, because the compiler read *through*
+`buildCols` and wired its dependencies
+([chapter 3](declare-docs:guide:relationships), paying off) — and it carries no
+schema, deliberately: a projection the program computes is not a boundary, and
+schemas guard boundaries. Columns and cards are nested replication over the
+derived shape. And both user actions are *one data write each*: `advance` sets a
+single field; `add` inserts a record. No view is ever touched by the handlers —
+the writes wake the derivation, the derivation reshapes the board, keyed
+replication rebuilds only what changed.
 
-That division — raw truth, derived model, edits as writes — is how "navigation," in
-the calendar, is three assignments. It is the deepest habit this chapter can leave
-you with.
+That division — typed raw truth, derived model, edits as writes — is the
+deepest habit this chapter can leave you with; it is the same raw/derived/writes
+shape that makes "navigation," in the calendar, three assignments.
+
+## The enforcement map
+
+Every place data moves has exactly one answer for who holds it to the schema,
+and when — the chapter's walls, in one look back:
+
+| Data crosses… | Held by | When | A violation… |
+|---|---|---|---|
+| a fetched response | runtime | on arrival | lands in `.failed` with the pointer path; `.value` keeps the last good document |
+| an embedded `{ json }` body | runtime | at build | fails the build, path named |
+| a mutation verb — `set`, `insert` | runtime | at the write | refuses, path and expectation named |
+| a `<->` editor's draft | the edit session | at commit | an unreadable draft is an invalid session (`valid` false), never a write |
+| a `:path` on an attribute — `text = :title`, `key =`, `datapath = :rows[]` | compiler | at compile | error with the schema's fields named |
+| the typed `.value` chain, in any `{ }` or method | compiler | at compile | type error, near name suggested |
+| a declaration or signature — `sel: Task`, `advance(t: Task)` | compiler | at compile | type error |
+| `contents` of a derived dataset | compiler | at compile | type error against the document type |
+| a `:path` *inside* a `{ }` body | no one yet | — | reads null; the attribute falls to its default |
+| a subtree under a computed cursor — `datapath = { cond ? a : b }` | no one, by design | — | beyond the static horizon; unchecked, never refused |
+
+The second column carries the principle: **the runtime stands where data the
+program didn't construct comes in; the compiler stands where the program
+constructs it.** The last two rows are the honest edge — one a known gap the
+register carries, one a horizon no static checker can cross. The runtime walls
+stand either way: validation reads the declaration, not the compiler's reach.
 
 ---
 
 **What you can now say:** you can bind any tree to any data, select and slice within
-it, declare the shape you rely on, let the data decide the count, derive screens from a
-source's lifecycle instead of choreographing fetches, and structure a real app as raw
+it, declare the shape you rely on — once, as a type the compiler checks and the
+runtime enforces — let the data decide the count, derive screens from a source's
+lifecycle instead of choreographing fetches, and structure a real app as typed raw
 truth + derived model + edits-as-writes.
 
 [Next: **Virtualization is one word** →](declare-docs:guide:scale)

@@ -41,7 +41,8 @@ import { Node, authoredName } from "./node.js";
 import { Cell, isTracking, settle } from "./reactive.js";
 import { DeclareError } from "./errors.js";
 import { defineAttributes, setBound } from "./attributes.js";
-import { validateShape } from "./data-schema.js";
+import { validateDoc, fieldValueError } from "./data-schema.js";
+import { isArrayDoc } from "./shape-resolve.js";
 // container → per-key region cells. Module-level (identity-keyed, so datasets
 // can never collide) and weak: cells live exactly as long as their data.
 const CELLS = new WeakMap();
@@ -70,7 +71,7 @@ export function unwrapValue(v) {
     }
     return v;
 }
-function trackedView(v) {
+export function trackedView(v) {
     if (!isContainer(v))
         return v;
     let view = VIEWS.get(v);
@@ -230,6 +231,11 @@ export class Dataset extends Node {
         // arrival. (Field report 2026-08-21: this threw advice to "assign
         // .value", which the typechecker refuses as read-only — a dead end.)
         if (toSegs(path).length === 0) {
+            if (this.schema !== null) {
+                const err = validateDoc(v, this.schema);
+                if (err !== null)
+                    throw new DeclareError(`this write does not match the schema — ${err}`);
+            }
             this.value = v;
             return;
         }
@@ -241,6 +247,10 @@ export class Dataset extends Node {
         if (key !== at) {
             segs[segs.length - 1] = key;
             chain[chain.length - 1] = [container, key];
+        }
+        const werr = this.writeError(segs, v, "set");
+        if (werr !== null) {
+            throw new DeclareError(`'${showPath(segs)}' refuses this write — ${werr} (the write is held to the dataset's schema)`);
         }
         const old = getOwn(container, key);
         if (old === v)
@@ -256,6 +266,10 @@ export class Dataset extends Node {
     insert(path, index, v) {
         v = unwrapValue(v); // never store a tracked view
         const { arr, chain, segs } = this.array(path);
+        const werr = this.writeError(segs, v, "insert");
+        if (werr !== null) {
+            throw new DeclareError(`'${showPath(segs)}' refuses this insert — ${werr} (the write is held to the dataset's schema)`);
+        }
         arr.splice(index, 0, v);
         tagTree(this, v, [...segs, String(index)]);
         wakeAll(arr);
@@ -283,6 +297,64 @@ export class Dataset extends Node {
         arr.splice(to, 0, item);
         wakeAll(arr);
         this.wakeChain(chain);
+    }
+    /** The ShapeField whose slot `segs` (root-relative) addresses under this
+     *  dataset's schema — the declared expectation both the verb wall below and
+     *  an editor's session floor (editor.ts) consult. `element` marks a path
+     *  that stepped INTO an array field (the slot holds one element). Null =
+     *  no schema, or the path leaves the declared world (an undeclared key, a
+     *  step through a scalar/`any`) — extras pass untouched, by design. */
+    declaredField(segs) {
+        const shape = this.schema;
+        if (shape === null)
+            return null;
+        let fields = null; // standing IN a record
+        let at = null; // standing AT a field's slot
+        if (isArrayDoc(shape))
+            at = { f: { name: "(document)", array: true, optional: false, type: null, fields: [...shape.fields] }, element: false };
+        else
+            fields = shape;
+        for (const seg of segs) {
+            if (at !== null) {
+                if (at.f.array && !at.element) {
+                    at = { f: at.f, element: true };
+                    continue;
+                } // the index step into the array
+                if (at.f.fields !== undefined) {
+                    fields = at.f.fields;
+                    at = null;
+                } // into the record — this seg names a field
+                else
+                    return null; // through a scalar/any — beyond the declared world
+            }
+            if (fields !== null) {
+                const f = fields.find((x) => x.name === seg);
+                if (f === undefined)
+                    return null; // an undeclared key — extras pass untouched
+                at = { f, element: false };
+                fields = null;
+                continue;
+            }
+            return null;
+        }
+        return at;
+    }
+    /** The verb-side boundary (typed data, 2026-09-01): with a schema present,
+     *  a write is held to the declared shape at its target. Returns the first
+     *  mismatch, or null when the write conforms — or when the path leaves the
+     *  declared world (extras, `any` fields): a schema declares what the
+     *  program RELIES on, and validation stays permissive about the rest.
+     *  `mode` "insert" validates `v` as one ELEMENT of the array at the path. */
+    writeError(segs, v, mode) {
+        const at = this.declaredField(segs);
+        if (at === null)
+            return null;
+        if (mode === "insert") {
+            if (!at.f.array || at.element)
+                return null; // insert() itself refuses non-arrays
+            return fieldValueError(at.f, v, true);
+        }
+        return fieldValueError(at.f, v, at.element);
     }
     segs(path) {
         const segs = toSegs(path);
@@ -521,7 +593,7 @@ export class DataSource extends Dataset {
             // `.failed`/`.error` with the pointed path — never `undefined` three
             // layers into a binding. Schema presence is the only switch.
             if (this.schema !== null && this.format === "json") {
-                const err = validateShape(value, this.schema);
+                const err = validateDoc(value, this.schema);
                 if (err !== null)
                     throw new Error(`the response does not match the schema — ${err}`);
             }
@@ -669,10 +741,13 @@ export function coerceData(type, v, def) {
             return typeof v === "object" ? v : def;
         case "view":
             return def; // a View reference never arrives from data
+        case "record":
+            // a schema-typed slot (`sel: Task`) accepts a data-borne record; the
+            // house token records (Theme) never arrive from data
+            return type.data === true && typeof v === "object" && !Array.isArray(v) ? v : def;
         case "cursor":
         case "component":
         case "fn":
-        case "record":
         case "stroke":
         case "shadow":
         case "backdrop":

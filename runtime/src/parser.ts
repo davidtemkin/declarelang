@@ -70,7 +70,12 @@ export type Literal =
   | { kind: "ident"; name: string; pos: Pos } // named color / true / false / null
   | { kind: "code"; src: string; pos: Pos; deps?: readonly string[] } // `{ … }` — a constraint body, raw TS source; `deps` = the compiler's extracted dependency read-paths (docs/system-design/constraints.md §5), attached post-resolution
   | { kind: "path"; path: string; many: boolean; pos: Pos; plan?: PathSeg[] } // `:a.b` / `:arr[]` — a datapath; `plan` present iff the spelling used selectors/quoted names (B3)
-  | { kind: "schema"; shape: ShapeField[]; pos: Pos } // `schema = [ city: string, rows[]: [ … ] ]` — a data shape (B4, language §9)
+  // `schema = [ city: string, rows[]: [ … ] ]` — a data shape (B4, language §9).
+  // `arrayRoot` marks a document that is a BARE ARRAY of records (`schema =
+  // Task[]`); `refName` records the schema NAME a rewritten ident form named
+  // (shape-resolve.ts), so the scaffold can project the name, not a structural
+  // expansion.
+  | { kind: "schema"; shape: ShapeField[]; pos: Pos; arrayRoot?: boolean; refName?: string }
   // `name(args)` — a value CONSTRUCTOR (styling rung: gradient/stroke/shadow/
   // stop). Pure syntax: which names construct what is the value vocabulary's
   // question (value.ts), like every other literal meaning.
@@ -233,6 +238,25 @@ export interface ShapeField {
   optional: boolean;
   type: "string" | "number" | "boolean" | "any" | null;
   fields?: ShapeField[];
+  /** A literal union's members — `status: "open" | "closed"` or
+   *  `col: 0 | 1 | 2` (homogeneous; `type` records which). The value must be
+   *  one of these — membership is the whole check. */
+  tokens?: (string | number)[];
+  /** A NAMED schema in field-type position (`owner: Person`) — resolved to
+   *  its fields by the checker (check.ts resolveShapeRefs); `fields` is
+   *  populated there, by reference, so recursion costs nothing. */
+  ref?: string;
+  /** The ref's source position, for the unknown-name refusal. */
+  refPos?: Pos;
+}
+
+/** A top-level `schema Name [ … ]` declaration (typed data, 2026-09-01): a
+ *  named data shape — ONE type, projected as a TS interface for every `{ }`
+ *  body and enforced by the runtime at every boundary data crosses. */
+export interface SchemaDecl {
+  name: string;
+  fields: ShapeField[];
+  pos: Pos;
 }
 
 /** One `include` entry — a quoted, relative path and the position of its
@@ -277,6 +301,9 @@ export interface ScriptBlock {
  *  and empties it. */
 export interface Program {
   classes: ClassDecl[];
+  /** Top-level `schema Name [ … ]` declarations (typed data). Optional so
+   *  hand-built Program literals stay valid. */
+  shapes?: SchemaDecl[];
   stylesheets: TopDecl[];
   styles: TopDecl[];
   fonts: TopDecl[];
@@ -312,6 +339,8 @@ export interface Program {
  *  is not a Program: it never declares an App, so it has no `root`. */
 export interface Library {
   classes: ClassDecl[];
+  /** A library's own `schema Name [ … ]` declarations, merged like classes. */
+  shapes?: SchemaDecl[];
   stylesheets: TopDecl[];
   styles: TopDecl[];
   fonts: TopDecl[];
@@ -339,7 +368,8 @@ type TokKind =
   | "arrow" // `->` — the return-type marker in a method signature (language §4)
   | "query" // `?` — the nullable marker on a signature type (`c: Menu?`)
   | "star" // `*` — the wildcard selector in a :path (`:rows[*]`, B3)
-  | "bang"; // `!` — refused in shapes with the identity-is-inferred rule named (ruled 2026-07-30)
+  | "bang" // `!` — refused in shapes with the identity-is-inferred rule named (ruled 2026-07-30)
+  | "pipe"; // `|` — the literal-union separator in a shape field (`status: "open" | "closed"`)
 
 interface Token {
   kind: TokKind;
@@ -472,7 +502,7 @@ function tokenize(src: string): Token[] {
 
     // single-character punctuation
     const punct: Record<string, TokKind> = {
-      "[": "lbracket", "]": "rbracket", "(": "lparen", ")": "rparen", "=": "eq", ",": "comma", ":": "colon", ".": "dot", "*": "star", "!": "bang",
+      "[": "lbracket", "]": "rbracket", "(": "lparen", ")": "rparen", "=": "eq", ",": "comma", ":": "colon", ".": "dot", "*": "star", "!": "bang", "|": "pipe",
     };
     if (punct[c]) { advance(); tokens.push({ kind: punct[c], text: c, pos: start }); continue; }
 
@@ -849,6 +879,12 @@ class Parser {
         while (this.peek().kind === "ident") {
           const pname = this.next().text;
           let ptype: string | undefined, ptypePos: Pos | undefined, pnullable = false;
+          if (this.peek().kind === "query") {
+            const ty = this.peekAt(1).kind === "colon" && this.peekAt(2).kind === "ident" ? this.peekAt(2).text : "Type";
+            throw new DeclareError(
+              `'${pname}?' — in a signature the '?' marks the TYPE: write '${pname}: ${ty}?' for a nullable parameter (the name-suffix '?' belongs to schema fields)`,
+              this.peek().pos);
+          }
           if (this.peek().kind === "colon") {
             this.next();
             if (this.peek().kind === "ident" || this.peek().kind === "lparen") {
@@ -952,6 +988,13 @@ class Parser {
           this.expect("rparen", "')'");
           return { kind: "call", name: t.text, args, pos: t.pos };
         }
+        // `Name[]` — an array-of-schema type expression (`schema = Task[]`,
+        // a response that is a bare array of records). The suffix folds into
+        // the name; the checker splits it back and resolves the schema.
+        if (this.peek().kind === "lbracket" && this.peekAt(1).kind === "rbracket") {
+          this.next(); this.next();
+          return { kind: "ident", name: t.text + "[]", pos: t.pos };
+        }
         return { kind: "ident", name: t.text, pos: t.pos };
       case "code": return { kind: "code", src: t.str!, pos: t.pos };
       case "colon": return this.parsePath(t.pos);
@@ -990,6 +1033,11 @@ class Parser {
     const fields: ShapeField[] = [];
     while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
       const name = this.expect("ident", "a field name in the schema shape");
+      if (this.peek().kind === "lparen") {
+        throw new DeclareError(
+          `'${name.text}(' — a schema declares shape, not behavior: no methods, no handlers. Methods live on classes; a record's derived values live in { } constraints that read its fields`,
+          this.peek().pos);
+      }
       let array = false, optional = false;
       if (this.peek().kind === "lbracket" && this.peekAt(1).kind === "rbracket") { this.next(); this.next(); array = true; }
       if (this.peek().kind === "query") { this.next(); optional = true; }
@@ -1005,12 +1053,52 @@ class Parser {
         this.next();
         const nested = this.parseShapeFields();
         field = { name: name.text, array, optional, type: null, fields: nested };
-      } else {
-        const ty = this.expect("ident", "a shape field's type — string | number | boolean | any, or a nested [ … ]");
-        if (ty.text !== "string" && ty.text !== "number" && ty.text !== "boolean" && ty.text !== "any") {
-          throw new DeclareError(`a shape field's type is string | number | boolean | any, or a nested [ … ] — not '${ty.text}'`, ty.pos);
+      } else if (this.peek().kind === "string" || this.peek().kind === "number") {
+        // A LITERAL UNION — `status: "open" | "doing" | "closed"`, or of
+        // numbers: `col: 0 | 1 | 2` (enum-as-int contracts). Validated by
+        // membership, projected as the TS union it is. Homogeneous: all
+        // strings or all numbers — a mixed union has no single field type.
+        const kind = this.peek().kind;
+        const tokens: (string | number)[] = [];
+        for (;;) {
+          const t = this.peek();
+          if (t.kind !== kind && (t.kind === "string" || t.kind === "number")) {
+            throw new DeclareError(`a literal union is all strings or all numbers — '${name.text}' mixes them`, t.pos);
+          }
+          if (kind === "string") tokens.push(this.expect("string", "a string literal in the union").str!);
+          else tokens.push(this.expect("number", "a number literal in the union").num!);
+          if (this.peek().kind === "pipe") this.next();
+          else break;
         }
-        field = { name: name.text, array, optional, type: ty.text };
+        field = { name: name.text, array, optional, type: kind === "string" ? "string" : "number", tokens };
+      } else {
+        const ty = this.expect("ident", "a shape field's type — string | number | boolean | any, a schema name, a literal union, or a nested [ … ]");
+        if (ty.text === "string" || ty.text === "number" || ty.text === "boolean" || ty.text === "any") {
+          field = { name: name.text, array, optional, type: ty.text };
+        } else if (/^[A-Z]/.test(ty.text)) {
+          // a NAMED schema ref (`owner: Person`) — resolved by the checker,
+          // which refuses an unknown name with the declared schemas listed
+          field = { name: name.text, array, optional, type: null, ref: ty.text, refPos: ty.pos };
+        } else {
+          throw new DeclareError(`a shape field's type is string | number | boolean | any, a schema name (capitalized), a literal union of strings, or a nested [ … ] — not '${ty.text}'`, ty.pos);
+        }
+      }
+      // The crossings a TS arrival types first, each with its rewrite named
+      // (the every-error-carries-its-fix rule):
+      if (this.peek().kind === "lbracket" && this.peekAt(1).kind === "rbracket") {
+        throw new DeclareError(
+          `'${name.text}: …[]' — in a schema the array marker rides the NAME: write '${name.text}[]: ${field.ref ?? field.type ?? "[ … ]"}' (it rhymes with the path that reads it, ':${name.text}[]')`,
+          this.peek().pos);
+      }
+      if (this.peek().kind === "query") {
+        throw new DeclareError(
+          `'${name.text}: …?' — in a schema the optional marker rides the FIELD name: write '${name.text}?: ${field.ref ?? field.type ?? "[ … ]"}' (the type-suffix '?' belongs to method signatures)`,
+          this.peek().pos);
+      }
+      if (this.peek().kind === "eq") {
+        throw new DeclareError(
+          `'${name.text} = …' — a schema field takes no default: a schema declares shape, never values. Defaults belong to attribute declarations ('name: Type = value' on a class), or to the code that builds the record`,
+          this.peek().pos);
       }
       fields.push(field);
       if (this.peek().kind === "comma") this.next();
@@ -1119,6 +1207,40 @@ class Parser {
     const t = this.tokens[this.i];
     const u = this.tokens[this.i + 1];
     return t.kind === "ident" && t.text === "class" && u.kind === "ident";
+  }
+
+  /** At a `schema Name [ … ]` top-level declaration (typed data) — the same
+   *  contextual-keyword rule as atClass; the `[` disambiguates from a
+   *  component that happens to be named `schema`. */
+  atSchemaDecl(): boolean {
+    const t = this.tokens[this.i];
+    const u = this.tokens[this.i + 1];
+    if (t.kind !== "ident" || t.text !== "schema" || u.kind !== "ident") return false;
+    const w = this.tokens[this.i + 2];
+    // `schema Name [` opens one; `schema Name extends` is one too — mis-written,
+    // and parseSchemaDecl names what a schema is not (never a bare shape error)
+    return w?.kind === "lbracket" || (w?.kind === "ident" && w.text === "extends");
+  }
+
+  /** `'schema' NAME '[' shape-fields ']'` — a named data shape: ONE type,
+   *  projected as a TS interface for every `{ }` body (scaffold) and
+   *  enforced by the runtime wherever data crosses a boundary. The name is
+   *  capitalized like a class's — one namespace of type names, so the
+   *  checker refuses a schema/class collision. */
+  parseSchemaDecl(): SchemaDecl {
+    const kw = this.next(); // 'schema'
+    const name = this.expect("ident", "the schema's name");
+    if (!/^[A-Z]/.test(name.text)) {
+      throw new DeclareError(`a schema's name is capitalized ('schema ${name.text[0].toUpperCase()}${name.text.slice(1)} [ … ]') — it is a type name, like a class's`, name.pos);
+    }
+    if (this.peek().kind === "ident" && this.peek().text === "extends") {
+      throw new DeclareError(
+        `schemas do not extend — a schema is composed by NESTING (a field typed by another schema: 'owner: Person') or by repeating the fields it shares`,
+        this.peek().pos);
+    }
+    this.expect("lbracket", `'[' opening schema ${name.text}'s fields`);
+    const fields = this.parseShapeFields();
+    return { name: name.text, fields, pos: kw.pos };
   }
 
   /** At a `stylesheet Name [ … ]` / `style name [ … ]` top-level declaration
@@ -1273,6 +1395,7 @@ export function parse(source: string): Element {
  *  (the root element in a program, or eof in a library). */
 function parseTopDecls(p: Parser): {
   classes: ClassDecl[];
+  shapes: SchemaDecl[];
   stylesheets: TopDecl[];
   styles: TopDecl[];
   fonts: TopDecl[];
@@ -1284,6 +1407,7 @@ function parseTopDecls(p: Parser): {
   scriptFileSpans: Span[];
 } {
   const classes: ClassDecl[] = [];
+  const shapes: SchemaDecl[] = [];
   const stylesheets: TopDecl[] = [];
   const styles: TopDecl[] = [];
   const fonts: TopDecl[] = [];
@@ -1307,12 +1431,13 @@ function parseTopDecls(p: Parser): {
     }
     else if (p.atScript()) scripts.push(p.parseScript());
     else if (p.atClass()) classes.push(p.parseClass());
+    else if (p.atSchemaDecl()) shapes.push(p.parseSchemaDecl());
     else if (p.atTop("stylesheet")) stylesheets.push(p.parseTopDecl("stylesheet"));
     else if (p.atTop("style")) styles.push(p.parseTopDecl("style"));
     else if (p.atTop("font")) fonts.push(p.parseTopDecl("font"));
     else break;
   }
-  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans };
+  return { classes, shapes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans };
 }
 
 /** Parse a whole Declare source: `include`s and top-level declarations
@@ -1339,9 +1464,10 @@ export function parseProgram(source: string): Program {
   const scripts = [...before.scripts, ...after.scripts];
   const scriptFiles = [...(before.scriptFiles ?? []), ...(after.scriptFiles ?? [])];
   const scriptFileSpans = [...(before.scriptFileSpans ?? []), ...(after.scriptFileSpans ?? [])];
+  const shapes = [...before.shapes, ...after.shapes];
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
-  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans, root };
+  return { classes, shapes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans, root };
 }
 
 /** Parse an INCLUDED file (composition.md §1): the same top-level

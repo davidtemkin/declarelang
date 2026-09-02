@@ -17,6 +17,9 @@ import type { Element, Attr, AttrDecl, ClassDecl, Literal } from "./parser.js";
 import { DeclareError, type Pos } from "./errors.js";
 import { SCHEMAS, attrType, isReadOnly, descendsFrom, type ComponentSchema } from "./schema.js";
 import { coerce, declaredType, describeLiteral, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
+
+/** The default (no schemas declared) — one shared frozen set. */
+const EMPTY_SHAPES: ReadonlySet<string> = new Set();
 import { validateExpr, CONSTRUCTOR_NAMES } from "./expr.js";
 
 /** The scope nouns of language §11 — never legal as member or parameter names.
@@ -77,7 +80,7 @@ export interface ClassInfo {
  *  order-free. The two unbuildable shapes are loud errors here: an `extends`
  *  cycle (the chain can never bottom out) and a class that (transitively)
  *  contains itself (it could never finish instantiating). */
-export function programSchemas(classes: readonly ClassDecl[]): {
+export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySet<string> = EMPTY_SHAPES): {
   infos: ClassInfo[];
   schemas: Record<string, ComponentSchema>;
   errors: DeclareError[];
@@ -85,6 +88,7 @@ export function programSchemas(classes: readonly ClassDecl[]): {
   const infos: ClassInfo[] = [];
   const schemas: Record<string, ComponentSchema> = { ...SCHEMAS };
   const errors: DeclareError[] = [];
+  const isShape = (n: string): boolean => shapes.has(n);
   // Every class NAME up front, so an attribute may be typed by a class declared
   // later — or by its own (`class Menu [ child: Menu = null ]`, the shape a
   // submenu chain needs). A component AttrType stores only the name, so no
@@ -170,7 +174,7 @@ export function programSchemas(classes: readonly ClassDecl[]): {
     const prevailing: string[] = [];
     const readOnly: string[] = [];
     for (const d of decl.body.decls) {
-      const r = checkDecl(base, d, decl.name, isComponentName);
+      const r = checkDecl(base, d, decl.name, isComponentName, isShape);
       if (!r.ok) { errors.push(r.error); continue; }
       if (Object.hasOwn(attrs, d.name)) continue; // the namespace pass reports the duplicate
       attrs[d.name] = r.type;
@@ -275,7 +279,12 @@ export function checkDecl(
    *  is fed from. The asymmetry was accidental: the `component` AttrType and its
    *  coercion already existed for schema slots (`layout: Layout`); only the
    *  DECLARATION path could not name one. */
-  isComponent: (n: string) => boolean = () => false
+  isComponent: (n: string) => boolean = () => false,
+  /** Is this name a declared SCHEMA (typed data)? A record slot (`sel: Task
+   *  = null`) and an array of records (`picked: Task[]`) are ordinary
+   *  declarations whose type is the schema — the projection makes the name
+   *  real in every { } body; here it resolves to the record/array kinds. */
+  isShape: (n: string) => boolean = () => false
 ): CheckedDecl {
   const err = (message: string, pos: Pos): CheckedDecl => ({ ok: false, error: new DeclareError(message, pos) });
   if (NOUNS.includes(d.name)) {
@@ -306,18 +315,19 @@ export function checkDecl(
   const arrayOf = (n: string): AttrType | null => {
     if (!n.endsWith("[]")) return null;
     const base = n.slice(0, -2);
-    // the element must itself be a sayable type — a primitive, a component, or
-    // a deeper array; fn-element arrays wait for a need
-    const okBase = declaredType(base) !== null || isComponent(base) || (base.endsWith("[]") && arrayOf(base) !== null);
+    // the element must itself be a sayable type — a primitive, a component, a
+    // declared schema, or a deeper array; fn-element arrays wait for a need
+    const okBase = declaredType(base) !== null || isComponent(base) || isShape(base) || (base.endsWith("[]") && arrayOf(base) !== null);
     return okBase ? ({ kind: "array", of: base } as AttrType) : null;
   };
   const type = declaredType(d.type)
     ?? arrayOf(d.type)
     ?? (d.type.startsWith("(") ? { kind: "fn", written: d.type } as AttrType : null)
-    ?? (isComponent(d.type) ? { kind: "component", of: d.type } as AttrType : null);
+    ?? (isComponent(d.type) ? { kind: "component", of: d.type } as AttrType : null)
+    ?? (isShape(d.type) ? { kind: "record", name: d.type, data: true } as AttrType : null);
   if (type === null) {
     return err(
-      `unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class, or a function type '(a: T) -> R'`,
+      `unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class, a declared schema, or a function type '(a: T) -> R'`,
       d.typePos
     );
   }
@@ -413,13 +423,14 @@ export function checkDecl(
 export function withDecls(
   schema: ComponentSchema,
   decls: readonly AttrDecl[],
-  isComponent: (n: string) => boolean = () => false
+  isComponent: (n: string) => boolean = () => false,
+  isShape: (n: string) => boolean = () => false
 ): ComponentSchema {
   if (decls.length === 0) return schema;
   const attrs: Record<string, AttrType> = {};
   const prevailing: string[] = [];
   for (const d of decls) {
-    const r = checkDecl(schema, d, schema.name, isComponent);
+    const r = checkDecl(schema, d, schema.name, isComponent, isShape);
     if (r.ok && !Object.hasOwn(attrs, d.name)) {
       attrs[d.name] = r.type;
       if (d.prevailing) prevailing.push(d.name);

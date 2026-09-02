@@ -54,9 +54,10 @@
 // misparsed.
 
 import ts from "typescript";
-import { parseProgram, type Element, type Param, type Program } from "../../runtime/dist/parser.js";
+import { parseProgram, type Element, type Param, type Program, type SchemaDecl } from "../../runtime/dist/parser.js";
+import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { programSchemas } from "../../runtime/dist/check.js";
-import { generateScaffold, memberSig, tsType, signatureTsType } from "./scaffold.js";
+import { generateScaffold, memberSig, tsType, signatureTsType, shapeObjectText } from "./scaffold.js";
 import { attrType, descendsFrom, type ComponentSchema } from "../../runtime/dist/schema.js";
 import { declaredType, type AttrType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
@@ -101,7 +102,7 @@ interface Unit {
  *  DECLARE6001 diagnostics (empty when clean). Never throws on TS internals: a
  *  body that cannot be framed is skipped, not failed. */
 export function typecheckBodies(resolved: string, program: Program): { errors: DeclareError[]; oracle: TypeOracle | null } {
-  const { schemas } = programSchemas(program.classes);
+  const { schemas } = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name)));
 
   let rprog: Program;
   try {
@@ -109,8 +110,13 @@ export function typecheckBodies(resolved: string, program: Program): { errors: D
   } catch {
     return { errors: [], oracle: null }; // resolved is our own output — if it will not re-parse, skip typecheck
   }
+  // Resolve the re-parsed program's schemas (typed data): the named
+  // `schema =` forms become resolved shape literals, which is what the
+  // Dataset `.value` narrowing below projects from. Errors were already
+  // reported by check(); this run is for the projection.
+  resolveShapes(rprog);
 
-  const emitter = new CaseEmitter(schemas);
+  const emitter = new CaseEmitter(schemas, rprog.shapes ?? []);
   // Pass 1 — synthesize each element's INSTANCE type (language §5: an element
   // with inline declarations is an anonymous one-off subclass — withDecls is
   // the checker's currency for the same fact). The root's instance type then
@@ -119,7 +125,7 @@ export function typecheckBodies(resolved: string, program: Program): { errors: D
   for (const cls of rprog.classes) emitter.classHasChildren.set(cls.name, cls.body.children.length > 0);
   for (const cls of rprog.classes) emitter.assignTypes(cls.body, true);
   const rootType = emitter.assignTypes(rprog.root, false);
-  let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras, emitter.signatureTypeNames);
+  let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras, emitter.signatureTypeNames, rprog.shapes ?? []);
   // A program's `script { … }` blocks are ambient TypeScript for every body:
   // their declarations are real signatures, so appending the source to the
   // scaffold is what makes `dbl(app.v)` typecheck against the actual function
@@ -427,7 +433,15 @@ class CaseEmitter {
    *  element widens its tag, else the tag class itself). */
   private instType = new Map<Element, string>();
 
-  constructor(private readonly schemas: Readonly<Record<string, ComponentSchema>>) {}
+  constructor(
+    private readonly schemas: Readonly<Record<string, ComponentSchema>>,
+    /** The program's schema declarations (typed data) — record-slot decl
+     *  resolution and the Dataset `.value` narrowing ask these. */
+    shapes: readonly SchemaDecl[] = []
+  ) {
+    this.shapeNames = new Set(shapes.map((d) => d.name));
+  }
+  private readonly shapeNames: ReadonlySet<string>;
 
   get caseSrc(): string {
     return this.lines.join("\n");
@@ -527,13 +541,15 @@ class CaseEmitter {
       // checkDecl makes, or this path would silently under-report the slot as
       // `any` and a typo through it would compile.
       const isC = (n: string): boolean => this.schemas[n] !== undefined || this.classHasChildren.has(n);
+      const isShape = (n: string): boolean => this.shapeNames.has(n);
       const arrayOf = (n: string): AttrType | null =>
-        n.endsWith("[]") && (declaredType(n.slice(0, -2)) !== null || isC(n.slice(0, -2)) || arrayOf(n.slice(0, -2)) !== null)
+        n.endsWith("[]") && (declaredType(n.slice(0, -2)) !== null || isC(n.slice(0, -2)) || isShape(n.slice(0, -2)) || arrayOf(n.slice(0, -2)) !== null)
           ? ({ kind: "array", of: n.slice(0, -2) } as AttrType) : null;
       const t = declaredType(d.type)
         ?? arrayOf(d.type)
         ?? (d.type.startsWith("(") ? { kind: "fn", written: d.type } as AttrType : null)
-        ?? (isC(d.type) ? { kind: "component", of: d.type } as AttrType : null);
+        ?? (isC(d.type) ? { kind: "component", of: d.type } as AttrType : null)
+        ?? (isShape(d.type) ? { kind: "record", name: d.type, data: true } as AttrType : null);
       // A color with a concrete (non-null) default is non-null (see memberSig):
       // nullable only where it means inherit/absent (`= null` or no default).
       const nonNullColor = t !== null && t.kind === "color" && d.def !== null && !(d.def.kind === "ident" && d.def.name === "null");
@@ -547,7 +563,7 @@ class CaseEmitter {
       // optional `any`. Both sites must agree or a method checks differently
       // depending on whether it sits in a `class` or in the tree.
       const ps = m.params.map((prm, i) => {
-        const t = prm.type === undefined ? null : signatureTsType(prm.type, (n) => this.schemas[n] !== undefined, prm.nullable === true);
+        const t = prm.type === undefined ? null : signatureTsType(prm.type, (n) => this.schemas[n] !== undefined || this.shapeNames.has(n), prm.nullable === true);
         // See scaffold's methodSig: a parameter is optional only while nothing
         // REQUIRED follows it (TypeScript's TS1016).
         const req = (q: Param): boolean => q.type !== undefined && q.nullable !== true;
@@ -555,11 +571,18 @@ class CaseEmitter {
         if (t === null) return `${prm.name}${omittable ? "?" : ""}: any`;
         return `${prm.name}${omittable ? "?" : ""}: ${t}`;
       }).join(", ");
-      const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, (n) => this.schemas[n] !== undefined, m.returnsNullable === true) ?? "any");
+      const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, (n) => this.schemas[n] !== undefined || this.shapeNames.has(n), m.returnsNullable === true) ?? "any");
       members.push(`  ${m.name}(${ps}): ${ret};`);
       for (const prm of m.params) if (prm.type !== undefined) this.signatureTypeNames.push(prm.type);
       if (m.returns !== undefined) this.signatureTypeNames.push(m.returns);
     }
+    // TYPED DATASET VALUE (typed data, 2026-09-01): a Dataset/DataSource
+    // element with a resolved `schema =` narrows its `.value` to the document
+    // type — `app.nest.value.tasks` is `Task[]` to every body and method, so
+    // the `as Task[]` coercion tax is retired at its source. A named form
+    // projects the NAME; the inline literal projects structurally.
+    const doc = this.docTypeOf(el);
+    if (doc !== null) members.push(`  value: ${doc} | null;`);
     if (members.length === 0) {
       this.instType.set(el, el.tag);
       return el.tag;
@@ -577,6 +600,21 @@ class CaseEmitter {
     return name;
   }
 
+  /** The DOCUMENT type text a Dataset element's resolved `schema =` declares
+   *  (`{ cols: Col[] }`, `TaskDoc`, `Task[]`), or null. Feeds two walls: the
+   *  `.value` narrowing (readers) and the `contents` slot annotation below
+   *  (the producer) — one declaration, both ends of a derived dataset. */
+  private docTypeOf(el: Element): string | null {
+    const dsSchema = this.schemas[el.tag];
+    if (dsSchema === undefined || (el.tag !== "Dataset" && !descendsFrom(dsSchema, "Dataset"))) return null;
+    const sa = el.attrs.find((a) => a.name === "schema" && a.value.kind === "schema");
+    if (sa === undefined || sa.value.kind !== "schema") return null;
+    const v = sa.value;
+    return v.refName !== undefined
+      ? (v.arrayRoot === true ? `${v.refName}[]` : v.refName)
+      : (v.arrayRoot === true ? `${shapeObjectText(v.shape)}[]` : shapeObjectText(v.shape));
+  }
+
   /** Pass 2 — emit a check-block per `{ }` body. `classBody` marks a walk
    *  rooted at a class declaration's body (its root-level `parent` is typed
    *  `View`: an instance mounts under SOME view, statically unknowable — while
@@ -585,7 +623,14 @@ class CaseEmitter {
     const levels = [el, ...ancestors];
     for (const a of el.attrs) {
       if (a.value.kind === "code") {
-        this.emit(a.value.src, a.value.pos, a.name, tsSlotType(this.schemas, el.tag, a.name), levels, true, [], classBody);
+        // THE PRODUCER'S WALL (typed data, 2026-09-02): on a schema'd derived
+        // dataset, `contents` is checked against the DOCUMENT type — the
+        // compiler guards data the program constructs, the runtime guards
+        // data it doesn't. (An `any`-returning helper silences this, as any
+        // `any` does; a typed signature — `buildCols() -> Board` — closes
+        // the chain end to end.)
+        const slotType = a.name === "contents" ? (this.docTypeOf(el) ?? tsSlotType(this.schemas, el.tag, a.name)) : tsSlotType(this.schemas, el.tag, a.name);
+        this.emit(a.value.src, a.value.pos, a.name, a.name === "contents" && this.docTypeOf(el) !== null ? `${slotType} | null` : slotType, levels, true, [], classBody);
       }
     }
     for (const d of el.decls) {
@@ -644,7 +689,7 @@ class CaseEmitter {
     // the under-report constraints.md §2 names, and the reason a bare
     // parameter also blinds dep-extraction to every read through it.
     const paramTs = (p: Param): string =>
-      (p.type === undefined ? null : signatureTsType(p.type, (n) => this.schemas[n] !== undefined, p.nullable === true)) ?? "any";
+      (p.type === undefined ? null : signatureTsType(p.type, (n) => this.schemas[n] !== undefined || this.shapeNames.has(n), p.nullable === true)) ?? "any";
     const paramSig = params.map((p) => `, ${p.name}: ${paramTs(p)}`).join("");
     const paramArgs = params.map(() => `, undefined as any`).join("");
     const header = `(function (this: ${self}, parent: ${parent}, classroot: ${root}${paramSig}) {`;
@@ -715,7 +760,12 @@ function tsSlotType(schemas: Readonly<Record<string, ComponentSchema>>, tag: str
   const schema = schemas[tag];
   if (schema === undefined) return "unknown";
   const t = attrType(schema, slot);
-  return t === null ? "unknown" : tsType(t);
+  if (t === null) return "unknown";
+  // The check-block annotates the slot with its WRITE type, and a cursor
+  // slot's write side accepts a place-bearing VALUE (`datapath = { d.value }`
+  // — toCursor's contract; scaffold memberSig carries the same asymmetry).
+  if (t.kind === "cursor") return "Cursor | object | null";
+  return tsType(t);
 }
 
 // ── The standard-library provider (the ONE host seam) ────────────────────────

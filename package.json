@@ -1,6 +1,6 @@
 {
   "name": "declarelang",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "type": "module",
   "description": "Declare — a clean-slate successor to OpenLaszlo. A single self-contained distro: the compiler (.declare → JS), the browser runtime, a component library, examples, and docs. Runs a dev server with dynamic compilation, or host the whole tree statically for in-browser compilation.",

@@ -260,6 +260,9 @@ export const Inspect = new Proxy({ ready: () => false }, {
       for (const a of el.attrs ?? []) {
         if (planful(a.value)) selectors = true;
         if (a.value?.kind === "schema") schemas = true;
+        // the NAMED forms (typed data): `schema = TaskDoc` / `schema = Task[]`
+        // parse as idents and resolve at boot — the validator must ride
+        if (a.name === "schema" && a.value?.kind === "ident" && a.value.name !== "null") schemas = true;
       }
       for (const d of el.decls ?? []) if (planful(d.def)) selectors = true;
       for (const c of el.children ?? []) walkSel(c);
@@ -419,6 +422,16 @@ export const selectNodes = REFUSE, selectValue = REFUSE, evaluatePlan = REFUSE;
   // program declares a schema — the same pay-per-use lever.
   const dataSchemaStub = `
 export function validateShape() { return null; }
+export function validateDoc() { return null; }
+export function fieldValueError() { return null; }
+`;
+  // shape-resolve (typed data): the schema-declaration resolver — pure
+  // declaration machinery a schema-less program never exercises.
+  const shapeResolveStub = `
+const EMPTY = new Map();
+export function resolveShapes() { return { table: EMPTY, errors: [] }; }
+export function shapeNames() { return new Set(); }
+export function isArrayDoc() { return false; }
 `;
   const themesStub = `export const Themes = Object.freeze({});\n`;
   const viewportStub = `export function lockFocusZoom() {}\n`;
@@ -450,6 +463,7 @@ export function validateShape() { return null; }
     ...(programFacts.claimsTouch ? [] : [stubFor("slim-viewport", /[/\\]viewport-lock\.js$/, viewportStub)]),
     ...(programFacts.usesSelectors ? [] : [stubFor("slim-select", /[/\\]select\.js$/, selectStub)]),
     ...(programFacts.usesSchemas ? [] : [stubFor("slim-dataschema", /[/\\]data-schema\.js$/, dataSchemaStub)]),
+    ...(programFacts.usesSchemas ? [] : [stubFor("slim-shapes", /[/\\]shape-resolve\.js$/, shapeResolveStub)]),
   ];
 
   const result = await esbuild.build({

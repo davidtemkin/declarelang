@@ -293,5 +293,52 @@ test("set([], v) replaces the WHOLE document — the guide's draft-lands spellin
   assert.equal(app.form.field.text, "Dora", "readers woke — arrival semantics");
 });
 
+// ── THE SCHEMA FLOOR (typed data, 2026-09-02): on a schema'd dataset the edit
+// session knows the field's declared type — a number field commits the PARSED
+// number, a union commits only a member, and an unreadable draft is an INVALID
+// SESSION (valid=false), never a thrown write and never a string in a number
+// field. Compile refuses `<->` onto fields a text editor cannot edit.
+
+test("schema floor: a number field commits the parsed number; a bad draft is an invalid session, never a throw", async () => {
+  const app = await build(`
+schema Task [ id: string, born: number, status: "open" | "closed" ]
+App [ width=1, height=1,
+  d: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [ { "id": "t1", "born": 5, "status": "open" } ] } },
+  l: View [ datapath = { d.value },
+    row: View [ datapath = :tasks[0],
+      f: TextInput [ text <-> :born ],
+      g: TextInput [ text <-> :status ],
+    ],
+  ],
+]`);
+  const f = app.l.row.f, g = app.l.row.g;
+  assert.equal(f.text, "5", "seeds as the editor's string");
+  f.text = "42"; edited(f, "text", "input"); settle();
+  assert.strictEqual(app.d.read(["tasks", 0, "born"]), 42, "committed as the NUMBER, not the string");
+  f.text = "abc"; edited(f, "text", "input"); settle();
+  assert.equal(f.valid, false, "unreadable draft = invalid session");
+  assert.equal(f.error, "must be a number");
+  assert.strictEqual(app.d.read(["tasks", 0, "born"]), 42, "…and the data is untouched — no write, no throw");
+  g.text = "closed"; edited(g, "text", "input"); settle();
+  assert.equal(app.d.read(["tasks", 0, "status"]), "closed", "a union member commits");
+  g.text = "paused"; edited(g, "text", "input"); settle();
+  assert.equal(g.valid, false, "a non-member is invalid");
+  assert.match(g.error, /"open" \| "closed"/);
+});
+
+test("schema floor: <-> onto a boolean or record field refuses at compile, naming the right tool", async () => {
+  const boolSrc = `
+schema Task [ id: string, done: boolean ]
+App [ width=1, height=1,
+  d: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [] } },
+  l: View [ datapath = { d.value }, View [ datapath = :tasks[], TextInput [ text <-> :done ] ] ],
+]`;
+  const r1 = await compileProgram(boolSrc, { stripPos: false });
+  assert.match(r1.errors.map((e) => e.message).join(" "), /a text editor cannot edit one; a Checkbox writes immediately/);
+  const recSrc = boolSrc.replace("done: boolean", "done: [ a: string ]").replace(":done", ":done");
+  const r2 = await compileProgram(recSrc, { stripPos: false });
+  assert.match(r2.errors.map((e) => e.message).join(" "), /a two-way binding edits a LEAF value/);
+});
+
 console.log(`\ndatabinding: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

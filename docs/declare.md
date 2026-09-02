@@ -568,6 +568,19 @@ than `undefined` three bindings deep — and lets every `:path` be checked again
 compile time. Without one, paths are dynamic: an unresolved `:path` yields null and the bound
 attribute falls back to its default.
 
+**A schema is a named type — declare it once, at the top level, and use it in any type position.**
+`schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]` is a
+declaration in the one type system: the name works in every type position (`sel: Task = null`,
+`advance(t: Task) -> Task`, a field of another schema — `owner: Person`), a dataset declares its
+document with it (`schema = [ tasks[]: Task ]`, or `schema = Task[]` for a bare-array response),
+and its `.value` is then *typed* — `nest.value.tasks` is `Task[]` in every `{ }` body, so a
+misspelled field dies at compile time and the `as` casts go. The runtime enforces the same
+declaration at every boundary: arrival, the embedded body, and the mutation verbs
+(`set(["tasks", 0, "done"], "yes")` refuses at the write). The schema grammar is deliberately the
+subset of TypeScript a JSON document can carry — which is exactly what makes one declaration
+checkable by the compiler *and* enforceable against live data. Extra keys always pass: a schema
+declares what the program relies on.
+
 **Two-way binding is opt-in, with `<->`, and for leaf editors only** — `TextInput [ text <-> :title ]`:
 the right-hand side names a *place in data*, either a datapath or a `{ }` yielding a field name,
 resolved against the nearest enclosing `datapath` — an editor with none is a compile error. To

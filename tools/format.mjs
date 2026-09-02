@@ -72,7 +72,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 // string/template ISLANDS inside them (line starts inside an island are never
 // re-indented — that whitespace is program data).
 
-const PUNCT = { "[": "lb", "]": "rb", "(": "lp", ")": "rp", "=": "eq", ",": "comma", ":": "colon", ".": "dot" };
+const PUNCT = { "[": "lb", "]": "rb", "(": "lp", ")": "rp", "=": "eq", ",": "comma", ":": "colon", ".": "dot", "|": "pipe" };
 const isDigit = (c) => c >= "0" && c <= "9";
 const isIdentStart = (c) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_";
 const isIdentPart = (c) => isIdentStart(c) || isDigit(c);
@@ -282,6 +282,13 @@ function analyze(tokens) {
           }
           return expect("rp", "')'");
         }
+        // `schema = Task[]` — the array-of-schema type expression; the glued
+        // suffix rides the value (same adjacency rule as a decl's `Window[]`)
+        if (tok().kind === "lb" && tok(1).kind === "rb" && tok().start === tokens[at].end) {
+          tok().role = "arr"; tok(1).role = "arr";
+          p += 2;
+          return nc[p - 1];
+        }
         return at;
       }
       case "colon": { // datapath `:a.b` / `:arr[]` / `:arr[2:8][]` (slices, indices)
@@ -299,8 +306,31 @@ function analyze(tokens) {
         }
         return nc[p - 1];
       }
-      case "lb": { // list literal
-        t.role = "list";
+      case "lb": {
+        // A data-SHAPE literal (`schema = [ city: string, rows[]: [ … ] ]`) —
+        // the runtime parser's own two-token lookahead: a field name followed
+        // by a shape marker or ':'. Field grammar, not member grammar — pass
+        // through verbatim with body-role brackets (` [ … ] `), the glued
+        // `arr` role on `name[]` markers, like the top-level schema form.
+        if (tok(1).kind === "ident" &&
+            (tok(2).kind === "colon" || tok(2).kind === "query" || tok(2).kind === "bang" ||
+             (tok(2).kind === "lb" && tok(3).kind === "rb"))) {
+          for (let depth = 0; ; ) {
+            const k = tok().kind;
+            if (k === "eof") fail("unclosed schema shape");
+            if (k === "lb") {
+              if (tok(1).kind === "rb") { tok().role = "arr"; tok(1).role = "arr"; p += 2; continue; }
+              depth++;
+              tok().role = "body";
+            } else if (k === "rb") {
+              depth--;
+              tok().role = "body";
+              if (depth === 0) return nc[p++];
+            }
+            p++;
+          }
+        }
+        t.role = "list"; // list literal
         p++;
         while (tok().kind !== "rb" && tok().kind !== "eof") {
           parseLiteral();
@@ -344,10 +374,15 @@ function analyze(tokens) {
         p++;
         if (tok().kind === "lb") { // class-keyed entry `Button: [ … ]`
           end = parseBody(false).close;
+          if (tok().kind === "code") end = nc[p++]; // `[ … ] { json }` — a raw body after the attrs
           kind = "child";
         } else {
           const type = readTypeRef("a type or component name");
-          if (tok().kind === "lb") { end = parseBody(false).close; kind = "child"; }
+          if (tok().kind === "lb") {
+            end = parseBody(false).close;
+            if (tok().kind === "code") end = nc[p++]; // `name: Dataset [ schema = … ] { json }`
+            kind = "child";
+          }
           else if (tok().kind === "code") { end = nc[p++]; kind = "child"; } // `name: Dataset { … }`
           else if (tok().kind === "eq") { p++; end = parseLiteral(); kind = "decl"; }
           else { end = type; kind = "decl"; }
@@ -374,8 +409,11 @@ function analyze(tokens) {
         if (tok().kind !== "code") fail("expected the method body '{ … }'");
         end = nc[p++];
         kind = "method";
-      } else { // anonymous child — bare `Name`, `Name [ … ]`, or `Name { … }`
-        if (tok().kind === "lb") end = parseBody(false).close;
+      } else { // anonymous child — bare `Name`, `Name [ … ]`, `Name { … }`, or `Name [ … ] { … }`
+        if (tok().kind === "lb") {
+          end = parseBody(false).close;
+          if (tok().kind === "code") end = nc[p++];
+        }
         else if (tok().kind === "code") end = nc[p++];
         else end = name;
         kind = "child";
@@ -430,6 +468,29 @@ function analyze(tokens) {
         p++;
         expect("ident", "the declaration's name");
         parseBody(true);
+      } else if (at("schema", "ident")) {
+        // `schema Name [ … ]` (typed data): the body is shape-field grammar,
+        // not member grammar — pass it through verbatim (balanced brackets),
+        // like a script block. The formatter is line-level by design, so an
+        // unrecorded body simply keeps the author's lines.
+        p++;
+        expect("ident", "the schema's name");
+        // brackets wear the body role (` [ … ] ` spacing) — except the glued
+        // array marker `tags[]`, which keeps the `arr` role's zero space
+        for (let depth = 0; ; ) {
+          const k = tok().kind;
+          if (k === "eof") fail("unclosed schema body");
+          if (k === "lb") {
+            if (tok(1).kind === "rb") { tok().role = "arr"; tok(1).role = "arr"; p += 2; continue; }
+            depth++;
+            tok().role = "body";
+          } else if (k === "rb") {
+            depth--;
+            tok().role = "body";
+            if (depth === 0) { p++; break; }
+          }
+          p++;
+        }
       } else if (at("script", "code")) {
         p += 2; // `script { … }` — the body is opaque TS, passed through verbatim
       } else if (at("script", "lb")) {

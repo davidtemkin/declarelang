@@ -163,6 +163,7 @@ export async function resolveIncludes(
 ): Promise<{ program: Program; sources: string[]; sourceIds: string[]; errors: DeclareError[]; visited: Set<string> }> {
   const errors: DeclareError[] = [];
   const classes: ClassDecl[] = [...program.classes];
+  const shapes = [...(program.shapes ?? [])];
   const stylesheets: TopDecl[] = [...program.stylesheets];
   const styles: TopDecl[] = [...program.styles];
   const fonts: TopDecl[] = [...program.fonts];
@@ -184,6 +185,7 @@ export async function resolveIncludes(
   const MAIN = "the app";
   const origin = new Map<string, string>();
   for (const c of program.classes) origin.set(c.name, MAIN);
+  for (const d of program.shapes ?? []) origin.set(d.name, MAIN);
   for (const s of program.stylesheets) origin.set(s.name, MAIN);
   for (const s of program.styles) origin.set(s.name, MAIN);
   for (const f of program.fonts) origin.set(f.name, MAIN);
@@ -235,6 +237,7 @@ export async function resolveIncludes(
       // message form).
       const from = inc.path;
       for (const c of lib.classes) if (fold(c.name, c.pos, from)) classes.push(c);
+      for (const d of lib.shapes ?? []) if (fold(d.name, d.pos, from)) shapes.push(d);
       for (const s of lib.stylesheets) if (fold(s.name, s.pos, from)) stylesheets.push(s);
       for (const s of lib.styles) if (fold(s.name, s.pos, from)) styles.push(s);
       for (const f of lib.fonts) if (fold(f.name, f.pos, from)) fonts.push(f);
@@ -250,7 +253,7 @@ export async function resolveIncludes(
   await walk(program.includes, originDir);
 
   return {
-    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
+    program: { classes, shapes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
     sources,
     sourceIds,
     errors,
@@ -344,6 +347,7 @@ export async function resolveAutoIncludes(
   autoIncludable = Object.keys(manifest);
   const errors: DeclareError[] = [];
   const classes: ClassDecl[] = [...program.classes];
+  const shapes = [...(program.shapes ?? [])];
   const stylesheets: TopDecl[] = [...program.stylesheets];
   const styles: TopDecl[] = [...program.styles];
   const fonts: TopDecl[] = [...program.fonts];
@@ -359,6 +363,7 @@ export async function resolveAutoIncludes(
   // built-in tags are never in the manifest, so they need no separate registry.
   const origin = new Map<string, string>();
   for (const c of program.classes) origin.set(c.name, "the app");
+  for (const d of program.shapes ?? []) origin.set(d.name, "the app");
   for (const s of program.stylesheets) origin.set(s.name, "the app");
   for (const s of program.styles) origin.set(s.name, "the app");
   for (const f of program.fonts) origin.set(f.name, "the app");
@@ -399,6 +404,7 @@ export async function resolveAutoIncludes(
     // dependency-first: pull what this library references, then emit it
     for (const r of referencedTags(null, lib.classes)) await pull(r.tag, r.pos);
     for (const c of mine) classes.push(c);
+    for (const d of lib.shapes ?? []) if (foldOne(d.name, d.pos, path)) shapes.push(d);
     for (const s of lib.stylesheets) if (foldOne(s.name, s.pos, path)) stylesheets.push(s);
     for (const s of lib.styles) if (foldOne(s.name, s.pos, path)) styles.push(s);
     for (const f of lib.fonts) if (foldOne(f.name, f.pos, path)) fonts.push(f);
@@ -423,7 +429,7 @@ export async function resolveAutoIncludes(
     // `uses` is the FOLDED list — the root's plus every included library's
     // (returning the root's alone silently dropped a library's keep-list,
     // which broke by-name construction inside components).
-    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
+    program: { classes, shapes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
     sources,
     sourceIds,
     errors,

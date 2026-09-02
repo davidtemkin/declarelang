@@ -183,7 +183,7 @@ export type Length = number | Percent;
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Backdrop | Motion | readonly ShapeField[];
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Backdrop | Motion | readonly ShapeField[] | { readonly arrayRoot: true; readonly fields: readonly ShapeField[] };
 
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
@@ -234,7 +234,7 @@ export type AttrType =
   // forms are the ruled value CONSTRUCTORS (`gradient(…)`, `stroke(…)`,
   // `shadow(…)`) — self-naming, arity-checked, identical inside `{ }` where
   // the same names are ordinary functions in scope.
-  | { readonly kind: "record"; readonly name: string }
+  | { readonly kind: "record"; readonly name: string; readonly data?: true }
   | { readonly kind: "fill" }
   | { readonly kind: "stroke" }
   | { readonly kind: "shadow" }
@@ -349,7 +349,9 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
     case "dataschema":
       // The parsed ShapeField declarations pass through as plain data; null
       // is "no schema" (the default — schema presence is the only switch).
-      if (lit.kind === "schema") return ok(lit.shape);
+      // An array-root document (`schema = Task[]`) passes as the wrapper
+      // shape-resolve.ts defines, so validation knows the root is an array.
+      if (lit.kind === "schema") return ok(lit.arrayRoot === true ? { arrayRoot: true, fields: lit.shape } : lit.shape);
       if (lit.kind === "ident" && lit.name === "null") return ok(null);
       return fail("a schema shape ([ field: type, rows[]: [ … ] ]), or null for none");
     case "enum":
@@ -389,9 +391,16 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       if (lit.kind === "ident" && lit.name !== "null") return ok(lit.name);
       return fail("a slot name written as a bare token (like height or x)");
     case "record":
-      // No literal form, deliberately — not even null (an "empty" theme is
-      // the default record, so readers' `theme.token` never explodes).
-      // Values arrive from { } bindings or a stylesheet.
+      // A DATA record (schema-typed, `sel: Task = null`): null is the one
+      // literal form — the slot may be empty before anything feeds it,
+      // exactly like a component slot. A house token record (Theme) keeps
+      // its no-literal rule: an "empty" theme is the default record, so
+      // readers' `theme.token` never explodes; values arrive from { }
+      // bindings or a stylesheet.
+      if (type.data === true) {
+        if (lit.kind === "ident" && lit.name === "null") return ok(null);
+        return fail(`a ${type.name} record (provide one with a { } binding), or null for none`);
+      }
       return fail(`a ${type.name} (a token record — provide one with a { } binding or a stylesheet)`);
     case "fill":
       return coerceFill(lit);

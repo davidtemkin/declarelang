@@ -34,6 +34,11 @@ import { Diag, nearestName } from "./diagnostics.js";
 import { cssAttributeHint, hintedForeignName } from "./teach.js";
 import { autoIncludableNames } from "./include.js";
 import { coerce, describeLiteral, type AttrType, type AttrValue, declaredType, DECLARED_TYPE_NAMES } from "./value.js";
+import { resolveShapes, shapeNames } from "./shape-resolve.js";
+
+// The program-under-check's declared schema names — set at check() entry
+// (checkElement recurses too deep to thread one more parameter through).
+let CHECK_SHAPES: ReadonlySet<string> = new Set();
 import { validateExpr, validateBody } from "./expr.js";
 import { isSelective, staticSegs, type PathSeg } from "./datapath.js";
 import { faceWeight, FONT_WEIGHTS } from "./font.js";
@@ -85,7 +90,13 @@ function tagCandidates(schemas: Record<string, unknown>): string[] {
 export function check(input: Element | Program): DeclareError[] {
   const program: Program =
     "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
-  const { infos, schemas, errors } = programSchemas(program.classes);
+  // Schema resolution first (typed data): named `schema =` forms rewrite to
+  // resolved shape literals, refs resolve, and collisions/unknown names
+  // report here. CHECK_SHAPES then answers type-position lookups below.
+  const shapeResolution = resolveShapes(program);
+  CHECK_SHAPES = shapeNames(program);
+  const { infos, schemas, errors } = programSchemas(program.classes, CHECK_SHAPES);
+  errors.push(...shapeResolution.errors);
   const env = checkStyleDecls(program, schemas, errors);
   // A class body checks as an instance of its own (just-registered) class:
   // sets against declared + inherited attributes, handlers against inherited
@@ -155,7 +166,7 @@ function checkSignatureTypes(
       const types = n.replace(/[A-Za-z_$][\w$]*\s*:/g, " ").match(/[A-Za-z_$][\w$]*/g) ?? [];
       return types.every((w) => w === "void" || known(w));
     }
-    return declaredType(n) !== null || schemas[n] !== undefined || PAYLOAD_TYPE_NAMES.has(n);
+    return declaredType(n) !== null || schemas[n] !== undefined || PAYLOAD_TYPE_NAMES.has(n) || CHECK_SHAPES.has(n);
   };
   const schema = schemas[el.tag];
   /** The first name inside a written type that is not a known type — so a
@@ -536,7 +547,15 @@ function checkElement(
   // are checked by checkComponentValue, not as tree children.
   const consumed = new Set<Element>();
   if (schema === null) {
-    errors.push(Diag.unknownComponent(el.tag, el.pos, tagCandidates(schemas)));
+    // A SCHEMA used as a tag (typed data): the compiler knows exactly what
+    // the name is — say so, never "unknown" (the truthful-diagnostics rule).
+    if (CHECK_SHAPES.has(el.tag)) {
+      errors.push(new DeclareError(
+        `'${el.tag}' is a schema — a data shape, not a component; it cannot be instantiated. Bind its data to a view (datapath = …), or declare a class for behavior`,
+        el.pos));
+    } else {
+      errors.push(Diag.unknownComponent(el.tag, el.pos, tagCandidates(schemas)));
+    }
   } else if (descendsFrom(schema, "Layout") && !classRoot) {
     // A layout reached as an element in the tree — anonymous, mis-named, or
     // the root. The doc's ruling (language §5, Appendix A): a layout is an
@@ -588,10 +607,10 @@ function checkElement(
     let eff = schema;
     if (!declsOwned) {
       for (const d of el.decls) {
-        const r = checkDecl(schema, d, schema.name, (n) => schemas[n] !== undefined);
+        const r = checkDecl(schema, d, schema.name, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n));
         if (!r.ok) errors.push(r.error);
       }
-      eff = withDecls(schema, el.decls, (n) => schemas[n] !== undefined);
+      eff = withDecls(schema, el.decls, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n));
     }
     checkNamespace(el, eff, errors);
     // `key = :field` is replication metadata (language §9): on a child whose
@@ -780,7 +799,7 @@ function checkElement(
   // base + its inline attribute declarations — so a Spring/animator can target
   // a user-declared numeric attribute, not only a built-in slot. (A class body
   // already absorbed its decls into `schema`; an unknown parent stays null.)
-  const childCtx = schema !== null && !declsOwned ? withDecls(schema, el.decls, (n) => schemas[n] !== undefined) : schema;
+  const childCtx = schema !== null && !declsOwned ? withDecls(schema, el.decls, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n)) : schema;
   for (const child of el.children) {
     if (!consumed.has(child)) checkElement(child, errors, schemas, false, env, childCtx);
   }

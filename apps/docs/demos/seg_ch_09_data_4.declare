@@ -1,0 +1,57 @@
+schema Card [ id: number, col: 0 | 1 | 2, t: string ]
+
+class BCard extends View [ width = { parent.width }, height = 30, cornerRadius = 10, fill = darkslategray,
+    onClick() { app.advance(:id) },
+    t: Text [ x = 10, y = 10, fontSize = 12, wrap = false, text = :t ]
+    ]
+
+
+class Column extends View [ width = 130,
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    name: Text [ fontSize = 12, fontWeight = bold, textColor = lightslategray, text = :name ],
+    BCard [ datapath = :cards[] ]
+    ]
+
+
+App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
+    raw: Dataset [ schema = [ cards[]: Card ] ] {
+        { "cards": [ { "id": 1, "col": 0, "t": "Outline the guide" },
+                     { "id": 2, "col": 0, "t": "Fix the rail" },
+                     { "id": 3, "col": 1, "t": "Draft the data chapter" },
+                     { "id": 4, "col": 2, "t": "Set up the sandbox" } ] }
+        },
+    nextId: number = 5,
+
+    colNames() { return ["To do", "Doing", "Done"] },
+    buildCols() {
+        const cards = this.raw.value?.cards ?? []
+        return { cols: this.colNames().map((n, i) => ({ name: n, cards: cards.filter(c => c.col == i) })) }
+        },
+    board: Dataset [ contents = { app.buildCols() } ],
+
+    advance(id: number) {
+        const cards = this.raw.value?.cards ?? []
+        const i = cards.findIndex(c => c.id == id)
+        if (i >= 0 && cards[i].col < 2) this.raw.set(["cards", i, "col"], cards[i].col + 1)
+        },
+    add() {
+        const t = this.entryRow.entry.text
+        if (t == "") return
+        this.raw.set("/cards/-", ({ id: this.nextId, col: 0, t: t }))
+        this.nextId = this.nextId + 1
+        this.entryRow.entry.text = ""
+        },
+
+    cols: View [ x = 20, y = 20, datapath = { board.value },
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Column [ datapath = :cols[] ]
+        ],
+    entryRow: View [ x = 20, y = { app.height - 50 },
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        entry: TextInput [ width = 250, height = 40, padding = 10, cornerRadius = 10,
+            fill = darkslategray, placeholder = "Add a task" ],
+        Button [ label = "Add", primary = true,
+            onClick() { app.add() }
+            ]
+        ]
+    ]

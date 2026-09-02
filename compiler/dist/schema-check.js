@@ -70,12 +70,19 @@ export function schemaCheck(program) {
     const errors = [];
     const walkRoot = (root, nouns) => {
         // The root's named schema'd datasets — the resolvable cursor targets.
+        // The stored value is the document's starting CONTEXT: a record document
+        // stands at its fields; an array-root document (`schema = Task[]`, typed
+        // data) stands AT the array, so `:​[]` on the value replicates elements.
         const datasets = new Map();
         for (const c of root.children) {
             if (c.name !== null && (c.tag === "Dataset" || c.tag === "DataSource")) {
                 const sa = c.attrs.find((a) => a.name === "schema" && a.value.kind === "schema");
-                if (sa !== undefined && sa.value.kind === "schema")
-                    datasets.set(c.name, sa.value.shape);
+                if (sa !== undefined && sa.value.kind === "schema") {
+                    const v = sa.value;
+                    datasets.set(c.name, v.arrayRoot === true
+                        ? { kind: "array", field: { name: "(document)", array: true, optional: false, type: null, fields: [...v.shape] } }
+                        : { kind: "record", fields: v.shape });
+                }
             }
         }
         if (datasets.size === 0)
@@ -87,8 +94,8 @@ export function schemaCheck(program) {
             if (dp !== undefined) {
                 if (dp.value.kind === "code") {
                     const m = dp.value.src.match(idiom);
-                    const shape = m !== null ? datasets.get(m[1]) : undefined;
-                    here = shape !== undefined ? { kind: "record", fields: shape } : OPEN;
+                    const ctx2 = m !== null ? datasets.get(m[1]) : undefined;
+                    here = ctx2 ?? OPEN;
                 }
                 else if (dp.value.kind === "path") {
                     const v = dp.value;
@@ -131,8 +138,24 @@ export function schemaCheck(program) {
                     continue;
                 const v = a.value;
                 const r = walkPlan(here, v.plan ?? splitPath(v.path), v.path);
-                if ("error" in r)
+                if ("error" in r) {
                     errors.push(new DeclareError(r.error, v.pos));
+                    continue;
+                }
+                // A `<->` edge's TYPE (typed data, 2026-09-02): a text editor's
+                // session can commit a string, a number, or a union member (the
+                // schema floor, editor.ts) — it cannot edit a boolean, a record, or
+                // an array. Refuse at compile, naming the right tool, instead of a
+                // session that can never validate.
+                if (a.bind === "two") {
+                    const ctx = r.ctx;
+                    if (ctx.kind === "scalar" && ctx.field.type === "boolean" && ctx.field.tokens === undefined) {
+                        errors.push(new DeclareError(`'${a.name} <-> :${v.path}' — the schema says '${ctx.field.name}' is a boolean, and a text editor cannot edit one; a Checkbox writes immediately through the value pattern (guide: editing)`, v.pos));
+                    }
+                    else if (ctx.kind === "record" || ctx.kind === "array") {
+                        errors.push(new DeclareError(`'${a.name} <-> :${v.path}' — the schema says this is ${ctx.kind === "array" ? "an array" : "a record"}; a two-way binding edits a LEAF value — bind a field inside it, or edit a working copy (guide: forms)`, v.pos));
+                    }
+                }
             }
             for (const child of el.children)
                 visit(child, here);

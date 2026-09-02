@@ -1,55 +1,32 @@
-class BCard extends View [ width = { parent.width }, height = 30, cornerRadius = 10, fill = darkslategray,
-    onClick() { app.advance(:id) },
-    t: Text [ x = 10, y = 10, fontSize = 12, wrap = false, text = :t ]
-    ]
+App [ width = 400, height = 220, fill = white, textColor = black,
+    rec: Dataset { { "name": "Ada", "email": "ada@example.com" } },
 
+    canSave: boolean = { app.col.nameF.valid && app.col.mailF.valid
+                      && (app.col.nameF.dirty || app.col.mailF.dirty) },
 
-class Column extends View [ width = 130,
-    layout: SimpleLayout [ axis = y, spacing = 8 ],
-    name: Text [ fontSize = 12, fontWeight = bold, textColor = lightslategray, text = :name ],
-    BCard [ datapath = :cards[], key = :id ]
-    ]
+    col: View [ x = 20, y = 20, width = 360, datapath = { rec.value },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
 
+        nameF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
+            commitOn = "manual", text <-> :name,
+            validate(v: string) -> string { return v.length > 0 ? "" : "Name is required" }
+            ],
+        mailF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
+            commitOn = "manual", text <-> :email,
+            validate(v: string) -> string { return v.includes("@") ? "" : "That is not an address" }
+            ],
 
-App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
-    raw: Dataset {
-        { "cards": [ { "id": 1, "col": 0, "t": "Outline the guide" },
-                     { "id": 2, "col": 0, "t": "Fix the rail" },
-                     { "id": 3, "col": 1, "t": "Draft the data chapter" },
-                     { "id": 4, "col": 2, "t": "Set up the sandbox" } ] }
-        },
-    nextId: number = 5,
+        msg: Text [ width = 340, textColor = firebrick,
+            text = { app.col.nameF.error != "" ? app.col.nameF.error : app.col.mailF.error } ],
 
-    colNames() { return ["To do", "Doing", "Done"] },
-    buildCols() {
-        const cards = this.raw.read(["cards"]) ?? []
-        return { cols: this.colNames().map((n, i) => ({ name: n, cards: cards.filter(c => c.col == i) })) }
-        },
-    board: Dataset [ contents = { app.buildCols() } ],
-
-    advance(id: string) {
-        const cards = this.raw.read(["cards"])
-        const i = cards.findIndex(c => c.id == id)
-        if (i >= 0 && cards[i].col < 2) this.raw.set(["cards", i, "col"], cards[i].col + 1)
-        },
-    add() {
-        const t = this.entryRow.entry.text
-        if (t == "") return
-        this.raw.set("/cards/-", ({ id: this.nextId, col: 0, t: t }))
-        this.nextId = this.nextId + 1
-        this.entryRow.entry.text = ""
-        },
-
-    cols: View [ x = 20, y = 20, datapath = { board.value },
-        layout: SimpleLayout [ axis = x, spacing = 10 ],
-        Column [ datapath = :cols[] ]
-        ],
-    entryRow: View [ x = 20, y = { app.height - 50 },
-        layout: SimpleLayout [ axis = x, spacing = 8 ],
-        entry: TextInput [ width = 250, height = 40, padding = 10, cornerRadius = 10,
-            fill = darkslategray, placeholder = "Add a task" ],
-        Button [ label = "Add", primary = true,
-            onClick() { app.add() }
+        row: View [ height = 30,
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            Button [ label = "Save", primary = true, disabled = { !app.canSave },
+                onClick() { app.col.nameF.commit(); app.col.mailF.commit() }
+                ],
+            Button [ label = "Revert",
+                onClick() { app.col.nameF.revert(); app.col.mailF.revert() }
+                ]
             ]
         ]
     ]

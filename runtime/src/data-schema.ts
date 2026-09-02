@@ -24,6 +24,8 @@
 
 import type { ShapeField } from "./parser.js";
 export type { ShapeField } from "./parser.js";
+import type { DataShape } from "./shape-resolve.js";
+import { isArrayDoc } from "./shape-resolve.js";
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -36,10 +38,58 @@ function typeOk(type: "string" | "number" | "boolean" | "any", v: unknown): bool
   return typeof v === type;
 }
 
+/** A field's scalar expectation. A literal union (`status: "open" |
+ *  "closed"`, `col: 0 | 1 | 2`) checks by MEMBERSHIP — which implies the
+ *  type, so it is the whole check. */
+function fieldOk(f: ShapeField, v: unknown): boolean {
+  if (f.tokens !== undefined) return f.tokens.includes(v as string | number);
+  return typeOk(f.type!, v);
+}
+
+const expectation = (f: ShapeField): string =>
+  f.tokens !== undefined ? f.tokens.map((t) => JSON.stringify(t)).join(" | ") : (f.type ?? "a structure");
+
+/** Validate a whole DOCUMENT against a dataset's shape — the one entry both
+ *  arrival and the embedded body use. A record document is the familiar
+ *  field-list walk; an array-root document (`schema = Task[]`) validates
+ *  each element against the record shape. */
+export function validateDoc(value: unknown, shape: DataShape): string | null {
+  if (!isArrayDoc(shape)) return validateShape(value, shape);
+  if (!Array.isArray(value)) {
+    return `/ — the schema declares the document is an ARRAY of records, got ${describe(value)}`;
+  }
+  for (let i = 0; i < value.length; i++) {
+    const err = validateShape(value[i], shape.fields, [i]);
+    if (err !== null) return err;
+  }
+  return null;
+}
+
 function describe(v: unknown): string {
   if (v === null) return "null";
   if (Array.isArray(v)) return "an array";
   return typeof v === "object" ? "an object" : typeof v;
+}
+
+/** Validate a VALUE destined for the slot one field declares — the VERB-side
+ *  boundary (typed data): `set`/`insert` hold a write to the shape at its
+ *  target, refused at the write rather than three bindings later. `element`
+ *  means the value is one ELEMENT of an array field (an insert, or a write
+ *  through an index). */
+export function fieldValueError(f: ShapeField, v: unknown, element = false): string | null {
+  if (f.array && !element) {
+    if (!Array.isArray(v)) return `the schema declares '${f.name}[]' (an array), got ${describe(v)}`;
+    for (let i = 0; i < v.length; i++) {
+      const err = fieldValueError(f, v[i], true);
+      if (err !== null) return `[${i}]: ${err}`;
+    }
+    return null;
+  }
+  if (v === null || v === undefined) {
+    return f.optional ? null : `the schema requires ${f.fields !== undefined ? "a record" : expectation(f)} at '${f.name}' (mark it '${f.name}?' if it may be absent)`;
+  }
+  if (f.fields !== undefined) return validateShape(v, f.fields);
+  return fieldOk(f, v) ? null : `expected ${expectation(f)}, got ${describe(v)}`;
 }
 
 /** Validate `value` against a record shape. Returns the FIRST mismatch as a
@@ -54,7 +104,7 @@ export function validateShape(value: unknown, fields: readonly ShapeField[], at:
     const here = [...at, f.name];
     if (v === undefined || v === null) {
       if (f.optional) continue;
-      return `${showPtr(here)} is ${v === null ? "null" : "missing"} — the schema requires ${f.array ? "an array" : f.type ?? "a structure"} (mark it '${f.name}?' if it may be absent)`;
+      return `${showPtr(here)} is ${v === null ? "null" : "missing"} — the schema requires ${f.array ? "an array" : expectation(f)} (mark it '${f.name}?' if it may be absent)`;
     }
     if (f.array) {
       if (!Array.isArray(v)) {
@@ -65,8 +115,8 @@ export function validateShape(value: unknown, fields: readonly ShapeField[], at:
         if (f.fields !== undefined) {
           const err = validateShape(el, f.fields, [...here, i]);
           if (err !== null) return err;
-        } else if (!typeOk(f.type!, el)) {
-          return `${showPtr([...here, i])} — expected ${f.type}, got ${describe(el)}`;
+        } else if (!fieldOk(f, el)) {
+          return `${showPtr([...here, i])} — expected ${expectation(f)}, got ${describe(el)}`;
         }
       }
       continue;
@@ -76,8 +126,8 @@ export function validateShape(value: unknown, fields: readonly ShapeField[], at:
       if (err !== null) return err;
       continue;
     }
-    if (!typeOk(f.type!, v)) {
-      return `${showPtr(here)} — expected ${f.type}, got ${describe(v)}`;
+    if (!fieldOk(f, v)) {
+      return `${showPtr(here)} — expected ${expectation(f)}, got ${describe(v)}`;
     }
   }
   return null;

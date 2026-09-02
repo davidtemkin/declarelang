@@ -19,9 +19,10 @@
  *  that declares none pays nothing.
  */
 import { Constraint } from "./reactive.js";
-import { View, onDiscard } from "./view.js";
+import { View, onDiscard, inheritedCursor } from "./view.js";
 import { setBound, defineAttributes } from "./attributes.js";
 import { coerceData } from "./data.js";
+import { splitPath } from "./datapath.js";
 import { compileExpr } from "./expr.js";
 import { DeclareError } from "./errors.js";
 /** Per-editor map of draft-slot → its two-way session. A WeakMap so a discarded
@@ -70,6 +71,50 @@ export function bindTwoWayDynamic(view, name, src, pos, classroot, type) {
     const fn = c.fn;
     register(view, name, () => String(fn.call(view, view.parent, classroot)), type);
 }
+/** The schema's declared field under this session, when the dataset declares
+ *  one and the path stays inside the declared world — the FLOOR under
+ *  validate() (typed data, 2026-09-02): structure comes from the declaration,
+ *  judgment from the author's method. Null = no schema / open path / a
+ *  record-valued target (compile refuses those on `<->`). */
+function declaredFloor(view, s) {
+    const cursor = inheritedCursor(view);
+    if (cursor === null)
+        return null;
+    const rel = s.path();
+    const segs = typeof rel === "string" ? splitPath(rel) : rel;
+    const at = cursor.data.declaredField([...cursor.path, ...segs]);
+    return at === null || at.f.fields !== undefined ? null : at.f;
+}
+/** Read a draft AS the declared type. A text editor's draft is a string; a
+ *  `number` field commits the PARSED number ("42" → 42) — never the string
+ *  that edited it — and a draft that cannot be read as the type is an
+ *  INVALID SESSION (valid=false, the message below), never a thrown write:
+ *  the edit session exists precisely because an in-progress value may be
+ *  unrepresentable in the model. A literal union validates by membership. */
+function readDraft(f, draft) {
+    if (f === null || f.type === null || f.type === "any" || f.array)
+        return { v: draft, error: null };
+    if (f.type === "number") {
+        const t = typeof draft === "string" ? draft.trim() : draft;
+        const n = typeof t === "number" ? t : t === "" ? NaN : Number(t);
+        if (Number.isNaN(n))
+            return { v: draft, error: "must be a number" };
+        if (f.tokens !== undefined && !f.tokens.includes(n)) {
+            return { v: draft, error: `must be one of ${f.tokens.join(" | ")}` };
+        }
+        return { v: n, error: null };
+    }
+    if (f.type === "boolean") {
+        // compile refuses `<->` onto a boolean field; this arm is the defensive
+        // floor for a dynamic `<-> { expr }` that lands on one at runtime
+        return typeof draft === "boolean" ? { v: draft, error: null } : { v: draft, error: "must be true or false" };
+    }
+    const sd = typeof draft === "string" ? draft : String(draft ?? "");
+    if (f.tokens !== undefined && !f.tokens.includes(sd)) {
+        return { v: draft, error: `must be one of ${f.tokens.map((t) => JSON.stringify(t)).join(" | ")}` };
+    }
+    return { v: sd, error: null };
+}
 /** Run the editor's own `validate(v)` method if it declares one. Returns an
  *  error MESSAGE (string) or null when valid. Pure and local by design — a
  *  `validate` that returns `false` means "invalid" (a generic message), a
@@ -99,7 +144,9 @@ function refresh(view, name) {
     if (s === undefined)
         return;
     const draft = view[name];
-    const err = runValidate(view, draft);
+    // the author's judgment first (their message, written for this form), then
+    // the schema floor (structure — "must be a number")
+    const err = runValidate(view, draft) ?? readDraft(declaredFloor(view, s), draft).error;
     publish(view, "error", err ?? "");
     publish(view, "valid", err === null);
     publish(view, "dirty", draft !== committed(view, s));
@@ -122,7 +169,13 @@ export function commitDraft(view, name) {
     const draft = view[name];
     if (runValidate(view, draft) !== null)
         return;
-    view.$setData(s.path(), draft);
+    // the schema floor (typed data): the commit is the draft READ AS the
+    // field's declared type; a draft that cannot be is invalid and stays in
+    // the session — it never reaches the dataset, and never throws
+    const rd = readDraft(declaredFloor(view, s), draft);
+    if (rd.error !== null)
+        return;
+    view.$setData(s.path(), rd.v);
 }
 /** @api Discard the draft — reset the slot to the committed value. */
 export function revertDraft(view, name) {

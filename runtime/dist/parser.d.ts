@@ -41,6 +41,8 @@ export type Literal = {
     kind: "schema";
     shape: ShapeField[];
     pos: Pos;
+    arrayRoot?: boolean;
+    refName?: string;
 } | {
     kind: "call";
     name: string;
@@ -202,6 +204,24 @@ export interface ShapeField {
     optional: boolean;
     type: "string" | "number" | "boolean" | "any" | null;
     fields?: ShapeField[];
+    /** A literal union's members — `status: "open" | "closed"` or
+     *  `col: 0 | 1 | 2` (homogeneous; `type` records which). The value must be
+     *  one of these — membership is the whole check. */
+    tokens?: (string | number)[];
+    /** A NAMED schema in field-type position (`owner: Person`) — resolved to
+     *  its fields by the checker (check.ts resolveShapeRefs); `fields` is
+     *  populated there, by reference, so recursion costs nothing. */
+    ref?: string;
+    /** The ref's source position, for the unknown-name refusal. */
+    refPos?: Pos;
+}
+/** A top-level `schema Name [ … ]` declaration (typed data, 2026-09-01): a
+ *  named data shape — ONE type, projected as a TS interface for every `{ }`
+ *  body and enforced by the runtime at every boundary data crosses. */
+export interface SchemaDecl {
+    name: string;
+    fields: ShapeField[];
+    pos: Pos;
 }
 /** One `include` entry — a quoted, relative path and the position of its
  *  string literal (composition.md §1). The directive `include [ "a", "b" ]`
@@ -242,6 +262,9 @@ export interface ScriptBlock {
  *  and empties it. */
 export interface Program {
     classes: ClassDecl[];
+    /** Top-level `schema Name [ … ]` declarations (typed data). Optional so
+     *  hand-built Program literals stay valid. */
+    shapes?: SchemaDecl[];
     stylesheets: TopDecl[];
     styles: TopDecl[];
     fonts: TopDecl[];
@@ -276,6 +299,8 @@ export interface Program {
  *  is not a Program: it never declares an App, so it has no `root`. */
 export interface Library {
     classes: ClassDecl[];
+    /** A library's own `schema Name [ … ]` declarations, merged like classes. */
+    shapes?: SchemaDecl[];
     stylesheets: TopDecl[];
     styles: TopDecl[];
     fonts: TopDecl[];

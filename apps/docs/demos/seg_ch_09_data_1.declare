@@ -1,9 +1,21 @@
-App [ width = 300, height = 120, fill = white, textColor = black,
-    people: Dataset { { "rows": [ { "name": "Ada" } ] } },
-    list: View [ x = 20, y = 20, datapath = { people.value },
-        View [ datapath = :rows[],
-            TextInput [ width = 200, height = 30, padding = 6, cornerRadius = 6, fill = gainsboro,
-                text <-> :name ]
+schema Task [ id: string, title: string, done: boolean, born: number, note?: string ]
+
+App [ width = 420, height = 240, fill = black, textColor = whitesmoke,
+    nest: Dataset [ schema = [ tasks[]: Task ] ] {
+        { "tasks": [ { "id": "t1", "title": "post the reading list", "done": false, "born": 1756700000000 },
+                     { "id": "t2", "title": "clear the gutters",     "done": true,  "born": 1756400000000 } ] }
+        },
+
+    sel: Task = null,
+    pick(id: string) { app.sel = (app.nest.value?.tasks ?? []).find(t => t.id == id) ?? null },
+
+    open: Text [ x = 20, y = 20, text = { (app.nest.value?.tasks ?? []).filter(t => !t.done).length + " open" } ],
+    list: View [ x = 20, y = 50, datapath = { nest.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ height = 22, datapath = :tasks[],
+            onClick() { app.pick(:id) },
+            t: Text [ text = :title ]
             ]
-        ]
+        ],
+    detail: Text [ x = 20, y = 200, text = { app.sel ? app.sel.title + (app.sel.done ? " — done" : "") : "nothing selected" } ]
     ]

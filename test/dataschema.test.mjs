@@ -200,4 +200,180 @@ await test("DataSource.credentials — a token surface, the Fetch API's spelling
   }
 });
 
+// ── TYPED DATA (2026-09-01 — "the schema is a type"): a top-level
+// `schema Name [ … ]` is ONE type in the one type system: projected as a TS
+// interface for every { } body and method signature, resolvable in decl type
+// positions, narrowing a dataset's `.value`, and enforced by the runtime at
+// every boundary data crosses — arrival, the embedded body, and the mutation
+// verbs. The schema grammar is the proper subset of TS that can be checked
+// against data while the program runs. ──────────────────────────────────────
+
+const TYPED_HEAD = `
+schema Task [ id: string, title: string, done: boolean, status: "open" | "closed", pri?: 0 | 1 | 2, born: number, note?: string ]
+`;
+
+await test("typed data: one declaration serves compiler and runtime — the flagship walls", async () => {
+  // clean: the guide's shape — named schema, doc literal referencing it,
+  // typed .value chain, a Task-typed slot, a Task-typed method param
+  const good = await compile(TYPED_HEAD + `
+    App [ width=1, height=1,
+      nest: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [ { "id": "t1", "title": "a", "done": false, "status": "open", "born": 1 } ] } },
+      sel: Task = null,
+      pick(id: string) { app.sel = (app.nest.value?.tasks ?? []).find(t => t.id == id) ?? null },
+      open: Text [ text = { (app.nest.value?.tasks ?? []).filter(t => !t.done).length + "" } ],
+    ]`);
+  assert.deepEqual(good.errors.map((e) => e.message), []);
+  // the typed .value chain: a misspelled field DIES, with the near name
+  const chain = await compile(TYPED_HEAD + `
+    App [ width=1, height=1,
+      nest: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [] } },
+      open: Text [ text = { (app.nest.value?.tasks ?? []).filter(t => !t.don).length + "" } ],
+    ]`);
+  assert.match(chain.errors[0].message, /'don' is not a member of Task — did you mean 'done'/);
+  // a Task-typed slot read
+  const slot = await compile(TYPED_HEAD + `
+    App [ width=1, height=1, sel: Task = null,
+      t: Text [ text = { app.sel ? app.sel.titel : "" } ],
+    ]`);
+  assert.match(slot.errors[0].message, /'titel' is not a member of Task — did you mean 'title'/);
+  // a Task-typed method parameter (root and class methods both check)
+  const meth = await compile(TYPED_HEAD + `
+    class Panel extends View [ bad(t: Task) -> string { return t.titel } ]
+    App [ width=1, height=1, p: Panel [ ] ]`);
+  assert.match(meth.errors[0].message, /'titel' is not a member of Task/);
+  // the attribute-surface :path check resolves the NAMED document form
+  const path = await compile(`
+    schema Row [ id: string, label: string ]
+    schema Doc [ rows[]: Row ]
+    App [ width=1, height=1,
+      d: Dataset [ schema = Doc ] { { "rows": [] } },
+      list: View [ datapath = { d.value },
+        View [ datapath = :rows[], t: Text [ text = :labell ] ],
+      ],
+    ]`);
+  assert.match(path.errors[0].message, /'labell' is not in the schema here; fields: id, label/);
+});
+
+await test("typed data: the verbs are held to the shape — refused at the write, extras pass", async () => {
+  const src = await compile(TYPED_HEAD + `
+    App [ width=1, height=1,
+      nest: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [ { "id": "t1", "title": "a", "done": false, "status": "open", "born": 1 } ] } },
+    ]`);
+  assert.deepEqual(src.errors, []);
+  const app = build(src.source);
+  assert.throws(() => app.nest.set(["tasks", 0, "done"], "yes"), /'\/tasks\/0\/done' refuses this write — expected boolean, got string/);
+  assert.throws(() => app.nest.set(["tasks", 0, "status"], "paused"), /expected "open" \| "closed", got string/, "a literal union validates by membership");
+  assert.throws(() => app.nest.set(["tasks", 0, "pri"], 7), /expected 0 \| 1 \| 2, got number/, "…numbers too");
+  app.nest.set(["tasks", 0, "pri"], 2);
+  assert.equal(app.nest.read(["tasks", 0, "pri"]), 2);
+  app.nest.set(["tasks", 0, "status"], "closed");
+  assert.equal(app.nest.read(["tasks", 0, "status"]), "closed");
+  assert.throws(() => app.nest.insert(["tasks"], 0, { id: 7 }), /refuses this insert/);
+  app.nest.insert(["tasks"], 0, { id: "t0", title: "z", done: true, status: "open", born: 2 });
+  assert.equal(app.nest.read(["tasks"]).length, 2, "a conforming insert lands");
+  app.nest.set(["tasks", 0, "extra"], 42);
+  assert.equal(app.nest.read(["tasks", 0, "extra"]), 42, "undeclared keys pass — a schema declares what the program RELIES on");
+});
+
+await test("typed data: an array-root document (schema = Row[]) — validated arrival, typed .value", async () => {
+  const src = await compile(`
+    schema Row [ id: string, label: string ]
+    App [ width=1, height=1,
+      ds: DataSource [ url = "/x", schema = Row[] ],
+      t: Text [ text = { (ds.value ?? []).map(r => r.label).join(",") } ],
+    ]`);
+  assert.deepEqual(src.errors.map((e) => e.message), []);
+  const app = build(src.source);
+  const prev = provideTransport(() => jsonResponse([{ id: "a", label: "x" }]));
+  try {
+    await app.ds.fetch();
+    assert.equal(app.ds.status, "loaded");
+    provideTransport(() => jsonResponse({ not: "an array" }));
+    await app.ds.fetch();
+    assert.equal(app.ds.status, "failed");
+    assert.match(app.ds.error, /the document is an ARRAY of records/);
+  } finally { provideTransport(prev); }
+  // and the typed chain dies on a wrong member
+  const bad = await compile(`
+    schema Row [ id: string, label: string ]
+    App [ width=1, height=1,
+      ds: DataSource [ url = "/x", schema = Row[] ],
+      t: Text [ text = { (ds.value ?? []).map(r => r.labl).join(",") } ],
+    ]`);
+  assert.match(bad.errors[0].message, /'labl' is not a member of Row — did you mean 'label'/);
+});
+
+await test("typed data: the producer's wall — `contents` on a schema'd derived dataset checks against the document type", async () => {
+  const bad = await compile(`
+    schema Col [ name: string ]
+    App [ width=1, height=1,
+      board: Dataset [ schema = [ cols[]: Col ], contents = { ({ cols: [ { nam: "x" } ] }) } ],
+    ]`);
+  assert.match(bad.errors[0].message, /'contents' is typed \{ cols: Col\[\]/, "an inline mismatch dies at compile");
+  const good = await compile(`
+    schema Col [ name: string ]
+    schema Board [ cols[]: Col ]
+    App [ width=1, height=1,
+      mk() -> Board { return { cols: [ { name: "a" } ] } },
+      board: Dataset [ schema = Board, contents = { app.mk() } ],
+    ]`);
+  assert.deepEqual(good.errors.map((e) => e.message), [], "a typed producer chain is clean end to end");
+});
+
+await test("typed data: the crossings a TS arrival types first each name their rewrite", async () => {
+  const say = async (src) => (await compile(src + "\nApp [ width=1, height=1 ]")).errors[0]?.message ?? "clean";
+  assert.match(await say(`schema T [ tags: string[] ]`), /the array marker rides the NAME: write 'tags\[\]: string'/);
+  assert.match(await say(`schema T [ note: string? ]`), /the optional marker rides the FIELD name: write 'note\?: string'/);
+  assert.match(await say(`schema T [ x: string = "a" ]`), /a schema field takes no default/);
+  assert.match(await say(`schema T [ f(x) { return 1 } ]`), /a schema declares shape, not behavior/);
+  assert.match(await say(`schema A [ x: string ]\nschema B extends A [ y: string ]`), /schemas do not extend — a schema is composed by NESTING/);
+  assert.match(await say(`schema T [ a: 1 | "b" ]`), /a literal union is all strings or all numbers/);
+  const tag = await compile(`schema Task [ id: string ]\nApp [ width=1, height=1, Task [ ] ]`);
+  assert.match(tag.errors[0].message, /'Task' is a schema — a data shape, not a component/);
+  const q = await compile(`App [ width=1, height=1, f(c?: number) { return 1 } ]`);
+  assert.match(q.errors[0].message, /in a signature the '\?' marks the TYPE: write 'c: number\?'/);
+});
+
+await test("typed data: a schema-typed slot is LIVE past its identity — the record's own field wakes its readers", async () => {
+  const src = await compile(TYPED_HEAD + `
+    App [ width=1, height=1,
+      nest: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [ { "id": "t1", "title": "old", "done": false, "status": "open", "born": 1 } ] } },
+      sel: Task = null,
+      pick(id: string) { app.sel = (app.nest.value?.tasks ?? []).find(t => t.id == id) ?? null },
+      detail: Text [ text = { app.sel ? app.sel.title : "none" } ],
+    ]`);
+  assert.deepEqual(src.errors.map((e) => e.message), []);
+  const app = build(src.source);
+  settle();
+  app.pick("t1");
+  settle();
+  assert.equal(app.detail.text, "old");
+  app.nest.set(["tasks", 0, "title"], "NEW");
+  settle();
+  assert.equal(app.detail.text, "NEW", "the binding re-derived from the record's region cell — never a stale view");
+  const raw = app.sel;
+  assert.equal(typeof raw, "object");
+  assert.equal(raw.title, "NEW", "handlers/methods still see the plain record");
+});
+
+await test("typed data: one namespace of type names — collisions and unknown refs refuse pointedly", async () => {
+  const collide = await compile(`
+    class Task extends View [ ]
+    schema Task [ x: string ]
+    App [ width=1, height=1 ]`);
+  assert.match(collide.errors[0].message, /'Task' is already a component — schemas and classes share one namespace/);
+  const unknownRef = await compile(`
+    schema Card [ owner: Person ]
+    App [ width=1, height=1 ]`);
+  assert.match(unknownRef.errors[0].message, /'owner: Person' names no schema/);
+  const unknownDoc = await compile(`
+    schema A [ x: string ]
+    App [ width=1, height=1, d: Dataset [ schema = B ] { {} } ]`);
+  assert.match(unknownDoc.errors[0].message, /schema = B: 'B' names no schema — declared schemas: A/);
+  const badDefault = await compile(`
+    schema T [ x: string ]
+    App [ width=1, height=1, sel: T = 5 ]`);
+  assert.match(badDefault.errors[0].message, /a T record .* or null for none/);
+});
+
 summarize("dataschema");

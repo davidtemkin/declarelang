@@ -76,7 +76,7 @@
 
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import type { AttrType } from "../../runtime/dist/value.js";
-import type { ClassDecl, Method, Param } from "../../runtime/dist/parser.js";
+import type { ClassDecl, Method, Param, SchemaDecl } from "../../runtime/dist/parser.js";
 import { MOTION_TOKENS } from "../../runtime/dist/animate.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { EVENT_PAYLOAD, handlerName } from "../../runtime/dist/schema.js";
@@ -278,9 +278,9 @@ export function tsType(t: AttrType): string {
     case "enum": return t.name; // references the emitted `type <Name> = …` alias
     case "component": return `${t.of} | null`; // the only literal is `null` for "none"
     case "fn": return `(${t.written.replace(/->/g, "=>")}) | null`; // a callback slot; `null` = none
-    case "cursor": return "Cursor"; // deferred: schema-typed :path (header (a))
+    case "cursor": return "Cursor"; // reads see the place; writes are widened in memberSig
     case "slotref": return "string"; // a bare slot name, a string at runtime
-    case "record": return t.name; // e.g. Theme (in the prelude)
+    case "record": return t.data === true ? `${t.name} | null` : t.name; // data record (schema-typed, nullable like a component slot) / Theme-class token record
     case "fill": return "Fill";
     case "stroke": return "Stroke | null";
     case "shadow": return "Shadow | null";
@@ -581,6 +581,12 @@ export function memberSig(name: string, t: AttrType, nonNullColor = false, readO
     return [`  readonly ${name}: ${tsType(t)};`];
   }
   if (t.kind === "length") return [`  get ${name}(): number;`, `  set ${name}(v: Length);`];
+  // A cursor slot ACCEPTS a place-bearing VALUE too — `datapath = { d.value.rec }`
+  // hands the machinery a container it turns back into a place (toCursor), and
+  // a typed dataset value (typed data: `Doc | null`) must stay assignable
+  // exactly as the untyped `any` always was. Reads keep seeing the Cursor.
+  // `object` admits every container and refuses primitives — toCursor's rule.
+  if (t.kind === "cursor") return [`  get ${name}(): Cursor;`, `  set ${name}(v: Cursor | object | null);`];
   // A color declared with a concrete (non-null) default is a plain color —
   // reads never see null — so it is typed non-null. A `= null` (or absent)
   // default keeps Color's nullability: the inherit / "no paint" slots.
@@ -673,7 +679,11 @@ export function generateScaffold(
   /** Written signature type names from INLINE elements too (the caller walks
    *  the whole tree; `classDecls` covers only `class` bodies). Enum/record
    *  aliases are collected from these as well as from attributes. */
-  extraSignatureTypes: readonly string[] = []
+  extraSignatureTypes: readonly string[] = [],
+  /** The program's `schema Name [ … ]` declarations (typed data) — each
+   *  projects as an ambient `interface Name`, which is what makes the name
+   *  real in every { } body, method signature, and script function. */
+  shapes: readonly SchemaDecl[] = []
 ): string {
   // Every schema reachable — the registry entries PLUS abstract bases the
   // registry omits (the `Layout` base is deliberately not a name-table key,
@@ -724,7 +734,16 @@ export function generateScaffold(
     const t = declaredType(name);
     if (t !== null && t.kind === "record" && t.name !== "Theme") records.add(t.name);
   }
-  const recordLines = [...records].map((name) => `type ${name} = Readonly<Record<string, any>>;`);
+  // …EXCEPT names that are declared schemas: those get real interfaces below,
+  // never the open-record alias (`sel: Task` must check against Task's fields).
+  const shapeNameSet = new Set(shapes.map((d) => d.name));
+  const recordLines = [...records].filter((n) => !shapeNameSet.has(n)).map((name) => `type ${name} = Readonly<Record<string, any>>;`);
+
+  // The schema interfaces (typed data): ONE declaration serves both halves —
+  // the runtime validates data against it, and this projection is the exact
+  // same shape as a TS type. The schema grammar is the proper subset of the
+  // type system that can be checked against data while the program runs.
+  const shapeLines = shapes.map((d) => `interface ${d.name} ${shapeObjectText(d.fields)}`);
 
   // Methods ride the user class declaration, keyed by class name.
   const declOf = new Map<string, ClassDecl>();
@@ -733,7 +752,9 @@ export function generateScaffold(
   // Base-before-derived: a stable sort by chain depth (roots at 0). Ambient
   // declarations hoist, so this is for readability, not resolution.
   const depth = (s: ComponentSchema): number => (s.base === null ? 0 : 1 + depth(s.base));
-  const classes = [...all.values()].sort((a, b) => depth(a) - depth(b)).map((s) => emitClass(s, declOf.get(s.name), rootType, classExtras?.get(s.name), (n) => all.has(n)));
+  // Signature types may name a schema too (`advance(t: Task)`) — the widened
+  // predicate lets the written name pass through to the interface above.
+  const classes = [...all.values()].sort((a, b) => depth(a) - depth(b)).map((s) => emitClass(s, declOf.get(s.name), rootType, classExtras?.get(s.name), (n) => all.has(n) || shapeNameSet.has(n)));
   // tag name → instance class, for createView's literal-tag overload (View's
   // LANGUAGE_API). Every schema, built-in and user, under its instantiable name.
   const tagLines = ["interface DeclareTags {", ...[...all.keys()].map((n) => `  ${JSON.stringify(n)}: ${n};`), "}"];
@@ -742,5 +763,23 @@ export function generateScaffold(
   // of truth) plus the MotionCurve brand the constructors in the prelude return.
   const motionLine = `type Motion = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | MotionCurve;`;
 
-  return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), motionLine, tagLines.join("\n"), classes.join("\n\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
+  return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), shapeLines.join("\n"), motionLine, tagLines.join("\n"), classes.join("\n\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
+}
+
+/** A shape's TS object-type text — `{ id: string; n?: number; owner: Person;
+ *  status: "open" | "closed"; steps: { a: string }[] }`. A named ref prints
+ *  its NAME (the interface is emitted beside it); an inline nested shape
+ *  prints structurally. `any` stays `any` — the deliberate under-report a
+ *  declared escape hatch asks for. */
+export function shapeFieldTsType(f: SchemaDecl["fields"][number]): string {
+  const base =
+    f.ref !== undefined ? f.ref
+    : f.fields !== undefined ? shapeObjectText(f.fields)
+    : f.tokens !== undefined ? f.tokens.map((t) => JSON.stringify(t)).join(" | ")
+    : (f.type ?? "any");
+  return f.array ? `${base}[]` : base;
+}
+
+export function shapeObjectText(fields: readonly SchemaDecl["fields"][number][]): string {
+  return `{ ${fields.map((f) => `${f.name}${f.optional ? "?" : ""}: ${shapeFieldTsType(f)}`).join("; ")} }`;
 }
