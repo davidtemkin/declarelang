@@ -123,8 +123,28 @@ export function instantiate(input) {
     // compiles eagerly), so the scope has to exist before the tree is built. The
     // blocks share one namespace, in source order, exactly as a module would.
     const scriptScope = {};
-    for (const s of program.scripts)
-        Object.assign(scriptScope, evalScript(s.src));
+    // The blocks share one namespace, in source order, exactly as a module
+    // would — and that must be true for the BLOCKS THEMSELVES, not only for
+    // the { } bodies reading the merged table: a block-2 function calling a
+    // block-1 function, or mutating block-1 state, resolves lexically. (Found
+    // 2026-09-02: per-block evalScript closures compiled clean — the checker
+    // concatenates — and threw ReferenceError at the first cross-block call.)
+    // The COMPILER now merges the blocks itself (compile.ts — one body, one
+    // bindings return), so a compiled program arrives with one effective
+    // block. RAW blocks (the direct-instantiate dev path) concatenate here for
+    // the same shared scope. A block carrying the compiled bindings marker
+    // ("/*$b*/", compile.ts BINDINGS_MARK) has its own trailing return and
+    // must evaluate ALONE — concatenating one would end evaluation at its
+    // return and silently drop every later block (bit a stale pre-merge
+    // artifact: half the script table vanished).
+    const compiledBlocks = program.scripts.filter((s) => s.src.includes("/*$b*/"));
+    if (compiledBlocks.length > 0) {
+        for (const s of program.scripts)
+            Object.assign(scriptScope, evalScript(s.src));
+    }
+    else if (program.scripts.length > 0) {
+        Object.assign(scriptScope, evalScript(program.scripts.map((s) => s.src).join("\n;\n")));
+    }
     CURRENT_SCRIPTS = scriptScope;
     return withScriptScope(scriptScope, () => buildTree(program, trusted));
 }

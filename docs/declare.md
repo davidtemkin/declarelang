@@ -246,7 +246,12 @@ Besides `class`, the top level holds `script`, `include`, `use`, `font`, `style`
 models, whole libraries — and may **`import`** ES modules (a file, or an npm package by bare
 specifier; bundled at compile). **`script [ "file.ts" ]`** is the same block loaded from a
 file, spelled like `include` and tracked like one — edit the file and the program recompiles;
-a constraint may call into script, opaquely (§5). **`include
+a constraint may call into script, opaquely (§5). A program may hold **any number of script
+blocks**, inline and files mixed; they share **one scope, in source order** — a later block's
+function calls an earlier one's (or mutates its state) exactly as in a single module. The one
+spelling difference: a file is written module-style (`export` allowed, and optional), while an
+inline block refuses `export` — its top-level names are already visible to every `{ }`.
+Imports resolve at the build toolchain's bundler; the in-browser compile refuses them by name. **`include
 [ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
 a component the build would otherwise drop, for when your code constructs it by name at runtime
 (`createView`, §7). **`font Name [ … ]`** declares a font family (a use site picks with

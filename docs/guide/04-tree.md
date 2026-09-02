@@ -118,9 +118,13 @@ One small decision tree, which the rest of the language keeps reinforcing:
 - logic that is **not about the tree at all** → a top-level `script { … }` block, which
   is where plain TypeScript lives: models, helpers, and imported libraries (`import` works
   there — a relative file or an npm package — and `script [ "helpers.ts" ]` loads a whole
-  block from a file, the way `include` loads Declare source). Script is outside the
-  reactive system: a constraint that calls into it depends on the values it passes
-  ([chapter 3](declare-docs:guide:relationships)).
+  block from a file, the way `include` loads Declare source). A program can hold several
+  blocks, inline and files mixed, and they share **one scope, in source order** — a later
+  block calls into an earlier one exactly as in a single module. The only spelling
+  difference: a file is a module (`export` allowed, and optional), while an inline block
+  refuses `export` — its top-level names are already visible to every `{ }`. Script is
+  outside the reactive system: a constraint that calls into it depends on the values it
+  passes ([chapter 3](declare-docs:guide:relationships)).
 
 ## Reach: three nouns
 

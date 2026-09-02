@@ -738,23 +738,32 @@ export async function compile(source, opts = {}) {
                 out = out.slice(0, bodyOpen) + replacement + out.slice(bodyOpen + s.src.length);
             }
         }
-        else if (sp !== null && sp.scripts.length > 0) {
-            for (const s of [...sp.scripts].sort((a, b) => b.span.start - a.span.start)) {
-                if (s.src.includes(BINDINGS_MARK))
-                    continue; // already compiled once
+        else if (sp !== null && sp.scripts.length > 0 && !sp.scripts.some((s) => s.src.includes(BINDINGS_MARK))) {
+            // NO imports → still ONE shared scope (2026-09-02, found from DT's
+            // question): every block, in source order, transpiles and concatenates
+            // into a single evaluated body with ONE bindings return — a block-2
+            // function calling block-1's (or mutating its state) resolves
+            // lexically, exactly as the checker, which concatenates the blocks
+            // ambient, already vouches. Per-block compilation gave each block its
+            // own closure and its own early `return`: the compiler said clean and
+            // the first cross-block call threw ReferenceError. The trailing
+            // `return { … }` (the union of every block's top-level names) is what
+            // lets the runtime evaluate with `new Function` and receive the
+            // bindings — there is no other way to enumerate a function's scope,
+            // and doing it here keeps the artifact self-contained.
+            const blocks = [...sp.scripts].sort((a, b) => a.span.start - b.span.start);
+            const js = blocks.map((s) => ts.transpileModule(s.src, {
+                compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext, isolatedModules: true },
+                reportDiagnostics: false,
+            }).outputText.trim()).join("\n;\n");
+            const names = [...new Set(blocks.flatMap((s) => topLevelBindings(s.src)))];
+            const tail = names.length > 0 ? ` ${BINDINGS_MARK} return { ${names.join(", ")} };` : "";
+            // splice back-to-front so earlier spans stay valid: the FIRST block
+            // carries the merged body, the rest empty (the imports branch's shape)
+            for (const s of [...blocks].sort((a, b) => b.span.start - a.span.start)) {
                 const bodyOpen = s.span.end - s.src.length - 1; // just past the `{`
-                const js = ts.transpileModule(s.src, {
-                    compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext, isolatedModules: true },
-                    reportDiagnostics: false,
-                }).outputText;
-                // The block's own top-level names, harvested from the TS AST while we
-                // have it. Emitting them as a trailing `return { … }` is what lets the
-                // runtime evaluate the block with `new Function` and receive its
-                // bindings — there is no other way to enumerate a function's scope, and
-                // doing it here keeps the artifact self-contained (programs are data).
-                const names = topLevelBindings(s.src);
-                const tail = names.length > 0 ? ` ${BINDINGS_MARK} return { ${names.join(", ")} };` : "";
-                out = out.slice(0, bodyOpen) + " " + js.trim() + tail + " " + out.slice(bodyOpen + s.src.length);
+                const replacement = s === blocks[0] ? " " + js + tail + " " : " ";
+                out = out.slice(0, bodyOpen) + replacement + out.slice(bodyOpen + s.src.length);
             }
         }
     }

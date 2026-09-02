@@ -41,7 +41,7 @@ Narrative context and the session in which each was found lives in
 | L-23 | language | Plain `.value` property reads wire only the value slot | high | **built** (2026-08-30) |
 | L-24 | compiler | The projection refusal (7001) could degrade to tracking | low | **built** (2026-09-01): ruled must-fix |
 | L-25 | library | `Time` — wall-clock as a source component | medium | **built** (2026-08-29) |
-| L-26 | language | `host = browser` marking for DOM-touching script files | low | open (awaiting ruling) |
+| L-26 | language | `host = browser` marking for DOM-touching script files | — | **RULED — no marking; name the failure** |
 | L-27 | compiler | Alias/closure reads silently dropped from static deps | — | **fixed** (6e13f2e3) |
 | L-28 | data | Dataset persistence — IndexedDB-shaped (GH #23) | design | open |
 | L-29 | compiler | Chain classification breaks at inner calls and computed-default segs | high | open — found building L-21 |
@@ -716,12 +716,22 @@ is judged only at `tick = frame`; DECLARE4007 warns on `Date.now()` / `new Date(
 the `rand(seed, key)` prelude — the desktop's tilt egg samples `Math.random()` in a `{ }`
 on purpose (a fresh roll per toggle), and a warning there needs the prelude to point at.
 
-## L-26 — `host = browser` for DOM-touching script files · low · awaiting ruling
+## L-26 — `host = browser` for DOM-touching script files · **RULED 2026-09-02: no marking; name the failure instead**
 
 A `script [ "file.ts" ]` that touches the DOM runs on exactly one renderer; nothing
 marks that fact or protects the canvas/native paths from it. Deferred from the
-2026-08-24 script/module ratification; needs a ruling on whether the marking is a
-tag, a lint, or nothing.
+2026-08-24 script/module ratification.
+
+**Ruled (DT): nothing — no tag, no lint.** A tag's only honest reader is a build
+refusal, and a refusal that depends on voluntary confession is weaker than a failure
+that names itself: an UNTAGGED DOM-touching file would behave exactly as today, so
+the protection covers only authors diligent enough not to need it. The sanctioned
+repair is the DIAGNOSTIC: when script evaluation or a script call throws a
+ReferenceError naming a known browser global (document/window/navigator/…) on a
+host that has none, the error re-says itself with the file and the fact — "this
+script touches browser APIs; this host has none; feature-detect with `typeof
+document`, or keep browser-only script in browser-only programs." Repair pending
+(small; the script-eval and handler/constraint error paths).
 
 ## L-27 — Alias/closure reads silently dropped from static deps · **fixed** (6e13f2e3)
 

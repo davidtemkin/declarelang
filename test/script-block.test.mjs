@@ -107,4 +107,22 @@ App [ Text [ text = { "" + (a() + b()) } ] ]`);
   assert.equal(e.pos.line, 5, `the SECOND block's export; got line ${e.pos.line}`);
 });
 
+await test("blocks share ONE scope at runtime — a block-2 function calls block-1's (2026-09-02)", async () => {
+  // The checker concatenates the blocks ambient, so this always COMPILED —
+  // but per-block evaluation gave each block its own closure and its own
+  // early `return`, and the first cross-block call threw ReferenceError.
+  // The no-imports path now merges like the imports path: one body, one
+  // bindings return.
+  const { build, settle } = await import("../runtime/dist/index.js");
+  const r = await compile(`
+script { function one(n: number): number { return n + 1 } }
+script { let base = 100
+    function two(n: number): number { return one(n) * 2 + base } }
+App [ width=1, height=1, t: Text [ text = { "" + two(5) } ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), []);
+  const app = build(r.source);
+  settle();
+  assert.equal(app.t.text, "112", "cross-block call AND cross-block state resolve lexically");
+});
+
 summarize("script-block");
