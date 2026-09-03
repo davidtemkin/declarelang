@@ -443,4 +443,35 @@ await test("Segmented: every segment is a STOP — tab to an inactive choice, Sp
   Focus.blur();
 });
 
+// ── AUTO-PROVIDED SINGLETON splices at the ROOT's close, not the file's last
+// `]` (field report 2026-09-02). A `script { }` after the App holding a
+// bracket-indexed read (`lay[id]`) put the LAST `]` inside the script; the
+// FocusRing (auto-provided by any Control) spliced INTO `lay[id]`, and the
+// program died in evalScript with `Unexpected token ']'`. The splice now
+// finds the App's own matching close by a balanced scan.
+
+await test("an auto-provided singleton splices at the App's close even with a bracketed script after it", async () => {
+  const app = await boot(`App [ width = 400, height = 100,
+    b: Button [ x = 24, y = 40, label = "Go" ]
+    ]
+
+script {
+    function pick(lay: Record<string, number>, id: string): number {
+        return lay[id]
+    }
+}`);
+  // booted at all == the syntax error is gone; the FocusRing landed as an App
+  // child (Button + the provided ring), and the script function is callable
+  const names = app.children.map((c) => c.constructor.name);
+  assert.ok(names.includes("FocusRing"), "the ring was provided as an App child: " + names.join(", "));
+  assert.equal(app.b.constructor.name, "Button", "the Button is intact, not swallowed by the splice");
+});
+
+await test("the same holds for a class declared after the root", async () => {
+  const app = await boot(`App [ width = 400, height = 100, b: Button [ label = "Go" ] ]
+
+class Tail extends View [ tags: string[] = [], t: Text [ text = "x" ] ]`);
+  assert.ok(app.children.map((c) => c.constructor.name).includes("FocusRing"), "singleton still lands");
+});
+
 summarize("components");

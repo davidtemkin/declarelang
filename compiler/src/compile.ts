@@ -470,7 +470,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
     // so add the terminator when the last non-space char before the close
     // isn't one already.
     const spliceLast = (src: string, snippet: string): string => {
-      const close = src.lastIndexOf("]");
+      const close = appCloseBracket(src);
       if (close < 0) return src;
       let i = close - 1;
       while (i >= 0 && /\s/.test(src[i])) i--;
@@ -868,6 +868,63 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
  *  run with `wc -l` to learn whose error it was, and four wrote a throwaway
  *  harness to verify one room alone (field report 2026-08-21). */
 interface PreludeSegment { file: string; source: string; startLine: number; lines: number }
+
+/** The offset of the ROOT App's own closing `]` in `src` — a balanced scan
+ *  from its opening bracket, skipping `{ }` code islands and string/template/
+ *  comment spans, so a `]` anywhere else (a trailing `script { }` holding
+ *  `lay[id]`, a `class` after the root, a bracket inside a `{ }` body) can
+ *  never be mistaken for it. Returns -1 when the root cannot be located.
+ *
+ *  Replaces `lastIndexOf("]")`, whose "the App is the last thing in the file"
+ *  assumption broke every documented-legal ordering that puts a declaration
+ *  after the root (found 2026-09-02: an auto-provided singleton spliced INTO
+ *  a trailing script's `lay[id]`, and the program died in evalScript). */
+function appCloseBracket(src: string): number {
+  let rootStart: number;
+  try { rootStart = parseProgram(src).root.pos.offset; } catch { return -1; }
+  const n = src.length;
+  // the root tag's own opening `[` (only whitespace/ident between the tag
+  // start and it — no islands to worry about here)
+  let i = src.indexOf("[", rootStart);
+  if (i < 0) return -1;
+  let depth = 0;
+  for (; i < n; i++) {
+    const c = src[i];
+    if (c === '"' || c === "'") { // string
+      i++; while (i < n && src[i] !== c) { if (src[i] === "\\") i++; i++; }
+      continue;
+    }
+    if (c === "`") { // template — skip to its close, honoring `${ }` (which may hold brackets)
+      i++;
+      for (let td = 0; i < n; i++) {
+        if (src[i] === "\\") { i++; continue; }
+        if (td === 0 && src[i] === "`") break;
+        if (src[i] === "$" && src[i + 1] === "{") { td++; i++; continue; }
+        if (td > 0 && src[i] === "}") td--;
+      }
+      continue;
+    }
+    if (c === "/" && src[i + 1] === "/") { while (i < n && src[i] !== "\n") i++; continue; }
+    if (c === "/" && src[i + 1] === "*") { i += 2; while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++; i++; continue; }
+    if (c === "{") { // a `{ }` code body is opaque — skip it whole (its brackets are TS, not structure)
+      let bd = 1; i++;
+      for (; i < n && bd > 0; i++) {
+        const d = src[i];
+        if (d === '"' || d === "'") { i++; while (i < n && src[i] !== d) { if (src[i] === "\\") i++; i++; } continue; }
+        if (d === "`") { i++; for (let td = 0; i < n; i++) { if (src[i] === "\\") { i++; continue; } if (td === 0 && src[i] === "`") break; if (src[i] === "$" && src[i + 1] === "{") { td++; i++; continue; } if (td > 0 && src[i] === "}") td--; } continue; }
+        if (d === "/" && src[i + 1] === "/") { while (i < n && src[i] !== "\n") i++; continue; }
+        if (d === "/" && src[i + 1] === "*") { i += 2; while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++; i++; continue; }
+        if (d === "{") bd++;
+        else if (d === "}") bd--;
+      }
+      i--; // the for-loop's i++ will re-advance past the closing brace
+      continue;
+    }
+    if (c === "[") depth++;
+    else if (c === "]") { depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
 
 function countLines(s: string): number {
   let n = 1;
