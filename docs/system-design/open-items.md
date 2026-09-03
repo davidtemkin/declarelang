@@ -46,6 +46,7 @@ Narrative context and the session in which each was found lives in
 | L-28 | data | Dataset persistence — IndexedDB-shaped (GH #23) | design | open |
 | L-29 | compiler | Chain classification breaks at inner calls and computed-default segs | high | open — found building L-21 |
 | L-30 | compiler | Method BODIES are never checked against their written return type | medium | open — found building typed data |
+| L-31 | compiler | Non-uniform place() boxes storm "already bound" instead of one diagnostic | low | open — field report 2026-09-02 |
 
 ---
 
@@ -796,3 +797,18 @@ type), but the body-vs-signature seam is open. **Candidate:** annotate the emitt
 check-block function with the written return type — one line in emit(); the cost is a
 corpus sweep, since any existing method whose signature lies would start (correctly)
 erroring.
+
+## L-31 — A non-uniform place() box storms rather than diagnoses · low
+
+Found 2026-09-02 (field report, secondary note): a custom Layout whose `place()`
+returned `{x,y}` for most children and a shared fallback also carrying `w`/`h` for a
+few produced ~365 repeated "IndustryBand.width is already bound … arranges its child"
+runtime errors per rearm and a half-broken app, not one diagnostic. IMPORTANT — the
+report inferred non-uniform boxes are ILLEGAL; they are NOT. The corpus's own
+MasonryLayout returns `{x,y}` for most children and `{x,y,h}` for some, and always
+has — a uniformity check at install() breaks it (tried 2026-09-02, reverted: weather
+R4). So the fix is not "refuse non-uniformity." The real defect is the STORM: whatever
+double-claims a slot across a rearm should be caught once, attributed to the child and
+the offending box, rather than throwing per child per rearm. Needs a proper look at
+what actually re-claims — the shape mismatch is a symptom, the repeated claim is the
+bug.
