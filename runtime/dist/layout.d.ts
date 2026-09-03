@@ -97,7 +97,18 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  child auto-derives its size, so the arrangement died on a conflict the
      *  ownership machinery downstream was built to resolve — and the message
      *  blamed an authored binding that did not exist. */
-    protected claim(child: View, slot: string, k: Constraint, label: string): void;
+    /** Per (child, slot) conflicts already reported — so a rearm storm (a
+     *  shape-driven place() re-hitting the same author-owned slot every wave)
+     *  says it ONCE, not per wave. Keyed by child identity, then slot. */
+    private readonly reported;
+    /** An author bound a slot this strategy's place() also returns. The
+     *  one-owner rule leaves the slot to its author; say so once, name the fix
+     *  (`ignoreLayout` for a child that owns its own place), and let the rest
+     *  of the arrangement install. Reported like the other mid-settle-contained
+     *  defects (a thrown handler, a wedged reconcile) — loud, attributed, and
+     *  survivable, never a settle-aborting throw. */
+    private reportConflict;
+    protected claim(child: View, slot: string, k: Constraint): void;
     /** Release `k`'s claim of `slot` on `child`; during a rearm, restore the
      *  authored base (see `rearming` — a full detach keeps the last values).
      *  Does NOT dispose `k` — one constraint may back many slots (the pass), so

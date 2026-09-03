@@ -46,7 +46,7 @@ Narrative context and the session in which each was found lives in
 | L-28 | data | Dataset persistence — IndexedDB-shaped (GH #23) | design | open |
 | L-29 | compiler | Chain classification breaks at inner calls and computed-default segs | high | open — found building L-21 |
 | L-30 | compiler | Method BODIES are never checked against their written return type | medium | open — found building typed data |
-| L-31 | compiler | Non-uniform place() boxes storm "already bound" instead of one diagnostic | low | open — field report 2026-09-02 |
+| L-31 | runtime | Layout↔author slot conflict: storm FIXED (contained, once); boot-direction still throws | low | **half done** 2026-09-02 |
 
 ---
 
@@ -798,17 +798,33 @@ check-block function with the written return type — one line in emit(); the co
 corpus sweep, since any existing method whose signature lies would start (correctly)
 erroring.
 
-## L-31 — A non-uniform place() box storms rather than diagnoses · low
+## L-31 — Layout↔author slot conflict · **half done** 2026-09-02
 
-Found 2026-09-02 (field report, secondary note): a custom Layout whose `place()`
-returned `{x,y}` for most children and a shared fallback also carrying `w`/`h` for a
-few produced ~365 repeated "IndustryBand.width is already bound … arranges its child"
-runtime errors per rearm and a half-broken app, not one diagnostic. IMPORTANT — the
-report inferred non-uniform boxes are ILLEGAL; they are NOT. The corpus's own
-MasonryLayout returns `{x,y}` for most children and `{x,y,h}` for some, and always
-has — a uniformity check at install() breaks it (tried 2026-09-02, reverted: weather
-R4). So the fix is not "refuse non-uniformity." The real defect is the STORM: whatever
-double-claims a slot across a rearm should be caught once, attributed to the child and
-the offending box, rather than throwing per child per rearm. Needs a proper look at
-what actually re-claims — the shape mismatch is a symptom, the repeated claim is the
-bug.
+Found via a field report's secondary note (a market-map storm). DUG IN and ruled:
+
+**Non-uniform boxes are NOT the bug.** They are SUPPORTED by design (layout.ts header:
+"shape may vary per child — a Spacer carries its flexed size, a plan-shared child its
+width, a plain sibling only its position"). The corpus's own MasonryLayout relies on
+it; a uniformity check at install() breaks weather at R4 (tried, reverted). The
+report's "non-uniform is illegal" inference was wrong.
+
+**The real bug: a layout claiming a slot its CHILD authored** (`width = { … }`), thrown
+UNCONTAINED. Discovered mid-settle on a shape-driven rearm it re-fired every reactive
+wave (365× in the streaming app). RULED: a layout↔author slot conflict is resolved in
+the AUTHOR's favour — the layout leaves that slot to its author, arranges the rest, and
+reports ONCE (dedupe per child+slot), never a settle-aborting throw. End state is
+unchanged (the throw fired before the layout claimed, so the author always kept the
+slot) — only survivable. `ignoreLayout = true` stays the blessed geometry opt-out.
+BUILT (layout.ts install() pre-filter + reportConflict); pins in components +
+unit (#16).
+
+**STILL OPEN — the install-order asymmetry (pre-existing, not a regression):** the
+COMMON declared form (`layout: X [ ]` member) installs the layout BEFORE the child's
+binding, so a STATIC boot conflict still throws once from the general two-owner guard
+(attributes.ts own()), while the rearm/imperative directions are contained. Options: (a)
+leave it — fail-fast at boot on a statically-visible conflict, survive dynamic ones; (b)
+make own() let an author binding displace a layout claim — clean for SIZE slots (own
+constraint), messy for POSITION slots (shared pass-constraint owns all x/y). Lean if
+consistency wanted: contain SIZE both directions (author wants the size), keep POSITION
+a boot error pointing at ignoreLayout (child wants out of the flow). Awaiting DT's
+ruling — touches shared machinery.
