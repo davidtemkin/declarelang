@@ -2573,14 +2573,28 @@ await test("a size-claiming layout displaces the yielding auto-derive (issue #16
     [[0, 50, 80], [50, 50, 80]],
     "auto-derived sizes yielded to the arrangement"
   );
-  // …while an AUTHORED size binding on a claimed slot stays the hard
-  // conflict it always was — the error is reserved for two real authors.
-  await assert.rejects(async () => {
+  // …while an AUTHORED binding on a claimed slot is a CONFLICT the one-owner
+  // rule leaves to the author, CONTAINED and reported ONCE (2026-09-02): the
+  // layout keeps the slot for its author and arranges the rest, never a
+  // settle-aborting throw. (It threw before — fine at boot, a 365-error storm
+  // on a shape-driven rearm; a market-map field report named it. The end
+  // state is unchanged — the author always kept the slot — only survivable.)
+  const errs = [];
+  const orig = console.error;
+  console.error = (...a) => errs.push(a.join(" "));
+  try {
     const b = await buildL(`App [ width=100, height=80,
       View [ width = { parent.width / 2 }, height=10 ] ]`);
     b.layout = new Halves();
     settle();
-  }, /View\.width is already bound/);
+    settle(); // a second wave must NOT re-report (dedupe)
+    assert.equal(b.children[0].width, 50, "the author's binding holds — 100/2");
+    assert.equal(b.children[0].x, 0, "…and the layout still arranged the non-contested slots (x)");
+  } finally {
+    console.error = orig;
+  }
+  const conflicts = errs.filter((e) => /width is already bound/.test(e));
+  assert.equal(conflicts.length, 1, "reported exactly once across two waves, not a storm: " + conflicts.length);
 });
 
 await test("the layout slot is swappable and cancellable at runtime (the doc's reactive slot)", async () => {

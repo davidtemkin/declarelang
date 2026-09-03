@@ -474,4 +474,41 @@ class Tail extends View [ tags: string[] = [], t: Text [ text = "x" ] ]`);
   assert.ok(app.children.map((c) => c.constructor.name).includes("FocusRing"), "singleton still lands");
 });
 
+// ── A layout claiming a slot its CHILD authored is contained, once (field
+// report 2026-09-02, the market-map storm). On a shape-driven rearm the
+// conflict re-fired every reactive wave and threw out of the settle — 365
+// errors, a half-broken app. Now: reported once, the author keeps the slot,
+// the layout arranges the rest, no throw.
+
+await test("a place() slot that a child authored is left to the author, reported once — no rearm storm", async () => {
+  const errs = [];
+  const orig = console.error;
+  console.error = (...a) => errs.push(a.join(" "));
+  let app;
+  try {
+    app = await boot(`class Band extends View [ height = 20, fill = navy, t: Text [ text = "x" ] ]
+class MarketLayout extends Layout [
+    place() -> array {
+        const kids = this.laid()
+        const sized = app.sized
+        return kids.map((k, i) => (i == 1 && sized)
+            ? ({ x: 0, y: i * 22, w: 100, h: 20 })
+            : ({ x: 0, y: i * 22 }))
+        }
+    ]
+App [ width = 300, height = 120, sized: boolean = false,
+    col: View [ layout: MarketLayout [ ],
+        Band [ ], Band [ width = { app.width - 40 } ], Band [ ] ]
+    ]`);
+    // flip the shape repeatedly — each wave that introduces the w on the
+    // authored-width child would have thrown out of the settle
+    for (let n = 0; n < 4; n++) { app.sized = !app.sized; settle(); }
+  } finally {
+    console.error = orig;
+  }
+  const conflicts = errs.filter((e) => /width is already bound/.test(e));
+  assert.equal(conflicts.length, 1, "reported once across four rearms, not per wave: " + conflicts.length);
+  assert.equal(app.col.children[1].width, 260, "the author's width (300-40) held throughout");
+});
+
 summarize("components");

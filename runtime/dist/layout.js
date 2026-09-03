@@ -54,9 +54,14 @@
 // slot (an axis flip, a plan regime change, a layout swap) reverts to the
 // authored literal or class default instead of stranding the arrangement's
 // last write. A direct author write to an owned slot is an error naming the
-// layout; an author *binding* on an owned slot is a hard conflict — two
-// standing owners — and errors naming both sides (the R4 ruling: any
-// write-then-resume idiom must be explicit surface).
+// layout; an author *binding* on a slot the strategy's place() also returns
+// is a CONFLICT the one-owner rule resolves in the author's favour — the
+// layout leaves that slot to its author and reports it ONCE, attributed
+// (install → reportConflict), never a settle-aborting throw. (Until 2026-09-02
+// it threw: discovered mid-settle on a shape-driven rearm, that aborted the
+// whole settle or — caught upstream — re-fired every wave, a storm that
+// half-broke the app; a market-map field report named it. `ignoreLayout =
+// true` remains the child's blessed way to own its own geometry.)
 //
 // Pay-per-use: a view with no layout carries nothing (the slot's default is
 // null on the prototype); an idle laid tree is inert constraint data — zero
@@ -193,11 +198,32 @@ export class Layout extends Node {
      *  child auto-derives its size, so the arrangement died on a conflict the
      *  ownership machinery downstream was built to resolve — and the message
      *  blamed an authored binding that did not exist. */
-    claim(child, slot, k, label) {
-        const prior = ownerOf(child, slot);
-        if (prior !== null && !prior.yielding) {
-            throw new DeclareError(`${child.constructor.name}.${slot} is already bound (by ${prior.label}), but ${label} arranges its children's ${slot} — drop one of the two`);
-        }
+    /** Per (child, slot) conflicts already reported — so a rearm storm (a
+     *  shape-driven place() re-hitting the same author-owned slot every wave)
+     *  says it ONCE, not per wave. Keyed by child identity, then slot. */
+    reported = new WeakMap();
+    /** An author bound a slot this strategy's place() also returns. The
+     *  one-owner rule leaves the slot to its author; say so once, name the fix
+     *  (`ignoreLayout` for a child that owns its own place), and let the rest
+     *  of the arrangement install. Reported like the other mid-settle-contained
+     *  defects (a thrown handler, a wedged reconcile) — loud, attributed, and
+     *  survivable, never a settle-aborting throw. */
+    reportConflict(child, slot, priorLabel, label) {
+        let seen = this.reported.get(child);
+        if (seen === undefined)
+            this.reported.set(child, (seen = new Set()));
+        if (seen.has(slot))
+            return;
+        seen.add(slot);
+        const hint = slot === "x" || slot === "y"
+            ? ` — drop the authored '${slot}', or set 'ignoreLayout = true' on the child to keep it`
+            : ` — drop one of the two`;
+        console.error(`[Declare] ${child.constructor.name}.${slot} is already bound (by ${priorLabel}), but ${label} also arranges it; leaving '${slot}' to the author${hint}`);
+    }
+    claim(child, slot, k) {
+        // The blocking-owner conflict is pre-filtered in install() (a contained,
+        // once-reported diagnostic — no longer a settle-aborting throw); a claim
+        // reaching here has no non-yielding prior.
         const base = this.bases.get(child) ?? {};
         if (!(slot in base)) {
             base[slot] = child[slot];
@@ -262,6 +288,20 @@ export class Layout extends Node {
             for (const [key, slot] of BOX_SLOTS) {
                 if (box[key] === undefined)
                     continue;
+                // CONFLICT CONTAINMENT (field report 2026-09-02): a place() that
+                // returns a slot the CHILD ITSELF authored (`width = { … }`) cannot
+                // claim it — the one-owner rule holds, and `ignoreLayout = true` is
+                // the blessed way for a child to own its own geometry. Discovered
+                // mid-settle on a shape-driven rearm, throwing here aborted the whole
+                // settle (or, caught upstream, re-fired every wave — the 365-error
+                // storm). Instead: report ONCE per (child, slot), leave the slot to
+                // its author, and install everything else. A yielding prior
+                // (auto-size) is NOT a conflict — the layout displaces it, as ever.
+                const prior = ownerOf(child, slot);
+                if (prior !== null && !prior.yielding) {
+                    this.reportConflict(child, slot, prior.label, label);
+                    continue;
+                }
                 if (key === "w" || key === "h")
                     sizeClaims.push({ child, slot, key, i });
                 else
@@ -296,7 +336,7 @@ export class Layout extends Node {
                     }
                 });
                 for (const c of passClaims) {
-                    this.claim(c.child, c.slot, pass, label);
+                    this.claim(c.child, c.slot, pass);
                     installed.push({ child: c.child, slot: c.slot, k: pass });
                 }
                 pass.run();
@@ -308,7 +348,7 @@ export class Layout extends Node {
                     setBound(c.child, c.slot, v);
                 });
                 markPercent(k);
-                this.claim(c.child, c.slot, k, label);
+                this.claim(c.child, c.slot, k);
                 installed.push({ child: c.child, slot: c.slot, k });
                 k.run();
             }
