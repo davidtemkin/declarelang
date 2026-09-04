@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "d0a46bef2271",
+  "buildId": "7729ba1558cc",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -13534,7 +13534,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 150
+    "line": 154
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -13555,7 +13555,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 194
+    "line": 198
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -13700,7 +13700,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 533
+    "line": 535
    },
    "parent": "TweenLayout",
    "seeAlso": [],
@@ -32126,7 +32126,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 150
+      "line": 154
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -32147,7 +32147,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 194
+      "line": 198
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -32264,7 +32264,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 533
+      "line": 535
      },
      "parent": "TweenLayout",
      "seeAlso": [],
