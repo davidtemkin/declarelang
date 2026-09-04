@@ -64,3 +64,13 @@ mac-host/Declare Mac.app/
 
 # rasterbench's Chrome trace scratch (--trace); each run writes and deletes its own
 mac-host/.rasterbench-traces/
+
+# visual-test OUTPUTS: the committed `<name>.png` baselines are the tracked truth;
+# a run writes `<name>.actual.png` (+ .actual.json diffs) beside them to inspect a
+# mismatch. Those are regenerated, per-machine, never committed.
+*.actual.*
+
+# perceptual.test.mjs's DOM/canvas render dumps (test/artifacts/): written on every
+# run and diffed against each OTHER in memory (not against these files) — pure
+# output, not a test input or a distro artifact. The dir is recreated by the test.
+test/artifacts/
