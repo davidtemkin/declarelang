@@ -192,7 +192,7 @@ commands to fix it. → [`docs/operational/derive.md`](docs/operational/derive.m
 | `runtime/` | the framework — parser, reactive core, layout, animation, DOM/Canvas backends (zero external deps) |
 | `compiler/` | the thin `.declare` → JS compiler; depends one-way on `runtime/` |
 | `library/` | components and theme records authored in `.declare` |
-| `apps/` | the runnable corpus — `homepage`, `calendar`, `desktop`, `docs`, `viewer`, `inspector`, and smaller samples |
+| `apps/` | the runnable corpus — `homepage`, `calendar`, `desktop`, `docs`, `viewer`, `inspector`, and more; [apps/README.md](apps/README.md) is the guided tour of what each one is for |
 | `tools/` | `verify`, `format`, `declarec` (production builds), and the internal doc/build pipeline |
 | `docs/` | the [guide](docs/guide/), [operational pages](docs/operational/), and the [design record](docs/system-design/) |
 | `test/` | the suite `npm test` runs |

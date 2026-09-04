@@ -74,3 +74,4 @@ mac-host/.rasterbench-traces/
 # run and diffed against each OTHER in memory (not against these files) — pure
 # output, not a test input or a distro artifact. The dir is recreated by the test.
 test/artifacts/
+
