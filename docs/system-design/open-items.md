@@ -831,3 +831,30 @@ so the general guard/setter recognize a layout owner — message-only, no behavi
 COMPILE-TIME detection investigated and DECLINED: `place()` is arbitrary runtime code, so
 which slots a layout claims per child is unknowable statically without a declared policy
 attribute (not worth the contortion). Pins in unit + components.
+
+## Production error codes — **built 2026-09-04**
+
+Not a register item but a ruling worth recording, since it changes what a shipped app
+says. DT: "React made a different decision, can't be substantially different. This is
+just normal." Correct — and Declare was better positioned than React, because the
+diagnostic register (`DECLARE####` + `declare-help <code>`) already existed; this
+extends it to RUNTIME errors in production only.
+
+**Ruled and built.** A production build replaces each `DeclareError` / `[Declare]`
+message's static prose with a code: `[Declare E3A14CE] /nope/deep, '/nope' is missing`.
+Throw, position and every interpolated VALUE survive — only the sentence goes, and
+`declare-help E3A14CE` returns it. Dev is untouched (dev server, live-compile pages, mac
+runtime, tests, `--debug`). Codes are content hashes of the message skeleton: no
+registry, no per-site tax, a reworded message gets a new code.
+
+**Scope was measured, not assumed.** check.ts (129 sites) and parser.ts (37) never ship —
+production already stubs them — so the real target was ~114 runtime sites, 9 KB raw. The
+strip is anchored to two CONSTRUCTORS rather than to prose-shape, deliberately: widening
+by shape would put a user-renderable string (a `DataSource`'s `.error`, a plain `Error`)
+one heuristic away from being coded. Message-builder returns (`layoutConflictMessage`)
+are consequently NOT coded — a known, accepted gap worth ~1 KB; closing it means coding
+at the builder, which is a bigger change than it is worth today.
+
+**The trap, recorded in the code:** the esbuild plugin must be registered LAST. Ahead of
+the `slim-*` stubs it fed esbuild the full `check.js` a stub was about to replace and the
+bundle GREW 14 KB. Result: 86.1 → 84.6 KB on the calendar.
