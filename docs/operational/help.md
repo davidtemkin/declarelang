@@ -22,6 +22,7 @@ cold in a fresh clone. Same question, same bytes, every time.
 | `rotation`, `bold inside a label` | the entry that answers the concept |
 | `scrolls`, `fontWeight tokens` | the enum's tokens, and who carries them |
 | `DECLARE7001` | the diagnostic's family and where its register lives |
+| `E3A14CE` | a **runtime** error code — what a production build throws in place of the sentence: the message, and where it is thrown |
 
 ## Two contracts worth trusting
 

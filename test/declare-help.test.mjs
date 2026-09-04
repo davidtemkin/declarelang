@@ -178,4 +178,18 @@ await test("a host global answers with the compiler's own refusal and the Declar
   assert.ok(r.out.includes("hold the state in a Dataset"));
 });
 
+await test("a runtime error code expands to its sentence (the production strip's other half)", async () => {
+  const model = JSON.parse(readFileSync(resolve(ROOT, "docs/declare-model.json"), "utf8"));
+  const code = Object.keys(model.spine.runtimeErrors ?? {})[0];
+  assert.ok(code, "the model publishes runtime error codes");
+  const r = help(code);
+  assert.equal(r.code, 0, "a known code is answered");
+  assert.match(r.out, new RegExp(code), "names the code");
+  assert.match(r.out, /a runtime error/, "says what it is");
+  assert.match(r.out, /thrown at \w+\.ts:\d+/, "points at the throw site");
+  // an unknown code is answered too (informative, like a DECLARE#### miss)
+  const miss = help("EFFFFFF");
+  assert.match(miss.out, /no runtime error EFFFFFF/);
+});
+
 summarize("declare-help");

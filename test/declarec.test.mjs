@@ -136,8 +136,13 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // and the ONE clear layout↔author conflict wording (errors.ts, unstubbable —
   // a clear error is the product) crossed 86 by a tenth. Diagnostic quality;
   // carried.
+  // 86 again (2026-09-04): measured 84.6. The production error-prose strip
+  // (tools/internal/error-codes.mjs) codes every DeclareError message a shipped
+  // app can throw — `[Declare E42] <values>`, expanded by `declare-help E42` —
+  // which took 1.5 KB back and returned the ceiling under where typed data put
+  // it. Dev builds keep the sentences.
   const gz = out.sizes.totalGzip;
-  assert.ok(gz > 20 * 1024 && gz < 87 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  assert.ok(gz > 20 * 1024 && gz < 86 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
 // THE STUB-DRIFT TRAP, made structural. The production build replaces

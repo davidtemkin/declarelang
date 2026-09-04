@@ -17,6 +17,7 @@ import { dirname, resolve, basename, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
+import { stripSource } from "./internal/error-codes.mjs";
 import * as esbuild from "esbuild";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
@@ -225,6 +226,34 @@ export const Inspect = new Proxy({ ready: () => false }, {
   get: (t, k) => (k in t ? t[k] : () => { throw new Error("Inspect." + String(k) + ": the inspector is not aboard this production build (declarec --debug keeps it)"); }),
 });
 `;
+
+  // ERROR PROSE → CODES (production only; --debug keeps the sentences). Every
+  // `DeclareError` message a shipped app can throw is a string literal in its
+  // bundle — esbuild minifies names, never string contents — and most of that
+  // prose is developer-facing: read once while building, fixed, never seen
+  // again. Here each message becomes `[Declare E42] <its runtime values>`: the
+  // throw, the position and every interpolated value survive, so a production
+  // failure is still diagnosable on its own, and `declare-help E42` gives the
+  // sentence back. (App-RENDERABLE text is untouched — a DataSource's `.error`
+  // is a plain Error, never a DeclareError.) The catalog rides out on the
+  // build result so a caller can publish it.
+  // REGISTERED LAST (see the esbuild call): esbuild gives a file to the FIRST
+  // matching onLoad, so every slim-* stub must claim its module before this
+  // broad filter sees it — otherwise the strip hands esbuild the full module a
+  // stub was about to replace, and the bundle GROWS (measured: +14 KB when this
+  // ran ahead of slim-check).
+  const errorCatalog = {};
+  const errorCodePlugin = {
+    name: "error-codes",
+    setup(build) {
+      build.onLoad({ filter: /[/\\]runtime[/\\]dist[/\\][^/\\]+\.js$/ }, async (args) => {
+        const raw = await readFile(args.path, "utf8");
+        const { src: out, entries } = stripSource(raw);
+        for (const e of entries) errorCatalog[e.code] = { message: e.message, file: args.path.split("/").pop(), line: e.line };
+        return { contents: out, loader: "js", resolveDir: RUNTIME };
+      });
+    },
+  };
   const inspectPlugin = {
     name: "slim-inspector",
     setup(build) {
@@ -470,7 +499,7 @@ export function isArrayDoc() { return false; }
     stdin: { contents: entry, resolveDir: RUNTIME, loader: "js", sourcefile: name + ".entry.js" },
     bundle: true, minify: true, format: "esm", target: "es2020",
     write: false, legalComments: "none", metafile: true,
-    plugins: [...(slim ? [slimPlugin] : []), ...(opts.debug ? [] : [inspectPlugin]), ...factPlugins],
+    plugins: [...(slim ? [slimPlugin] : []), ...(opts.debug ? [] : [inspectPlugin]), ...factPlugins, ...(opts.debug ? [] : [errorCodePlugin])],
   });
   const appJs = result.outputFiles[0].text;
   const moduleName = `app.${shortHash(appJs)}.js`;
@@ -542,6 +571,10 @@ export function isArrayDoc() { return false; }
     ok: true, errors: [], warnings: built.warnings, diagnostics: built.diagnostics, report: built.report,
     closure: built.closure, program: built.program, sizes, metafile: result.metafile,
     usedComponents: built.usedComponents, slim,
+    // code → prose for every DeclareError this build coded (empty under
+    // --debug, which keeps the sentences). `declare-help E42` reads the
+    // committed catalog; this rides out for a caller that wants the build's own.
+    errorCodes: errorCatalog,
     files: [{ name: "index.html", contents: html }, { name: moduleName, contents: appJs }],
   };
 }

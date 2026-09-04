@@ -37,6 +37,7 @@ import { DECLARED_TYPE_NAMES } from "../../../runtime/dist/value.js";
 import { RESERVED, programSchemas } from "../../../runtime/dist/program-schema.js";
 import { parseLibrary } from "../../../runtime/dist/parser.js";
 import { CODE_PREFIX } from "../../../runtime/dist/diagnostics.js";
+import { catalogFor } from "../error-codes.mjs";
 import { MOTION_TOKENS } from "../../../runtime/dist/animate.js";
 import { OPS } from "../ops.mjs";
 import { buildRegistry, scan } from "./links.mjs";
@@ -284,6 +285,16 @@ function diagnosticSpine() {
   return { prefix: CODE_PREFIX, codes };
 }
 
+/** The RUNTIME error catalog: every `DeclareError` / `[Declare]` diagnostic a
+ *  production build codes, as code → its sentence. A shipped app throws
+ *  `[Declare E42] <values>` (tools/internal/error-codes.mjs strips the prose to
+ *  save wire weight); this is what gives the sentence back, so
+ *  `declare-help E42` answers from the same source the strip reads. */
+function runtimeErrorSpine() {
+  const catalog = catalogFor(join(ROOT, "runtime/src"));
+  return Object.fromEntries(Object.entries(catalog).map(([code, v]) => [code, { message: v.message, at: `${v.file}:${v.line}` }]));
+}
+
 function librarySpine() {
   const manifest = JSON.parse(readFileSync(join(ROOT, "library/autoincludes.json"), "utf8"));
   // Tag -> file only. `$`-prefixed keys are manifest DIRECTIVES, not components
@@ -306,6 +317,7 @@ function buildSpine() {
     flags: FLAG_SPECS.map((f) => ({ ...f, default: DEFAULT_FLAGS[f.name] })),
     requests: REQ,
     diagnostics: diagnosticSpine(),
+    runtimeErrors: runtimeErrorSpine(),
     library: librarySpine(),
     commands: OPS,
     concepts: conceptSpine(),

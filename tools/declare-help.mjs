@@ -238,6 +238,26 @@ function answer() {
     return true;
   }
 
+  // RUNTIME error code — what a PRODUCTION build throws in place of the
+  // sentence (`[Declare E42] '/rows/0/n', number, string`). Production strips
+  // the prose to save wire weight (tools/internal/error-codes.mjs); this gives
+  // it back, from the same catalog the strip is generated from.
+  const rcode = query.toUpperCase().match(/^E[0-9A-F]{6}$/) ? query.toUpperCase() : null;
+  if (rcode) {
+    const entry = (SPINE.runtimeErrors ?? {})[rcode];
+    if (entry === undefined) {
+      say(`no runtime error ${rcode} — a production build's codes come from this runtime's own messages; check the build's version`);
+      json = { kind: "runtime-error-miss", code: rcode };
+      return true;
+    }
+    say(`${rcode} — a runtime error. Its message:`);
+    say(`  ${entry.message}`);
+    say(`  (… stands for a value the throw interpolates; the production throw carries them after the code.)`);
+    say(`  thrown at ${entry.at}`);
+    json = { kind: "runtime-error", code: rcode, message: entry.message, at: entry.at };
+    return true;
+  }
+
   // foreign name — the hint table verbatim, then its near-misses
   if (Object.hasOwn(CSS_ATTRIBUTE_HINTS, query)) { say(`'${query}' is not a Declare name${cssAttributeHint(query)}`); json = { kind: "foreign", name: query, hint: cssAttributeHint(query) }; return true; }
 

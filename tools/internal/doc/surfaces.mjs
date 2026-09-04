@@ -204,6 +204,11 @@ export const SURFACES = [
     why: "a diagnostic's text IS its documentation and ships in the compiler; the catalog here is the code index",
   },
   {
+    id: "runtimeErrors", label: "runtime error codes", source: "the runtime's own DeclareError messages",
+    docsLive: "operational/building.md → Errors in a production build", spineKeys: ["runtimeErrors"], gated: false,
+    why: "each entry IS a runtime message, scanned from the source that throws it — the catalog exists so `declare-help E42` can give back a sentence a production build stripped; there is nothing to document beyond the messages themselves",
+  },
+  {
     id: "requests", label: "request types", source: "REQ",
     docsLive: "Vocabulary → Requests", spineKeys: ["requests"], gated: false,
     why: "the addressable URL surface, name-only; operational/ carries the prose",

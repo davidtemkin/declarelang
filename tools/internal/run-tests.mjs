@@ -20,6 +20,7 @@ const SUITE = [
   "test/scaffold.test.mjs",
   "test/declarec.test.mjs",
   "test/diagnostics-hints.test.mjs",
+  "test/error-codes.test.mjs",
   "test/databinding.test.mjs",
   "test/materialization.test.mjs",
   "test/dataschema.test.mjs",

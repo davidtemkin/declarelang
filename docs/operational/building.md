@@ -12,7 +12,7 @@ node tools/declarec.mjs apps/calendar/calendar.declare -o dist
 
 The output is a directory with an `index.html`, a content-hashed `app.<hash>.js`, and your
 data assets copied alongside — deployable to any static host. On the flagship calendar it lands
-around **<!--stat:calendar.wireKB-->86<!--/stat--> KB gzipped**. Four things keep it small:
+around **<!--stat:calendar.wireKB-->85<!--/stat--> KB gzipped**. Four things keep it small:
 
 - **Precompile.** Parse, resolve, and typecheck happen once, now; the program ships as a JSON
   string parsed at boot, with source positions stripped.
@@ -23,6 +23,30 @@ around **<!--stat:calendar.wireKB-->86<!--/stat--> KB gzipped**. Four things kee
 - **Slim registry.** Only the components the app can actually instantiate are included. If a
   component appears *nowhere* statically (built by name from loaded data), keep it with a
   top-level `use [ Name ]` list, or slimming will drop it.
+- **Coded errors.** Error *prose* is developer text — you read it once while building. A
+  production build ships the code instead (see below); the sentences stay in dev.
+
+### Errors in a production build
+
+Runtime errors still throw, still stop what they should, and still carry every value they
+computed — only the sentence is replaced by a code:
+
+```
+[Declare E3A14CE] /nope/deep, '/nope' is missing
+```
+
+The path and the reason are right there, and `declare-help E3A14CE` gives the sentence back:
+
+```
+E3A14CE — a runtime error. Its message:
+  '…' addresses nothing — …
+  thrown at data.ts:389
+```
+
+A code is derived from the message itself, so it is stable across releases that don't reword
+it, and a reworded message gets a new code. `declarec --debug` keeps the full sentences — as
+do the dev server, the live-compile pages, and every test run, which is where you meet these
+errors in the first place. Text an *app* renders (a `DataSource`'s `.error`) is never coded.
 
 ## Flags
 
