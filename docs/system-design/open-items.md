@@ -46,7 +46,7 @@ Narrative context and the session in which each was found lives in
 | L-28 | data | Dataset persistence — IndexedDB-shaped (GH #23) | design | open |
 | L-29 | compiler | Chain classification breaks at inner calls and computed-default segs | high | open — found building L-21 |
 | L-30 | compiler | Method BODIES are never checked against their written return type | medium | open — found building typed data |
-| L-31 | runtime | Layout↔author slot conflict: storm FIXED (contained, once); boot-direction still throws | low | **half done** 2026-09-02 |
+| L-31 | runtime | Layout↔author slot conflict: contained + one clear message across all 3 sites | — | **done** 2026-09-03 |
 
 ---
 
@@ -818,13 +818,16 @@ slot) — only survivable. `ignoreLayout = true` stays the blessed geometry opt-
 BUILT (layout.ts install() pre-filter + reportConflict); pins in components +
 unit (#16).
 
-**STILL OPEN — the install-order asymmetry (pre-existing, not a regression):** the
-COMMON declared form (`layout: X [ ]` member) installs the layout BEFORE the child's
-binding, so a STATIC boot conflict still throws once from the general two-owner guard
-(attributes.ts own()), while the rearm/imperative directions are contained. Options: (a)
-leave it — fail-fast at boot on a statically-visible conflict, survive dynamic ones; (b)
-make own() let an author binding displace a layout claim — clean for SIZE slots (own
-constraint), messy for POSITION slots (shared pass-constraint owns all x/y). Lean if
-consistency wanted: contain SIZE both directions (author wants the size), keep POSITION
-a boot error pointing at ignoreLayout (child wants out of the flow). Awaiting DT's
-ruling — touches shared machinery.
+**RESOLVED 2026-09-03 (DT: keep it comprehensible via good errors, not a behaviour
+rework).** The boot-direction STATIC conflict stays a throw (fail-fast on a
+statically-visible mistake); the rearm/dynamic direction stays contained (don't wedge a
+running app). What was missing was CLARITY: all three surfaces — the layout's own claim
+(reportConflict), the general one-owner guard when an author binding installs over a
+layout claim (attributes.ts own()), and a direct write to a layout-owned slot (the
+setter) — now speak ONE wording via `layoutConflictMessage` (errors.ts), naming the
+LAYOUT as arranger, the child+slot, position-vs-size, and the resolution (let the layout
+do it, or `ignoreLayout = true`). Layout claim constraints carry `arrangedBy` (reactive.ts)
+so the general guard/setter recognize a layout owner — message-only, no behaviour change.
+COMPILE-TIME detection investigated and DECLINED: `place()` is arbitrary runtime code, so
+which slots a layout claims per child is unknowable statically without a declared policy
+attribute (not worth the contortion). Pins in unit + components.

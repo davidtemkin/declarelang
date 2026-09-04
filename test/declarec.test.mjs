@@ -132,8 +132,12 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // the six-agent report asked for — a handler that keeps throwing is named and
   // stopped, replay restores the paint state it inherited, set([], v) replaces a
   // document — plus the remapped diagnostics. Product surface; carried.
+  // 87 (2026-09-03): measured 86.1. Typed data's always-on parser/editor surface
+  // and the ONE clear layout↔author conflict wording (errors.ts, unstubbable —
+  // a clear error is the product) crossed 86 by a tenth. Diagnostic quality;
+  // carried.
   const gz = out.sizes.totalGzip;
-  assert.ok(gz > 20 * 1024 && gz < 86 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  assert.ok(gz > 20 * 1024 && gz < 87 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
 // THE STUB-DRIFT TRAP, made structural. The production build replaces

@@ -44,3 +44,13 @@ export declare class DeclareErrors extends DeclareError {
     readonly errors: readonly DeclareError[];
     constructor(errors: readonly DeclareError[]);
 }
+/** The ONE wording for a layout↔author slot conflict, wherever it surfaces —
+ *  the layout's own claim (layout.ts install), the general one-owner guard
+ *  (an author binding installing over a layout claim), and a direct write to a
+ *  layout-owned slot (attributes.ts). Named here so both modules share it
+ *  without a cycle (layout imports attributes). It names the LAYOUT as the
+ *  arranger, the child + slot, and the resolution — let the layout do it, or
+ *  take the child out of the arrangement. `by` names who else set the slot
+ *  when that helps (a direct write); null when the child obviously authored
+ *  it. */
+export declare function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null): string;

@@ -25,7 +25,7 @@
 // direct write to it is an error (one declarative owner — the silent-clobber
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
 import { Cell, Constraint, isTracking } from "./reactive.js";
-import { DeclareError } from "./errors.js";
+import { DeclareError, layoutConflictMessage } from "./errors.js";
 // Class → its attribute tables. All are prototype-chained objects mirroring
 // the class hierarchy (Text's defaults chain to View's), so "nearest declared
 // wins" is a plain property lookup — the same shape schema.ts's chain walk
@@ -129,7 +129,9 @@ export function defineAttributes(ctor, specs) {
                 const owner = self.$owners?.[name];
                 if (owner !== undefined) {
                     if (!owner.yielding) {
-                        throw new DeclareError(`${this.constructor.name}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`);
+                        throw new DeclareError(owner.arrangedBy !== null
+                            ? layoutConflictMessage(this.constructor.name, name, owner.arrangedBy, null)
+                            : `${this.constructor.name}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`);
                     }
                     owner.dispose(); // a runtime derive yields: the author takes over
                     delete self.$owners[name];
@@ -487,7 +489,9 @@ export function own(self, name, c) {
         delete owners[name];
     }
     else if (prior !== undefined) {
-        throw new DeclareError(`${self.constructor.name}.${name} is already bound (by ${prior.label})`);
+        throw new DeclareError(prior.arrangedBy !== null
+            ? layoutConflictMessage(self.constructor.name, name, prior.arrangedBy, null)
+            : `${self.constructor.name}.${name} is already bound (by ${prior.label})`);
     }
     owners[name] = c;
     // On a prevailing slot, gaining an owner is a provision-state change

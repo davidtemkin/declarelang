@@ -53,15 +53,19 @@
 // slot's AUTHORED BASE at first touch; unclaim() restores it — so a vacated
 // slot (an axis flip, a plan regime change, a layout swap) reverts to the
 // authored literal or class default instead of stranding the arrangement's
-// last write. A direct author write to an owned slot is an error naming the
-// layout; an author *binding* on a slot the strategy's place() also returns
-// is a CONFLICT the one-owner rule resolves in the author's favour — the
-// layout leaves that slot to its author and reports it ONCE, attributed
-// (install → reportConflict), never a settle-aborting throw. (Until 2026-09-02
-// it threw: discovered mid-settle on a shape-driven rearm, that aborted the
-// whole settle or — caught upstream — re-fired every wave, a storm that
-// half-broke the app; a market-map field report named it. `ignoreLayout =
-// true` remains the child's blessed way to own its own geometry.)
+// last write. When a child ALSO owns a slot the strategy arranges — an
+// authored `width = { … }` meeting a sizing place(), or a direct write to a
+// laid slot — that is a layout↔author conflict, and it surfaces at three
+// sites with ONE wording (layoutConflictMessage, errors.ts): the layout's own
+// claim on a rearm (reportConflict — CONTAINED and reported once, the author
+// keeps the slot, never a settle-aborting throw; until 2026-09-02 it stormed,
+// a market-map field report named it), the general one-owner guard when the
+// author binding installs over a layout claim at boot (attributes.ts own() —
+// a throw, fail-fast on a static mistake), and a direct write to a laid slot
+// (the setter — a throw). Each names the layout, the child+slot, position-vs-
+// size, and the fix; `ignoreLayout = true` remains the blessed way for a
+// child to own its own geometry. Layout claims carry `arrangedBy` so the two
+// attributes.ts sites recognize a layout owner (message-only).
 //
 // Pay-per-use: a view with no layout carries nothing (the slot's default is
 // null on the prototype); an idle laid tree is inert constraint data — zero
@@ -70,7 +74,7 @@
 import { Node } from "./node.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes, markPercent, own, ownerOf, release, setBound } from "./attributes.js";
-import { DeclareError } from "./errors.js";
+import { DeclareError, layoutConflictMessage } from "./errors.js";
 import { isWindowedBlock, View, type LayoutStrategy } from "./view.js";
 import { Animator } from "./animator.js";
 import { motionToken } from "./animate.js";
@@ -247,17 +251,12 @@ export abstract class Layout extends Node implements LayoutStrategy {
    *  of the arrangement install. Reported like the other mid-settle-contained
    *  defects (a thrown handler, a wedged reconcile) — loud, attributed, and
    *  survivable, never a settle-aborting throw. */
-  private reportConflict(child: View, slot: string, priorLabel: string, label: string): void {
+  private reportConflict(child: View, slot: string, arranger: string): void {
     let seen = this.reported.get(child);
     if (seen === undefined) this.reported.set(child, (seen = new Set()));
     if (seen.has(slot)) return;
     seen.add(slot);
-    const hint = slot === "x" || slot === "y"
-      ? ` — drop the authored '${slot}', or set 'ignoreLayout = true' on the child to keep it`
-      : ` — drop one of the two`;
-    console.error(
-      `[Declare] ${child.constructor.name}.${slot} is already bound (by ${priorLabel}), but ${label} also arranges it; leaving '${slot}' to the author${hint}`
-    );
+    console.error("[Declare] " + layoutConflictMessage(child.constructor.name, slot, arranger, null));
   }
 
   protected claim(child: View, slot: string, k: Constraint): void {
@@ -317,6 +316,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
     const kids = this.laid();
     if (kids.length === 0) return () => {};
     const label = this.label();
+    const arranger = `${this.view?.constructor.name ?? "?"}'s ${this.constructor.name}`;
     const probe = this.place();
     if (probe.length !== kids.length) {
       throw new DeclareError(
@@ -340,7 +340,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
         // (auto-size) is NOT a conflict — the layout displaces it, as ever.
         const prior = ownerOf(child, slot);
         if (prior !== null && !prior.yielding) {
-          this.reportConflict(child, slot, prior.label, label);
+          this.reportConflict(child, slot, arranger);
           continue;
         }
         if (key === "w" || key === "h") sizeClaims.push({ child, slot, key, i });
@@ -376,6 +376,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
             }
           }
         );
+        pass.arrangedBy = arranger;
         for (const c of passClaims) {
           this.claim(c.child, c.slot, pass);
           installed.push({ child: c.child, slot: c.slot, k: pass });
@@ -392,6 +393,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
           }
         );
         markPercent(k);
+        k.arrangedBy = arranger;
         this.claim(c.child, c.slot, k);
         installed.push({ child: c.child, slot: c.slot, k });
         k.run();

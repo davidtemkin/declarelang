@@ -61,6 +61,11 @@ export declare class Constraint {
      *  from source — so the UI can say "temporary" honestly instead of implying it
      *  has the same standing as a compiled constraint. */
     live: boolean;
+    /** When this constraint is a LAYOUT's claim on a child's geometry slot, the
+     *  layout's own phrase for itself (`app.col's SimpleLayout`) — set by
+     *  layout.ts. Message-only: the one-owner guard and the setter read it so a
+     *  conflict names the LAYOUT and the resolution, not a bare constraint. */
+    arrangedBy: string | null;
     constructor(
     /** For error messages: "View.width", "Text.draw", … */
     label: string, compute: () => unknown, apply: (value: unknown) => void, phase?: Phase, 

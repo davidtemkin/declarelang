@@ -2517,7 +2517,7 @@ await test("axis is structural: changing it re-installs, releasing the old axis"
   assert.deepEqual(app.children.map((c) => c.x), [0, 10], "now stacked on x");
   app.children[1].y = 77; // y is no longer owned…
   assert.equal(app.children[1].y, 77);
-  assert.throws(() => { app.children[1].x = 0; }, /View\.x is bound by a constraint \(App's SimpleLayout\[x\]\)/);
+  assert.throws(() => { app.children[1].x = 0; }, /View\.x — App's SimpleLayout positions its children, so this child cannot also own its x/);
 });
 
 await test("the layout owns laid positions: a direct write errors naming it; a literal is overridden", async () => {
@@ -2531,7 +2531,7 @@ await test("the layout owns laid positions: a direct write errors naming it; a l
     () => { app.children[1].y = 99; },
     (e) => {
       assert.ok(e instanceof DeclareError);
-      assert.match(e.message, /View\.y is bound by a constraint \(App's SimpleLayout\[y\]\)/);
+      assert.match(e.message, /View\.y — App's SimpleLayout positions its children, so this child cannot also own its y; .*ignoreLayout/);
       return true;
     }
   );
@@ -2545,7 +2545,7 @@ await test("a laid axis with its own author binding is a hard conflict — two o
       async () => await buildL(`App [ width=100, height=200,
         layout: SimpleLayout [ axis = y ],
         View [ width=10, height=10, ${bound} ] ]`),
-      /View\.y is already bound \(by App's SimpleLayout\[y\]\)/,
+      /View\.y — App's SimpleLayout positions its children, so this child cannot also own its y/,
       bound
     );
   }
@@ -2593,7 +2593,7 @@ await test("a size-claiming layout displaces the yielding auto-derive (issue #16
   } finally {
     console.error = orig;
   }
-  const conflicts = errs.filter((e) => /width is already bound/.test(e));
+  const conflicts = errs.filter((e) => /cannot also own its width/.test(e));
   assert.equal(conflicts.length, 1, "reported exactly once across two waves, not a storm: " + conflicts.length);
 });
 

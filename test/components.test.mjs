@@ -506,7 +506,7 @@ App [ width = 300, height = 120, sized: boolean = false,
   } finally {
     console.error = orig;
   }
-  const conflicts = errs.filter((e) => /width is already bound/.test(e));
+  const conflicts = errs.filter((e) => /cannot also own its width/.test(e));
   assert.equal(conflicts.length, 1, "reported once across four rearms, not per wave: " + conflicts.length);
   assert.equal(app.col.children[1].width, 260, "the author's width (300-40) held throughout");
 });

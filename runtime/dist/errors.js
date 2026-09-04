@@ -45,4 +45,20 @@ export class DeclareErrors extends DeclareError {
         this.errors = errors;
     }
 }
+/** The ONE wording for a layout↔author slot conflict, wherever it surfaces —
+ *  the layout's own claim (layout.ts install), the general one-owner guard
+ *  (an author binding installing over a layout claim), and a direct write to a
+ *  layout-owned slot (attributes.ts). Named here so both modules share it
+ *  without a cycle (layout imports attributes). It names the LAYOUT as the
+ *  arranger, the child + slot, and the resolution — let the layout do it, or
+ *  take the child out of the arrangement. `by` names who else set the slot
+ *  when that helps (a direct write); null when the child obviously authored
+ *  it. */
+export function layoutConflictMessage(childClass, slot, arranger, by) {
+    const size = slot === "width" || slot === "height";
+    const owned = size ? "sizes" : "positions";
+    const escape = `let the layout ${size ? "size" : "place"} it (drop the child's own ${slot}), or set 'ignoreLayout = true' on the child to take it out of the arrangement`;
+    const who = by !== null ? ` (set by ${by})` : "";
+    return `${childClass}.${slot}${who} — ${arranger} ${owned} its children, so this child cannot also own its ${slot}; ${escape}.`;
+}
 //# sourceMappingURL=errors.js.map
