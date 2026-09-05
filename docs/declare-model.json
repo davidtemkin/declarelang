@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "e970ef6223bb",
+  "buildId": "73d9b81f9d69",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -8195,10 +8195,15 @@
    ],
    "docs/guide/01-thinking-in-declare.md": [
     "essay:why-declare",
+    "guide:arrangement",
+    "guide:controls",
     "guide:location",
+    "guide:make-your-own",
     "guide:motion-and-states",
     "guide:renderers",
     "guide:run-check-ship",
+    "guide:space",
+    "guide:tree",
     "guide:two-brackets",
     "guide:with-an-llm",
     "spec:core"
@@ -43836,12 +43841,15 @@
    "short": "Start here",
    "part": "The idea",
    "teaches": {
-    "Animator": 1,
-    "App": 2,
-    "Spring": 2,
+    "Animator": 2,
+    "App": 3,
+    "Control": 2,
+    "Node": 1,
+    "Spring": 5,
+    "State": 2,
     "Text": 4,
-    "Time": 3,
-    "View": 2
+    "Time": 4,
+    "View": 5
    }
   },
   {

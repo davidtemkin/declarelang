@@ -231,6 +231,82 @@ that resource doesn't exist yet. What compensates is that the whole surface is
 small enough to actually know, and the compiler answers most questions the corpus
 would have.
 
+## Writing it, not writing around it
+
+One shift, paid back everywhere — that was the promise. Here is where the payment
+comes due, because the habits from other tools do not announce themselves; they arrive
+as reasonable-looking code that works, and quietly costs the thing the language was for.
+Each pattern below is a place the pull is strong, the Declare form, and the reason.
+
+**Structure the program as what it is.** A component grown too long to read is a class
+waiting to be named — even one used once, because a class named for its role
+(`Rubric`, `WeekCol`, `Numeral`) makes the tree read as the design instead of as a wall
+of nested brackets. State and behavior that isn't a view — a model, a service, a
+coordinator — is a `Node` subclass, not a pile of attributes on `App`; a program whose
+every value hangs off the root has a data model, it just hasn't been allowed to say so.
+And a large program is several files joined by `include`. None of this is decoration:
+the compiler and the reader both see the tree, and structure is how you make what they
+see match what you meant. [The tree is the app](declare-docs:guide:tree) is the how.
+
+**Reach for the library, and subclass `Control` for the rest.** The standard components
+are there to be used and styled through their own attributes; the instinct that "type
+carries the design, so I'll build my own" is where accessibility quietly leaves. A
+custom control subclasses `Control`, not `View` — and gets focus, keyboard activation,
+roles, and the pressed/hovered facts by inheritance. On a bare `View` you write those
+yourself or, more often, ship without them: a row of tappable words that photographs
+beautifully and that the keyboard cannot reach. Even then, the basics are yours to
+declare — a control with no hover and no pressed state reads as dead. [Controls and the
+value pattern](declare-docs:guide:controls) and [Make your own](declare-docs:guide:make-your-own).
+
+**Layouts are classes, and one owns what it places.** Any stack or flow is a layout, not
+a ladder of hand-set `y` constants that each need a phone branch; and when the
+arrangement is genuinely yours — masonry, a radial dial, a camera — you write a layout
+class that re-arranges as its children and its space change. The one rule to hold: a
+layout owns the slots it sets, so a child cannot also set its own `width` there. Let the
+layout place it, or take the child out with `ignoreLayout`. [Space](declare-docs:guide:space)
+and [Make your own](declare-docs:guide:make-your-own).
+
+**Continuity is the differentiator, and it is a value that moves.** You saw it above —
+the card that *becomes* the open card. Everything you know about high-polish native UX,
+where one view shifts or expands in place into the next so the user always sees where
+they came from, is buildable here, and it is not an effects layer: it is a `Spring` or
+an `Animator` driving one scalar that the arrangement's constraints already read (the
+calendar's continuous zoom is exactly this — the same surface at every magnification, a
+tick widening into a labeled block as one `openness` value rises). The tell that you
+have left it on the table is a click that cuts to a wholly new screen with nothing
+moving between the two. Some apps genuinely want that; reach for it deliberately, not by
+default. [Motion & states](declare-docs:guide:motion-and-states) and
+[Arrangement](declare-docs:guide:arrangement).
+
+**Draw when the tree can't style it.** `draw()` gives a view a canvas for graphs,
+diagrams, iconography, and treatments no border or fill expresses — integrated with the
+hierarchy, not a separate world. Use it freely; the runtime caches what it renders. But
+caching is not absolution: measure the frame rate when a drawn surface is large in
+pixels, complex, or repainting every frame, because that is where a smooth app slows
+down. [Make your own](declare-docs:guide:make-your-own) draws the first marks.
+
+And the reflexes that mean the shift hasn't landed yet — each one is a habit from a
+stack where it was necessary and here is not:
+
+- **A long `script` block.** Script holds pure functions and foreign glue; many
+  programs have none. State lives in attributes, not in a script's variables.
+- **Script that positions a view, or computes an animation's timing or trajectory.**
+  Those are a constraint and a `Spring` — writing them by hand is rebuilding the runtime
+  inside a handler.
+- **Code that runs every frame** to move or redraw something — unless you are writing a
+  physics engine or a game, the value is a function of time (derive it from a `Time`
+  fact) or a motion toward a target (a `Spring`).
+- **Imperatively adding or removing views.** View lifecycle is driven from data: point a
+  node at a collection and instances appear and leave as the data does. Reach for
+  hand-built creation only when you have found no data to drive it from, which is rare.
+- **An intermediate slot whose only job is to force a re-derivation**, or the same move
+  worked against `location`. If you are nudging a counter to make something recompute,
+  the dependency you want is there to be read directly — the workaround is the bug.
+
+None of these is a rule to memorize; each is the same fact from [Nothing
+waits](#nothing-waits) and [the binding](#sixty-seconds-of-proof) seen from a different
+doorway. When a piece of code feels like work the runtime should be doing, it usually is.
+
 ## The road from here
 
 The page you are reading is a Declare app. So is the [homepage](declare-docs:essay:why-declare),

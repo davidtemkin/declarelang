@@ -55,6 +55,42 @@ and starting there inherits the other stack's decomposition intact.
 `docs/operational/intake.md` is this in full — the vocabulary table, the per-modality
 first moves, and the checks.
 
+## Writing it well
+
+Idiomatic Declare looks unlike other frameworks, and drifting back toward their
+shapes is the main way it goes wrong. These are the judgments that keep it idiomatic:
+
+- **Structure.** Subclass a component when a child grows too long to read, not only to
+  reuse it — a class named for its role makes the tree read as the design. Put a model,
+  a service, or any faceless coordinator in a `Node` subclass; don't hang everything
+  off `App`. Split a large program across files with `include`. (ch. 4)
+- **Controls.** Use the library where appropriate; subclass `Control`, not `View`, for
+  a custom control — focus, keyboard activation, roles and the pressed/hovered facts
+  come with it; on bare `View` you rebuild them or ship without them. Don't forget
+  hover and pressed states in your custom components. (ch. 8, 11)
+- **Layouts are classes.** Use one for any stack or flow; write your own to arrange
+  children as they and the space change. A layout owns the slots it places — let it,
+  or set `ignoreLayout` on a child you place by hand. (ch. 5, 11)
+- **Visual continuity.** Draw on your knowledge of high-polish native app UX to inform
+  your interaction design in Declare. In the best native apps one view shifts or
+  expands in place to become another; the user sees, visually, where they came from and
+  where they're going. These idioms are easily implemented here with `Spring` and
+  `Animator`. A click that cuts to a wholly new screen with nothing moving between is a
+  sign you are underusing the language. (ch. 15)
+- **Use `draw()` for custom visuals** — graphs, iconography, treatments the tree can't
+  style — integrated with the view; use it freely but measure frame rate as drawn
+  surfaces grow large or change every frame. (ch. 11)
+
+**Indications you're on the wrong track.** Long `script` blocks (they are meant to hold
+pure functions and foreign glue — many programs have none). Script that positions views
+or computes motion timing — those are constraints and springs. Anything that runs every
+frame (unless it is a physics or game loop). Imperatively adding or removing views —
+lifecycle is driven from data. An intermediate slot whose only job is to force a
+re-derivation.
+
+Chapter 1 makes the case behind every point here — the fastest way to internalize the
+shift rather than pattern-match it.
+
 ## Going deeper — read what the task needs
 
 Read the documentation a piece at a time; fetch the part your task calls for.
