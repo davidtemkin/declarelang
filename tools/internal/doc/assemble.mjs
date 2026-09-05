@@ -50,7 +50,7 @@ const CHECK = process.argv.includes("--check");
 /** One attribute type as a published tag. Shared by both schema tiers so the
  *  kernel and the library can never encode the same type two ways. */
 const attrTypeTag = (t) =>
-  t.kind === "enum" ? `enum(${t.tokens.join("|")})`
+  t.kind === "enum" ? (t.name.startsWith('"') ? `union(${t.name})` : `enum(${t.tokens.join("|")})`)
   : t.kind === "component" ? `component(${t.of})`
   : t.kind === "record" ? `record(${t.name})`
   : t.kind;
@@ -266,7 +266,10 @@ function enumVocabularies() {
   const all = { ...SCHEMAS, RichText: RichTextSchema };
   for (const s of Object.values(all)) {
     for (const [attr, t] of Object.entries(s.attrs)) {
-      if (t.kind === "enum" && !(t.name in vocab)) vocab[t.name] = [...t.tokens];
+      // an authored-style literal union (method, format) names itself by its
+      // member list — the reference entry's type already shows it; it is not
+      // a vocabulary with a name to look up
+      if (t.kind === "enum" && !t.name.startsWith('"') && !(t.name in vocab)) vocab[t.name] = [...t.tokens];
     }
   }
   vocab.Motion = [...MOTION_TOKENS];

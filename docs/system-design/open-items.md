@@ -858,3 +858,144 @@ at the builder, which is a bigger change than it is worth today.
 **The trap, recorded in the code:** the esbuild plugin must be registered LAST. Ahead of
 the `slim-*` stubs it fed esbuild the full `check.js` a stub was about to replace and the
 bundle GREW 14 KB. Result: 86.1 → 84.6 KB on the calendar.
+
+## discover.fm field report — **dispositioned 2026-09-04**
+
+The first non-trivial app anyone built in Declare against a real external API
+(discover.fm's AppSync GraphQL; 837 lines against ~48k for the matched React slice).
+Three reports on DT's desk: REPORT.md, LOG.md, DESIGN-DIFF.md. Every finding was
+reproduced here before it was believed.
+
+**Fixed.**
+1. **Call-site type arguments were never stripped.** `gqlRequest<{ items: Track[] }>("q")`
+   passed all four static rungs and then died in the browser — `<` parsed as less-than,
+   the type's names evaluated as variables. strip-types handled `as T`, `<T>x` and `x!`
+   but not `f<T>(…)` / `new C<T>(…)`. The report's most expensive finding by a wide
+   margin.
+2. **DataSource grew `headers`.** Without them the declarative primitive could not reach
+   any API-keyed or token-authenticated endpoint at all, so the whole port fell back to
+   hand-written `fetch()` in a script block and re-declared the lifecycle by hand, once
+   per screen. Reactive record, merged over the source's own Content-Type; an EMPTY value
+   is not sent, which makes `Authorization: t ? "Bearer " + t : ""` the entire
+   conditional-header story.
+3. **DECLARE4008** — a `shows` name no initial `location` can equal. Their app rendered
+   `display:none` forever, silently. Narrowed to the true invariant ("nothing at all is
+   visible on a cold load"), so birds — whose ungated shelf IS the empty address — stays
+   quiet. I had it warning on birds first.
+4. **Literal unions in every type position.** The report found `status: "idle" | "loading"`
+   legal as a schema FIELD and refused as an ordinary declaration — the same closed set
+   sayable about data and unsayable about the state derived from it. Now sayable in
+   declarations, parameters and returns, with members enforced at both ends. (Reviewer #2
+   flagged this before the port did; two independent hits is the signal.)
+5. **The two type resolvers are now ONE.** checkDecl and the typechecker's assignTypes
+   carried parallel resolution chains; a type taught to one and not the other fell to
+   assignTypes' `t === null` arm, was emitted `readonly … : any`, and made every
+   assignment report *"read-only — a fact the component maintains"* — a diagnostic
+   blaming the wrong thing entirely. `resolveWrittenType` is the single home now.
+6. **verify's verdict names its own limits.** Rungs 1–4 run in a synthetic backend;
+   verify.md said so and the verdict line did not, and the verdict is what an author
+   reads. A clean R4 now prints what R4 cannot see.
+
+**Declined.** *Image optimization* — DT: "hardly the job of a front end language." Next
+owns it because Next owns the server; a CDN/asset pipeline is the right layer.
+
+**Was filed open, then refuted — "no code-splitting".** Their report says a heavy
+dependency (Clerk) must tax every screen because `?build` emits one artifact, and I
+accepted it. DT pushed back: a `DOMIsland` can load content on demand, and the bridge is
+bidirectional. He was right, and the evidence is unambiguous — an island's interior is
+foreign by construction, so the dependency was never Declare's to ship. **The boundary
+already exists; it is the one place the language deliberately stops.** Three patterns
+work today, verified end to end:
+
+  · a small static loader in the slot + an `external` FACT the loader `observe`s — the
+    app states *this screen is showing* and never names the SDK (measured: the cue flips
+    on navigation with no imperative call). This is the idiom.
+  · the same loader driven by `post()`, when the cue is an event rather than a state.
+  · a dynamic `import()` in a `script { }` — compiles, survives buildProduction as
+    script text, and genuinely executes on demand (verified: a module fetched at call
+    time landed its export in Declare state).
+
+**The real finding was a documentation failure**, and its cause is structural: ch.18
+introduces `DOMIsland` at line 92 and the bridge that makes the loader pattern possible
+at 153, and never connects them. A careful reader can read both and conclude it is
+impossible — this one did. Closed by a new ch.18 section, *A tenant that loads itself*,
+placed at the END of the bridge section where the reader has just met `observe`/`post`.
+
+**Self-review (2026-09-04, on DT's suggestion after a model change) — what the tests
+had not caught.** Reading the diff rather than trusting the green run found four things:
+
+  · **DECLARE4008 would not have fired on the report's own bug.** The "is any root child
+    ungated?" test counted a `Dataset` or `Time` at root as the visible screen — and every
+    real app keeps data at root. Now only a VIEW-descended child counts (class chains
+    resolved through `program.classes` to a built-in, then `descendsFrom(…, "View")`).
+    Pinned. The lesson generalizes: a diagnostic's pin must include the shape of the
+    program it was written for, not a minimal one.
+  · **The authored-union predicate was scattered.** `name.startsWith('"')` in four files
+    and a bare `split("|")` in two, right after I had made a point of "one home" for the
+    resolver. A member containing `|` broke both. Now `isAuthoredUnion` +
+    `parseLiteralUnion` (quote-aware) in value.ts, used everywhere. Pinned.
+  · **"Literal unions in every type position" was an overclaim.** NUMBER unions (`col: 0 |
+    1 | 2`) are schema-field-only; a declaration fell to "expected a type name, got '0'".
+    Now refused by name, and the guide says *string* literal union. Extending it means
+    widening the enum AttrType's `tokens` to `(string | number)[]` — 32 consumer sites
+    across 9 files — filed below rather than done inside a review.
+  · A dynamic-import-of-bare-specifier warning was considered and NOT built (DT:
+    superfluous once the better path is documented; and it would fire on legitimate lazy
+    initialization).
+
+**Filed — number-literal unions on declarations and signatures.** Cost above. The
+asymmetry the report hit, at a smaller scale; two independent hits would make it worth it.
+
+**The rule that settles spelling without foreclosing anything — "spell a member the way
+its declaration spells it."** `Axis` declares `y`, so `axis = y`; a literal union declares
+`"idle"`, so `phase = "idle"`; and a program-level `enum Phase [ idle, loading ]`, if one is
+ever built, would declare `idle` and take tokens like a built-in. I had first stated the
+rule as "the language's vocabulary is tokens, the program's values are quoted" — which
+smuggled in a language/program distinction that is not load-bearing and would have
+foreclosed a program-level enum for no reason in the code. DT pushed back; retracted. The
+coercer's enum arm, the scaffold's alias projection and 4005 all key on the AttrType, not
+on where it was declared, so a program-declared vocabulary would ride the existing
+machinery unchanged.
+
+**Open — a program-level `enum`.** What it would add over a literal union: a NAME for a
+closed set (today a union is repeated at every declaration; `schema` names records, not
+unions), token spelling (`phase = loading` reading like `axis = y`), and the one thing
+TypeScript never needed — a way for a PROGRAM to extend the `[ ]` layer's token
+vocabulary, which today only the language can define. If built, the idiom split writes
+itself: identifier-shaped program vocabulary (states, modes, phases) is an enum; values
+that are someone else's strings (wire verbs, tags from data, anything with a hyphen or a
+space) are a literal union. Not started; nothing in the current arc waits on it.
+
+**Follow-on — the built-in closed sets declared as strings.** `method` and `format` are
+closed sets declared `kind: "string"` with a TS union on the class, so `method = "PATCHE"`
+passes every rung and fails at the fetch, while `credentials`/`tick`/`stretches` are
+token vocabularies checked at compile. With authored-union AttrTypes now real, the string
+ones can be declared as literal unions in the schema — compile-time membership, no
+spelling change. Small; not done inside the review.
+
+**RULED 2026-09-05 — B, the quoted member, everywhere; the bare token refused.** DT took the
+recommendation. Built: the coercer's enum arm branches on `isAuthoredUnion` (a bare member
+is refused with the quoted spelling named); 4005 gained a `quoted` branch so a bare token in
+a `{ }` never recommends the slot form the ruling forbids; `method`/`format` became
+`literalUnion(…)` in the schema — membership checked in slots AND bodies, spelled as they
+always were (the corpus's eight `format = "text"` untouched). Pinned in dataschema (×2) and
+diagnostics-hints. Fixture trap met on the way: `axis = { … x : y }` never yields 4005
+because x/y are every View's attribute names and resolve as members — the token layer's
+"the slot decides" property; the control uses fontWeight's semibold/regular instead.
+
+(the ruling as it was posed:) **the spelling of an authored union's members at a use site.** Today both
+`phase = idle` (bare token, the built-in vocabularies' spelling: "the language spells
+closed sets as tokens, not strings") and `phase = "idle"` (the type was written with
+quotes) are accepted. Two spellings for one thing is the kind of leak the language does
+not otherwise allow; DT to rule which one is the language's, and the coercer refuses the
+other.
+
+One trap is measured and now documented there rather than warned about (DT: a warning is
+"superfluous if the better path is described", and it would fire on legitimate code —
+dynamic import is also used for lazy *initialization*): in a script, a **URL** specifier
+stays external and truly defers, while a **bare** specifier is resolved from
+`node_modules` and bundled whole (9.7 MB in a probe). Deferred in appearance only.
+
+**Not a platform matter.** DESIGN-DIFF.md is the agent's own scope confession — it never
+ported discover.fm's design system and left the app on the stock theme. Worth reading as
+evidence of how an agent defaults, not as a Declare defect.

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "d52d49570298",
+  "buildId": "e970ef6223bb",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -413,11 +413,12 @@
     "base": "Dataset",
     "attrs": {
      "url": "string",
-     "format": "string",
-     "method": "string",
+     "format": "union(\"json\" | \"text\")",
+     "method": "union(\"GET\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\")",
      "body": "object",
      "auto": "boolean",
      "credentials": "enum(omit|sameOrigin|include)",
+     "headers": "object",
      "status": "enum(idle|loading|loaded|failed)",
      "idle": "boolean",
      "loading": "boolean",
@@ -2373,6 +2374,7 @@
     "DECLARE4005",
     "DECLARE4006",
     "DECLARE4007",
+    "DECLARE4008",
     "DECLARE5000",
     "DECLARE5001",
     "DECLARE5002",
@@ -2442,455 +2444,455 @@
    },
    "ED55B97": {
     "message": "'…' receives nothing — the '…' event carries no payload, so write '…()'",
-    "at": "check.ts:193"
+    "at": "check.ts:195"
    },
    "EB43978": {
     "message": "'…' receives a … — write '…(…: …)', not '…'",
-    "at": "check.ts:198"
+    "at": "check.ts:200"
    },
-   "ED3215C": {
-    "message": "unknown type '…' for parameter '…' — a signature type is one of …, a component class in this program, or a function type '(a: T) -> R'",
-    "at": "check.ts:221"
+   "E817167": {
+    "message": "unknown type '…' for parameter '…' — a signature type is one of …, a component class in this program, a literal union ('\"a\" | \"b\"'), or a function type '(a: T) -> R'",
+    "at": "check.ts:223"
    },
-   "E5E7133": {
-    "message": "unknown return type '…' for '…' — a signature type is one of …, a component class in this program, or a function type '(a: T) -> R'",
-    "at": "check.ts:229"
+   "E252C08": {
+    "message": "unknown return type '…' for '…' — a signature type is one of …, a component class in this program, a literal union ('\"a\" | \"b\"'), or a function type '(a: T) -> R'",
+    "at": "check.ts:231"
    },
    "E67B855": {
     "message": "there is already a component, stylesheet, style, or font named '…'",
-    "at": "check.ts:249"
+    "at": "check.ts:251"
    },
    "E75430A": {
     "message": "style …: a bundle declares no attributes — it is a look, not a component",
-    "at": "check.ts:280"
+    "at": "check.ts:282"
    },
    "EC0359A": {
     "message": "style …: a bundle has no methods",
-    "at": "check.ts:281"
+    "at": "check.ts:283"
    },
    "E30997A": {
     "message": "style …: a bundle has no children — attribute sets only",
-    "at": "check.ts:282"
+    "at": "check.ts:284"
    },
    "EBC55DF": {
     "message": "style …: a bundle takes [ ] members, not a { } body",
-    "at": "check.ts:283"
+    "at": "check.ts:285"
    },
    "EB3083D": {
     "message": "font …: a font has no declarations",
-    "at": "check.ts:294"
+    "at": "check.ts:296"
    },
    "EE2ED0E": {
     "message": "font …: a font has no methods",
-    "at": "check.ts:295"
+    "at": "check.ts:297"
    },
    "EDB90C6": {
     "message": "font …: a font takes a [ ] body, not { }",
-    "at": "check.ts:296"
+    "at": "check.ts:298"
    },
    "EB0661B": {
     "message": "font …: family is a quoted string",
-    "at": "check.ts:299"
+    "at": "check.ts:301"
    },
    "EE1EE29": {
     "message": "font …: a font body carries 'family = \"…\"' and Face children only — not '…'",
-    "at": "check.ts:302"
+    "at": "check.ts:304"
    },
    "E74E3EF": {
     "message": "font …: '…' is not a Face",
-    "at": "check.ts:306"
+    "at": "check.ts:308"
    },
    "E34B0BA": {
     "message": "font …: declare a family ('family = \"…\"') or at least one Face",
-    "at": "check.ts:311"
+    "at": "check.ts:313"
    },
    "E3A6557": {
     "message": "font …: a Face weight is a token (…)",
-    "at": "check.ts:325"
+    "at": "check.ts:327"
    },
    "E4D6D91": {
     "message": "font …: a Face's italic is true or false",
-    "at": "check.ts:330"
+    "at": "check.ts:332"
    },
    "E18F0C6": {
     "message": "font …: a Face has src, weight, italic — not '…'",
-    "at": "check.ts:333"
+    "at": "check.ts:335"
    },
    "E5D70AE": {
     "message": "font …: a Face has no children",
-    "at": "check.ts:335"
+    "at": "check.ts:337"
    },
    "ECD801E": {
     "message": "font …: a Face needs a src",
-    "at": "check.ts:336"
+    "at": "check.ts:338"
    },
    "E916627": {
     "message": "font …: a face source is a URL string, url(\"…\"), local(\"…\"), or a list — not '…(…)'",
-    "at": "check.ts:345"
+    "at": "check.ts:347"
    },
    "E31DBB1": {
     "message": "font …: …(…) takes one quoted string",
-    "at": "check.ts:347"
+    "at": "check.ts:349"
    },
    "E871D30": {
     "message": "font …: a face source list is empty",
-    "at": "check.ts:351"
+    "at": "check.ts:353"
    },
    "E0B4FBE": {
     "message": "font …: a face source is a URL string, url(\"…\"), local(\"…\"), or a list of them",
-    "at": "check.ts:354"
+    "at": "check.ts:356"
    },
    "ED180FE": {
     "message": "style … sets '…', which … (styled at line …, col …) does not declare",
-    "at": "check.ts:366"
+    "at": "check.ts:368"
    },
    "E1F7C97": {
     "message": "style ….…: …",
-    "at": "check.ts:373"
+    "at": "check.ts:375"
    },
    "EC439D1": {
     "message": "…: a stylesheet carries a theme record and class-keyed entries — write 'theme: Theme [ … ]' or 'ClassName: [ … ]'",
-    "at": "check.ts:394"
+    "at": "check.ts:396"
    },
    "E379B91": {
     "message": "…: a stylesheet declares no attributes",
-    "at": "check.ts:398"
+    "at": "check.ts:400"
    },
    "EAF1028": {
     "message": "…: a stylesheet has no methods",
-    "at": "check.ts:399"
+    "at": "check.ts:401"
    },
    "EECEF62": {
     "message": "…: a stylesheet takes [ ] members, not a { } body",
-    "at": "check.ts:400"
+    "at": "check.ts:402"
    },
    "E42D379": {
     "message": "…: a stylesheet's members are 'theme: Theme [ … ]' and class-keyed entries ('…: [ … ]')",
-    "at": "check.ts:409"
+    "at": "check.ts:411"
    },
    "E3BB024": {
     "message": "…: unknown component '…' — an entry is keyed by a class name",
-    "at": "check.ts:416"
+    "at": "check.ts:418"
    },
    "E36F488": {
     "message": "…: '…' is not a View — only views are styled",
-    "at": "check.ts:420"
+    "at": "check.ts:422"
    },
    "E98022F": {
     "message": "…: '…' has two entries (first at line …, col …) — one entry per class",
-    "at": "check.ts:426"
+    "at": "check.ts:428"
    },
    "EA4E422": {
     "message": "….…: an entry declares nothing — attribute sets only",
-    "at": "check.ts:442"
+    "at": "check.ts:444"
    },
    "EC56AE1": {
     "message": "….…: an entry has no methods",
-    "at": "check.ts:443"
+    "at": "check.ts:445"
    },
    "E12187F": {
     "message": "….…: an entry has no children — attribute sets only",
-    "at": "check.ts:444"
+    "at": "check.ts:446"
    },
    "EE8271F": {
     "message": "….….… is set twice (first set at line …, col …)",
-    "at": "check.ts:449"
+    "at": "check.ts:451"
    },
    "E9A8E05": {
     "message": "…: … has no attribute '…'…",
-    "at": "check.ts:455"
+    "at": "check.ts:457"
    },
    "EFF2EC6": {
     "message": "….….…: …",
-    "at": "check.ts:460"
+    "at": "check.ts:462"
    },
    "E4191C9": {
     "message": "….….…: a percent resolves against a parent — an entry carries values (use a { } reading parent.* if you mean it)",
-    "at": "check.ts:464"
+    "at": "check.ts:466"
    },
    "E87E2E5": {
     "message": "….….…: a :path reads a view's cursor — not stylesheet surface (v1)",
-    "at": "check.ts:468"
+    "at": "check.ts:470"
    },
    "EEA1E23": {
     "message": "….theme: a token record declares nothing",
-    "at": "check.ts:482"
+    "at": "check.ts:484"
    },
    "ECD4B2F": {
     "message": "….theme: a token record has no methods",
-    "at": "check.ts:483"
+    "at": "check.ts:485"
    },
    "E0B529D": {
     "message": "….theme: a token record has no children",
-    "at": "check.ts:484"
+    "at": "check.ts:486"
    },
    "EA69934": {
     "message": "….theme.… is set twice (first set at line …, col …)",
-    "at": "check.ts:489"
+    "at": "check.ts:491"
    },
    "E306E7F": {
     "message": "….theme.…: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow/frost) — got …",
-    "at": "check.ts:496"
+    "at": "check.ts:498"
    },
    "E2E669C": {
     "message": "… cannot replicate — ':…).path}[]' makes many instances; put it on a child element (or a use site)",
-    "at": "check.ts:513"
+    "at": "check.ts:515"
    },
    "ED00647": {
     "message": "'…: [ … ]' is a class-keyed entry — it belongs in a stylesheet",
-    "at": "check.ts:538"
+    "at": "check.ts:540"
    },
    "E931601": {
     "message": "'…' is a schema — a data shape, not a component; it cannot be instantiated. Bind its data to a view (datapath = …), or declare a class for behavior",
-    "at": "check.ts:554"
+    "at": "check.ts:556"
    },
    "E65D89D": {
     "message": "'…' is a layout — a layout is an attribute, not a child: write 'layout: … [ … ]' on the view it arranges",
-    "at": "check.ts:565"
+    "at": "check.ts:567"
    },
    "EAD2D1A": {
     "message": "'Stream' is the abstract base — it names no transport. Declare an EventStream (SSE) or a Socket (WebSocket)",
-    "at": "check.ts:583"
+    "at": "check.ts:585"
    },
    "EAB9ADB": {
     "message": "only a Dataset carries a { } body — a …'s members go in [ ]",
-    "at": "check.ts:603"
+    "at": "check.ts:605"
    },
    "ED3A4A3": {
     "message": "'…' is replication metadata — it belongs on a node whose datapath matches many ('datapath = :rows[]'), beside that path. This node replicates nothing, so there is no collection for it to describe",
-    "at": "check.ts:631"
+    "at": "check.ts:633"
    },
    "EC7E0E1": {
     "message": "key = :field names each record's identity field (e.g. 'key = :id') — a single :path, not …",
-    "at": "check.ts:639"
+    "at": "check.ts:641"
    },
    "EF1813E": {
     "message": "virtualize = true | false | { … } — virtualize this collection (default false: every record is constructed). It is a boolean because there is no threshold to tune: a windowed block is a flat ~0.06 ms/frame at any size, while constructing every record costs N × per-instance construction",
-    "at": "check.ts:657"
+    "at": "check.ts:659"
    },
    "ED4B30D": {
     "message": "a style list holds style names, not values",
-    "at": "check.ts:669"
+    "at": "check.ts:671"
    },
    "E2C9117": {
     "message": "….styles = { … }: the bundle list is static (ruled v1) — conditional looks are constraints on the slots themselves",
-    "at": "check.ts:693"
+    "at": "check.ts:695"
    },
    "E5E5905": {
     "message": "a fontFamily list holds font names and strings",
-    "at": "check.ts:719"
+    "at": "check.ts:721"
    },
    "E38B2D1": {
     "message": "….…: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding",
-    "at": "check.ts:747"
+    "at": "check.ts:749"
    },
    "E74417A": {
     "message": "a replicated child cannot be named — ':…).path}[]' makes one instance per record, and '…' can only name one; reach the instances through their data",
-    "at": "check.ts:764"
+    "at": "check.ts:766"
    },
    "E9E6D37": {
     "message": "'…' is a scope noun (language §11) — a child cannot take its name",
-    "at": "check.ts:782"
+    "at": "check.ts:784"
    },
    "EC3D7F3": {
     "message": "'…' is … — a child cannot take its name; choose another",
-    "at": "check.ts:785"
+    "at": "check.ts:787"
    },
    "E7A8C6E": {
     "message": "….… is an attribute — a child may not take an attribute's name",
-    "at": "check.ts:790"
+    "at": "check.ts:792"
    },
    "E03FD9D": {
     "message": "a … needs a name — write 'events: … …' so bindings can reach it",
-    "at": "check.ts:818"
+    "at": "check.ts:820"
    },
    "ED27D55": {
     "message": "a Dataset needs data — a literal JSON body ('…: Dataset { … }') or a derived 'contents = { … }'",
-    "at": "check.ts:828"
+    "at": "check.ts:830"
    },
    "E42504C": {
     "message": "…: a Dataset is EITHER a literal '{ … }' body OR a derived 'contents = { … }', not both",
-    "at": "check.ts:833"
+    "at": "check.ts:835"
    },
    "EC26083": {
     "message": "…: the Dataset body is not valid JSON — …",
-    "at": "check.ts:841"
+    "at": "check.ts:843"
    },
    "ED5037B": {
     "message": "a …'s data arrives from its url — only a Dataset embeds a { } body",
-    "at": "check.ts:848"
+    "at": "check.ts:850"
    },
    "EBD9B17": {
     "message": "….…: a data node declares no new attributes",
-    "at": "check.ts:853"
+    "at": "check.ts:855"
    },
    "EB73601": {
     "message": "….…: a data node has no method members — its lifecycle (fetch, clear, set, …) is built in",
-    "at": "check.ts:860"
+    "at": "check.ts:862"
    },
    "EFCA132": {
     "message": "a data node has no children — its structure is its data",
-    "at": "check.ts:865"
+    "at": "check.ts:867"
    },
    "EA0CEA7": {
     "message": "….contents is a derived value — write 'contents = { … }' (a constraint over your reactive state)",
-    "at": "check.ts:872"
+    "at": "check.ts:874"
    },
    "E9D7E82": {
     "message": "….… = :…: a data node is where data lives — a :path reads a view's cursor",
-    "at": "check.ts:879"
+    "at": "check.ts:881"
    },
    "EBA3EC4": {
     "message": "a … declares no attributes of its own — it carries its handlers…",
-    "at": "check.ts:914"
+    "at": "check.ts:916"
    },
    "ECA6A24": {
     "message": "a … takes no children — it delivers events to its handlers, it is not a container",
-    "at": "check.ts:917"
+    "at": "check.ts:919"
    },
    "E256B1D": {
     "message": "….…: a bare list holds plain values — numbers, strings, booleans, null. For anything computed, write the whole list as a { } binding",
-    "at": "check.ts:929"
+    "at": "check.ts:931"
    },
    "E35CF90": {
     "message": "….listenTo: \"…\" is the transport's own channel, not an SSE event name — unnamed messages always arrive (drop the entry), the connection's lifecycle is the read-only 'status'/'open'/'error' surface, and failures arrive at onError",
-    "at": "check.ts:942"
+    "at": "check.ts:944"
    },
    "EEC3198": {
     "message": "only a Dataset carries a { } body — an …'s members go in [ ]",
-    "at": "check.ts:967"
+    "at": "check.ts:969"
    },
    "EFD6000": {
     "message": "….…: an animator declares no new attributes — its surface is built in",
-    "at": "check.ts:970"
+    "at": "check.ts:972"
    },
    "E5D78BE": {
     "message": "an animator drives a slot — it has no children",
-    "at": "check.ts:973"
+    "at": "check.ts:975"
    },
    "EC77FDD": {
     "message": "….attribute names the target slot to drive as a bare token (like 'height' or 'x') — not …",
-    "at": "check.ts:991"
+    "at": "check.ts:993"
    },
    "EFBCA69": {
     "message": "….… = :…: an animator attribute is a value or a { }, not a data read",
-    "at": "check.ts:999"
+    "at": "check.ts:1001"
    },
    "EAACB38": {
     "message": "an … needs 'attribute = <slot>' — the target slot it drives",
-    "at": "check.ts:1008"
+    "at": "check.ts:1010"
    },
    "ED680D6": {
     "message": "….…: a state declares no new attributes — it overrides its view's slots and adds children",
-    "at": "check.ts:1032"
+    "at": "check.ts:1034"
    },
    "E1C62D9": {
     "message": "a … must be a member of a view — at the top level it has no slots to override",
-    "at": "check.ts:1038"
+    "at": "check.ts:1040"
    },
    "E7746D9": {
     "message": "….… = :…: a state override is a value or a { }, not a data read",
-    "at": "check.ts:1057"
+    "at": "check.ts:1059"
    },
    "E95A690": {
     "message": "a state cannot swap '…' in — an override drives the view's value slots, not its layout. Keep one layout and constrain geometry off the state's flag, or reassign the view's layout in an onApply()/onRemove() handler",
-    "at": "check.ts:1077"
+    "at": "check.ts:1079"
    },
    "E38BA7D": {
     "message": "….…: an animatorgroup declares no new attributes — its surface is built in",
-    "at": "check.ts:1107"
+    "at": "check.ts:1109"
    },
    "E96308E": {
     "message": "an … coordinates animators — '…' is not an Animator or AnimatorGroup",
-    "at": "check.ts:1148"
+    "at": "check.ts:1150"
    },
    "E8C18A6": {
     "message": "….attribute = …: … has no slot '…' to animate",
-    "at": "check.ts:1172"
+    "at": "check.ts:1174"
    },
    "E7BD8A6": {
     "message": "….attribute = …: only numeric slots animate — ….… is not a number",
-    "at": "check.ts:1179"
+    "at": "check.ts:1181"
    },
    "EC6298D": {
     "message": "….… expects a … — '…' is not one",
-    "at": "check.ts:1203"
+    "at": "check.ts:1205"
    },
    "E3BF168": {
     "message": "….…: 'Layout' is the abstract base — it names no arrangement. Use a concrete strategy (SimpleLayout, WrappingLayout, …) or a class extending Layout that supplies place()",
-    "at": "check.ts:1207"
+    "at": "check.ts:1209"
    },
    "E341231": {
     "message": "a layout takes [ ] members, not a { } body",
-    "at": "check.ts:1213"
+    "at": "check.ts:1215"
    },
    "E4B6663": {
     "message": "….…: a layout declares no new attributes",
-    "at": "check.ts:1216"
+    "at": "check.ts:1218"
    },
    "E96EB39": {
     "message": "….…: a layout has no methods — it takes literal attributes only",
-    "at": "check.ts:1219"
+    "at": "check.ts:1221"
    },
    "ED0ED3F": {
     "message": "a layout has no children — it arranges its view's",
-    "at": "check.ts:1222"
+    "at": "check.ts:1224"
    },
    "E16E4E2": {
     "message": "….… = :…: a layout attribute takes a literal or { } (a :path cursor cannot bind a layout slot)",
-    "at": "check.ts:1227"
+    "at": "check.ts:1229"
    },
    "EF1720E": {
     "message": "… has no attribute '…'…",
-    "at": "check.ts:1321"
+    "at": "check.ts:1323"
    },
    "E638487": {
     "message": "….… is read-only — it is computed, so a constraint may read it but nothing may set it",
-    "at": "check.ts:1324"
+    "at": "check.ts:1326"
    },
    "E6B7EA5": {
     "message": "….clip = false: an App is clipped by definition — overflow along a declared scroll axis is the page's scroll range, and everything else is out of frame. Remove the attribute (a Shape clip is still legal).",
-    "at": "check.ts:1333"
+    "at": "check.ts:1335"
    },
    "ECDBA4F": {
     "message": "….… <-> …: the two-way arrow edits a dataset value through an editor's value slot (e.g. 'TextInput.text') — … is not an editor",
-    "at": "check.ts:1343"
+    "at": "check.ts:1345"
    },
    "E042714": {
     "message": "….… <-> …: two-way binds a datapath — write '… <-> :field' (or '<-> { expr }' for a runtime-named field)",
-    "at": "check.ts:1350"
+    "at": "check.ts:1352"
    },
    "EB4202D": {
     "message": "….… <-> :…[]: a two-way binding edits one field, not a many-path",
-    "at": "check.ts:1355"
+    "at": "check.ts:1357"
    },
    "E28E3C2": {
     "message": "….… = { … }: the layout slot takes a member ('…: SimpleLayout [ … ]') or null — a layout attaches; it is not a pointer to swap by constraint",
-    "at": "check.ts:1374"
+    "at": "check.ts:1376"
    },
    "EBDD2EA": {
     "message": "….… expects a … — a :path reads data",
-    "at": "check.ts:1399"
+    "at": "check.ts:1401"
    },
    "ECF7893": {
     "message": "….… = :…[] — a many-path replicates, which is 'datapath's meaning; a value slot reads a single :path",
-    "at": "check.ts:1408"
+    "at": "check.ts:1410"
    },
    "EA9FDD2": {
     "message": "'… <-> :…' — a two-way binding writes ONE place; …. Bind the editor to a singular, static path",
-    "at": "check.ts:1425"
+    "at": "check.ts:1427"
    },
    "EB5F2C0": {
     "message": "datapath = :… — a cursor is ONE place; …. Read it as a value, or replicate over it: datapath = :…[]",
-    "at": "check.ts:1434"
+    "at": "check.ts:1436"
    },
    "E3C4A8C": {
     "message": "….… = …).align}: the position literals center | end are legal on x and y only — a size wants a number or a percent (width = 100%)",
-    "at": "check.ts:1446"
+    "at": "check.ts:1448"
    },
    "EFAB76E": {
     "message": "….… expects …, got ……",
-    "at": "check.ts:1466"
+    "at": "check.ts:1468"
    },
    "E799ED5": {
     "message": "'…' is not an RFC 6901 pointer — '~' escapes only as ~0 ('~') or ~1 ('/')",
@@ -2926,19 +2928,19 @@
    },
    "ECACACC": {
     "message": "[Declare] onLoad on ……'` : \"\"} threw: …",
-    "at": "data.ts:659"
+    "at": "data.ts:691"
    },
    "E359942": {
     "message": "…: a datapath is a place in a dataset — got … (point at an object or array; read leaf fields with :path)",
-    "at": "data.ts:708"
+    "at": "data.ts:741"
    },
    "E9DFED0": {
     "message": "…: this value belongs to no Dataset/DataSource — a cursor can only point into declared data",
-    "at": "data.ts:714"
+    "at": "data.ts:747"
    },
    "EFD2DDD": {
     "message": "…: this value is no longer anywhere in its dataset",
-    "at": "data.ts:720"
+    "at": "data.ts:753"
    },
    "E51F2A6": {
     "message": "the draw context is write-only — … cannot be read back; inputs come in through attributes (rendering model)",
@@ -3156,109 +3158,113 @@
     "message": "expected …, got '…'",
     "at": "parser.ts:645"
    },
+   "E06FE75": {
+    "message": "a number-literal union is a schema-field type — on an attribute or a signature write 'number' (a numeric closed set here is not yet sayable; string unions are: \"a\" | \"b\")",
+    "at": "parser.ts:709"
+   },
    "E2F5724": {
     "message": "'….…' — a member sets this element's OWN attributes, never a child's. Write the attribute on '…' itself, usually as a { } constraint reading the state or flag that drives it",
-    "at": "parser.ts:779"
+    "at": "parser.ts:807"
    },
    "E9D9855": {
     "message": "'… <-> …' binds a DATAPATH — write a :path (… <-> :field), or a { } expression yielding a field NAME. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler",
-    "at": "parser.ts:802"
+    "at": "parser.ts:830"
    },
    "E991197": {
     "message": "'…' marks an attribute declaration — a child instance cannot carry it",
-    "at": "parser.ts:831"
+    "at": "parser.ts:859"
    },
    "E16FC0D": {
     "message": "'…?' — in a signature the '?' marks the TYPE: write '…: …?' for a nullable parameter (the name-suffix '?' belongs to schema fields)",
-    "at": "parser.ts:885"
+    "at": "parser.ts:913"
    },
    "ECCEAA3": {
     "message": "'…:' needs a type name — write '…: number' (a primitive or a component class), or drop the ':' for an untyped parameter",
-    "at": "parser.ts:896"
+    "at": "parser.ts:926"
    },
    "E42786F": {
     "message": "'…' needs a return type name — write '…(…) -> number { … }', or drop the '…' for a method that returns nothing",
-    "at": "parser.ts:918"
+    "at": "parser.ts:948"
    },
    "E58A880": {
     "message": "'<-' subscriptions were removed — a runtime service is a component member now: write '… [ …(…) { … } ]' as a child, in place of '…(…) <- … { … }'",
-    "at": "parser.ts:933"
+    "at": "parser.ts:963"
    },
    "E6533D8": {
     "message": "expected the method body '{ … }', got '…'",
-    "at": "parser.ts:939"
+    "at": "parser.ts:969"
    },
    "EDC2060": {
     "message": "members are separated by commas — add ',' before '…'",
-    "at": "parser.ts:964"
+    "at": "parser.ts:994"
    },
    "E9EA0B5": {
     "message": "expected a value, got '…'",
-    "at": "parser.ts:1023"
+    "at": "parser.ts:1053"
    },
    "E04A326": {
     "message": "'…(' — a schema declares shape, not behavior: no methods, no handlers. Methods live on classes; a record's derived values live in { } constraints that read its fields",
-    "at": "parser.ts:1038"
+    "at": "parser.ts:1068"
    },
    "ECC858C": {
     "message": "'…!' — identity is never declared: a record's 'id' field IS its identity by convention (key = :field overrides an unconventional name); drop the '!'",
-    "at": "parser.ts:1046"
+    "at": "parser.ts:1076"
    },
    "ED28610": {
     "message": "a literal union is all strings or all numbers — '…' mixes them",
-    "at": "parser.ts:1066"
+    "at": "parser.ts:1096"
    },
    "E18CCFD": {
     "message": "a shape field's type is string | number | boolean | any, a schema name (capitalized), a literal union of strings, or a nested [ … ] — not '…'",
-    "at": "parser.ts:1083"
+    "at": "parser.ts:1113"
    },
    "E6BFEA7": {
     "message": "'…: …[]' — in a schema the array marker rides the NAME: write '…[]: …' (it rhymes with the path that reads it, ':…[]')",
-    "at": "parser.ts:1090"
+    "at": "parser.ts:1120"
    },
    "E6AE405": {
     "message": "'…: …?' — in a schema the optional marker rides the FIELD name: write '…?: …' (the type-suffix '?' belongs to method signatures)",
-    "at": "parser.ts:1095"
+    "at": "parser.ts:1125"
    },
    "E8E345D": {
     "message": "'… = …' — a schema field takes no default: a schema declares shape, never values. Defaults belong to attribute declarations ('name: Type = value' on a class), or to the code that builds the record",
-    "at": "parser.ts:1100"
+    "at": "parser.ts:1130"
    },
    "EDFFABD": {
     "message": "filter selectors ([?…]) are not in the path subset yet (jsonpath-spelling.md §5) — derive the subset in a Dataset [ contents = { … } ] and bind to that",
-    "at": "parser.ts:1153"
+    "at": "parser.ts:1183"
    },
    "E3129C4": {
     "message": "a path index is a plain integer",
-    "at": "parser.ts:1167"
+    "at": "parser.ts:1197"
    },
    "E07DE5F": {
     "message": "a path selector is [index], [start:end:step], [*], or ['name']",
-    "at": "parser.ts:1186"
+    "at": "parser.ts:1216"
    },
    "EEB27CE": {
     "message": "union selectors ([a, b]) are not in the path subset (jsonpath-spelling.md §5) — write separate reads, or derive the set in a Dataset [ contents = { … } ]",
-    "at": "parser.ts:1189"
+    "at": "parser.ts:1219"
    },
    "EB65D4E": {
     "message": "a schema's name is capitalized ('schema …… [ … ]') — it is a type name, like a class's",
-    "at": "parser.ts:1234"
+    "at": "parser.ts:1264"
    },
    "E41A54B": {
     "message": "schemas do not extend — a schema is composed by NESTING (a field typed by another schema: 'owner: Person') or by repeating the fields it shares",
-    "at": "parser.ts:1238"
+    "at": "parser.ts:1268"
    },
    "EB91A15": {
     "message": "a script file path is a quoted string — script [ \\\"helpers.ts\\\" ]; for inline code, braces hold the script itself: script { … }",
-    "at": "parser.ts:1280"
+    "at": "parser.ts:1310"
    },
    "E07E500": {
     "message": "a use entry is a component name",
-    "at": "parser.ts:1332"
+    "at": "parser.ts:1362"
    },
    "EDD3394": {
     "message": "an include path is a quoted string",
-    "at": "parser.ts:1356"
+    "at": "parser.ts:1386"
    },
    "E566591": {
     "message": "there is already a component named '…'",
@@ -5171,6 +5177,11 @@
    "DataSource.format": {
     "path": "docs/declare-model.json",
     "title": "DataSource.format",
+    "kind": "reference"
+   },
+   "DataSource.headers": {
+    "path": "docs/declare-model.json",
+    "title": "DataSource.headers",
     "kind": "reference"
    },
    "DataSource.idle": {
@@ -15219,7 +15230,7 @@
    },
    "parent": "DataSource",
    "seeAlso": [],
-   "type": "string",
+   "type": "\"json\" | \"text\"",
    "default": null,
    "prevailing": false,
    "readOnly": false,
@@ -15229,10 +15240,10 @@
    "id": "DataSource.method",
    "name": "method",
    "kind": "attribute",
-   "doc": "The HTTP verb — `\"GET\"` by default. A body-carrying verb (`\"POST\"`, `\"PUT\"`, `\"PATCH\"`)\nsends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.",
+   "doc": "The HTTP verb — `\"GET\"` by default; one of `\"GET\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\"`,\nchecked at compile in a slot and in a `{ }` body alike. A body-carrying verb (`\"POST\"`,\n`\"PUT\"`, `\"PATCH\"`) sends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.",
    "docSegs": [
     {
-     "md": "The HTTP verb — `\"GET\"` by default. A body-carrying verb (`\"POST\"`, `\"PUT\"`, `\"PATCH\"`)\nsends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.",
+     "md": "The HTTP verb — `\"GET\"` by default; one of `\"GET\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\"`,\nchecked at compile in a slot and in a `{ }` body alike. A body-carrying verb (`\"POST\"`,\n`\"PUT\"`, `\"PATCH\"`) sends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.",
      "code": []
     }
    ],
@@ -15243,7 +15254,7 @@
    },
    "parent": "DataSource",
    "seeAlso": [],
-   "type": "string",
+   "type": "\"GET\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\"",
    "default": null,
    "prevailing": false,
    "readOnly": false,
@@ -15316,6 +15327,30 @@
    "parent": "DataSource",
    "seeAlso": [],
    "type": "omit | sameOrigin | include",
+   "default": null,
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "DataSource.headers": {
+   "id": "DataSource.headers",
+   "name": "headers",
+   "kind": "attribute",
+   "doc": "Request headers, as a plain record: `headers = { ({ \"x-api-key\": app.key }) }`. They merge\n*over* the ones the source sets for itself, so a JSON `body`'s `Content-Type` is there by\ndefault and an explicit entry overrides it. Like `url` and `body` this is an ordinary\nreactive slot, which is what keeps an authenticated endpoint declarative rather than\nimperative — the header re-derives when what it reads changes:\n\n```declare-fragment\napi: DataSource [ url = \"/graphql\", method = \"POST\", auto = true,\n    headers = { ({ \"x-api-key\": app.key,\n                   Authorization: app.token != \"\" ? \"Bearer \" + app.token : \"\" }) },\n    body = { ({ query: app.query }) } ]\n```\n\nA header whose value is empty (or null) is **not sent**, so that ternary is the whole\n\"only when signed in\" story: no branch, no second source, no imperative re-plumbing when\nthe token lands. (Changing a header, like changing `body`, sends nothing until the next\n`fetch()` — or immediately, if `auto` is on and the `url` changed with it.)",
+   "docSegs": [
+    {
+     "md": "Request headers, as a plain record: `headers = { ({ \"x-api-key\": app.key }) }`. They merge\n*over* the ones the source sets for itself, so a JSON `body`'s `Content-Type` is there by\ndefault and an explicit entry overrides it. Like `url` and `body` this is an ordinary\nreactive slot, which is what keeps an authenticated endpoint declarative rather than\nimperative — the header re-derives when what it reads changes:\n\n```declare-fragment\napi: DataSource [ url = \"/graphql\", method = \"POST\", auto = true,\n    headers = { ({ \"x-api-key\": app.key,\n                   Authorization: app.token != \"\" ? \"Bearer \" + app.token : \"\" }) },\n    body = { ({ query: app.query }) } ]\n```\n\nA header whose value is empty (or null) is **not sent**, so that ternary is the whole\n\"only when signed in\" story: no branch, no second source, no imperative re-plumbing when\nthe token lands. (Changing a header, like changing `body`, sends nothing until the next\n`fetch()` — or immediately, if `auto` is on and the `url` changed with it.)",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "DataSource",
+   "seeAlso": [],
+   "type": "object",
    "default": null,
    "prevailing": false,
    "readOnly": false,
@@ -15522,7 +15557,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 540
+    "line": 557
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -15540,7 +15575,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 541
+    "line": 558
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -15558,7 +15593,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 542
+    "line": 559
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -15576,7 +15611,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 543
+    "line": 560
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -15594,7 +15629,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 554
+    "line": 571
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -15615,7 +15650,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 599
+    "line": 631
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -15636,7 +15671,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 670
+    "line": 702
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -15692,6 +15727,7 @@
     "DataSource.body",
     "DataSource.auto",
     "DataSource.credentials",
+    "DataSource.headers",
     "DataSource.status",
     "DataSource.idle",
     "DataSource.loading",
@@ -33706,7 +33742,7 @@
      },
      "parent": "DataSource",
      "seeAlso": [],
-     "type": "string",
+     "type": "\"json\" | \"text\"",
      "default": null,
      "prevailing": false,
      "readOnly": false,
@@ -33716,10 +33752,10 @@
      "id": "DataSource.method",
      "name": "method",
      "kind": "attribute",
-     "doc": "The HTTP verb — `\"GET\"` by default. A body-carrying verb (`\"POST\"`, `\"PUT\"`, `\"PATCH\"`)\nsends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.",
+     "doc": "The HTTP verb — `\"GET\"` by default; one of `\"GET\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\"`,\nchecked at compile in a slot and in a `{ }` body alike. A body-carrying verb (`\"POST\"`,\n`\"PUT\"`, `\"PATCH\"`) sends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.",
      "docSegs": [
       {
-       "md": "The HTTP verb — `\"GET\"` by default. A body-carrying verb (`\"POST\"`, `\"PUT\"`, `\"PATCH\"`)\nsends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.",
+       "md": "The HTTP verb — `\"GET\"` by default; one of `\"GET\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\"`,\nchecked at compile in a slot and in a `{ }` body alike. A body-carrying verb (`\"POST\"`,\n`\"PUT\"`, `\"PATCH\"`) sends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.",
        "code": []
       }
      ],
@@ -33730,7 +33766,7 @@
      },
      "parent": "DataSource",
      "seeAlso": [],
-     "type": "string",
+     "type": "\"GET\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\"",
      "default": null,
      "prevailing": false,
      "readOnly": false,
@@ -33803,6 +33839,30 @@
      "parent": "DataSource",
      "seeAlso": [],
      "type": "omit | sameOrigin | include",
+     "default": null,
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "DataSource.headers",
+     "name": "headers",
+     "kind": "attribute",
+     "doc": "Request headers, as a plain record: `headers = { ({ \"x-api-key\": app.key }) }`. They merge\n*over* the ones the source sets for itself, so a JSON `body`'s `Content-Type` is there by\ndefault and an explicit entry overrides it. Like `url` and `body` this is an ordinary\nreactive slot, which is what keeps an authenticated endpoint declarative rather than\nimperative — the header re-derives when what it reads changes:\n\n```declare-fragment\napi: DataSource [ url = \"/graphql\", method = \"POST\", auto = true,\n    headers = { ({ \"x-api-key\": app.key,\n                   Authorization: app.token != \"\" ? \"Bearer \" + app.token : \"\" }) },\n    body = { ({ query: app.query }) } ]\n```\n\nA header whose value is empty (or null) is **not sent**, so that ternary is the whole\n\"only when signed in\" story: no branch, no second source, no imperative re-plumbing when\nthe token lands. (Changing a header, like changing `body`, sends nothing until the next\n`fetch()` — or immediately, if `auto` is on and the `url` changed with it.)",
+     "docSegs": [
+      {
+       "md": "Request headers, as a plain record: `headers = { ({ \"x-api-key\": app.key }) }`. They merge\n*over* the ones the source sets for itself, so a JSON `body`'s `Content-Type` is there by\ndefault and an explicit entry overrides it. Like `url` and `body` this is an ordinary\nreactive slot, which is what keeps an authenticated endpoint declarative rather than\nimperative — the header re-derives when what it reads changes:\n\n```declare-fragment\napi: DataSource [ url = \"/graphql\", method = \"POST\", auto = true,\n    headers = { ({ \"x-api-key\": app.key,\n                   Authorization: app.token != \"\" ? \"Bearer \" + app.token : \"\" }) },\n    body = { ({ query: app.query }) } ]\n```\n\nA header whose value is empty (or null) is **not sent**, so that ternary is the whole\n\"only when signed in\" story: no branch, no second source, no imperative re-plumbing when\nthe token lands. (Changing a header, like changing `body`, sends nothing until the next\n`fetch()` — or immediately, if `auto` is on and the `url` changed with it.)",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "DataSource",
+     "seeAlso": [],
+     "type": "object",
      "default": null,
      "prevailing": false,
      "readOnly": false,
@@ -34038,7 +34098,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 599
+      "line": 631
      },
      "parent": "DataSource",
      "seeAlso": [],
@@ -34059,7 +34119,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 670
+      "line": 702
      },
      "parent": "DataSource",
      "seeAlso": [],
@@ -43949,7 +44009,7 @@
     "Button": 4,
     "Checkbox": 1,
     "Column": 2,
-    "DataSource": 5,
+    "DataSource": 6,
     "Dataset": 10,
     "Editor": 2,
     "EventStream": 2,
@@ -44112,7 +44172,7 @@
    "teaches": {
     "App": 3,
     "AppIsland": 4,
-    "DOMIsland": 3,
+    "DOMIsland": 4,
     "DataSource": 1,
     "View": 1
    }
@@ -44836,7 +44896,7 @@
        "subtitle": "extends Dataset",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# DataSource\n\n*Built-in element — [Dataset](declare-docs:Dataset) → [Node](declare-docs:Node)*\n\nA `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load** (`auto = true` is a\ndeliberate opt-in for reactive addresses, not the default). Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The\nresponse is parsed JSON by default; `format = \"text\"` fetches textual material instead —\na Markdown article, a source file — as one string (see `format`).\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `format` | string |  |  |\n| `method` | string |  |  |\n| `body` | object |  |  |\n| `auto` | boolean |  |  |\n| `credentials` | omit | sameOrigin | include |  |  |\n| `status` | idle | loading | loaded | failed |  | read-only |\n| `idle` | boolean |  | read-only |\n| `loading` | boolean |  | read-only |\n| `loaded` | boolean |  | read-only |\n| `failed` | boolean |  | read-only |\n| `error` | string |  | read-only |\n| `statusCode` | number |  | read-only |\n| `errorBody` | object |  | read-only |\n\n**`url`** — The resource URL — a literal or a `{ }` constraint, so the source **re-points reactively**:\nchange a dependency (a zip, a filter) and the *next* `fetch()` hits the new URL. Setting\n`url` does not load on its own — fetching stays explicit unless you opt into `auto`.\n\n**`format`** — What the fetched bytes **are**: `\"json\"` (the default) parses the response and tags it for\n`:path` navigation; `\"text\"` delivers the raw bytes as **one string** in `.value`. Text is\na first-class material, not a detail — it is how an authored Markdown file is loaded\n*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || \"\" }`.\nA string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,\n`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,\n`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML\ncomments in the file are annotation, and annotation never renders.\n\n```declare-fragment\narticle: DataSource [ url = \"guide.md\", format = \"text\" ],\ndoc: Markdown [ visible = { article.loaded }, text = { article.value || \"\" } ]\n```\n\n**`method`** — The HTTP verb — `\"GET\"` by default. A body-carrying verb (`\"POST\"`, `\"PUT\"`, `\"PATCH\"`)\nsends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.\n\n**`body`** — The payload for a non-GET `method` — an object or array (JSON-encoded on the way out), or a\nstring (sent as-is). Ignored on a GET. Like `url` it can be a `{ }` constraint, so the\npayload re-derives from live state; also like `url`, changing it sends nothing until the\nnext `fetch()`.\n\n**`auto`** — Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.\n**Off by default, and the default is the discipline** — explicit loading is what stops a\nsource firing requests nobody asked for as unrelated dependencies settle. Turn it on when\nthe address *is* the reactive thing: a detail pane whose `url` derives from the current\nselection, where \"the URL changed\" and \"load it\" are the same event. With `auto` off,\nchanging `url` arms the next `fetch()` and does nothing else.\n\n```declare-fragment\ndetail: DataSource [ auto = true, url = { \"/api/issue/\" + app.selectedId } ]\n```\n\n**`credentials`** — How to handle cookies, TLS client certificates, and authentication headers — the\nFetch API's three modes, spelled as tokens.\n- `sameOrigin` — the default, send only when `url` shares the page's origin\n- `omit` — never send credentials or cookies with the request\n- `include` — send cross-origin too, so an app can carry a session\n  cookie/header/cert to a separately-hosted authenticated API. This only takes\n  effect if that origin's CORS response allows credentials explicitly — a\n  wildcard `Access-Control-Allow-Origin: *` cannot combine with it; the response\n  must echo back the specific requesting origin instead.\n\n`sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is\nsubtraction, so it cannot be a token) — the same translation `blend` makes for\nCSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends\ncredentials wherever that expression resolves: keep the address under your own\ncontrol.\n\n```declare-fragment\nnotes: DataSource [ url = \"https://api.example.com/notes\", credentials = include ]\n```\n\n**`status`** — The lifecycle as one fact: `\"idle\"` before anything is asked, `\"loading\"` in flight, then\n`\"loaded\"` or `\"failed\"`. Read-only — `fetch()` and `clear()` move it. The four booleans\nbelow derive from it, so they can never disagree with it or with each other.\n\n**`idle`** — Nothing has been asked for yet, or `clear()` returned it here. `= { status == \"idle\" }`.\n\n**`loading`** — A request is in flight. `= { status == \"loading\" }` — the slot to hang a spinner on.\n\n**`loaded`** — The *latest* fetch finished and validated. `= { status == \"loaded\" }`. It is about the\nrequest, not the value: a refetch (a changed `url` under `auto`, or `fetch()` again) drops\nit to `false` until the new response lands, while `value` still holds the previous one. So\n`visible = { data.loaded }` blinks on every refresh; a screen that should stay put while\ndata refreshes guards on presence instead — `visible = { data.value != null }` — and keeps\n`loaded`/`loading` for what they name, the request's state.\n\n**`failed`** — The request, or the schema check, refused. `= { status == \"failed\" }`. Read `error` for\nthe one-line reason, `statusCode` and `errorBody` for what the server actually said.\n\n**`error`** — Why the last fetch failed, as one line — an HTTP status, a transport message, or the\nschema mismatch with its pointed path. `null` when nothing has gone wrong. It is the\n*message*; the server's own account is `errorBody`.\n\n**`statusCode`** — The HTTP status of the last reply — `404`, `422`, `200`. **`0` means no reply arrived**:\nnothing asked yet, or the request never reached a server at all. That distinction is the\npoint of the slot, since it separates \"retry\" from \"report\" without parsing `error`.\n\n**`errorBody`** — What the server said when it refused — parsed if it was JSON, the raw text otherwise,\n`null` if the body was empty. This is the part that names *which* field failed or *when*\nthe rate limit resets; a refusal reported as a status number alone throws it away.\n`value` is untouched by a failure, so the last good data is still there.\n\n## Events\n\n- `onLoad()` — Fires when a fetch settles successfully, after `value` and the flags are consistent — a\nhandler reading `value` sees the arrived data, never the previous one. Failures do not fire\nit; they set `failed` and `error`. **You usually do not need this**: any binding reading\n`.value` or a `:path` beneath it already updates on arrival, which is the entire reactive\npoint. Reach for `onLoad` only when arrival must cause something a binding cannot express —\nfocusing the first result, chaining a follow-up fetch, announcing to a screen reader.\n\n## Methods\n\n- `fetch(): Promise<void>` — Loads (or reloads) the resource from the current `url`, then settles `value` and the status\nflags **together**, a frame ahead. Loading is a verb you call, not something that happens\nto you, so you decide *when* (usually in `onInit`, or on a user action). Calling it again\nre-fetches; change `url`'s dependencies first to fetch a new address. Returns a `Promise`\nyou can `await`, but the reactive flags are the idiomatic path.\n- `clear(): void` — Returns the source to the idle state — drops `value`, `error`, and the loaded/failed flags,\nas if it had never fetched. For resetting a search field's results, or releasing a large\nresponse you no longer need.\n\n## Inherited from [Dataset](declare-docs:Dataset)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `contents` | object |  |  |\n| `schema` | dataschema |  |  |\n| `value` | object |  | read-only |\n\n**`contents`** — Makes the `Dataset` **derived**: a `{ }` constraint (in place of a JSON body) that computes\nthe value from other reactive state — `matches: Dataset [ contents = { app.filter() } ]`. It\nrecomputes exactly when what it reads changes, dep-gated like any constraint. Pair a derived\nlist with `key = :field` on its replicated child so a recompute reconciles by that stable\nfield (O(changed) instances) instead of by object identity (rebuild-all).\n\n**`schema`** — The optional data shape (`schema = [ city: string, rows[]: [ id: string, n?: number ] ]`):\narrivals validate against it at the boundary (a malformed response lands in `.failed` with\nthe pointed path; an embedded body fails at build), and every `:path` under a direct cursor\nis checked statically against it. Validation only — identity is not declared here or\nanywhere: a record's `id` field is its identity by convention (`key = :field` overrides an\nunconventional name). Presence is the only switch; the `:path` surface never changes.\n\n**`value`** — The parsed data. `contents` is the slot you *write* (or a JSON body, or a fetch); this is\nthe one you read, and it is read-only — a dataset changes through the structural verbs\n(`set`, `insert`, `removeAt`, `move`) or by a `DataSource` fetch landing, never by\nassignment. `:path` reads resolve against it, and a write wakes exactly the bindings that\nread the region that changed.\n\n### Methods\n\n- `read(path: string | readonly (string | number)[]): unknown` — Tracked region read: `data.read([ \"cols\" ])` returns the value at that path AND subscribes\nthe caller to it, so a derivation (or any constraint) that reads through `read` re-runs on an\nin-place `.set` edit to that region — the granular counterpart to reading `.value` (which\ntracks only a wholesale replacement).\n- `set(path: string | readonly (string | number)[], v: unknown): void` — Writes `v` at a path inside the value, waking exactly the readers of that place — the\nsurgical alternative to swapping the whole `.value`. A path is a **segments array**\n(`data.set([\"cols\", 0, \"label\"], \"Mon\")` — numbers welcome, no escaping ever) or an\n**RFC 6901 pointer** string (`data.set(\"/cols/0/label\", \"Mon\")`; against an array, the\nfinal token `-` appends: `set(\"/rows/-\", v)`). The path's containers must exist (a\npointed error names the first missing step); the final field may be new.\n- `insert(path: string | readonly (string | number)[], index: number, v: unknown): void` — Splices `v` into the array at `path`, at `index` — every replicated view bound to that array\n(`:arr[]`) gains one instance in the same settle, no manual list bookkeeping.\n- `removeAt(path: string | readonly (string | number)[], index: number): unknown` — Removes and returns the element at `index` of the array at `path`; the replicated instance\nfor it is torn down in the same settle.\n- `move(path: string | readonly (string | number)[], from: number, to: number): void` — Reorders the array at `path`, moving the element at `from` to `to` — the replicated views\nfollow the new order (a reorder, not a destroy-and-rebuild), so their state rides along.\n\n## Inherited from [Node](declare-docs:Node)\n\n### Events\n\n- `onInit()` — Fires once when the node has finished constructing and its subtree exists — the place for\nsetup that needs the built tree. Every node gets it, **faceless subclasses included**\n(the init walk covers non-View children since 2026-08-20 — before that, only views were\nvisited and a Node's `onInit` silently never fired). Answered by `onInit()`.\n",
+       "doc": "# DataSource\n\n*Built-in element — [Dataset](declare-docs:Dataset) → [Node](declare-docs:Node)*\n\nA `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load** (`auto = true` is a\ndeliberate opt-in for reactive addresses, not the default). Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The\nresponse is parsed JSON by default; `format = \"text\"` fetches textual material instead —\na Markdown article, a source file — as one string (see `format`).\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `format` | \"json\" | \"text\" |  |  |\n| `method` | \"GET\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\" |  |  |\n| `body` | object |  |  |\n| `auto` | boolean |  |  |\n| `credentials` | omit | sameOrigin | include |  |  |\n| `headers` | object |  |  |\n| `status` | idle | loading | loaded | failed |  | read-only |\n| `idle` | boolean |  | read-only |\n| `loading` | boolean |  | read-only |\n| `loaded` | boolean |  | read-only |\n| `failed` | boolean |  | read-only |\n| `error` | string |  | read-only |\n| `statusCode` | number |  | read-only |\n| `errorBody` | object |  | read-only |\n\n**`url`** — The resource URL — a literal or a `{ }` constraint, so the source **re-points reactively**:\nchange a dependency (a zip, a filter) and the *next* `fetch()` hits the new URL. Setting\n`url` does not load on its own — fetching stays explicit unless you opt into `auto`.\n\n**`format`** — What the fetched bytes **are**: `\"json\"` (the default) parses the response and tags it for\n`:path` navigation; `\"text\"` delivers the raw bytes as **one string** in `.value`. Text is\na first-class material, not a detail — it is how an authored Markdown file is loaded\n*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || \"\" }`.\nA string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,\n`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,\n`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML\ncomments in the file are annotation, and annotation never renders.\n\n```declare-fragment\narticle: DataSource [ url = \"guide.md\", format = \"text\" ],\ndoc: Markdown [ visible = { article.loaded }, text = { article.value || \"\" } ]\n```\n\n**`method`** — The HTTP verb — `\"GET\"` by default; one of `\"GET\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\"`,\nchecked at compile in a slot and in a `{ }` body alike. A body-carrying verb (`\"POST\"`,\n`\"PUT\"`, `\"PATCH\"`) sends `body` with the request. A DataSource stays a *source* either way: the response lands\nin `value` and the status flags exactly as a GET's would, so a POST that returns the created\nrecord leaves you reading it like anything else.\n\n**`body`** — The payload for a non-GET `method` — an object or array (JSON-encoded on the way out), or a\nstring (sent as-is). Ignored on a GET. Like `url` it can be a `{ }` constraint, so the\npayload re-derives from live state; also like `url`, changing it sends nothing until the\nnext `fetch()`.\n\n**`auto`** — Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.\n**Off by default, and the default is the discipline** — explicit loading is what stops a\nsource firing requests nobody asked for as unrelated dependencies settle. Turn it on when\nthe address *is* the reactive thing: a detail pane whose `url` derives from the current\nselection, where \"the URL changed\" and \"load it\" are the same event. With `auto` off,\nchanging `url` arms the next `fetch()` and does nothing else.\n\n```declare-fragment\ndetail: DataSource [ auto = true, url = { \"/api/issue/\" + app.selectedId } ]\n```\n\n**`credentials`** — How to handle cookies, TLS client certificates, and authentication headers — the\nFetch API's three modes, spelled as tokens.\n- `sameOrigin` — the default, send only when `url` shares the page's origin\n- `omit` — never send credentials or cookies with the request\n- `include` — send cross-origin too, so an app can carry a session\n  cookie/header/cert to a separately-hosted authenticated API. This only takes\n  effect if that origin's CORS response allows credentials explicitly — a\n  wildcard `Access-Control-Allow-Origin: *` cannot combine with it; the response\n  must echo back the specific requesting origin instead.\n\n`sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is\nsubtraction, so it cannot be a token) — the same translation `blend` makes for\nCSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends\ncredentials wherever that expression resolves: keep the address under your own\ncontrol.\n\n```declare-fragment\nnotes: DataSource [ url = \"https://api.example.com/notes\", credentials = include ]\n```\n\n**`headers`** — Request headers, as a plain record: `headers = { ({ \"x-api-key\": app.key }) }`. They merge\n*over* the ones the source sets for itself, so a JSON `body`'s `Content-Type` is there by\ndefault and an explicit entry overrides it. Like `url` and `body` this is an ordinary\nreactive slot, which is what keeps an authenticated endpoint declarative rather than\nimperative — the header re-derives when what it reads changes:\n\n```declare-fragment\napi: DataSource [ url = \"/graphql\", method = \"POST\", auto = true,\n    headers = { ({ \"x-api-key\": app.key,\n                   Authorization: app.token != \"\" ? \"Bearer \" + app.token : \"\" }) },\n    body = { ({ query: app.query }) } ]\n```\n\nA header whose value is empty (or null) is **not sent**, so that ternary is the whole\n\"only when signed in\" story: no branch, no second source, no imperative re-plumbing when\nthe token lands. (Changing a header, like changing `body`, sends nothing until the next\n`fetch()` — or immediately, if `auto` is on and the `url` changed with it.)\n\n**`status`** — The lifecycle as one fact: `\"idle\"` before anything is asked, `\"loading\"` in flight, then\n`\"loaded\"` or `\"failed\"`. Read-only — `fetch()` and `clear()` move it. The four booleans\nbelow derive from it, so they can never disagree with it or with each other.\n\n**`idle`** — Nothing has been asked for yet, or `clear()` returned it here. `= { status == \"idle\" }`.\n\n**`loading`** — A request is in flight. `= { status == \"loading\" }` — the slot to hang a spinner on.\n\n**`loaded`** — The *latest* fetch finished and validated. `= { status == \"loaded\" }`. It is about the\nrequest, not the value: a refetch (a changed `url` under `auto`, or `fetch()` again) drops\nit to `false` until the new response lands, while `value` still holds the previous one. So\n`visible = { data.loaded }` blinks on every refresh; a screen that should stay put while\ndata refreshes guards on presence instead — `visible = { data.value != null }` — and keeps\n`loaded`/`loading` for what they name, the request's state.\n\n**`failed`** — The request, or the schema check, refused. `= { status == \"failed\" }`. Read `error` for\nthe one-line reason, `statusCode` and `errorBody` for what the server actually said.\n\n**`error`** — Why the last fetch failed, as one line — an HTTP status, a transport message, or the\nschema mismatch with its pointed path. `null` when nothing has gone wrong. It is the\n*message*; the server's own account is `errorBody`.\n\n**`statusCode`** — The HTTP status of the last reply — `404`, `422`, `200`. **`0` means no reply arrived**:\nnothing asked yet, or the request never reached a server at all. That distinction is the\npoint of the slot, since it separates \"retry\" from \"report\" without parsing `error`.\n\n**`errorBody`** — What the server said when it refused — parsed if it was JSON, the raw text otherwise,\n`null` if the body was empty. This is the part that names *which* field failed or *when*\nthe rate limit resets; a refusal reported as a status number alone throws it away.\n`value` is untouched by a failure, so the last good data is still there.\n\n## Events\n\n- `onLoad()` — Fires when a fetch settles successfully, after `value` and the flags are consistent — a\nhandler reading `value` sees the arrived data, never the previous one. Failures do not fire\nit; they set `failed` and `error`. **You usually do not need this**: any binding reading\n`.value` or a `:path` beneath it already updates on arrival, which is the entire reactive\npoint. Reach for `onLoad` only when arrival must cause something a binding cannot express —\nfocusing the first result, chaining a follow-up fetch, announcing to a screen reader.\n\n## Methods\n\n- `fetch(): Promise<void>` — Loads (or reloads) the resource from the current `url`, then settles `value` and the status\nflags **together**, a frame ahead. Loading is a verb you call, not something that happens\nto you, so you decide *when* (usually in `onInit`, or on a user action). Calling it again\nre-fetches; change `url`'s dependencies first to fetch a new address. Returns a `Promise`\nyou can `await`, but the reactive flags are the idiomatic path.\n- `clear(): void` — Returns the source to the idle state — drops `value`, `error`, and the loaded/failed flags,\nas if it had never fetched. For resetting a search field's results, or releasing a large\nresponse you no longer need.\n\n## Inherited from [Dataset](declare-docs:Dataset)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `contents` | object |  |  |\n| `schema` | dataschema |  |  |\n| `value` | object |  | read-only |\n\n**`contents`** — Makes the `Dataset` **derived**: a `{ }` constraint (in place of a JSON body) that computes\nthe value from other reactive state — `matches: Dataset [ contents = { app.filter() } ]`. It\nrecomputes exactly when what it reads changes, dep-gated like any constraint. Pair a derived\nlist with `key = :field` on its replicated child so a recompute reconciles by that stable\nfield (O(changed) instances) instead of by object identity (rebuild-all).\n\n**`schema`** — The optional data shape (`schema = [ city: string, rows[]: [ id: string, n?: number ] ]`):\narrivals validate against it at the boundary (a malformed response lands in `.failed` with\nthe pointed path; an embedded body fails at build), and every `:path` under a direct cursor\nis checked statically against it. Validation only — identity is not declared here or\nanywhere: a record's `id` field is its identity by convention (`key = :field` overrides an\nunconventional name). Presence is the only switch; the `:path` surface never changes.\n\n**`value`** — The parsed data. `contents` is the slot you *write* (or a JSON body, or a fetch); this is\nthe one you read, and it is read-only — a dataset changes through the structural verbs\n(`set`, `insert`, `removeAt`, `move`) or by a `DataSource` fetch landing, never by\nassignment. `:path` reads resolve against it, and a write wakes exactly the bindings that\nread the region that changed.\n\n### Methods\n\n- `read(path: string | readonly (string | number)[]): unknown` — Tracked region read: `data.read([ \"cols\" ])` returns the value at that path AND subscribes\nthe caller to it, so a derivation (or any constraint) that reads through `read` re-runs on an\nin-place `.set` edit to that region — the granular counterpart to reading `.value` (which\ntracks only a wholesale replacement).\n- `set(path: string | readonly (string | number)[], v: unknown): void` — Writes `v` at a path inside the value, waking exactly the readers of that place — the\nsurgical alternative to swapping the whole `.value`. A path is a **segments array**\n(`data.set([\"cols\", 0, \"label\"], \"Mon\")` — numbers welcome, no escaping ever) or an\n**RFC 6901 pointer** string (`data.set(\"/cols/0/label\", \"Mon\")`; against an array, the\nfinal token `-` appends: `set(\"/rows/-\", v)`). The path's containers must exist (a\npointed error names the first missing step); the final field may be new.\n- `insert(path: string | readonly (string | number)[], index: number, v: unknown): void` — Splices `v` into the array at `path`, at `index` — every replicated view bound to that array\n(`:arr[]`) gains one instance in the same settle, no manual list bookkeeping.\n- `removeAt(path: string | readonly (string | number)[], index: number): unknown` — Removes and returns the element at `index` of the array at `path`; the replicated instance\nfor it is torn down in the same settle.\n- `move(path: string | readonly (string | number)[], from: number, to: number): void` — Reorders the array at `path`, moving the element at `from` to `to` — the replicated views\nfollow the new order (a reorder, not a destroy-and-rebuild), so their state rides along.\n\n## Inherited from [Node](declare-docs:Node)\n\n### Events\n\n- `onInit()` — Fires once when the node has finished constructing and its subtree exists — the place for\nsetup that needs the built tree. Every node gets it, **faceless subclasses included**\n(the init walk covers non-View children since 2026-08-20 — before that, only views were\nvisited and a Node's `onInit` silently never fired). Answered by `onInit()`.\n",
        "preview": "A Dataset whose value arrives over HTTP — a reactive remote resource. The one thing to know: fetch() is explicit — a DataSource does not auto-load (auto = true is a deliberate opt-in for reactive addresses, not the default). Call it when th…"
       },
       {
@@ -45332,7 +45392,7 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Diagnostic codes\n\n*Every compiler diagnostic carries a `DECLARE####` code, and its message names the fix.*\n\n`DECLARE1000` · `DECLARE1001` · `DECLARE2000` · `DECLARE2001` · `DECLARE2002` · `DECLARE2003` · `DECLARE2004` · `DECLARE3000` · `DECLARE3001` · `DECLARE3002` · `DECLARE3003` · `DECLARE3004` · `DECLARE3005` · `DECLARE4000` · `DECLARE4001` · `DECLARE4002` · `DECLARE4003` · `DECLARE4004` · `DECLARE4005` · `DECLARE4006` · `DECLARE4007` · `DECLARE5000` · `DECLARE5001` · `DECLARE5002` · `DECLARE5003` · `DECLARE6000` · `DECLARE6001` · `DECLARE7000` · `DECLARE7001`",
+     "doc": "# Diagnostic codes\n\n*Every compiler diagnostic carries a `DECLARE####` code, and its message names the fix.*\n\n`DECLARE1000` · `DECLARE1001` · `DECLARE2000` · `DECLARE2001` · `DECLARE2002` · `DECLARE2003` · `DECLARE2004` · `DECLARE3000` · `DECLARE3001` · `DECLARE3002` · `DECLARE3003` · `DECLARE3004` · `DECLARE3005` · `DECLARE4000` · `DECLARE4001` · `DECLARE4002` · `DECLARE4003` · `DECLARE4004` · `DECLARE4005` · `DECLARE4006` · `DECLARE4007` · `DECLARE4008` · `DECLARE5000` · `DECLARE5001` · `DECLARE5002` · `DECLARE5003` · `DECLARE6000` · `DECLARE6001` · `DECLARE7000` · `DECLARE7001`",
      "preview": "Every compiler diagnostic carries a DECLARE code, and its message names the fix. DECLARE1000 · DECLARE1001 · DECLARE2000 · DECLARE2001 · DECLARE2002 · DECLARE2003 · DECLARE2004 · DECLARE3000 · DECLARE3001 · DECLARE3002 · DECLARE3003 · DECLA…"
     },
     {

@@ -161,6 +161,16 @@ export type AttrType = {
 export declare function enumType(name: string, ...tokens: string[]): AttrType;
 /** Resolve a written declaration type name (`count: number`), or null when
  *  the name is not in the declarable vocabulary. */
+/** An AUTHORED literal union (`"idle" | "loading"`) is an enum whose NAME is
+ *  the written union text — that text is the discriminator between it and a
+ *  built-in vocabulary (Axis, Motion), whose name is an identifier. Every
+ *  consumer asks this one question here, not with its own `startsWith('"')`. */
+export declare const isAuthoredUnion: (name: string) => boolean;
+/** The members of a written string-literal union, or null when `text` is not
+ *  one. Quote-AWARE: the members are extracted as JSON string literals and
+ *  must reconstruct the text exactly, so a member containing `|` (`"a|b" |
+ *  "c"`) parses correctly — a bare split on `|` did not (review, 2026-09-04). */
+export declare function parseLiteralUnion(text: string): string[] | null;
 export declare function declaredType(name: string): AttrType | null;
 /** The declarable type names, for the checker's "expected one of …" message. */
 export declare const DECLARED_TYPE_NAMES: readonly string[];

@@ -67,6 +67,23 @@ export function stripEditsFor(src, expression) {
             // `<T>x` — remove the angle-bracket prefix, keep the expression
             edits.push({ start: n.getStart(sf) + delta, end: n.expression.getStart(sf) + delta });
         }
+        else if ((ts.isCallExpression(n) || ts.isNewExpression(n)) && n.typeArguments !== undefined && n.typeArguments.length > 0) {
+            // `f<T>(…)` / `new C<T>(…)` — an explicit CALL-SITE type argument list.
+            // Type-level syntax like any other, and the one shape that reached the
+            // runtime intact: `<` then parses as less-than and the type's names
+            // evaluate as variables (`gqlRequest<{ items: Track[] }>("q")` threw
+            // "Track is not defined" in a real browser, or failed the body parse
+            // outright, while every static rung passed — a field report's most
+            // expensive finding, 2026-09-04). Delete from the `<` to the `>`: the
+            // list's own span, bounded by the expression before it and the argument
+            // list after.
+            // `typeArguments.pos` sits just past the `<`; `.end` just past the last
+            // type, before the `>`. Take the whole `<…>` by walking out to each.
+            const lt = text.lastIndexOf("<", n.typeArguments.pos);
+            const gt = text.indexOf(">", n.typeArguments.end);
+            if (lt >= 0 && gt > lt)
+                edits.push({ start: lt + delta, end: gt + 1 + delta });
+        }
         ts.forEachChild(n, visit);
     };
     visit(sf);

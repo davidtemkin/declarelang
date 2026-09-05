@@ -118,6 +118,23 @@ export declare class DataSource extends Dataset {
      *  hyphen is subtraction, so it cannot be a token); FETCH_CREDENTIALS maps it
      *  back, as `blend` does for CSS's color-dodge. */
     credentials: "omit" | "sameOrigin" | "include";
+    /** Request HEADERS — a plain record, `{ "x-api-key": "…" }`, merged over the
+     *  ones this source sets for itself (a JSON body's `Content-Type`, which an
+     *  explicit entry may override). REACTIVE like any other slot, which is the
+     *  point: `headers = { ({ Authorization: "Bearer " + app.token }) }` re-reads
+     *  when the token lands, so an authenticated source needs no imperative
+     *  re-plumbing — and with `auto = true` a changed address refetches with the
+     *  current header. A header whose value is empty (or null) is NOT sent —
+     *  `Authorization: signedIn ? "Bearer " + t : ""` is the whole conditional-
+     *  header idiom, with no branch to write.
+     *
+     *  Added 2026-09-04 after a field report ported a real product onto an
+     *  AppSync GraphQL endpoint: every such API wants `x-api-key` or
+     *  `Authorization` on EVERY request, so without this the declarative
+     *  primitive could not be used at all — the whole app fell back to
+     *  hand-written `fetch()` in a script block and re-declared the
+     *  loading/loaded/failed lifecycle by hand, once per screen. */
+    headers: Record<string, string> | null;
     /** The lifecycle, as one fact; the four doc-named booleans derive below. */
     status: "idle" | "loading" | "loaded" | "failed";
     error: string | null;

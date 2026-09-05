@@ -212,6 +212,47 @@ tenant's bridge, above), and `__childApp` on an island's element — or, on
 canvas, its view — (the Declare tenant an island mounted). Everything else a
 backend or host plants is internal and may vanish without notice.
 
+## A tenant that loads itself
+
+An island's interior is not Declare's to ship — that is the whole point of the
+boundary, and it has a consequence worth stating outright: **a heavy foreign
+dependency never has to enter your artifact at all.** Mount a small loader in
+the slot, declare what the app knows, and let the loader act on it.
+
+```declare-fragment
+signin: DOMIsland [ slot = "auth", width = 320, height = 420,
+    external wanted: boolean = { app.destinationOf(app.location) == "signin" },
+    external readonly ready: boolean = false,
+    onPost(m: IslandPost) { app.signedIn = true }
+    ]
+```
+
+```js
+const h = box.__declareIsland;
+let started = false;
+h.observe("wanted", async (want) => {                    // the constraint IS the cue
+  if (!want || started) return;
+  started = true;
+  const sdk = await import("https://cdn.example/auth.js");   // fetched now, not at boot
+  sdk.mount(box, { onToken: (t) => h.post("token", t) });
+  h.set("ready", true);
+});
+```
+
+Nothing in the Declare program names the SDK, so nothing in the build can
+bundle it. The app states a **fact** — *this screen is showing* — and the
+tenant decides what that costs; the answer comes back the same way, as a
+declared out-fact the loader `set`s or a verb it `post`s. Use `post()` for the
+outbound cue instead when it is genuinely an event rather than a state
+("re-authenticate now") — the facts-vs-verbs rule above, applied to loading.
+
+This is the shape to reach for whenever a dependency is large and only some
+screens need it. A `script { }` block can also `import()` on demand, which is
+simpler when the thing loaded is small and draws nothing — but note which
+specifier defers: a **URL** stays external and is genuinely fetched later,
+while a **bare** specifier (`import("some-package")`) resolves from
+`node_modules` and is bundled whole at build time, deferred in appearance only.
+
 ## The same rule, three ways
 
 Each direction draws the border in the same place: **a box, owned by the

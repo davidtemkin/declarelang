@@ -78,6 +78,22 @@ export type CheckedDecl = {
     ok: false;
     error: DeclareError;
 };
+/** Resolve a WRITTEN type name to its AttrType — the one place that mapping
+ *  lives. Two callers need it and MUST agree: checkDecl (which refuses an
+ *  unknown type outright) and the typechecker's assignTypes (which emits the
+ *  TS member signature). They were separate copies until 2026-09-04, when a
+ *  literal union taught to one and not the other fell to assignTypes' `t ===
+ *  null` arm, was emitted `readonly … : any`, and made every assignment to it
+ *  report "read-only — a fact the component maintains" — a diagnostic blaming
+ *  the wrong thing entirely. One function now, so a new type can only be added
+ *  once.
+ *
+ *  A LITERAL UNION (`"idle" | "loading"`) resolves to an ENUM whose tokens are
+ *  its members — the same AttrType the built-in vocabularies use, so a write is
+ *  checked against the set and the scaffold projects the TS union it already
+ *  is. The parser normalizes the spelling (JSON.stringify each member), so the
+ *  test here is exact. */
+export declare function resolveWrittenType(written: string, isComponent: (n: string) => boolean, isShape: (n: string) => boolean): AttrType | null;
 export declare function checkDecl(schema: ComponentSchema, d: AttrDecl, owner?: string, 
 /** Is this name a component in the program? A declared attribute may be typed
  *  by a component class (`child: Menu = null`), not only by the value

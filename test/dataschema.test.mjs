@@ -376,4 +376,101 @@ await test("typed data: one namespace of type names — collisions and unknown r
   assert.match(badDefault.errors[0].message, /a T record .* or null for none/);
 });
 
+await test("DataSource carries headers — the API-keyed / Bearer-token endpoint (field report 2026-09-04)", async () => {
+  // Without this a DataSource could not reach any authenticated or API-keyed
+  // service at all (AppSync, most GraphQL), and a real port fell back to
+  // hand-written fetch() in a script block for EVERY call, re-declaring the
+  // loading/loaded/failed lifecycle by hand once per screen.
+  const src = await compile(`App [ width=1, height=1,
+    token: string = "",
+    gql: DataSource [ url = "/graphql", method = "POST",
+      headers = { ({ "x-api-key": "KEY", Authorization: app.token != "" ? "Bearer " + app.token : "" }) },
+      body = { ({ query: "{ q }" }) } ],
+  ]`);
+  assert.deepEqual(src.errors.map((e) => e.message), []);
+  const app = build(src.source);
+  settle();
+  let seen = null;
+  const prev = provideTransport((url, init) => { seen = init; return jsonResponse({ ok: 1 }); });
+  try {
+    await app.gql.fetch();
+    assert.equal(seen.headers["x-api-key"], "KEY", "the api key rides every request");
+    assert.equal(seen.headers["Content-Type"], "application/json", "the JSON body's own header survives");
+    assert.ok(!("Authorization" in seen.headers), "an EMPTY value is not sent — the conditional-header idiom");
+    // the token lands: the header re-derives, no imperative re-plumbing
+    app.token = "abc";
+    settle();
+    await app.gql.fetch();
+    assert.equal(seen.headers.Authorization, "Bearer abc", "headers are reactive like any other slot");
+  } finally { provideTransport(prev); }
+});
+
+await test("a literal union is sayable in EVERY type position, not just a schema field", async () => {
+  // The asymmetry a real port hit (field report 2026-09-04) and a design review
+  // flagged before it: `status: "idle" | "loading"` was legal as a schema FIELD
+  // and refused as an ordinary declaration — the same closed set sayable about
+  // data and unsayable about the state derived from it.
+  const src = await compile(`App [ width=1, height=1,
+      phase: "idle" | "loading" | "done" = "idle",
+      pick(s: "a" | "b") -> "a" | "b" { return s },
+      n: number = 0,
+      go() { app.phase = "done"; app.n = app.pick("a") == "a" ? 1 : 2 },
+      t: Text [ text = { app.phase } ],
+    ]`);
+  assert.deepEqual(src.errors.map((e) => e.message), [], "declaration, parameter and return all accept it");
+  const app = build(src.source);
+  settle();
+  assert.equal(app.t.text, "idle", "the value flows like any other");
+  app.go();
+  settle();
+  assert.equal(app.phase, "done");
+  assert.equal(app.n, 1, "the union-typed parameter and return check and run");
+
+  // the members are enforced, at both ends
+  const badDefault = await compile(`App [ width=1, height=1, phase: "idle" | "loading" = "nope" ]`);
+  assert.match(badDefault.errors[0].message, /expects one of "idle" \| "loading"/);
+  const badAssign = await compile(`App [ width=1, height=1, phase: "idle" | "loading" = "idle",
+      go() { app.phase = "wat" } ]`);
+  assert.match(badAssign.errors[0].message, /not assignable to type '"idle" \| "loading"'/);
+
+  // a member may itself contain the separator — the union is parsed as string
+  // literals, not split on '|' (review, 2026-09-04)
+  const piped = await compile(`App [ width=1, height=1, sep: "a|b" | "c" = "a|b" ]`);
+  assert.deepEqual(piped.errors.map((e) => e.message), [], "a member containing '|' parses");
+  // and a NUMBER union on a declaration is refused by name, not by accident
+  const numeric = await compile(`App [ width=1, height=1, col: 0 | 1 | 2 = 0 ]`);
+  assert.match(numeric.errors[0].message, /number-literal union is a schema-field type/);
+});
+
+await test("spell a member the way its declaration spells it — an authored union takes the QUOTED member only (ruling 2026-09-05)", async () => {
+  // `Axis` declares `y`, so `axis = y`; a literal union declares `"idle"`, so
+  // `phase = "idle"`. The bare token was accepted for authored unions too until
+  // the ruling — two spellings for one thing.
+  const H = `class Fetcher extends View [ phase: "idle" | "loading" | "done" = "idle" ]\n`;
+  const quoted = await compile(H + `App [ width=1, height=1, f: Fetcher [ phase = "loading" ] ]`);
+  assert.deepEqual(quoted.errors.map((e) => e.message), [], "the quoted member is the spelling");
+  const bare = await compile(H + `App [ width=1, height=1, f: Fetcher [ phase = loading ] ]`);
+  assert.equal(bare.errors.length, 1, "the bare token is refused");
+  assert.match(bare.errors[0].message, /written in quotes, in a slot as in \{ \}: "loading"/, "…and the refusal names the spelling");
+  // a built-in vocabulary is unchanged: token only
+  const axisTok = await compile(`App [ width=1, height=1, layout: SimpleLayout [ axis = y ] ]`);
+  assert.deepEqual(axisTok.errors.map((e) => e.message), []);
+  const axisStr = await compile(`App [ width=1, height=1, layout: SimpleLayout [ axis = "y" ] ]`);
+  assert.match(axisStr.errors[0].message, /expects an Axis \(one of x \| y\), got the string/);
+});
+
+await test("DataSource.method / .format are closed sets checked at compile — slot AND body (2026-09-05)", async () => {
+  // Both were `kind: "string"` with the union only on the runtime class,
+  // invisible to programs: `method = "PATCHE"` passed every rung and failed at
+  // the fetch. Now the same authored-union AttrType — spelled as it always was.
+  const ok = await compile(`App [ width=1, height=1, d: DataSource [ url = "/x", method = "POST", format = "text" ] ]`);
+  assert.deepEqual(ok.errors.map((e) => e.message), [], "the documented spellings still compile");
+  const slot = await compile(`App [ width=1, height=1, d: DataSource [ url = "/x", method = "PATCHE" ] ]`);
+  assert.match(slot.errors[0].message, /one of "GET" \| "POST" \| "PUT" \| "PATCH" \| "DELETE"/, "a typo is refused in the slot");
+  const body = await compile(`App [ width=1, height=1, d: DataSource [ url = "/x" ], go() { app.d.method = "PATCHE" } ]`);
+  assert.match(body.errors[0].message, /not assignable/, "…and in a { } body, by the typechecker");
+  const bare = await compile(`App [ width=1, height=1, d: DataSource [ url = "/x", method = POST ] ]`);
+  assert.match(bare.errors[0].message, /written in quotes/, "a bare verb is refused with the quoted spelling named");
+});
+
 summarize("dataschema");

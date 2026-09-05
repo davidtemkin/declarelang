@@ -56,6 +56,7 @@ import ts from "typescript";
 import { parseProgram } from "../../runtime/dist/parser.js";
 import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { programSchemas } from "../../runtime/dist/check.js";
+import { resolveWrittenType } from "../../runtime/dist/program-schema.js";
 import { generateScaffold, memberSig, tsType, signatureTsType, shapeObjectText } from "./scaffold.js";
 import { attrType, descendsFrom } from "../../runtime/dist/schema.js";
 import { declaredType } from "../../runtime/dist/value.js";
@@ -514,11 +515,10 @@ class CaseEmitter {
             const isShape = (n) => this.shapeNames.has(n);
             const arrayOf = (n) => n.endsWith("[]") && (declaredType(n.slice(0, -2)) !== null || isC(n.slice(0, -2)) || isShape(n.slice(0, -2)) || arrayOf(n.slice(0, -2)) !== null)
                 ? { kind: "array", of: n.slice(0, -2) } : null;
-            const t = declaredType(d.type)
-                ?? arrayOf(d.type)
-                ?? (d.type.startsWith("(") ? { kind: "fn", written: d.type } : null)
-                ?? (isC(d.type) ? { kind: "component", of: d.type } : null)
-                ?? (isShape(d.type) ? { kind: "record", name: d.type, data: true } : null);
+            // THE SAME resolver checkDecl uses — see resolveWrittenType's note. These
+            // were separate copies until a literal union taught to one and not the
+            // other made every assignment report "read-only" (2026-09-04).
+            const t = resolveWrittenType(d.type, isC, isShape);
             // A color with a concrete (non-null) default is non-null (see memberSig):
             // nullable only where it means inherit/absent (`= null` or no default).
             const nonNullColor = t !== null && t.kind === "color" && d.def !== null && !(d.def.kind === "ident" && d.def.name === "null");

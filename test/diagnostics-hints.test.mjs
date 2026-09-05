@@ -266,4 +266,55 @@ await test("a bare object literal inside { } names the real mistake; the parenth
   assert.ok(other.errors.length > 0 && !other.errors[0].message.includes("its own parentheses"), other.errors[0]?.message);
 });
 
+await test("no 'shows' matches the initial location — the silently-invisible app is a warning (field report 2026-09-04)", async () => {
+  // The report: `location = ""` with `shows = "home"` rendered display:none,
+  // silently, forever — every screen's own `visible` evaluated correctly, and
+  // `shows` gates presence independently. Now named at compile, with the
+  // working names listed.
+  const r = await compile(`App [ width=1, height=1, location = "",
+      home: View [ shows = "home", Text [ text = "hi" ] ],
+      browse: View [ shows = "browse", Text [ text = "b" ] ] ]`, { originDir: process.cwd() });
+  const w = (r.warnings ?? []).filter((x) => /shows =/.test(x.message));
+  assert.ok(w.length > 0, "warns");
+  assert.match(w[0].message, /initial location is empty/);
+  assert.match(w[0].message, /"home" \| "browse"/, "names the locations that would work");
+  assert.equal(w[0].code, "DECLARE4008");
+  // the correct spelling is quiet
+  const ok = await compile(`App [ width=1, height=1, location = "home",
+      home: View [ shows = "home", Text [ text = "hi" ] ] ]`, { originDir: process.cwd() });
+  assert.equal((ok.warnings ?? []).filter((x) => /shows =/.test(x.message)).length, 0, "quiet when it matches");
+  // …and so is an app whose default screen is simply UNGATED (birds' shelf IS
+  // the empty address) — the bug is "nothing visible", not "something gated"
+  const shelf = await compile(`App [ width=1, height=1, location = "",
+      shelf: View [ Text [ text = "shelf" ] ],
+      quiz: View [ shows = "quiz", Text [ text = "q" ] ] ]`, { originDir: process.cwd() });
+  assert.equal((shelf.warnings ?? []).filter((x) => /shows =/.test(x.message)).length, 0, "an ungated default screen is correct");
+  // …but only a VIEW counts as that screen. A Dataset or Time at root is a
+  // child Element too, and counting one as "the visible screen" silenced this
+  // warning on exactly the report's shape — every real app keeps data at root.
+  // Caught in review (2026-09-04): the diagnostic built for their bug would
+  // not have fired on their bug.
+  const withData = await compile(`App [ width=1, height=1, location = "",
+      d: Dataset { { "a": 1 } },
+      clock: Time [ tick = second ],
+      home: View [ shows = "home", Text [ text = "hi" ] ] ]`, { originDir: process.cwd() });
+  assert.ok((withData.warnings ?? []).some((x) => /shows =/.test(x.message)), "data at root is not a screen — still warns");
+});
+
+await test("4005 for an authored union names ONLY the quoted spelling — there is no bare slot form to point at", async () => {
+  const r = await compile(`class Fetcher extends View [ phase: "idle" | "loading" = "idle" ]
+    App [ width=1, height=1, busy: boolean = false, f: Fetcher [ phase = { app.busy ? loading : idle } ] ]`, { originDir: process.cwd() });
+  const e = r.errors.find((x) => x.code === "DECLARE4005");
+  assert.ok(e, "4005 fires on the bare token in a body");
+  assert.match(e.message, /written in quotes, in a slot as in \{ \}: "loading"/);
+  assert.doesNotMatch(e.message, /phase = loading/, "must not recommend the bare slot spelling the ruling forbids");
+  // the built-in message is unchanged (the diagnostic's own documented case —
+  // NOT axis, whose tokens x/y are also every View's attribute names and so
+  // resolve as member references, never as bare tokens)
+  const b = await compile(`App [ width=1, height=1, strong: boolean = true, t: Text [ text = "a", fontWeight = { app.strong ? semibold : regular } ] ]`, { originDir: process.cwd() });
+  const be = b.errors.find((x) => x.code === "DECLARE4005");
+  assert.ok(be, "4005 fires for a built-in too");
+  assert.match(be.message, /bare only as the whole slot \(fontWeight = semibold\)/);
+});
+
 summarize("diagnostics-hints");

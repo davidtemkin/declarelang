@@ -7847,6 +7847,30 @@ await test("onArrive: anchored — same waiting as the reveal, the measured view
   } finally { app.discard(); }
 });
 
+await test("a call-site type argument is STRIPPED — f<T>(…) must not reach the JS parser (field report 2026-09-04)", async () => {
+  // The report's most expensive finding: `gqlRequest<{ items: Track[] }>("q")`
+  // passed every static rung and then threw `Track is not defined` in a real
+  // browser (or failed the body parse outright) — the type argument was never
+  // stripped, so `<` parsed as less-than and the type's names evaluated as
+  // variables. `as T` / `<T>x` / `x!` were already stripped; this shape was not.
+  const app = await buildL(`
+schema Track [ id: string ]
+script { function gq<T>(q: string): any { return ({ items: [] }) } }
+App [ width=1, height=1, n: number = 0,
+    d: Dataset [ schema = [ items[]: Track ] ] { { "items": [] } },
+    load() { const r = gq<{ items: Track[] }>("q"); app.n = (r.items ?? []).length },
+]`);
+  app.load();
+  settle();
+  assert.equal(app.n, 0, "the body ran at all — the type argument is gone");
+  // and a REAL comparison is untouched
+  const cmp = await buildL(`App [ width=1, height=1, n: number = 0,
+    go() { const a = 1; const b = 2; app.n = a < b ? 7 : 9 } ]`);
+  cmp.go();
+  settle();
+  assert.equal(cmp.n, 7, "a < b survived stripping");
+});
+
 await test("app.reveal(target): the default landing stays callable from a handler", async () => {
   const r = await compile(`App [ width = 400, height = 400, location = "",
     detail: View [ shows = "detail", width = 20, height = 20 ],

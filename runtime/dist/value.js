@@ -117,6 +117,32 @@ const DECLARED_TYPES = {
 };
 /** Resolve a written declaration type name (`count: number`), or null when
  *  the name is not in the declarable vocabulary. */
+/** An AUTHORED literal union (`"idle" | "loading"`) is an enum whose NAME is
+ *  the written union text — that text is the discriminator between it and a
+ *  built-in vocabulary (Axis, Motion), whose name is an identifier. Every
+ *  consumer asks this one question here, not with its own `startsWith('"')`. */
+export const isAuthoredUnion = (name) => name.startsWith('"');
+/** The members of a written string-literal union, or null when `text` is not
+ *  one. Quote-AWARE: the members are extracted as JSON string literals and
+ *  must reconstruct the text exactly, so a member containing `|` (`"a|b" |
+ *  "c"`) parses correctly — a bare split on `|` did not (review, 2026-09-04). */
+export function parseLiteralUnion(text) {
+    if (!isAuthoredUnion(text))
+        return null;
+    const lits = text.match(/"(?:[^"\\]|\\.)*"/g);
+    if (lits === null || lits.join(" | ") !== text.trim())
+        return null;
+    const out = [];
+    for (const l of lits) {
+        try {
+            out.push(JSON.parse(l));
+        }
+        catch {
+            return null;
+        }
+    }
+    return out;
+}
 export function declaredType(name) {
     return Object.hasOwn(DECLARED_TYPES, name) ? DECLARED_TYPES[name] : null;
 }
@@ -170,6 +196,22 @@ export function coerce(type, lit) {
                 return ok(null);
             return fail("a schema shape ([ field: type, rows[]: [ … ] ]), or null for none");
         case "enum":
+            // SPELL A MEMBER THE WAY ITS DECLARATION SPELLS IT (DT's ruling,
+            // 2026-09-05). A built-in vocabulary declares `y`, so `axis = y` and
+            // never `"y"`; an AUTHORED literal union declares `"idle"`, so
+            // `phase = "idle"` and never `idle`. One spelling each — the bare
+            // token was accepted for authored unions too until the ruling, and two
+            // spellings for one thing is the leak the language does not otherwise
+            // allow. The written union text is the discriminator (isAuthoredUnion).
+            if (isAuthoredUnion(type.name)) {
+                const members = type.tokens.map((t) => JSON.stringify(t)).join(" | ");
+                if (lit.kind === "string" && type.tokens.includes(lit.value))
+                    return ok(lit.value);
+                if (lit.kind === "ident" && type.tokens.includes(lit.name)) {
+                    return fail(`one of ${members} — a literal union's member is written in quotes, in a slot as in { }: "${lit.name}"`);
+                }
+                return fail(`one of ${members}`);
+            }
             if (lit.kind === "ident" && type.tokens.includes(lit.name))
                 return ok(lit.name);
             // Vowel-aware article: R7's Axis is the first enum that needs "an".

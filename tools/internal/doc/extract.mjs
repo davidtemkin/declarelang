@@ -148,7 +148,9 @@ function renderType(t) {
     case "string": return "string";
     case "color": return "Color";
     case "shape": return "Shape";
-    case "enum": return t.tokens.join(" | ");
+    // an authored-style union's NAME is its quoted member list — the spelling
+    // the ruling requires at every use site; a named vocabulary lists tokens
+    case "enum": return t.name.startsWith('"') ? t.name : t.tokens.join(" | ");
     case "component": return t.of;
     case "cursor": return "datapath";
     case "slotref": return "slot";

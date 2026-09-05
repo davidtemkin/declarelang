@@ -571,7 +571,10 @@ rather than being toggled. An optional `schema = [ field: type, rows[]: [ … ] 
 response's shape: it validates the payload on receipt — so malformed data yields `.failed` rather
 than `undefined` three bindings deep — and lets every `:path` be checked against the shape at
 compile time. Without one, paths are dynamic: an unresolved `:path` yields null and the bound
-attribute falls back to its default.
+attribute falls back to its default. A request carries `method`, `body`, `credentials` and
+`headers` — the last a reactive record (`headers = { ({ Authorization: "Bearer " + app.token }) }`),
+so an API-keyed or token-authenticated endpoint stays declarative; an empty header value is not
+sent, which is the whole "only when signed in" conditional.
 
 **A schema is a named type — declare it once, at the top level, and use it in any type position.**
 `schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]` is a

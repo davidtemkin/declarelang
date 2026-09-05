@@ -104,6 +104,23 @@ report when the fetch callback lands — and `.clear()`
 fetch-then-setState choreography from your current stack, deleted rather than
 abstracted.
 
+A real API usually wants a header — an API key, a bearer token — and that is an
+ordinary attribute: `headers = { ({ "x-api-key": app.key }) }`. It is a record,
+merged over the `Content-Type` a JSON `body` sets for itself, and **reactive like
+any other slot**, which is what makes the authenticated case declarative rather
+than imperative:
+
+```declare-fragment
+api: DataSource [ url = "/graphql", method = "POST", auto = true,
+    headers = { ({ "x-api-key": app.key,
+                   Authorization: app.token != "" ? "Bearer " + app.token : "" }) },
+    body = { ({ query: app.query }) } ]
+```
+
+A header whose value is empty is not sent, so the ternary above *is* the whole
+"only when signed in" story — no branch, no second source, and when the token
+lands the header re-derives and (with `auto`) the request follows.
+
 Not everything is structure. `format = "text"` delivers the fetched bytes as one
 string — how an authored Markdown file becomes an app's material directly, no JSON
 wrapping, no generated copy:
@@ -243,7 +260,13 @@ to end (the board at the end of this chapter runs the derived-dataset half of
 this pattern).
 
 A schema field can hold another schema, an array (`tags[]: string`), or a
-**literal union** — JSON can say those, so the subset can:
+**literal union** — JSON can say those, so the subset can. A *string* literal
+union is not special to schemas, though: it is an ordinary type, sayable in
+every type position the language has — an attribute declaration (`phase:
+"idle" | "loading" = "idle"`), a parameter, a return. The closed set you can
+state about *data* is the same one you can state about the state derived from
+it. (A *number* union — `col: 0 | 1 | 2` — is a schema-field type only, for
+now.)
 
 ```declare-fragment
 schema Person [ id: string, name: string ]

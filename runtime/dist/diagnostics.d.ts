@@ -59,9 +59,13 @@ export declare const Diag: {
     unresolved: (name: string, scope: string, pos: Pos) => DeclareError;
     shadowing: (message: string, pos: Pos) => DeclareError;
     hostGlobal: (name: string, hint: string, pos: Pos) => DeclareError;
-    enumTokenInExpr: (token: string, slot: string, pos: Pos) => DeclareError;
+    enumTokenInExpr: (token: string, slot: string, pos: Pos, quoted?: boolean) => DeclareError;
     timePolls: (param: string, pos: Pos) => DeclareError;
     ambientRead: (what: string, pos: Pos) => DeclareError;
+    /** A `shows` name that no initial `location` can ever equal — the screen is
+     *  born hidden and nothing says so (field report 2026-09-04: `location = ""`
+     *  with `shows = "home"` rendered display:none, silently, forever). */
+    showsUnreachable: (name: string, initial: string, names: readonly string[], pos: Pos) => DeclareError;
     scriptWrite: (name: string, pos: Pos) => DeclareError;
     classrootOutsideClass: (where: string, pos: Pos) => DeclareError;
     namedColorInExpr: (name: string, hex: string, pos: Pos) => DeclareError;

@@ -320,6 +320,17 @@ if (flags.json) {
     const wired = out.deps ? out.deps.filter((d) => d.length > 0).length : 0;
     console.log(`  verify: ${file} — clean through R${climbed}` +
       (out.deps?.length ? ` (${wired} of ${out.deps.length} constraints statically wired)` : ""));
+    // WHAT R4 CANNOT SEE. Rungs 1–4 run in a synthetic Node backend, so a clean
+    // climb is proof the program is well-formed — not that the browser bundle
+    // agrees. A field report (2026-09-04) lost more time to this than to every
+    // other finding combined: a clean R4, then `Track is not defined` in a real
+    // browser. verify.md said so; the verdict line did not, and the verdict is
+    // what an author reads. Named here, once, where the good news is delivered.
+    if (climbed <= 4) {
+      console.log(`  note R1–R4 run in a synthetic backend — real fonts, layout, images and the`);
+      console.log(`       browser's own module evaluation are not exercised. Drive it for real:`);
+      console.log(`       --assert <script.mjs> (R5) or open it in the dev server.`);
+    }
   } else {
     console.log(`  verify: ${file} — FAILED at R${failedRung}`);
   }

@@ -885,15 +885,27 @@ const DatasetSchema: ComponentSchema = {
 // own decls, exactly as a View subclass does). `descendsFrom "Node"` is the
 // test that admits these — and ONLY these: View/Layout have their own roots,
 // and Dataset/Animator/State keep theirs, so this does not silently open them.
+/** A closed set whose members are STRINGS a program writes in quotes —
+ *  `method = "POST"` — as distinct from enumType's token vocabularies
+ *  (`credentials = include`). The AttrType is the same enum the authored
+ *  literal unions produce (its name IS the written union), so the coercer,
+ *  the scaffold and the reference all treat it as one: membership checked at
+ *  compile in a slot AND in a { } body, spelled as it always was. Built for
+ *  method/format (2026-09-05): both were `kind: "string"` with the union only
+ *  on the runtime class, invisible to programs — `method = "PATCHE"` passed
+ *  every rung and failed at the fetch. */
+const literalUnion = (...members: readonly string[]): AttrType =>
+  ({ kind: "enum", name: members.map((m) => JSON.stringify(m)).join(" | "), tokens: [...members] });
+
 const DataSourceSchema: ComponentSchema = {
   name: "DataSource",
   base: DatasetSchema,
   attrs: {
     url: { kind: "string" },
     // "json" (default) or "text" — what the fetched bytes are (data.ts).
-    format: { kind: "string" },
+    format: literalUnion("json", "text"),
     // "GET" (default) or a body-carrying verb — a non-GET sends `body` (A9).
-    method: { kind: "string" },
+    method: literalUnion("GET", "POST", "PUT", "PATCH", "DELETE"),
     // the non-GET request payload: an object/array (JSON-encoded) or a string.
     body: { kind: "object" },
     // auto-fetch on url arrival/change (data.ts maybeAuto) — the opt-in for
@@ -905,6 +917,12 @@ const DataSourceSchema: ComponentSchema = {
     // maps colorDodge → color-dodge: a hyphen cannot be a token (it is
     // subtraction), and the language spells closed sets as tokens, not strings.
     credentials: enumType("Credentials", "omit", "sameOrigin", "include"),
+    // Request headers — a plain record, merged over what the source sets for
+    // itself (a JSON body's Content-Type). Reactive, so an auth token that
+    // lands later is an ordinary value change: the API-keyed and Bearer-token
+    // endpoints that ARE most real GraphQL/REST services were unreachable
+    // through this component until it existed (field report, 2026-09-04).
+    headers: { kind: "object" },
     // ── the lifecycle, read-only (see the note above DatasetSchema) ────────
     // One fact, four spellings: `status` is the state and the booleans derive
     // from it, so they can never disagree. Constraints read these — an entry

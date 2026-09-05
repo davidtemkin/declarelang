@@ -534,6 +534,24 @@ export class DataSource extends Dataset {
                 }
             }
         }
+        // Authored headers merge OVER the ones set above, so an explicit
+        // Content-Type wins over the JSON default and everything else adds. A
+        // header slot is ordinary reactive state, so a token arriving later is
+        // simply a changed value — nothing to re-wire.
+        const authored = this.headers;
+        if (authored !== null && typeof authored === "object") {
+            const merged = { ...init.headers };
+            // An EMPTY value drops the header rather than sending it blank: the
+            // reactive idiom for "only when signed in" is
+            // `Authorization: token ? "Bearer " + token : ""`, and a bare
+            // `Authorization:` on the wire is worse than none (some gateways 401 on
+            // it). null/undefined drop for the same reason.
+            for (const [k, v] of Object.entries(authored))
+                if (v != null && v !== "")
+                    merged[k] = String(v);
+            if (Object.keys(merged).length > 0)
+                init.headers = merged;
+        }
         if (this.credentials && this.credentials !== "sameOrigin")
             init.credentials = FETCH_CREDENTIALS[this.credentials];
         return Object.keys(init).length > 0 ? init : undefined;
@@ -641,6 +659,7 @@ defineAttributes(DataSource, {
     format: { def: "json" },
     method: { def: "GET" },
     body: { def: null },
+    headers: { def: null },
     status: { def: "idle" },
     error: { def: null },
     // 0 = no reply yet (or none ever arrived) — distinct from every real HTTP

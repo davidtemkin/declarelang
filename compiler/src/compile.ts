@@ -195,6 +195,7 @@ import { freeIdentifiers, hexColor8Literals } from "./free-idents.js";
 import { fillDatapaths, scanDatapaths, splitPath } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
+import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { hostGlobalHint } from "../../runtime/dist/teach.js";
 import { PRELUDE_NAMES } from "./scaffold.js";
 import { resolveIncludes, resolveAutoIncludes, spliceScriptFiles, NO_INCLUDES, type IncludeHost, type AutoIncludeHost } from "../../runtime/dist/include.js";
@@ -601,6 +602,10 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
     anchors: Object.fromEntries(regResult.registry.anchors),
   };
 
+  // Warnings this phase finds but cannot push yet — the Resolver (`r`, below)
+  // owns the warning list and does not exist until after the lowering.
+  const coldLoadWarnings: DeclareError[] = [];
+
   // ── `shows` LOWERING (location.md §0.4) ─────────────────────────────────
   // `shows = "why"` implies the visibility: the location's DESTINATION part
   // (the runtime strips its own trailing `@name` — app.destinationOf) equals
@@ -615,10 +620,14 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   // untouched; only columns after an insertion on that one line drift.
   {
     const edits: { start: number; end: number; text: string }[] = [];
+    // Every `shows` name in the tree, with where it was written — so the
+    // cold-load check below can say which names WOULD have worked.
+    const showsNames: { name: string; pos: Pos }[] = [];
     const gate = (name: string): string => `app.destinationOf(app.location) == ${JSON.stringify(name)}`;
     const walk = (el: Element): void => {
       const sh = el.attrs.find((a) => a.name === "shows");
       if (sh !== undefined && sh.value.kind === "string") {
+        showsNames.push({ name: sh.value.value, pos: sh.pos });
         const vis = el.attrs.find((a) => a.name === "visible");
         if (vis === undefined) {
           edits.push({ start: sh.pos.offset, end: sh.pos.offset, text: `visible = { ${gate(sh.value.value)} }, ` });
@@ -633,6 +642,56 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
       for (const c of el.children) walk(c);
     };
     walk(program.root); // App tree only — `shows` in a class body is a check error (§0.4)
+    // THE COLD-LOAD CHECK (field report 2026-09-04). A `shows` name is not a
+    // label — it lowers to `destinationOf(location) == name`, so it IS that
+    // view's visibility. When the program's own initial `location` matches no
+    // `shows` name, every such screen is born hidden and NOTHING says so: the
+    // report's app rendered display:none forever on `location = ""` with
+    // `shows = "home"`, and each screen's separately-authored `visible` was
+    // evaluating correctly the whole time, which is what made it invisible in
+    // both senses. Only a LITERAL location is judged — a `{ }` computes its
+    // start and is none of this pass's business.
+    // Only when EVERY top-level screen is `shows`-gated: an app whose default
+    // view is an ordinary ungated child (birds' shelf IS the empty address) is
+    // correct with a location no `shows` name matches, and warning there would
+    // be noise on a working program. The bug is "nothing at all is visible on
+    // a cold load", not "some screen isn't".
+    if (showsNames.length > 0) {
+      const loc = program.root.attrs.find((a) => a.name === "location");
+      const literal = loc === undefined ? "" : loc.value.kind === "string" ? loc.value.value : null;
+      if (literal !== null) {
+        // the runtime strips its own trailing `@anchor` before comparing
+        const dest = literal.split("@")[0];
+        const names = showsNames.map((s2) => s2.name);
+        // Is there any VIEW child of the root that is NOT shows-gated (and not
+        // hidden outright)? That child is the cold-load screen, and the app is
+        // fine. Only children — a `shows` deeper in the tree gates a section of
+        // an already-visible screen. And only views: a Dataset, a Time, a
+        // layout at root is a child Element too, and counting one as "the
+        // visible screen" silenced this warning on exactly the report's shape
+        // (every real app keeps data at root) — caught in review, 2026-09-04.
+        const bases = new Map(program.classes.map((c) => [c.name, c.base]));
+        const isView = (tag: string): boolean => {
+          const seen = new Set<string>();
+          for (let t: string | undefined = tag; t !== undefined && !seen.has(t); t = bases.get(t)) {
+            seen.add(t);
+            const sch = SCHEMAS[t];
+            if (sch !== undefined) return descendsFrom(sch, "View");
+          }
+          return false;
+        };
+        const ungated = program.root.children.some((c) => {
+          if (!isView(c.tag)) return false;
+          const sh = c.attrs.find((a) => a.name === "shows");
+          if (sh !== undefined) return false;
+          const vis = c.attrs.find((a) => a.name === "visible");
+          return !(vis !== undefined && vis.value.kind === "ident" && vis.value.name === "false");
+        });
+        if (!ungated && !names.includes(dest)) {
+          for (const s2 of showsNames) coldLoadWarnings.push(Diag.showsUnreachable(s2.name, dest, names, s2.pos));
+        }
+      }
+    }
     if (edits.length > 0) {
       edits.sort((a, b) => b.start - a.start);
       for (const e of edits) merged = merged.slice(0, e.start) + e.text + merged.slice(e.end);
@@ -658,6 +717,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   for (const s of program.styles) r.resolveBundle(s.body);
   r.resolveElement(program.root, [], program.root);
   r.warnings.push(...smallFieldWarnings(program, preludeLen));
+  r.warnings.push(...coldLoadWarnings);
   const byPos = (a: DeclareError, b: DeclareError) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);
   r.errors.sort(byPos);
   r.warnings.sort(byPos);
@@ -1327,7 +1387,7 @@ class Resolver {
           const slotSchema = slot !== undefined && levels.length > 0 ? this.schemas[levels[0].tag] : undefined;
           const slotType = slotSchema !== undefined && slot !== undefined ? attrType(slotSchema, slot) : null;
           if (slotType !== null && slotType.kind === "enum" && slotType.tokens.includes(id.name)) {
-            this.errors.push(Diag.enumTokenInExpr(id.name, slot!, pos));
+            this.errors.push(Diag.enumTokenInExpr(id.name, slot!, pos, isAuthoredUnion(slotType.name)));
             continue;
           }
           if (Object.hasOwn(CSS_COLORS, id.name)) {

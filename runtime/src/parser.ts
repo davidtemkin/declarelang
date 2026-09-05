@@ -693,6 +693,34 @@ class Parser {
       if (this.peek().kind === "query") { this.next(); text += "?"; }
       return { text, pos: open.pos };
     }
+    // A LITERAL UNION — `"idle" | "loading" | "done"`. Schema FIELDS have taken
+    // these since typed data; an ordinary declaration could not, so the same
+    // closed set was sayable about data and unsayable about the state derived
+    // from it (a real port hit exactly that, 2026-09-04: `status: "idle" |
+    // "loading" = "idle"` on an App, refused, while the same union in its
+    // schema was fine). One type system, one spelling — and it is TypeScript's
+    // own, so the scaffold passes it through untouched.
+    if (this.peek().kind === "number") {
+      // A number-literal union (`0 | 1 | 2`) is a SCHEMA-FIELD type today; on
+      // a declaration or a signature it is not yet sayable (its enum tokens
+      // would have to carry numbers — register). Say so, rather than the
+      // generic "expected a type name, got '0'" this fell to in review.
+      throw new DeclareError(
+        `a number-literal union is a schema-field type — on an attribute or a signature write 'number' (a numeric closed set here is not yet sayable; string unions are: "a" | "b")`,
+        this.peek().pos);
+    }
+    if (this.peek().kind === "string") {
+      const first = this.peek();
+      const parts: string[] = [];
+      for (;;) {
+        parts.push(JSON.stringify(this.expect("string", "a string literal in the union").str!));
+        if (this.peek().kind === "pipe") { this.next(); continue; }
+        break;
+      }
+      const utext = parts.join(" | ");
+      if (this.peek().kind === "query") { this.next(); return { text: utext + "?", pos: first.pos }; }
+      return { text: utext, pos: first.pos };
+    }
     const name = this.expect("ident", what);
     let text = name.text;
     // `Window[]` — an element-typed array (the type is TS's own; only the
@@ -887,7 +915,9 @@ class Parser {
           }
           if (this.peek().kind === "colon") {
             this.next();
-            if (this.peek().kind === "ident" || this.peek().kind === "lparen") {
+            // `ident` (a name), `(` (a function type), or `"` (a literal union
+            // — the same spelling declarations and schema fields take)
+            if (this.peek().kind === "ident" || this.peek().kind === "lparen" || this.peek().kind === "string") {
               const tr = this.parseTypeRef("a parameter type name");
               ptypePos = tr.pos;
               if (tr.text.endsWith("?")) { ptype = tr.text.slice(0, -1); pnullable = true; } else ptype = tr.text;
@@ -909,7 +939,7 @@ class Parser {
         let returns: string | undefined, returnsPos: Pos | undefined, returnsNullable = false;
         if (this.peek().kind === "arrow" || this.peek().kind === "colon") {
           const marker = this.next();
-          if (this.peek().kind === "ident" || this.peek().kind === "lparen") {
+          if (this.peek().kind === "ident" || this.peek().kind === "lparen" || this.peek().kind === "string") {
             const tr = this.parseTypeRef("a return type name");
             returnsPos = tr.pos;
             if (tr.text.endsWith("?")) { returns = tr.text.slice(0, -1); returnsNullable = true; } else returns = tr.text;

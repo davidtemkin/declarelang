@@ -16,7 +16,7 @@
 import type { Element, Attr, AttrDecl, ClassDecl, Literal } from "./parser.js";
 import { DeclareError, type Pos } from "./errors.js";
 import { SCHEMAS, attrType, isReadOnly, descendsFrom, type ComponentSchema } from "./schema.js";
-import { coerce, declaredType, describeLiteral, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
+import { coerce, declaredType, describeLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
 
 /** The default (no schemas declared) — one shared frozen set. */
 const EMPTY_SHAPES: ReadonlySet<string> = new Set();
@@ -268,6 +268,46 @@ export type CheckedDecl =
   | { ok: true; type: AttrType; value: AttrValue | undefined; binding?: { src: string; pos: Pos } }
   | { ok: false; error: DeclareError };
 
+/** Resolve a WRITTEN type name to its AttrType — the one place that mapping
+ *  lives. Two callers need it and MUST agree: checkDecl (which refuses an
+ *  unknown type outright) and the typechecker's assignTypes (which emits the
+ *  TS member signature). They were separate copies until 2026-09-04, when a
+ *  literal union taught to one and not the other fell to assignTypes' `t ===
+ *  null` arm, was emitted `readonly … : any`, and made every assignment to it
+ *  report "read-only — a fact the component maintains" — a diagnostic blaming
+ *  the wrong thing entirely. One function now, so a new type can only be added
+ *  once.
+ *
+ *  A LITERAL UNION (`"idle" | "loading"`) resolves to an ENUM whose tokens are
+ *  its members — the same AttrType the built-in vocabularies use, so a write is
+ *  checked against the set and the scaffold projects the TS union it already
+ *  is. The parser normalizes the spelling (JSON.stringify each member), so the
+ *  test here is exact. */
+export function resolveWrittenType(
+  written: string,
+  isComponent: (n: string) => boolean,
+  isShape: (n: string) => boolean
+): AttrType | null {
+  const literalUnion = (n: string): AttrType | null => {
+    const tokens = parseLiteralUnion(n);
+    return tokens !== null && tokens.length > 0 ? ({ kind: "enum", name: n, tokens } as AttrType) : null;
+  };
+  const arrayOf = (n: string): AttrType | null => {
+    if (!n.endsWith("[]")) return null;
+    const base = n.slice(0, -2);
+    // the element must itself be a sayable type — a primitive, a component, a
+    // declared schema, or a deeper array; fn-element arrays wait for a need
+    const okBase = declaredType(base) !== null || isComponent(base) || isShape(base) || (base.endsWith("[]") && arrayOf(base) !== null);
+    return okBase ? ({ kind: "array", of: base } as AttrType) : null;
+  };
+  return declaredType(written)
+    ?? literalUnion(written)
+    ?? arrayOf(written)
+    ?? (written.startsWith("(") ? { kind: "fn", written } as AttrType : null)
+    ?? (isComponent(written) ? { kind: "component", of: written } as AttrType : null)
+    ?? (isShape(written) ? { kind: "record", name: written, data: true } as AttrType : null);
+}
+
 export function checkDecl(
   schema: ComponentSchema,
   d: AttrDecl,
@@ -312,22 +352,10 @@ export function checkDecl(
       d.pos
     );
   }
-  const arrayOf = (n: string): AttrType | null => {
-    if (!n.endsWith("[]")) return null;
-    const base = n.slice(0, -2);
-    // the element must itself be a sayable type — a primitive, a component, a
-    // declared schema, or a deeper array; fn-element arrays wait for a need
-    const okBase = declaredType(base) !== null || isComponent(base) || isShape(base) || (base.endsWith("[]") && arrayOf(base) !== null);
-    return okBase ? ({ kind: "array", of: base } as AttrType) : null;
-  };
-  const type = declaredType(d.type)
-    ?? arrayOf(d.type)
-    ?? (d.type.startsWith("(") ? { kind: "fn", written: d.type } as AttrType : null)
-    ?? (isComponent(d.type) ? { kind: "component", of: d.type } as AttrType : null)
-    ?? (isShape(d.type) ? { kind: "record", name: d.type, data: true } as AttrType : null);
+  const type = resolveWrittenType(d.type, isComponent, isShape);
   if (type === null) {
     return err(
-      `unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class, a declared schema, or a function type '(a: T) -> R'`,
+      `unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class, a declared schema, a literal union ('"open" | "closed"'), or a function type '(a: T) -> R'`,
       d.typePos
     );
   }

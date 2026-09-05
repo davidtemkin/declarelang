@@ -55,8 +55,9 @@ detail: DataSource [ auto = true, url = { "/api/issue/" + app.selectedId } ]
 ```
 
 ## method
-The HTTP verb — `"GET"` by default. A body-carrying verb (`"POST"`, `"PUT"`, `"PATCH"`)
-sends `body` with the request. A DataSource stays a *source* either way: the response lands
+The HTTP verb — `"GET"` by default; one of `"GET" | "POST" | "PUT" | "PATCH" | "DELETE"`,
+checked at compile in a slot and in a `{ }` body alike. A body-carrying verb (`"POST"`,
+`"PUT"`, `"PATCH"`) sends `body` with the request. A DataSource stays a *source* either way: the response lands
 in `value` and the status flags exactly as a GET's would, so a POST that returns the created
 record leaves you reading it like anything else.
 
@@ -65,6 +66,25 @@ The payload for a non-GET `method` — an object or array (JSON-encoded on the w
 string (sent as-is). Ignored on a GET. Like `url` it can be a `{ }` constraint, so the
 payload re-derives from live state; also like `url`, changing it sends nothing until the
 next `fetch()`.
+
+## headers
+Request headers, as a plain record: `headers = { ({ "x-api-key": app.key }) }`. They merge
+*over* the ones the source sets for itself, so a JSON `body`'s `Content-Type` is there by
+default and an explicit entry overrides it. Like `url` and `body` this is an ordinary
+reactive slot, which is what keeps an authenticated endpoint declarative rather than
+imperative — the header re-derives when what it reads changes:
+
+```declare-fragment
+api: DataSource [ url = "/graphql", method = "POST", auto = true,
+    headers = { ({ "x-api-key": app.key,
+                   Authorization: app.token != "" ? "Bearer " + app.token : "" }) },
+    body = { ({ query: app.query }) } ]
+```
+
+A header whose value is empty (or null) is **not sent**, so that ternary is the whole
+"only when signed in" story: no branch, no second source, no imperative re-plumbing when
+the token lands. (Changing a header, like changing `body`, sends nothing until the next
+`fetch()` — or immediately, if `auto` is on and the `url` changed with it.)
 
 ## credentials
 How to handle cookies, TLS client certificates, and authentication headers — the

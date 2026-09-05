@@ -78,6 +78,7 @@ import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import type { AttrType } from "../../runtime/dist/value.js";
 import type { ClassDecl, Method, Param, SchemaDecl } from "../../runtime/dist/parser.js";
 import { MOTION_TOKENS } from "../../runtime/dist/animate.js";
+import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { EVENT_PAYLOAD, handlerName } from "../../runtime/dist/schema.js";
 
@@ -275,7 +276,12 @@ export function tsType(t: AttrType): string {
     case "color": return "Color";
     case "shape": return "Shape";
     case "dataschema": return "any"; // the parsed shape declarations — data, not a body-facing type
-    case "enum": return t.name; // references the emitted `type <Name> = …` alias
+    // An AUTHORED literal union (`"idle" | "loading"`) carries the union TEXT
+    // as its name and is already TypeScript, so it emits inline and needs no
+    // alias; a built-in vocabulary (Axis, Motion) references the emitted
+    // `type <Name> = …` alias. Both are `t.name` — the difference is whether
+    // an alias is generated for it (see generateScaffold's `enums`).
+    case "enum": return t.name;
     case "component": return `${t.of} | null`; // the only literal is `null` for "none"
     case "fn": return `(${t.written.replace(/->/g, "=>")}) | null`; // a callback slot; `null` = none
     case "cursor": return "Cursor"; // reads see the place; writes are widened in memberSig
@@ -333,6 +339,8 @@ export function signatureTsType(written: string, isComponent: (n: string) => boo
     const fn = written.replace(/->/g, "=>");
     return nullable ? `(${fn}) | null` : fn;
   }
+  // a literal union is already TypeScript — pass it through
+  if (isAuthoredUnion(written)) return nul(written);
   if (PAYLOAD_TYPES.has(written)) return nul(written);   // `onPointerUp(e: PointerUpEvent)`
   const t = declaredType(written);
   if (t !== null) return nul(t.kind === "view" ? "View" : t.kind === "component" ? t.of : tsType(t));
@@ -700,7 +708,7 @@ export function generateScaffold(
   // is identical on Animator and AnimatorGroup — so a name pins one token set).
   const enums = new Map<string, readonly string[]>();
   for (const s of all.values()) {
-    for (const t of Object.values(s.attrs)) if (t.kind === "enum" && !enums.has(t.name)) enums.set(t.name, t.tokens);
+    for (const t of Object.values(s.attrs)) if (t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name)) enums.set(t.name, t.tokens);
   }
   // …and from METHOD SIGNATURE types. An enum (or record) named ONLY by a
   // signature — `f(a: Axis)` in a program whose attributes never mention Axis —
@@ -716,7 +724,7 @@ export function generateScaffold(
   sigTypes.push(...extraSignatureTypes);
   for (const name of sigTypes) {
     const t = declaredType(name);
-    if (t !== null && t.kind === "enum" && !enums.has(t.name)) enums.set(t.name, t.tokens);
+    if (t !== null && t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name)) enums.set(t.name, t.tokens);
   }
   const enumLines = [...enums].map(
     ([name, toks]) => `type ${name} = ${toks.map((t) => JSON.stringify(t)).join(" | ")};`

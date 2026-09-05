@@ -522,6 +522,23 @@ export class DataSource extends Dataset {
    *  hyphen is subtraction, so it cannot be a token); FETCH_CREDENTIALS maps it
    *  back, as `blend` does for CSS's color-dodge. */
   declare credentials: "omit" | "sameOrigin" | "include";
+  /** Request HEADERS — a plain record, `{ "x-api-key": "…" }`, merged over the
+   *  ones this source sets for itself (a JSON body's `Content-Type`, which an
+   *  explicit entry may override). REACTIVE like any other slot, which is the
+   *  point: `headers = { ({ Authorization: "Bearer " + app.token }) }` re-reads
+   *  when the token lands, so an authenticated source needs no imperative
+   *  re-plumbing — and with `auto = true` a changed address refetches with the
+   *  current header. A header whose value is empty (or null) is NOT sent —
+   *  `Authorization: signedIn ? "Bearer " + t : ""` is the whole conditional-
+   *  header idiom, with no branch to write.
+   *
+   *  Added 2026-09-04 after a field report ported a real product onto an
+   *  AppSync GraphQL endpoint: every such API wants `x-api-key` or
+   *  `Authorization` on EVERY request, so without this the declarative
+   *  primitive could not be used at all — the whole app fell back to
+   *  hand-written `fetch()` in a script block and re-declared the
+   *  loading/loaded/failed lifecycle by hand, once per screen. */
+  declare headers: Record<string, string> | null;
   /** The lifecycle, as one fact; the four doc-named booleans derive below. */
   declare status: "idle" | "loading" | "loaded" | "failed";
   declare error: string | null;
@@ -588,6 +605,21 @@ export class DataSource extends Dataset {
         if (typeof body === "string") init.body = body;
         else { init.body = JSON.stringify(body); init.headers = { "Content-Type": "application/json" }; }
       }
+    }
+    // Authored headers merge OVER the ones set above, so an explicit
+    // Content-Type wins over the JSON default and everything else adds. A
+    // header slot is ordinary reactive state, so a token arriving later is
+    // simply a changed value — nothing to re-wire.
+    const authored = this.headers;
+    if (authored !== null && typeof authored === "object") {
+      const merged: Record<string, string> = { ...(init.headers as Record<string, string> | undefined) };
+      // An EMPTY value drops the header rather than sending it blank: the
+      // reactive idiom for "only when signed in" is
+      // `Authorization: token ? "Bearer " + token : ""`, and a bare
+      // `Authorization:` on the wire is worse than none (some gateways 401 on
+      // it). null/undefined drop for the same reason.
+      for (const [k, v] of Object.entries(authored)) if (v != null && v !== "") merged[k] = String(v);
+      if (Object.keys(merged).length > 0) init.headers = merged;
     }
     if (this.credentials && this.credentials !== "sameOrigin") init.credentials = FETCH_CREDENTIALS[this.credentials];
     return Object.keys(init).length > 0 ? init : undefined;
@@ -685,6 +717,7 @@ defineAttributes(DataSource, {
   format: { def: "json" },
   method: { def: "GET" },
   body: { def: null },
+  headers: { def: null },
   status: { def: "idle" },
   error: { def: null },
   // 0 = no reply yet (or none ever arrived) — distinct from every real HTTP

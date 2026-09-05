@@ -233,8 +233,12 @@ export const Diag = {
     err(code4(4004), `'${name}' is the host's, not Declare's — a program runs on three renderers and names none of their globals. ${hint.charAt(0).toUpperCase()}${hint.slice(1)}`, pos),
   // A bare enum token inside a { } body (`{ active ? semibold : regular }`):
   // the slot's own word, which is a string inside an expression.
-  enumTokenInExpr: (token: string, slot: string, pos: Pos): DeclareError =>
-    err(code4(4005), `'${token}' is one of ${slot}'s values — bare only as the whole slot (${slot} = ${token}); inside { } write it as a string: "${token}"`, pos),
+  enumTokenInExpr: (token: string, slot: string, pos: Pos, quoted = false): DeclareError =>
+    quoted
+      // an AUTHORED literal union: the member is quoted EVERYWHERE — there is
+      // no bare slot form to point at (DT's spelling ruling, 2026-09-05)
+      ? err(code4(4005), `'${token}' is one of ${slot}'s values — a literal union's member is written in quotes, in a slot as in { }: "${token}"`, pos)
+      : err(code4(4005), `'${token}' is one of ${slot}'s values — bare only as the whole slot (${slot} = ${token}); inside { } write it as a string: "${token}"`, pos),
   // A WARNING: a per-frame onTick that never reads its dt is not integrating —
   // it is polling, the one imperative habit the language exists to retire
   // (declare.md §1, "nothing waits").
@@ -244,7 +248,12 @@ export const Diag = {
   // it evaluates once and never again (the stopped clock, open-items L-25).
   ambientRead: (what: string, pos: Pos): DeclareError =>
     err(code4(4007), `this { } reads ${what} — the ambient world, not the tree: a constraint re-runs when something it READ changes, and nothing here can change, so this evaluates once and never again. The current time is a Time member's facts (time.now, time.minute, …), which a { } derives from like any attribute; Date.now() belongs in a handler`, pos),
-  scriptWrite: (name: string, pos: Pos): DeclareError =>
+
+  /** A `shows` name that no initial `location` can ever equal — the screen is
+   *  born hidden and nothing says so (field report 2026-09-04: `location = ""`
+   *  with `shows = "home"` rendered display:none, silently, forever). */
+  showsUnreachable: (name: string, initial: string, names: readonly string[], pos: Pos): DeclareError =>
+    err(code4(4008), `shows = ${JSON.stringify(name)}, but this program's initial location is ${initial === "" ? "empty" : JSON.stringify(initial)} — a 'shows' name IS the visibility gate (it lowers to app.destinationOf(app.location) == the name), so nothing here is visible on a cold load. Set App's location to one of ${names.map((n) => JSON.stringify(n)).join(" | ")}, or give this view its own 'visible'`, pos),  scriptWrite: (name: string, pos: Pos): DeclareError =>
     err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
   // `classroot` reaches the root of the component (class) you are defining, so it
   // is meaningful ONLY inside a class body. `where` names the non-class body the
@@ -348,6 +357,7 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4005), phase: "name", summary: "a bare enum token inside { } — the quoted form is named" },
   { code: code4(4006), phase: "name", summary: "a per-frame Time's onTick ignores dt — polling, not integration (warning)" },
   { code: code4(4007), phase: "name", summary: "a { } reads the ambient clock (Date.now(), new Date()) — a stopped clock (warning)" },
+  { code: code4(4008), phase: "name", summary: "no 'shows' name matches the initial location — every screen starts hidden (warning)" },
   { code: code4(5000), phase: "module", summary: "include/module error (unclassified)" },
   { code: code4(5001), phase: "module", summary: "two included files declare the same class" },
   { code: code4(5002), phase: "module", summary: "an include path cannot be found" },

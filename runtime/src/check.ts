@@ -33,7 +33,7 @@ import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerNa
 import { Diag, nearestName } from "./diagnostics.js";
 import { cssAttributeHint, hintedForeignName } from "./teach.js";
 import { autoIncludableNames } from "./include.js";
-import { coerce, describeLiteral, type AttrType, type AttrValue, declaredType, DECLARED_TYPE_NAMES } from "./value.js";
+import { coerce, describeLiteral, type AttrType, type AttrValue, declaredType, isAuthoredUnion, parseLiteralUnion, DECLARED_TYPE_NAMES } from "./value.js";
 import { resolveShapes, shapeNames } from "./shape-resolve.js";
 
 // The program-under-check's declared schema names — set at check() entry
@@ -166,6 +166,8 @@ function checkSignatureTypes(
       const types = n.replace(/[A-Za-z_$][\w$]*\s*:/g, " ").match(/[A-Za-z_$][\w$]*/g) ?? [];
       return types.every((w) => w === "void" || known(w));
     }
+    // a literal union is TypeScript's own and needs no registry
+    if (isAuthoredUnion(n)) return parseLiteralUnion(n) !== null;
     return declaredType(n) !== null || schemas[n] !== undefined || PAYLOAD_TYPE_NAMES.has(n) || CHECK_SHAPES.has(n);
   };
   const schema = schemas[el.tag];
@@ -218,7 +220,7 @@ function checkSignatureTypes(
       const badP = prm.type === undefined ? null : firstUnknown(prm.type);
       if (badP !== null) {
         errors.push(new DeclareError(
-          `unknown type '${badP}' for parameter '${prm.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class in this program, or a function type '(a: T) -> R'`,
+          `unknown type '${badP}' for parameter '${prm.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class in this program, a literal union ('"a" | "b"'), or a function type '(a: T) -> R'`,
           prm.typePos ?? m.pos
         ));
       }
@@ -226,7 +228,7 @@ function checkSignatureTypes(
     const badR = m.returns === undefined ? null : firstUnknown(m.returns);
     if (badR !== null) {
       errors.push(new DeclareError(
-        `unknown return type '${badR}' for '${m.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class in this program, or a function type '(a: T) -> R'`,
+        `unknown return type '${badR}' for '${m.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class in this program, a literal union ('"a" | "b"'), or a function type '(a: T) -> R'`,
         m.returnsPos ?? m.pos
       ));
     }
