@@ -16,6 +16,7 @@
     "build:dev": "tsc -b && node tools/reload-dev.mjs",
     "build:mac": "node tools/internal/build-mac-app.mjs",
     "derive": "node tools/internal/derive.mjs",
+    "release": "node tools/internal/release.mjs",
     "start": "node server/dev.mjs",
     "deploy": "\"$HOME/Code/Mesa/scripts/deploy-declare.sh\" HEAD",
     "test": "npm run build && node tools/internal/run-tests.mjs",

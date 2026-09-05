@@ -93,4 +93,24 @@ if [ -n "$DIRTY" ]; then
   exit 1
 fi
 
+# (3) A BUMP IS A RELEASE. If package.json's version has no tag, this push
+# publishes a release (release.mjs, run after the push lands) — so the notes
+# it will be projected from must be here, committed, now. And notes for a
+# version package.json does not declare are a declaration with no bump behind
+# it. Read-only like (1) and (2): release.mjs --check inspects, never writes.
+# Silent when nothing is pending, which is most pushes. (Whether the notes'
+# STAMPS are fresh is (1)'s question — releases/ is a stamp target.)
+RELOUT=$(node tools/internal/release.mjs --check 2>&1)
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "pre-push: this push would publish a release, and its declaration is incomplete:"
+  echo ""
+  echo "$RELOUT" | sed 's/^/    /'
+  echo ""
+  echo "  (RELEASING.md has the flow; git push --no-verify to override)"
+  echo ""
+  exit 1
+fi
+[ -n "$RELOUT" ] && echo "$RELOUT"
+
 exit 0

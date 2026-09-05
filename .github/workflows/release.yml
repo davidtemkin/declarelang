@@ -1,0 +1,30 @@
+# A release is a consequence of the push landing (RELEASING.md). On every push
+# to main this asks release.mjs to publish; when package.json's version is
+# already tagged — most pushes — it says so and exits 0. When it is not, the
+# pre-push gate has already refused any push whose notes were missing, so what
+# arrives here is a complete declaration: tag the pushed SHA, push the tag,
+# create the GitHub Release from releases/v<version>.md — or correct its body
+# to match the file. Idempotent, so a partial failure simply re-runs.
+#
+# This is the repo's first CI (2026-09-05, DT: "let's go with that"). The same
+# script runs by hand after a push — `npm run release` — and refuses if HEAD is
+# not on origin/main; this workflow makes a plain `git push` sufficient.
+name: release
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # tags — release.mjs asks which versions are tagged
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/internal/release.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}

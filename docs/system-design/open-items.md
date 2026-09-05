@@ -999,3 +999,59 @@ stays external and truly defers, while a **bare** specifier is resolved from
 **Not a platform matter.** DESIGN-DIFF.md is the agent's own scope confession — it never
 ported discover.fm's design system and left the app on the stock theme. Worth reading as
 evidence of how an agent defaults, not as a Declare defect.
+
+## The release process, regularized — **built 2026-09-05**
+
+Prompted by v0.4.3: its notes were typed into `gh release create` from outside the tree,
+the tag was made by hand, and one figure in them ("84.6 KB") was transcribed from a commit
+message and was wrong at the tag (85.0, per `stats.json`) — the exact drift the derive
+graph exists to prevent, on the one published artifact that was not a projection of
+anything committed. DT: "regularized, so you're not going around the derive / push
+process"; "formalized and documented."
+
+**Ruled and built — a release is a projection of the tree.** Declared IN the tree, at the
+arc's end (never at push time — a flag is not in history and not reviewable): a
+`package.json` bump plus `releases/v<version>.md`, hand-authored notes whose H1 is the
+headline ONLY (the tool composes `v<version> — <headline>`, so the version is authored in
+one place) around `<!--stat:…-->` markers that `stamp-stats` fills — the number in the
+notes is the number at the tag by construction. `release.mjs --scaffold <version>` bumps,
+writes the skeleton, and PRINTS the commit subjects since the last tag (the checklist;
+never written into the file — nothing machine-made lives there but stamps). `pre-push`
+gains a third read-only question (a bump ⇒ its notes, committed; notes ⇒ a bump), in the
+hook's refuse-never-write idiom, because a tag or commit made inside pre-push lands after
+the pushed SHA. Publication is a consequence of the push landing: `release.mjs` (CI on
+push to main, or `npm run release` by hand — it refuses if HEAD is not on origin/main) tags
+HEAD, pushes the tag, and creates the GitHub Release or CORRECTS its body to equal the
+file's projection — a hand edit on GitHub is overwritten, as an edit inside a stamp marker
+would be. **The increment stays a judgment**: `--scaffold` refuses without an explicit
+version; nothing infers patch-vs-minor. RELEASING.md rewritten around the flow;
+`releases/v0.4.3.md` retrofitted so the first release under the scheme is the one that
+prompted it. Pins in `test/release.test.mjs`; the docs test walks `releases/` for
+fragments.
+
+**Three invariants, and where each lives.** `releases/*.md` is a STAMP TARGET of
+stamp-stats — hand-authored around markers, like README — never an OUTPUT of any rule (an
+output is authored whole; the prose would be clobbered). A stamp in a release file is
+FROZEN once its version is tagged (stamp-stats checks `git tag -l`): a release's figure is
+a fact about its tag, and without the freeze every later derive would rewrite v0.4.3's
+number and the published page would follow — the one deliberate impurity in a derive rule,
+safe in both directions (the tag appearing changes no input hash, so not re-running is
+what re-running would do; an input moving after the tag re-runs the rule, which declines
+to write). And no duplicate document: the file is the source, the Releases page its
+projection — the same inversion derive made for `declare-model.json`, extended to the last
+published artifact outside it.
+
+**Found by the dry run, fixed:** the stamper's marker key class was `[a-zA-Z.]+` — no
+digits — so the new one-decimal key `calendar.wireKB1` never matched and was skipped
+SILENTLY (a marker that never matches cannot reach the unknown-key error either). Now
+pinned corpus-wide: every `<!--stat:…-->` in every stamp target must match the stamper's
+regex AND have a FORMATS entry.
+
+**Infrastructure note — the repo's first CI (DT, 2026-09-05: "let's go with that").** Before
+this arc the repo had NO CI; the hooks' "CI is the net under it" comments described
+something that did not exist. `.github/workflows/release.yml` (push to main →
+`release.mjs`, `contents: write`) is that first workflow — considered, briefly set aside
+for the manual command, then adopted. The by-hand `npm run release` remains complete
+without it; the hook cannot publish (it may not write). Its first run corrects v0.4.3's
+published body to the file's projection — the designed behavior, and the first proof
+that the page follows the file.

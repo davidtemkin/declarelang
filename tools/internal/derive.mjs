@@ -138,9 +138,14 @@ const RULES = [
   },
   {
     name: "stamp-stats",             // measured figures into prose citations
-    inputs: ["tools/internal/stamp-stats.mjs", "apps/homepage/stats.json"],
+    // package.json + releases/: the PENDING release's notes (releases/v<version>.md,
+    // for package.json's version, while untagged) are a stamp target too — a
+    // release is a projection of the tree (RELEASING.md), and its figures are
+    // stamped, never typed. The notes are an input as well: an edit to the prose
+    // re-runs the stamper, which is what re-fills its markers.
+    inputs: ["tools/internal/stamp-stats.mjs", "apps/homepage/stats.json", "package.json", { dir: "releases", ext: ".md" }],
     outputs: [],
-    stamps: ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md"],
+    stamps: ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", { dir: "releases", ext: ".md" }],
     run: () => run("node", ["tools/internal/stamp-stats.mjs"]),
   },
   {

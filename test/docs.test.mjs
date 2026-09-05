@@ -12,7 +12,7 @@
 // moves the test goes red, and the repair is to edit the baseline, which silently
 // invalidates every measurement ever taken against it. A frozen artifact must be
 // allowed to rot; that is what makes it a control.
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -36,6 +36,9 @@ const COVERED = [
   ...readdirSync(resolve(HERE_ROOT, "docs/guide")).filter((f) => f.endsWith(".md")).map((f) => `docs/guide/${f}`),
   ...readdirSync(resolve(HERE_ROOT, "docs/operational")).filter((f) => f.endsWith(".md")).map((f) => `docs/operational/${f}`),
   ...readdirSync(resolve(HERE_ROOT, "docs/tenets")).filter((f) => f.endsWith(".md")).map((f) => `docs/tenets/${f}`),
+  // release notes are prose with examples like any chapter — a fragment in
+  // them is checked the same way (the GitHub release is a projection of these)
+  ...(existsSync(resolve(HERE_ROOT, "releases")) ? readdirSync(resolve(HERE_ROOT, "releases")).filter((f) => f.endsWith(".md")).map((f) => `releases/${f}`) : []),
 ];
 
 for (const rel of COVERED) {

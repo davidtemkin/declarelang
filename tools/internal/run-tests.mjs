@@ -21,6 +21,7 @@ const SUITE = [
   "test/declarec.test.mjs",
   "test/diagnostics-hints.test.mjs",
   "test/error-codes.test.mjs",
+  "test/release.test.mjs",         // a release is a projection of the tree: the check, the scaffold, the projection
   "test/databinding.test.mjs",
   "test/materialization.test.mjs",
   "test/dataschema.test.mjs",
