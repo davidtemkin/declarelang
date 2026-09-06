@@ -1,0 +1,352 @@
+// textsampler — a specimen sheet for Declare's text stack, basics to the most
+// styled. Three segmented pages so each stays near a desktop viewport rather than
+// one long scroll: Text (a plain run up through gradients, shadows, tracking),
+// Rich Text (HTMLText — inline styles, the textStyles palette, variable inline
+// size on a shared baseline, links), and Markdown (a whole document, a table, a
+// code block). Every specimen shows the live text and, below it, the exact
+// Declare fragment that draws it — static illustrative source, not a live editor.
+// Styled to sit beside sampler and viewer: the San Francisco theme, bordered
+// cards on a quiet ground. Each specimen is a card whose inset column stacks the
+// label, the live example, and the snippet as siblings, so it auto-sizes to fit.
+
+font Mono [ family = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" ]
+
+use [ SunIcon, AutoIcon, MoonIcon ]
+
+// A recessed code snippet — the illustrative Declare source under a specimen.
+
+class Snippet extends View [ code: string = "",
+    width = { parent.width },
+    height = { this.body.height + 18 },
+    cornerRadius = 7,
+    fill = { theme.bg },
+    body: Text [ x = 12, y = 9, width = { parent.width - 24 },
+        fontFamily = Mono, fontSize = 11.5, lineHeight = 1.5,
+        textColor = { theme.textMuted }, text = { classroot.code }, wrap = true ]
+    ]
+
+
+// A specimen's small role label — instances set `text`.
+
+class Label extends Text [
+    fontSize = 11, fontWeight = semibold, letterSpacing = 1.1, wrap = false,
+    textColor = { theme.textFaint }
+    ]
+
+
+// The appearance switch — the viewer's ☀ / ◐ / ☾, three small segments.
+
+class ModeBtn extends View [ mode: string = "",
+    glyph: string = "",
+    width = 34, height = 28, cornerRadius = 7,
+    active: boolean = { app.themeMode == classroot.mode },
+    fill = { active ? theme.controlSelected : (hovered ? theme.controlHover : null) },
+    onClick() { app.themeMode = classroot.mode },
+    g: IconHost [ x = center, y = center, iconSize = 15, kind = { classroot.glyph },
+        ink = { classroot.active ? theme.accent : theme.textMuted } ]
+    ]
+
+
+App [ minWidth = 340,
+    fill = { theme.bg },
+    textColor = { theme.text },
+    selectable = true,                           // prevailing — every specimen and snippet is selectable/copyable
+
+    page: string = "text",                       // text | rich | markdown
+    themeMode: string = "auto",                  // light | auto | dark
+    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
+    narrow: boolean = { app.width < 900 },
+    compact: boolean = { app.width < 620 },
+    barH: number = 52,
+
+    theme = { Themes.sanFrancisco(app.darkUI) },
+    fontFamily = "-apple-system, system-ui, sans-serif",
+
+    bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, ignoreScroll = true,
+        fill = { theme.surface },
+        edge: View [ x = 0, y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
+
+        // The family brand: the "Declare" wordmark (gradient, the way home) then
+        // the app word, which yields first when the bar gets tight — like sampler,
+        // calendar and viewer.
+
+        brand: View [ x = 20, y = 15, height = 22,
+            layout: SimpleLayout [ axis = x, spacing = 5 ],
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+                textFill = { gradient("90deg", theme.accent, 0x37B6A9) }, text = "Declare",
+                onClick() { app.navigate("apps/homepage/homepage.declare") }
+                ],
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+                visible = { !app.compact }, text = "Text" ]
+            ],
+
+        pageSwitch: Segmented [ y = 11,
+            x = { Math.max(app.compact ? 104 : 200, (app.width - this.width) / 2) },
+            segMin = { app.compact ? 76 : 96 },
+            value = { app.page },
+            input(v: object) { app.page = "" + v },
+            choices = { [ ({ id: "text", label: "Text" }),
+                          ({ id: "rich", label: "Rich Text" }),
+                          ({ id: "markdown", label: "Markdown" }) ] }
+            ],
+
+        modes: View [ y = 12, x = { app.width - this.width - 14 },
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            ModeBtn [ mode = "light", glyph = "SunIcon" ],
+            ModeBtn [ mode = "auto", glyph = "AutoIcon" ],
+            ModeBtn [ mode = "dark", glyph = "MoonIcon" ]
+            ]
+        ],
+
+    body: View [ x = 0, y = { app.barH }, width = { app.width }, height = { app.height - app.barH },
+        scrolls = y, clip = true,
+
+        sheet: View [ y = 26, x = { app.narrow ? 16 : 28 },
+            width = { Math.min(1000, app.width - (app.narrow ? 32 : 56)) },
+            layout: SimpleLayout [ axis = y, spacing = 26 ],
+
+            // ════════════════ TEXT ════════════════
+
+            text: View [ visible = { app.page == "text" }, width = { parent.width },
+                layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
+
+                tL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                    layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "PLAIN TEXT" ],
+                            Text [ width = { parent.width }, wrap = true, fontSize = 16, textColor = { theme.text },
+                                text = "The quick brown fox jumps over the lazy dog." ],
+                            Snippet [ code = "Text [ text = \"The quick brown fox jumps\n    over the lazy dog.\" ]" ]
+                            ]
+                        ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "SIZE & WEIGHT" ],
+                            row: View [ width = { parent.width }, height = { this.contentHeight },
+                                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                                Text [ fontSize = 26, fontWeight = bold, textColor = { theme.text }, text = "Bold 26", wrap = false ],
+                                Text [ fontSize = 18, fontWeight = semibold, textColor = { theme.text }, text = "Semibold 18", wrap = false ],
+                                Text [ fontSize = 14, textColor = { theme.textMuted }, text = "Regular 14", wrap = false ]
+                                ],
+                            Snippet [ code = "Text [ fontSize = 26, fontWeight = bold, text = \"Bold 26\" ]\nText [ fontSize = 18, fontWeight = semibold, text = \"Semibold 18\" ]\nText [ fontSize = 14, text = \"Regular 14\" ]" ]
+                            ]
+                        ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "ITALIC & FAMILY" ],
+                            row: View [ width = { parent.width }, height = { this.contentHeight },
+                                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                                Text [ fontSize = 20, italic = true, textColor = { theme.text }, text = "Italic, the same face", wrap = false ],
+                                Text [ fontSize = 20, fontFamily = "Georgia, 'Times New Roman', serif", textColor = { theme.text }, text = "A serif family", wrap = false ]
+                                ],
+                            Snippet [ code = "Text [ fontSize = 20, italic = true, text = \"Italic, the same face\" ]\nText [ fontSize = 20, fontFamily = \"Georgia, serif\",\n    text = \"A serif family\" ]" ]
+                            ]
+                        ]
+                    ],
+
+                tR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                    layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "COLOR & GRADIENT" ],
+                            row: View [ width = { parent.width }, height = { this.contentHeight },
+                                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                                Text [ fontSize = 24, fontWeight = bold, textColor = { theme.accent }, text = "A themed accent", wrap = false ],
+                                Text [ fontSize = 30, fontWeight = bold, wrap = false, text = "Gradient fill", textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
+                                ],
+                            Snippet [ code = "Text [ fontWeight = bold, textColor = { theme.accent },\n    text = \"A themed accent\" ]\nText [ fontWeight = bold, text = \"Gradient fill\",\n    textFill = gradient(\"90deg\", #4C8DFF, #37E0C8) ]" ]
+                            ]
+                        ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "SHADOW" ],
+                            Text [ width = { parent.width }, fontSize = 32, fontWeight = bold, wrap = false, text = "Lifted off the page",
+                                textColor = { theme.text }, textShadow = { shadow(0, 3, 10, 0x00000055) } ],
+                            Snippet [ code = "Text [ fontSize = 32, fontWeight = bold,\n    text = \"Lifted off the page\",\n    textShadow = shadow(0, 3, 10, #00000055) ]" ]
+                            ]
+                        ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "TRACKING" ],
+                            Text [ width = { parent.width }, fontSize = 15, fontWeight = semibold, letterSpacing = 4, wrap = false,
+                                textColor = { theme.textMuted }, text = "W I D E   S E T" ],
+                            Snippet [ code = "Text [ letterSpacing = 4, fontWeight = semibold,\n    text = \"W I D E   S E T\" ]" ]
+                            ]
+                        ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "A LINK" ],
+                            Text [ width = { parent.width }, fontSize = 17, fontWeight = medium, wrap = false, text = "Declare on GitHub →",
+                                textColor = { theme.accent }, link = "https://github.com/davidtemkin/declarelang" ],
+                            Snippet [ code = "Text [ link = \"https://github.com/davidtemkin/declarelang\",\n    textColor = { theme.accent }, text = \"Declare on GitHub →\" ]" ]
+                            ]
+                        ]
+                    ]
+                ],
+
+            // ════════════════ RICH TEXT (HTMLText) ════════════════
+
+            rich: View [ visible = { app.page == "rich" }, width = { parent.width },
+                layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
+
+                rL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                    layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "INLINE STYLES" ],
+                            HTMLText [ width = { parent.width }, fontSize = 16, bodyColor = { theme.text },
+                                html = "One line with <b>bold</b>, <i>italic</i>, and <code>inline code</code> sharing a baseline." ],
+                            Snippet [ code = "HTMLText [ html = \"One line with <b>bold</b>,\n    <i>italic</i>, and <code>inline code</code>\n    sharing a baseline.\" ]" ]
+                            ]
+                        ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "AN INLINE LINK" ],
+                            HTMLText [ width = { parent.width }, fontSize = 16, bodyColor = { theme.text },
+                                linkColor = { theme.accent }, linkUnderline = true,
+                                html = "Read the <a href='#space'>space chapter</a> for how this flows." ],
+                            Snippet [ code = "HTMLText [ linkColor = { theme.accent }, linkUnderline = true,\n    html = \"Read the <a href='#space'>space chapter</a>\n    for how this flows.\" ]" ]
+                            ]
+                        ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "SYNTAX-COLORED SPANS" ],
+                            HTMLText [ width = { parent.width }, fontSize = 14, bodyColor = { theme.text },
+                                textStyles = { ({ kw: { textColor: 0xC678DD }, ty: { textColor: 0xE5C07B }, st: { textColor: 0x98C379 } }) },
+                                html = "<pre><span class='kw'>class</span> <span class='ty'>Board</span> [\n    name = <span class='st'>\"demo\"</span>,\n    ]</pre>" ],
+                            Snippet [ code = "HTMLText [\n    textStyles = { ({ kw: { textColor: 0xC678DD },\n        ty: { textColor: 0xE5C07B },\n        st: { textColor: 0x98C379 } }) },\n    html = \"<pre><span class='kw'>class</span> …</pre>\" ]" ]
+                            ]
+                        ]
+                    ],
+
+                rR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                    layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "NAMED STYLE (textStyles)" ],
+                            HTMLText [ width = { parent.width }, fontSize = 17, bodyColor = { theme.text },
+                                textStyles = { ({ brand: { fontWeight: "bold", textFill: gradient("90deg", 0x4C8DFF, 0x37E0C8) } }) },
+                                html = "Built with <span class='brand'>Declare</span>, styled by name." ],
+                            Snippet [ code = "HTMLText [\n    textStyles = { ({ brand: { fontWeight: \"bold\",\n        textFill: gradient(\"90deg\", 0x4C8DFF, 0x37E0C8) } }) },\n    html = \"Built with <span class='brand'>Declare</span>,\n        styled by name.\" ]" ]
+                            ]
+                        ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "VARIABLE SIZE, ONE BASELINE" ],
+                            HTMLText [ width = { parent.width }, fontSize = 16, bodyColor = { theme.text },
+                                textStyles = { ({ big: { fontSize: 40, textFill: gradient("90deg", 0x4C8DFF, 0x37E0C8) } }) },
+                                html = "A <span class='big'>headline</span> word sits big and still on the line." ],
+                            Snippet [ code = "HTMLText [\n    textStyles = { ({ big: { fontSize: 40,\n        textFill: gradient(\"90deg\", 0x4C8DFF, 0x37E0C8) } }) },\n    html = \"A <span class='big'>headline</span> word\n        sits big and still on the line.\" ]" ]
+                            ]
+                        ]
+                    ]
+                ],
+
+            // ════════════════ MARKDOWN ════════════════
+
+            markdown: View [ visible = { app.page == "markdown" }, width = { parent.width },
+                layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
+
+                mL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                    layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "A DOCUMENT" ],
+                            Markdown [ width = { parent.width }, scale = 0.92, bodyColor = { theme.text }, dark = { app.darkUI }, selectable = true,
+                                text = """
+## Reading well
+
+Markdown is the same flow engine as `HTMLText`, at document
+scale. It carries **bold**, *italic*, `code`, and a
+[link](#data) inline.
+
+- lists that flow as one region
+- each item a contiguous paragraph
+
+> and a blockquote, set off to the side
+""" ],
+                            Snippet [ code = "Markdown [ text = \"\"\"\n## Reading well\n\nMarkdown is the same flow engine as `HTMLText`,\nat document scale. It carries **bold**, *italic*,\n`code`, and a [link](#data) inline.\n\n- lists that flow as one region\n- each item a contiguous paragraph\n\n> and a blockquote, set off to the side\n\"\"\" ]" ]
+                            ]
+                        ]
+                    ],
+
+                mR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                    layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "A TABLE" ],
+                            Markdown [ width = { parent.width }, scale = 0.92, bodyColor = { theme.text }, dark = { app.darkUI },
+                                text = """
+| City | People |
+| :-- | --: |
+| San Francisco | 808,000 |
+| Cupertino | 57,000 |
+| Redmond | 78,000 |
+""" ],
+                            Snippet [ code = "| City | People |\n| :-- | --: |\n| San Francisco | 808,000 |\n| Cupertino | 57,000 |\n| Redmond | 78,000 |" ]
+                            ]
+                        ],
+
+                    View [ width = { parent.width }, cornerRadius = 12, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                        height = { this.c.height + 27 },
+                        c: View [ x = 16, y = 13, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 11 ],
+                            Label [ text = "A CODE BLOCK" ],
+                            Markdown [ width = { parent.width }, scale = 0.92, bodyColor = { theme.text }, dark = { app.darkUI },
+                                text = """
+```
+App [ width = 480,
+    Text [ text = "hello" ] ]
+```
+""" ],
+                            Snippet [ code = "```\nApp [ width = 480,\n    Text [ text = \"hello\" ] ]\n```" ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
