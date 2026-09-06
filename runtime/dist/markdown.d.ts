@@ -1,8 +1,18 @@
 import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
+import { type FontWeight } from "./measure.js";
 import { type Block } from "./md.js";
 import { type Unsupported } from "./html.js";
 import type { Fill } from "./value.js";
+export interface RunStyle {
+    fontSize?: number;
+    fontFamily?: string;
+    fontWeight?: FontWeight;
+    italic?: boolean;
+    textColor?: number;
+    textFill?: Fill;
+    letterSpacing?: number;
+}
 export declare abstract class RichText extends View {
     lineHeight: number;
     bodyColor: number | null;
@@ -16,9 +26,9 @@ export declare abstract class RichText extends View {
     /** The source string(s) folded into the reactive render key, so an edit
      *  (or a policy change) re-parses and re-flows. */
     protected abstract sourceKey(): string;
-    /** Named text fills a source can reference (HTMLText's `accents`); none by
+    /** Named styles a source can reference (HTMLText's `styles`); none by
      *  default — Markdown has no syntax to name one. */
-    protected accentsOf(): Record<string, Fill>;
+    protected stylesOf(): Record<string, RunStyle>;
     /** RichText's `scale` is a FONT-SIZE multiplier consumed by rebuild(), not the
      *  paint transform it means on a plain View — so mask the base flush()'s scale
      *  push. Without this, a `scale` constraint that evaluates before the surface
@@ -85,8 +95,8 @@ export declare class Markdown extends RichText {
 export declare class HTMLText extends RichText {
     html: string;
     unsupported: Unsupported;
-    accents: Record<string, Fill>;
+    textStyles: Record<string, RunStyle>;
     protected sourceKey(): string;
     protected parseSource(): Block[];
-    protected accentsOf(): Record<string, Fill>;
+    protected stylesOf(): Record<string, RunStyle>;
 }

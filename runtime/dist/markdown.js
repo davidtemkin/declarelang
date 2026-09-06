@@ -60,7 +60,7 @@ const COLORS_LIGHT = {
 };
 let C = COLORS_DARK; // active set; set at the top of each rebuild
 let SCALE = 1; // font-size multiplier (the `scale` attr), set per rebuild
-let ACCENTS = {}; // named text fills (HTMLText `accents`), set per rebuild
+let STYLES = {}; // named styles (HTMLText `styles`), set per rebuild
 // The running-text style pulled from the prevailing text slots (fontSize/
 // fontWeight/letterSpacing), set per rebuild — so ALL prose body (paragraphs
 // AND list/quote/table text) obeys the ambient text style, like a `Text`.
@@ -113,20 +113,41 @@ function placeX(width, cw, g) {
     return g.ml;
 }
 const geoEqual = (a, b) => a.maxWidth === b.maxWidth && a.ml === b.ml && a.mr === b.mr && a.align === b.align;
-/** Resolve a `<span class="…">` name to a themed fill: the whole class, else its
- *  first matching token (`"accent big"`); no match ⇒ undefined (plain text). */
-function resolveAccent(name) {
-    if (name in ACCENTS)
-        return ACCENTS[name];
+/** Resolve a `<span class="…">` name to a named style: the whole class, else its
+ *  first matching token (`"hero big"`); no match ⇒ undefined (plain text). */
+function resolveStyle(name) {
+    if (name in STYLES)
+        return STYLES[name];
     for (const tok of name.split(/\s+/))
-        if (tok in ACCENTS)
-            return ACCENTS[tok];
+        if (tok in STYLES)
+            return STYLES[tok];
     return undefined;
 }
 const sz = (n) => Math.round(n * SCALE); // scale a prose size, keeping whole pixels
 const FALLBACK_FAMILY = "system-ui, sans-serif";
 function base(size, weight, color, tracking = 0) {
     return { size: sz(size), weight, italic: false, mono: false, strike: false, color, tracking };
+}
+/** Apply a named `RunStyle` (Text's own attribute names) onto the prevailing
+ *  style. Each field maps to its internal Style twin; a size is SCALE-multiplied
+ *  like every prose size so the `scale` attr still governs. */
+function applyStyle(style, rs) {
+    const s = { ...style };
+    if (rs.fontSize !== undefined)
+        s.size = sz(rs.fontSize);
+    if (rs.fontFamily !== undefined)
+        s.family = rs.fontFamily;
+    if (rs.fontWeight !== undefined)
+        s.weight = rs.fontWeight;
+    if (rs.italic !== undefined)
+        s.italic = rs.italic;
+    if (rs.textColor !== undefined)
+        s.color = rs.textColor;
+    if (rs.textFill !== undefined)
+        s.fill = rs.textFill;
+    if (rs.letterSpacing !== undefined)
+        s.tracking = rs.letterSpacing;
+    return s;
 }
 /** Walk the inline tree, resolving each leaf's prevailing style. */
 function flatten(ns, style, out) {
@@ -153,9 +174,9 @@ function flatten(ns, style, out) {
             case "link":
                 flatten(n.inline, { ...style, color: LINKC, link: n.href }, out);
                 break;
-            case "fill": {
-                const f = resolveAccent(n.name);
-                flatten(n.inline, f !== undefined ? { ...style, fill: f } : style, out);
+            case "styled": {
+                const rs = resolveStyle(n.name);
+                flatten(n.inline, rs !== undefined ? applyStyle(style, rs) : style, out);
                 break;
             }
         }
@@ -213,7 +234,7 @@ function richRunsOf(inline, style, family) {
         const s = a.style;
         const run = {
             text: a.text, size: s.size, weight: s.weight, italic: s.italic,
-            family: s.mono ? CODEFAM : family, strike: s.strike, color: s.color, tracking: s.tracking,
+            family: s.mono ? CODEFAM : (s.family ?? family), strike: s.strike, color: s.color, tracking: s.tracking,
         };
         // inline code reads as a colored mono word, not a filled chip/button
         if (s.link !== undefined) {
@@ -324,9 +345,37 @@ function flowRichCanvas(blocks, width, onLink) {
         // Collect this block's views WITH their line, tracking each line's right
         // edge, so a centred/right-aligned block (a table cell's column) can shift
         // every view on a line by its free space — the manual twin of CSS text-align.
+        // Two-pass, content-derived line boxes (the CSS inline-formatting model).
+        // Pass 1 flows tokens into lines and records each view WITH its line and its
+        // offset FROM THAT LINE'S BASELINE (`boff`); it also grows each line's box to
+        // fit any run taller than the block. Pass 2 stacks the lines by their own
+        // heights and resolves every view's y. For ALL of today's content this is
+        // byte-identical to the old block-uniform `adv`: every line is seeded with the
+        // block STRUT (the block font's own line box, whose height IS `adv`), and no
+        // inline run yet exceeds it — inline `code` is smaller, same-family bold/italic
+        // share font-bounding metrics — so `max(strut, run)` stays the strut. A run
+        // TALLER than the block (a bigger inline size, once that lands) is what finally
+        // grows a line; until then this pass changes no pixel. Baseline alignment (a
+        // run sits ON the line baseline, not top-aligned) falls out of pass 2 for free
+        // — it generalizes the old `ry` fix.
         const blockViews = [];
         const lineRight = new Map();
         let x = 0, line = 0, pending = false;
+        // The block strut: `strutAbove` is the baseline's distance below the line top
+        // (the old `halfLead + bm.ascent`), `strutBelow` the descent side; together
+        // they are exactly `adv`, so an all-strut (today's) line box is bit-identical.
+        const strutAbove = halfLead + bm.ascent;
+        const strutBelow = adv - strutAbove;
+        const lineAbove = []; // per line: baseline distance below the line top (max over runs)
+        const lineBelow = []; // per line: descent extent below the baseline (max over runs)
+        // A run's own half-leading box (CSS: leading split evenly around the glyph),
+        // widening the line only past the strut.
+        const grow = (ln, fmAsc, fmDesc, size) => {
+            const box = Math.round(size * (b.lineHeight || 1));
+            const hl = Math.round((box - Math.ceil(fmAsc + fmDesc)) / 2);
+            lineAbove[ln] = Math.max(lineAbove[ln] ?? strutAbove, fmAsc + hl);
+            lineBelow[ln] = Math.max(lineBelow[ln] ?? strutBelow, fmDesc + hl);
+        };
         let group = null;
         const flushGroup = () => {
             if (group === null)
@@ -336,7 +385,6 @@ function flowRichCanvas(blocks, width, onLink) {
             const r = g.run;
             const t = new Text();
             t.x = g.x0;
-            t.y = g.y;
             t.width = Math.ceil(g.end - g.x0) + 2;
             t.wrap = false;
             t.fontSize = r.size;
@@ -353,7 +401,8 @@ function flowRichCanvas(blocks, width, onLink) {
                 const href = r.href;
                 setClick(t, () => onLink(href));
             }
-            blockViews.push({ v: t, line: g.line });
+            // A plain run is the lead face, so its top sits `bm.ascent` above the baseline.
+            blockViews.push({ v: t, line: g.line, boff: -bm.ascent });
         };
         for (const tok of toks) {
             if ("br" in tok) {
@@ -379,25 +428,8 @@ function flowRichCanvas(blocks, width, onLink) {
             pending = false;
             let first = true;
             for (const p of tok.word) {
-                const py = y + line * adv + halfLead, r = p.run;
+                const r = p.run;
                 const rFont = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic });
-                // BASELINE-ALIGN a run to the line's baseline (the lead run's), not its
-                // TOP to a shared top. Every run was placed at `py`, so a run in a
-                // different face/size — inline `code` (mono, smaller) most of all —
-                // rode above the body baseline instead of sitting on it. `ry` drops it
-                // onto the shared baseline. It is a NO-OP for body prose: a plain run
-                // is the lead face, its ascent IS bm.ascent, so ry === py — coalescing
-                // and the DOM↔canvas invariant below are untouched.
-                //
-                // ⚠ STOPGAP, correct ONLY because no inline run today exceeds the block
-                // size (code is smaller, so it slides DOWN into the existing line box —
-                // nothing grows). `adv` is BLOCK-derived, so lines are uniform — the
-                // reverse of CSS, where a line box is content-derived (max-ascent +
-                // max-descent) and grows for a bigger run, with a fixed line-height
-                // only as an opt-in override. When per-span font-size lands (a run
-                // TALLER than the block) this block-uniform `adv` is inapplicable and
-                // the line box must go per-line — see the register (RichText line-box
-                // follow-on).
                 // COALESCE consecutive same-run words on a line into ONE Text view.
                 // A view per WORD is what this used to emit — a 100-word paragraph was
                 // ~100 views — because whitespace flushes the token. Runs of body prose
@@ -410,12 +442,11 @@ function flowRichCanvas(blocks, width, onLink) {
                 // Restricting it to the lead face keeps every position bit-identical —
                 // which is what lets the DOM↔canvas perceptual gate stay green.
                 const plain = r.chipBg === undefined && !r.strike && rFont === spaceFont;
-                const ry = plain ? py : py + bm.ascent - fontMetrics(rFont).ascent;
                 if (group !== null && (!plain || group.run !== r || group.line !== line))
                     flushGroup();
                 if (plain) {
                     if (group === null)
-                        group = { run: r, x0: x, y: ry, line, parts: [], end: x };
+                        group = { run: r, x0: x, line, parts: [], end: x };
                     else if (first && gap > 0)
                         group.parts.push(" ");
                     group.parts.push(p.text);
@@ -423,15 +454,18 @@ function flowRichCanvas(blocks, width, onLink) {
                     group.end = x;
                 }
                 else {
+                    // A non-lead run — different face/size/weight, inline `code`, a strike —
+                    // is measured and baseline-aligned: its top is its OWN ascent above the
+                    // line baseline (`boff = -ascent`), and it grows the line if it is taller.
+                    const fm = fontMetrics(rFont);
+                    grow(line, fm.ascent, fm.descent, r.size);
                     const t = new Text();
                     if (r.chipBg !== undefined) {
                         const c = rectView(Math.ceil(p.w) + 6, lineH, r.chipBg, 3);
                         c.x = x - 3;
-                        c.y = py;
-                        blockViews.push({ v: c, line });
+                        blockViews.push({ v: c, line, boff: -bm.ascent });
                     }
                     t.x = x;
-                    t.y = ry;
                     t.width = Math.ceil(p.w) + 2;
                     t.wrap = false;
                     t.fontSize = r.size;
@@ -448,9 +482,9 @@ function flowRichCanvas(blocks, width, onLink) {
                         const href = r.href;
                         setClick(t, () => onLink(href));
                     }
-                    blockViews.push({ v: t, line });
+                    blockViews.push({ v: t, line, boff: -fm.ascent });
                     if (r.strike)
-                        blockViews.push({ v: rectAt(x, ry + Math.round(r.size * 0.55), Math.ceil(p.w), 1, r.color), line });
+                        blockViews.push({ v: rectAt(x, 0, Math.ceil(p.w), 1, r.color), line, boff: -fm.ascent + Math.round(r.size * 0.55) });
                     x += p.w;
                 }
                 lineRight.set(line, x);
@@ -458,6 +492,16 @@ function flowRichCanvas(blocks, width, onLink) {
             }
         }
         flushGroup();
+        // Pass 2: stack the lines (each by its own box, the strut where nothing grew)
+        // and place every view at its line's baseline plus its own offset.
+        const lineTop = [];
+        let yy = y;
+        for (let k = 0; k <= line; k++) {
+            lineTop[k] = yy;
+            yy += (lineAbove[k] ?? strutAbove) + (lineBelow[k] ?? strutBelow);
+        }
+        for (const bv of blockViews)
+            bv.v.y = lineTop[bv.line] + (lineAbove[bv.line] ?? strutAbove) + bv.boff;
         if (b.align === "center" || b.align === "right") {
             for (const { v, line: ln } of blockViews) {
                 const free = width - (lineRight.get(ln) ?? 0);
@@ -467,7 +511,7 @@ function flowRichCanvas(blocks, width, onLink) {
         }
         for (const { v } of blockViews)
             views.push(v);
-        y += (line + 1) * adv;
+        y = yy;
     }
     return { views, height: y, anchors };
 }
@@ -1035,9 +1079,9 @@ function buildQuote(b, width, ctx) {
 // live on the base, so both formats inherit them.
 export class RichText extends View {
     built = [];
-    /** Named text fills a source can reference (HTMLText's `accents`); none by
+    /** Named styles a source can reference (HTMLText's `styles`); none by
      *  default — Markdown has no syntax to name one. */
-    accentsOf() { return {}; }
+    stylesOf() { return {}; }
     /** RichText's `scale` is a FONT-SIZE multiplier consumed by rebuild(), not the
      *  paint transform it means on a plain View — so mask the base flush()'s scale
      *  push. Without this, a `scale` constraint that evaluates before the surface
@@ -1160,7 +1204,7 @@ export class RichText extends View {
     rebuild() {
         C = this.isDark() ? COLORS_DARK : COLORS_LIGHT; // pick the palette for this render
         SCALE = this.scale || 1; // font-size multiplier for this render
-        ACCENTS = this.accentsOf(); // named text fills for this render
+        STYLES = this.stylesOf(); // named styles for this render
         for (const v of this.built) {
             this.removeChild(v);
             v.discard();
@@ -1222,14 +1266,14 @@ export class Markdown extends RichText {
  *  (unwrap, keep text) or `error` (throw) — so LOADED content has defined
  *  behaviour, never silent corruption. Same flow engine as Markdown. */
 export class HTMLText extends RichText {
-    // `accents` folded into the key (as a signature) so a re-themed fill re-renders.
-    sourceKey() { return this.html + " " + this.unsupported + " " + JSON.stringify(this.accents ?? {}); }
+    // folded into the key (as a signature) so a re-themed style re-renders.
+    sourceKey() { return this.html + " " + this.unsupported + " " + JSON.stringify(this.textStyles ?? {}); }
     parseSource() { return parseHtml(this.html, this.unsupported); }
-    accentsOf() { return this.accents ?? {}; }
+    stylesOf() { return this.textStyles ?? {}; }
 }
 // Shared attributes live on the RichText base; Markdown/HTMLText inherit them
 // and add only their own source attribute(s).
 defineAttributes(RichText, { lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null } });
 defineAttributes(Markdown, { text: { def: "" } });
-defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, accents: { def: {} } });
+defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, textStyles: { def: {} } });
 //# sourceMappingURL=markdown.js.map

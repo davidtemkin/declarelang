@@ -268,9 +268,10 @@ doc: Markdown [ text = { app.article.value || "" },
 `HTMLText` is the sibling for content authored — or loaded — as HTML. It parses against a
 **fixed whitelist** rather than trusting the input, and `unsupported` decides what a tag
 outside the set does: `"strip"` unwraps it and keeps the text, `"error"` throws. So
-loaded or untrusted content is never silently mangled. Its `accents` map is the one
-styling hook — content names a fill (`<span class='g'>`) that your app defines, and never
-carries CSS itself.
+loaded or untrusted content is never silently mangled. Its `textStyles` map is the one
+styling hook — content names a style (`<span class='g'>`) that your app defines as a bundle
+of the same attributes you'd set on a `Text` (`fontSize`, `textFill`, …), and never carries
+CSS itself.
 
 **Media is the same shape.** `Image`, `Video` and `Audio` are leaves whose lifecycle is
 reactive state, like every source in the language: `loaded` and `failed` are read-only

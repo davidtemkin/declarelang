@@ -175,11 +175,12 @@ function inlineOf(kids) {
             case "br":
                 out.push({ t: "br" });
                 break;
-            // A classed span carries a NAMED accent (resolved to a themed fill by the
-            // flow engine against the component's `accents`); an unknown/absent class
-            // just unwraps. This is the one styling hook — reference-only, no CSS.
+            // A classed span carries a NAMED style (resolved to a bundle of Text style
+            // attributes by the flow engine against the component's `styles`); an
+            // unknown/absent class just unwraps. The one styling hook — reference to a
+            // style the app defines, no CSS in the content itself.
             case "span":
-                k.attrs.class ? out.push({ t: "fill", name: k.attrs.class.trim(), inline: inlineOf(k.kids) }) : out.push(...inlineOf(k.kids));
+                k.attrs.class ? out.push({ t: "styled", name: k.attrs.class.trim(), inline: inlineOf(k.kids) }) : out.push(...inlineOf(k.kids));
                 break;
             default: for (const b of blocksOf([k]))
                 if (b.t === "paragraph" || b.t === "heading")
@@ -198,7 +199,7 @@ function blockOf(el) {
         return [{ t: "rule" }];
     if (tag === "blockquote")
         return [{ t: "blockquote", blocks: blocksOf(el.kids) }];
-    // `<pre>` keeps its inline runs (so `<span class>` accents survive) as a
+    // `<pre>` keeps its inline runs (so `<span class>` styles survive) as a
     // preformatted flow — the whitespace inside a pre is already verbatim (the
     // tokenizer's inPre guard). A leading newline (the `<pre>\n…` convention) is
     // dropped; the rest of the indentation is meaning, so it stays.

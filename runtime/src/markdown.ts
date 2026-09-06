@@ -65,7 +65,20 @@ const COLORS_LIGHT = {
 };
 let C: typeof COLORS_DARK = COLORS_DARK;        // active set; set at the top of each rebuild
 let SCALE = 1;                                   // font-size multiplier (the `scale` attr), set per rebuild
-let ACCENTS: Record<string, Fill> = {};          // named text fills (HTMLText `accents`), set per rebuild
+// A named style a `<span class="…">` selects: a bundle of TEXT'S OWN style
+// attributes, named exactly as on `Text` (no terse parallel vocabulary — the skin
+// pattern), applied to the run. All optional; absent = inherit. `accents` retired
+// into this (a fill is just `textFill`, one field among many).
+export interface RunStyle {
+  fontSize?: number;
+  fontFamily?: string;
+  fontWeight?: FontWeight;
+  italic?: boolean;
+  textColor?: number;
+  textFill?: Fill;
+  letterSpacing?: number;
+}
+let STYLES: Record<string, RunStyle> = {};       // named styles (HTMLText `styles`), set per rebuild
 // The running-text style pulled from the prevailing text slots (fontSize/
 // fontWeight/letterSpacing), set per rebuild — so ALL prose body (paragraphs
 // AND list/quote/table text) obeys the ambient text style, like a `Text`.
@@ -123,11 +136,11 @@ function placeX(width: number, cw: number, g: ReturnType<typeof geoFor>): number
 const geoEqual = (a: ReturnType<typeof geoFor>, b: ReturnType<typeof geoFor>): boolean =>
   a.maxWidth === b.maxWidth && a.ml === b.ml && a.mr === b.mr && a.align === b.align;
 
-/** Resolve a `<span class="…">` name to a themed fill: the whole class, else its
- *  first matching token (`"accent big"`); no match ⇒ undefined (plain text). */
-function resolveAccent(name: string): Fill | undefined {
-  if (name in ACCENTS) return ACCENTS[name];
-  for (const tok of name.split(/\s+/)) if (tok in ACCENTS) return ACCENTS[tok];
+/** Resolve a `<span class="…">` name to a named style: the whole class, else its
+ *  first matching token (`"hero big"`); no match ⇒ undefined (plain text). */
+function resolveStyle(name: string): RunStyle | undefined {
+  if (name in STYLES) return STYLES[name];
+  for (const tok of name.split(/\s+/)) if (tok in STYLES) return STYLES[tok];
   return undefined;
 }
 const sz = (n: number) => Math.round(n * SCALE); // scale a prose size, keeping whole pixels
@@ -136,9 +149,24 @@ const FALLBACK_FAMILY = "system-ui, sans-serif";
 
 // ── inline tier ────────────────────────────────────────────────────────────
 // A run's resolved style, flattened from the inline tree for the seam.
-interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill }
+interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill; family?: string }
 function base(size: number, weight: FontWeight, color: number, tracking = 0): Style {
   return { size: sz(size), weight, italic: false, mono: false, strike: false, color, tracking };
+}
+
+/** Apply a named `RunStyle` (Text's own attribute names) onto the prevailing
+ *  style. Each field maps to its internal Style twin; a size is SCALE-multiplied
+ *  like every prose size so the `scale` attr still governs. */
+function applyStyle(style: Style, rs: RunStyle): Style {
+  const s: Style = { ...style };
+  if (rs.fontSize !== undefined) s.size = sz(rs.fontSize);
+  if (rs.fontFamily !== undefined) s.family = rs.fontFamily;
+  if (rs.fontWeight !== undefined) s.weight = rs.fontWeight;
+  if (rs.italic !== undefined) s.italic = rs.italic;
+  if (rs.textColor !== undefined) s.color = rs.textColor;
+  if (rs.textFill !== undefined) s.fill = rs.textFill;
+  if (rs.letterSpacing !== undefined) s.tracking = rs.letterSpacing;
+  return s;
 }
 
 type Atom = { text: string; style: Style } | { br: true };
@@ -153,7 +181,7 @@ function flatten(ns: Inline[], style: Style, out: Atom[]): void {
       case "em": flatten(n.inline, { ...style, italic: true }, out); break;
       case "strike": flatten(n.inline, { ...style, strike: true }, out); break;
       case "link": flatten(n.inline, { ...style, color: LINKC, link: n.href }, out); break;
-      case "fill": { const f = resolveAccent(n.name); flatten(n.inline, f !== undefined ? { ...style, fill: f } : style, out); break; }
+      case "styled": { const rs = resolveStyle(n.name); flatten(n.inline, rs !== undefined ? applyStyle(style, rs) : style, out); break; }
     }
   }
 }
@@ -205,7 +233,7 @@ function richRunsOf(inline: Inline[], style: Style, family: string): RichRun[] {
     const s = a.style;
     const run: RichRun = {
       text: a.text, size: s.size, weight: s.weight, italic: s.italic,
-      family: s.mono ? CODEFAM : family, strike: s.strike, color: s.color, tracking: s.tracking,
+      family: s.mono ? CODEFAM : (s.family ?? family), strike: s.strike, color: s.color, tracking: s.tracking,
     };
     // inline code reads as a colored mono word, not a filled chip/button
     if (s.link !== undefined) { run.href = s.link; if (LINKU) run.underline = true; }
@@ -281,23 +309,52 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     // Collect this block's views WITH their line, tracking each line's right
     // edge, so a centred/right-aligned block (a table cell's column) can shift
     // every view on a line by its free space — the manual twin of CSS text-align.
-    const blockViews: { v: View; line: number }[] = [];
+    // Two-pass, content-derived line boxes (the CSS inline-formatting model).
+    // Pass 1 flows tokens into lines and records each view WITH its line and its
+    // offset FROM THAT LINE'S BASELINE (`boff`); it also grows each line's box to
+    // fit any run taller than the block. Pass 2 stacks the lines by their own
+    // heights and resolves every view's y. For ALL of today's content this is
+    // byte-identical to the old block-uniform `adv`: every line is seeded with the
+    // block STRUT (the block font's own line box, whose height IS `adv`), and no
+    // inline run yet exceeds it — inline `code` is smaller, same-family bold/italic
+    // share font-bounding metrics — so `max(strut, run)` stays the strut. A run
+    // TALLER than the block (a bigger inline size, once that lands) is what finally
+    // grows a line; until then this pass changes no pixel. Baseline alignment (a
+    // run sits ON the line baseline, not top-aligned) falls out of pass 2 for free
+    // — it generalizes the old `ry` fix.
+    const blockViews: { v: View; line: number; boff: number }[] = [];
     const lineRight = new Map<number, number>();
     let x = 0, line = 0, pending = false;
-    type Group = { run: Extract<RichRun, { text: string }>; x0: number; y: number; line: number; parts: string[]; end: number };
+    // The block strut: `strutAbove` is the baseline's distance below the line top
+    // (the old `halfLead + bm.ascent`), `strutBelow` the descent side; together
+    // they are exactly `adv`, so an all-strut (today's) line box is bit-identical.
+    const strutAbove = halfLead + bm.ascent;
+    const strutBelow = adv - strutAbove;
+    const lineAbove: number[] = [];   // per line: baseline distance below the line top (max over runs)
+    const lineBelow: number[] = [];   // per line: descent extent below the baseline (max over runs)
+    // A run's own half-leading box (CSS: leading split evenly around the glyph),
+    // widening the line only past the strut.
+    const grow = (ln: number, fmAsc: number, fmDesc: number, size: number) => {
+      const box = Math.round(size * (b.lineHeight || 1));
+      const hl = Math.round((box - Math.ceil(fmAsc + fmDesc)) / 2);
+      lineAbove[ln] = Math.max(lineAbove[ln] ?? strutAbove, fmAsc + hl);
+      lineBelow[ln] = Math.max(lineBelow[ln] ?? strutBelow, fmDesc + hl);
+    };
+    type Group = { run: Extract<RichRun, { text: string }>; x0: number; line: number; parts: string[]; end: number };
     let group: Group | null = null;
     const flushGroup = () => {
       if (group === null) return;
       const g = group; group = null;
       const r = g.run;
       const t = new Text();
-      t.x = g.x0; t.y = g.y; t.width = Math.ceil(g.end - g.x0) + 2; t.wrap = false;
+      t.x = g.x0; t.width = Math.ceil(g.end - g.x0) + 2; t.wrap = false;
       t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family;
       t.textColor = r.color; t.text = g.parts.join("");
       if (r.tracking !== 0) t.letterSpacing = r.tracking;
       if (r.fill !== undefined) t.textFill = r.fill;
       if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
-      blockViews.push({ v: t, line: g.line });
+      // A plain run is the lead face, so its top sits `bm.ascent` above the baseline.
+      blockViews.push({ v: t, line: g.line, boff: -bm.ascent });
     };
     for (const tok of toks) {
       if ("br" in tok) { flushGroup(); line++; x = 0; pending = false; continue; }
@@ -308,25 +365,8 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       pending = false;
       let first = true;
       for (const p of tok.word) {
-        const py = y + line * adv + halfLead, r = p.run;
+        const r = p.run;
         const rFont = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic });
-        // BASELINE-ALIGN a run to the line's baseline (the lead run's), not its
-        // TOP to a shared top. Every run was placed at `py`, so a run in a
-        // different face/size — inline `code` (mono, smaller) most of all —
-        // rode above the body baseline instead of sitting on it. `ry` drops it
-        // onto the shared baseline. It is a NO-OP for body prose: a plain run
-        // is the lead face, its ascent IS bm.ascent, so ry === py — coalescing
-        // and the DOM↔canvas invariant below are untouched.
-        //
-        // ⚠ STOPGAP, correct ONLY because no inline run today exceeds the block
-        // size (code is smaller, so it slides DOWN into the existing line box —
-        // nothing grows). `adv` is BLOCK-derived, so lines are uniform — the
-        // reverse of CSS, where a line box is content-derived (max-ascent +
-        // max-descent) and grows for a bigger run, with a fixed line-height
-        // only as an opt-in override. When per-span font-size lands (a run
-        // TALLER than the block) this block-uniform `adv` is inapplicable and
-        // the line box must go per-line — see the register (RichText line-box
-        // follow-on).
         // COALESCE consecutive same-run words on a line into ONE Text view.
         // A view per WORD is what this used to emit — a 100-word paragraph was
         // ~100 views — because whitespace flushes the token. Runs of body prose
@@ -339,24 +379,28 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         // Restricting it to the lead face keeps every position bit-identical —
         // which is what lets the DOM↔canvas perceptual gate stay green.
         const plain = r.chipBg === undefined && !r.strike && rFont === spaceFont;
-        const ry = plain ? py : py + bm.ascent - fontMetrics(rFont).ascent;
         if (group !== null && (!plain || group.run !== r || group.line !== line)) flushGroup();
         if (plain) {
-          if (group === null) group = { run: r, x0: x, y: ry, line, parts: [], end: x };
+          if (group === null) group = { run: r, x0: x, line, parts: [], end: x };
           else if (first && gap > 0) group.parts.push(" ");
           group.parts.push(p.text);
           x += p.w;
           group.end = x;
         } else {
+          // A non-lead run — different face/size/weight, inline `code`, a strike —
+          // is measured and baseline-aligned: its top is its OWN ascent above the
+          // line baseline (`boff = -ascent`), and it grows the line if it is taller.
+          const fm = fontMetrics(rFont);
+          grow(line, fm.ascent, fm.descent, r.size);
           const t = new Text();
-          if (r.chipBg !== undefined) { const c = rectView(Math.ceil(p.w) + 6, lineH, r.chipBg, 3); c.x = x - 3; c.y = py; blockViews.push({ v: c, line }); }
-          t.x = x; t.y = ry; t.width = Math.ceil(p.w) + 2; t.wrap = false;
+          if (r.chipBg !== undefined) { const c = rectView(Math.ceil(p.w) + 6, lineH, r.chipBg, 3); c.x = x - 3; blockViews.push({ v: c, line, boff: -bm.ascent }); }
+          t.x = x; t.width = Math.ceil(p.w) + 2; t.wrap = false;
           t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family; t.textColor = r.color; t.text = p.text;
           if (r.tracking !== 0) t.letterSpacing = r.tracking;
           if (r.fill !== undefined) t.textFill = r.fill;   // themed accent (gradient/solid) — same ramp as the DOM path
           if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
-          blockViews.push({ v: t, line });
-          if (r.strike) blockViews.push({ v: rectAt(x, ry + Math.round(r.size * 0.55), Math.ceil(p.w), 1, r.color), line });
+          blockViews.push({ v: t, line, boff: -fm.ascent });
+          if (r.strike) blockViews.push({ v: rectAt(x, 0, Math.ceil(p.w), 1, r.color), line, boff: -fm.ascent + Math.round(r.size * 0.55) });
           x += p.w;
         }
         lineRight.set(line, x);
@@ -364,6 +408,12 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       }
     }
     flushGroup();
+    // Pass 2: stack the lines (each by its own box, the strut where nothing grew)
+    // and place every view at its line's baseline plus its own offset.
+    const lineTop: number[] = [];
+    let yy = y;
+    for (let k = 0; k <= line; k++) { lineTop[k] = yy; yy += (lineAbove[k] ?? strutAbove) + (lineBelow[k] ?? strutBelow); }
+    for (const bv of blockViews) bv.v.y = lineTop[bv.line] + (lineAbove[bv.line] ?? strutAbove) + bv.boff;
     if (b.align === "center" || b.align === "right") {
       for (const { v, line: ln } of blockViews) {
         const free = width - (lineRight.get(ln) ?? 0);
@@ -371,7 +421,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       }
     }
     for (const { v } of blockViews) views.push(v);
-    y += (line + 1) * adv;
+    y = yy;
   }
   return { views, height: y, anchors };
 }
@@ -925,9 +975,9 @@ export abstract class RichText extends View {
   /** The source string(s) folded into the reactive render key, so an edit
    *  (or a policy change) re-parses and re-flows. */
   protected abstract sourceKey(): string;
-  /** Named text fills a source can reference (HTMLText's `accents`); none by
+  /** Named styles a source can reference (HTMLText's `styles`); none by
    *  default — Markdown has no syntax to name one. */
-  protected accentsOf(): Record<string, Fill> { return {}; }
+  protected stylesOf(): Record<string, RunStyle> { return {}; }
 
   /** RichText's `scale` is a FONT-SIZE multiplier consumed by rebuild(), not the
    *  paint transform it means on a plain View — so mask the base flush()'s scale
@@ -1038,7 +1088,7 @@ export abstract class RichText extends View {
   private rebuild(): void {
     C = this.isDark() ? COLORS_DARK : COLORS_LIGHT;   // pick the palette for this render
     SCALE = this.scale || 1;                          // font-size multiplier for this render
-    ACCENTS = this.accentsOf();                       // named text fills for this render
+    STYLES = this.stylesOf();                         // named styles for this render
     for (const v of this.built) { this.removeChild(v); v.discard(); }
     this.built = [];
     const width = this.width > 0 ? this.width : 640;
@@ -1102,15 +1152,18 @@ export class Markdown extends RichText {
 export class HTMLText extends RichText {
   declare html: string;
   declare unsupported: Unsupported;
-  declare accents: Record<string, Fill>;
-  // `accents` folded into the key (as a signature) so a re-themed fill re-renders.
-  protected sourceKey(): string { return this.html + " " + this.unsupported + " " + JSON.stringify(this.accents ?? {}); }
+  // `styles` is taken (View.styles = the skin class list), so the named-style map
+  // is `textStyles` — the palette of styles the CONTENT references, distinct from
+  // the view's own skin classes (the `text` earns its place disambiguating them).
+  declare textStyles: Record<string, RunStyle>;
+  // folded into the key (as a signature) so a re-themed style re-renders.
+  protected sourceKey(): string { return this.html + " " + this.unsupported + " " + JSON.stringify(this.textStyles ?? {}); }
   protected parseSource(): Block[] { return parseHtml(this.html, this.unsupported); }
-  protected override accentsOf(): Record<string, Fill> { return this.accents ?? {}; }
+  protected override stylesOf(): Record<string, RunStyle> { return this.textStyles ?? {}; }
 }
 
 // Shared attributes live on the RichText base; Markdown/HTMLText inherit them
 // and add only their own source attribute(s).
 defineAttributes(RichText, { lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null } });
 defineAttributes(Markdown, { text: { def: "" } });
-defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, accents: { def: {} } });
+defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, textStyles: { def: {} } });

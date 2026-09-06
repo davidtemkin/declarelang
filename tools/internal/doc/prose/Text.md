@@ -14,7 +14,7 @@ View [ textColor = royalblue, fontSize = 15,
 A `Text` is **one uniform run** — it cannot bold a single word. For inline emphasis
 inside a label ("FEAT: **the rest bold**"), reach for `HTMLText`: it flows styled
 runs in one wrapped line at label scale (`html = "FEAT: <b>the rest bold</b>"`),
-and `accents` can carry a gradient word. `Markdown` is the same machinery at
+and `textStyles` can carry a bigger, differently-faced, or gradient word. `Markdown` is the same machinery at
 document scale.
 
 ## lineHeight

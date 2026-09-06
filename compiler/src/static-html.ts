@@ -46,7 +46,7 @@ function inlineHtml(runs: readonly Inline[]): string {
       case "code": out += `<code>${esc(r.value)}</code>`; break;
       case "link": out += `<a href="${escAttr(r.href)}">${inlineHtml(r.inline)}</a>`; break;
       case "br": out += "<br>"; break;
-      case "fill": out += `<span>${inlineHtml(r.inline)}</span>`; break; // presentation accent — content only
+      case "styled": out += `<span>${inlineHtml(r.inline)}</span>`; break; // named style — content only
     }
   }
   return out;

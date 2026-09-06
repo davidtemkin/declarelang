@@ -91,7 +91,7 @@ if (!CHROME) {
   // whitespace preserved and per-token color — the syntax-highlight primitive.
   const preDoc = `App [ width = 480, selectable = true,
     HTMLText [ x = 10, y = 10, width = 460,
-      accents = { { kw: 0xC678DD, ty: 0xE5C07B } },
+      textStyles = { { kw: { textColor: 0xC678DD }, ty: { textColor: 0xE5C07B } } },
       html = "<pre><span class='kw'>class</span> <span class='ty'>Board</span> [\\n    n = 42,\\n]</pre>" ] ]`;
   const pre = await (async () => {
     const b = await buildProduction(preDoc, {});
@@ -176,6 +176,55 @@ Body with \`inline code\` here.
   await test("Canvas fallback renders the same doc without error", () => {
     assert.equal(canvas.errs.length, 0, canvas.errs.slice(0, 2).join(" | "));
     assert.ok(canvas.probe.canvases > 0, "no canvas mounted");
+  });
+
+  // VARIABLE INLINE SIZE + BASELINE (the multi-style arc): a `textStyles` entry
+  // makes one span 40px over 16px body — the line box GROWS to fit it and the big
+  // run sits ON the shared baseline (not top-aligned). Large-margin, non-fragile:
+  // colour the big run blue and the body black (both words descenderless so their
+  // ink-bottom IS the baseline), read the canvas pixels, and assert (a) the blue
+  // run is much taller than the body — the size varied — and (b) the two ink
+  // BOTTOMS coincide — one baseline. Under a top-aligning layout the big run's
+  // bottom would sit ~24px BELOW the body's; baseline alignment brings them level.
+  const varDoc = `App [ width = 520, selectable = true,
+    box: View [ x = 0, y = 0, width = 520, height = 160,
+      HTMLText [ x = 20, y = 20, width = 480,
+        textStyles = { ({ lead: { fontSize: 40, textColor: 0x0000FF } }) },
+        html = "Base <span class='lead'>HEADLINE</span> tail" ],
+      ], ]`;
+  const vb = await (async () => {
+    const b = await buildProduction(varDoc, { render: "canvas" });
+    assert.ok(b.ok, "var build failed: " + (b.errors || []).map((e) => e.message).join("; "));
+    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
+    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    try {
+      const page = await browser.newPage();
+      const errs = []; page.on("pageerror", (e) => errs.push(e.message));
+      await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+      await new Promise((r) => setTimeout(r, 450));
+      return { errs, probe: await page.evaluate(() => {
+        const cv = document.querySelector("canvas"); if (!cv) return { ok: false };
+        const cx = cv.getContext("2d"); const { width: W, height: H } = cv;
+        const d = cx.getImageData(0, 0, W, H).data;
+        let blkT = -1, blkB = -1, bluT = -1, bluB = -1;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const i = (y * W + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
+          if (a < 40) continue;
+          if (b > 160 && r < 90 && g < 90) { if (bluT < 0) bluT = y; bluB = y; }
+          else if (r < 90 && g < 90 && b < 90) { if (blkT < 0) blkT = y; blkB = y; }
+        }
+        return { ok: true, blkT, blkB, bluT, bluB };
+      }) };
+    } finally { await browser.close(); }
+  })();
+  await test("a textStyles fontSize grows the line and stays on the baseline (canvas)", () => {
+    assert.equal(vb.errs.length, 0, vb.errs.slice(0, 2).join(" | "));
+    assert.ok(vb.probe.ok, "no canvas");
+    assert.ok(vb.probe.blkT >= 0 && vb.probe.bluT >= 0, "did not find body(black) + lead(blue) ink: " + JSON.stringify(vb.probe));
+    const bodyH = vb.probe.blkB - vb.probe.blkT, leadH = vb.probe.bluB - vb.probe.bluT;
+    assert.ok(leadH > bodyH + 8, `the 40px run is not taller than the body — size did not vary: bodyH=${bodyH} leadH=${leadH}`);
+    assert.ok(Math.abs(vb.probe.bluB - vb.probe.blkB) <= 2,
+      `body and lead are not on one baseline: blackBottom=${vb.probe.blkB} blueBottom=${vb.probe.bluB}`);
   });
 }
 

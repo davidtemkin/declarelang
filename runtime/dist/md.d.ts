@@ -56,7 +56,7 @@ export type Inline = {
 } | {
     t: "br";
 } | {
-    t: "fill";
+    t: "styled";
     name: string;
     inline: Inline[];
 };

@@ -1637,6 +1637,13 @@ class DomSurface {
                 }
                 rs.fontFamily = r.family;
                 rs.fontSize = r.size + "px";
+                // Per-run line box (`round(size × multiplier)`, the twin of the block's
+                // strut above). A run at the block size restates the block value, so
+                // uniform content is byte-identical; a BIGGER run grows only its own
+                // line — the browser takes the max inline box, exactly as the Canvas
+                // two-pass takes max over a line's runs. This is what lets a variable
+                // inline size flow correctly and stay in step with the Canvas layout.
+                rs.lineHeight = Math.round(r.size * b.lineHeight) + "px";
                 rs.fontWeight = cssWeight(r.weight);
                 if (r.italic)
                     rs.fontStyle = "italic";

@@ -518,7 +518,7 @@ class Footer extends View [ width = { parent.width },
         // inline), so it keeps a word space, not a gap
 
         built: HTMLText [ width = 108, fontSize = 13, fontWeight = semibold, bodyColor = { theme.muted },
-            accents = { ({ g: theme.brand }) },
+            textStyles = { ({ g: { textFill: theme.brand } }) },
             html = "Built in <span class='g'>Declare</span>" ],
         FootSep [ ],
         FootLink [ to = "apps/homepage/homepage.declare?viewer", text = "View Source" ],
@@ -940,7 +940,7 @@ App [ tagline: string = "a UI language for you and your AI",
                     paras: View [ width = { parent.width },
                         layout: SimpleLayout [ axis = y, spacing = 12 ],
                         HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { theme.lead }, selectable = true,
-                            accents = { ({ g: theme.brand }) },
+                            textStyles = { ({ g: { textFill: theme.brand } }) },
                             html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window." ],
 
                         // The page's most arresting fact, and the only claim on it a

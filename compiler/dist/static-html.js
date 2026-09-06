@@ -54,9 +54,9 @@ function inlineHtml(runs) {
             case "br":
                 out += "<br>";
                 break;
-            case "fill":
+            case "styled":
                 out += `<span>${inlineHtml(r.inline)}</span>`;
-                break; // presentation accent — content only
+                break; // named style — content only
         }
     }
     return out;

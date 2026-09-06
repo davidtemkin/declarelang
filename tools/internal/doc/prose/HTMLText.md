@@ -18,25 +18,34 @@ HTMLText [ width = { parent.width },
 
 ## html
 The HTML source — a literal, or a `{ }` constraint that re-parses whenever it changes (a
-fetched document, a live-edited field). Only `<a href>` and `<span class>` (see `accents`)
+fetched document, a live-edited field). Only `<a href>` and `<span class>` (see `textStyles`)
 are read; every other attribute is ignored.
 
-## accents
-The one styling hook, and the only attribute read besides `href`: a map of **name → Fill**
-that a `<span class="name">` in the HTML can reference to paint its glyphs — a gradient or a
-solid — so an accent word can flow *inside* a sentence. The content only *names* a fill the
-app defines; it never carries CSS itself, so this stays safe for loaded HTML (an unknown
-class just renders as plain text). This is how one flowing string carries a gradient word:
+## textStyles
+The one styling hook, and the only attribute read besides `href`: a map of **name → a bundle
+of Text's own style attributes** — `fontSize`, `fontFamily`, `fontWeight`, `italic`,
+`textColor`, `textFill`, `letterSpacing` — that a `<span class="name">` in the HTML can
+reference. The field names are exactly the ones you set on a `Text`; a named style is just a
+`Text`'s worth of styling, applied to a run, so there is nothing new to learn. The content
+only *names* a style the app defines; it never carries CSS itself, so this stays safe for
+loaded HTML (an unknown class renders as plain text). One flowing string can carry a bigger,
+differently-faced, gradient word, correctly baseline-aligned with the prose around it:
 
 ```declare
-HTMLText [ width = { parent.width }, scale = 1.6,
-    accents = { { accent: gradient("90deg", 0x4C8DFF, 0x37E0C8) } },
-    html = "<h2><span class='accent'>Declare</span> is the UI language for the AI era.</h2>"
+HTMLText [ width = { parent.width },
+    textStyles = { { lead: { fontSize: 40, fontFamily: "Georgia", textFill: gradient("90deg", 0x4C8DFF, 0x37E0C8) } } },
+    html = "The <span class='lead'>headline</span> word sits big and on the baseline."
     ]
 ```
 
-Size follows the prose stylesheet (heading level × `scale`), not a `fontSize` — the accent
-is about *which* run is painted, not how big it is.
+The map is a `{ }` value, so it is written as an object — `fontSize: 40` (a colon, not
+`=`), a color as `0x…`, a weight as `"black"`. A `<span class="lead">` then wears the whole
+bundle.
+
+A style may set any of those attributes. A `fontSize` larger than the surrounding text grows
+that line's box while the run stays on the shared baseline — the line box is content-derived,
+like CSS. (`accents`, the old fill-only version of this hook, folded in: a fill is now just
+the `textFill` field, one attribute among many.)
 
 ## unsupported
 What a tag **outside the whitelist** does — the reason this is safe for loaded content:

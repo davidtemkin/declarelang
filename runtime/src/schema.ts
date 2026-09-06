@@ -804,10 +804,11 @@ const HTMLTextSchema: ComponentSchema = {
   attrs: {
     html: { kind: "string" },
     unsupported: enumType("Unsupported", "strip", "error"),
-    // Named text fills a `<span class="…">` can reference — a map of name → Fill
-    // (`accents = { { accent: gradient("90deg", 0x…, 0x…) } }`). The one styling
-    // hook: content names a fill the app defines; it never carries CSS itself.
-    accents: { kind: "record", name: "Accents" },
+    // Named styles a `<span class="…">` can reference — a map of name → a bundle
+    // of Text's own style attributes (`styles = { { hero: { fontSize = 28,
+    // fontFamily = "Anton" } } }`). The one styling hook: content names a style
+    // the app defines, by the same attribute names as Text; never CSS itself.
+    textStyles: { kind: "record", name: "TextStyles" },
   },
 };
 

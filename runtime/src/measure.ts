@@ -156,7 +156,12 @@ interface WrapRule { countIndent: boolean; breakWord: boolean }
  *  soft hyphen, and a tab, which it measures as one glyph rather than to the
  *  next `tab-size` stop. Widen it against a measurement, never a theory. */
 export function wrapLines(text: string, font: string, width: number, letterSpacing = 0): string[] {
-  return wrapBy(text, font, width, letterSpacing, { countIndent: false, breakWord: false });
+  // A box of text (`white-space: pre-wrap` on the DOM, the same rule on canvas)
+  // COUNTS a line's own leading spaces and overflows an over-long token on its own
+  // line (`overflow-wrap: normal`). Measuring with `countIndent: true` is what makes
+  // an INDENTED wrapped line — a code snippet most of all — report the height the box
+  // actually renders, instead of under-counting and spilling past the bottom edge.
+  return wrapBy(text, font, width, letterSpacing, { countIndent: true, breakWord: false });
 }
 
 /** The same breaker under an EDITABLE's rules — what a native field will do

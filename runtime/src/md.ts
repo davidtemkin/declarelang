@@ -19,7 +19,7 @@ export type Block =
   | { t: "heading"; level: number; inline: Inline[] }
   | { t: "paragraph"; inline: Inline[] }
   | { t: "code"; lang: string; text: string }
-  // A preformatted flow that KEEPS its inline runs (spans/accents), unlike `code`
+  // A preformatted flow that KEEPS its inline runs (spans/styles), unlike `code`
   // which is flat text. Only HTML `<pre>` produces it (Markdown fences stay `code`);
   // it is how syntax-colored code renders — monospace, whitespace preserved.
   | { t: "pre"; inline: Inline[] }
@@ -39,10 +39,10 @@ export type Inline =
   | { t: "code"; value: string }
   | { t: "link"; href: string; inline: Inline[] }
   | { t: "br" }
-  // A named visual accent (a themed text fill) — the Markdown reader never emits
-  // this; HTMLText does, for `<span class="…">`, and the flow engine resolves the
-  // name to a Fill against the component's `accents` map. Presentation, not a role.
-  | { t: "fill"; name: string; inline: Inline[] };
+  // A named style — the Markdown reader never emits this; HTMLText does, for
+  // `<span class="…">`, and the flow engine resolves the name to a bundle of Text
+  // style attributes against the component's `styles` map. Presentation, not a role.
+  | { t: "styled"; name: string; inline: Inline[] };
 
 // ── entry ──────────────────────────────────────────────────────────────────
 

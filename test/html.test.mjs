@@ -72,8 +72,8 @@ test("pre is a preformatted flow: whitespace verbatim, spans survive", () => {
   assert.equal(b.t, "pre");
   assert.equal(b.inline[0].t, "text");
   assert.equal(b.inline[0].value, "line1\n  ");   // newline + indentation preserved
-  assert.equal(b.inline[1].t, "fill");
-  assert.equal(b.inline[1].name, "k");            // the classed span → a named accent
+  assert.equal(b.inline[1].t, "styled");
+  assert.equal(b.inline[1].name, "k");            // the classed span → a named style
 });
 
 test("pre drops one leading newline (the <pre>\\n… convention)", () => {
