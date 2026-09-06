@@ -511,4 +511,24 @@ App [ width = 300, height = 120, sized: boolean = false,
   assert.equal(app.col.children[1].width, 260, "the author's width (300-40) held throughout");
 });
 
+await test("y = center centers the BOX; TextLabel cap-centers; a Button's label is a TextLabel (centering flip 2026-09-06)", async () => {
+  const app = await boot(`App [ width = 300, height = 120,
+      b: Button [ x = 10, y = 10, label = "Save" ],
+      box: View [ x = 10, y = 60, width = 120, height = 44,
+          raw: Text      [ x = 4, height = 44, text = "Save", y = center ],
+          lab: TextLabel [ x = 60, text = "Save" ] ] ]`);
+  const raw = app.box.raw, lab = app.box.lab;
+  // a raw Text now box-centers — EXACT (P - height)/2, no metrics (the flip)
+  assert.equal(raw.y, (44 - raw.height) / 2, "y = center on a Text centers the box");
+  // TextLabel cap-centers, from its own live baseline/capHeight
+  const cap = lab.parent.height / 2 - lab.baseline + lab.capHeight / 2;
+  assert.ok(Math.abs(lab.y - cap) < 0.01, `TextLabel cap-centers: y=${lab.y}, cap=${cap}`);
+  // the pixel-matched controls kept their look: the Button's label IS a TextLabel,
+  // landing exactly where y = center used to put it
+  const find = (v) => { for (const c of (v.childViews ?? [])) { if (c.constructor.name === "TextLabel") return c; const d = find(c); if (d) return d; } return null; };
+  const bl = find(app.b);
+  assert.ok(bl, "the Button's label is a TextLabel");
+  assert.ok(Math.abs(bl.y - (bl.parent.height / 2 - bl.baseline + bl.capHeight / 2)) < 0.01, "and it cap-centers (pixel-identical to the old y = center)");
+});
+
 summarize("components");

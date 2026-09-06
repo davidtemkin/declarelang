@@ -43,13 +43,5 @@ export declare class Text extends View {
      *  content-bound labels. The natural single-line width; height follows the
      *  wrapped line count when the width is bounded, matching the derives above. */
     protected contentExtent(size: "width" | "height"): number;
-    /** The ink band (y axis): first line's cap top to the last line's baseline
-     *  — what `y = center` centers (bind.ts bindAlign). Descenders hang below
-     *  the band as overhang, per typographic convention. The x axis stays the
-     *  geometric box. */
-    alignBand(axis: "x" | "y"): {
-        lead: number;
-        size: number;
-    };
     protected flush(s: Surface): void;
 }

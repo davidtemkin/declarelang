@@ -38,7 +38,7 @@ class Stepper extends Control [ width = 90, height = 26, cornerRadius = 6,
     fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
     press() { n = n + 1 },
     onClick() { if (!disabled) press() },
-    t: Text [ x = center, y = center, fontSize = 13, text = { "" + classroot.n } ]
+    t: TextLabel [ x = center, fontSize = 13, text = { "" + classroot.n } ]
     ]
 
 

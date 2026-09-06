@@ -42,32 +42,6 @@ script {
     function hpWire(wire: object): string {
         return wire == null ? "" : " · " + Math.round((wire as any) / 1024) + " KB over the wire"
         }
-
-    // The height a code listing needs, given the field's box: no demo panel
-    // ever scrolls its own source, at any width. The field is monospace, so
-    // its wrapping is arithmetic — a greedy break at whole words, `cols`
-    // characters to the line, which is the rule the native field's soft wrap
-    // follows. The caller measures `adv` and `lineBox` off a probe in the real
-    // face rather than assuming a metric, and every input is an argument, so
-    // the panel re-derives when the column re-flows.
-    function hpCodeHeight(src: string, boxWidth: number, pad: number, adv: number, lineBox: number): number {
-        const cols = Math.max(8, Math.floor((boxWidth - 2 * pad) / adv))
-        let n = 0
-        for (const seg of src.split("\n")) {
-            let cur = 0
-            const words = seg.split(" ")
-            for (let i = 0; i < words.length; i++) {
-                // the separator belongs to the word that follows it, so a
-                // line's indent counts and a broken-at space hangs, unmeasured
-                const w = words[i].length
-                const piece = i === 0 ? w : w + 1
-                if (cur > 0 && w > 0 && cur + piece > cols) { n = n + 1; cur = w }
-                else cur = cur + piece
-                }
-            n = n + 1
-            }
-        return 2 * pad + n * lineBox
-        }
     }
 
 /*
@@ -584,29 +558,20 @@ class CodeField extends TextInput [ multiline = true, spellcheck = false,
     ]
 
 
-// The panel's `height` falls out of its listing — the code is never a scrolling
-// field: `hpCodeHeight` wraps the text the way the field will and `metrics`
-// measures the face it will wrap in, so the panel re-sizes as the column
-// re-flows and as you TYPE (it reads the field's live text, not the pristine
-// source). The preview beside it takes the same height. Revert restores the
-// pristine `src` and asks the host to recompile.
+// Neither the field nor the panel carries a height: a field with none sizes to
+// its text, and the panel sizes to the field. So the code is never a scrolling
+// listing — it re-fits as the column re-flows, and as you type in it. The
+// preview beside it takes the same height. Revert restores the pristine `src`
+// and asks the host to recompile.
 
 class SourcePanel extends View [
     editName: string = "",
     src: string = "",
     fill = { theme.panel }, cornerRadius = 12, stroke = { stroke(1, theme.panelLine) },
 
-    // 48 = the chrome above and below the field (its y, and the margin under it)
+    // the panel is its field, plus the chip row above it and a margin below
 
-    height = { 48 + hpCodeHeight(this.field.text, this.field.width, this.field.padding,
-                                 this.metrics.width / 50, this.metrics.ascent + this.metrics.descent) },
-
-    // the field's own metrics, measured in the field's own face: fifty
-    // characters of it wide (auto-size), one natural line box tall
-
-    metrics: Text [ visible = false, wrap = false,
-        fontFamily = { classroot.field.fontFamily }, fontSize = { classroot.field.fontSize },
-        text = "00000000000000000000000000000000000000000000000000" ],
+    height = { this.field.y + this.field.height + 8 },
 
     // the affordance chip: this code runs, and you can type in it
 
@@ -626,7 +591,7 @@ class SourcePanel extends View [
             textColor = { parent.hovered ? theme.text : theme.lead }, text = "Revert" ]
         ],
     hairline: View [ y = 31, width = { parent.width }, height = 1, fill = { theme.panelLine } ],
-    field: CodeField [ x = 12, y = 40, width = { parent.width - 24 }, height = { parent.height - 48 },
+    field: CodeField [ x = 12, y = 40, width = { parent.width - 24 },
         editName = { classroot.editName }, src = { classroot.src } ],
 
     // the compile report, at the panel — a broken edit shows its error right here

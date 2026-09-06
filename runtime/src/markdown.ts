@@ -309,6 +309,24 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       let first = true;
       for (const p of tok.word) {
         const py = y + line * adv + halfLead, r = p.run;
+        const rFont = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic });
+        // BASELINE-ALIGN a run to the line's baseline (the lead run's), not its
+        // TOP to a shared top. Every run was placed at `py`, so a run in a
+        // different face/size — inline `code` (mono, smaller) most of all —
+        // rode above the body baseline instead of sitting on it. `ry` drops it
+        // onto the shared baseline. It is a NO-OP for body prose: a plain run
+        // is the lead face, its ascent IS bm.ascent, so ry === py — coalescing
+        // and the DOM↔canvas invariant below are untouched.
+        //
+        // ⚠ STOPGAP, correct ONLY because no inline run today exceeds the block
+        // size (code is smaller, so it slides DOWN into the existing line box —
+        // nothing grows). `adv` is BLOCK-derived, so lines are uniform — the
+        // reverse of CSS, where a line box is content-derived (max-ascent +
+        // max-descent) and grows for a bigger run, with a fixed line-height
+        // only as an opt-in override. When per-span font-size lands (a run
+        // TALLER than the block) this block-uniform `adv` is inapplicable and
+        // the line box must go per-line — see the register (RichText line-box
+        // follow-on).
         // COALESCE consecutive same-run words on a line into ONE Text view.
         // A view per WORD is what this used to emit — a 100-word paragraph was
         // ~100 views — because whitespace flushes the token. Runs of body prose
@@ -320,11 +338,11 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         // run in a different face would move every word after the first space.
         // Restricting it to the lead face keeps every position bit-identical —
         // which is what lets the DOM↔canvas perceptual gate stay green.
-        const plain = r.chipBg === undefined && !r.strike
-          && fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic }) === spaceFont;
+        const plain = r.chipBg === undefined && !r.strike && rFont === spaceFont;
+        const ry = plain ? py : py + bm.ascent - fontMetrics(rFont).ascent;
         if (group !== null && (!plain || group.run !== r || group.line !== line)) flushGroup();
         if (plain) {
-          if (group === null) group = { run: r, x0: x, y: py, line, parts: [], end: x };
+          if (group === null) group = { run: r, x0: x, y: ry, line, parts: [], end: x };
           else if (first && gap > 0) group.parts.push(" ");
           group.parts.push(p.text);
           x += p.w;
@@ -332,13 +350,13 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         } else {
           const t = new Text();
           if (r.chipBg !== undefined) { const c = rectView(Math.ceil(p.w) + 6, lineH, r.chipBg, 3); c.x = x - 3; c.y = py; blockViews.push({ v: c, line }); }
-          t.x = x; t.y = py; t.width = Math.ceil(p.w) + 2; t.wrap = false;
+          t.x = x; t.y = ry; t.width = Math.ceil(p.w) + 2; t.wrap = false;
           t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family; t.textColor = r.color; t.text = p.text;
           if (r.tracking !== 0) t.letterSpacing = r.tracking;
           if (r.fill !== undefined) t.textFill = r.fill;   // themed accent (gradient/solid) — same ramp as the DOM path
           if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
           blockViews.push({ v: t, line });
-          if (r.strike) blockViews.push({ v: rectAt(x, py + Math.round(r.size * 0.55), Math.ceil(p.w), 1, r.color), line });
+          if (r.strike) blockViews.push({ v: rectAt(x, ry + Math.round(r.size * 0.55), Math.ceil(p.w), 1, r.color), line });
           x += p.w;
         }
         lineRight.set(line, x);

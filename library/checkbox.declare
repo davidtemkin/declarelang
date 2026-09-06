@@ -110,6 +110,6 @@ class Checkbox extends Control [
     // use site restyles it with ordinary attributes, no subclass:
     //     Checkbox [ label = "Grouped", fontSize = 12.5, textColor = { theme.textMuted }, size = 16 ]
 
-    cap: Text [ x = { parent.box.width + 8 }, y = center, wrap = false,
+    cap: TextLabel [ x = { parent.box.width + 8 }, wrap = false,
         visible = { label != "" }, text = { label } ]
     ]

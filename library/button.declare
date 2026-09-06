@@ -106,7 +106,7 @@ class Button extends Control [
         layout: SimpleLayout [ axis = x, spacing = { classroot.gap } ],
 
         ico:   IconHost [ kind = { classroot.iconLeft },  ink = { classroot.inkColor } ],
-        cap:   Text [ y = center, wrap = false, fontWeight = semibold,
+        cap:   TextLabel [ wrap = false, fontWeight = semibold,
             visible = { classroot.label != "" }, text = { classroot.label } ],
         trail: IconHost [ kind = { classroot.rightIcon }, ink = { classroot.inkColor } ]
         ]

@@ -132,7 +132,7 @@ class Pane extends Control [ width = { parent.width }, clip = true,
         stroke = { classroot.focusVisible ? stroke(1, theme.textMuted) : null },
         chev: ChevronIcon [ x = 11, y = center, iconSize = 14,
             angle = { classroot.twist }, ink = { theme.textMuted } ],
-        t: Text [ x = 32, y = center, fontSize = 14, fontWeight = { classroot.open ? "semibold" : "medium" },
+        t: TextLabel [ x = 32, fontSize = 14, fontWeight = { classroot.open ? "semibold" : "medium" },
             textColor = { theme.text }, text = { classroot.label } ]
         ]
     ]

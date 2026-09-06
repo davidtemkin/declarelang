@@ -19,7 +19,7 @@ import type { RenderBackend, Surface, EditableSpec } from "./backend.js";
 import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
 import { Constraint, settle } from "./reactive.js";
 import { Focus } from "./focus.js";
-import type { TextStyle } from "./measure.js";
+import { fontMetrics, fontString, wrapEditable, type TextStyle } from "./measure.js";
 import { isTwoWay, edited, commitDraft, Editor } from "./editor.js";
 import { stroke } from "./value.js";
 
@@ -72,6 +72,37 @@ export class TextInput extends Editor {
       bindDerived(this, "cornerRadius", () => tok("fieldRadius", tok("controlRadius", 7)));
     if (!isSet(this, "padding") && ownerOf(this, "padding") === null)
       bindDerived(this, "padding", () => tok("fieldPadding", 10));
+    // An unset HEIGHT auto-sizes to the text — the same rule Text follows and
+    // the same rule View states generally (a box's size defaults to its
+    // measured content), through the same yielding bind as the rendition
+    // above, so a declared height still wins outright. That is the ordinary
+    // case and stays so: a field is normally a fixed viewport the platform
+    // scrolls. What it fixes is the field whose text IS the content — a code
+    // listing, a note — which had no way to say "as tall as what I hold"
+    // short of counting lines by hand; and a bare field, whose unset height
+    // was 0 (auto-extent over a view with no children), i.e. invisible.
+    //
+    // Height only. Auto-WIDTH is deliberately not offered: a box that resized
+    // itself under the caret as you typed is nobody's idea of a text field.
+    //
+    // The measure is `wrapEditable` — the model's approximation of the wrap
+    // the NATIVE element will perform, which is a different rule from the one
+    // a box of text follows (measure.ts). Where it under-counts — wrapLines
+    // lists what the breaker does not know — the field scrolls, which is
+    // exactly today's behavior, so this degrades to the status quo rather
+    // than to a broken layout.
+    if (!isSet(this, "height") && ownerOf(this, "height") === null) {
+      bindDerived(this, "height", () => {
+        const font = fontString(this.editStyle());
+        const met = fontMetrics(font);
+        const inner = this.width - 2 * this.padding;
+        const lines = !this.multiline ? 1
+          : this.wrap && inner > 0
+            ? wrapEditable(this.text, font, inner, this.letterSpacing).length
+            : this.text.split("\n").length;
+        return Math.ceil(lines * (met.ascent + met.descent) + 2 * this.padding);
+      });
+    }
   }
 
   protected override flush(s: Surface): void {

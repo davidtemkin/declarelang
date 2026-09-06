@@ -90,10 +90,27 @@ export function xHeight(font) {
 /** `text` broken into the lines it wraps to within `width` px in `font` —
  *  greedy soft-break at spaces, hard-break at "\n", via the shared measurer.
  *  The DOM backend wraps natively; this is the shared breaker the Canvas
- *  backend paints and the model measures its auto-extent height from. A word
- *  longer than the box stays on its own line (no mid-word break), matching the
- *  default `word-break: normal`. */
+ *  backend paints and the model measures its auto-extent height from.
+ *
+ *  This is a deliberate approximation of CSS line breaking, not UAX #14. The
+ *  break opportunities it knows are the space and the "/" and "-" below. Its
+ *  known gaps, all measured against Chrome (2026-09-05) and all UNDER-counts
+ *  — whose failure is an overflow or a scrollbar, never a wrong line:
+ *  a line's own indent (see `countIndent`), CJK (a break between any two
+ *  ideographs), the other Unicode spaces, the dash family past ASCII "-", the
+ *  soft hyphen, and a tab, which it measures as one glyph rather than to the
+ *  next `tab-size` stop. Widen it against a measurement, never a theory. */
 export function wrapLines(text, font, width, letterSpacing = 0) {
+    return wrapBy(text, font, width, letterSpacing, { countIndent: false, breakWord: false });
+}
+/** The same breaker under an EDITABLE's rules — what a native field will do
+ *  with this text, which is not what a box of text would do with it. Used by
+ *  TextInput's auto-height: a field that sizes to its own content has to
+ *  measure the way the element it becomes will lay out. */
+export function wrapEditable(text, font, width, letterSpacing = 0) {
+    return wrapBy(text, font, width, letterSpacing, { countIndent: true, breakWord: true });
+}
+function wrapBy(text, font, width, letterSpacing, rule) {
     if (width <= 0)
         return text.split("\n");
     const m = measurer();
@@ -103,23 +120,51 @@ export function wrapLines(text, font, width, letterSpacing = 0) {
     const out = [];
     for (const seg of text.split("\n")) {
         let cur = "";
+        // `ink`: the line holds something past its indent — what a break is
+        // allowed to leave behind, so a deep indent never lands on a line alone.
+        let ink = false;
         // Break opportunities are the BROWSER'S: at spaces (the space collapses
         // at the break), and after "/" or "-" inside a word — how engines wrap
         // paths, URLs, and hyphenated words; the delimiter stays with the line it
         // ends. Without these a spaceless path measured as ONE line while the DOM
         // rendered two (the desktop's preview pane caught it), so the model's
         // height under-counted and layouts stacked into the overflow.
-        for (const word of seg.split(" ")) {
-            const chunks = word.split(/(?<=[/-])/);
+        const words = seg.split(" ");
+        for (let i = 0; i < words.length; i++) {
+            const chunks = words[i].split(/(?<=[/-])/);
             for (let j = 0; j < chunks.length; j++) {
-                const glue = j === 0 && cur !== "" ? " " : "";
-                const trial = cur === "" ? chunks[j] : cur + glue + chunks[j];
-                if (cur !== "" && m.measureText(trial).width > width) {
+                // The separator belongs to the word that FOLLOWS it, which is what
+                // makes a line's indent measurable: leading spaces ARE the empty
+                // words, so testing the LINE for emptiness (`countIndent` off) drops
+                // every indent in the text. At a break the separator is dropped
+                // rather than carried — that is CSS hanging it at the line's end.
+                const sep = j === 0 && (rule.countIndent ? i > 0 : cur !== "") ? " " : "";
+                const trial = !rule.countIndent && cur === "" ? chunks[j] : cur + sep + chunks[j];
+                const held = rule.countIndent ? ink : cur !== "";
+                if (held && m.measureText(trial).width > width) {
                     out.push(cur);
                     cur = chunks[j];
+                    ink = chunks[j] !== "";
                 }
-                else
+                else {
                     cur = trial;
+                    ink = ink || chunks[j] !== "";
+                }
+                // break-word: the piece has a line to itself and still does not fit,
+                // so the browser breaks it mid-word at the last character that fits.
+                if (rule.breakWord && m.measureText(cur).width > width) {
+                    const over = cur;
+                    cur = "";
+                    for (const ch of over) {
+                        if (cur !== "" && m.measureText(cur + ch).width > width) {
+                            out.push(cur);
+                            cur = ch;
+                        }
+                        else
+                            cur += ch;
+                    }
+                    ink = true;
+                }
             }
         }
         out.push(cur);

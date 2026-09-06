@@ -29,7 +29,7 @@ written) collection, carrying the RULED selection model
     Table [ width = 300, height = 400, datapath = { app.d.value },
         selects = "multi", input(sel: object) { app.chosen = sel },
         TableRow [ datapath = :rows[], height = 30,
-            t: Text [ x = 8, y = center, text = :label ] ] ]
+            t: TextLabel [ x = 8, text = :label ] ] ]
 
 ```declare
 App [ width = 320, height = 200,

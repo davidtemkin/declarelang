@@ -122,21 +122,11 @@ export class Text extends View {
     return Math.ceil(this.lineAdvance(m) * lines);
   }
 
-  /** The ink band (y axis): first line's cap top to the last line's baseline
-   *  — what `y = center` centers (bind.ts bindAlign). Descenders hang below
-   *  the band as overhang, per typographic convention. The x axis stays the
-   *  geometric box. */
-  override alignBand(axis: "x" | "y"): { lead: number; size: number } {
-    if (axis === "x") return super.alignBand(axis);
-    const font = fontString(this);
-    const m = fontMetrics(font);
-    const cap = measureCapHeight(font);
-    const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
-    const lines = bounded && this.wrap
-      ? wrapLines(this.text, font, this.width, this.letterSpacing).length
-      : 1;
-    return { lead: m.ascent - cap, size: (lines - 1) * this.lineAdvance(m) + cap };
-  }
+  // `y = center` centers the geometric box (View.alignBand), like every other
+  // view and like the x axis — the ordinary meaning. A label that wants its cap
+  // band optically centered uses the library's TextLabel (a Text whose y is a
+  // cap-centering constraint over baseline/capHeight); box-centering was the
+  // surprising default and is retired here (2026-09-06).
 
   protected override flush(s: Surface): void {
     super.flush(s);

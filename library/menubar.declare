@@ -175,7 +175,7 @@ class MenuBar extends View [ height = 25,
             onPointerOver() { classroot.trackMenu(this) },
             onClick() { if (this.open) classroot.menu.close(); else classroot.openMenu(this) },
             onInit() { if (this.kd != "") this.host.createView(this.kd, ({ })) },
-            t: Text [ x = 10, y = center, fontSize = 14,
+            t: TextLabel [ x = 10, fontSize = 14,
                 visible = { parent.kd == "" },
 
                 // medium, not regular: the browser's grayscale antialiasing

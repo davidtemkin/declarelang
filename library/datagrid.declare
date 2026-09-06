@@ -491,7 +491,7 @@ class DataGrid extends Table [
                 else (classroot as DataGrid).headerClick(colid)
                 },
 
-            lbl: Text [ x = 8, y = center, fontSize = 12, fontWeight = semibold, wrap = false,
+            lbl: TextLabel [ x = 8, fontSize = 12, fontWeight = semibold, wrap = false,
                 textColor = { theme.textMuted },
                 text = { "" + :title } ],
 
@@ -586,7 +586,7 @@ class GridRow extends TableRow [
             k: string = { "" + (:kind ?? "text") },
             fld: string = { "" + :field },
 
-            t: Text [ x = 8, y = center, fontSize = 13, wrap = false,
+            t: TextLabel [ x = 8, fontSize = 13, wrap = false,
                 visible = { parent.k == "text" },
                 text = { "" + ((classroot.rec ?? ({}) as any)["" + :field] ?? "") } ],
 
@@ -627,7 +627,7 @@ class GridRow extends TableRow [
                         (classroot.rec ?? ({}) as any)["" + :field])
                     },
                 onClick() { if (!this.disabled) this.press() },
-                v: Text [ x = 6, y = center, fontSize = 13, wrap = false,
+                v: TextLabel [ x = 6, fontSize = 13, wrap = false,
                     text = { "" + ((classroot.rec ?? ({}) as any)["" + :field] ?? "") } ],
                 arrow: ChevronIcon [ y = center, iconSize = 11,
                     x = { parent.width - this.width - 6 },

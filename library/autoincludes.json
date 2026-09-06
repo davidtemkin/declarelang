@@ -5,7 +5,7 @@
       "when": {
         "baseUsed": "Control"
       },
-      "comment": "the traveling focus indicator \u2014 provided with the component library"
+      "comment": "the traveling focus indicator — provided with the component library"
     },
     {
       "class": "Tooltip",
@@ -13,13 +13,14 @@
         "attributeUsed": "tip",
         "onBase": "View"
       },
-      "comment": "the tooltip singleton \u2014 provided with the component library (tip = attribute)"
+      "comment": "the tooltip singleton — provided with the component library (tip = attribute)"
     }
   ],
   "Bar": "bar.declare",
   "Control": "control.declare",
   "Checkbox": "checkbox.declare",
   "Button": "button.declare",
+  "TextLabel": "textlabel.declare",
   "Switch": "switch.declare",
   "Slider": "slider.declare",
   "RadioGroup": "radiogroup.declare",

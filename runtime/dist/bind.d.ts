@@ -47,10 +47,10 @@ export declare function bindCursor(view: View, src: string, pos: Pos, classroot:
 export declare function bindPercent(view: View, name: string, percent: number, pos: Pos): void;
 /** Bind `x = center` / `y = end` — the position literals (value.ts Align).
  *  Symbolic like a percent, resolved as a standing constraint over the
- *  parent's extent AND the view's own. `center` centers what you see: the
- *  view's alignBand (a box by its box; a Text by its cap-to-baseline ink band
- *  — the text-box-trim semantics). `end` aligns end edges — the geometric
- *  box, always (descenders never overhang a hard edge). The written-out
+ *  parent's extent AND the view's own. `center` centers the view's box (its
+ *  alignBand) — for a Text that is the geometric box, the ordinary meaning
+ *  (a label wanting its cap band optically centered uses the library's
+ *  TextLabel). `end` aligns end edges — the geometric box, always. The written-out
  *  formula `{ (parent.height - this.height) / 2 }` remains the no-smarts
  *  spelling: only the named literal invokes the optics. */
 export declare function bindAlign(view: View, name: "x" | "y", align: "center" | "end", pos: Pos): void;

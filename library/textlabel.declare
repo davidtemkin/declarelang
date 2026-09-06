@@ -1,0 +1,32 @@
+/*
+# TextLabel
+
+A `Text` that centers its ink in its parent's height — the vertical placement a
+*label* wants, as opposed to a paragraph. Use it for the text inside a control
+or any centered caption; use plain `Text` for flowing copy.
+
+Why it exists. `y = center` on a plain `Text` centers the geometric box (the
+ordinary meaning, matching every other view). But a label sitting in a box wants
+its LETTERFORMS optically centered, not the font's box with its asymmetric
+ascent/descent leading — otherwise the text reads a hair low. `TextLabel`
+supplies a `y` that centers the CAP BAND (cap-top to baseline), the optical
+centre for a label:
+
+    y = { parent.height / 2 - this.baseline + this.capHeight / 2 }
+
+That expression is exactly what `y = center` on a Text used to compute before the
+box-centering fix — the cap-centering is preserved, now explicit and living in
+one place. It is a plain constraint over the Text's own live metric facts
+(`baseline`, `capHeight`, measured from the effective font), so it re-centers
+when the font, the size, or the parent's height changes. Override `y` on an
+instance to opt out.
+
+The centre is the CAP band because that is what the platform control themes
+(Cupertino, Mountain View, Redmond) are matched against. If a theme ever wants a
+different band — the x-height for lowercase-heavy labels — this one expression
+gains a `theme`-driven branch and every control follows, live; no other change.
+*/
+
+class TextLabel extends Text [
+    y = { parent.height / 2 - this.baseline + this.capHeight / 2 }
+    ]

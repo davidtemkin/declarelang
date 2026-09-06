@@ -69,7 +69,19 @@ export declare function xHeight(font: string): number;
 /** `text` broken into the lines it wraps to within `width` px in `font` —
  *  greedy soft-break at spaces, hard-break at "\n", via the shared measurer.
  *  The DOM backend wraps natively; this is the shared breaker the Canvas
- *  backend paints and the model measures its auto-extent height from. A word
- *  longer than the box stays on its own line (no mid-word break), matching the
- *  default `word-break: normal`. */
+ *  backend paints and the model measures its auto-extent height from.
+ *
+ *  This is a deliberate approximation of CSS line breaking, not UAX #14. The
+ *  break opportunities it knows are the space and the "/" and "-" below. Its
+ *  known gaps, all measured against Chrome (2026-09-05) and all UNDER-counts
+ *  — whose failure is an overflow or a scrollbar, never a wrong line:
+ *  a line's own indent (see `countIndent`), CJK (a break between any two
+ *  ideographs), the other Unicode spaces, the dash family past ASCII "-", the
+ *  soft hyphen, and a tab, which it measures as one glyph rather than to the
+ *  next `tab-size` stop. Widen it against a measurement, never a theory. */
 export declare function wrapLines(text: string, font: string, width: number, letterSpacing?: number): string[];
+/** The same breaker under an EDITABLE's rules — what a native field will do
+ *  with this text, which is not what a box of text would do with it. Used by
+ *  TextInput's auto-height: a field that sizes to its own content has to
+ *  measure the way the element it becomes will lay out. */
+export declare function wrapEditable(text: string, font: string, width: number, letterSpacing?: number): string[];

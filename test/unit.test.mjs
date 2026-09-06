@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile, compileTracked, isUpToDate, diskProbe, extractStatic, settleHeadless } from "../compiler/dist/compile-node.js";
 import { KeysService } from "../runtime/dist/keys.js";
+import { wrapLines, wrapEditable, provideMeasurer } from "../runtime/dist/measure.js";
 import { Focus, FocusService, deliverKeys } from "../runtime/dist/focus.js";
 import { routeInput } from "../runtime/dist/input.js";
 import {
@@ -7412,7 +7413,7 @@ await test("settleHeadless: network is refused, never initiated — the source l
 
 // ── the position literals (x/y = center | end) ──────────────────────────────
 
-await test("center/end: geometric on views, band-optical on Text, end is the box", async () => {
+await test("center/end: the geometric box on EVERY view — Text too (centering flip 2026-09-06); end is the box", async () => {
   const src = `App [ width = 400, height = 200,
     box: View [ width = 100, height = 40, x = center, y = center, fill = navy ],
     corner: View [ width = 30, height = 30, x = end, y = end, fill = maroon ],
@@ -7423,10 +7424,11 @@ await test("center/end: geometric on views, band-optical on Text, end is the box
   const app = settleHeadless(r.source, { deps: r.deps });
   assert.equal(app.box.x, 150); assert.equal(app.box.y, 80);
   assert.equal(app.corner.x, 370); assert.equal(app.corner.y, 170);
-  // Text y centers the INK BAND (cap 0.7em, ascent 0.8em in the deterministic
-  // headless measurer): lead = 2, band = 14 → (200-14)/2 - 2 = 91 — NOT the
-  // geometric (200-21)/2 = 89.5. The optics live only in the literal.
-  assert.equal(app.lbl.y, 91);
+  // Text y = center now centers the GEOMETRIC BOX, like every other view:
+  // (200 - 21)/2 = 89.5. Cap-band optical centering moved to the library's
+  // TextLabel (pinned in components.test) — the surprising per-Text default is
+  // retired (2026-09-06).
+  assert.equal(app.lbl.y, 89.5);
   app.discard();
 });
 
@@ -7882,4 +7884,37 @@ await test("app.reveal(target): the default landing stays callable from a handle
     app.follow("#detail");
     settle(); // headless: the scroll is a no-op — composing it back must not throw
   } finally { app.discard(); }
+});
+
+// ── the two wrap rules: a box of text, and an editable ────────────────────
+// Measured against Chrome (2026-09-05). They are NOT the same rule, and the
+// field is where it shows: Chrome's UA stylesheet puts overflow-wrap:
+// break-word on every textarea, and a line's own indent is measured — the
+// legacy breaker drops it, which is pinned here as the behavior Text and the
+// canvas painter still depend on until their baselines are re-blessed.
+
+await test("wrapLines vs wrapEditable: break-word and indent are the field's rules, not the box's", () => {
+  // a deterministic stand-in for the browser: one unit per character
+  provideMeasurer({ set font(_) {}, set letterSpacing(_) {}, measureText: (t) => ({ width: t.length }) });
+
+  // shared ground: greedy fill, the break's space dropped rather than carried
+  for (const w of [wrapLines, wrapEditable]) {
+    assert.deepEqual(w("one two three four", "10px mono", 9), ["one two", "three", "four"], w.name + ": greedy fill");
+    assert.deepEqual(w("a  b  c", "10px mono", 20), ["a  b  c"], w.name + ": interior spaces survive");
+    assert.deepEqual(w("assets/img/photo-large.png", "10px mono", 12),
+      ["assets/img/", "photo-", "large.png"], w.name + ": breaks after / and -, delimiter kept");
+  }
+
+  // overflow-wrap: a box lets a long word overflow, a field breaks it
+  assert.deepEqual(wrapLines("supercalifragilistic", "10px mono", 8), ["supercalifragilistic"]);
+  assert.deepEqual(wrapEditable("supercalifragilistic", "10px mono", 8), ["supercal", "ifragili", "stic"]);
+  assert.deepEqual(wrapEditable("hi supercalifragilistic", "10px mono", 8),
+    ["hi", "supercal", "ifragili", "stic"], "…after taking the ordinary break first");
+
+  // the indent: measured by the field, dropped by the legacy breaker
+  assert.deepEqual(wrapEditable("        v: number = 40,", "10px mono", 20), ["        v: number =", "40,"]);
+  assert.deepEqual(wrapLines("        v: number = 40,", "10px mono", 20), ["v: number = 40,"],
+    "the known under-count — pinned so re-blessing it is a deliberate act");
+
+  provideMeasurer(undefined);   // leave the seam as we found it
 });

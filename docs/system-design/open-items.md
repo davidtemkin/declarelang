@@ -1055,3 +1055,78 @@ for the manual command, then adopted. The by-hand `npm run release` remains comp
 without it; the hook cannot publish (it may not write). Its first run corrects v0.4.3's
 published body to the file's projection — the designed behavior, and the first proof
 that the page follows the file.
+
+## Text vertical centering — `y = center` back to the box, `TextLabel` for labels — **SHIPPED 2026-09-06** (ruled 2026-09-05)
+
+Both the right fix for a real problem AND the correctness fix for what `Text` now supports.
+Surfaced by the cadence eval: a large button's `+`/`−` looked mis-centered, which opened a
+long design thread (DT + session). The finding underneath: **`y = center` on a `Text` does
+not center the box — it optically centers the CAP BAND** (cap-top to baseline, via
+`Text.alignBand`'s y-override, shipped 3cd39228 2026-07-17). That is typographically the
+`text-box-trim: cap alphabetic` behavior CSS is only now adding — but it is the wrong
+DEFAULT for three reasons DT named: (1) it is surprising and non-standard — every other
+framework centers the box, and even CSS ships cap/ex trimming as opt-in, never the default;
+(2) the cap band is wrong for the content `Text` now carries beyond words — a `+`, `−`, `·`,
+`✕` sits on the math/x-height axis, not the cap band, so cap-centering floats it; (3) it is
+a metric-based default that shifts on a font substitution. Measured: cap-vs-box centering is
+`≈ (cap + descent − ascent)/2` — ~1px at UI sizes (invisible on the ~100 corpus decorative
+sites) but growing to ~13px at display sizes, which is why the button drift is real and the
+corpus churn is not.
+
+**The build (small — it reuses machinery that already exists):**
+1. Add `y = centerCap` (and hold `centerEx` until a mixed-case case asks) as position-vocabulary
+   tokens — extend the `center | end` align enum (value.ts), route through the SAME `alignBand`
+   path that cap-centers today. Non-Text / x-axis / no-ink → degrade to the box.
+2. **Flip** `y = center` on `Text` to the geometric box — the ordinary meaning, matching every
+   other view and CSS's default. Text stops overriding `alignBand` for `center`.
+3. Library controls (~25 `y = center` label sites — button, menu, menubar, datagrid/table cells,
+   checkbox, slider, …) opt into `y = centerCap` to hold their look. Hand-rolled app "controls"
+   either opt in or migrate to `Button` (the [[project-discover-field-report]] SKILL-guidance
+   cleanup). Decorative `Text` (~28 sites) just becomes box — ~1px, invisible.
+   **Sequence: library opt-in FIRST, then the flip**, so nothing visibly regresses in between.
+
+**Rejected on the way, deliberately:** a general `offsetX/offsetY` position primitive (an
+anchor/registration point — pivot's position-twin). Elegant and it would have subsumed this
+*and* the hero baseline case, but DT ruled it **not yet warranted** — a new public coordinate
+concept for one contained need, with the layout-composition and reported-position questions
+only half-settled. Ship a primitive when a 2nd/3rd customer knocks, not on spec. Also rejected:
+a Text ATTRIBUTE for the centering mode (positioning is a placement concern, not a property of
+the text) and CSS `text-box-trim`'s box-TRIMMING (it makes ink exceed the bounds — breaks
+`clip`/footprint/hit).
+
+**Left to app/library, NOT the language:** the cadence "hero" — mixed-size runs on one baseline,
+wrapping as a sentence (`4 sessions · 3h 40m`). Many solutions (a custom baseline-flow layout, or
+manual positioning off the exposed `Text.baseline`); none needs a language change, and the choice
+is an app's. `HTML[]` was NOT the agent's instinct and is not a clean fix today: Declare's RichText
+engine (markdown.ts) packs a line at `line-top + halfLead` using the LEAD run's metrics, so it
+top-aligns mixed sizes rather than per-run baseline-aligning them.
+
+**How it shipped (2026-09-06), diverging from step 1's `centerCap` token:** the label case
+became a **library class, `TextLabel extends Text`**, not a position-vocabulary token. Its whole
+body is `y = { parent.height / 2 - this.baseline + this.capHeight / 2 }` — the SAME cap-centering
+formula the old `alignBand` override baked in, now expressed in the open, reactive on the live
+metric facts (`baseline`, `capHeight`), and pixel-identical to the retired default (a Button label
+lands at y=12.80 either way). This beat a new enum token: no new surface in `value.ts`, it reads as
+what it does, and it re-centers on a font swap for free. `Text.alignBand`'s y-override is GONE — a
+raw `Text [ y = center ]` now box-centers like every other view. Library (12 sites) and Tracker (5)
+converted to `TextLabel`; guide ch.5 + the centering pins updated. Symbols (`×`, `?`, `+`, `−`) that
+were the metric-fragility argument now box-center correctly as raw `Text`.
+
+**Filed, separate/bigger — RichText baseline + the line-box follow-on:** the RichText engine
+(`markdown.ts`) top-aligned every inline run (`t.y = py` from the LEAD run's metrics), so a run in
+a different face — inline `code` (mono) most of all — rode ABOVE the body baseline. Fix (a),
+shipped alongside this: each run now drops to the line baseline (`ry = py + bodyAscent - runAscent`;
+a no-op for plain body prose). At today's content the correction is ~1px (same-size mixed-FONT), so
+it is verified by hand (descenderless words: body and Courier-code ink-bottoms coincide at the same
+row, vs a 1px split under the old top-align) plus the DOM↔canvas perceptual gate, not a committed
+pixel pin — a 1px margin flakes on any font update.
+
+**⚠ This is a STOPGAP, and the real design is owed as soon as variable inline size lands (feature b).**
+DT's ruling: the block advance `adv` is BLOCK-derived, so every line in a block is a uniform height —
+the reverse of CSS, where a line box is CONTENT-derived (max-ascent + max-descent across its runs)
+and GROWS for a bigger run. Baseline-align on a uniform `adv` is only correct because no inline run
+today exceeds the block size (code is smaller — it slides down into the existing box, nothing grows).
+The moment per-span font-size ships (a run TALLER than the block), this methodology is inapplicable:
+the line box must go per-line, content-derived by default (potentially VARIABLE line heights), with a
+user-specified **`fixed line height of <X>`** optional attribute on RichText (**default OFF**) as the
+opt-in override — the CSS `line-height` twin. Do this WITH feature (b), not before.

@@ -47,12 +47,13 @@ Position is `x`/`y` against the parent, and two named literals cover the everyda
 cases the arithmetic would otherwise spell out: `x = center` and `x = end` (likewise
 on `y`) place a view centered in, or flush against, its parent — resolved reactively,
 exactly like `100%`. The written-out form `x = { (parent.width - this.width) / 2 }`
-remains the no-magic spelling; the literal is just its name. (On a `Text`,
-`y = center` centers the *ink* — the cap-to-baseline band — so labels read centered
-regardless of font metrics. That makes `Text` the one place the two spellings
-differ: the brace rewrite centers the *box*, so a label that switches to a
-computed `y` sits a couple of pixels off its `y = center` position — center the
-box knowingly, or keep the literal and move the parent.)
+remains the no-magic spelling; the literal is just its name. `y = center` centers
+the geometric *box* — for a `Text` as for any view, the ordinary meaning. A label
+sitting in a control usually wants its *ink* centered instead — the cap band, not
+the font box with its asymmetric leading, which otherwise reads a hair low. That is
+what the library's **`TextLabel`** is: a `Text` whose `y` is a cap-centering
+constraint over its own `baseline` and `capHeight` facts. Use `TextLabel` for the
+text inside a button, chip, or cell; plain `Text` for flowing copy.
 
 ## Layout is a swappable attribute
 
