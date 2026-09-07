@@ -827,6 +827,7 @@ export function coerceData(type: AttrType, v: unknown, def: unknown): unknown {
     case "component":
     case "fn":
     case "stroke":
+    case "outline":
     case "shadow":
     case "backdrop":
     case "motion":

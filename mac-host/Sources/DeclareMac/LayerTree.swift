@@ -1042,6 +1042,13 @@ final class LayerTree {
                          (sh[2] as? NSNumber)?.doubleValue ?? 0,
                          (sh[3] as? String).flatMap { CSSColor.parse($0) } ?? .labelColor)
         }
+        st.transform = s["textTransform"] as? String
+        st.smallCaps = (s["smallCaps"] as? NSNumber)?.boolValue ?? false
+        st.underline = (s["underline"] as? NSNumber)?.boolValue ?? false
+        st.strike = (s["strike"] as? NSNumber)?.boolValue ?? false
+        if let o = s["outline"] as? [String: Any], let w = (o["width"] as? NSNumber)?.doubleValue, w > 0 {
+            st.outline = (w, (o["color"] as? String).flatMap { CSSColor.parse($0) } ?? .labelColor)
+        }
         if let g = s["fillGradient"] as? [String: Any] {
             let stops = g["stops"] as? [[Any]] ?? []
             let colors = stops.compactMap { ($0.count > 1 ? $0[1] as? String : nil).flatMap { CSSColor.parse($0)?.cgColor } }
@@ -1462,6 +1469,15 @@ final class LayerTree {
         guard let host = view?.layer else { return windowRect(n) }
         if hiddenAnywhere(n) { return .zero }
         var vis = windowRect(n)
+        // Clip to the window FIRST, before the occluder subtraction below. A tall
+        // flow scrolled so that most of it is off-screen (the scroll container's
+        // own clip=false, so it does not clip here) would otherwise keep its full
+        // off-screen extent, and when an occluder — e.g. the top bar — cut across
+        // it, `largestRemainder` returned the LARGER, off-screen piece. That zeroed
+        // the on-screen slice and dropped the band: the reader went blank a bit
+        // into a long scroll. Nothing outside the window is ever visible anyway.
+        vis = vis.intersection(host.bounds)
+        if vis.isNull || vis.isEmpty { return .zero }
         var child: Node = n
         var cur: Node? = n.parent
         while let p = cur {

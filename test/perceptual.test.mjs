@@ -447,6 +447,26 @@ const ROT_SOURCE = `App [ width=240, height=160, fill=#20242C,
   View [ x=130, y=40, width=60, height=60, fill=#3FA34D, rotation=45, scale=0.8, pivotX=30, pivotY=30,
     View [ x=15, y=15, width=30, height=30, fill=#264653 ] ] ]`;
 
+// The treatments scene: the span/Text paint vocabulary — outline (stroke under
+// fill), underline, strike, small-caps, uppercase transform — exercised BOTH
+// through HTMLText spans (the flowRichCanvas run path) and a standalone Text.
+// The canvas backend synthesizes each to match the DOM's native CSS (the glyph
+// bands are soft — rasterizer AA and the manual decoration rules — everything
+// between the lines is strict background). The `style` bundles ride the source,
+// so the checker also proves top-level named styles cascade into spans.
+const TREAT_SOURCE = `style ring  [ outline = outline(1, #C0392B), textColor = #FFFFFF, fontWeight = bold ]
+style mark  [ underline = true, textColor = #2FA35C ]
+style gone  [ strike = true, textColor = #9AA4AE ]
+style caps  [ smallCaps = true ]
+style upper [ textTransform = uppercase, letterSpacing = 2, textColor = #8A9BA6 ]
+App [ width=240, height=160, fill=#0B141B,
+  a: HTMLText [ x=8, y=4,   width=224, fontSize=18, bodyColor=#E7EEF2, html="a <span class='ring'>ring</span> here" ],
+  b: HTMLText [ x=8, y=30,  width=224, fontSize=18, bodyColor=#E7EEF2, html="a <span class='mark'>mark</span> here" ],
+  c: HTMLText [ x=8, y=56,  width=224, fontSize=18, bodyColor=#E7EEF2, html="a <span class='gone'>gone</span> here" ],
+  d: HTMLText [ x=8, y=82,  width=224, fontSize=18, bodyColor=#E7EEF2, html="in <span class='caps'>Small Caps</span> ok" ],
+  e: HTMLText [ x=8, y=108, width=224, fontSize=18, bodyColor=#E7EEF2, html="the <span class='upper'>up</span> word" ],
+  t: Text [ x=8, y=134, fontSize=16, outline=outline(1, #C0392B), textColor=#FFFFFF, fontWeight=bold, text="ringed text" ] ]`;
+
 // One page template per backend and program; the only differences are which
 // backend class renders and which source. The canvas backend's first paint is
 // its scheduled rAF, so readiness is flagged one frame after that (double-rAF
@@ -817,6 +837,8 @@ function serveDist() {
     "/canvas-tint": pageHtml("CanvasBackend", TINT_SOURCE),
     "/dom-rot": pageHtml("DomBackend", ROT_SOURCE),
     "/canvas-rot": pageHtml("CanvasBackend", ROT_SOURCE),
+    "/dom-treat": pageHtml("DomBackend", TREAT_SOURCE),
+    "/canvas-treat": pageHtml("CanvasBackend", TREAT_SOURCE),
     // The box-clip CONTAINMENT test: an App declaring `clip = true` (the
     // calendar's fixed-window design) with a panel parked BEYOND the frame —
     // the browser must gain no scroll extent and focus must not shift the frame.
@@ -2655,6 +2677,37 @@ try {
     assert.equal(diff.over, 0, `strict channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
     for (const s of diff.soft) {
       assert.ok(s.mean <= 4, `${s.label}: mean blurred delta ${s.mean} > 4 (rotation diverges between backends?)`);
+    }
+  });
+
+  const domTreat = await renderShot("/dom-treat", 1, "treat-dom.png");
+  const canvasTreat = await renderShot("/canvas-treat", 1, "treat-canvas.png");
+
+  await test("cross-backend: text treatments agree (outline/underline/strike/small-caps/uppercase — glyph bands soft)", async () => {
+    // Each specimen line is a soft band (AA + the manual decoration rules);
+    // the gaps between them stay strict background. A treatment that failed to
+    // paint on canvas (a missing underline, an un-stroked outline) shows up as
+    // a band whose blurred mean climbs past the threshold — the discriminating
+    // signal, the same design as the rotation/frost scenes.
+    const diff = await diffShots(canvasTreat.page, domTreat.png, canvasTreat.png, {
+      soft: [
+        { x: 0, y: 4,   w: 240, h: 22, label: "outline span (stroke under fill)" },
+        { x: 0, y: 30,  w: 240, h: 22, label: "underline span" },
+        { x: 0, y: 56,  w: 240, h: 22, label: "strike span" },
+        { x: 0, y: 82,  w: 240, h: 22, label: "small-caps span" },
+        { x: 0, y: 108, w: 240, h: 22, label: "uppercase span" },
+        { x: 0, y: 130, w: 240, h: 26, label: "standalone outlined Text" },
+      ],
+    });
+    assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
+    assert.equal(diff.over, 0, `strict channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+    for (const s of diff.soft) {
+      // 6, not the rotation scene's 4: a thin high-contrast text STROKE (red on
+      // white glyphs, ~1px) is the softest treatment — DOM's -webkit-text-stroke
+      // and canvas strokeText rasterize its sub-pixel edges differently. A
+      // treatment that failed to paint would still climb far past 6 (a whole
+      // missing underline/stroke is a double-digit band mean), so the gate holds.
+      assert.ok(s.mean <= 6, `${s.label}: mean blurred delta ${s.mean} > 6 (treatment diverges between backends?)`);
     }
   });
 

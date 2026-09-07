@@ -35,7 +35,22 @@ export function provideMeasurer(ctx) {
 /** A style as a canvas font string — the one font encoding the measurer and
  *  both backends share, so they cannot disagree about which font they mean. */
 export function fontString(style) {
-    return `${style.italic ? "italic " : ""}${cssWeight(style.fontWeight)} ${style.fontSize}px ${style.fontFamily}`;
+    // CSS font shorthand order: font-style font-variant font-weight font-size family.
+    // `small-caps` rides the variant slot — canvas `ctx.font` honors it, so the
+    // shared measurer sees the same synthesized caps the painter draws (widths agree).
+    return `${style.italic ? "italic " : ""}${style.smallCaps ? "small-caps " : ""}${cssWeight(style.fontWeight)} ${style.fontSize}px ${style.fontFamily}`;
+}
+/** The glyphs a `textTransform` actually paints — applied at BOTH measure and
+ *  paint time so a transformed run's width matches its picture (the DOM gets the
+ *  same shaping free from CSS `text-transform`). `capitalize` uppercases the
+ *  first letter of each whitespace-separated word, like the CSS keyword. */
+export function transformText(text, transform) {
+    switch (transform) {
+        case "uppercase": return text.toUpperCase();
+        case "lowercase": return text.toLowerCase();
+        case "capitalize": return text.replace(/(^|\s)(\S)/g, (_m, sp, ch) => sp + ch.toUpperCase());
+        default: return text;
+    }
 }
 /** The advance width of `text` in `font`, in px (fractional), including
  *  `letterSpacing` tracking (canvas-native; the shared measurer is reset). */

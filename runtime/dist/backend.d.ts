@@ -1,4 +1,4 @@
-import type { Backdrop, Color, Fill, Shadow, Stroke } from "./value.js";
+import type { Backdrop, Color, Fill, Shadow, Stroke, Outline } from "./value.js";
 import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
 /** The reference schemes a link may carry (location.md §0.4): the app's own
@@ -23,6 +23,10 @@ export type RichRun = {
     chipBg?: number;
     href?: string;
     underline?: boolean;
+    shadow?: Shadow;
+    outline?: Outline;
+    transform?: "uppercase" | "lowercase" | "capitalize";
+    smallCaps?: boolean;
 } | {
     br: true;
 };

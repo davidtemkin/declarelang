@@ -462,8 +462,14 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     /// the runtime does the rest: a Time pauses itself on the fact
     /// (leaving the shared clock), and an occluded window's program goes truly
     /// idle instead of integrating motion nobody composites.
-    func windowDidChangeOcclusionState(_ n: Notification) {
-        let visible = window.occlusionState.contains(.visible)
+    func windowDidChangeOcclusionState(_ n: Notification) { pushVisibility() }
+
+    /// Push the window's visibility fact to the runtime. `Launch.ignoreOcclusion`
+    /// forces it true so a covered window keeps painting (the capture-rig
+    /// facility); the `ctl occlusion` command calls this after flipping the flag,
+    /// to un-idle a window that is already covered.
+    func pushVisibility() {
+        let visible = Launch.ignoreOcclusion || window.occlusionState.contains(.visible)
         bridge.call("__declareVisibilityChanged", [visible])
         bridge.needsFrame()
     }

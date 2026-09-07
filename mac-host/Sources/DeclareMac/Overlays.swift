@@ -40,6 +40,12 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     /// selection index is computed in.
     private var bandTop: CGFloat = 0
     private var bandH: CGFloat = 0
+    /// The band the CONTENT LAYER's current bitmap actually represents — which
+    /// lags `bandTop`/`bandH` (the WANTED band) while an off-thread raster is in
+    /// flight. `placeBand` positions from these, so the visible bitmap never jumps
+    /// to a new band's coordinates before its pixels have arrived.
+    private var displayedBandTop: CGFloat = 0
+    private var displayedBandH: CGFloat = 0
     /// The last box this flow was placed in — the band math needs it when a
     /// scroll asks for a new slice without a re-place.
     private var lastBox: CGSize = .zero
@@ -129,6 +135,55 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     /// layout or its height, and re-laying it out is pure waste.
     private var wraps = true
 
+    /// How many runs carry a `textFill` gradient — the redraw() post-pass is
+    /// skipped entirely when there are none (the common case).
+    private var gradientRuns = 0
+    /// The custom attribute marking a gradient-filled run (value: TextGradient).
+    static let gradKey = NSAttributedString.Key("declareTextGradient")
+
+    // ── Off-thread band rasterization ────────────────────────────────────────
+    // A tall flow re-slices a ~13 Mpx band every ~530px of scroll; on the main
+    // thread that is a ~10ms stall per slice — the "jerky, uneven" scroll. The
+    // Declare runtime stays single-threaded: layout, selection and the settle all
+    // run on main. ONLY the pixel raster moves. The main thread takes an immutable
+    // snapshot of the laid-out band (CTLines at their NSLayoutManager positions,
+    // plus the selection/gradient geometry — Core-Text/CG value types, no model
+    // references), a background queue draws it, and main sets the layer contents
+    // behind a generation token so a slice from a stale scroll position is dropped.
+    private var rasterGen = 0
+    private static let rasterQueue = DispatchQueue(label: "declare.rich.raster", qos: .userInteractive)
+
+    /// One line to draw: its CTLine and the baseline origin in the band's own
+    /// top-down space (band-top = y 0), the coordinates redraw() already used.
+    private struct BandLine { let line: CTLine; let x: CGFloat; let y: CGFloat }
+    /// A gradient fill clipped to a run's glyphs (band top-down space).
+    private struct BandGradient { let ramp: CGGradient; let clip: [CGRect]; let box: CGRect; let angle: CGFloat }
+    /// Everything needed to raster a band with no reference back to the model or
+    /// the layout manager — safe to hand to a background queue.
+    private struct BandSnapshot {
+        let pw: Int; let ph: Int; let scale: CGFloat; let h: CGFloat; let bandTop: CGFloat
+        let lines: [BandLine]
+        let selRects: [CGRect]
+        let selColor: CGColor
+        let gradients: [BandGradient]
+    }
+
+    /// A rich run's `fill` dict ({angle, stops:[{offset,color}]}, colors as
+    /// numbers) → the ramp the redraw() post-pass clips to its glyphs. Mirrors
+    /// LayerTree.parseTextStyle's standalone gradient, in the rich-run color shape.
+    static func richGradient(_ g: [String: Any]) -> TextGradient? {
+        let stops = g["stops"] as? [[String: Any]] ?? []
+        let colors = stops.compactMap { ($0["color"] as? NSNumber).map { TextEngine.declColor($0).cgColor } }
+        guard !colors.isEmpty else { return nil }
+        let locs = stops.enumerated().map { (i, e) -> CGFloat in
+            if let n = e["offset"] as? NSNumber { return CGFloat(n.doubleValue) }
+            return stops.count <= 1 ? 0 : CGFloat(i) / CGFloat(stops.count - 1)
+        }
+        let (rc, rl) = GradientStops.resampled(colors: colors, locations: locs)
+        guard !rc.isEmpty else { return nil }
+        return TextGradient(angle: (g["angle"] as? NSNumber)?.doubleValue ?? 180, colors: rc, locations: rl)
+    }
+
     /// Diagnostic split of a rich re-layout. A width change only genuinely needs
     /// the LAYOUT; the parse and the attributed-string rebuild are the price of
     /// the JS→Swift boundary, and this is what tells them apart.
@@ -179,14 +234,24 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         text.textContainer?.containerSize = NSSize(width: flowWidth, height: .greatestFiniteMagnitude)
         let __b0 = RichStats.on ? CFAbsoluteTimeGetCurrent() : 0
         let s = NSMutableAttributedString()
+        gradientRuns = 0
         for b in blocks {
             let gap = CGFloat((b["gapBefore"] as? NSNumber)?.doubleValue ?? 0)
             // `lineHeight` is a MULTIPLIER of the block's font size (the DOM
             // backend writes round(fontSize × lineHeight) px) — treating it as
             // points clamps every line to about a pixel and a half.
             let fontSize = CGFloat((b["fontSize"] as? NSNumber)?.doubleValue ?? 13)
+            // The line box grows to the TALLEST run (the DOM/canvas content-derived
+            // inline box). Clamping to the BLOCK font crushed a big inline span —
+            // `<span class='big'>` at 40px in 16px prose — into the block's line:
+            // its glyphs clipped and the flow reported a short height. Uniform
+            // prose keeps the block box (maxRunSize == fontSize), so nothing moves.
+            var maxRunSize = fontSize
+            for r in (b["runs"] as? [[String: Any]] ?? []) {
+                if let rs = (r["size"] as? NSNumber)?.doubleValue { maxRunSize = max(maxRunSize, CGFloat(rs)) }
+            }
             let mult = CGFloat((b["lineHeight"] as? NSNumber)?.doubleValue ?? 0)
-            let lineHeight = mult > 0 ? (fontSize * mult).rounded() : 0
+            let lineHeight = mult > 0 ? (maxRunSize * mult).rounded() : 0
             if ProcessInfo.processInfo.environment["DECLARE_DEBUG_RICH"] != nil {
                 NSLog("[rich-block] id=%d tag=%@ pre=%@ fontSize=%.2f mult=%.3f -> lh=%.1f gap=%.1f",
                       id, (b["tag"] as? String) ?? "-", String(describing: b["pre"] ?? "-"),
@@ -237,8 +302,38 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                           r.keys.sorted().joined(separator: ","))
                 }
                 if (r["strike"] as? NSNumber)?.boolValue == true { attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
+                if (r["underline"] as? NSNumber)?.boolValue == true { attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+                // The paint treatments — the canvas/DOM span vocabulary, now native.
+                if let sh = r["shadow"] as? [String: Any] {
+                    let ns = NSShadow()
+                    ns.shadowOffset = NSSize(width: (sh["dx"] as? NSNumber)?.doubleValue ?? 0,
+                                             height: -((sh["dy"] as? NSNumber)?.doubleValue ?? 0)) // y-down → AppKit y-up
+                    ns.shadowBlurRadius = (sh["blur"] as? NSNumber)?.doubleValue ?? 0
+                    if let c = sh["color"] as? NSNumber { ns.shadowColor = TextEngine.declColor(c) }
+                    attrs[.shadow] = ns
+                }
+                if let o = r["outline"] as? [String: Any], let w = (o["width"] as? NSNumber)?.doubleValue, w > 0 {
+                    // AppKit's negative strokeWidth strokes CENTERED on the glyph
+                    // path, over the fill; the visible band is the whole width. CSS
+                    // `-webkit-text-stroke` with `paint-order: stroke` shows only the
+                    // OUTER half (the fill covers the inner). Halve the width so the
+                    // visible red matches the DOM's.
+                    attrs[.strokeWidth] = -(w / 2 / size * 100)
+                    if let c = o["color"] as? NSNumber { attrs[.strokeColor] = TextEngine.declColor(c) }
+                }
+                if (r["smallCaps"] as? NSNumber)?.boolValue == true, let f = attrs[.font] as? NSFont {
+                    attrs[.font] = TextEngine.smallCaps(f)
+                }
+                // A gradient textFill (the `brand`/`big` spans): NSLayoutManager has
+                // no gradient foreground, so paint the glyphs opaque white here and
+                // replace that white with the ramp in redraw() (clipped per run).
+                if let fillDict = r["fill"] as? [String: Any], let grad = RichOverlay.richGradient(fillDict) {
+                    attrs[.foregroundColor] = NSColor.white
+                    attrs[RichOverlay.gradKey] = grad
+                    gradientRuns += 1
+                }
                 if let href = r["href"] as? String { attrs[.link] = href }
-                s.append(NSAttributedString(string: t, attributes: attrs))
+                s.append(NSAttributedString(string: TextEngine.transform(t, r["transform"] as? String), attributes: attrs))
             }
             if s.length > blockStart {
                 s.addAttribute(.paragraphStyle, value: para, range: NSRange(location: blockStart, length: s.length - blockStart))
@@ -290,8 +385,10 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     /// Position the rastered band. The box is bottom-up and the flow is laid out
     /// top-down, so flow-y `bandTop` sits at box-y `box.height - bandTop`.
     private func placeBand(inBox box: CGSize) {
-        contentLayer.bounds = CGRect(x: 0, y: 0, width: flowWidth, height: bandH)
-        contentLayer.position = CGPoint(x: 0, y: box.height - bandTop - bandH)
+        // Position from the DISPLAYED band (what the bitmap shows), not the wanted
+        // band — an in-flight async slice must not move the old bitmap early.
+        contentLayer.bounds = CGRect(x: 0, y: 0, width: flowWidth, height: displayedBandH)
+        contentLayer.position = CGPoint(x: 0, y: box.height - displayedBandTop - displayedBandH)
     }
 
     /// The whole flowed height, whatever slice is currently rastered.
@@ -395,6 +492,131 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     /// already committed state that is only true if it did (see ensureBand).
     @discardableResult
     func redraw() -> Bool {
+        // Large, banded flows raster OFF the main thread — that ~10ms slice, fired
+        // a dozen times down a long document, IS the jerky scroll. Small flows keep
+        // the exact synchronous path: sub-millisecond, every treatment, selection
+        // feedback with no hop. The Declare runtime never moves — only these pixels
+        // do (the snapshot is immutable Core-Text/CG data, see the raster fields).
+        return lastHeight > RichOverlay.bandLimit ? redrawAsync() : redrawSync()
+    }
+
+    /// Snapshot the band on main, raster it on the background queue, apply it on
+    /// main behind a generation token so a slice from a stale scroll is dropped.
+    private func redrawAsync() -> Bool {
+        guard let snap = buildSnapshot() else { return false }
+        rasterGen &+= 1
+        let gen = rasterGen
+        RichOverlay.rasterQueue.async { [weak self] in
+            guard let image = RichOverlay.rasterize(snap) else { return }
+            DispatchQueue.main.async {
+                guard let self = self, self.rasterGen == gen else { return }   // stale slice → drop
+                // Advance the DISPLAYED band and its bitmap together, then place —
+                // position and pixels update in one step, so nothing jumps.
+                self.displayedBandTop = snap.bandTop
+                self.displayedBandH = snap.h
+                self.contentLayer.contentsScale = snap.scale
+                self.contentLayer.contents = image
+                self.placeBand(inBox: self.lastBox)
+                if RichOverlay.statsOn { RichOverlay.redrawCount += 1; RichOverlay.redrawMP += Double(snap.pw * snap.ph) / 1_000_000 }
+            }
+        }
+        return true
+    }
+
+    /// Read the laid-out band into an immutable, background-safe snapshot: one
+    /// CTLine per line fragment at its NSLayoutManager baseline (so the drawn text
+    /// matches the selection geometry), plus the selection and gradient rects in
+    /// the band's top-down space. Core Text ignores AppKit's NS colour/font keys,
+    /// so each line is normalized to the CT keys.
+    private func buildSnapshot() -> BandSnapshot? {
+        guard let lm = text.layoutManager, let tc = text.textContainer, let ts = text.textStorage else { return nil }
+        if bandH <= 0 { bandTop = 0; bandH = max(1, min(lastHeight, RichOverlay.bandLimit)) }
+        let w = max(1, flowWidth), h = max(1, bandH)
+        let pw = Int(ceil(w * scale)), ph = Int(ceil(h * scale))
+        guard pw > 0, ph > 0, pw < 20000, ph < 20000 else { return nil }
+        let top = bandTop
+        let bandRect = CGRect(x: 0, y: top, width: w, height: h)
+        let glyphs = lm.glyphRange(forBoundingRect: bandRect, in: tc)
+        let fgKey = NSAttributedString.Key(kCTForegroundColorAttributeName as String)
+        let ctFontKey = NSAttributedString.Key(kCTFontAttributeName as String)
+        var lines: [BandLine] = []
+        lm.enumerateLineFragments(forGlyphRange: glyphs) { rect, _, _, lineGR, _ in
+            let cr = lm.characterRange(forGlyphRange: lineGR, actualGlyphRange: nil)
+            guard cr.length > 0 else { return }
+            let m = NSMutableAttributedString(attributedString: ts.attributedSubstring(from: cr))
+            let full = NSRange(location: 0, length: m.length)
+            m.enumerateAttribute(.foregroundColor, in: full) { v, r, _ in
+                if let c = v as? NSColor { m.addAttribute(fgKey, value: c.cgColor, range: r) }
+            }
+            m.enumerateAttribute(.font, in: full) { v, r, _ in
+                if let f = v as? NSFont { m.addAttribute(ctFontKey, value: f, range: r) }
+            }
+            let loc = lm.location(forGlyphAt: lineGR.location)
+            lines.append(BandLine(line: CTLineCreateWithAttributedString(m as CFAttributedString),
+                                  x: rect.minX + loc.x, y: rect.minY + loc.y - top))
+        }
+        var selRects: [CGRect] = []
+        if selRange.length > 0 {
+            let sel = lm.glyphRange(forCharacterRange: selRange, actualCharacterRange: nil)
+            lm.enumerateEnclosingRects(forGlyphRange: sel, withinSelectedGlyphRange: sel, in: tc) { r, _ in
+                selRects.append(r.offsetBy(dx: 0, dy: -top))
+            }
+        }
+        var grads: [BandGradient] = []
+        if gradientRuns > 0 {
+            ts.enumerateAttribute(RichOverlay.gradKey, in: NSRange(location: 0, length: ts.length)) { val, cr, _ in
+                guard let g = val as? TextGradient, let cs = CGColorSpace(name: CGColorSpace.sRGB),
+                      let ramp = CGGradient(colorsSpace: cs, colors: g.colors as CFArray, locations: g.locations) else { return }
+                let gr = lm.glyphRange(forCharacterRange: cr, actualCharacterRange: nil)
+                var clip: [CGRect] = []; var box = CGRect.null
+                lm.enumerateEnclosingRects(forGlyphRange: gr, withinSelectedGlyphRange: gr, in: tc) { r, _ in
+                    let rr = r.offsetBy(dx: 0, dy: -top); clip.append(rr); box = box.union(rr)
+                }
+                guard !box.isNull else { return }
+                grads.append(BandGradient(ramp: ramp, clip: clip, box: box, angle: g.angle))
+            }
+        }
+        return BandSnapshot(pw: pw, ph: ph, scale: scale, h: h, bandTop: top, lines: lines, selRects: selRects,
+                            selColor: NSColor.selectedTextBackgroundColor.cgColor, gradients: grads)
+    }
+
+    /// Draw a snapshot into a bitmap — background-queue safe (Core Text + Core
+    /// Graphics only; no AppKit view state). The context is the band's top-down
+    /// space and CTLine's text matrix is flipped so glyphs sit upright, matching
+    /// the synchronous path.
+    private static func rasterize(_ s: BandSnapshot) -> CGImage? {
+        guard let cs = CGColorSpace(name: CGColorSpace.sRGB),
+              let cg = CGContext(data: nil, width: s.pw, height: s.ph, bitsPerComponent: 8, bytesPerRow: 0, space: cs,
+                                 bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+        else { return nil }
+        cg.scaleBy(x: s.scale, y: s.scale)
+        cg.translateBy(x: 0, y: s.h)
+        cg.scaleBy(x: 1, y: -1)
+        cg.setShouldSmoothFonts(true); cg.setShouldSubpixelPositionFonts(true); cg.setShouldSubpixelQuantizeFonts(true)
+        if !s.selRects.isEmpty {
+            cg.setFillColor(s.selColor)
+            for r in s.selRects { cg.fill(r) }
+        }
+        cg.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
+        for ln in s.lines { cg.textPosition = CGPoint(x: ln.x, y: ln.y); CTLineDraw(ln.line, cg) }
+        for g in s.gradients {
+            cg.saveGState()
+            let clip = CGMutablePath(); for r in g.clip { clip.addRect(r) }
+            cg.addPath(clip); cg.clip()
+            cg.setBlendMode(.sourceAtop)
+            let rad = g.angle * .pi / 180
+            let dx = sin(rad) / 2, dy = -cos(rad) / 2
+            let c = CGPoint(x: g.box.midX, y: g.box.midY)
+            let start = CGPoint(x: c.x - dx * g.box.width, y: c.y - dy * g.box.height)
+            let end = CGPoint(x: c.x + dx * g.box.width, y: c.y + dy * g.box.height)
+            cg.drawLinearGradient(g.ramp, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+            cg.restoreGState()
+        }
+        return cg.makeImage()
+    }
+
+    @discardableResult
+    private func redrawSync() -> Bool {
         let _t0 = RichOverlay.statsOn ? CFAbsoluteTimeGetCurrent() : 0
         defer { if RichOverlay.statsOn { RichOverlay.redrawMs += (CFAbsoluteTimeGetCurrent() - _t0) * 1000 } }
         guard let lm = text.layoutManager, let tc = text.textContainer else { return false }
@@ -431,10 +653,41 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         }
         lm.drawBackground(forGlyphRange: glyphs, at: at)
         lm.drawGlyphs(forGlyphRange: glyphs, at: at)
+        // textFill gradients: the runs above are opaque white; paint the ramp over
+        // each run's box with `sourceAtop` so ONLY those glyph pixels take it. The
+        // gradient spans the run's own box (the DOM's per-span `background-clip`),
+        // in this y-DOWN flipped context.
+        if let ts = text.textStorage, gradientRuns > 0 {
+            ts.enumerateAttribute(RichOverlay.gradKey, in: NSRange(location: 0, length: ts.length)) { val, cr, _ in
+                guard let grad = val as? TextGradient, let cs = CGColorSpace(name: CGColorSpace.sRGB),
+                      let ramp = CGGradient(colorsSpace: cs, colors: grad.colors as CFArray, locations: grad.locations)
+                else { return }
+                let gr = lm.glyphRange(forCharacterRange: cr, actualCharacterRange: nil)
+                // Clip to the run's TIGHT enclosing rects (the selection geometry),
+                // NOT boundingRect: a tall run's bounding box overran to the right
+                // and the sourceAtop ramp bled onto the next word.
+                let clip = CGMutablePath(); var box = CGRect.null
+                lm.enumerateEnclosingRects(forGlyphRange: gr, withinSelectedGlyphRange: gr, in: tc) { r, _ in
+                    let rr = r.offsetBy(dx: at.x, dy: at.y); clip.addRect(rr); box = box.union(rr)
+                }
+                guard !box.isNull else { return }
+                cg.saveGState()
+                cg.addPath(clip); cg.clip()
+                cg.setBlendMode(.sourceAtop)
+                let rad = grad.angle * .pi / 180
+                let dx = sin(rad) / 2, dy = -cos(rad) / 2       // compass 0 = up = −y in this flipped space
+                let c = CGPoint(x: box.midX, y: box.midY)
+                let start = CGPoint(x: c.x - dx * box.width, y: c.y - dy * box.height)
+                let end = CGPoint(x: c.x + dx * box.width, y: c.y + dy * box.height)
+                cg.drawLinearGradient(ramp, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+                cg.restoreGState()
+            }
+        }
         NSGraphicsContext.restoreGraphicsState()
         contentLayer.contentsScale = scale
         guard let image = cg.makeImage() else { return false }
         contentLayer.contents = image
+        displayedBandTop = bandTop; displayedBandH = bandH   // synchronous: bitmap and band advance together
         if RichOverlay.statsOn { RichOverlay.redrawCount += 1; RichOverlay.redrawMP += Double(pw * ph) / 1_000_000 }
         return true
     }

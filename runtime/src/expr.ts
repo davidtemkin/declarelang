@@ -28,7 +28,7 @@
 // never collide with a member.
 
 import { rewriteDatapaths } from "./datapath.js";
-import { colorWithAlpha, frost, gradient, shadow, stop, stroke } from "./value.js";
+import { colorWithAlpha, frost, gradient, outline, shadow, stop, stroke } from "./value.js";
 
 // The ruled value constructors, in scope inside every `{ }` body — the "one
 // vocabulary, two lexical homes" ruling: the same names the literal grammar
@@ -37,7 +37,7 @@ import { colorWithAlpha, frost, gradient, shadow, stop, stroke } from "./value.j
 // leading hidden argument (never globals); the compile layer leaves
 // CALLEE-position uses of these names unresolved so `stroke(…)` is the
 // constructor while bare `stroke` stays the slot.
-const DECOR = { gradient, stroke, shadow, stop, frost };
+const DECOR = { gradient, stroke, outline, shadow, stop, frost };
 
 // The lowering target for `0xRRGGBBAA` literals (compile.ts rewrites each 8-hex
 // color literal to a colorWithAlpha(…) call): in scope so the resolved body can

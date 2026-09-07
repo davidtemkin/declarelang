@@ -18,10 +18,13 @@ import { Text } from "./text.js";
 import { Layout } from "./layout.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes, prevailingProvided } from "./attributes.js";
-import { fontMetrics, fontString, textWidth } from "./measure.js";
+import { fontMetrics, fontString, textWidth, transformText } from "./measure.js";
 import { parse } from "./md.js";
 import { headingSlug } from "./slug.js";
 import { parseHtml } from "./html.js";
+import { coerce } from "./value.js";
+import { styleBundles } from "./style-bundles.js";
+import { compileExpr } from "./expr.js";
 // ── prose stylesheet ─────────────────────────────────────────────────────────
 // The role → style map that makes rendered Markdown look good with zero author
 // effort, on the theme tokens. A design artifact, deliberately data (not code).
@@ -60,7 +63,149 @@ const COLORS_LIGHT = {
 };
 let C = COLORS_DARK; // active set; set at the top of each rebuild
 let SCALE = 1; // font-size multiplier (the `scale` attr), set per rebuild
-let STYLES = {}; // named styles (HTMLText `styles`), set per rebuild
+let STYLES = {}; // named styles (HTMLText local `textStyles`), set per rebuild
+const bundleCache = new WeakMap();
+// The scope a bundle's `{ }` field evaluates in: `this` = the RichText (so
+// `theme`, `app`, etc. resolve exactly as in an ordinary body). Set per rebuild.
+let R_HOST = null;
+let R_PARENT = null;
+/** Evaluate a bundle field's `{ }` body against the current RichText scope,
+ *  returning its runtime value (a color number, a Fill, an Outline, …). */
+function evalBundleField(src) {
+    const c = compileExpr(src);
+    if (!("fn" in c))
+        return undefined;
+    try {
+        return c.fn.call(R_HOST, R_PARENT, R_HOST);
+    }
+    catch {
+        return undefined;
+    }
+}
+/** Set one RunStyle field from a runtime value (shared by static + dynamic). */
+function assignRunField(rs, name, val) {
+    switch (name) {
+        case "fontSize":
+            if (typeof val === "number")
+                rs.fontSize = val;
+            break;
+        case "letterSpacing":
+            if (typeof val === "number")
+                rs.letterSpacing = val;
+            break;
+        case "fontFamily":
+            if (typeof val === "string")
+                rs.fontFamily = val;
+            break;
+        case "fontWeight":
+            if (typeof val === "string" || typeof val === "number")
+                rs.fontWeight = val;
+            break;
+        case "italic":
+            rs.italic = val === true;
+            break;
+        case "smallCaps":
+            rs.smallCaps = val === true;
+            break;
+        case "underline":
+            rs.underline = val === true;
+            break;
+        case "strike":
+            rs.strike = val === true;
+            break;
+        case "textColor":
+            if (typeof val === "number" || val === null)
+                rs.textColor = val;
+            break;
+        case "textFill":
+            rs.textFill = val;
+            break;
+        case "textShadow":
+            rs.textShadow = val;
+            break;
+        case "outline":
+            rs.outline = val;
+            break;
+        case "textTransform":
+            if (typeof val === "string")
+                rs.textTransform = val;
+            break;
+    }
+}
+const TEXT_ATTR = new Set(["fontSize", "fontFamily", "fontWeight", "italic", "textColor", "textFill", "letterSpacing",
+    "textShadow", "outline", "textTransform", "smallCaps", "underline", "strike"]);
+/** A `style` bundle's text attributes read into a RunStyle. */
+function bundleToRunStyle(el) {
+    const rs = {};
+    for (const a of el.attrs) {
+        if (!TEXT_ATTR.has(a.name))
+            continue;
+        const v = a.value;
+        if (v.kind === "code") {
+            assignRunField(rs, a.name, evalBundleField(v.src));
+            continue;
+        } // dynamic { }
+        // static literal → runtime value
+        if (a.name === "fontSize") {
+            if (v.kind === "number")
+                rs.fontSize = v.value;
+        }
+        else if (a.name === "letterSpacing") {
+            if (v.kind === "number")
+                rs.letterSpacing = v.value;
+        }
+        else if (a.name === "fontFamily") {
+            if (v.kind === "string")
+                rs.fontFamily = v.value;
+        }
+        else if (a.name === "fontWeight") {
+            rs.fontWeight = (v.kind === "number" ? v.value : v.kind === "ident" ? v.name : rs.fontWeight);
+        }
+        else if (a.name === "italic") {
+            if (v.kind === "ident")
+                rs.italic = v.name === "true";
+        }
+        else if (a.name === "textColor") {
+            const c = coerce({ kind: "color" }, v);
+            if (c.ok)
+                rs.textColor = c.value;
+        }
+        else if (a.name === "textFill") {
+            const c = coerce({ kind: "fill" }, v);
+            if (c.ok)
+                rs.textFill = c.value;
+        }
+        else if (a.name === "textShadow") {
+            const c = coerce({ kind: "shadow" }, v);
+            if (c.ok)
+                rs.textShadow = c.value;
+        }
+        else if (a.name === "outline") {
+            const c = coerce({ kind: "outline" }, v);
+            if (c.ok)
+                rs.outline = c.value;
+        }
+        else if (a.name === "textTransform") {
+            if (v.kind === "ident")
+                rs.textTransform = v.name;
+            else if (v.kind === "string")
+                rs.textTransform = v.value;
+        }
+        else if (a.name === "smallCaps") {
+            if (v.kind === "ident")
+                rs.smallCaps = v.name === "true";
+        }
+        else if (a.name === "underline") {
+            if (v.kind === "ident")
+                rs.underline = v.name === "true";
+        }
+        else if (a.name === "strike") {
+            if (v.kind === "ident")
+                rs.strike = v.name === "true";
+        }
+    }
+    return rs;
+}
 // The running-text style pulled from the prevailing text slots (fontSize/
 // fontWeight/letterSpacing), set per rebuild — so ALL prose body (paragraphs
 // AND list/quote/table text) obeys the ambient text style, like a `Text`.
@@ -113,14 +258,29 @@ function placeX(width, cw, g) {
     return g.ml;
 }
 const geoEqual = (a, b) => a.maxWidth === b.maxWidth && a.ml === b.ml && a.mr === b.mr && a.align === b.align;
-/** Resolve a `<span class="…">` name to a named style: the whole class, else its
+/** Resolve a `<span class="…">` name through the by-name cascade — local inline
+ *  `textStyles` first, then a global `style` bundle — the whole class, else its
  *  first matching token (`"hero big"`); no match ⇒ undefined (plain text). */
 function resolveStyle(name) {
-    if (name in STYLES)
-        return STYLES[name];
-    for (const tok of name.split(/\s+/))
+    const bundles = styleBundles();
+    for (const tok of [name, ...name.split(/\s+/)]) {
         if (tok in STYLES)
-            return STYLES[tok];
+            return STYLES[tok]; // local inline (nearest)
+        const b = bundles.get(tok);
+        if (b !== undefined) { // global `style` bundle
+            // A dynamic bundle (any `{ }` field) is re-evaluated every render (its value
+            // can change); a fully-static one is cached per Element.
+            const el = b;
+            if (el.attrs.some((a) => a.value.kind === "code"))
+                return bundleToRunStyle(el);
+            let rs = bundleCache.get(b);
+            if (rs === undefined) {
+                rs = bundleToRunStyle(el);
+                bundleCache.set(b, rs);
+            }
+            return rs;
+        }
+    }
     return undefined;
 }
 const sz = (n) => Math.round(n * SCALE); // scale a prose size, keeping whole pixels
@@ -147,6 +307,18 @@ function applyStyle(style, rs) {
         s.fill = rs.textFill;
     if (rs.letterSpacing !== undefined)
         s.tracking = rs.letterSpacing;
+    if (rs.textShadow !== undefined)
+        s.shadow = rs.textShadow;
+    if (rs.outline !== undefined)
+        s.outline = rs.outline;
+    if (rs.textTransform !== undefined)
+        s.transform = rs.textTransform;
+    if (rs.smallCaps !== undefined)
+        s.smallCaps = rs.smallCaps;
+    if (rs.underline !== undefined)
+        s.underline = rs.underline;
+    if (rs.strike !== undefined)
+        s.strike = rs.strike;
     return s;
 }
 /** Walk the inline tree, resolving each leaf's prevailing style. */
@@ -244,8 +416,38 @@ function richRunsOf(inline, style, family) {
         }
         if (s.fill !== undefined)
             run.fill = s.fill; // a themed accent fill (gradient/solid) overrides `color`
+        // typographical treatments carried through to the backend (paint/decoration)
+        if (s.underline)
+            run.underline = true;
+        if (s.shadow != null)
+            run.shadow = s.shadow;
+        if (s.outline != null)
+            run.outline = s.outline;
+        if (s.transform !== undefined && s.transform !== "none")
+            run.transform = s.transform;
+        if (s.smallCaps)
+            run.smallCaps = true;
         return run;
     });
+}
+/** Carry a run's paint/decoration treatments onto its canvas Text view — the
+ *  canvas twin of dom-backend's setRichContent run block, so a span wears the
+ *  same look on either substrate. Strike stays a manual rule in the flow below
+ *  (baseline-tuned and DOM-parity-gated); underline, absent on canvas until now,
+ *  and the paint treatments (shadow/outline/transform/smallCaps) the Text painter
+ *  draws. smallCaps also rides the run's fontString at measure time, so its
+ *  synthesized-caps width is the one the flow lays out. */
+function applyRunTreatments(t, r) {
+    if (r.shadow != null)
+        t.textShadow = r.shadow;
+    if (r.outline != null)
+        t.outline = r.outline;
+    if (r.transform !== undefined)
+        t.textTransform = r.transform;
+    if (r.smallCaps)
+        t.smallCaps = true;
+    if (r.underline)
+        t.underline = true;
 }
 /** Canvas fallback: flow the resolved runs as child views (the same greedy
  *  word-wrap as `layoutInline`, but over already-resolved runs). Returns the
@@ -278,7 +480,7 @@ function flowRichCanvas(blocks, width, onLink) {
                     px = 0;
                     continue;
                 }
-                const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic });
+                const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
                 const segs = r.text.split("\n");
                 for (let si = 0; si < segs.length; si++) {
                     if (si > 0) {
@@ -288,7 +490,7 @@ function flowRichCanvas(blocks, width, onLink) {
                     const seg = segs[si];
                     if (seg === "")
                         continue;
-                    const w = textWidth(seg, f, r.tracking);
+                    const w = textWidth(r.transform ? transformText(seg, r.transform) : seg, f, r.tracking);
                     const t = new Text();
                     t.x = px;
                     t.y = y + ln * adv + halfLead;
@@ -304,6 +506,7 @@ function flowRichCanvas(blocks, width, onLink) {
                         t.letterSpacing = r.tracking;
                     if (r.fill !== undefined)
                         t.textFill = r.fill;
+                    applyRunTreatments(t, r);
                     if (r.href !== undefined && onLink) {
                         const href = r.href;
                         setClick(t, () => onLink(href));
@@ -327,7 +530,7 @@ function flowRichCanvas(blocks, width, onLink) {
                 toks.push({ br: true });
                 continue;
             }
-            const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic });
+            const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
             for (const part of r.text.split(/(\s+)/)) {
                 if (part === "")
                     continue;
@@ -338,7 +541,7 @@ function flowRichCanvas(blocks, width, onLink) {
                         toks.push({ sp: true });
                 }
                 else
-                    word.push({ text: part, run: r, w: textWidth(part, f, r.tracking) });
+                    word.push({ text: part, run: r, w: textWidth(r.transform ? transformText(part, r.transform) : part, f, r.tracking) });
             }
         }
         flush();
@@ -397,6 +600,7 @@ function flowRichCanvas(blocks, width, onLink) {
                 t.letterSpacing = r.tracking;
             if (r.fill !== undefined)
                 t.textFill = r.fill;
+            applyRunTreatments(t, r);
             if (r.href !== undefined && onLink) {
                 const href = r.href;
                 setClick(t, () => onLink(href));
@@ -429,7 +633,7 @@ function flowRichCanvas(blocks, width, onLink) {
             let first = true;
             for (const p of tok.word) {
                 const r = p.run;
-                const rFont = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic });
+                const rFont = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
                 // COALESCE consecutive same-run words on a line into ONE Text view.
                 // A view per WORD is what this used to emit — a 100-word paragraph was
                 // ~100 views — because whitespace flushes the token. Runs of body prose
@@ -478,6 +682,7 @@ function flowRichCanvas(blocks, width, onLink) {
                         t.letterSpacing = r.tracking;
                     if (r.fill !== undefined)
                         t.textFill = r.fill; // themed accent (gradient/solid) — same ramp as the DOM path
+                    applyRunTreatments(t, r);
                     if (r.href !== undefined && onLink) {
                         const href = r.href;
                         setClick(t, () => onLink(href));
@@ -1205,6 +1410,8 @@ export class RichText extends View {
         C = this.isDark() ? COLORS_DARK : COLORS_LIGHT; // pick the palette for this render
         SCALE = this.scale || 1; // font-size multiplier for this render
         STYLES = this.stylesOf(); // named styles for this render
+        R_HOST = this;
+        R_PARENT = this.parent; // scope for a bundle's { } fields (evaluated with this = the RichText)
         for (const v of this.built) {
             this.removeChild(v);
             v.discard();

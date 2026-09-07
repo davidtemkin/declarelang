@@ -37,6 +37,14 @@ export interface Stroke {
     readonly width: number;
     readonly color: Color;
 }
+/** A glyph OUTLINE (`outline` on text) — a stroke traced along each letterform's
+ *  contour (CSS `-webkit-text-stroke` / canvas `strokeText`), NOT a box border
+ *  (that is `stroke`). Same shape as Stroke; a distinct type so the two never
+ *  confuse. Paint-only: it does not change advance or the line box. */
+export interface Outline {
+    readonly width: number;
+    readonly color: Color;
+}
 /** A drop shadow (`shadow` on the view box, `textShadow` on glyphs) — the
  *  CSS box-shadow shape minus spread, until a consumer needs it. */
 export interface Shadow {
@@ -58,10 +66,12 @@ export interface Backdrop {
 export declare function gradient(...args: (number | string | GradientStop)[]): Gradient;
 export declare const stop: (offset: number, color: Color) => GradientStop;
 export declare const stroke: (width: number, color: Color) => Stroke;
+export declare const outline: (width: number, color: Color) => Outline;
 export declare const shadow: (dx: number, dy: number, blur: number, color: Color) => Shadow;
 export declare const frost: (radius: number, saturation?: number) => Backdrop;
 export declare function shadowEqual(a: Shadow | null, b: Shadow | null): boolean;
 export declare function strokeEqual(a: Stroke | null, b: Stroke | null): boolean;
+export declare function outlineEqual(a: Outline | null, b: Outline | null): boolean;
 export declare function backdropEqual(a: Backdrop | null, b: Backdrop | null): boolean;
 export declare function fillEqual(a: Fill, b: Fill): boolean;
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
@@ -142,6 +152,8 @@ export type AttrType = {
     readonly kind: "fill";
 } | {
     readonly kind: "stroke";
+} | {
+    readonly kind: "outline";
 } | {
     readonly kind: "shadow";
 } | {

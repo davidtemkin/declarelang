@@ -47,7 +47,7 @@
 <p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
 <h4>498</h4>
 <p>lines of code, plus 214 of comments — four views, zoom, drag and edit</p>
-<h4>85 KB</h4>
+<h4>86 KB</h4>
 <p>over the wire, gzipped — app and runtime</p>
 <h4>0</h4>
 <p>lines written by hand — an LLM wrote it</p>
@@ -66,7 +66,7 @@
 <h6>→</h6>
 <a href="apps/desktop/desktop.declare"><img src="apps/homepage/shots/desktop.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3172 lines — 1699 code, 963 comment · 118 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3172 lines — 1699 code, 963 comment · 119 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -86,37 +86,18 @@
 <p>Click to toggle the ball’s target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand.</p>
 <p>LIVE · EDITABLE</p>
 <p>Revert</p>
-<h5>Everything that makes it legible to an LLM makes it legible to you.</h5>
-<p>When an LLM gets something wrong, the compiler names the rewrite — so it corrects itself instead of guessing, and you don’t inherit an app that quietly runs wrong.</p>
-<p>Still a web page</p>
-<p>Find-in-page, real selection, native fields</p>
-<p>Back button, deep links</p>
-<p>Real HTML for crawlers — no server, no hydration</p>
-<p>Embeds in any page — React included</p>
-<p>Accessibility past native text and fields — a known gap</p>
-<p>Data</p>
-<p>Load JSON, bind to it — edits write back</p>
-<p>SSE and WebSocket streams</p>
-<p>A million rows — virtualize on one word</p>
-<p>Touch</p>
-<p>The browser keeps every gesture you don't claim</p>
-<p>A card that drags still pinch-zooms</p>
-<p>No stuck hovers, no ghost clicks</p>
-<p>One program, four hosts</p>
-<p>Browser — DOM</p>
-<p>Browser — canvas, verified pixel-for-pixel</p>
-<p>Mac native, browser-free — full desktop integration still to come</p>
-<p>Headless — where the crawls and tests run</p>
-<p>What ships</p>
-<p>Buttons to data grids — a library written in Declare</p>
-<p>Markdown and rich text built in</p>
-<p>Themes, swappable live — no CSS, no cascade</p>
-<p>For you and your AI</p>
-<p>The whole language in one file — ~10k tokens</p>
-<p>Diagnostics that name the rewrite</p>
-<p>Ask any value where it came from</p>
-<p>An installable agent skill, with evals behind it</p>
-<h3>Small language. Short programs.</h3>
+<h5>Your AI can write the code. Can it tell when it’s wrong?</h5>
+<p>In Declare, yes. A small language gets it started; these four tools let it catch its mistakes, fix them, and finish.</p>
+<h6>Start with context</h6>
+<p>One installable skill: the language, the library, the conventions, the working loop — nothing to reconstruct from a repository. And declare-help answers any name or error code on demand.</p>
+<h6>Correct, don’t guess</h6>
+<p>Every diagnostic names the broken rule and the valid rewrite. Try it: change textColor to color in the first panel above and read what comes back.</p>
+<h6>Question the result</h6>
+<p>The Inspector can tell you or an agent why a live value is what it is, what it depends on, and what happens if you change it — live, in the running program, not guessed from source.</p>
+<h6>Prove the change</h6>
+<p>A formal six-rung ladder, from parse to pixels, is how an app is shown to be correct. Your AI climbs it one rung at a time, and every rung reports what it proved — and what it cannot see.</p>
+<p>The calendar above was built this way: a person directed, an AI wrote every line, and the compiler kept it honest.</p>
+<h3>Small enough to know. Strict enough to trust.</h3>
 <a href="#getstarted"><p>Get Started →</p></a>
 <p>Built in <span>Declare</span></p>
 <p>·</p>
@@ -407,7 +388,7 @@ panel: View [                                                // on a DESCENDANT,
     ]</code></pre>
 <p>Start from a library preset — <code>Themes.sanFrancisco</code> / <code>.cupertino</code> / <code>.mountainView</code> / <code>.redmond</code>, each taking a dark flag, available without an include — and spread to change a token. The standard library reads specific token names, so build from a preset rather than an empty record; <code>library/themes/sanfrancisco.declare</code> names them all.</p>
 <p>The <code>{ { … } }</code> is not special syntax: the outer braces open the constraint, the inner ones are a TypeScript object literal. With no theme declared an app renders the default, and that zero-declaration look never varies by system dark mode — following the system is the one-line opt-in above.</p>
-<p>Two top-level forms sit above per-view attributes, both checked at compile time, so a stale skin fails loudly where CSS rots silently. A <strong><code>style</code> bundle</strong> is a reusable set of attribute values a view opts into with <code>styles = [ … ]</code>. A <strong><code>stylesheet</code></strong> is an app-wide swappable skin whose entries are a dictionary lookup on the class name — no selectors, no structural matching, no specificity — matching a class and its subclasses, with fields merging down the chain.</p>
+<p>Two top-level forms sit above per-view attributes, both checked at compile time, so a stale skin fails loudly where CSS rots silently. A <strong><code>style</code> bundle</strong> is a reusable set of attribute values a view opts into with <code>styles = [ … ]</code> — the same bundle a <code>&lt;span class&gt;</code> names inside <code>HTMLText</code>/<code>Markdown</code>, so one definition skins a container and colours a run of prose alike, and its fields may be <code>{ }</code> bodies that re-evaluate live. A <strong><code>stylesheet</code></strong> is an app-wide swappable skin whose entries are a dictionary lookup on the class name — no selectors, no structural matching, no specificity — matching a class and its subclasses, with fields merging down the chain.</p>
 <pre><code class="language-declare-fragment">style card [ cornerRadius = 10, fill = { theme.bg } ]
 
 stylesheet Dark [
@@ -568,7 +549,7 @@ Slider   [ value = { app.volume },
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, measured from the deployed production artifacts:</p>
-<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 85 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,571 lines: 1,153 of code and 215 of comments, and no dependencies. It ships at 105 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 86 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,571 lines: 1,153 of code and 215 of comments, and no dependencies. It ships at 105 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -649,7 +630,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=1662e13af46c";
+  import boot from "./bundles/declare-boot.js?v=4ea4a5d365dc";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

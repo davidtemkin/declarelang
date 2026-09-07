@@ -1,9 +1,9 @@
 import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
-import { type FontWeight } from "./measure.js";
+import { type FontWeight, type TextTransform } from "./measure.js";
 import { type Block } from "./md.js";
 import { type Unsupported } from "./html.js";
-import type { Fill } from "./value.js";
+import { type Fill, type Shadow, type Outline } from "./value.js";
 export interface RunStyle {
     fontSize?: number;
     fontFamily?: string;
@@ -12,6 +12,12 @@ export interface RunStyle {
     textColor?: number;
     textFill?: Fill;
     letterSpacing?: number;
+    textShadow?: Shadow | null;
+    outline?: Outline | null;
+    textTransform?: TextTransform;
+    smallCaps?: boolean;
+    underline?: boolean;
+    strike?: boolean;
 }
 export declare abstract class RichText extends View {
     lineHeight: number;

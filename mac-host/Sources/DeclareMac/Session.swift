@@ -19,6 +19,15 @@ enum Launch {
         let env = ProcessInfo.processInfo.environment
         return env["DECLARE_CONTROL"] != nil || env["DECLARE_BENCH"] != nil
     }
+
+    /// Keep rendering even when the window is OCCLUDED (fully covered by other
+    /// windows). Normally an occluded window reads `pageVisible = false` and the
+    /// runtime goes idle — right for a person, wrong for a capture rig that wants
+    /// full-fidelity WindowServer shots (`ctl shot`) of a window it has parked
+    /// BEHIND its own, without stealing the foreground. Starts from
+    /// `DECLARE_IGNORE_OCCLUSION`; the `ctl occlusion ignore|honor` command flips
+    /// it live, so a person can drive an on-screen-but-covered window on demand.
+    static var ignoreOcclusion = ProcessInfo.processInfo.environment["DECLARE_IGNORE_OCCLUSION"] != nil
 }
 
 /// The windows that were open, so they can be offered back.

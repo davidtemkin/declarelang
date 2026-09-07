@@ -1,5 +1,7 @@
-import type { Color, Fill, Shadow } from "./value.js";
+import type { Color, Fill, Shadow, Outline } from "./value.js";
 export type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black";
+/** A content transform applied to a run's text (CSS text-transform). */
+export type TextTransform = "none" | "uppercase" | "lowercase" | "capitalize";
 export declare function cssWeight(w: FontWeight): string;
 /** A text run's style — the render seam's text currency. Backends derive
  *  what their substrate needs (font string, CSS color, ascent) from this.
@@ -20,6 +22,12 @@ export interface TextStyle {
     /** Fill the glyphs with a gradient (or solid Fill) — overrides `color` when
      *  set. Canvas realizes it over the text box; DOM clips a background to text. */
     readonly textFill?: Fill | null;
+    /** Typographical treatments — paint/decoration a Text (or run) wears. */
+    readonly outline?: Outline | null;
+    readonly textTransform?: TextTransform;
+    readonly smallCaps?: boolean;
+    readonly underline?: boolean;
+    readonly strike?: boolean;
     /** Opt back into native text selection (the app root suppresses it): the run
      *  becomes a selection/pointer target. Off by default (app feel). */
     readonly selectable?: boolean;
@@ -41,7 +49,13 @@ export declare function fontString(style: {
     fontSize: number;
     fontWeight: FontWeight;
     italic?: boolean;
+    smallCaps?: boolean;
 }): string;
+/** The glyphs a `textTransform` actually paints — applied at BOTH measure and
+ *  paint time so a transformed run's width matches its picture (the DOM gets the
+ *  same shaping free from CSS `text-transform`). `capitalize` uppercases the
+ *  first letter of each whitespace-separated word, like the CSS keyword. */
+export declare function transformText(text: string, transform: TextTransform | undefined): string;
 /** The advance width of `text` in `font`, in px (fractional), including
  *  `letterSpacing` tracking (canvas-native; the shared measurer is reset). */
 export declare function textWidth(text: string, font: string, letterSpacing?: number): number;

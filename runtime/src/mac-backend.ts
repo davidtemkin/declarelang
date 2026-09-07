@@ -464,6 +464,14 @@ class MacSurface implements Surface {
       selectable: style.selectable === true,
       shadow: style.shadow == null ? null
         : [style.shadow.dx, style.shadow.dy, style.shadow.blur, colorToCss(style.shadow.color)],
+      // Typographical treatments — the paint vocabulary the web backends carry.
+      // Colors ride as CSS strings here (the standalone TEXTSTYLE convention),
+      // unlike the rich-run bridge which sends color numbers.
+      outline: style.outline == null ? null : { width: style.outline.width, color: colorToCss(style.outline.color) },
+      textTransform: style.textTransform == null || style.textTransform === "none" ? null : style.textTransform,
+      smallCaps: style.smallCaps === true,
+      underline: style.underline === true,
+      strike: style.strike === true,
     });
   }
 

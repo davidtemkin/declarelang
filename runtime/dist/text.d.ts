@@ -1,6 +1,7 @@
 import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
-import { type Fill, type Shadow } from "./value.js";
+import { type Fill, type Shadow, type Outline } from "./value.js";
+import { type TextTransform } from "./measure.js";
 export declare class Text extends View {
     text: string;
     /** The glyphs' drop shadow (a decoration value, styling rung); null = none.
@@ -11,6 +12,11 @@ export declare class Text extends View {
     textAlign: "left" | "center" | "right";
     italic: boolean;
     textFill: Fill | null;
+    outline: Outline | null;
+    textTransform: TextTransform;
+    smallCaps: boolean;
+    underline: boolean;
+    strike: boolean;
     lineHeight: number;
     /** The per-line advance: the declared leading (a fontSize multiplier, the
      *  Markdown convention) or, at the 0 default, the font's natural line box. */

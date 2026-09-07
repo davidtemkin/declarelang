@@ -568,6 +568,14 @@ const TextSchema: ComponentSchema = {
     // Fill the glyphs with a gradient (or solid Fill), like the box `fill` —
     // overrides `textColor` when set. `textFill = { gradient("90deg", …) }`.
     textFill: { kind: "fill" },
+    // Typographical treatments (paint/decoration; also carried by a run):
+    // `outline` a glyph-contour stroke (hollow text with textFill = transparent),
+    // `textTransform` upper/lower/capitalize, `smallCaps`, `underline`, `strike`.
+    outline: { kind: "outline" },
+    textTransform: enumType("TextTransform", "none", "uppercase", "lowercase", "capitalize"),
+    smallCaps: { kind: "boolean" },
+    underline: { kind: "boolean" },
+    strike: { kind: "boolean" },
     // Leading, as a MULTIPLIER of fontSize (the Markdown/RichText convention:
     // the line box is round(fontSize × lineHeight)). `0` — the default — means
     // the font's natural line box (ascent + descent), which is also what keeps

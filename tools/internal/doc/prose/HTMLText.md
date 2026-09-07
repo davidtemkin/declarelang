@@ -22,12 +22,14 @@ fetched document, a live-edited field). Only `<a href>` and `<span class>` (see 
 are read; every other attribute is ignored.
 
 ## textStyles
-The one styling hook, and the only attribute read besides `href`: a map of **name → a bundle
-of Text's own style attributes** — `fontSize`, `fontFamily`, `fontWeight`, `italic`,
-`textColor`, `textFill`, `letterSpacing` — that a `<span class="name">` in the HTML can
-reference. The field names are exactly the ones you set on a `Text`; a named style is just a
-`Text`'s worth of styling, applied to a run, so there is nothing new to learn. The content
-only *names* a style the app defines; it never carries CSS itself, so this stays safe for
+The *inline* styling hook (the only attribute read besides `href`): a map of **name → a bundle
+of Text's own style attributes** — `fontSize`, `fontFamily`, `fontWeight`, `textColor`,
+`textFill`, `letterSpacing`, and the treatments (`italic`, `textShadow`, `outline`,
+`smallCaps`, `textTransform`, `underline`, `strike`) — that a `<span class="name">` references.
+The field names are exactly the ones you set on a `Text`, so there is nothing new to learn.
+A `<span class>` **also** resolves a top-level `style` bundle (the same one a view wears via
+`styles`), so a palette shared across the app lives in one place; use this local map for a
+one-off. The content only *names* a style the app defines; it never carries CSS itself, so this stays safe for
 loaded HTML (an unknown class renders as plain text). One flowing string can carry a bigger,
 differently-faced, gradient word, correctly baseline-aligned with the prose around it:
 

@@ -20,11 +20,14 @@ import type { RenderBackend, RichBlock, RichRun, Surface } from "./backend.js";
 import { Layout, type Box } from "./layout.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes, prevailingProvided } from "./attributes.js";
-import { fontMetrics, fontString, textWidth, type FontWeight } from "./measure.js";
+import { fontMetrics, fontString, textWidth, transformText, type FontWeight, type TextTransform } from "./measure.js";
 import { parse, type Block, type Inline } from "./md.js";
 import { headingSlug } from "./slug.js";
 import { parseHtml, type Unsupported } from "./html.js";
-import type { Fill } from "./value.js";
+import { coerce, type Fill, type Shadow, type Outline } from "./value.js";
+import type { Literal } from "./parser.js";
+import { styleBundles } from "./style-bundles.js";
+import { compileExpr } from "./expr.js";
 
 // ── prose stylesheet ─────────────────────────────────────────────────────────
 // The role → style map that makes rendered Markdown look good with zero author
@@ -77,8 +80,84 @@ export interface RunStyle {
   textColor?: number;
   textFill?: Fill;
   letterSpacing?: number;
+  // typographical treatments (paint/decoration; a run wears them like any Text)
+  textShadow?: Shadow | null;
+  outline?: Outline | null;
+  textTransform?: TextTransform;
+  smallCaps?: boolean;
+  underline?: boolean;
+  strike?: boolean;
 }
-let STYLES: Record<string, RunStyle> = {};       // named styles (HTMLText `styles`), set per rebuild
+
+let STYLES: Record<string, RunStyle> = {};       // named styles (HTMLText local `textStyles`), set per rebuild
+
+// A `<span class>` resolves the by-name cascade: LOCAL inline `textStyles` first,
+// then a global `style` bundle (from style-bundles.js) — so `style hero [ … ]`
+// serves a run, a view (`styles = [hero]`), or a subtree alike. A field is read
+// into the run either statically (a literal, coerced) or DYNAMICALLY (a `{ }` body,
+// evaluated against the RichText — the read is tracked by the render this runs
+// inside, so a theme flip re-renders). A dynamic bundle is NOT cached (its value
+// can change); a fully-static one is, per Element (a WeakMap, collected with it).
+type BundleEl = { attrs: readonly { name: string; value: Literal }[] };
+const bundleCache = new WeakMap<object, RunStyle>();
+// The scope a bundle's `{ }` field evaluates in: `this` = the RichText (so
+// `theme`, `app`, etc. resolve exactly as in an ordinary body). Set per rebuild.
+let R_HOST: unknown = null;
+let R_PARENT: unknown = null;
+
+/** Evaluate a bundle field's `{ }` body against the current RichText scope,
+ *  returning its runtime value (a color number, a Fill, an Outline, …). */
+function evalBundleField(src: string): unknown {
+  const c = compileExpr(src);
+  if (!("fn" in c)) return undefined;
+  try { return c.fn.call(R_HOST, R_PARENT, R_HOST); } catch { return undefined; }
+}
+
+/** Set one RunStyle field from a runtime value (shared by static + dynamic). */
+function assignRunField(rs: RunStyle, name: string, val: unknown): void {
+  switch (name) {
+    case "fontSize": if (typeof val === "number") rs.fontSize = val; break;
+    case "letterSpacing": if (typeof val === "number") rs.letterSpacing = val; break;
+    case "fontFamily": if (typeof val === "string") rs.fontFamily = val; break;
+    case "fontWeight": if (typeof val === "string" || typeof val === "number") rs.fontWeight = val as FontWeight; break;
+    case "italic": rs.italic = val === true; break;
+    case "smallCaps": rs.smallCaps = val === true; break;
+    case "underline": rs.underline = val === true; break;
+    case "strike": rs.strike = val === true; break;
+    case "textColor": if (typeof val === "number" || val === null) rs.textColor = val as number; break;
+    case "textFill": rs.textFill = val as Fill; break;
+    case "textShadow": rs.textShadow = val as Shadow | null; break;
+    case "outline": rs.outline = val as Outline | null; break;
+    case "textTransform": if (typeof val === "string") rs.textTransform = val as TextTransform; break;
+  }
+}
+
+const TEXT_ATTR = new Set(["fontSize", "fontFamily", "fontWeight", "italic", "textColor", "textFill", "letterSpacing",
+  "textShadow", "outline", "textTransform", "smallCaps", "underline", "strike"]);
+/** A `style` bundle's text attributes read into a RunStyle. */
+function bundleToRunStyle(el: BundleEl): RunStyle {
+  const rs: RunStyle = {};
+  for (const a of el.attrs) {
+    if (!TEXT_ATTR.has(a.name)) continue;
+    const v = a.value;
+    if (v.kind === "code") { assignRunField(rs, a.name, evalBundleField(v.src)); continue; }   // dynamic { }
+    // static literal → runtime value
+    if (a.name === "fontSize") { if (v.kind === "number") rs.fontSize = v.value; }
+    else if (a.name === "letterSpacing") { if (v.kind === "number") rs.letterSpacing = v.value; }
+    else if (a.name === "fontFamily") { if (v.kind === "string") rs.fontFamily = v.value; }
+    else if (a.name === "fontWeight") { rs.fontWeight = (v.kind === "number" ? v.value : v.kind === "ident" ? v.name : rs.fontWeight) as FontWeight; }
+    else if (a.name === "italic") { if (v.kind === "ident") rs.italic = v.name === "true"; }
+    else if (a.name === "textColor") { const c = coerce({ kind: "color" }, v); if (c.ok) rs.textColor = c.value as number; }
+    else if (a.name === "textFill") { const c = coerce({ kind: "fill" }, v); if (c.ok) rs.textFill = c.value as Fill; }
+    else if (a.name === "textShadow") { const c = coerce({ kind: "shadow" }, v); if (c.ok) rs.textShadow = c.value as Shadow | null; }
+    else if (a.name === "outline") { const c = coerce({ kind: "outline" }, v); if (c.ok) rs.outline = c.value as Outline | null; }
+    else if (a.name === "textTransform") { if (v.kind === "ident") rs.textTransform = v.name as TextTransform; else if (v.kind === "string") rs.textTransform = v.value as TextTransform; }
+    else if (a.name === "smallCaps") { if (v.kind === "ident") rs.smallCaps = v.name === "true"; }
+    else if (a.name === "underline") { if (v.kind === "ident") rs.underline = v.name === "true"; }
+    else if (a.name === "strike") { if (v.kind === "ident") rs.strike = v.name === "true"; }
+  }
+  return rs;
+}
 // The running-text style pulled from the prevailing text slots (fontSize/
 // fontWeight/letterSpacing), set per rebuild — so ALL prose body (paragraphs
 // AND list/quote/table text) obeys the ambient text style, like a `Text`.
@@ -136,11 +215,24 @@ function placeX(width: number, cw: number, g: ReturnType<typeof geoFor>): number
 const geoEqual = (a: ReturnType<typeof geoFor>, b: ReturnType<typeof geoFor>): boolean =>
   a.maxWidth === b.maxWidth && a.ml === b.ml && a.mr === b.mr && a.align === b.align;
 
-/** Resolve a `<span class="…">` name to a named style: the whole class, else its
+/** Resolve a `<span class="…">` name through the by-name cascade — local inline
+ *  `textStyles` first, then a global `style` bundle — the whole class, else its
  *  first matching token (`"hero big"`); no match ⇒ undefined (plain text). */
 function resolveStyle(name: string): RunStyle | undefined {
-  if (name in STYLES) return STYLES[name];
-  for (const tok of name.split(/\s+/)) if (tok in STYLES) return STYLES[tok];
+  const bundles = styleBundles();
+  for (const tok of [name, ...name.split(/\s+/)]) {
+    if (tok in STYLES) return STYLES[tok];               // local inline (nearest)
+    const b = bundles.get(tok);
+    if (b !== undefined) {                               // global `style` bundle
+      // A dynamic bundle (any `{ }` field) is re-evaluated every render (its value
+      // can change); a fully-static one is cached per Element.
+      const el = b as BundleEl;
+      if (el.attrs.some((a) => a.value.kind === "code")) return bundleToRunStyle(el);
+      let rs = bundleCache.get(b as object);
+      if (rs === undefined) { rs = bundleToRunStyle(el); bundleCache.set(b as object, rs); }
+      return rs;
+    }
+  }
   return undefined;
 }
 const sz = (n: number) => Math.round(n * SCALE); // scale a prose size, keeping whole pixels
@@ -149,7 +241,7 @@ const FALLBACK_FAMILY = "system-ui, sans-serif";
 
 // ── inline tier ────────────────────────────────────────────────────────────
 // A run's resolved style, flattened from the inline tree for the seam.
-interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill; family?: string }
+interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill; family?: string; shadow?: Shadow | null; outline?: Outline | null; transform?: TextTransform; smallCaps?: boolean; underline?: boolean }
 function base(size: number, weight: FontWeight, color: number, tracking = 0): Style {
   return { size: sz(size), weight, italic: false, mono: false, strike: false, color, tracking };
 }
@@ -166,6 +258,12 @@ function applyStyle(style: Style, rs: RunStyle): Style {
   if (rs.textColor !== undefined) s.color = rs.textColor;
   if (rs.textFill !== undefined) s.fill = rs.textFill;
   if (rs.letterSpacing !== undefined) s.tracking = rs.letterSpacing;
+  if (rs.textShadow !== undefined) s.shadow = rs.textShadow;
+  if (rs.outline !== undefined) s.outline = rs.outline;
+  if (rs.textTransform !== undefined) s.transform = rs.textTransform;
+  if (rs.smallCaps !== undefined) s.smallCaps = rs.smallCaps;
+  if (rs.underline !== undefined) s.underline = rs.underline;
+  if (rs.strike !== undefined) s.strike = rs.strike;
   return s;
 }
 
@@ -238,8 +336,29 @@ function richRunsOf(inline: Inline[], style: Style, family: string): RichRun[] {
     // inline code reads as a colored mono word, not a filled chip/button
     if (s.link !== undefined) { run.href = s.link; if (LINKU) run.underline = true; }
     if (s.fill !== undefined) run.fill = s.fill;   // a themed accent fill (gradient/solid) overrides `color`
+    // typographical treatments carried through to the backend (paint/decoration)
+    if (s.underline) run.underline = true;
+    if (s.shadow != null) run.shadow = s.shadow;
+    if (s.outline != null) run.outline = s.outline;
+    if (s.transform !== undefined && s.transform !== "none") run.transform = s.transform;
+    if (s.smallCaps) run.smallCaps = true;
     return run;
   });
+}
+
+/** Carry a run's paint/decoration treatments onto its canvas Text view — the
+ *  canvas twin of dom-backend's setRichContent run block, so a span wears the
+ *  same look on either substrate. Strike stays a manual rule in the flow below
+ *  (baseline-tuned and DOM-parity-gated); underline, absent on canvas until now,
+ *  and the paint treatments (shadow/outline/transform/smallCaps) the Text painter
+ *  draws. smallCaps also rides the run's fontString at measure time, so its
+ *  synthesized-caps width is the one the flow lays out. */
+function applyRunTreatments(t: Text, r: Extract<RichRun, { text: string }>): void {
+  if (r.shadow != null) t.textShadow = r.shadow;
+  if (r.outline != null) t.outline = r.outline;
+  if (r.transform !== undefined) t.textTransform = r.transform;
+  if (r.smallCaps) t.smallCaps = true;
+  if (r.underline) t.underline = true;
 }
 
 /** Canvas fallback: flow the resolved runs as child views (the same greedy
@@ -269,18 +388,19 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       let px = 0, ln = 0;
       for (const r of b.runs) {
         if ("br" in r) { ln++; px = 0; continue; }
-        const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic });
+        const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
         const segs = r.text.split("\n");
         for (let si = 0; si < segs.length; si++) {
           if (si > 0) { ln++; px = 0; }
           const seg = segs[si];
           if (seg === "") continue;
-          const w = textWidth(seg, f, r.tracking);
+          const w = textWidth(r.transform ? transformText(seg, r.transform) : seg, f, r.tracking);
           const t = new Text();
           t.x = px; t.y = y + ln * adv + halfLead; t.width = Math.ceil(w) + 2; t.wrap = false;
           t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family; t.textColor = r.color; t.text = seg;
           if (r.tracking !== 0) t.letterSpacing = r.tracking;
           if (r.fill !== undefined) t.textFill = r.fill;
+          applyRunTreatments(t, r);
           if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
           views.push(t);
           px += w;
@@ -297,11 +417,11 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     const flush = () => { if (word.length) { toks.push({ word }); word = []; } };
     for (const r of b.runs) {
       if ("br" in r) { flush(); toks.push({ br: true }); continue; }
-      const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic });
+      const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
       for (const part of r.text.split(/(\s+)/)) {
         if (part === "") continue;
         if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && "word" in last) toks.push({ sp: true }); }
-        else word.push({ text: part, run: r, w: textWidth(part, f, r.tracking) });
+        else word.push({ text: part, run: r, w: textWidth(r.transform ? transformText(part, r.transform) : part, f, r.tracking) });
       }
     }
     flush();
@@ -352,6 +472,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       t.textColor = r.color; t.text = g.parts.join("");
       if (r.tracking !== 0) t.letterSpacing = r.tracking;
       if (r.fill !== undefined) t.textFill = r.fill;
+      applyRunTreatments(t, r);
       if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
       // A plain run is the lead face, so its top sits `bm.ascent` above the baseline.
       blockViews.push({ v: t, line: g.line, boff: -bm.ascent });
@@ -366,7 +487,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       let first = true;
       for (const p of tok.word) {
         const r = p.run;
-        const rFont = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic });
+        const rFont = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
         // COALESCE consecutive same-run words on a line into ONE Text view.
         // A view per WORD is what this used to emit — a 100-word paragraph was
         // ~100 views — because whitespace flushes the token. Runs of body prose
@@ -398,6 +519,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
           t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family; t.textColor = r.color; t.text = p.text;
           if (r.tracking !== 0) t.letterSpacing = r.tracking;
           if (r.fill !== undefined) t.textFill = r.fill;   // themed accent (gradient/solid) — same ramp as the DOM path
+          applyRunTreatments(t, r);
           if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
           blockViews.push({ v: t, line, boff: -fm.ascent });
           if (r.strike) blockViews.push({ v: rectAt(x, 0, Math.ceil(p.w), 1, r.color), line, boff: -fm.ascent + Math.round(r.size * 0.55) });
@@ -1089,6 +1211,7 @@ export abstract class RichText extends View {
     C = this.isDark() ? COLORS_DARK : COLORS_LIGHT;   // pick the palette for this render
     SCALE = this.scale || 1;                          // font-size multiplier for this render
     STYLES = this.stylesOf();                         // named styles for this render
+    R_HOST = this; R_PARENT = this.parent;            // scope for a bundle's { } fields (evaluated with this = the RichText)
     for (const v of this.built) { this.removeChild(v); v.discard(); }
     this.built = [];
     const width = this.width > 0 ? this.width : 640;

@@ -47,6 +47,7 @@ export function gradient(...args) {
 }
 export const stop = (offset, color) => Object.freeze({ offset, color });
 export const stroke = (width, color) => Object.freeze({ width, color });
+export const outline = (width, color) => Object.freeze({ width, color });
 export const shadow = (dx, dy, blur, color) => Object.freeze({ dx, dy, blur, color });
 export const frost = (radius, saturation = 1) => Object.freeze({ blur: radius, saturate: saturation });
 // Structural equality for the decoration values (ruled: the === write gate
@@ -58,6 +59,9 @@ export function shadowEqual(a, b) {
         a.dx === b.dx && a.dy === b.dy && a.blur === b.blur && a.color === b.color;
 }
 export function strokeEqual(a, b) {
+    return a !== null && b !== null && a.width === b.width && a.color === b.color;
+}
+export function outlineEqual(a, b) {
     return a !== null && b !== null && a.width === b.width && a.color === b.color;
 }
 export function backdropEqual(a, b) {
@@ -272,6 +276,8 @@ export function coerce(type, lit) {
             return coerceFill(lit);
         case "stroke":
             return coerceStroke(lit);
+        case "outline":
+            return coerceOutline(lit);
         case "shadow":
             return coerceShadow(lit);
         case "backdrop":
@@ -364,8 +370,24 @@ function coerceFill(lit) {
         const args = [...lit.args];
         // An optional leading DECIMAL number is the angle (degrees, CSS compass —
         // 0 up, clockwise; default 180 = top → bottom). Hex-written numbers are
-        // colors — the written form disambiguates, exactly as it types Color.
-        const angle = args.length > 0 && args[0].kind === "number" && !args[0].hex ? argNumber(args.shift()) : 180;
+        // colors — the written form disambiguates, exactly as it types Color. A
+        // leading `"45deg"` STRING is also an angle — the spelling the runtime
+        // `gradient()` accepts — so the same literal coerces whether it is evaluated
+        // (a { } value) or read statically (a `style` bundle field). Both → the angle.
+        let angle = 180;
+        if (args.length > 0) {
+            const a0 = args[0];
+            if (a0.kind === "number" && !a0.hex) {
+                angle = argNumber(args.shift());
+            }
+            else if (a0.kind === "string") {
+                const m = a0.value.match(/^\s*(-?\d+(?:\.\d+)?)\s*deg\s*$/);
+                if (m) {
+                    angle = parseFloat(m[1]);
+                    args.shift();
+                }
+            }
+        }
         const stops = [];
         for (const a of args) {
             if (a.kind === "call" && a.name === "stop") {
@@ -398,6 +420,17 @@ function coerceStroke(lit) {
     const color = lit.args.length === 2 ? argColor(lit.args[1]) : null;
     if (width === null || color === null || width < 0)
         return fail(STROKE);
+    return ok({ width, color });
+}
+function coerceOutline(lit) {
+    if (lit.kind === "ident" && lit.name === "null")
+        return ok(null);
+    if (lit.kind !== "call" || lit.name !== "outline")
+        return fail("an outline (outline(width, color))");
+    const width = lit.args.length === 2 ? argNumber(lit.args[0]) : null;
+    const color = lit.args.length === 2 ? argColor(lit.args[1]) : null;
+    if (width === null || color === null || width < 0)
+        return fail("an outline (outline(width, color))");
     return ok({ width, color });
 }
 function coerceShadow(lit) {

@@ -100,6 +100,7 @@ type Shape = string | null;
 interface Gradient { angle: number; stops: readonly { offset: number | null; color: Color }[] }
 type Fill = Color | Gradient;
 interface Stroke { width: number; color: Color }
+interface Outline { width: number; color: Color }
 interface Shadow { dx: number; dy: number; blur: number; color: Color }
 interface Backdrop { blur: number; saturate: number }
 type Theme = Readonly<Record<string, any>>;
@@ -107,6 +108,7 @@ interface Cursor { readonly data: any; readonly path: readonly string[] }
 interface IslandPost { readonly topic: string; readonly payload: unknown }
 declare function gradient(...args: (Color | string | { offset: number | null; color: Color })[]): Gradient;
 declare function stroke(width: number, color: Color): Stroke;
+declare function outline(width: number, color: Color): Outline;
 declare function stop(offset: number, color: Color): { offset: number; color: Color };
 declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;
 declare function frost(radius: number, saturation?: number): Backdrop;
@@ -289,6 +291,7 @@ export function tsType(t: AttrType): string {
     case "record": return t.data === true ? `${t.name} | null` : t.name; // data record (schema-typed, nullable like a component slot) / Theme-class token record
     case "fill": return "Fill";
     case "stroke": return "Stroke | null";
+    case "outline": return "Outline | null";
     case "shadow": return "Shadow | null";
     case "backdrop": return "Backdrop | null";
     case "motion": return "Motion"; // the token union + MotionCurve brand (prelude)

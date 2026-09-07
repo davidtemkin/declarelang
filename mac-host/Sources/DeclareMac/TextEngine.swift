@@ -214,7 +214,63 @@ enum TextEngine {
             s.shadowColor = sh.3
             attrs[.shadow] = s
         }
-        return NSAttributedString(string: text, attributes: attrs)
+        // Typographical treatments (the paint vocabulary the web backends carry).
+        if style.underline { attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+        if style.strike { attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
+        if let o = style.outline, o.0 > 0 {
+            // AppKit's NEGATIVE strokeWidth fills AND strokes, the stroke CENTERED
+            // on the glyph path (its whole width shows). CSS `-webkit-text-stroke`
+            // with `paint-order: stroke` shows only the OUTER half (the fill covers
+            // the inner), so halve the width to match the DOM's visible red. Width
+            // is a percent of point size, negated to keep the fill.
+            attrs[.strokeWidth] = -(o.0 / 2 / f.pointSize * 100)
+            attrs[.strokeColor] = o.1
+        }
+        if style.smallCaps { attrs[.font] = smallCaps(f) }
+        return NSAttributedString(string: transform(text, style.transform), attributes: attrs)
+    }
+
+    /// The glyphs a `textTransform` paints — matched to measure.ts transformText,
+    /// so a run's native width equals what the measurer promised. `capitalize`
+    /// uppercases the first letter after each whitespace and leaves the rest.
+    static func transform(_ s: String, _ kind: String?) -> String {
+        switch kind {
+        case "uppercase": return s.uppercased()
+        case "lowercase": return s.lowercased()
+        case "capitalize":
+            var out = ""; var atStart = true
+            for ch in s {
+                if ch.isWhitespace { out.append(ch); atStart = true }
+                else { out.append(atStart ? Character(ch.uppercased()) : ch); atStart = false }
+            }
+            return out
+        default: return s
+        }
+    }
+
+    /// The small-caps OpenType feature on a font — synthesized caps, matching
+    /// the web backends' `font-variant: small-caps` / canvas `small-caps` font.
+    static func smallCaps(_ f: NSFont) -> NSFont {
+        let settings: [[NSFontDescriptor.FeatureKey: Int]] = [[
+            .typeIdentifier: kLowerCaseType,
+            .selectorIdentifier: kLowerCaseSmallCapsSelector,
+        ]]
+        let d = f.fontDescriptor.addingAttributes([.featureSettings: settings])
+        return NSFont(descriptor: d, size: f.pointSize) ?? f
+    }
+
+    /// Decode a Declare Color NUMBER → NSColor. Opaque colors are plain 0xRRGGBB;
+    /// an alpha-bearing one is 2^32 + (rgb << 8) + a (value.ts colorWithAlpha).
+    /// The rich-run bridge carries colors as numbers (not the CSS strings the
+    /// standalone TEXTSTYLE op uses), so shadow/outline decode through here.
+    static func declColor(_ n: NSNumber) -> NSColor {
+        let value = n.int64Value
+        let rgb: Int64; let alpha: CGFloat
+        if value > 0xFFFFFF { rgb = (value >> 8) & 0xFFFFFF; alpha = CGFloat(value & 0xFF) / 255 }
+        else { rgb = value & 0xFFFFFF; alpha = 1 }
+        return NSColor(srgbRed: CGFloat((rgb >> 16) & 255) / 255,
+                       green: CGFloat((rgb >> 8) & 255) / 255,
+                       blue: CGFloat(rgb & 255) / 255, alpha: alpha)
     }
 }
 
@@ -237,4 +293,11 @@ struct TextStyleSpec {
     var shadow: (Double, Double, Double, NSColor)? = nil
     /// When set, this OVERRIDES `color` — as `textFill` overrides `textColor`.
     var fillGradient: TextGradient? = nil
+    // Typographical treatments — the span/Text paint vocabulary, matching the
+    // web backends. `transform` reshapes the string; the rest are attributes.
+    var outline: (Double, NSColor)? = nil       // (width px, color) — stroke under fill
+    var transform: String? = nil                // "uppercase" | "lowercase" | "capitalize"
+    var smallCaps: Bool = false
+    var underline: Bool = false
+    var strike: Bool = false
 }

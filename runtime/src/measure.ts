@@ -7,11 +7,14 @@
 // baseline) — so both backends place identical glyph geometry and differ
 // only in the rasterizer that inks it.
 
-import type { Color, Fill, Shadow } from "./value.js";
+import type { Color, Fill, Shadow, Outline } from "./value.js";
 
 export type FontWeight =
   | "thin" | "extralight" | "light" | "regular" | "normal"
   | "medium" | "semibold" | "bold" | "extrabold" | "black";
+
+/** A content transform applied to a run's text (CSS text-transform). */
+export type TextTransform = "none" | "uppercase" | "lowercase" | "capitalize";
 
 /** A weight token → its numeric CSS weight. The numeric form is what both the
  *  canvas `ctx.font` string and the DOM `font-weight` carry, and it is what
@@ -43,6 +46,12 @@ export interface TextStyle {
   /** Fill the glyphs with a gradient (or solid Fill) — overrides `color` when
    *  set. Canvas realizes it over the text box; DOM clips a background to text. */
   readonly textFill?: Fill | null;
+  /** Typographical treatments — paint/decoration a Text (or run) wears. */
+  readonly outline?: Outline | null;
+  readonly textTransform?: TextTransform;
+  readonly smallCaps?: boolean;
+  readonly underline?: boolean;
+  readonly strike?: boolean;
   /** Opt back into native text selection (the app root suppresses it): the run
    *  becomes a selection/pointer target. Off by default (app feel). */
   readonly selectable?: boolean;
@@ -71,8 +80,24 @@ export function provideMeasurer(ctx: CanvasRenderingContext2D): void {
 
 /** A style as a canvas font string — the one font encoding the measurer and
  *  both backends share, so they cannot disagree about which font they mean. */
-export function fontString(style: { fontFamily: string; fontSize: number; fontWeight: FontWeight; italic?: boolean }): string {
-  return `${style.italic ? "italic " : ""}${cssWeight(style.fontWeight)} ${style.fontSize}px ${style.fontFamily}`;
+export function fontString(style: { fontFamily: string; fontSize: number; fontWeight: FontWeight; italic?: boolean; smallCaps?: boolean }): string {
+  // CSS font shorthand order: font-style font-variant font-weight font-size family.
+  // `small-caps` rides the variant slot — canvas `ctx.font` honors it, so the
+  // shared measurer sees the same synthesized caps the painter draws (widths agree).
+  return `${style.italic ? "italic " : ""}${style.smallCaps ? "small-caps " : ""}${cssWeight(style.fontWeight)} ${style.fontSize}px ${style.fontFamily}`;
+}
+
+/** The glyphs a `textTransform` actually paints — applied at BOTH measure and
+ *  paint time so a transformed run's width matches its picture (the DOM gets the
+ *  same shaping free from CSS `text-transform`). `capitalize` uppercases the
+ *  first letter of each whitespace-separated word, like the CSS keyword. */
+export function transformText(text: string, transform: TextTransform | undefined): string {
+  switch (transform) {
+    case "uppercase": return text.toUpperCase();
+    case "lowercase": return text.toLowerCase();
+    case "capitalize": return text.replace(/(^|\s)(\S)/g, (_m, sp: string, ch: string) => sp + ch.toUpperCase());
+    default: return text;
+  }
 }
 
 /** The advance width of `text` in `font`, in px (fractional), including

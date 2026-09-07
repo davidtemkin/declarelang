@@ -184,9 +184,9 @@ class MobileNavGroup extends View [ width = { parent.width },
 ## Section furniture
 
 The repeated shapes the numbered sections are built from: an `AppCard` (§01 —
-a shot of a real application over its one-line description), a `FeatureRow`
-for the closing enumeration, a `Point` with its accent top-rule, a big
-gradient `Metric`, and the footer’s separator `Dot`.
+a shot of a real application over its one-line description), a `Point` with
+its accent top-rule, a big gradient `Metric`, and the footer’s separator
+`Dot`.
 */
 
 /*
@@ -390,34 +390,6 @@ class AppCard extends View [
     ]
 
 
-/*
-### A feature row
-
-One block of the closing enumeration: the category, then its points beneath.
-Two levels of replication and no list-building code — the block comes from a
-slice of `:rows[]`, each point from `:items[]` inside it, so the section's
-shape is written once and the data decides how many there are.
-
-The points are PHRASES, not sentences: a run of prose here reads as a
-document, and this has to read as a layout. The blocks pair into two columns
-at the section level (below), which is also what keeps a label from stranding
-across a wide gutter from the points it names.
-*/
-
-class FeatureRow extends View [ width = { parent.width },
-    layout: SimpleLayout [ axis = y, spacing = 8 ],
-
-    cap: Heading [ fontSize = 15, width = { parent.width }, selectable = true,
-        text = { "" + :cap } ],
-
-    list: View [ width = { parent.width },
-        layout: SimpleLayout [ axis = y, spacing = 7 ],
-        Body [ datapath = :items[], fontSize = 15, width = { parent.width },
-            text = { "" + this.$data("") } ]
-        ]
-    ]
-
-
 class Point extends View [ width = { Math.min(357, parent.width) },
     ptitle: string = "",
     body:   string = "",
@@ -569,9 +541,12 @@ class SourcePanel extends View [
     src: string = "",
     fill = { theme.panel }, cornerRadius = 12, stroke = { stroke(1, theme.panelLine) },
 
-    // the panel is its field, plus the chip row above it and a margin below
+    // the panel is its field, plus the chip row above it and a margin below —
+    // and, while a broken edit has a report, that report's band: it lands
+    // UNDER the code (its own y is parent.height − its height), never over the
+    // closing lines, because the page invites you to break the panel and read
 
-    height = { this.field.y + this.field.height + 8 },
+    height = { this.field.y + this.field.height + 8 + (this.err.visible ? this.err.height : 0) },
 
     // the affordance chip: this code runs, and you can type in it
 
@@ -791,75 +766,6 @@ App [ tagline: string = "a UI language for you and your AI",
         ({ label: "GitHub",   link: "https://github.com/davidtemkin/declarelang", children: [] }),
         ] },
 
-    // the closing enumeration's content, as DATA — so the section is a shape
-    // written once rather than six hand-built rows. A Dataset's literal body
-    // is strict JSON (language §7), which is why the quoting is fussy here.
-    //
-    // Only what is NEW at this point in the scroll: the demos above already
-    // showed constraints, replication, and springs, and the pull quote made
-    // the type-checking argument — so those lines don't repeat here. Two
-    // honest limits ride in the list on purpose (accessibility depth; the
-    // Mac host not yet being a desktop-app platform).
-
-    features: Dataset {
-        {
-                "rows": [
-                        {
-                                "cap": "Still a web page",
-                                "items": [
-                                        "Find-in-page, real selection, native fields",
-                                        "Back button, deep links",
-                                        "Real HTML for crawlers — no server, no hydration",
-                                        "Embeds in any page — React included",
-                                        "Accessibility past native text and fields — a known gap"
-                                ]
-                        },
-                        {
-                                "cap": "Data",
-                                "items": [
-                                        "Load JSON, bind to it — edits write back",
-                                        "SSE and WebSocket streams",
-                                        "A million rows — virtualize on one word"
-                                ]
-                        },
-                        {
-                                "cap": "Touch",
-                                "items": [
-                                        "The browser keeps every gesture you don't claim",
-                                        "A card that drags still pinch-zooms",
-                                        "No stuck hovers, no ghost clicks"
-                                ]
-                        },
-                        {
-                                "cap": "One program, four hosts",
-                                "items": [
-                                        "Browser — DOM",
-                                        "Browser — canvas, verified pixel-for-pixel",
-                                        "Mac native, browser-free — full desktop integration still to come",
-                                        "Headless — where the crawls and tests run"
-                                ]
-                        },
-                        {
-                                "cap": "What ships",
-                                "items": [
-                                        "Buttons to data grids — a library written in Declare",
-                                        "Markdown and rich text built in",
-                                        "Themes, swappable live — no CSS, no cascade"
-                                ]
-                        },
-                        {
-                                "cap": "For you and your AI",
-                                "items": [
-                                        "The whole language in one file — ~10k tokens",
-                                        "Diagnostics that name the rewrite",
-                                        "Ask any value where it came from",
-                                        "An installable agent skill, with evals behind it"
-                                ]
-                        }
-                ]
-        }
-        },
-
     navSource: Dataset [ contents = { ({ items: app.navItems }) } ],
     menuOpen: boolean = false,
 
@@ -940,7 +846,6 @@ App [ tagline: string = "a UI language for you and your AI",
                     paras: View [ width = { parent.width },
                         layout: SimpleLayout [ axis = y, spacing = 12 ],
                         HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { theme.lead }, selectable = true,
-                            textStyles = { ({ g: { textFill: theme.brand } }) },
                             html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window." ],
 
                         // The page's most arresting fact, and the only claim on it a
@@ -1180,85 +1085,96 @@ App [ tagline: string = "a UI language for you and your AI",
                     ]
                 ],
 
-            /* ### The pull quote — the page's one line about WHY it is shaped
-               this way, placed where it can land: after three tiny programs the
-               reader has just read, not before. The essay's door sits under it,
-               which is the moment a curious reader actually wants it (the hero's
-               copy of the same link is for the one who arrives already asking). */
+            /* ### The feedback loop — the page's argument for WHY the language is
+               shaped this way, placed where it can land: after three tiny programs
+               the reader has just read, not before.
 
-            legible: View [ width = { parent.width }, opacity = 0,
+               Four beats of one loop — context, correction, inspection, proof —
+               each a `Point`, which is the accent-ruled title/body the manifesto
+               band used to wear and the only class on the page that was left
+               unused when it went. */
+
+            loop: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
                     to = { app.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
-                layout: SimpleLayout [ axis = y, spacing = 20 ],
+                layout: SimpleLayout [ axis = y, spacing = 36 ],
 
-                Heading [ fontSize = { app.width < 700 ? 24 : 30 },
-                    width = { Math.min(880, parent.width) }, x = { (parent.width - Math.min(880, parent.width)) / 2 },
-                    textAlign = center,
-                    text = "Everything that makes it legible to an LLM makes it legible to you." ],
+                head: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 20 ],
 
-                // the benefit, not the mechanism. A fix-naming diagnostic is a
-                // capability; what a reader wants to know is what it buys them —
-                // an LLM that converges instead of guessing, and no app that
-                // compiles clean and quietly does the wrong thing.
+                    Heading [ fontSize = { app.width < 700 ? 24 : 30 },
+                        width = { Math.min(880, parent.width) }, x = { (parent.width - Math.min(880, parent.width)) / 2 },
+                        textAlign = center,
+                        text = "Your AI can write the code. Can it tell when it’s wrong?" ],
 
-                Lead [ fontSize = 17, width = { Math.min(700, parent.width) },
-                    x = { (parent.width - Math.min(700, parent.width)) / 2 }, textAlign = center,
-                    text = "When an LLM gets something wrong, the compiler names the rewrite — so it corrects itself instead of guessing, and you don’t inherit an app that quietly runs wrong." ]
+                    // The answer to the head's question, and the bridge to the four
+                    // beats: catch (question), fix (correct), finish (prove) — the
+                    // grid previewed without being listed, and "finish" last, where
+                    // the sentence's weight falls. The context beat is "started".
 
-                // No link out to the "why" essay here. The band's own link would be
-                // an exit immediately above the enumeration, the closer and Get
-                // Started — and the hero already offers that door before any
-                // argument is made, with the header carrying it the whole way down.
-                ],
+                    Lead [ fontSize = 17, width = { Math.min(620, parent.width) },
+                        x = { (parent.width - Math.min(620, parent.width)) / 2 }, textAlign = center,
+                        text = "In Declare, yes. A small language gets it started; these four tools let it catch its mistakes, fix them, and finish." ]
+                    ],
 
-            /* ### Everything else, enumerated. The manifesto band used to sit
-               here and spend a whole screen arguing against the document model.
-               This states the surface instead: eight rows, each one flow, so a
-               category and its contents wrap together into the column rather
-               than stranding a label above a list.
-
-               UNNUMBERED, and with no head. A SectionHead announcing "what comes
-               with it" only says aloud what a list of capabilities plainly is —
-               and heading it left-aligned the pair against a column of text that
-               is no longer there. The block now centers on the page instead. */
-
-            what: View [ width = { parent.width }, opacity = 0,
-                reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
-                    to = { app.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
-                layout: SimpleLayout [ axis = y, spacing = 34 ],
-
-                // TWO COLUMNS, by slicing the same data twice: `:rows[0:3][]` and
-                // `:rows[3:6][]` replicate the first and second halves, so each
-                // column reads top-to-bottom (a wrapping flow would read across,
-                // pairing unrelated categories). One list, two slices, no split
-                // copy to keep in sync.
+                // Sized to the TEXT rather than to the page, and centered: at the
+                // full 1120 measure two 50% shares strand a dead gutter between
+                // columns whose text runs far shorter, and the pair stop reading
+                // as one block.
                 //
-                // Sized to the LONGEST LINE rather than to the page: at the page's
-                // full width the two 50% shares put 250px of dead gutter between
-                // columns whose text runs ~340px, and the pair read as two lists
-                // that happened to land near each other. Centered, they read as one
-                // block. Below the breakpoint this is `parent.width` and x is 0, so
-                // the stacked phone layout is untouched.
+                // Paired ROWS, not two columns. The four are one ordered loop, so
+                // they read across in the order they happen — and a pair per row
+                // is what keeps two accent rules on one line. Sliced into columns
+                // instead, unequal text staggers the rules and the grid reads
+                // broken.
+                //
+                // Each beat sits in a bare cell because the ResponsiveLayout
+                // sizes its own children and a Point carries a width of its own
+                // (R4 says so, by name). The cell takes the share; the Point
+                // fills the cell.
 
-                rows: View [ width = { Math.min(800, parent.width) },
-                    x = { (parent.width - Math.min(800, parent.width)) / 2 },
-                    layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 56, share: ({ colA: 50, colB: 50 }) }),
-                                                         ({ from: 0, flow: "stack", gap: 28, share: ({ colA: 100, colB: 100 }) })] } ],
+                beats: View [ width = { Math.min(880, parent.width) },
+                    x = { (parent.width - Math.min(880, parent.width)) / 2 },
+                    layout: SimpleLayout [ axis = y, spacing = 32 ],
 
-                    colA: View [ datapath = { app.features.value },
-                        layout: SimpleLayout [ axis = y, spacing = 28 ],
-                        FeatureRow [ datapath = :rows[0:3][] ]
+                    first: View [ width = { parent.width },
+                        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 56, share: ({ a: 50, b: 50 }) }),
+                                                             ({ from: 0, flow: "stack", gap: 32, share: ({ a: 100, b: 100 }) })] } ],
+                        a: View [ Point [ width = { parent.width }, ptitle = "Start with context",
+                                body = "One installable skill: the language, the library, the conventions, the working loop — nothing to reconstruct from a repository. And declare-help answers any name or error code on demand." ]
+                            ],
+                        b: View [ Point [ width = { parent.width }, ptitle = "Correct, don’t guess",
+                                body = "Every diagnostic names the broken rule and the valid rewrite. Try it: change textColor to color in the first panel above and read what comes back." ]
+                            ]
                         ],
-                    colB: View [ datapath = { app.features.value },
-                        layout: SimpleLayout [ axis = y, spacing = 28 ],
-                        FeatureRow [ datapath = :rows[3:6][] ]
+
+                    second: View [ width = { parent.width },
+                        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 56, share: ({ a: 50, b: 50 }) }),
+                                                             ({ from: 0, flow: "stack", gap: 32, share: ({ a: 100, b: 100 }) })] } ],
+                        a: View [ Point [ width = { parent.width }, ptitle = "Question the result",
+                                body = "The Inspector can tell you or an agent why a live value is what it is, what it depends on, and what happens if you change it — live, in the running program, not guessed from source." ]
+                            ],
+                        b: View [ Point [ width = { parent.width }, ptitle = "Prove the change",
+                                body = "A formal six-rung ladder, from parse to pixels, is how an app is shown to be correct. Your AI climbs it one rung at a time, and every rung reports what it proved — and what it cannot see." ]
+                            ]
                         ]
-                    ]
+                    ],
+
+                // The close is the proof already on the page — the calendar's own
+                // "0 lines written by hand" — not a restatement of the four beats.
+                // No door: the FAQ is one click away in the header on every view.
+
+                close: Lead [ fontSize = 17, width = { Math.min(760, parent.width) },
+                    x = { (parent.width - Math.min(760, parent.width)) / 2 }, textAlign = center,
+                    text = "The calendar above was built this way: a person directed, an AI wrote every line, and the compiler kept it honest." ]
                 ],
 
             /* ### The closing line — centered between the accent rules the
-               manifesto used to wear. Three beats, and the third has a verb so
-               it cannot be misread as describing this page's own interface. */
+               manifesto used to wear. Two beats, one per half of the headline:
+               the language you can know whole, and the toolchain that makes what
+               comes back trustworthy. It used to say "Small language. Short
+               programs." — true, but both beats were about size, so it closed
+               the language and forgot the loop section it now follows. */
 
             closer: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
@@ -1268,7 +1184,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 Heading [ fontSize = { app.width < 700 ? 26 : 38 },
                     width = { Math.min(900, parent.width) }, x = { (parent.width - Math.min(900, parent.width)) / 2 },
                     textAlign = center,
-                    text = "Small language. Short programs." ],
+                    text = "Small enough to know. Strict enough to trust." ],
                 ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { theme.accent } ]
                 ],
 

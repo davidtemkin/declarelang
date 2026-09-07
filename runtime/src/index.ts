@@ -159,7 +159,7 @@ export type { IslandSlotEvent } from "./backend.js";
 export { CanvasBackend } from "./canvas-backend.js";
 export { HeadlessBackend } from "./headless-backend.js";
 export { SCHEMAS, attrType, descendsFrom, isPrevailing } from "./schema.js";
-export { coerce, enumType, isPercent, colorToCss, colorWithAlpha, isGradient, gradient, stroke, shadow, stop, DEFAULT_THEME } from "./value.js";
+export { coerce, enumType, isPercent, colorToCss, colorWithAlpha, isGradient, gradient, stroke, outline, shadow, stop, DEFAULT_THEME } from "./value.js";
 export { isSet, ownerOf } from "./attributes.js";
 export { CSS_COLORS } from "./css-colors.js";
 export { DeclareError, DeclareErrors } from "./errors.js";

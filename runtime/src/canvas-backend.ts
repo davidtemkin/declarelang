@@ -32,9 +32,9 @@ import { inAnimationFrame } from "./animate.js";
 const MICROTASK_PAINT = -1;
 import { notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type RenderBackend, type Stretch, type Surface, type InputWants } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
-import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Stroke } from "./value.js";
+import { colorToCss, isGradient, type Fill, type Gradient, type Outline, type Shadow, type Stroke } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
-import { cssWeight, fontMetrics, fontString, textWidth, wrapLines, type TextStyle } from "./measure.js";
+import { cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type TextStyle, type TextTransform } from "./measure.js";
 import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS, type DisplayList, type Bounds } from "./draw.js";
 import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-filter.js";
 import { onDprChange } from "./dpr.js";
@@ -766,6 +766,13 @@ class CanvasSurface implements Surface {
    *  what the DOM backend sets as `line-height`, so multi-line agrees. */
   private lineHeight = 0;
   private textShadow: Shadow | null = null;
+  // Typographical treatments (the span/Text paint vocabulary) — mirrored from
+  // the DOM's setRichContent/setTextStyle so canvas runs wear the same look.
+  private textOutline: Outline | null = null;
+  private textTransform: TextTransform = "none";
+  private textUnderline = false;
+  private textStrike = false;
+  private fontSizePx = 0;
   private letterSpacing = 0;
   /** Wrapping (set-time): whether this run wraps within `width`, its alignment,
    *  and the cached line break — recomputed when text/style/width change so the
@@ -1060,6 +1067,14 @@ class CanvasSurface implements Surface {
       ? Math.round(st.fontSize * st.lineHeight)
       : fm.ascent + fm.descent;
     this.textShadow = st.shadow ?? null;
+    // smallCaps rides `fontString(st)` above (the CSS variant slot), so the
+    // painter and the shared measurer synthesize the same caps; the rest are
+    // paint-time decorations honored in the text branch below.
+    this.textOutline = st.outline ?? null;
+    this.fontSizePx = st.fontSize;
+    this.textTransform = st.textTransform ?? "none";
+    this.textUnderline = st.underline ?? false;
+    this.textStrike = st.strike ?? false;
     this.letterSpacing = st.letterSpacing;
     this.wrap = st.wrap ?? false;
     this.align = st.align ?? "left";
@@ -2043,13 +2058,42 @@ class CanvasSurface implements Surface {
         ctx.shadowBlur = sh.blur * m.a;
         restoreShadow = true;
       }
+      // The painted glyphs after `textTransform` — the shared measurer shaped
+      // widths from this same string (measure.ts transformText), so wraps and
+      // alignment agree with what lands.
+      const disp = this.textTransform === "none" ? this.text : transformText(this.text, this.textTransform);
+      // One line's ink: the outline strokes UNDER the fill (CSS `paint-order:
+      // stroke` — the DOM twin), then underline/strike rule beneath, in the
+      // solid text color (CSS `text-decoration-color` = currentColor, not the
+      // gradient fill). Stroke width is user-space, so the CTM scales it right.
+      const paintLine = (line: string, x: number, y: number): void => {
+        const o = this.textOutline;
+        if (o !== null) {
+          ctx.save();
+          ctx.lineWidth = o.width;
+          ctx.strokeStyle = colorToCss(o.color);
+          ctx.lineJoin = "round";
+          ctx.strokeText(line, x, y);
+          ctx.restore();
+        }
+        ctx.fillText(line, x, y);
+        if (this.textUnderline || this.textStrike) {
+          const lw = textWidth(line, this.font, this.letterSpacing);
+          const th = Math.max(1, Math.round(this.fontSizePx / 16));
+          ctx.save();
+          ctx.fillStyle = this.textFill;
+          if (this.textUnderline) ctx.fillRect(x, y + Math.round(this.fontSizePx * 0.12), lw, th);
+          if (this.textStrike) ctx.fillRect(x, y - Math.round(this.fontSizePx * 0.28), lw, th);
+          ctx.restore();
+        }
+      };
       if (this.wrap && this.width > 0) {
         // Wrapping: break at the set-time-cached points and stack the lines at
         // the shared stride (the DOM backend's `line-height`), aligning each
         // within the box. The greedy breaker (measure.ts) is the one BOTH
         // backends share, so the DOM's native wrap and this agree.
         if (this.textLines === null) {
-          this.textLines = wrapLines(this.text, this.font, this.width, this.letterSpacing);
+          this.textLines = wrapLines(disp, this.font, this.width, this.letterSpacing);
         }
         const lines = this.textLines;
         for (let i = 0; i < lines.length; i++) {
@@ -2059,7 +2103,7 @@ class CanvasSurface implements Surface {
             const lw = textWidth(line, this.font, this.letterSpacing);
             x = this.align === "center" ? (this.width - lw) / 2 : this.width - lw;
           }
-          ctx.fillText(line, x, this.ascent + i * this.lineHeight);
+          paintLine(line, x, this.ascent + i * this.lineHeight);
         }
       } else {
         // A single (non-wrapping) run still honors alignment: the DOM backend
@@ -2069,10 +2113,10 @@ class CanvasSurface implements Surface {
         // glyph geometry. (align=left keeps x=0, the shrink-to-content case.)
         let x = 0;
         if (this.align !== "left" && this.width > 0) {
-          const lw = textWidth(this.text, this.font, this.letterSpacing);
+          const lw = textWidth(disp, this.font, this.letterSpacing);
           x = this.align === "center" ? (this.width - lw) / 2 : this.width - lw;
         }
-        ctx.fillText(this.text, x, this.ascent);
+        paintLine(disp, x, this.ascent);
       }
       if (restoreShadow) ctx.restore();
       if (this.letterSpacing !== 0) lsCtx.letterSpacing = "0px";

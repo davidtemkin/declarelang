@@ -63,6 +63,15 @@ export interface Stroke {
   readonly color: Color;
 }
 
+/** A glyph OUTLINE (`outline` on text) — a stroke traced along each letterform's
+ *  contour (CSS `-webkit-text-stroke` / canvas `strokeText`), NOT a box border
+ *  (that is `stroke`). Same shape as Stroke; a distinct type so the two never
+ *  confuse. Paint-only: it does not change advance or the line box. */
+export interface Outline {
+  readonly width: number;
+  readonly color: Color;
+}
+
 /** A drop shadow (`shadow` on the view box, `textShadow` on glyphs) — the
  *  CSS box-shadow shape minus spread, until a consumer needs it. */
 export interface Shadow {
@@ -109,6 +118,7 @@ export function gradient(...args: (number | string | GradientStop)[]): Gradient 
 
 export const stop = (offset: number, color: Color): GradientStop => Object.freeze({ offset, color });
 export const stroke = (width: number, color: Color): Stroke => Object.freeze({ width, color });
+export const outline = (width: number, color: Color): Outline => Object.freeze({ width, color });
 export const shadow = (dx: number, dy: number, blur: number, color: Color): Shadow =>
   Object.freeze({ dx, dy, blur, color });
 export const frost = (radius: number, saturation = 1): Backdrop =>
@@ -125,6 +135,10 @@ export function shadowEqual(a: Shadow | null, b: Shadow | null): boolean {
 }
 
 export function strokeEqual(a: Stroke | null, b: Stroke | null): boolean {
+  return a !== null && b !== null && a.width === b.width && a.color === b.color;
+}
+
+export function outlineEqual(a: Outline | null, b: Outline | null): boolean {
   return a !== null && b !== null && a.width === b.width && a.color === b.color;
 }
 
@@ -237,6 +251,7 @@ export type AttrType =
   | { readonly kind: "record"; readonly name: string; readonly data?: true }
   | { readonly kind: "fill" }
   | { readonly kind: "stroke" }
+  | { readonly kind: "outline" }
   | { readonly kind: "shadow" }
   // The backdrop material (compositing.md §3.2): its literal form is the
   // `frost(radius, saturation?)` constructor, `null` (the default) = none.
@@ -440,6 +455,8 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       return coerceFill(lit);
     case "stroke":
       return coerceStroke(lit);
+    case "outline":
+      return coerceOutline(lit);
     case "shadow":
       return coerceShadow(lit);
     case "backdrop":
@@ -531,9 +548,19 @@ function coerceFill(lit: Literal): Coerced {
     const args = [...lit.args];
     // An optional leading DECIMAL number is the angle (degrees, CSS compass —
     // 0 up, clockwise; default 180 = top → bottom). Hex-written numbers are
-    // colors — the written form disambiguates, exactly as it types Color.
-    const angle =
-      args.length > 0 && args[0].kind === "number" && !args[0].hex ? argNumber(args.shift()!)! : 180;
+    // colors — the written form disambiguates, exactly as it types Color. A
+    // leading `"45deg"` STRING is also an angle — the spelling the runtime
+    // `gradient()` accepts — so the same literal coerces whether it is evaluated
+    // (a { } value) or read statically (a `style` bundle field). Both → the angle.
+    let angle = 180;
+    if (args.length > 0) {
+      const a0 = args[0];
+      if (a0.kind === "number" && !a0.hex) { angle = argNumber(args.shift()!)!; }
+      else if (a0.kind === "string") {
+        const m = a0.value.match(/^\s*(-?\d+(?:\.\d+)?)\s*deg\s*$/);
+        if (m) { angle = parseFloat(m[1]); args.shift(); }
+      }
+    }
     const stops: GradientStop[] = [];
     for (const a of args) {
       if (a.kind === "call" && a.name === "stop") {
@@ -562,6 +589,15 @@ function coerceStroke(lit: Literal): Coerced {
   const width = lit.args.length === 2 ? argNumber(lit.args[0]) : null;
   const color = lit.args.length === 2 ? argColor(lit.args[1]) : null;
   if (width === null || color === null || width < 0) return fail(STROKE);
+  return ok({ width, color });
+}
+
+function coerceOutline(lit: Literal): Coerced {
+  if (lit.kind === "ident" && lit.name === "null") return ok(null);
+  if (lit.kind !== "call" || lit.name !== "outline") return fail("an outline (outline(width, color))");
+  const width = lit.args.length === 2 ? argNumber(lit.args[0]) : null;
+  const color = lit.args.length === 2 ? argColor(lit.args[1]) : null;
+  if (width === null || color === null || width < 0) return fail("an outline (outline(width, color))");
   return ok({ width, color });
 }
 

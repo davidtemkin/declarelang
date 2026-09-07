@@ -54,6 +54,22 @@ CSS's `border` precisely so a bordered view and an unbordered one occupy the sam
 A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape
 minus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.
 
+## styles
+The top-level `style` **bundles** this view wears — a list of names (`styles = [ card, hero ]`),
+each a reusable set of attribute values declared once with `style name [ … ]`. A bundle's
+values apply to this view; its `prevailing` text slots (`textColor`, `fontSize`, `fontFamily`,
+…) then cascade to descendant `Text` exactly as if written here. Applied at a fixed rank
+**below** the view's own attributes, so a local write always outranks a bundle — and later
+names in the list win over earlier ones. The very same `style` a `<span class>` names inside
+`HTMLText`/`Markdown`, so one definition skins a container and its rich text alike. A bundle
+field may be a `{ }` body (`style hot [ textColor = { theme.accent } ]`), and it re-evaluates
+reactively like any other. A bundle on a view may set **only attributes that view declares** —
+a per-run treatment like `textFill` belongs on a `Text` or a `<span>`, not a plain `View`.
+```declare
+style panel [ cornerRadius = 12, fill = { theme.surface }, textColor = { theme.text } ]
+View [ styles = [panel], Text [ text = "wears the panel's colour" ] ]
+```
+
 ## opacity
 Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a
 group, so a fading panel fades its contents with it. Not `prevailing`: its effect

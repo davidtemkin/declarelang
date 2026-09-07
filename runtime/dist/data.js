@@ -768,6 +768,7 @@ export function coerceData(type, v, def) {
         case "component":
         case "fn":
         case "stroke":
+        case "outline":
         case "shadow":
         case "backdrop":
         case "motion":

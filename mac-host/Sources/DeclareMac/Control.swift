@@ -18,6 +18,7 @@
 //   key NAME [cmd|shift|ctrl|alt ...]
 //   trace X Y   (narrate the hit walk)      flows   (dump rich flows)
 //   geom        (window id and content box) ping
+//   occlusion ignore|honor  (keep a COVERED window rendering, for off-focus shots)
 
 import AppKit
 import CoreImage
@@ -79,7 +80,7 @@ final class ControlChannel {
         // beats trapping on an implicit unwrap inside a test run. The few verbs
         // that are ABOUT windows rather than about a program still work.
         let windowless = ["ping", "windows", "newwindow", "closewindow", "menukey", "activate", "jit",
-                          "compilecache"]
+                          "compilecache", "occlusion"]
         guard target() != nil || windowless.contains(verb) else { return "no window" }
         func num(_ i: Int) -> Double { i < a.count ? (Double(a[i]) ?? 0) : 0 }
 
@@ -105,6 +106,16 @@ final class ControlChannel {
             return "content \(Int(b.width))x\(Int(b.height))"
                  + " layers=\(bridge.tree?.layerCount() ?? -1)"
                  + " subviews=\(view?.subviews.count ?? -1)"
+        case "occlusion":
+            // `occlusion ignore` keeps a COVERED window painting (so `shot` can
+            // capture it at full WindowServer fidelity without it being front);
+            // `occlusion honor` restores the normal idle-when-hidden behaviour.
+            // Bare `occlusion` reports the current state.
+            if a.count > 1 {
+                Launch.ignoreOcclusion = (a[1] == "ignore" || a[1] == "off")
+                target()?.pushVisibility()   // un-idle a now-covered window at once
+            }
+            return "occlusion " + (Launch.ignoreOcclusion ? "ignored — renders while covered" : "honored")
         case "move", "down", "up":
             let type = verb == "move" ? "pointermove" : verb == "down" ? "pointerdown" : "pointerup"
             if verb == "down" { buttons = 1 } else if verb == "up" { buttons = 0 }

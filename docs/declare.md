@@ -726,7 +726,9 @@ opt-in above.
 
 Two top-level forms sit above per-view attributes, both checked at compile time, so a stale skin
 fails loudly where CSS rots silently. A **`style` bundle** is a reusable set of attribute values a
-view opts into with `styles = [ … ]`. A **`stylesheet`** is an app-wide swappable skin whose
+view opts into with `styles = [ … ]` — the same bundle a `<span class>` names inside
+`HTMLText`/`Markdown`, so one definition skins a container and colours a run of prose alike, and
+its fields may be `{ }` bodies that re-evaluate live. A **`stylesheet`** is an app-wide swappable skin whose
 entries are a dictionary lookup on the class name — no selectors, no structural matching, no
 specificity — matching a class and its subclasses, with fields merging down the chain.
 

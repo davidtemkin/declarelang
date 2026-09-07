@@ -6,6 +6,8 @@
 //   node ctl.mjs click 167 160
 //   node ctl.mjs scroll 300 250 -8
 //   node ctl.mjs key d ctrl
+//   node ctl.mjs occlusion ignore         (keep a COVERED window painting, so it
+//                                           need not be frontmost to `shot`)
 //   node ctl.mjs shot /tmp/x.png          (screencapture of the window by id)
 //   node ctl.mjs seq "click 167 160" "click 385 185" "shot /tmp/after.png"
 //

@@ -22,8 +22,8 @@
 // tracking); the derive *yields* to a direct author write. Wrapping /
 // multiline is a ruled open question (HANDOFF) — a run never wraps.
 import { View, onDiscard } from "./view.js";
-import { shadowEqual } from "./value.js";
-import { fontMetrics, fontString, textWidth, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight } from "./measure.js";
+import { shadowEqual, outlineEqual } from "./value.js";
+import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight } from "./measure.js";
 import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 export class Text extends View {
@@ -67,7 +67,7 @@ export class Text extends View {
         // model stays Node-importable) and only for unowned, never-set slots: an
         // author literal, constraint, or percent takes precedence untouched.
         if (!isSet(this, "width") && ownerOf(this, "width") === null) {
-            bindDerived(this, "width", () => Math.ceil(textWidth(this.text, fontString(this), this.letterSpacing)));
+            bindDerived(this, "width", () => Math.ceil(textWidth(transformText(this.text, this.textTransform), fontString(this), this.letterSpacing)));
         }
         if (!isSet(this, "height") && ownerOf(this, "height") === null) {
             bindDerived(this, "height", () => {
@@ -78,7 +78,7 @@ export class Text extends View {
                 // container/viewport resize re-wraps and re-flows — baseline.
                 const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
                 const lines = bounded && this.wrap
-                    ? wrapLines(this.text, fontString(this), this.width, this.letterSpacing).length
+                    ? wrapLines(transformText(this.text, this.textTransform), fontString(this), this.width, this.letterSpacing).length
                     : 1;
                 return Math.ceil(lineH * lines);
             });
@@ -95,12 +95,13 @@ export class Text extends View {
      *  wrapped line count when the width is bounded, matching the derives above. */
     contentExtent(size) {
         const font = fontString(this);
+        const disp = transformText(this.text, this.textTransform);
         if (size === "width")
-            return Math.ceil(textWidth(this.text, font, this.letterSpacing));
+            return Math.ceil(textWidth(disp, font, this.letterSpacing));
         const m = fontMetrics(font);
         const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
         const lines = bounded && this.wrap
-            ? wrapLines(this.text, font, this.width, this.letterSpacing).length
+            ? wrapLines(disp, font, this.width, this.letterSpacing).length
             : 1;
         return Math.ceil(this.lineAdvance(m) * lines);
     }
@@ -127,6 +128,11 @@ export class Text extends View {
             align: this.textAlign,
             italic: this.italic,
             textFill: this.textFill,
+            outline: this.outline,
+            textTransform: this.textTransform,
+            smallCaps: this.smallCaps,
+            underline: this.underline,
+            strike: this.strike,
             selectable: this.selectable,
             lineHeight: this.lineHeight,
         }), 
@@ -145,6 +151,13 @@ defineAttributes(Text, {
     textAlign: { def: "left" },
     italic: { def: false },
     textFill: { def: null },
+    // Typographical treatments — a Text wears them like textShadow/textFill; runs
+    // get them through the RichText span path. Paint/decoration, per-Text.
+    outline: { def: null, equal: outlineEqual },
+    textTransform: { def: "none" },
+    smallCaps: { def: false },
+    underline: { def: false },
+    strike: { def: false },
     lineHeight: { def: 0 },
 });
 //# sourceMappingURL=text.js.map

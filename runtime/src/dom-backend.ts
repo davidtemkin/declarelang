@@ -1653,8 +1653,18 @@ class DomSurface implements Surface {
           }
         }
         if (r.tracking !== 0) rs.letterSpacing = r.tracking + "px";
-        if (r.underline) rs.textDecoration = "underline";  // wins over the link default of "none" set above
-        if (r.strike) rs.textDecoration = "line-through";
+        // decorations compose (a run may be both underlined and struck); wins over
+        // the link default of "none" set above.
+        const deco = (r.underline ? "underline " : "") + (r.strike ? "line-through" : "");
+        if (deco.trim() !== "") rs.textDecoration = deco.trim();
+        // typographical treatments (CSS twins of the RunStyle fields)
+        if (r.shadow != null) rs.textShadow = `${r.shadow.dx}px ${r.shadow.dy}px ${r.shadow.blur}px ${colorToCss(r.shadow.color)}`;
+        if (r.outline != null) {
+          (rs as CSSStyleDeclaration & { webkitTextStroke: string }).webkitTextStroke = `${r.outline.width}px ${colorToCss(r.outline.color)}`;
+          rs.paintOrder = "stroke fill";   // stroke UNDER fill, so the fill stays crisp
+        }
+        if (r.transform != null) rs.textTransform = r.transform;
+        if (r.smallCaps) rs.fontVariant = "small-caps";
         if (r.chipBg !== undefined) {
           rs.backgroundColor = colorToCss(r.chipBg);
           rs.borderRadius = "4px"; rs.padding = "1px 5px";
@@ -2061,6 +2071,13 @@ class DomSurface implements Surface {
     }
     const sh = st.shadow ?? null;
     s.textShadow = sh === null ? "" : `${sh.dx}px ${sh.dy}px ${sh.blur}px ${colorToCss(sh.color)}`;
+    // Typographical treatments — set every frame (default clears a stale value):
+    const ol = st.outline;
+    (s as CSSStyleDeclaration & { webkitTextStroke: string }).webkitTextStroke = ol != null ? `${ol.width}px ${colorToCss(ol.color)}` : "";
+    s.paintOrder = ol != null ? "stroke fill" : "";
+    s.textTransform = st.textTransform ?? "none";
+    s.fontVariant = st.smallCaps ? "small-caps" : "normal";
+    s.textDecoration = ((st.underline ? "underline " : "") + (st.strike ? "line-through" : "")).trim() || "none";
     // Wrapping: a bounded box wraps (`pre-wrap`) and the run fills the box
     // width so the browser breaks lines; an unbounded run stays a single line
     // (`pre`) and shrinks to content. (Canvas wrapping via pretext is its own rung.)

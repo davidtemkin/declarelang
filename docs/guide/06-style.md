@@ -268,10 +268,11 @@ doc: Markdown [ text = { app.article.value || "" },
 `HTMLText` is the sibling for content authored — or loaded — as HTML. It parses against a
 **fixed whitelist** rather than trusting the input, and `unsupported` decides what a tag
 outside the set does: `"strip"` unwraps it and keeps the text, `"error"` throws. So
-loaded or untrusted content is never silently mangled. Its `textStyles` map is the one
-styling hook — content names a style (`<span class='g'>`) that your app defines as a bundle
-of the same attributes you'd set on a `Text` (`fontSize`, `textFill`, …), and never carries
-CSS itself.
+loaded or untrusted content is never silently mangled. Its styling hook is a **named
+style**, never CSS: a run marked `<span class='hero'>` takes whatever `hero` is defined to
+be — a `style` bundle your app declares once and a plain view can wear too (the next
+section). For a one-off, a local `textStyles = { … }` map on the element is the inline
+alternative.
 
 **Media is the same shape.** `Image`, `Video` and `Audio` are leaves whose lifecycle is
 reactive state, like every source in the language: `loaded` and `failed` are read-only
@@ -281,6 +282,62 @@ call, so "stop decoding when this is off-screen" is `playing = { app.visible }` 
 nothing else — and a progress bar is a `width` derived from `position` and `duration`,
 not a widget. `Audio` is the same transport with nothing to look at: it draws nothing,
 and where you declare it says who owns the sound.
+
+## Text, styled by name
+
+Colour and size are only the start of what a run can carry. The **treatments** are
+per-run paint, each a plain attribute on a `Text` (and on every rich-text run):
+
+- `textFill` fills the glyphs themselves — a `gradient(…)` or solid — overriding `textColor`.
+- `textShadow` drops a `shadow(dx, dy, blur, color)` under the letters.
+- `outline` strokes their **edges** with `outline(width, color)` — outlined type, not a box;
+  the stroke rides under the fill, so a filled letter shows a ring and an unfilled one reads hollow.
+- `smallCaps` sets the lowercase as small capitals, synthesized from the current font.
+- `textTransform` reshapes the glyphs — `uppercase`, `lowercase`, `capitalize` — **without**
+  touching the underlying string, so selection and find-in-page still see what you wrote.
+- `underline` and `strike` rule the run.
+
+```declare
+App [ width = 320, height = 84, fill = #0B141B,
+    Text [ x = 20, y = 24, fontSize = 26, textColor = white, fontWeight = bold,
+        outline = outline(1, #C0392B), text = "OUTLINED" ]
+    ]
+```
+
+Unlike `textColor` and `fontSize` — the *prevailing* slots an ancestor hands down — a
+treatment lives on the run itself and does not cascade. Which raises the obvious question:
+if a look lives on each run, how do you avoid repeating it? A **`style` bundle**. Declare
+the look once, at the top level, refer to it by name, and — since a `<span class>` names the
+same bundle — a container and a run of prose wear one definition alike (a color inside a
+`{ }` body is `0x`, as everywhere):
+
+```declare
+style kw   [ textColor = #C678DD ]
+style hero [ fontSize = 40, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
+
+App [ width = 380, height = 130, fill = white,
+    Text [ x = 20, y = 16, styles = [hero], text = "Big, gradient-filled" ],
+    HTMLText [ x = 20, y = 84, fontSize = 15, bodyColor = 0x33424E,
+        html = "<span class='kw'>class</span> Board [ ]" ]
+    ]
+```
+
+A run **wears** a bundle by list — `Text [ styles = [hero] ]` — and the same name is the
+vocabulary rich text speaks: `<span class='kw'>class</span>` resolves the `kw` bundle. One
+definition, two surfaces — a syntax-highlight palette colours both a live code panel and a
+documentation snippet, and a wordmark is a gradient in the header and inline in a sentence,
+from one line. A bundle can sit on a **container** too, but only for the attributes that view
+declares: its *prevailing* slots (`textColor`, `fontSize`, …) then cascade to the descendant
+`Text`, the way a theme does — while the per-run treatments (`textFill`, `outline`, …) belong
+to the run that wears them, since a plain `View` has no `textFill` to set.
+
+Because a bundle field is an ordinary attribute, it can be a `{ }` body:
+`style brand [ textFill = { theme.brand } ]` re-derives when the theme changes, and every
+span and view wearing `brand` follows in the same settle. And a bundle applies *below* your
+own writes — a local attribute always wins, and later names in a `styles` list win over
+earlier ones — so a bundle is a default a view can override, never a rule that fights your
+code. The same three renderers draw all of it: the treatments and the bundles render
+identically on DOM, canvas and the native Mac host.
 
 ## Same program, no DOM — try it
 

@@ -65,6 +65,7 @@ import { checkAttr, checkMethod, checkComponentValue, checkEntry, checkThemeReco
 import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken, type ClassInfo } from "./program-schema.js";
 import { buildStylesheet, ensureApplier, registerStylesheets, type Stylesheet, type StylesheetField } from "./stylesheet.js";
 import { buildFonts, collectFaces, registerFontFaces, type Font } from "./font.js";
+import { setStyleBundles } from "./style-bundles.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
 import { coerce, isPercent, isAlign, type AttrType, type Theme } from "./value.js";
 import { defineAttributes, recordDeclarations, setBound, type AttrSpec, type DeclRecord } from "./attributes.js";
@@ -261,6 +262,9 @@ function buildTree(program: Program, trusted: boolean): View {
     expanding: new Set(),
     trusted,
   };
+  // The `style` bundles a `<span class>` inside RichText resolves against (the
+  // by-name cascade's global tier) — module-scoped for the running program.
+  setStyleBundles(ctx.bundles);
   const root = construct(program.root, null, ctx);
   if (!(root instanceof View)) {
     throw new DeclareError(`the root must be a view, not a ${program.root.tag}`, program.root.pos);

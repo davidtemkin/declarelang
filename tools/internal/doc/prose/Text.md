@@ -51,6 +51,35 @@ letters; overrides `textColor` when set. `textFill = { gradient("90deg", 0xFFFFF
 A drop shadow on the glyphs — the same `shadow(dx, dy, blur, color)` value as the box
 `shadow` slot, applied to the text instead of the box.
 
+## outline
+Strokes the glyph **edges** in `outline(width, color)` — outlined letters, **not** a box
+around the run. The stroke rides *under* the fill, so a filled letter shows a thin ring
+and a `textColor`-less one reads hollow. Per-`Text`, **not** a `prevailing` slot — set it
+here, or wear it through a `style` bundle / a `<span class>`. In a `[ ]` literal the color
+is `#RRGGBB`; inside a `{ }` body it is `0xRRGGBB`.
+```declare
+Text [ textColor = white, fontWeight = bold, outline = outline(1, #C0392B), text = "ringed" ]
+```
+
+## textTransform
+Reshapes the painted glyphs — `uppercase`, `lowercase`, `capitalize`, `none` — **without
+changing `text`**: selection, find-in-page and `$data` see the original string, exactly
+like CSS `text-transform`. The measurer shapes the transformed glyphs, so an `uppercase`
+run still fits its width and wraps correctly on every renderer.
+
+## smallCaps
+Renders lowercase letters as small capitals — **synthesized from the current font**, not a
+separate face, so it composes with any `fontFamily`/`fontWeight`. Measured with the caps,
+so widths agree across DOM, canvas and native.
+
+## underline
+A rule under the baseline. A **decoration**, drawn in the text colour and independent of
+`textFill` — a gradient-filled word still underlines in its base colour. (Rich-text links
+underline via `RichText.linkUnderline`; this is the plain per-`Text` slot.)
+
+## strike
+A rule through the x-height — a struck run. Same decoration contract as `underline`.
+
 
 ## ascent
 The effective font's **ascent** above the baseline (the font bounding box — a property
