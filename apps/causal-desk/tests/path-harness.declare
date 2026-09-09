@@ -1,0 +1,49 @@
+include [ "../causal-desk-logic.declare" ]
+
+// Small, isolated graph used to exercise the path predicates independently of
+// the fixed airline model. It contains fan-out, fan-in, a disconnected branch,
+// and a cycle that must terminate safely during reachability checks.
+
+App [
+    modelDocument: Dataset {
+        {
+          "factors": [],
+          "dependencies": [
+            { "from": "root", "to": "left" },
+            { "from": "root", "to": "right" },
+            { "from": "left", "to": "join" },
+            { "from": "right", "to": "join" },
+            { "from": "join", "to": "target" },
+            { "from": "root", "to": "dead" },
+            { "from": "ghost", "to": "target" },
+            { "from": "cycleA", "to": "cycleB" },
+            { "from": "cycleB", "to": "cycleA" }
+          ]
+        }
+        },
+
+    leftPath: boolean = { edgeOnContributionPath(modelDocument.value,
+        "root", "target", "root", "left") },
+    rightPath: boolean = { edgeOnContributionPath(modelDocument.value,
+        "root", "target", "root", "right") },
+    leftJoinPath: boolean = { edgeOnContributionPath(modelDocument.value,
+        "root", "target", "left", "join") },
+    rightJoinPath: boolean = { edgeOnContributionPath(modelDocument.value,
+        "root", "target", "right", "join") },
+    joinTargetPath: boolean = { edgeOnContributionPath(modelDocument.value,
+        "root", "target", "join", "target") },
+    disconnectedPath: boolean = { edgeOnContributionPath(modelDocument.value,
+        "root", "target", "root", "dead") },
+    unreachableSourcePath: boolean = { edgeOnContributionPath(modelDocument.value,
+        "root", "target", "ghost", "target") },
+    nonexistentEdgePath: boolean = { edgeOnContributionPath(modelDocument.value,
+        "root", "target", "root", "join") },
+    fanInFactor: boolean = { factorOnContributionPath(modelDocument.value,
+        "root", "target", "join") },
+    disconnectedFactor: boolean = { factorOnContributionPath(modelDocument.value,
+        "root", "target", "dead") },
+    unreachableRootFactor: boolean = { factorOnContributionPath(modelDocument.value,
+        "cycleA", "target", "cycleA") },
+    cycleReachable: boolean = { reachable(modelDocument.value, "cycleA", "cycleB") },
+    cycleCannotReachTarget: boolean = { reachable(modelDocument.value, "cycleA", "target") }
+    ]

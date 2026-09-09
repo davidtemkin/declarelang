@@ -62,6 +62,36 @@ export default async ({ drive, expect, page }) => {
     "Fuel shock 11.5%");
   await drive.click("app.inspector.detailBody.derivedDetails.contributionBridge.rows.0");
   await expect.attr("app", "selectedContributionFactorId", "jetFuelPrice");
+  for (const [path, expected] of [
+    ["app.graph.stage.cards.7", true],   // jet fuel price
+    ["app.graph.stage.cards.11", true],  // fuel expense
+    ["app.graph.stage.cards.14", true],  // operating expense
+    ["app.graph.stage.cards.15", true],  // operating income
+    ["app.graph.stage.cards.16", true],  // operating margin
+    ["app.graph.stage.cards.5", false],  // average fare
+    ["app.graph.stage.cards.10", false], // revenue branch
+  ]) {
+    await expect.attr(path, "onContributionPath", expected);
+  }
+  await drive.key("Space");
+  await expect.attr("app", "selectedContributionFactorId", "");
+  await expect.attr("app.graph.stage.cards.7", "onContributionPath", false);
+
+  // Average fare reaches the result through both the direct margin edge and
+  // the revenue -> operating income branch. The card state must include both
+  // branches rather than only whichever traversal happens to run first.
+  await drive.click("app.inspector.detailBody.derivedDetails.contributionBridge.rows.1");
+  await expect.attr("app", "selectedContributionFactorId", "averageFareGrowth");
+  for (const [path, expected] of [
+    ["app.graph.stage.cards.5", true],   // average fare growth
+    ["app.graph.stage.cards.10", true],  // revenue
+    ["app.graph.stage.cards.15", true],  // operating income branch
+    ["app.graph.stage.cards.16", true],  // direct target
+    ["app.graph.stage.cards.7", false],  // unrelated root
+    ["app.graph.stage.cards.11", false], // unrelated branch
+  ]) {
+    await expect.attr(path, "onContributionPath", expected);
+  }
   await drive.key("Space");
   await expect.attr("app", "selectedContributionFactorId", "");
 

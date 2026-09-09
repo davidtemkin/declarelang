@@ -285,8 +285,56 @@ script {
         return f?.shown ? f : undefined
     }
 
+    // Reachability is intentionally iterative. The model is a DAG today, but a
+    // malformed or future cyclic document must not make path highlighting recurse
+    // forever. The visited list is checked before expanding each node, so every
+    // adjacency edge is still considered independently.
+    function reachable(value: object, fromId: string, toId: string): boolean {
+        if (fromId == toId) return true
+        const document = asDocument(value)
+        const pending: string[] = [fromId]
+        const visited: string[] = []
+        let index = 0
+        while (index < pending.length) {
+            const current = pending[index]
+            index = index + 1
+            if (current == toId) return true
+            if (visited.some(id => id == current)) continue
+            visited.push(current)
+            for (const edge of document.dependencies) {
+                if (edge.from == current && !visited.some(id => id == edge.to)) {
+                    pending.push(edge.to)
+                }
+            }
+        }
+        return false
+    }
+
+    // An edge is on a contribution path when its source can be reached from the
+    // attributed root and its destination can reach the selected result. This
+    // predicate is evaluated for each edge rather than returning one discovered
+    // path, which preserves fan-out, fan-in, and reconverging branches.
+    function edgeOnContributionPath(value: object, rootId: string, targetId: string,
+        fromId: string, toId: string): boolean {
+        if (rootId == "" || targetId == "") return false
+        if (!asDocument(value).dependencies.some(edge =>
+            edge.from == fromId && edge.to == toId)) return false
+        return reachable(value, rootId, fromId) && reachable(value, toId, targetId)
+    }
+
+    function factorOnContributionPath(value: object, rootId: string, targetId: string,
+        factorId: string): boolean {
+        if (rootId == "" || targetId == "") return false
+        if (!reachable(value, rootId, targetId)) return false
+        if (factorId == rootId || factorId == targetId) return true
+        return asDocument(value).dependencies.some(edge =>
+            edgeOnContributionPath(value, rootId, targetId, edge.from, edge.to)
+            && (edge.from == factorId || edge.to == factorId))
+    }
+
     function drawEdges(d: Draw, width: number, value: object, values: object,
-        comparisonValues: object, selectedId: string): void {
+        comparisonValues: object, selectedId: string,
+        selectedContributionFactorId: string): void {
         const document = asDocument(value)
         for (const edge of document.dependencies) {
             const from = visibleFactor(document, edge.from)
@@ -298,6 +346,8 @@ script {
             const x1 = graphColumnX(to.column, width)
             const y1 = to.rowY + CARD_H / 2
             const bend = Math.max(28, (x1 - x0) * 0.46)
+            const contributionPath = edgeOnContributionPath(document,
+                selectedContributionFactorId, selectedId, edge.from, edge.to)
             const selected = edge.to == selectedId || edge.from == selectedId
             const changed = materiallyDifferent(numberAt(values, edge.from),
                 numberAt(comparisonValues, edge.from))
@@ -307,9 +357,10 @@ script {
             d.beginPath()
             d.moveTo(x0, y0)
             d.bezierCurveTo(x0 + bend, y0, x1 - bend, y1, x1, y1)
-            d.strokeStyle = selected ? "#75D6FF" : changed ? "#D3A650" : "#2B3B43"
-            d.lineWidth = selected || changed ? 2 : 1
-            d.globalAlpha = selected ? 0.92 : changed ? 0.82 : 0.72
+            d.strokeStyle = contributionPath ? "#F2C46D"
+                : selected ? "#75D6FF" : changed ? "#D3A650" : "#2B3B43"
+            d.lineWidth = contributionPath ? 3 : selected || changed ? 2 : 1
+            d.globalAlpha = contributionPath ? 0.98 : selected ? 0.92 : changed ? 0.82 : 0.72
             d.stroke()
             }
         d.globalAlpha = 1

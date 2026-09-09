@@ -41,6 +41,8 @@ class FactorCard extends Control [ width = 174, height = 68, cornerRadius = 12,
     comparisonValue: number = { numberAt(app.model.comparisonValues, factorId) },
     delta: number = { currentValue - comparisonValue },
     changed: boolean = { materiallyDifferent(currentValue, comparisonValue) },
+    onContributionPath: boolean = { factorOnContributionPath(app.modelDocument.value,
+        app.selectedContributionFactorId, app.selectedFactorId, factorId) },
     shownValue: number = { currentValue },
 
     x = { graphColumnX(column, parent.width) },
@@ -48,8 +50,9 @@ class FactorCard extends Control [ width = 174, height = 68, cornerRadius = 12,
     visible = { shown },
     cursor = "pointer",
     fill = { selected ? 0x183C50 : factorKind == "assumption" ? 0x152D3B : 0x202B32 },
-    stroke = { stroke(selected ? 2 : 1,
-        selected ? 0x75D6FF : changed ? 0xB5883B : hot ? 0x557887 : 0x34434B) },
+    stroke = { stroke(selected ? 2 : onContributionPath ? 2 : 1,
+        selected ? 0x75D6FF : onContributionPath ? 0xF2C46D
+            : changed ? 0xB5883B : hot ? 0x557887 : 0x34434B) },
     shadow = { selected ? shadow(0, 8, 24, 0x55000000) : shadow(0, 3, 12, 0x33000000) },
 
     motion: Spring [ attribute = shownValue, to = { currentValue },
@@ -76,7 +79,8 @@ class EdgeField extends View [ pointerEvents = "none",
 
     draw(d: Draw) {
         drawEdges(d, width, app.modelDocument.value, app.model.values,
-            app.model.comparisonValues, app.selectedFactorId)
+            app.model.comparisonValues, app.selectedFactorId,
+            app.selectedContributionFactorId)
         }
     ]
 
