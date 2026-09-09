@@ -8,10 +8,23 @@
 // what lets those land without reshaping the base.
 
 import { Cell, isTracking } from "./reactive.js";
+import { providedRead } from "./attributes.js";
 
 export class Node {
   parent: Node | null = null;
   readonly children: Node[] = [];
+
+  /** The read behind `provided("name")` — a value an ancestor makes available,
+   *  read explicitly here. The compiler rewrites a `provided(…)` call's callee
+   *  to `this.$provided` (like `app` → `this.root`), so `this` is the reading
+   *  node; `providedRead` (attributes.ts) walks the parent chain for the nearest
+   *  ancestor that provides `name`. A second argument is the createContext-style
+   *  default when nothing above provides it; with none, an unprovided read
+   *  throws, naming the value. Lives on Node, not View: a faceless coordinator
+   *  node reads provided values too. */
+  $provided(name: string, ...dflt: unknown[]): unknown {
+    return providedRead(this, name, dflt.length > 0, dflt[0]);
+  }
 
   /** The STRUCTURE cell — lazily created on the first tracked read of this
    *  node's child list (extentOf's contentWidth/contentHeight walk), woken by

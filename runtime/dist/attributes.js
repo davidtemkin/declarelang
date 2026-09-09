@@ -229,6 +229,40 @@ function cellFor(self, name) {
     const cells = (self.$cells ??= Object.create(null));
     return (cells[name] ??= new Cell());
 }
+/** The read behind `provided("name")` — a value made available by an ancestor,
+ *  read explicitly by a descendant. This is `followRead` with the declaring-
+ *  identity gate REMOVED: where a `prevailing` follow required the slot to be
+ *  the SAME declared attribute on a shared base (so only View's fixed style
+ *  quartet could cascade), a provided value is resolved by NAME — the nearest
+ *  ancestor whose class declares an attribute `name` (an instance-declared
+ *  provision like `App [ accent: Color = #E05252 ]`, or a widened set such as
+ *  `App [ fontFamily = "Roboto" ]`) provides it, and its effective value
+ *  (instance override, else the declaration default) is returned. Ruled
+ *  2026-09-08: any named ancestor slot is reachable by a descendant that names
+ *  it — no encapsulation boundary, the read is the visible, deliberate one.
+ *
+ *  The walk starts at the PARENT (a reader never resolves against its own slot
+ *  — that is what makes `Text`'s `fontSize = provided("fontSize", …)` default
+ *  terminate instead of reading itself). Every consulted declaring level is a
+ *  tracked read, so a provision changing — or the tree restructuring — re-roots
+ *  exactly the readers below. `hasDefault` supplies the createContext-style
+ *  terminal (`provided("fontSize", 15)`): when nothing above provides the name,
+ *  a defaulted read returns the default and a bare (required) read throws,
+ *  naming the missing value. */
+export function providedRead(self, name, hasDefault, dflt) {
+    for (let p = self.parent; typeof p === "object" && p !== null; p = p.parent) {
+        const pc = p;
+        const pd = tableFor(DEFAULTS, p.constructor);
+        if (pd === null || !(name in pd))
+            continue;
+        if (isTracking())
+            cellFor(pc, name).track();
+        return (pc.$attrs ?? pd)[name];
+    }
+    if (hasDefault)
+        return dflt;
+    throw new DeclareError(`provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`);
+}
 /** The one write path (public setters and setBound both land here):
  *  equality-gate, store, push the slot's Surface call, wake dependents. */
 function write(self, name, v) {

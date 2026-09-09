@@ -653,6 +653,11 @@ function emitClass(
     // built-in App/stage surface.
     lines.push(`  root: ${rootType};`);
     lines.push(`  readonly children: View[];`);   // on the ROOT (Node) — every node has children
+    // The provided-value read (language §9). `provided("name"[, default])`
+    // compiles to `this.$provided(…)`; it returns `any` — a non-local read the
+    // checker provably can't type — so static typing comes from binding it into
+    // a typed slot (`t: Theme = provided("theme", …)`), never from the call.
+    lines.push(`  $provided(name: string, dflt?: any): any;`);
   }
   // One optional handler member per event this schema DECLARES. Emitting them
   // is what makes a user's handler an OVERRIDE: writing `onPointerUp(e: string)`

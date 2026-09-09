@@ -52,6 +52,27 @@ export interface AttrSpec<S, V> {
 export declare function defineAttributes<S extends object>(ctor: abstract new () => S, specs: {
     [K in keyof S & string]?: AttrSpec<S, S[K]>;
 }): void;
+/** The read behind `provided("name")` — a value made available by an ancestor,
+ *  read explicitly by a descendant. This is `followRead` with the declaring-
+ *  identity gate REMOVED: where a `prevailing` follow required the slot to be
+ *  the SAME declared attribute on a shared base (so only View's fixed style
+ *  quartet could cascade), a provided value is resolved by NAME — the nearest
+ *  ancestor whose class declares an attribute `name` (an instance-declared
+ *  provision like `App [ accent: Color = #E05252 ]`, or a widened set such as
+ *  `App [ fontFamily = "Roboto" ]`) provides it, and its effective value
+ *  (instance override, else the declaration default) is returned. Ruled
+ *  2026-09-08: any named ancestor slot is reachable by a descendant that names
+ *  it — no encapsulation boundary, the read is the visible, deliberate one.
+ *
+ *  The walk starts at the PARENT (a reader never resolves against its own slot
+ *  — that is what makes `Text`'s `fontSize = provided("fontSize", …)` default
+ *  terminate instead of reading itself). Every consulted declaring level is a
+ *  tracked read, so a provision changing — or the tree restructuring — re-roots
+ *  exactly the readers below. `hasDefault` supplies the createContext-style
+ *  terminal (`provided("fontSize", 15)`): when nothing above provides the name,
+ *  a defaulted read returns the default and a bare (required) read throws,
+ *  naming the missing value. */
+export declare function providedRead(self: object, name: string, hasDefault: boolean, dflt: unknown): unknown;
 /** A runtime-side write: a constraint's apply, auto-size, a load result.
  *  Same store/push/wake as the setter, but it neither marks the slot as
  *  author-set nor consults ownership (the caller *is* the owner). */

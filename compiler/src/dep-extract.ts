@@ -586,6 +586,18 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
               : a0 && ts.isStringLiteral(a0) ? splitPath(a0.text).join(".") : null;
             if (text !== null) reads.add(":" + text);
             else errors.push(new DepError(`dynamic datapath — $data(<expr>) resolves the region at runtime; use a literal path`, s.getStart()));
+          } else if (m === "$provided" && recv.kind === ts.SyntaxKind.ThisKeyword) {
+            // `provided("name")` compiled (compile.ts) to `this.$provided("name")`:
+            // a read that resolves the nearest PROVIDING ANCESTOR at runtime.
+            // Which ancestor provides depends on the tree, so the edge is dynamic
+            // exactly like a prevailing follow — wired by re-executing the call
+            // under tracking. Record the call itself as the read-path; the probe
+            // (bind.ts) then tracks whatever ancestor currently provides and
+            // re-probes on structural change. The default argument, if any, was
+            // already walked for its own reads during the chain descent above.
+            const a0 = s.arguments[0];
+            if (a0 !== undefined && ts.isStringLiteral(a0)) reads.add(`this.$provided(${JSON.stringify(a0.text)})`);
+            else errors.push(new DepError(`provided(<expr>) — the provided value's name must be a literal string so its dependency can be wired; write provided("name")`, s.getStart()));
           } else if (ITER.has(m)) {
             if (recvName && NODE_COLLECTIONS.has(recvName)) errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
           } else if (PURE_METHODS.has(m)) { /* pure projection */ }

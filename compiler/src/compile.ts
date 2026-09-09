@@ -1350,6 +1350,22 @@ class Resolver {
         });
         continue;
       }
+      if (id.name === "provided" && id.callee) {
+        // `provided("name"[, default])` (language §9, provided values) — read a
+        // value the nearest providing ancestor makes available. A body-scope
+        // operator, not a member: rewritten to the base-node method so `this` is
+        // the reading node, exactly as `app` becomes `this.root`. The runtime
+        // `Node.$provided` walks the parent chain (attributes.ts providedRead).
+        // Intercepted before the surface search so a same-named slot cannot
+        // shadow it, and left as a plain call so the argument (a string, or a
+        // `{ }`-computed name) resolves normally.
+        this.edits.push({
+          start: bodyStart + id.start,
+          end: bodyStart + id.end,
+          text: "this.$provided",
+        });
+        continue;
+      }
       if (id.name === "classroot") {
         // `classroot` reaches the root of the component (class) the code is
         // written in — meaningful ONLY inside a class body, where it passes
