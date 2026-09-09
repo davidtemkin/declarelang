@@ -439,7 +439,7 @@ test("a written-to defaulted slot keeps its CELL edge alongside the inline (issu
     retagFilenames: array = { [] },
     retagTag: string = "",
     retagRequest: DataSource [ method = "POST", url = "./x.json",
-        body = { ({ filenames: app.retagFilenames, tag: app.retagTag }) } ] ]`);
+        body = { { filenames: app.retagFilenames, tag: app.retagTag } } ] ]`);
   const reads = readsOf(r, "body");
   assert.ok(reads.includes("this.root.retagFilenames"),
     "the defaulted slot's cell is a dep — a handler write must wake the body: " + JSON.stringify(reads));
@@ -505,13 +505,13 @@ async function compileRefuses(src, re) {
 
 test("self-dep — bare spread of own slot is refused at compile (the `...theme` trap)", async () => {
   await compileRefuses(`App [ width = 100, height = 100,
-      theme = { ({ a: 1 }) },
-      p: View [ theme = { ({ ...theme, b: 2 }) } ] ]`, /reads itself/);
+      theme = { { a: 1 } },
+      p: View [ theme = { { ...theme, b: 2 } } ] ]`, /reads itself/);
 });
 
 test("self-dep — App-root `app.` spelling of own slot is refused at compile", async () => {
   await compileRefuses(`App [ width = 100, height = 100,
-      theme = { ({ ...app.theme, a: 1 }) } ]`, /reads itself/);
+      theme = { { ...app.theme, a: 1 } } ]`, /reads itself/);
 });
 
 test("self-dep — a set-attribute reading its own slot is refused", async () => {
@@ -523,8 +523,8 @@ test("self-dep — a set-attribute reading its own slot is refused", async () =>
 
 test("self-dep — a sibling/ancestor base is NOT self (the blessed spread)", async () => {
   const r = await extract(`App [ width = 100, height = 100,
-      theme = { ({ a: 1 }) },
-      p: View [ theme = { ({ ...app.theme, b: 2 }) } ] ]`);
+      theme = { { a: 1 } },
+      p: View [ theme = { { ...app.theme, b: 2 } } ] ]`);
   assert.equal(errsOf(r, "theme", "p").length, 0);
 });
 

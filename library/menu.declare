@@ -383,7 +383,7 @@ class Menu extends View [ visible = { shown }, width = 220,
     // items → rows through an INTERNAL derived dataset (the author passes a
     // plain array — the no-dataset-requirement ruling; the wrap is ours)
 
-    data: Dataset [ contents = { ({ rows: classroot.items || [] }) } ],
+    data: Dataset [ contents = { { rows: classroot.items || [] } } ],
 
     // the backdrop: the light-dismiss stratum in embryonic form — a full-app
     // press-catcher UNDER the panel; outside presses close and are SWALLOWED

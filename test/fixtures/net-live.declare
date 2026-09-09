@@ -7,7 +7,7 @@
 
 App [ width = 340, height = 160, fill = white, textColor = black,
     got: DataSource [ url = "net-live.json", auto = true ],
-    sent: DataSource [ url = "/__echo", method = "POST", body = { ({ q: "ping" }) } ],
+    sent: DataSource [ url = "/__echo", method = "POST", body = { { q: "ping" } } ],
     pic: Image [ x = 10, y = 100, width = 24, height = 24, source = "dot.png" ],
 
     // a 200 that is not an image: decode fails, `failed` derives the fallback

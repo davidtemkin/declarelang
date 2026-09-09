@@ -216,7 +216,7 @@ App [ fill = { app.theme.bg },
     // A reader's page is a SHEET, so it paints `surface` — the token the
     // desktop's window paints — and the chrome around it recedes to `bg`.
 
-    theme = { ({ ...Themes.sanFrancisco(app.isDark), ...app.domainTheme() }) },
+    theme = { { ...Themes.sanFrancisco(app.isDark), ...app.domainTheme() } },
 
     // The highlight() segments, seeded by the server as a JSON string on the
     // host→app channel; parse + normalise so every record has kind/md/html.

@@ -240,9 +240,9 @@ class Dialog extends View [ visible = { shown },
     arrangement: string = { typeof theme.dialogButtons == "string" ? theme.dialogButtons : "end" },
     centered: boolean = { theme.dialogAlign == "center" },
 
-    data: Dataset [ contents = { ({ b: classroot.arrangement == "stack"
+    data: Dataset [ contents = { { b: classroot.arrangement == "stack"
         ? [...(classroot.buttons || [])].sort((p, q) => (q.default ? 1 : q.cancel ? -1 : 0) - (p.default ? 1 : p.cancel ? -1 : 0))
-        : classroot.buttons || [] }) } ],
+        : classroot.buttons || [] } } ],
 
     // the scrim: MODAL input blocking — every press lands here and stops
 

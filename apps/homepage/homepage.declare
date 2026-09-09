@@ -490,7 +490,7 @@ class Footer extends View [ width = { parent.width },
         // inline), so it keeps a word space, not a gap
 
         built: HTMLText [ width = 108, fontSize = 13, fontWeight = semibold, bodyColor = { theme.muted },
-            textStyles = { ({ g: { textFill: theme.brand } }) },
+            textStyles = { { g: { textFill: theme.brand } } },
             html = "Built in <span class='g'>Declare</span>" ],
         FootSep [ ],
         FootLink [ to = "apps/homepage/homepage.declare?viewer", text = "View Source" ],
@@ -766,7 +766,7 @@ App [ tagline: string = "a UI language for you and your AI",
         ({ label: "GitHub",   link: "https://github.com/davidtemkin/declarelang", children: [] }),
         ] },
 
-    navSource: Dataset [ contents = { ({ items: app.navItems }) } ],
+    navSource: Dataset [ contents = { { items: app.navItems } } ],
     menuOpen: boolean = false,
 
     // the Apps dropdown (wide rendition): open state + the gesture-time anchor,
@@ -775,7 +775,7 @@ App [ tagline: string = "a UI language for you and your AI",
     appsOpen: boolean = false,
     appsX: number = 0,
     appsY: number = 0,
-    appsSource: Dataset [ contents = { ({ items: (app.navItems.find((i) => i.label == "Apps") || ({ children: [] })).children }) } ],
+    appsSource: Dataset [ contents = { { items: (app.navItems.find((i) => i.label == "Apps") || ({ children: [] })).children } } ],
 
     // the content measure and the centering gutter — the one geometry every
     // aligned edge on the page (column, wordmark, nav) derives from

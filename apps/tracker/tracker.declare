@@ -716,7 +716,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         return c
         },
 
-    shownTotal: number = { (app.shown.value.total ?? 0) },
+    shownTotal: number = { app.shown.value.total ?? 0 },
 
     workload: Dataset [ contents = { app.workloadOf() } ],
     workloadOf() -> object {

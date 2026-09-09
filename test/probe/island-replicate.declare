@@ -4,7 +4,7 @@
 // grow and shrink it at runtime and watch islands come and go.
 
 App [ width = 900, height = 500, fill = #101820,
-    model: object = { ({ rows: [({ id: "a", vol: 0.1 }), ({ id: "b", vol: 0.2 }), ({ id: "c", vol: 0.3 })] }) },
+    model: object = { { rows: [({ id: "a", vol: 0.1 }), ({ id: "b", vol: 0.2 }), ({ id: "c", vol: 0.3 })] } },
     src: Dataset [ contents = { app.model } ],
     log: string = "",
 

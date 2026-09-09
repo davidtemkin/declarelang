@@ -103,7 +103,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320,
     // each a function of the one resolved mode fact. An accent pick re-derives
     // the active tint (Themes.tint) so nothing keeps a stale tone.
 
-    theme = { ({
+    theme = { {
         ...(style == "mountainView" ? Themes.mountainView(darkUI) : style == "cupertino" ? Themes.cupertino(darkUI) : style == "redmond" ? Themes.redmond(darkUI) : Themes.sanFrancisco(darkUI)),
         focusAnimate: animateFocus,
         // The rig's choice, as data: authentic Windows focus RESTS (the record
@@ -112,7 +112,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320,
         // faithful; the demo overrides one token.
         ...(style == "redmond" && animateFocus ? ({ focusRing: "both" }) : ({})),
         ...(accentPick != 0 ? ({ accent: accentPick, controlSelected: Themes.tint(accentPick, darkUI) }) : ({})),
-    }) },
+    } },
 
     // the type stack is part of the styling: Roboto for Mountain View, the system face for Cupertino
 

@@ -257,7 +257,7 @@ class Segmented extends View [
     // The index rides IN the data — replication has no ordinal of its own, and
     // the pill needs one to place each segment.
 
-    items: Dataset [ contents = { ({ rows: ((classroot.choices ?? []) as any).map((c, i) => ({ ...c, i: i })) }) } ],
+    items: Dataset [ contents = { { rows: ((classroot.choices ?? []) as any).map((c, i) => ({ ...c, i: i })) } } ],
 
     // Replicated as DIRECT children, so a segment's `parent` is the control
     // itself — the pill and the segments are siblings over one cursor.

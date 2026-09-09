@@ -175,6 +175,13 @@ export const Diag = {
   // 1xxx syntax — the parser throws one at a time; a single family code, the
   // grammar message carrying the specifics.
   syntax: (message: string, pos?: Pos): DeclareError => err(code4(1001), message, pos),
+  // A value body wrapped ENTIRELY in parentheses — the constraint's own { }
+  // already delimits the expression, so `{ (expr) }` and `{ ({ … }) }` add a
+  // layer that does nothing. Rejected so the one paren-free form (`{ expr }`,
+  // `{ { … } }`) is the only form — the paren idiom the object-literal
+  // diagnostic once taught is retired (DT ruling, 2026-09-08).
+  redundantParens: (inner: string, pos: Pos): DeclareError =>
+    err(code4(1002), `redundant parentheses — the { } already delimits the expression, so the outer ( ) do nothing here; write { ${inner} }`, pos),
 
   // 2xxx structure. `unknownComponent` takes the known-component names and
   // appends a calibrated near-miss ("did you mean 'Text'?") — the fix, named

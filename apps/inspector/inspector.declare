@@ -252,7 +252,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
     // ── the tree ─────────────────────────────────────────────────────────────
 
     treeRows(t: number, s: number) -> array { return Inspect.ready() ? Inspect.rows(app.open || ({ })) : [] },
-    tree: Dataset [ contents = { ({ rows: app.treeRows(app.tick, app.openSeq) }) } ],
+    tree: Dataset [ contents = { { rows: app.treeRows(app.tick, app.openSeq) } } ],
 
     // ── slots of the selected object ─────────────────────────────────────────
     // Each slot may open into a value tree (records, arrays, a Dataset's value);
@@ -315,7 +315,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         app.lastSlotRows = rows
         return rows
         },
-    slots: Dataset [ contents = { ({ rows: app.slotRowsMemo(app.tick, app.sel, app.vseq) }) } ],
+    slots: Dataset [ contents = { { rows: app.slotRowsMemo(app.tick, app.sel, app.vseq) } } ],
 
     // ── the why pane ─────────────────────────────────────────────────────────
 
@@ -335,7 +335,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         app.lastDepRows = rows
         return rows
         },
-    deps: Dataset [ contents = { ({ rows: app.depRowsMemo(app.tick, app.sel, app.selAttr) }) } ],
+    deps: Dataset [ contents = { { rows: app.depRowsMemo(app.tick, app.sel, app.selAttr) } } ],
     depCount: number = { (app.whyDeps(app.tick, app.sel, app.selAttr) || []).length },
 
     whyValue: string = { app.why != null ? "" + app.why.value : "" },
@@ -383,7 +383,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         this.win.console.scroll.list.end.scrollIntoView()
         },
 
-    log: Dataset [ contents = { ({ rows: (app.lineSeq >= 0 ? (app.lines || []) : []) }) } ],
+    log: Dataset [ contents = { { rows: (app.lineSeq >= 0 ? (app.lines || []) : []) } } ],
 
     // ── the pick overlay ─────────────────────────────────────────────────────
 

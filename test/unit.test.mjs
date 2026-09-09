@@ -764,8 +764,8 @@ await test("precision: a write re-evaluates only what actually read it", () => {
   globalThis.__rw = 0;
   globalThis.__rh = 0;
   const app = build(`App [ width=100, height=60,
-    View [ width={ (globalThis.__rw++, parent.width - 10) } ],
-    View [ height={ (globalThis.__rh++, parent.height - 10) } ] ]`);
+    View [ width={ globalThis.__rw++, parent.width - 10 } ],
+    View [ height={ globalThis.__rh++, parent.height - 10 } ] ]`);
   settle();
   assert.deepEqual([globalThis.__rw, globalThis.__rh], [1, 1], "one initial evaluation each");
   app.width = 200;
@@ -776,7 +776,7 @@ await test("precision: a write re-evaluates only what actually read it", () => {
 
 await test("batching: a burst of writes settles into one re-evaluation", () => {
   globalThis.__rb = 0;
-  const app = build("App [ width=100, height=60, View [ width={ (globalThis.__rb++, parent.width - 10) } ] ]");
+  const app = build("App [ width=100, height=60, View [ width={ globalThis.__rb++, parent.width - 10 } ] ]");
   settle();
   app.width = 120;
   app.width = 140;
@@ -794,7 +794,7 @@ await test("a diamond evaluates its join once per settle", () => {
   const app = build(`App [ width=100, height=60,
     View [ width={ parent.width - 10 } ],
     View [ width={ parent.width - 20 } ],
-    View [ x={ (globalThis.__rj++, parent.children[0].width + parent.children[1].width) } ] ]`);
+    View [ x={ globalThis.__rj++, parent.children[0].width + parent.children[1].width } ] ]`);
   settle();
   assert.equal(globalThis.__rj, 1);
   app.width = 200;
@@ -806,7 +806,7 @@ await test("a diamond evaluates its join once per settle", () => {
 await test("writes are equality-gated: re-producing a value stops the cascade", () => {
   globalThis.__re = 0;
   const app = build(`App [ width=100, height=60,
-    View [ height=40, width={ (globalThis.__re++, this.height * 2) } ] ]`);
+    View [ height=40, width={ globalThis.__re++, this.height * 2 } ] ]`);
   const log = [];
   app.attach(mockBackend(log), null);
   settle();
@@ -1586,7 +1586,7 @@ await test("draw(d) { … } — the language surface — rides the recorded-draw
 await test("a { } reading db.value.issues wakes on region writes; null guards keep their meaning; handlers get the raw tree", async () => {
   const r = await compile(`App [ width = 200, height = 80,
     db: Dataset { { "issues": [] } },
-    shown: Dataset [ contents = { ({ total: ((app.db.value.issues ?? []).length) }) } ],
+    shown: Dataset [ contents = { { total: ((app.db.value.issues ?? []).length) } } ],
     src: DataSource [ url = "never.json" ],
     guard: View [ width = { app.src.value != null ? 50 : 7 }, height = 5 ],
     derived: View [ width = { (app.shown.value.total ?? 0) + 1 }, height = 5 ],
@@ -2943,8 +2943,8 @@ await test("datapath = :rel.path extends the INHERITED cursor", () => {
 await test("wake precision: a one-field set wakes exactly that region's readers", () => {
   globalThis.__wx = 0; globalThis.__wy = 0; globalThis.__wa = 0;
   const app = dataApp(`,
-      wx: View [ width = { (globalThis.__wx++, :a.x) } ],
-      wy: View [ width = { (globalThis.__wy++, :a.y) } ],
+      wx: View [ width = { globalThis.__wx++, :a.x } ],
+      wy: View [ width = { globalThis.__wy++, :a.y } ],
       wa: View [ opacity = { globalThis.__wa++, (:a ? 1 : 1) } ]`);
   settle();
   const [x0, y0, a0] = [globalThis.__wx, globalThis.__wy, globalThis.__wa];
@@ -2966,7 +2966,7 @@ await test("wake precision: a one-field set wakes exactly that region's readers"
 await test("replacing a container wakes the readers inside the old region", () => {
   globalThis.__wx = 0;
   const app = dataApp(`,
-      wx: View [ width = { (globalThis.__wx++, :a.x) } ]`);
+      wx: View [ width = { globalThis.__wx++, :a.x } ]`);
   const before = globalThis.__wx;
   app.d.set(["a"], { x: 9, y: 9 });
   settle();
@@ -3279,7 +3279,7 @@ await test("Image.loaded/.failed are readable surface, and read-only (ruled 2026
 
 await test("DataSource A9: the compiler accepts method/body attributes", async () => {
   assert.deepEqual(
-    (await compile(`App [ s: DataSource [ url = "/x", method = "POST", body = { ({ a: 1 }) } ] ]`, {})).errors,
+    (await compile(`App [ s: DataSource [ url = "/x", method = "POST", body = { { a: 1 } } ] ]`, {})).errors,
     [],
     "method and body are schema'd attributes");
 });
@@ -3358,7 +3358,7 @@ await test("DataSource onLoad fires after value+status settle (the declared hand
 const listApp = () => build(`App [ width=100, height=100,
   d: Dataset { {"rows": [ {"n": "a", "w": 10}, {"n": "b", "w": 20}, {"n": "c", "w": 30} ]} },
   list: View [ width = 100, height = 90, datapath = { classroot.d.value },
-    View [ datapath = :rows[], height = 5, width = { (globalThis.__runs++, :w) },
+    View [ datapath = :rows[], height = 5, width = { globalThis.__runs++, :w },
       onInit() { globalThis.__inits++; globalThis.__names.push("" + :n) },
     ],
     foot: View [ width = 1, height = 1 ],
@@ -3860,7 +3860,7 @@ await test("prevailing: a mid-tree provide re-roots followers in one settle (tra
   globalThis.__evals = 0;
   const counted = build(`App [ fontSize = 9,
     mid: View [
-      leaf: View [ width = { (globalThis.__evals++, this.fontSize * 2) } ] ] ]`);
+      leaf: View [ width = { globalThis.__evals++, this.fontSize * 2 } ] ] ]`);
   assert.equal(counted.mid.leaf.width, 18, "the constraint read the followed value");
   const evalsAfterBuild = globalThis.__evals;
   // A mid-tree provision wakes exactly the reads below it.
@@ -3920,7 +3920,7 @@ await test("prevailing: same-named attributes on unrelated classes do NOT unify 
 });
 
 await test("prevailing: theme is a token record — wholesale-swapped, followed like any slot", () => {
-  const app = build(`App [ theme = { ({ accent: 0xFF3B30, radius: 6 }) },
+  const app = build(`App [ theme = { { accent: 0xFF3B30, radius: 6 } },
     panel: View [
       chip: View [ width = { this.theme.radius * 2 } ] ] ]`);
   assert.equal(app.panel.chip.width, 12, "tokens read through the prevailing chain");
@@ -4006,7 +4006,7 @@ await test("decoration values gate on structural equality (a re-produced equal r
   globalThis.__evals = 0;
   const counted = build(`App [ width = 100,
     box: View [ shadow = { shadow(0, 1, 2, 0x222222 + (parent.width - parent.width)) },
-      dep: View [ height = { (globalThis.__evals++, parent.shadow ? parent.shadow.blur : 0) } ] ] ]`);
+      dep: View [ height = { globalThis.__evals++, parent.shadow ? parent.shadow.blur : 0 } ] ] ]`);
   assert.equal(counted.box.dep.height, 2);
   const base = globalThis.__evals;
   counted.width = 200; // re-runs the shadow binding → a FRESH but equal record
@@ -4298,9 +4298,9 @@ App [ v: View [ styles = [card, danger] ] ]`));
 
 await test("bundles: a { } field evaluates with `this` = the styled view (theme-aware)", async () => {
   const app = build(await resolved(`style card [ cornerRadius = { theme.radius } ]
-App [ theme = { ({ radius: 4 }) },
+App [ theme = { { radius: 4 } },
     a: View [ styles = [card] ],
-    b: View [ theme = { ({ radius: 9 }) }, styles = [card] ] ]`));
+    b: View [ theme = { { radius: 9 } }, styles = [card] ] ]`));
   settle(); // b's theme binding installs after its bundle field first read it
   assert.equal(app.a.cornerRadius, 4, "resolved through a's prevailing chain");
   assert.equal(app.b.cornerRadius, 9, "resolved through b's own provision");
@@ -6148,7 +6148,7 @@ await test("contentHeight over a replication-populated container re-derives on A
   // driven by a real reactive input (app.n), per the write-displaces rule.
   const r = await compile(`App [ width = 200, height = 300,
     n: number = 1,
-    d: Dataset [ contents = { ({ rows: Array.from({ length: app.n }, (_, i) => ({ h: 20 + i * 30 })) }) } ],
+    d: Dataset [ contents = { { rows: Array.from({ length: app.n }, (_, i) => ({ h: 20 + i * 30 })) } } ],
     panel: View [ width = 100, height = { this.body.contentHeight + 10 },
       body: View [ width = 100, datapath = { app.d.value },
         View [ datapath = :rows[], width = 10, height = { 0 + :h } ],
@@ -7074,7 +7074,7 @@ await test("typed bodies: TS-only forms that CANNOT run are rejected at check wi
       /annotates a binding \('k'\)/],
     [`App [ width=1, height=1, n: number = 0, onClick() { type K = number; n = 2 } ]`,
       /declares a type — type declarations don't live in a \{ \} body/],
-    [`App [ width=1, height=1, t: Text [ text = { ((<T>(x: T) => x)("hi")) } ] ]`,
+    [`App [ width=1, height=1, t: Text [ text = { (<T>(x: T) => x)("hi") } ] ]`,
       /type parameter|annotates a binding/],
     [`App [ width=1, height=1, t: Text [ text = { ((x?) => "" + x)(1) } ] ]`,
       /annotates a binding \('x'\)/],

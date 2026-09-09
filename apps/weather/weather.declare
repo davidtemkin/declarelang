@@ -879,13 +879,13 @@ App [ textColor = whitesmoke, appName = "Weather",
     // `shown` is the search-filtered list; `pageset` is the pager's roster,
     // which search must never narrow.
 
-    shown: Dataset [ contents = { ({ rows: app.cities.filter((c) =>
+    shown: Dataset [ contents = { { rows: app.cities.filter((c) =>
         app.query.trim() == "" ||
         ("" + c.name).toLowerCase().includes(app.query.trim().toLowerCase()))
         .map((c) => ({ id: c.id, name: c.name, temp: c.temp, cond: c.cond,
-            condName: c.condName, hi: c.hi, lo: c.lo, tz: c.tz })) }) } ],
+            condName: c.condName, hi: c.hi, lo: c.lo, tz: c.tz })) } } ],
 
-    pageset: Dataset [ contents = { ({ cities: app.cities.map((c) => ({ id: c.id })) }) } ],
+    pageset: Dataset [ contents = { { cities: app.cities.map((c) => ({ id: c.id })) } } ],
 
     /*
     ## Only the dialect in use is BUILT
@@ -904,7 +904,7 @@ App [ textColor = whitesmoke, appName = "Weather",
 
     listRows: object = { app.phone ? app.shown.value : null },
     sideRows: object = { app.phone ? null : app.shown.value },
-    deskSet: Dataset [ contents = { ({ on: app.phone ? [] : [{ id: "desk" }] }) } ],
+    deskSet: Dataset [ contents = { { on: app.phone ? [] : [{ id: "desk" }] } } ],
 
     // a searched-for city that isn't there is a fact both dialects show
 

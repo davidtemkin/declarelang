@@ -213,7 +213,7 @@ function refineBodyError(src: string, raw: string, expression: boolean): string 
 })`;
     const clean = syntaxValidator !== null ? syntaxValidator(wrapped, true) === null : !("error" in compileExpr(wrapped));
     if (clean) {
-      return `${head} — this reads as an object literal, and the outer { } is the constraint's own delimiter; give the object its own parentheses: { ({ a: 1, b: 2 }) }`;
+      return `${head} — this reads as an object literal, and the outer { } is the constraint's own delimiter; give the object its own braces: { { a: 1, b: 2 } }`;
     }
   }
   if (expression && looksLikeStatements(src, raw)) {

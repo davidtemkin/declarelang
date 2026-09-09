@@ -707,7 +707,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     searchIdx: DataSource [ auto = true,
         url = { app.searchQ != "" || this.loaded ? "search-index.json" : "" } ],
     searchHits: array = { app.findDocs(app.searchQ, app.searchIdx.value) },
-    hits: Dataset [ contents = { ({ items: app.searchHits }) } ],   // the same list as DECLARED DATA — the results page's cursor root (the navSource idiom)
+    hits: Dataset [ contents = { { items: app.searchHits } } ],   // the same list as DECLARED DATA — the results page's cursor root (the navSource idiom)
 
     // Match + rank + snippet, in one pass per query. Terms AND — every term
     // must appear in title or text. Rank: title prefix > title > body count.
@@ -812,7 +812,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     // modeOn, errBar …) alongside. A standard control dropped in here finds every
     // token it consults; the docs palette is untouched.
 
-    theme = { ({ ...Themes.sanFrancisco(darkUI), ...app.docsTokens(darkUI) }) },
+    theme = { { ...Themes.sanFrancisco(darkUI), ...app.docsTokens(darkUI) } },
 
     docsTokens(dark: boolean) -> object { return dark
         ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, control: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, modeOn: 0x1F3B54, chipHov: 0x1C3243, mchipHov: 0x213649, echipHov: 0x332B18, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accentSecondary: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, textMuted: 0x8A9BA6, modeOff: 0x7C93A2, sigDim: 0x6E8494, eyebrow: 0x55707F, tag: 0x4F6472, errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6 })

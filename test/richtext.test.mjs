@@ -189,7 +189,7 @@ Body with \`inline code\` here.
   const varDoc = `App [ width = 520, selectable = true,
     box: View [ x = 0, y = 0, width = 520, height = 160,
       HTMLText [ x = 20, y = 20, width = 480,
-        textStyles = { ({ lead: { fontSize: 40, textColor: 0x0000FF } }) },
+        textStyles = { { lead: { fontSize: 40, textColor: 0x0000FF } } },
         html = "Base <span class='lead'>HEADLINE</span> tail" ],
       ], ]`;
   const vb = await (async () => {

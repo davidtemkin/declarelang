@@ -1008,7 +1008,7 @@ class FilesWindow extends Window [
         }
         return cols
         },
-    cols: Dataset [ contents = { ({ list: classroot.columnData(classroot.selPath, app.docsModel.value, classroot.rootPath) }) } ],
+    cols: Dataset [ contents = { { list: classroot.columnData(classroot.selPath, app.docsModel.value, classroot.rootPath) } } ],
 
     // open a leaf — every leaf is a document. An authored file (`path`) opens its
     // source; a hydrated page (`doc`, assembled by the model) opens whole. Same
@@ -2023,7 +2023,7 @@ class WinManager extends Node [
     // the parked records as DECLARED DATA for the dock's tile replication,
     // stamped with their band index (which is also each window's dockSlot)
 
-    miniData: Dataset [ contents = { ({ minis: app.wm.minis().map((r, i) => ({ ...(r as object), ix: i })) }) } ],
+    miniData: Dataset [ contents = { { minis: app.wm.minis().map((r, i) => ({ ...(r as object), ix: i })) } } ],
 
     appOf(w: Window?) -> DesktopApp { return w != null && w.forApp != null ? w.forApp : app.launcher.files },
 
@@ -2284,7 +2284,7 @@ class Launcher extends Node [
     // can see but not name (`a.running`, through the map) put this constraint
     // on the runtime-tracking path, where every one of them wakes it.
 
-    data: Dataset [ contents = { ({ apps: classroot.roster.map((a, i) => ({ id: a.id, ix: i, running: a.running })) }) } ],
+    data: Dataset [ contents = { { apps: classroot.roster.map((a, i) => ({ id: a.id, ix: i, running: a.running })) } } ],
 
     // THE LAUNCH GATE, once for every application. A first open (not running,
     // not launching) is a launch: the dock icon bounces and the window

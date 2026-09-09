@@ -214,6 +214,24 @@ import { Diag, toDiagnostic, renderReport, type Diagnostic, type DiagPhase } fro
  *  like the constructors — bare `colorWithAlpha` is still a member name. */
 const CALLEE_GLOBALS = new Set([...CONSTRUCTOR_NAMES, "colorWithAlpha"]);
 
+/** A value body wrapped ENTIRELY in one pair of parentheses — `(expr)`, and the
+ *  once-idiomatic `({ … })` object form. The runtime wraps every expression body
+ *  in `return (…)` already (expr.ts), so the author's outer parens are always
+ *  redundant. Returns the inner expression's text and offset within `src` when
+ *  the whole body is exactly one ParenthesizedExpression, else null — so a
+ *  partial paren (`(a + b) * c`, an arrow `(a) => a`) is left alone. Runs on the
+ *  datapath-neutralized text so an island body still parses. */
+function wholeBodyParen(src: string): { inner: string; start: number } | null {
+  const text = fillDatapaths(src);
+  const sf = ts.createSourceFile("paren.ts", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  if (sf.statements.length !== 1) return null;
+  const st = sf.statements[0];
+  if (!ts.isExpressionStatement(st) || !ts.isParenthesizedExpression(st.expression)) return null;
+  const inner = st.expression.expression;
+  const start = inner.getStart(sf);
+  return { inner: src.slice(start, inner.getEnd()).trim(), start };
+}
+
 /** A compile result. `source` is the resolved program (null when there are
  *  errors); `deps` is the extracted `{ }`-constraint dependency list (walk-order
  *  read-paths, docs/system-design/constraints.md §5), present exactly when `source` is — so
@@ -1311,6 +1329,13 @@ class Resolver {
     slot?: string
   ): void {
     const bodyStart = brace.offset + 1; // the body begins just after `{`
+    // Redundant whole-body parentheses (`{ (expr) }`, `{ ({ … }) }`) — the { }
+    // already delimits the expression, so the outer ( ) do nothing. Rejected on
+    // value bodies (the paren idiom lived there); statement bodies are left be.
+    if (expression) {
+      const rp = wholeBodyParen(src);
+      if (rp !== null) this.errors.push(Diag.redundantParens(rp.inner, this.posAt(bodyStart + rp.start)));
+    }
     // Datapath islands (R8) resolve HERE, at compile time (data-paths.md §5's
     // emitted plans): each island becomes its explicit runtime form over
     // pre-parsed segments — `:location.city` → `this.$data(["location","city"])`

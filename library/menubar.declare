@@ -152,7 +152,7 @@ class MenuBar extends View [ height = 25,
         picked(id: string) { classroot.picked(id) }
         ],
 
-    data: Dataset [ contents = { ({ m: classroot.menus || [] }) } ],
+    data: Dataset [ contents = { { m: classroot.menus || [] } } ],
 
     row: View [ height = { parent.height },
         layout: SimpleLayout [ axis = x, spacing = 2 ],
