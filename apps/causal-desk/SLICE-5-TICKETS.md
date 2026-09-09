@@ -68,6 +68,9 @@ coverage.
 
 ## CD-S5-00 — Define the saved-record contract
 
+Status: complete on `feat/causal-desk`. The remaining app tickets still wait on
+`PLAT-PERSIST-01`.
+
 ### Outcome
 
 The storage record can be built and validated without any storage implementation. Invalid or
@@ -421,4 +424,3 @@ records what shipped and what remains deferred.
 Slice 5 is complete only after the external persistent-Dataset gate is available, every app
 ticket is committed, a real cold boot recovers acknowledged data, every failure degrades safely,
 all visual states have been inspected, and all prior Causal Desk behavior remains green.
-

@@ -6,8 +6,8 @@ Implementation status (2026-09-09): Slices 1–4 are complete. The app includes 
 model, factor inspection, bundled scenarios, a working scenario editor, selectable
 comparisons, exact modeled contribution bridges, responsive layouts, keyboard traversal,
 direct numeric entry, reduced-motion support, explicit validation/error states, and
-contribution-path highlighting. Slice 5 local persistence is designed but waits on Declare's
-persistent Dataset capability.
+contribution-path highlighting. Slice 5's saved-record contract is complete; local storage
+integration waits on Declare's persistent Dataset capability.
 
 ## Product restatement
 

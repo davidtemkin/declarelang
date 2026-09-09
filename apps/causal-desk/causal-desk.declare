@@ -11,7 +11,8 @@ and derived results remain distinct so the model can be questioned rather than
 merely consumed.
 */
 
-include [ "causal-desk-logic.declare", "causal-desk-inspector.declare",
+include [ "causal-desk-logic.declare", "causal-desk-persistence.declare",
+    "causal-desk-inspector.declare",
     "causal-desk-model.declare", "causal-desk-layout.declare"
     ]
 
