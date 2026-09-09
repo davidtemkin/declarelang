@@ -130,7 +130,7 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
             lineHeight = 1.5, wrap = true, textColor = #A7B6BD,
             text = { app.selectedDescription } ],
 
-        assumptionEditor: View [ x = 22, y = 59, width = { classroot.innerWidth }, height = 104,
+        assumptionEditor: View [ x = 22, y = 59, width = { classroot.innerWidth }, height = 196,
             visible = { app.selectedKind == "assumption" },
             rule: View [ width = { parent.width }, height = 1, fill = #2B3B43 ],
             label: Text [ y = 18, fontSize = 10, fontWeight = semibold,
@@ -145,7 +145,24 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
             reset: Button [ x = end, y = 70, width = 108, label = "Reset input",
                 disabled = { app.activeScenarioId != "working" },
                 onClick() { app.resetSelectedAssumption() }
-                ]
+                ],
+            inputLabel: Text [ y = 100, fontSize = 10, fontWeight = semibold,
+                textColor = #71838C, text = "EDIT VALUE" ],
+            input: TextInput [ x = 0, y = 117, width = { parent.width - 96 }, height = { app.mobile ? 44 : 36 },
+                padding = 8, cornerRadius = 7, fill = #0D151A, stroke = { stroke(1, 0x3A505A) },
+                textColor = #F5FBFE, text = { app.assumptionDraft },
+                placeholder = { app.selectedUnit == "percent" ? "e.g. 5.5%" : "e.g. $4.25" },
+                onInput(t: string) { app.assumptionDraft = "" + t },
+                onKeyDown(e: KeyEvent) { app.handleAssumptionKey(e.key) }
+                ],
+            apply: Button [ x = end, y = 117, width = 88, height = { app.mobile ? 44 : 36 }, label = "Apply",
+                onClick() { app.commitAssumptionDraft() }
+                ],
+            unitHint: Text [ y = 156, fontSize = 9, textColor = #71838C,
+                text = { app.selectedUnit == "percent" ? "Percent; enter human units" : "USD per gallon" } ],
+            error: Text [ y = 174, width = { parent.width }, fontSize = 10, wrap = true,
+                textColor = #F0A0A0, visible = { app.assumptionValidation != "" },
+                text = { "Input error: " + app.assumptionValidation } ]
             ],
 
         derivedDetails: View [ x = 0, y = 59, width = { parent.width },

@@ -44,6 +44,8 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     selectedMin: number = { numericFieldAt(modelDocument.value, selectedFactorId, "min") },
     selectedMax: number = { numericFieldAt(modelDocument.value, selectedFactorId, "max") },
     selectedStep: number = { numericFieldAt(modelDocument.value, selectedFactorId, "step") },
+    assumptionDraft: string = "",
+    assumptionValidation: string = "",
     selectedValue: number = { numberAt(model.values, selectedFactorId) },
     selectedComparisonValue: number = { numberAt(model.comparisonValues, selectedFactorId) },
     selectedDelta: number = { selectedValue - selectedComparisonValue },
@@ -56,12 +58,14 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     selectFactor(id: string) {
         selectedFactorId = id
         selectedContributionFactorId = ""
+        syncAssumptionDraft()
         if (stacked) inspectorExpanded = true
         },
     selectScenario(id: string) {
         if (id == "working" || scenarioExists(scenarioDocument.value, id)) {
             activeScenarioId = id
             selectedContributionFactorId = ""
+            syncAssumptionDraft()
             }
         },
     selectComparison(id: string) {
@@ -77,6 +81,26 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     toggleInspector() {
         if (stacked) inspectorExpanded = !inspectorExpanded
         },
+    syncAssumptionDraft() {
+        assumptionDraft = selectedKind == "assumption"
+            ? formatValue(selectedValue, selectedUnit) : ""
+        assumptionValidation = ""
+        },
+    commitAssumptionDraft() {
+        if (selectedKind != "assumption") return
+        const parsed = parseNumericAssumption(assumptionDraft, selectedUnit,
+            selectedMin, selectedMax) as { ok: boolean, value: number, message: string }
+        if (!parsed.ok) {
+            assumptionValidation = parsed.message
+            return
+        }
+        changeSelectedAssumption(parsed.value)
+        syncAssumptionDraft()
+        },
+    handleAssumptionKey(key: string) {
+        if (key == "Enter") commitAssumptionDraft()
+        if (key == "Escape") syncAssumptionDraft()
+        },
     changeSelectedAssumption(value: number) {
         if (selectedKind != "assumption") return
         if (activeScenarioId != "working") workingSourceId = activeScenarioId
@@ -84,6 +108,7 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
             workingScenario.value, activeScenarioId, selectedFactorId, value))
         activeScenarioId = "working"
         selectedContributionFactorId = ""
+        syncAssumptionDraft()
         },
     resetSelectedAssumption() {
         if (selectedKind != "assumption") return
@@ -91,6 +116,7 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
             workingScenario.value, workingSourceId, selectedFactorId)
         workingScenario.set([], withAssumption(modelDocument.value, scenarioDocument.value,
             workingScenario.value, "working", selectedFactorId, reset))
+        syncAssumptionDraft()
         },
     resetModel() {
         activeScenarioId = "base"
@@ -99,6 +125,7 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
         workingSourceId = "base"
         workingScenario.set([], scenarioAssumptions(modelDocument.value,
             scenarioDocument.value, ({ assumptions: {} }), "base"))
+        syncAssumptionDraft()
         },
 
     modelDocument: Dataset {

@@ -151,6 +151,33 @@ script {
         return sign + formatValue(Math.abs(value), unit)
     }
 
+    function parseNumericAssumption(text: string, unit: string,
+        minimum: number, maximum: number): object {
+        const cleaned = text.trim().replace(/,/g, "")
+        if (cleaned == "") return { ok: false, value: Number.NaN, message: "Enter a value." }
+        const percent = unit == "percent"
+        const normalized = percent && cleaned.endsWith("%")
+            ? cleaned.slice(0, -1).trim() : cleaned
+        if (normalized == "" || (percent && cleaned.includes("%") && !cleaned.endsWith("%"))) {
+            return { ok: false, value: Number.NaN, message: "Enter a complete number." }
+        }
+        const currency = unit == "usdPerGallon"
+        const numberText = currency && normalized.startsWith("$")
+            ? normalized.slice(1).trim() : normalized
+        if (numberText == "" || (currency && normalized.includes("$") && !normalized.startsWith("$"))
+            || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(numberText)) {
+            return { ok: false, value: Number.NaN, message: "Enter a complete number." }
+        }
+        const parsed = Number(numberText) / (percent ? 100 : 1)
+        if (!Number.isFinite(parsed)) return { ok: false, value: Number.NaN, message: "Enter a finite number." }
+        if (parsed < minimum || parsed > maximum) {
+            return { ok: false, value: Number.NaN,
+                message: "Enter a value from " + formatValue(minimum, unit) + " to "
+                    + formatValue(maximum, unit) + "." }
+        }
+        return { ok: true, value: parsed, message: "" }
+    }
+
     function factorial(n: number): number {
         let result = 1
         for (let i = 2; i <= n; i = i + 1) result = result * i
