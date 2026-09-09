@@ -5,6 +5,12 @@ The finished loop is: choose two scenarios, select a derived result, read an exa
 bridge for its modeled delta, then select a contribution to highlight every dependency path
 from that assumption to the result.
 
+The dependency structure is an arbitrary directed acyclic graph, not a chain or tree. A
+factor may feed several formulas, several branches may merge into one formula, and the same
+root assumption may reach a result through multiple branches. Formulas may be non-linear
+and may contain interactions between assumptions. Slice 3 must preserve those properties;
+only cyclic and time-dependent models remain outside the first-release boundary.
+
 These tickets are deliberately prescriptive. An implementing agent should not redesign the
 feature, change the financial model, or move Causal Desk code outside this folder.
 
@@ -148,6 +154,9 @@ the deterministic tie-breaker.
    Start each synthetic case from the comparison assumption map. Applying a member of a
    subset means replacing that assumption with its active value. Evaluate cases with the
    existing `computeModel` function and read only the selected factor.
+   This full-case reevaluation is required because formulas can be non-linear and assumptions
+   can interact. Do not replace it with derivatives, path weights, proportional allocation,
+   or a sum of one-assumption-at-a-time deltas.
 4. Return no rows when the selected factor is not derived, no assumptions changed, or either
    selected result is non-finite. Do not silently turn a non-finite result into zero.
 5. Format each row in the selected factor's unit. Percentage contributions use signed `pp`.
@@ -273,10 +282,13 @@ from that root assumption to the currently selected result.
 
 ### Implementation
 
-1. Add a cycle-safe `reachable(document, fromId, toId)` graph helper. Track visited IDs even
-   though the current graph is a DAG; malformed future data must not recurse forever.
+1. Add a cycle-safe `reachable(document, fromId, toId)` graph helper over the full adjacency
+   list. Track visited IDs even though the supported model is a DAG; malformed future data
+   must not recurse forever. Do not stop after finding or walking one branch.
 2. An edge `(u, v)` is on a contribution path from root `r` to target `t` exactly when
    `reachable(r, u)` and `reachable(v, t)` are both true. Add a named helper for this rule.
+   Apply the rule independently to every edge so fan-out, fan-in, and reconverging branches
+   are all highlighted.
 3. A factor is on the selected contribution path when it is the root, the target, or lies on
    at least one qualifying edge. Add a named helper rather than duplicating traversal logic
    in `FactorCard`.
@@ -303,6 +315,8 @@ from that root assumption to the currently selected result.
 - Selecting Jet fuel price in the bridge marks exactly its fixed path oracle among visible
   nodes and edges.
 - Selecting Average fare marks both branches, not just the first path found.
+- A synthetic fan-out/fan-in graph marks all qualifying branches and excludes a disconnected
+  branch; the implementation must not assume the fixed airline graph's shape.
 - Unrelated assumptions and model lines retain their ordinary styling.
 - Changing factor or scenario clears the path selection.
 - The graph remains safe if a temporary cyclic dependency is supplied to the helper.
