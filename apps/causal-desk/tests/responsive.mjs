@@ -16,6 +16,71 @@ export default async ({ drive, expect, page }) => {
     scrollHeight: document.documentElement.scrollHeight,
   }));
 
+  const assertInspectorCollapsed = async (label) => {
+    const state = await page.evaluate(() => ({
+      expanded: window.__declare.find("app").inspectorExpanded,
+      visible: window.__declare.find("app.inspector").visible,
+    }));
+    if (state.expanded || state.visible) {
+      expect.fail(`${label} should hide inspector: ${JSON.stringify(state)}`);
+    }
+  };
+
+  const assertNarrowTargets = async (label) => {
+    const targets = await page.evaluate(() => [
+      "app.header.scenarioPicker", "app.header.comparisonPicker", "app.header.reset",
+      "app.summary.details",
+    ].map((path) => {
+      const n = window.__declare.find(path);
+      return { path, width: n.width, height: n.height };
+    }));
+    for (const target of targets) {
+      if (target.width < 44 || target.height < 44) {
+        expect.fail(`${label} target too small: ${JSON.stringify(target)}`);
+      }
+    }
+  };
+
+  const assertInspectorFlow = async (label) => {
+    const flow = await page.evaluate(() => {
+      const inspector = window.__declare.find("app.inspector");
+      const body = window.__declare.find("app.inspector.detailBody");
+      const notice = window.__declare.find("app.inspector.notice");
+      return {
+        bodyBottom: body.y + body.height,
+        noticeY: notice.y,
+        noticeBottom: notice.y + notice.height,
+        inspectorHeight: inspector.height,
+      };
+    });
+    if (flow.bodyBottom > flow.noticeY || flow.noticeBottom > flow.inspectorHeight) {
+      expect.fail(`${label} inspector chrome overlaps scroll content: ${JSON.stringify(flow)}`);
+    }
+  };
+
+  const clickSummaryDetails = async () => {
+    const point = await page.evaluate(() => {
+      const summary = window.__declare.find("app.summary");
+      const details = window.__declare.find("app.summary.details");
+      return {
+        x: summary.x + details.x + details.width / 2,
+        y: summary.y + details.y + details.height / 2 - window.scrollY,
+      };
+    });
+    await page.mouse.click(point.x, point.y);
+    await drive.settleMotion();
+  };
+
+  const clickContributionRow = async () => {
+    const point = await page.evaluate(() => {
+      const row = window.__declare.find("app.inspector.detailBody.derivedDetails.contributionBridge.rows.0");
+      const origin = row.rootOrigin();
+      return { x: origin.x + row.width / 2, y: origin.y + row.height / 2 - window.scrollY };
+    });
+    await page.mouse.click(point.x, point.y);
+    await drive.settleMotion();
+  };
+
   const resize = async (width, height) => {
     await page.setViewport({ width, height });
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -97,8 +162,16 @@ export default async ({ drive, expect, page }) => {
   await expect.attr("app.graph", "x", 24);
   await expect.attr("app.graph", "y", 190);
   await expect.attr("app.inspector", "x", 170);
-  await expect.attr("app.inspector", "y", 830);
+  await expect.attr("app.summary", "y", 826);
+  await expect.attr("app.summary", "visible", true);
+  await expect.attr("app.inspector", "y", 918);
   await expect.attr("app.inspector", "width", 560);
+  await expect.attr("app.inspector", "visible", true);
+  await assertNarrowTargets("tablet");
+  await expect.text("app.summary.title", "Operating margin");
+  await expect.text("app.summary.value", "18.6%");
+  await expect.text("app.inspector.title", "Operating margin");
+  await assertInspectorFlow("tablet");
   const tabletGraph = await view("app.graph");
   expect.equal(tabletGraph.scrolls, "none", "tablet graph does not add horizontal scrolling");
   await assertDocumentFits(900, "tablet");
@@ -109,8 +182,29 @@ export default async ({ drive, expect, page }) => {
   await drive.click("app.header.scenarioPicker.4");
   await drive.settleMotion();
   await expect.attr("app", "activeScenarioId", "fuelShock");
+  await drive.click("app.graph.stage.cards.16");
+  await expect.text("app.summary.title", "Operating margin");
+  await expect.text("app.summary.delta", "−7.2 pp");
+  await expect.text("app.inspector.title", "Operating margin");
   await drive.click("app.graph.stage.cards.4");
   await expect.attr("app", "selectedFactorId", "demandGrowth");
+  await expect.text("app.summary.title", "Demand growth");
+  await expect.text("app.inspector.title", "Demand growth");
+  const tabletExpandedExtent = (await documentGeometry()).scrollHeight;
+  await clickSummaryDetails();
+  await assertInspectorCollapsed("tablet collapse");
+  const tabletCollapsedExtent = (await documentGeometry()).scrollHeight;
+  if (tabletCollapsedExtent >= tabletExpandedExtent) {
+    expect.fail(`tablet collapse should remove inspector from document extent: ${tabletExpandedExtent} → ${tabletCollapsedExtent}`);
+  }
+  await expect.attr("app.summary", "visible", true);
+  await expect.attr("app.summary.details", "label", "Show Details");
+  await clickSummaryDetails();
+  await expect.attr("app.inspector", "visible", true);
+  if ((await documentGeometry()).scrollHeight < tabletExpandedExtent) {
+    expect.fail("tablet Show Details should restore inspector document extent");
+  }
+  await expect.attr("app.summary.details", "label", "Hide Details");
 
   const tabletScroll = await page.evaluate(() => {
     window.scrollTo({ top: 0, left: 0 });
@@ -163,8 +257,13 @@ export default async ({ drive, expect, page }) => {
   await expect.attr("app.graph", "scrolls", "x");
   await expect.attr("app.graph.stage", "width", 820);
   await expect.attr("app.inspector", "x", 16);
-  await expect.attr("app.inspector", "y", 850);
+  await expect.attr("app.summary", "y", 846);
+  await expect.attr("app.summary", "visible", true);
+  await expect.attr("app.inspector", "y", 938);
   await expect.attr("app.inspector", "width", 358);
+  await expect.attr("app.inspector", "visible", true);
+  await assertNarrowTargets("mobile");
+  await assertInspectorFlow("mobile");
   await assertDocumentFits(390, "mobile");
   const mobileGraph = await assertAlignedGraph("mobile");
   if (mobileGraph.contentWidth <= mobileGraph.graphWidth) {
@@ -183,6 +282,24 @@ export default async ({ drive, expect, page }) => {
   await page.evaluate(() => window.__declare.find("app.graph").scrollToX(0));
   await drive.click("app.graph.stage.cards.4");
   await expect.attr("app", "selectedFactorId", "demandGrowth");
+  await expect.text("app.summary.title", "Demand growth");
+  await expect.text("app.inspector.title", "Demand growth");
+  await page.evaluate(() => window.scrollTo({ top: 520, left: 0 }));
+  await page.evaluate(() => window.scrollY);
+  const mobileExpandedExtent = (await documentGeometry()).scrollHeight;
+  await clickSummaryDetails();
+  await assertInspectorCollapsed("mobile collapse");
+  const mobileCollapsedExtent = (await documentGeometry()).scrollHeight;
+  if (mobileCollapsedExtent >= mobileExpandedExtent) {
+    expect.fail(`mobile collapse should remove inspector from document extent: ${mobileExpandedExtent} → ${mobileCollapsedExtent}`);
+  }
+  await expect.attr("app.summary", "visible", true);
+  await clickSummaryDetails();
+  await expect.attr("app.inspector", "visible", true);
+  if ((await documentGeometry()).scrollHeight < mobileExpandedExtent) {
+    expect.fail("mobile Show Details should restore inspector document extent");
+  }
+  await page.evaluate(() => window.scrollTo({ top: 0, left: 0 }));
   await drive.click("app.header.comparisonPicker.6");
   await drive.settleMotion();
   await expect.attr("app", "comparisonScenarioId", "capacitySqueeze");
@@ -190,6 +307,31 @@ export default async ({ drive, expect, page }) => {
   await drive.settleMotion();
   await expect.attr("app", "activeScenarioId", "base");
   await expect.attr("app", "comparisonScenarioId", "base");
+
+  // A valid contribution selection survives the remaining narrow-tier resize
+  // and the return to desktop alongside the factor and scenario selections.
+  await drive.click("app.header.scenarioPicker.4");
+  await drive.settleMotion();
+  await drive.click("app.header.comparisonPicker.0");
+  await drive.settleMotion();
+  await page.evaluate(() => window.__declare.find("app.graph").scrollToX(460));
+  await drive.settleMotion();
+  await drive.click("app.graph.stage.cards.16");
+  await expect.attr("app", "selectedFactorId", "operatingMargin");
+  const contributionState = await page.evaluate(() => ({
+    active: window.__declare.find("app").activeScenarioId,
+    comparison: window.__declare.find("app").comparisonScenarioId,
+    kind: window.__declare.find("app").selectedKind,
+    rows: window.__declare.find("app").model.contributionData.value.rows.length,
+  }));
+  if (contributionState.rows < 1) {
+    expect.fail(`expected contribution rows after mobile selection: ${JSON.stringify(contributionState)}`);
+  }
+  await expect.attr("app", "selectedContributionFactorId", "");
+  await page.evaluate(() => window.scrollTo({ top: 1000, left: 0 }));
+  await page.evaluate(() => window.scrollY);
+  await clickContributionRow();
+  await expect.attr("app", "selectedContributionFactorId", "jetFuelPrice");
 
   // The minimum supported width keeps both labeled selectors usable: each
   // segment retains a readable lane while the page itself remains bounded.
@@ -205,4 +347,15 @@ export default async ({ drive, expect, page }) => {
     expect.fail(`minimum-width selector lanes are too narrow: ${JSON.stringify(compactHeader)}`);
   }
   await assertDocumentFits(360, "minimum mobile");
+
+  // Returning to desktop keeps the scenario and factor selection while the
+  // desktop inspector becomes permanently visible and the narrow summary hides.
+  await resize(1280, 800);
+  await expect.attr("app", "selectedFactorId", "operatingMargin");
+  await expect.attr("app", "activeScenarioId", "fuelShock");
+  await expect.attr("app", "comparisonScenarioId", "base");
+  await expect.attr("app", "selectedContributionFactorId", "jetFuelPrice");
+  await expect.attr("app.summary", "visible", false);
+  await expect.attr("app.inspector", "visible", true);
+  await expect.attr("app.inspector", "y", 94);
 };

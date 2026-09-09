@@ -7,7 +7,7 @@ class CausalHeader extends View [ width = { app.width - app.frameGutter * 2 },
     activeLabel: Text [ x = { app.desktop ? parent.width - 724 : 0 }, y = { app.desktop ? 0 : 52 }, fontSize = 9,
         fontWeight = semibold, textColor = #61747E, text = "ACTIVE" ],
     scenarioPicker: Segmented [ x = { app.desktop ? parent.width - 724 : 0 }, y = { app.desktop ? 17 : 69 },
-        width = { app.desktop ? 360 : parent.width },
+        width = { app.desktop ? 360 : parent.width }, height = { app.desktop ? 30 : 44 },
         value = { app.activeScenarioId },
         choices = { [
             ({ id: "base", label: "Base" }),
@@ -21,7 +21,7 @@ class CausalHeader extends View [ width = { app.width - app.frameGutter * 2 },
     comparisonLabel: Text [ x = { app.desktop ? parent.width - 349 : 0 }, y = { app.desktop ? 0 : 111 }, fontSize = 9,
         fontWeight = semibold, textColor = #61747E, text = "COMPARE WITH" ],
     comparisonPicker: Segmented [ x = { app.desktop ? parent.width - 349 : 0 }, y = { app.desktop ? 17 : 128 },
-        width = { app.desktop ? 240 : parent.width },
+        width = { app.desktop ? 240 : parent.width }, height = { app.desktop ? 30 : 44 },
         value = { app.comparisonScenarioId },
         choices = { [
             ({ id: "base", label: "Base" }),
@@ -31,7 +31,7 @@ class CausalHeader extends View [ width = { app.width - app.frameGutter * 2 },
             ] },
         input(v: object) { app.selectComparison("" + v) }
         ],
-    reset: Button [ x = end, y = { app.desktop ? 17 : 0 }, width = 94, label = "Reset all",
+    reset: Button [ x = end, y = { app.desktop ? 17 : 0 }, width = 94, height = { app.desktop ? 40 : 44 }, label = "Reset all",
         disabled = { app.activeScenarioId == "base" && app.comparisonScenarioId == "base" },
         onClick() { app.resetModel() }
         ]
@@ -79,9 +79,32 @@ class CausalGraph extends View [ width = { app.desktop ? app.width - 420 : app.w
     ]
 
 
+class CausalFactorSummary extends View [ width = { app.width - app.frameGutter * 2 },
+    height = { app.summaryHeight }, visible = { app.stacked },
+    cornerRadius = 12, fill = #111B21, stroke = { stroke(1, 0x2B3B43) },
+
+    label: Text [ x = 16, y = 10, width = { parent.width - 170 }, fontSize = 10,
+        fontWeight = semibold, textColor = #71838C, textTransform = uppercase,
+        text = "SELECTED FACTOR" ],
+    title: Text [ x = 16, y = 28, width = { parent.width - 170 }, fontSize = 15,
+        fontWeight = bold, textColor = #F5FBFE, text = { app.selectedLabel } ],
+    value: Text [ x = 16, y = 50, width = 108, fontSize = 13, fontWeight = bold,
+        textColor = #F2C46D, text = { formatValue(app.selectedValue, app.selectedUnit) } ],
+    delta: Text [ x = 126, y = 52, width = { parent.width - 270 }, fontSize = 11,
+        fontWeight = semibold, textColor = { app.selectedDelta >= 0 ? 0x79C99E : 0xE58C8C },
+        visible = { materiallyDifferent(app.selectedValue, app.selectedComparisonValue) },
+        text = { formatDelta(app.selectedDelta, app.selectedUnit) } ],
+    details: Button [ x = end, y = 16, width = 128, height = 44,
+        label = { app.inspectorExpanded ? "Hide Details" : "Show Details" },
+        onClick() { app.toggleInspector() }
+        ]
+    ]
+
+
 class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.width - app.inspectorWidth) / 2 },
     y = { app.inspectorY }, width = { app.inspectorWidth },
-    height = { app.desktop ? app.height - 122 : 680 }, cornerRadius = 18, fill = #111B21,
+    height = { app.desktop ? app.height - 122 : 680 },
+    visible = { app.desktop || app.inspectorExpanded }, cornerRadius = 18, fill = #111B21,
     stroke = { stroke(1, 0x2B3B43) },
     innerWidth: number = { width - 44 },
 

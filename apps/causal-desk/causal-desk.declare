@@ -30,7 +30,10 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     graphY: number = { desktop ? 94 : headerY + headerHeight + 16 },
     graphHeight: number = { desktop ? app.height - 122 : 620 },
     inspectorWidth: number = { desktop ? 336 : Math.min(560, app.width - (mobile ? 32 : 48)) },
-    inspectorY: number = { desktop ? 94 : graphY + graphHeight + 20 },
+    summaryY: number = { graphY + graphHeight + 16 },
+    summaryHeight: number = 76,
+    inspectorY: number = { desktop ? 94 : summaryY + summaryHeight + 16 },
+    inspectorExpanded: boolean = true,
 
     selectedFactorId: string = "operatingMargin",
     selectedLabel: string = { textAt(modelDocument.value, selectedFactorId, "label") },
@@ -53,6 +56,7 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     selectFactor(id: string) {
         selectedFactorId = id
         selectedContributionFactorId = ""
+        if (stacked) inspectorExpanded = true
         },
     selectScenario(id: string) {
         if (id == "working" || scenarioExists(scenarioDocument.value, id)) {
@@ -69,6 +73,9 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     selectedContributionFactorId: string = "",
     selectContribution(id: string) {
         selectedContributionFactorId = selectedContributionFactorId == id ? "" : id
+        },
+    toggleInspector() {
+        if (stacked) inspectorExpanded = !inspectorExpanded
         },
     changeSelectedAssumption(value: number) {
         if (selectedKind != "assumption") return
@@ -166,5 +173,6 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
 
     header: CausalHeader [ x = { frameGutter }, y = { headerY } ],
     graph: CausalGraph [ x = { frameGutter }, y = { graphY } ],
+    summary: CausalFactorSummary [ x = { frameGutter }, y = { summaryY } ],
     inspector: CausalInspector [ ]
     ]
