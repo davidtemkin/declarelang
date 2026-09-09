@@ -1,0 +1,201 @@
+script {
+    type FactorRecord = {
+        id: string
+        label: string
+        kind: string
+        unit: string
+        base: number
+        min?: number
+        max?: number
+        step?: number
+        column: number
+        rowY: number
+        shown: boolean
+        description: string
+        formula: string
+    }
+
+    type DependencyRecord = { from: string, to: string }
+    type ModelDocument = { factors: FactorRecord[], dependencies: DependencyRecord[] }
+    type ScenarioRecord = { id: string, label: string, description: string,
+        assumptions: Record<string, number> }
+    type ScenarioDocument = { scenarios: ScenarioRecord[] }
+    type AssumptionDocument = { assumptions: Record<string, number> }
+    type ValueMap = Record<string, number>
+
+    const CARD_W = 174
+    const CARD_H = 68
+
+    function asDocument(value: object): ModelDocument {
+        return value as ModelDocument
+    }
+
+    function asScenarios(value: object): ScenarioDocument {
+        return value as ScenarioDocument
+    }
+
+    function asAssumptions(value: object): AssumptionDocument {
+        return value as AssumptionDocument
+    }
+
+    function scenarioExists(value: object, id: string): boolean {
+        return asScenarios(value).scenarios.some(s => s.id == id)
+    }
+
+    function scenarioLabel(value: object, id: string): string {
+        if (id == "working") return "Working scenario"
+        return asScenarios(value).scenarios.find(s => s.id == id)?.label ?? id
+    }
+
+    function scenarioAssumptions(modelValue: object, scenarioValue: object,
+        workingValue: object, id: string): object {
+        const defaults: Record<string, number> = {}
+        for (const f of asDocument(modelValue).factors) {
+            if (f.kind == "assumption") defaults[f.id] = f.base
+            }
+        const overrides = id == "working"
+            ? asAssumptions(workingValue).assumptions
+            : asScenarios(scenarioValue).scenarios.find(s => s.id == id)?.assumptions ?? {}
+        return { assumptions: { ...defaults, ...overrides } }
+    }
+
+    function assumptionAt(modelValue: object, scenarioValue: object, workingValue: object,
+        scenarioId: string, factorId: string): number {
+        const assumptions = asAssumptions(scenarioAssumptions(modelValue,
+            scenarioValue, workingValue, scenarioId)).assumptions
+        return assumptions[factorId] ?? 0
+    }
+
+    function withAssumption(modelValue: object, scenarioValue: object, workingValue: object,
+        scenarioId: string, factorId: string, value: number): object {
+        const current = asAssumptions(scenarioAssumptions(modelValue,
+            scenarioValue, workingValue, scenarioId)).assumptions
+        return { assumptions: { ...current, [factorId]: value } }
+    }
+
+    function computeScenarioModel(modelValue: object, scenarioValue: object,
+        workingValue: object, scenarioId: string): object {
+        const assumptions = asAssumptions(scenarioAssumptions(modelValue,
+            scenarioValue, workingValue, scenarioId)).assumptions
+        return computeModel(modelValue, assumptions)
+    }
+
+    function computeModel(value: object, assumptions: Record<string, number>): object {
+        const d = asDocument(value)
+        const v: ValueMap = {}
+        for (const f of d.factors) v[f.id] = f.base
+        for (const id of Object.keys(assumptions)) v[id] = assumptions[id]
+
+        v.revenue = v.baseRevenue * (1 + v.demandGrowth) * (1 + v.averageFareGrowth)
+        v.fuelExpense = v.baseFuelGallons * (1 + v.capacityGrowth) * v.jetFuelPrice
+        v.laborExpense = v.baseLaborExpense * (1 + v.laborCostGrowth)
+        v.otherExpense = v.baseOtherExpense * (1 + v.capacityGrowth) * (1 + v.nonFuelInflation)
+        v.operatingExpense = v.fuelExpense + v.laborExpense + v.otherExpense
+        v.operatingIncome = v.revenue - v.operatingExpense
+        v.operatingMargin = v.revenue != 0 ? v.operatingIncome / v.revenue : Number.NaN
+        return v
+    }
+
+    function numberAt(values: object, id: string): number {
+        const n = (values as ValueMap)[id]
+        return typeof n == "number" ? n : Number.NaN
+    }
+
+    function factorAt(value: object, id: string): FactorRecord | undefined {
+        return asDocument(value).factors.find(f => f.id == id)
+    }
+
+    function textAt(value: object, id: string, key: string): string {
+        const f = factorAt(value, id)
+        if (!f) return ""
+        const v = (f as unknown as Record<string, unknown>)[key]
+        return typeof v == "string" ? v : ""
+    }
+
+    function numericFieldAt(value: object, id: string, key: string): number {
+        const f = factorAt(value, id)
+        if (!f) return 0
+        const v = (f as unknown as Record<string, unknown>)[key]
+        return typeof v == "number" ? v : 0
+    }
+
+    function materiallyDifferent(a: number, b: number): boolean {
+        return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) > 0.0000001
+    }
+
+    function formatValue(value: number, unit: string): string {
+        if (!Number.isFinite(value)) return "Unavailable"
+        if (unit == "percent") return (value * 100).toFixed(1) + "%"
+        if (unit == "usdPerGallon") return "$" + value.toFixed(2)
+        if (unit == "millionGallons") return value.toLocaleString("en-US", { maximumFractionDigits: 0 }) + "m gal"
+        if (unit == "usdMillions") return "$" + value.toLocaleString("en-US", { maximumFractionDigits: 0 }) + "m"
+        return value.toLocaleString("en-US", { maximumFractionDigits: 1 })
+    }
+
+    function formatDelta(value: number, unit: string): string {
+        const sign = value >= 0 ? "+" : "−"
+        return sign + formatValue(Math.abs(value), unit)
+    }
+
+    function dependencyRows(value: object, selectedId: string, values: object,
+        comparisonValues: object): object {
+        const d = asDocument(value)
+        const rows = d.dependencies
+            .filter(edge => edge.to == selectedId)
+            .map(edge => {
+                const f = factorAt(value, edge.from)
+                return {
+                    id: edge.from,
+                    label: f?.label ?? edge.from,
+                    kind: f?.kind ?? "input",
+                    formatted: formatValue(numberAt(values, edge.from), f?.unit ?? "")
+                    }
+                })
+        return { rows }
+    }
+
+    function dependencyCount(value: object): number {
+        const rows = (value as { rows?: object[] }).rows
+        return rows?.length ?? 0
+    }
+
+    function graphColumnX(column: number, width: number): number {
+        const gap = Math.max(34, (width - CARD_W * 4) / 3)
+        return column * (CARD_W + gap)
+    }
+
+    function visibleFactor(document: ModelDocument, id: string): FactorRecord | undefined {
+        const f = document.factors.find(row => row.id == id)
+        return f?.shown ? f : undefined
+    }
+
+    function drawEdges(d: Draw, width: number, value: object, values: object,
+        comparisonValues: object, selectedId: string): void {
+        const document = asDocument(value)
+        for (const edge of document.dependencies) {
+            const from = visibleFactor(document, edge.from)
+            const to = visibleFactor(document, edge.to)
+            if (!from || !to) continue
+
+            const x0 = graphColumnX(from.column, width) + CARD_W
+            const y0 = from.rowY + CARD_H / 2
+            const x1 = graphColumnX(to.column, width)
+            const y1 = to.rowY + CARD_H / 2
+            const bend = Math.max(28, (x1 - x0) * 0.46)
+            const selected = edge.to == selectedId || edge.from == selectedId
+            const changed = materiallyDifferent(numberAt(values, edge.from),
+                numberAt(comparisonValues, edge.from))
+                && materiallyDifferent(numberAt(values, edge.to),
+                    numberAt(comparisonValues, edge.to))
+
+            d.beginPath()
+            d.moveTo(x0, y0)
+            d.bezierCurveTo(x0 + bend, y0, x1 - bend, y1, x1, y1)
+            d.strokeStyle = selected ? "#75D6FF" : changed ? "#D3A650" : "#2B3B43"
+            d.lineWidth = selected || changed ? 2 : 1
+            d.globalAlpha = selected ? 0.92 : changed ? 0.82 : 0.72
+            d.stroke()
+            }
+        d.globalAlpha = 1
+    }
+    }

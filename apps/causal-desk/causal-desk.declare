@@ -1,0 +1,338 @@
+/*
+# Causal Desk
+
+An experimental scenario-modeling instrument for financial analysts. Select a
+bundled scenario or edit an assumption into a working case, then trace the
+result through values, formulas, deltas, and immediate dependencies.
+
+The graph is deliberately not a generic node editor. Its edges mean only "this
+formula reads that value," and every formula is visible. Constants, assumptions,
+and derived results remain distinct so the model can be questioned rather than
+merely consumed.
+*/
+
+include [ "causal-desk-logic.declare" ]
+
+class CausalModel extends Node [
+
+    values: object = { computeScenarioModel(app.modelDocument.value,
+        app.scenarioDocument.value, app.workingScenario.value, app.activeScenarioId) },
+    comparisonValues: object = { computeScenarioModel(app.modelDocument.value,
+        app.scenarioDocument.value, app.workingScenario.value, "base") },
+
+    dependencyData: Dataset [ contents = { dependencyRows(app.modelDocument.value,
+        app.selectedFactorId, classroot.values, classroot.comparisonValues) } ]
+    ]
+
+
+class FactorCard extends Control [ width = 174, height = 68, cornerRadius = 12,
+
+    factorId: string = { :id },
+    factorLabel: string = { :label },
+    factorKind: string = { :kind },
+    column: number = { :column },
+    rowY: number = { :rowY },
+    shown: boolean = { :shown },
+    selected: boolean = { app.selectedFactorId == factorId },
+    currentValue: number = { numberAt(app.model.values, factorId) },
+    comparisonValue: number = { numberAt(app.model.comparisonValues, factorId) },
+    delta: number = { currentValue - comparisonValue },
+    changed: boolean = { materiallyDifferent(currentValue, comparisonValue) },
+    shownValue: number = { currentValue },
+
+    x = { graphColumnX(column, parent.width) },
+    y = { rowY },
+    visible = { shown },
+    cursor = "pointer",
+    fill = { selected ? 0x183C50 : factorKind == "assumption" ? 0x152D3B : 0x202B32 },
+    stroke = { stroke(selected ? 2 : 1,
+        selected ? 0x75D6FF : changed ? 0xB5883B : hot ? 0x557887 : 0x34434B) },
+    shadow = { selected ? shadow(0, 8, 24, 0x55000000) : shadow(0, 3, 12, 0x33000000) },
+
+    motion: Spring [ attribute = shownValue, to = { currentValue },
+        stiffness = 230, damping = 28, mass = 1 ],
+
+    kind: Text [ x = 12, y = 10, fontSize = 10, fontWeight = semibold,
+        textColor = { factorKind == "assumption" ? 0x78C8E8 : 0x8B9AA2 },
+        textTransform = uppercase, text = { factorKind } ],
+    label: Text [ x = 12, y = 29, width = 96, fontSize = 12, fontWeight = semibold,
+        textColor = { selected ? 0xF5FBFE : 0xDDE6EA }, text = { factorLabel } ],
+    value: Text [ x = 108, y = 30, width = 54, fontSize = 13, fontWeight = bold,
+        textAlign = right, textColor = { selected ? 0x75D6FF : 0xF2C46D },
+        text = { formatValue(shownValue, :unit as string) } ],
+    deltaText: Text [ x = 70, y = 50, width = 92, fontSize = 9, fontWeight = semibold,
+        wrap = false, textAlign = right, textColor = { delta >= 0 ? 0x79C99E : 0xE58C8C },
+        visible = { changed }, text = { formatDelta(delta, :unit as string) } ],
+
+    press() { app.selectFactor(factorId) },
+    onClick() { if (!disabled) press() }
+    ]
+
+
+class DependencyRow extends View [ width = { parent.width }, height = 48,
+
+    dot: View [ x = 0, y = 17, width = 8, height = 8, cornerRadius = 4, fill = #75D6FF ],
+    label: Text [ x = 18, y = 7, width = { parent.width - 122 }, fontSize = 12,
+        fontWeight = medium, textColor = #DDE6EA, text = :label ],
+    role: Text [ x = 18, y = 27, fontSize = 10, textColor = #71838C,
+        textTransform = uppercase, text = :kind ],
+    value: Text [ x = { parent.width - 96 }, y = 13, width = 96, fontSize = 13,
+        fontWeight = semibold, textAlign = right, textColor = #F2C46D, text = :formatted ]
+    ]
+
+
+class EdgeField extends View [ pointerEvents = "none",
+
+    draw(d: Draw) {
+        drawEdges(d, width, app.modelDocument.value, app.model.values,
+            app.model.comparisonValues, app.selectedFactorId)
+        }
+    ]
+
+
+App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
+    fontFamily = ["Inter", "SF Pro Text", "system-ui"],
+    theme = { ({ ...Themes.sanFrancisco(true), accent: 0x75D6FF }) },
+
+    selectedFactorId: string = "operatingMargin",
+    selectedLabel: string = { textAt(modelDocument.value, selectedFactorId, "label") },
+    selectedKind: string = { textAt(modelDocument.value, selectedFactorId, "kind") },
+    selectedUnit: string = { textAt(modelDocument.value, selectedFactorId, "unit") },
+    selectedDescription: string = { textAt(modelDocument.value, selectedFactorId, "description") },
+    selectedFormula: string = { textAt(modelDocument.value, selectedFactorId, "formula") },
+    selectedMin: number = { numericFieldAt(modelDocument.value, selectedFactorId, "min") },
+    selectedMax: number = { numericFieldAt(modelDocument.value, selectedFactorId, "max") },
+    selectedStep: number = { numericFieldAt(modelDocument.value, selectedFactorId, "step") },
+    selectedValue: number = { numberAt(model.values, selectedFactorId) },
+    selectedComparisonValue: number = { numberAt(model.comparisonValues, selectedFactorId) },
+    selectedDelta: number = { selectedValue - selectedComparisonValue },
+    activeScenarioId: string = "base",
+    workingSourceId: string = "base",
+    activeScenarioLabel: string = { scenarioLabel(scenarioDocument.value, activeScenarioId) },
+
+    selectFactor(id: string) { selectedFactorId = id },
+    selectScenario(id: string) {
+        if (id == "working" || scenarioExists(scenarioDocument.value, id)) activeScenarioId = id
+        },
+    changeSelectedAssumption(value: number) {
+        if (selectedKind != "assumption") return
+        if (activeScenarioId != "working") workingSourceId = activeScenarioId
+        workingScenario.set([], withAssumption(modelDocument.value, scenarioDocument.value,
+            workingScenario.value, activeScenarioId, selectedFactorId, value))
+        activeScenarioId = "working"
+        },
+    resetSelectedAssumption() {
+        if (selectedKind != "assumption") return
+        const reset = assumptionAt(modelDocument.value, scenarioDocument.value,
+            workingScenario.value, workingSourceId, selectedFactorId)
+        workingScenario.set([], withAssumption(modelDocument.value, scenarioDocument.value,
+            workingScenario.value, "working", selectedFactorId, reset))
+        },
+    resetModel() {
+        activeScenarioId = "base"
+        workingSourceId = "base"
+        workingScenario.set([], scenarioAssumptions(modelDocument.value,
+            scenarioDocument.value, ({ assumptions: {} }), "base"))
+        },
+
+    modelDocument: Dataset {
+        {
+          "factors": [
+            { "id": "baseRevenue", "label": "Base revenue", "kind": "constant", "unit": "usdMillions", "base": 10000, "column": 0, "rowY": 0, "shown": false, "description": "Illustrative revenue before demand and fare changes.", "formula": "" },
+            { "id": "baseFuelGallons", "label": "Base fuel gallons", "kind": "constant", "unit": "millionGallons", "base": 750, "column": 0, "rowY": 0, "shown": false, "description": "Illustrative fuel consumption before capacity changes.", "formula": "" },
+            { "id": "baseLaborExpense", "label": "Base labor expense", "kind": "constant", "unit": "usdMillions", "base": 2700, "column": 0, "rowY": 0, "shown": false, "description": "Illustrative labor expense before modeled growth.", "formula": "" },
+            { "id": "baseOtherExpense", "label": "Base other expense", "kind": "constant", "unit": "usdMillions", "base": 3500, "column": 0, "rowY": 0, "shown": false, "description": "Illustrative non-fuel, non-labor expense before modeled growth.", "formula": "" },
+            { "id": "demandGrowth", "label": "Demand growth", "kind": "assumption", "unit": "percent", "base": 0.03, "min": -0.1, "max": 0.15, "step": 0.005, "column": 0, "rowY": 28, "shown": true, "description": "Modeled change in passenger demand from the illustrative baseline.", "formula": "" },
+            { "id": "averageFareGrowth", "label": "Average fare", "kind": "assumption", "unit": "percent", "base": 0.02, "min": -0.1, "max": 0.15, "step": 0.005, "column": 0, "rowY": 112, "shown": true, "description": "Modeled change in average fare from the illustrative baseline.", "formula": "" },
+            { "id": "capacityGrowth", "label": "Capacity growth", "kind": "assumption", "unit": "percent", "base": 0.02, "min": -0.1, "max": 0.15, "step": 0.005, "column": 0, "rowY": 196, "shown": true, "description": "Modeled change in available capacity from the illustrative baseline.", "formula": "" },
+            { "id": "jetFuelPrice", "label": "Jet fuel price", "kind": "assumption", "unit": "usdPerGallon", "base": 2.7, "min": 1.5, "max": 5, "step": 0.05, "column": 0, "rowY": 280, "shown": true, "description": "Average modeled jet fuel price per gallon.", "formula": "" },
+            { "id": "laborCostGrowth", "label": "Labor cost growth", "kind": "assumption", "unit": "percent", "base": 0.04, "min": -0.02, "max": 0.15, "step": 0.005, "column": 0, "rowY": 364, "shown": true, "description": "Modeled change in labor expense from the illustrative baseline.", "formula": "" },
+            { "id": "nonFuelInflation", "label": "Non-fuel inflation", "kind": "assumption", "unit": "percent", "base": 0.03, "min": -0.02, "max": 0.12, "step": 0.005, "column": 0, "rowY": 448, "shown": true, "description": "Modeled inflation applied to other operating expense.", "formula": "" },
+            { "id": "revenue", "label": "Revenue", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 1, "rowY": 70, "shown": true, "description": "Revenue after modeled demand and average-fare changes.", "formula": "Base revenue × (1 + demand growth) × (1 + average fare growth)" },
+            { "id": "fuelExpense", "label": "Fuel expense", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 1, "rowY": 196, "shown": true, "description": "Fuel consumption adjusted for capacity, multiplied by jet fuel price.", "formula": "Base fuel gallons × (1 + capacity growth) × jet fuel price" },
+            { "id": "laborExpense", "label": "Labor expense", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 1, "rowY": 322, "shown": true, "description": "Base labor expense adjusted by modeled labor cost growth.", "formula": "Base labor expense × (1 + labor cost growth)" },
+            { "id": "otherExpense", "label": "Other expense", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 1, "rowY": 448, "shown": true, "description": "Other expense adjusted for both capacity and non-fuel inflation.", "formula": "Base other expense × (1 + capacity growth) × (1 + non-fuel inflation)" },
+            { "id": "operatingExpense", "label": "Operating expense", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 2, "rowY": 260, "shown": true, "description": "The sum of modeled fuel, labor, and other operating expenses.", "formula": "Fuel expense + labor expense + other expense" },
+            { "id": "operatingIncome", "label": "Operating income", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 2, "rowY": 386, "shown": true, "description": "Modeled revenue less modeled operating expense.", "formula": "Revenue − operating expense" },
+            { "id": "operatingMargin", "label": "Operating margin", "kind": "derived", "unit": "percent", "base": 0, "column": 3, "rowY": 322, "shown": true, "description": "Modeled operating income as a share of modeled revenue.", "formula": "Operating income ÷ revenue" }
+          ],
+          "dependencies": [
+            { "from": "baseRevenue", "to": "revenue" },
+            { "from": "demandGrowth", "to": "revenue" },
+            { "from": "averageFareGrowth", "to": "revenue" },
+            { "from": "baseFuelGallons", "to": "fuelExpense" },
+            { "from": "capacityGrowth", "to": "fuelExpense" },
+            { "from": "jetFuelPrice", "to": "fuelExpense" },
+            { "from": "baseLaborExpense", "to": "laborExpense" },
+            { "from": "laborCostGrowth", "to": "laborExpense" },
+            { "from": "baseOtherExpense", "to": "otherExpense" },
+            { "from": "capacityGrowth", "to": "otherExpense" },
+            { "from": "nonFuelInflation", "to": "otherExpense" },
+            { "from": "fuelExpense", "to": "operatingExpense" },
+            { "from": "laborExpense", "to": "operatingExpense" },
+            { "from": "otherExpense", "to": "operatingExpense" },
+            { "from": "revenue", "to": "operatingIncome" },
+            { "from": "operatingExpense", "to": "operatingIncome" },
+            { "from": "revenue", "to": "operatingMargin" },
+            { "from": "operatingIncome", "to": "operatingMargin" }
+          ]
+        }
+        },
+
+    scenarioDocument: Dataset {
+        {
+          "scenarios": [
+            { "id": "base", "label": "Base", "description": "Illustrative base case.", "assumptions": {} },
+            { "id": "fuelShock", "label": "Fuel shock", "description": "Higher fuel price with partial fare recovery.", "assumptions": { "jetFuelPrice": 4.1, "averageFareGrowth": 0.055 } },
+            { "id": "downturn", "label": "Downturn", "description": "Demand and fares weaken while capacity contracts.", "assumptions": { "demandGrowth": -0.07, "averageFareGrowth": -0.035, "capacityGrowth": -0.04 } },
+            { "id": "capacitySqueeze", "label": "Squeeze", "description": "Tighter capacity supports fares while labor costs rise.", "assumptions": { "capacityGrowth": -0.025, "averageFareGrowth": 0.075, "laborCostGrowth": 0.085 } }
+          ]
+        }
+        },
+
+    workingScenario: Dataset {
+        {
+          "assumptions": {
+            "demandGrowth": 0.03,
+            "averageFareGrowth": 0.02,
+            "capacityGrowth": 0.02,
+            "jetFuelPrice": 2.7,
+            "laborCostGrowth": 0.04,
+            "nonFuelInflation": 0.03
+          }
+        }
+        },
+
+    model: CausalModel [ ],
+
+    header: View [ x = 28, y = 22, width = { app.width - 56 }, height = 56,
+        title: Text [ x = 0, y = 0, fontSize = 22, fontWeight = bold,
+            textColor = #F5FBFE, text = "Causal Desk" ],
+        subtitle: Text [ x = 0, y = 31, fontSize = 11, textColor = #71838C,
+            text = { "ILLUSTRATIVE AIRLINE MODEL  ·  " + app.activeScenarioLabel.toUpperCase()
+                + "  ·  COMPARING WITH BASE" } ],
+        scenarioPicker: Segmented [ x = { parent.width - 610 }, y = 8, width = 500,
+            value = { app.activeScenarioId },
+            choices = { [
+                ({ id: "base", label: "Base" }),
+                ({ id: "fuelShock", label: "Fuel shock" }),
+                ({ id: "downturn", label: "Downturn" }),
+                ({ id: "capacitySqueeze", label: "Squeeze" }),
+                ({ id: "working", label: "Working" })
+                ] },
+            input(v: object) { app.selectScenario("" + v) }
+            ],
+        reset: Button [ x = end, y = 8, width = 94, label = "Reset all",
+            disabled = { app.activeScenarioId == "base" },
+            onClick() { app.resetModel() }
+            ]
+        ],
+
+    graph: View [ x = 28, y = 94, width = { app.width - 420 },
+        height = { app.height - 122 }, cornerRadius = 18, fill = #0F181D,
+        stroke = { stroke(1, 0x26343B) }, clip = true,
+
+        columns: View [ x = 22, y = 14, width = { parent.width - 44 }, height = 22,
+            Text [ x = { graphColumnX(0, parent.width) }, fontSize = 10,
+                fontWeight = semibold, textColor = #61747E, text = "ASSUMPTIONS" ],
+            Text [ x = { graphColumnX(1, parent.width) }, fontSize = 10,
+                fontWeight = semibold, textColor = #61747E, text = "MODEL LINES" ],
+            Text [ x = { graphColumnX(2, parent.width) }, fontSize = 10,
+                fontWeight = semibold, textColor = #61747E, text = "AGGREGATES" ],
+            Text [ x = { graphColumnX(3, parent.width) }, fontSize = 10,
+                fontWeight = semibold, textColor = #61747E, text = "OUTCOME" ]
+            ],
+
+        stage: View [ x = 22, y = 38, width = { parent.width - 44 }, height = 540,
+            edges: EdgeField [ width = { parent.width }, height = { parent.height } ],
+            cards: View [ width = { parent.width }, height = { parent.height },
+                datapath = { app.modelDocument.value },
+                FactorCard [ datapath = :factors[] ]
+                ]
+            ],
+
+        legend: View [ x = 22, y = { parent.height - 40 }, height = 22,
+            assumption: View [ width = 10, height = 10, cornerRadius = 3, fill = #152D3B,
+                stroke = { stroke(1, 0x557887) } ],
+            assumptionLabel: Text [ x = 17, y = center, fontSize = 10,
+                textColor = #71838C, text = "ASSUMPTION" ],
+            derived: View [ x = 105, width = 10, height = 10, cornerRadius = 3,
+                fill = #202B32, stroke = { stroke(1, 0x34434B) } ],
+            derivedLabel: Text [ x = 122, y = center, fontSize = 10,
+                textColor = #71838C, text = "DERIVED" ],
+            note: Text [ x = 210, y = center, fontSize = 10, textColor = #52646D,
+                text = "EDGES REPRESENT FORMULA DEPENDENCIES" ]
+            ]
+        ],
+
+    inspector: View [ x = { app.width - 364 }, y = 94, width = 336,
+        height = { app.height - 122 }, cornerRadius = 18, fill = #111B21,
+        stroke = { stroke(1, 0x2B3B43) },
+
+        eyebrow: Text [ x = 22, y = 22, fontSize = 10, fontWeight = semibold,
+            textColor = { app.selectedKind == "assumption" ? 0x78C8E8 : 0x8B9AA2 },
+            textTransform = uppercase, text = { app.selectedKind } ],
+        title: Text [ x = 22, y = 46, width = 292, fontSize = 20, fontWeight = bold,
+            textColor = #F5FBFE, text = { app.selectedLabel } ],
+        valueLabel: Text [ x = 22, y = 88, fontSize = 10, textColor = #71838C,
+            text = "BASE CASE VALUE" ],
+        value: Text [ x = 22, y = 107, width = 292, fontSize = 30, fontWeight = bold,
+            textColor = #F2C46D,
+            text = { formatValue(app.selectedValue, app.selectedUnit) } ],
+        delta: Text [ x = 176, y = 119, width = 138, fontSize = 11, fontWeight = semibold,
+            textAlign = right,
+            textColor = { app.selectedDelta >= 0 ? 0x79C99E : 0xE58C8C },
+            visible = { materiallyDifferent(app.selectedValue, app.selectedComparisonValue) },
+            text = { formatDelta(app.selectedDelta, app.selectedUnit) + " VS BASE" } ],
+        description: Text [ x = 22, y = 157, width = 292, fontSize = 12,
+            lineHeight = 1.5, wrap = true, textColor = #A7B6BD,
+            text = { app.selectedDescription } ],
+
+        assumptionEditor: View [ x = 22, y = 216, width = 292, height = 104,
+            visible = { app.selectedKind == "assumption" },
+            rule: View [ width = 292, height = 1, fill = #2B3B43 ],
+            label: Text [ y = 18, fontSize = 10, fontWeight = semibold,
+                textColor = #71838C, text = "SCENARIO ASSUMPTION" ],
+            slider: Slider [ y = 43, width = 292, value = { app.selectedValue },
+                min = { app.selectedMin }, max = { app.selectedMax }, step = { app.selectedStep },
+                input(v: number) { app.changeSelectedAssumption(v) }
+                ],
+            range: Text [ y = 75, width = 292, fontSize = 10, textColor = #71838C,
+                text = { formatValue(app.selectedMin, app.selectedUnit) + "  —  "
+                    + formatValue(app.selectedMax, app.selectedUnit) } ],
+            reset: Button [ x = end, y = 70, width = 108, label = "Reset input",
+                disabled = { app.activeScenarioId != "working" },
+                onClick() { app.resetSelectedAssumption() }
+                ]
+            ],
+
+        formulaRule: View [ x = 22, y = 217, width = 292, height = 1, fill = #2B3B43,
+            visible = { app.selectedKind == "derived" } ],
+        formulaLabel: Text [ x = 22, y = 236, fontSize = 10, fontWeight = semibold,
+            textColor = #71838C, visible = { app.selectedKind == "derived" }, text = "FORMULA" ],
+        formula: Text [ x = 22, y = 258, width = 292, fontSize = 12,
+            lineHeight = 1.5, wrap = true, textColor = #DDE6EA,
+            visible = { app.selectedKind == "derived" }, text = { app.selectedFormula } ],
+
+        dependencyRule: View [ x = 22, y = 326, width = 292, height = 1, fill = #2B3B43 ],
+        dependencyLabel: Text [ x = 22, y = 345, fontSize = 10, fontWeight = semibold,
+            textColor = #71838C, text = "IMMEDIATE DEPENDENCIES" ],
+        noDependencies: Text [ x = 22, y = 376, fontSize = 12, textColor = #71838C,
+            visible = { dependencyCount(app.model.dependencyData.value) == 0 },
+            text = "This is a root model input." ],
+        dependencies: View [ x = 22, y = 374, width = 292,
+            datapath = { app.model.dependencyData.value },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            DependencyRow [ datapath = :rows[] ]
+            ],
+
+        notice: View [ x = 22, y = { parent.height - 76 }, width = 292, height = 54,
+            cornerRadius = 10, fill = #0D151A, stroke = { stroke(1, 0x26343B) },
+            mark: Text [ x = 12, y = 10, fontSize = 12, fontWeight = bold,
+                textColor = #F2C46D, text = "i" ],
+            text: Text [ x = 34, y = 9, width = 244, fontSize = 10, lineHeight = 1.5,
+                wrap = true, textColor = #71838C,
+                text = "Illustrative inputs only. A dependency is a formula read, not proof of real-world causality." ]
+            ]
+        ]
+    ]
