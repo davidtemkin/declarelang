@@ -2,10 +2,11 @@
 
 Product and interaction design, version 0.1.
 
-Implementation status (2026-09-08): Slices 1–3 are complete. The app includes the fixed
+Implementation status (2026-09-09): Slices 1–4 are complete. The app includes the fixed
 model, factor inspection, bundled scenarios, a working scenario editor, selectable
-comparisons, exact modeled contribution bridges, contribution-path highlighting, and
-spring-driven value changes. Slice 4 remains planned.
+comparisons, exact modeled contribution bridges, responsive layouts, keyboard traversal,
+direct numeric entry, reduced-motion support, explicit validation/error states, and
+contribution-path highlighting. Optional Slice 5 persistence remains deferred.
 
 ## Product restatement
 
@@ -364,7 +365,7 @@ empty/error states, and visual polish.
 
 Implementation tickets: [SLICE-4-TICKETS.md](SLICE-4-TICKETS.md).
 
-### Slice 5: optional persistence
+### Slice 5: optional persistence (deferred)
 
 Save and restore the working scenario locally only if the preceding slices demonstrate that
 analysts want to return to a model rather than treat it as a disposable exploration.

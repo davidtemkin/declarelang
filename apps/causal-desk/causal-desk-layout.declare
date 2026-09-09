@@ -43,7 +43,7 @@ class CausalGraph extends View [ width = { app.desktop ? app.width - 420 : app.w
     cornerRadius = 18, fill = #0F181D, stroke = { stroke(1, 0x26343B) }, clip = true,
     scrolls = { app.mobile || app.compactTablet ? "x" : "none" },
 
-    columns: View [ x = { app.mobile ? 16 : 22 }, y = 14,
+    columns: View [ x = { app.mobile ? 16 : 22 }, y = { app.desktop ? 14 : 30 },
         width = { app.mobile || app.compactTablet ? 820 : parent.width - 44 }, height = 22,
         Text [ x = { graphColumnX(0, parent.width) }, fontSize = 10,
             fontWeight = semibold, textColor = #61747E, text = "ASSUMPTIONS" ],
@@ -254,7 +254,7 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
             wrap = true, textColor = #71838C,
             text = "Illustrative inputs only. A dependency is a formula read, not proof of real-world causality." ]
         ],
-    reducedMotion: Button [ x = 22, y = { parent.height - 126 }, width = { innerWidth }, height = 44,
+    reducedMotion: Button [ x = { parent.width - 162 }, y = 0, width = 140, height = 44,
         disabled = { app.env.reducedMotion == true },
         label = { app.env.reducedMotion == true ? "Reduced motion: On (system)"
             : app.effectiveReducedMotion ? "Reduced motion: On" : "Reduced motion: Off" },

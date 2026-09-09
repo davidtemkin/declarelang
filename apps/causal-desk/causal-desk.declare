@@ -232,8 +232,8 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     model: CausalModel [ ],
 
     header: CausalHeader [ x = { frameGutter }, y = { headerY } ],
-    status: CausalCalculationStatus [ x = { frameGutter }, y = { graphY - 16 } ],
     graph: CausalGraph [ x = { frameGutter }, y = { graphY } ],
+    status: CausalCalculationStatus [ x = { frameGutter }, y = { desktop ? graphY - 16 : graphY + 3 } ],
     summary: CausalFactorSummary [ x = { frameGutter }, y = { summaryY } ],
     inspector: CausalInspector [ ]
     ]
