@@ -6,7 +6,8 @@ Implementation status (2026-09-09): Slices 1–4 are complete. The app includes 
 model, factor inspection, bundled scenarios, a working scenario editor, selectable
 comparisons, exact modeled contribution bridges, responsive layouts, keyboard traversal,
 direct numeric entry, reduced-motion support, explicit validation/error states, and
-contribution-path highlighting. Optional Slice 5 persistence remains deferred.
+contribution-path highlighting. Slice 5 local persistence is designed but waits on Declare's
+persistent Dataset capability.
 
 ## Product restatement
 
@@ -365,10 +366,15 @@ empty/error states, and visual polish.
 
 Implementation tickets: [SLICE-4-TICKETS.md](SLICE-4-TICKETS.md).
 
-### Slice 5: optional persistence (deferred)
+### Slice 5: local Working-scenario persistence (designed, platform-blocked)
 
-Save and restore the working scenario locally only if the preceding slices demonstrate that
-analysts want to return to a model rather than treat it as a disposable exploration.
+Save one Working scenario locally, surface durable save state, and explicitly offer Restore or
+Discard on return. Only the versioned Working-scenario record persists; selections and other UI
+state remain transient.
+
+Declare does not yet provide persistent Datasets and intentionally rejects direct browser
+storage globals. Implementation therefore waits on that platform capability rather than adding
+an app-specific TypeScript shim. See [SLICE-5-DESIGN.md](SLICE-5-DESIGN.md).
 
 ## Acceptance test for the concept
 
