@@ -6,7 +6,7 @@ class CausalHeader extends View [ width = { app.width - app.frameGutter * 2 },
         text = "ILLUSTRATIVE AIRLINE MODEL" ],
     activeLabel: Text [ x = { app.desktop ? parent.width - 724 : 0 }, y = { app.desktop ? 0 : 52 }, fontSize = 9,
         fontWeight = semibold, textColor = #61747E, text = "ACTIVE" ],
-    scenarioPicker: Segmented [ x = { app.desktop ? parent.width - 724 : 0 }, y = { app.desktop ? 17 : 69 },
+    scenarioPicker: Segmented [ x = { app.desktop ? parent.width - 724 : 0 }, y = { app.desktop ? 17 : 68 },
         width = { app.desktop ? 360 : parent.width }, height = { app.desktop ? 30 : 44 },
         value = { app.activeScenarioId },
         choices = { [
@@ -18,9 +18,9 @@ class CausalHeader extends View [ width = { app.width - app.frameGutter * 2 },
             ] },
         input(v: object) { app.selectScenario("" + v) }
         ],
-    comparisonLabel: Text [ x = { app.desktop ? parent.width - 349 : 0 }, y = { app.desktop ? 0 : 111 }, fontSize = 9,
+    comparisonLabel: Text [ x = { app.desktop ? parent.width - 349 : 0 }, y = { app.desktop ? 0 : 118 }, fontSize = 9,
         fontWeight = semibold, textColor = #61747E, text = "COMPARE WITH" ],
-    comparisonPicker: Segmented [ x = { app.desktop ? parent.width - 349 : 0 }, y = { app.desktop ? 17 : 128 },
+    comparisonPicker: Segmented [ x = { app.desktop ? parent.width - 349 : 0 }, y = { app.desktop ? 17 : 134 },
         width = { app.desktop ? 240 : parent.width }, height = { app.desktop ? 30 : 44 },
         value = { app.comparisonScenarioId },
         choices = { [
@@ -43,7 +43,7 @@ class CausalGraph extends View [ width = { app.desktop ? app.width - 420 : app.w
     cornerRadius = 18, fill = #0F181D, stroke = { stroke(1, 0x26343B) }, clip = true,
     scrolls = { app.mobile || app.compactTablet ? "x" : "none" },
 
-    columns: View [ x = { app.mobile ? 16 : 22 }, y = { app.desktop ? 14 : 30 },
+    columns: View [ x = { app.mobile ? 16 : 22 }, y = 14,
         width = { app.mobile || app.compactTablet ? 820 : parent.width - 44 }, height = 22,
         Text [ x = { graphColumnX(0, parent.width) }, fontSize = 10,
             fontWeight = semibold, textColor = #61747E, text = "ASSUMPTIONS" ],
@@ -115,7 +115,7 @@ class CausalFactorSummary extends View [ width = { app.width - app.frameGutter *
         fontWeight = semibold, textColor = { app.selectedDelta >= 0 ? 0x79C99E : 0xE58C8C },
         visible = { materiallyDifferent(app.selectedValue, app.selectedComparisonValue) },
         text = { formatDelta(app.selectedDelta, app.selectedUnit) } ],
-    details: Button [ x = end, y = 16, width = 128, height = 44,
+    details: Button [ x = { parent.width - 144 }, y = 16, width = 128, height = 44,
         label = { app.inspectorExpanded ? "Hide Details" : "Show Details" },
         onClick() { app.toggleInspector() }
         ]
@@ -254,7 +254,7 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
             wrap = true, textColor = #71838C,
             text = "Illustrative inputs only. A dependency is a formula read, not proof of real-world causality." ]
         ],
-    reducedMotion: Button [ x = { parent.width - 162 }, y = 0, width = 140, height = 44,
+    reducedMotion: Button [ x = 22, y = { parent.height - 128 }, width = { innerWidth }, height = 44,
         disabled = { app.env.reducedMotion == true },
         label = { app.env.reducedMotion == true ? "Reduced motion: On (system)"
             : app.effectiveReducedMotion ? "Reduced motion: On" : "Reduced motion: Off" },

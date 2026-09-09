@@ -45,16 +45,51 @@ export default async ({ drive, expect, page }) => {
     const flow = await page.evaluate(() => {
       const inspector = window.__declare.find("app.inspector");
       const body = window.__declare.find("app.inspector.detailBody");
+      const reducedMotion = window.__declare.find("app.inspector.reducedMotion");
       const notice = window.__declare.find("app.inspector.notice");
       return {
         bodyBottom: body.y + body.height,
+        reducedMotionY: reducedMotion.y,
+        reducedMotionBottom: reducedMotion.y + reducedMotion.height,
         noticeY: notice.y,
         noticeBottom: notice.y + notice.height,
         inspectorHeight: inspector.height,
       };
     });
-    if (flow.bodyBottom > flow.noticeY || flow.noticeBottom > flow.inspectorHeight) {
+    if (flow.bodyBottom > flow.reducedMotionY || flow.reducedMotionBottom > flow.noticeY
+      || flow.noticeBottom > flow.inspectorHeight) {
       expect.fail(`${label} inspector chrome overlaps scroll content: ${JSON.stringify(flow)}`);
+    }
+  };
+
+  const assertNarrowSpacing = async (label) => {
+    const spacing = await page.evaluate(() => {
+      const header = window.__declare.find("app.header");
+      const scenario = window.__declare.find("app.header.scenarioPicker");
+      const comparisonLabel = window.__declare.find("app.header.comparisonLabel");
+      const comparison = window.__declare.find("app.header.comparisonPicker");
+      const status = window.__declare.find("app.status");
+      const graph = window.__declare.find("app.graph");
+      const summary = window.__declare.find("app.summary");
+      const details = window.__declare.find("app.summary.details");
+      return {
+        scenarioBottom: scenario.y + scenario.height,
+        comparisonLabelY: comparisonLabel.y,
+        comparisonBottom: comparison.y + comparison.height,
+        headerHeight: header.height,
+        headerBottom: header.y + header.height,
+        statusY: status.y,
+        statusBottom: status.y + status.height,
+        graphY: graph.y,
+        detailsRightInset: summary.width - details.x - details.width,
+      };
+    });
+    if (spacing.scenarioBottom + 4 > spacing.comparisonLabelY
+      || spacing.comparisonBottom > spacing.headerHeight
+      || spacing.headerBottom > spacing.statusY
+      || spacing.statusBottom > spacing.graphY
+      || spacing.detailsRightInset !== 16) {
+      expect.fail(`${label} narrow spacing is inconsistent: ${JSON.stringify(spacing)}`);
     }
   };
 
@@ -160,14 +195,15 @@ export default async ({ drive, expect, page }) => {
   await expect.attr("app.header", "x", 24);
   await expect.attr("app.header", "y", 20);
   await expect.attr("app.graph", "x", 24);
-  await expect.attr("app.graph", "y", 190);
+  await expect.attr("app.graph", "y", 220);
   await expect.attr("app.inspector", "x", 170);
-  await expect.attr("app.summary", "y", 826);
+  await expect.attr("app.summary", "y", 856);
   await expect.attr("app.summary", "visible", true);
-  await expect.attr("app.inspector", "y", 918);
+  await expect.attr("app.inspector", "y", 948);
   await expect.attr("app.inspector", "width", 560);
   await expect.attr("app.inspector", "visible", true);
   await assertNarrowTargets("tablet");
+  await assertNarrowSpacing("tablet");
   await expect.text("app.summary.title", "Operating margin");
   await expect.text("app.summary.value", "18.6%");
   await expect.text("app.inspector.title", "Operating margin");
@@ -252,17 +288,18 @@ export default async ({ drive, expect, page }) => {
   await expect.attr("app.header", "x", 16);
   await expect.attr("app.header", "width", 358);
   await expect.attr("app.graph", "x", 16);
-  await expect.attr("app.graph", "y", 210);
+  await expect.attr("app.graph", "y", 220);
   await expect.attr("app.graph", "width", 358);
   await expect.attr("app.graph", "scrolls", "x");
   await expect.attr("app.graph.stage", "width", 820);
   await expect.attr("app.inspector", "x", 16);
-  await expect.attr("app.summary", "y", 846);
+  await expect.attr("app.summary", "y", 856);
   await expect.attr("app.summary", "visible", true);
-  await expect.attr("app.inspector", "y", 938);
+  await expect.attr("app.inspector", "y", 948);
   await expect.attr("app.inspector", "width", 358);
   await expect.attr("app.inspector", "visible", true);
   await assertNarrowTargets("mobile");
+  await assertNarrowSpacing("mobile");
   await assertInspectorFlow("mobile");
   await assertDocumentFits(390, "mobile");
   const mobileGraph = await assertAlignedGraph("mobile");

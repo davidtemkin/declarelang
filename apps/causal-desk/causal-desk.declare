@@ -29,7 +29,7 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     effectiveReducedMotion: boolean = { reducedMotionOverride || app.env.reducedMotion == true },
     frameGutter: number = { mobile ? 16 : stacked ? 24 : 28 },
     headerY: number = { desktop ? 22 : 20 },
-    headerHeight: number = { desktop ? 56 : mobile ? 174 : 154 },
+    headerHeight: number = { desktop ? 56 : 184 },
     graphY: number = { desktop ? 94 : headerY + headerHeight + 16 },
     graphHeight: number = { desktop ? app.height - 122 : 620 },
     inspectorWidth: number = { desktop ? 336 : Math.min(560, app.width - (mobile ? 32 : 48)) },
@@ -234,7 +234,7 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
 
     header: CausalHeader [ x = { frameGutter }, y = { headerY } ],
     graph: CausalGraph [ x = { frameGutter }, y = { graphY } ],
-    status: CausalCalculationStatus [ x = { frameGutter }, y = { desktop ? graphY - 16 : graphY + 3 } ],
+    status: CausalCalculationStatus [ x = { frameGutter }, y = { graphY - 16 } ],
     summary: CausalFactorSummary [ x = { frameGutter }, y = { summaryY } ],
     inspector: CausalInspector [ ]
     ]
