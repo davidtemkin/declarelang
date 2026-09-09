@@ -362,6 +362,8 @@ Implementation tickets: [SLICE-3-TICKETS.md](SLICE-3-TICKETS.md).
 Complete narrow-layout behavior, keyboard traversal, reduced motion, direct numeric entry,
 empty/error states, and visual polish.
 
+Implementation tickets: [SLICE-4-TICKETS.md](SLICE-4-TICKETS.md).
+
 ### Slice 5: optional persistence
 
 Save and restore the working scenario locally only if the preceding slices demonstrate that
