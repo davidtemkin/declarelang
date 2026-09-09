@@ -30,7 +30,7 @@ export default [
     route: async ({ drive }) => {
       await drive.click("app.header.scenarioPicker.4");
       await drive.click("app.graph.stage.cards.7");
-      await drive.drag("app.inspector.assumptionEditor.slider", 100);
+      await drive.drag("app.inspector.detailBody.assumptionEditor.slider", 100);
       await drive.settleMotion();
     },
   },

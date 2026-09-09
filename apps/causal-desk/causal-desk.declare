@@ -11,7 +11,7 @@ and derived results remain distinct so the model can be questioned rather than
 merely consumed.
 */
 
-include [ "causal-desk-logic.declare" ]
+include [ "causal-desk-logic.declare", "causal-desk-inspector.declare" ]
 
 class CausalModel extends Node [
 
@@ -72,18 +72,6 @@ class FactorCard extends Control [ width = 174, height = 68, cornerRadius = 12,
     ]
 
 
-class DependencyRow extends View [ width = { parent.width }, height = 48,
-
-    dot: View [ x = 0, y = 17, width = 8, height = 8, cornerRadius = 4, fill = #75D6FF ],
-    label: Text [ x = 18, y = 7, width = { parent.width - 122 }, fontSize = 12,
-        fontWeight = medium, textColor = #DDE6EA, text = :label ],
-    role: Text [ x = 18, y = 27, fontSize = 10, textColor = #71838C,
-        textTransform = uppercase, text = :kind ],
-    value: Text [ x = { parent.width - 96 }, y = 13, width = 96, fontSize = 13,
-        fontWeight = semibold, textAlign = right, textColor = #F2C46D, text = :formatted ]
-    ]
-
-
 class EdgeField extends View [ pointerEvents = "none",
 
     draw(d: Draw) {
@@ -115,12 +103,25 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
     activeScenarioLabel: string = { scenarioLabel(scenarioDocument.value, activeScenarioId) },
     comparisonScenarioLabel: string = { scenarioLabel(scenarioDocument.value, comparisonScenarioId) },
 
-    selectFactor(id: string) { selectedFactorId = id },
+    selectFactor(id: string) {
+        selectedFactorId = id
+        selectedContributionFactorId = ""
+        },
     selectScenario(id: string) {
-        if (id == "working" || scenarioExists(scenarioDocument.value, id)) activeScenarioId = id
+        if (id == "working" || scenarioExists(scenarioDocument.value, id)) {
+            activeScenarioId = id
+            selectedContributionFactorId = ""
+            }
         },
     selectComparison(id: string) {
-        if (id != "working" && scenarioExists(scenarioDocument.value, id)) comparisonScenarioId = id
+        if (id != "working" && scenarioExists(scenarioDocument.value, id)) {
+            comparisonScenarioId = id
+            selectedContributionFactorId = ""
+            }
+        },
+    selectedContributionFactorId: string = "",
+    selectContribution(id: string) {
+        selectedContributionFactorId = selectedContributionFactorId == id ? "" : id
         },
     changeSelectedAssumption(value: number) {
         if (selectedKind != "assumption") return
@@ -128,6 +129,7 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
         workingScenario.set([], withAssumption(modelDocument.value, scenarioDocument.value,
             workingScenario.value, activeScenarioId, selectedFactorId, value))
         activeScenarioId = "working"
+        selectedContributionFactorId = ""
         },
     resetSelectedAssumption() {
         if (selectedKind != "assumption") return
@@ -139,6 +141,7 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
     resetModel() {
         activeScenarioId = "base"
         comparisonScenarioId = "base"
+        selectedContributionFactorId = ""
         workingSourceId = "base"
         workingScenario.set([], scenarioAssumptions(modelDocument.value,
             scenarioDocument.value, ({ assumptions: {} }), "base"))
@@ -307,46 +310,83 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
             visible = { materiallyDifferent(app.selectedValue, app.selectedComparisonValue) },
             text = { formatDelta(app.selectedDelta, app.selectedUnit) + " VS "
                 + app.comparisonScenarioLabel.toUpperCase() } ],
-        description: Text [ x = 22, y = 157, width = 292, fontSize = 12,
-            lineHeight = 1.5, wrap = true, textColor = #A7B6BD,
-            text = { app.selectedDescription } ],
+        detailBody: View [ x = 0, y = 157, width = { parent.width },
+            height = { parent.height - 243 }, scrolls = y, clip = true,
+            description: Text [ x = 22, y = 0, width = 292, fontSize = 12,
+                lineHeight = 1.5, wrap = true, textColor = #A7B6BD,
+                text = { app.selectedDescription } ],
 
-        assumptionEditor: View [ x = 22, y = 216, width = 292, height = 104,
-            visible = { app.selectedKind == "assumption" },
-            rule: View [ width = 292, height = 1, fill = #2B3B43 ],
-            label: Text [ y = 18, fontSize = 10, fontWeight = semibold,
-                textColor = #71838C, text = "SCENARIO ASSUMPTION" ],
-            slider: Slider [ y = 43, width = 292, value = { app.selectedValue },
-                min = { app.selectedMin }, max = { app.selectedMax }, step = { app.selectedStep },
-                input(v: number) { app.changeSelectedAssumption(v) }
+            assumptionEditor: View [ x = 22, y = 59, width = 292, height = 104,
+                visible = { app.selectedKind == "assumption" },
+                rule: View [ width = 292, height = 1, fill = #2B3B43 ],
+                label: Text [ y = 18, fontSize = 10, fontWeight = semibold,
+                    textColor = #71838C, text = "SCENARIO ASSUMPTION" ],
+                slider: Slider [ y = 43, width = 292, value = { app.selectedValue },
+                    min = { app.selectedMin }, max = { app.selectedMax }, step = { app.selectedStep },
+                    input(v: number) { app.changeSelectedAssumption(v) }
+                    ],
+                range: Text [ y = 75, width = 292, fontSize = 10, textColor = #71838C,
+                    text = { formatValue(app.selectedMin, app.selectedUnit) + "  —  "
+                        + formatValue(app.selectedMax, app.selectedUnit) } ],
+                reset: Button [ x = end, y = 70, width = 108, label = "Reset input",
+                    disabled = { app.activeScenarioId != "working" },
+                    onClick() { app.resetSelectedAssumption() }
+                    ]
                 ],
-            range: Text [ y = 75, width = 292, fontSize = 10, textColor = #71838C,
-                text = { formatValue(app.selectedMin, app.selectedUnit) + "  —  "
-                    + formatValue(app.selectedMax, app.selectedUnit) } ],
-            reset: Button [ x = end, y = 70, width = 108, label = "Reset input",
-                disabled = { app.activeScenarioId != "working" },
-                onClick() { app.resetSelectedAssumption() }
+
+            derivedDetails: View [ x = 0, y = 59, width = { parent.width },
+                visible = { app.selectedKind == "derived" },
+                formulaRule: View [ x = 22, y = 0, width = 292, height = 1, fill = #2B3B43 ],
+                formulaLabel: Text [ x = 22, y = 19, fontSize = 10, fontWeight = semibold,
+                    textColor = #71838C, text = "FORMULA" ],
+                formula: Text [ x = 22, y = 41, width = 292, fontSize = 12,
+                    height = 44, lineHeight = 1.5, wrap = true, textColor = #DDE6EA,
+                    text = { app.selectedFormula } ],
+
+                contributionBridge: View [ x = 22, y = 99, width = 292,
+                    height = { contributionBridgeHeight(app.model.contributionData.value) },
+                    rule: View [ width = 292, height = 1, fill = #2B3B43 ],
+                    label: Text [ y = 19, fontSize = 10, fontWeight = semibold,
+                        textColor = #F2C46D, text = "MODELED DELTA BRIDGE" ],
+                    caveat: Text [ y = 37, width = 292, height = 28, fontSize = 10,
+                        lineHeight = 1.4, wrap = true, textColor = #71838C,
+                        text = "Rows explain a modeled scenario delta; they are not proof of real-world causal impact." ],
+                    comparison: Text [ y = 72, width = 292, fontSize = 12,
+                        textColor = #A7B6BD, text = { app.comparisonScenarioLabel + " "
+                            + formatValue(app.selectedComparisonValue, app.selectedUnit) } ],
+                    rows: View [ x = 0, y = 98, width = 292,
+                        height = { contributionRowCount(app.model.contributionData.value) * 42 },
+                        datapath = { app.model.contributionData.value },
+                        layout: SimpleLayout [ axis = y, spacing = 4 ],
+                        ContributionRow [ datapath = :rows[] ]
+                        ],
+                    noDelta: Text [ y = 104, width = 292, fontSize = 12,
+                        textColor = #71838C,
+                        visible = { contributionRowCount(app.model.contributionData.value) == 0 },
+                        text = "No modeled delta for this comparison." ],
+                    active: Text [ y = { contributionActiveY(app.model.contributionData.value) },
+                        width = 292, fontSize = 12, fontWeight = semibold,
+                        textColor = #F5FBFE, text = { app.activeScenarioLabel + " "
+                            + formatValue(app.selectedValue, app.selectedUnit) } ]
+                    ],
+
+                dependencies: View [ x = 22,
+                    y = { 99 + contributionBridgeHeight(app.model.contributionData.value) + 18 },
+                    width = 292, datapath = { app.model.dependencyData.value },
+                    layout: SimpleLayout [ axis = y, spacing = 4 ],
+                    dependencyRule: View [ width = 292, height = 1, fill = #2B3B43 ],
+                    dependencyLabel: Text [ y = 19, fontSize = 10, fontWeight = semibold,
+                        textColor = #71838C, text = "IMMEDIATE DEPENDENCIES" ],
+                    noDependencies: Text [ y = 50, fontSize = 12, textColor = #71838C,
+                        visible = { dependencyCount(app.model.dependencyData.value) == 0 },
+                        text = "This is a root model input." ],
+                    rows: View [ y = 48, width = 292,
+                        datapath = { app.model.dependencyData.value },
+                        layout: SimpleLayout [ axis = y, spacing = 4 ],
+                        DependencyRow [ datapath = :rows[] ]
+                        ]
+                    ]
                 ]
-            ],
-
-        formulaRule: View [ x = 22, y = 217, width = 292, height = 1, fill = #2B3B43,
-            visible = { app.selectedKind == "derived" } ],
-        formulaLabel: Text [ x = 22, y = 236, fontSize = 10, fontWeight = semibold,
-            textColor = #71838C, visible = { app.selectedKind == "derived" }, text = "FORMULA" ],
-        formula: Text [ x = 22, y = 258, width = 292, fontSize = 12,
-            lineHeight = 1.5, wrap = true, textColor = #DDE6EA,
-            visible = { app.selectedKind == "derived" }, text = { app.selectedFormula } ],
-
-        dependencyRule: View [ x = 22, y = 326, width = 292, height = 1, fill = #2B3B43 ],
-        dependencyLabel: Text [ x = 22, y = 345, fontSize = 10, fontWeight = semibold,
-            textColor = #71838C, text = "IMMEDIATE DEPENDENCIES" ],
-        noDependencies: Text [ x = 22, y = 376, fontSize = 12, textColor = #71838C,
-            visible = { dependencyCount(app.model.dependencyData.value) == 0 },
-            text = "This is a root model input." ],
-        dependencies: View [ x = 22, y = 374, width = 292,
-            datapath = { app.model.dependencyData.value },
-            layout: SimpleLayout [ axis = y, spacing = 4 ],
-            DependencyRow [ datapath = :rows[] ]
             ],
 
         notice: View [ x = 22, y = { parent.height - 76 }, width = 292, height = 54,

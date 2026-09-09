@@ -19,7 +19,7 @@ export default async ({ drive, expect, page }) => {
   await expect.attr("app", "selectedFactorId", "operatingMargin");
   await expect.text("app.inspector.title", "Operating margin");
   await expect.approx("app", "selectedValue", 0.1861, 0.0001);
-  await expect.count("app.inspector.dependencies", "DependencyRow", 2);
+  await expect.count("app.inspector.detailBody.derivedDetails.dependencies.rows", "DependencyRow", 2);
 
   // Comparison is independently selectable; changing it leaves the active
   // scenario and selected factor untouched while changing the reference value.
@@ -40,6 +40,30 @@ export default async ({ drive, expect, page }) => {
   await drive.settleMotion();
   await expect.attr("app", "activeScenarioId", "fuelShock");
   await expect.approx("app", "selectedValue", 0.1146, 0.0001);
+
+  // The derived inspector presents one semantic bridge: comparison, each
+  // changed root assumption, then active. Rows are Controls, so a real click
+  // and a keyboard activation both use the same selection seam.
+  await expect.text("app.inspector.detailBody.derivedDetails.contributionBridge.label",
+    "MODELED DELTA BRIDGE");
+  await expect.count("app.inspector.detailBody.derivedDetails.contributionBridge.rows",
+    "ContributionRow", 2);
+  await expect.text("app.inspector.detailBody.derivedDetails.contributionBridge.comparison",
+    "Base 18.6%");
+  await expect.text("app.inspector.detailBody.derivedDetails.contributionBridge.rows.0.label",
+    "Jet fuel price");
+  await expect.text("app.inspector.detailBody.derivedDetails.contributionBridge.rows.0.value",
+    "−10.0 pp");
+  await expect.text("app.inspector.detailBody.derivedDetails.contributionBridge.rows.1.label",
+    "Average fare");
+  await expect.text("app.inspector.detailBody.derivedDetails.contributionBridge.rows.1.value",
+    "+2.9 pp");
+  await expect.text("app.inspector.detailBody.derivedDetails.contributionBridge.active",
+    "Fuel shock 11.5%");
+  await drive.click("app.inspector.detailBody.derivedDetails.contributionBridge.rows.0");
+  await expect.attr("app", "selectedContributionFactorId", "jetFuelPrice");
+  await drive.key("Space");
+  await expect.attr("app", "selectedContributionFactorId", "");
 
   // The exposed Dataset is the browser-observable attribution result. Its
   // values are unrounded, so the fixed oracle checks the engine rather than
@@ -90,13 +114,14 @@ export default async ({ drive, expect, page }) => {
   await expect.attr("app", "selectedFactorId", "revenue");
   await expect.text("app.inspector.title", "Revenue");
   await expect.approx("app", "selectedValue", 10866.5, 0.01);
-  await expect.count("app.inspector.dependencies", "DependencyRow", 3);
+  await expect.count("app.inspector.detailBody.derivedDetails.dependencies.rows", "DependencyRow", 3);
 
   // Demand growth is a root assumption, so its inspector has no dependency rows.
   await drive.click("app.graph.stage.cards.4");
   await expect.attr("app", "selectedFactorId", "demandGrowth");
   await expect.text("app.inspector.title", "Demand growth");
-  await expect.count("app.inspector.dependencies", "DependencyRow", 0);
+  await expect.count("app.inspector.detailBody.derivedDetails.dependencies.rows", "DependencyRow", 0);
+  await expect.attr("app.inspector.detailBody.derivedDetails", "visible", false);
   contributions = await inspectedContributions();
   await expect.equal(contributions.rows, [], "Assumption has no contributions");
   assertClose(contributions.total, 0, 0, "Assumption contribution total");
@@ -104,7 +129,7 @@ export default async ({ drive, expect, page }) => {
   // Editing an assumption forks the selected bundle into the Working scenario.
   await drive.click("app.graph.stage.cards.7");
   const fuelBefore = await expect.explain("app", "selectedValue");
-  await drive.drag("app.inspector.assumptionEditor.slider", 100);
+  await drive.drag("app.inspector.detailBody.assumptionEditor.slider", 100);
   await drive.settleMotion();
   await expect.attr("app", "activeScenarioId", "working");
   const fuelAfter = await expect.explain("app", "selectedValue");
@@ -113,7 +138,7 @@ export default async ({ drive, expect, page }) => {
   }
 
   // Reset input restores the bundled scenario value without leaving Working.
-  await drive.click("app.inspector.assumptionEditor.reset");
+  await drive.click("app.inspector.detailBody.assumptionEditor.reset");
   await expect.attr("app", "activeScenarioId", "working");
   await expect.approx("app", "selectedValue", 4.1, 0.001);
 
@@ -127,6 +152,8 @@ export default async ({ drive, expect, page }) => {
   // Equal active and comparison scenarios have an explicit empty bridge.
   await drive.click("app.graph.stage.cards.16");
   contributions = await inspectedContributions();
+  await expect.text("app.inspector.detailBody.derivedDetails.contributionBridge.noDelta",
+    "No modeled delta for this comparison.");
   await expect.equal(contributions.rows, [], "Equal scenarios have no contributions");
   assertClose(contributions.total, 0, 0, "Equal-scenario contribution total");
   assertClose(contributions.residual, 0, 0, "Equal-scenario residual");
