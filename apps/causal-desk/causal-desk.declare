@@ -51,6 +51,8 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     selectedValue: number = { numberAt(model.values, selectedFactorId) },
     selectedComparisonValue: number = { numberAt(model.comparisonValues, selectedFactorId) },
     selectedDelta: number = { selectedValue - selectedComparisonValue },
+    calculationStatus: string = { modelCalculationStatus(modelDocument.value,
+        model.values, model.comparisonValues) },
     activeScenarioId: string = "base",
     comparisonScenarioId: string = "base",
     workingSourceId: string = "base",
@@ -230,6 +232,7 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     model: CausalModel [ ],
 
     header: CausalHeader [ x = { frameGutter }, y = { headerY } ],
+    status: CausalCalculationStatus [ x = { frameGutter }, y = { graphY - 16 } ],
     graph: CausalGraph [ x = { frameGutter }, y = { graphY } ],
     summary: CausalFactorSummary [ x = { frameGutter }, y = { summaryY } ],
     inspector: CausalInspector [ ]

@@ -38,6 +38,8 @@ export default async ({ drive, expect, page }) => {
     await drive.click(apply);
     await expect.attr("app", "activeScenarioId", "working");
     await expect.approx("app", "selectedValue", 4.3, 0.0001);
+    await expect.attr("app", "calculationStatus", "ok");
+    await expect.text("app.status.status", "MODEL SCOPE · ILLUSTRATIVE DATA · CALCULATION OK");
   }
 
   await replace("5");
@@ -69,7 +71,7 @@ export default async ({ drive, expect, page }) => {
     const node = await window.__declare.inspect(path)
     return node.rootY + window.scrollY
   }, input);
-  await page.evaluate((y) => window.scrollTo(0, Math.max(0, y - 180)), inputDocumentY);
+  await page.evaluate((y) => window.scrollTo({ top: Math.max(0, y - 180), left: 0 }), inputDocumentY);
   const paintedY = await page.evaluate(async (path) =>
     (await window.__declare.inspect(path)).rootY, input);
   if (paintedY < 0 || paintedY > 844) throw new Error(`input is not painted: ${paintedY}`);
@@ -93,4 +95,6 @@ export default async ({ drive, expect, page }) => {
   await drive.key("Enter");
   await expect.attr("app", "activeScenarioId", "working");
   await expect.approx("app", "selectedValue", 0.15, 0.0001);
+  await expect.attr("app", "calculationStatus", "ok");
+  await expect.text("app.status.status", "MODEL SCOPE · ILLUSTRATIVE DATA · CALCULATION OK");
 };

@@ -89,6 +89,17 @@ class CausalGraph extends View [ width = { app.desktop ? app.width - 420 : app.w
     ]
 
 
+class CausalCalculationStatus extends View [ width = { app.width - app.frameGutter * 2 }, height = 16,
+    status: Text [ width = { parent.width }, height = { parent.height },
+        fontSize = { app.mobile ? 8 : 9 },
+        fontWeight = semibold, textColor = { app.calculationStatus == "ok" ? 0x79C99E : 0xE58C8C },
+        text = { app.calculationStatus == "ok"
+            ? "MODEL SCOPE · ILLUSTRATIVE DATA · CALCULATION OK"
+            : app.mobile ? "MODEL SCOPE · ILLUSTRATIVE · CALCULATION UNAVAILABLE · NON-FINITE VALUE"
+                : "MODEL SCOPE · ILLUSTRATIVE DATA · CALCULATION UNAVAILABLE — NON-FINITE MODEL VALUE" } ]
+    ]
+
+
 class CausalFactorSummary extends View [ width = { app.width - app.frameGutter * 2 },
     height = { app.summaryHeight }, visible = { app.stacked },
     cornerRadius = 12, fill = #111B21, stroke = { stroke(1, 0x2B3B43) },
@@ -193,7 +204,8 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
                     text = "Rows explain a modeled scenario delta; they are not proof of real-world causal impact." ],
                 comparison: Text [ y = 72, width = { parent.width }, fontSize = 12,
                     textColor = #A7B6BD, text = { app.comparisonScenarioLabel + " "
-                        + formatValue(app.selectedComparisonValue, app.selectedUnit) } ],
+                        + formatValue(app.selectedComparisonValue, app.selectedUnit) },
+                    visible = { app.calculationStatus == "ok" } ],
                 rows: View [ x = 0, y = 98, width = { parent.width },
                     height = { contributionRowCount(app.model.contributionData.value) * 42 },
                     datapath = { app.model.contributionData.value },
@@ -202,12 +214,18 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
                     ],
                 noDelta: Text [ y = 104, width = { parent.width }, fontSize = 12,
                     textColor = #71838C,
-                    visible = { contributionRowCount(app.model.contributionData.value) == 0 },
+                    visible = { app.calculationStatus == "ok"
+                        && contributionRowCount(app.model.contributionData.value) == 0 },
                     text = "No modeled delta for this comparison." ],
+                unavailable: Text [ y = 104, width = { parent.width }, height = 40,
+                    lineHeight = 1.5, wrap = true, textColor = #F5FBFE,
+                    visible = { app.calculationStatus != "ok" },
+                    text = "Contribution unavailable because the scenario calculation did not produce a finite result." ],
                 active: Text [ y = { contributionActiveY(app.model.contributionData.value) },
                     width = { parent.width }, fontSize = 12, fontWeight = semibold,
                     textColor = #F5FBFE, text = { app.activeScenarioLabel + " "
-                        + formatValue(app.selectedValue, app.selectedUnit) } ]
+                        + formatValue(app.selectedValue, app.selectedUnit) },
+                    visible = { app.calculationStatus == "ok" } ]
                 ],
             dependencies: View [ x = 22,
                 y = { 99 + contributionBridgeHeight(app.model.contributionData.value) + 18 },

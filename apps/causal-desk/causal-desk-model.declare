@@ -29,7 +29,8 @@ class FactorCard extends Control [ width = 174, height = 68, cornerRadius = 12,
     onContributionPath: boolean = { factorOnContributionPath(app.modelDocument.value,
         app.selectedContributionFactorId, app.selectedFactorId, factorId) },
     animatedValue: number = { currentValue },
-    shownValue: number = { app.effectiveReducedMotion ? currentValue : animatedValue },
+    shownValue: number = { Number.isFinite(currentValue)
+        ? app.effectiveReducedMotion ? currentValue : animatedValue : currentValue },
 
     x = { graphColumnX(column, parent.width) },
     y = { rowY },
@@ -41,8 +42,9 @@ class FactorCard extends Control [ width = 174, height = 68, cornerRadius = 12,
             : changed ? 0xB5883B : hot ? 0x557887 : 0x34434B) },
     shadow = { selected ? shadow(0, 8, 24, 0x55000000) : shadow(0, 3, 12, 0x33000000) },
 
-    motion: Spring [ attribute = animatedValue, to = { currentValue },
-        paused = { app.effectiveReducedMotion },
+    motion: Spring [ attribute = animatedValue,
+        to = { Number.isFinite(currentValue) ? currentValue : 0 },
+        paused = { app.effectiveReducedMotion || !Number.isFinite(currentValue) },
         stiffness = 230, damping = 28, mass = 1 ],
 
     kind: Text [ x = 12, y = 10, fontSize = 10, fontWeight = semibold,
