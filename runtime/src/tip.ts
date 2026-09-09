@@ -12,6 +12,7 @@
 // the same wiring contract as Focus/Keys (sources.ts).
 
 import type { View } from "./view.js";
+import { providedRead } from "./attributes.js";
 import { rootFrameBox, type InteractionView } from "./interaction.js";
 
 export interface TipEvent {
@@ -58,7 +59,7 @@ class TipService {
       this.publish(view); // showing, or still warm — retarget instantly (the OS rule)
       return;
     }
-    const theme = (view as unknown as { theme?: Record<string, unknown> }).theme;
+    const theme = providedRead(view, "theme", true, null) as Record<string, unknown> | null;
     const delay = typeof theme?.tooltipDelay === "number" ? theme.tooltipDelay : SHOW_DELAY_MS;
     this.timer = setTimeout(() => {
       this.timer = null;

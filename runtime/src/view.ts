@@ -12,9 +12,7 @@
 
 import { Node, onDiscard, runRetire, authoredName } from "./node.js";
 import { DeclareError } from "./errors.js";
-import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
-import type { FontWeight } from "./measure.js";
-import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
+import { backdropEqual, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Fill, type Shadow, type Stroke } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
 import { Tip } from "./tip.js";
 
@@ -256,77 +254,12 @@ export class View extends Node {
    *  (tabslider-gaps.md gap 1); false/null = no clip. */
   declare clip: string | boolean | null;
 
-  /** The prevailing text-style slots (styling rung, ruled): declared on View
-   *  so any container can PROVIDE them — an unset slot follows the nearest
-   *  providing ancestor's value, live (the accessor's follow walk,
-   *  attributes.ts). Text renders with the effective values; on a plain View
-   *  they are pure context (no Surface push). `textColor` is the one
-   *  text-color slot everywhere — Text.color is retired (ruled, no alias). */
-  declare textColor: Color;
-  declare fontSize: number;
-  declare fontFamily: string;
-  declare fontWeight: FontWeight;
-  /** Letter tracking in px (canvas-native), 0 = natural advances. */
-  declare letterSpacing: number;
-  /** The size an Icon takes from its context (prevailing; schema.ts). */
-  declare iconSize: number;
-  /** Rich-text STRUCTURE style, prevailing: a `Markdown`/`HTMLText` renders its
-   *  headings/links/inline-code from these; a plain View just carries them for
-   *  its rich-text descendants. Colors are `null` = the theme-aware house token;
-   *  `headingWeight` defaults to the house `bold`. */
-  declare headingColor: Color;
-  declare headingWeight: FontWeight;
-  declare linkColor: Color;
-  declare codeColor: Color;
-  /** Code face + size, prevailing: the monospace regions of a `Markdown`/`HTMLText`
-   *  (inline code, fenced/`<pre>` blocks) render at these; `0`/`""` = the house
-   *  code style (PROSE.codeSize / PROSE.mono). */
-  declare codeSize: number;
-  declare codeFamily: string;
-  /** Code-block box paint, prevailing: `codeBackground` tints the box behind a
-   *  fenced/`<pre>` code block, `codeRule` draws a left accent bar on it. Both
-   *  `null` = the house look (fenced code keeps its themed tint; a `<pre>` stays
-   *  bare), so setting them is opt-in and changes nothing unset. */
-  declare codeBackground: Color;
-  declare codeRule: Color;
-  /** Per-block-type layout geometry for rendered rich text, prevailing: a plain
-   *  record keyed by block type (`paragraph`/`heading`/`code`/`pre`/`list`/
-   *  `table`/`blockquote`/`rule`, plus `default`), each entry `{ maxWidth, margin:
-   *  [l, r], align }`. Defaulted in the consumer like `theme` — an unset map or
-   *  field is today's full-width left-aligned flow; `pre` shares `code`. */
-  declare richTextLayout: Readonly<Record<string, { maxWidth?: number; margin?: readonly [number, number]; align?: "left" | "center" | "right" }>> | null;
-  /** Native text selection, prevailing: `selectable = true` on a container opts
-   *  its whole subtree back into browser selection/copy (Text acts on it; a
-   *  `Markdown` component's runs inherit it). Off by default — the app is a UI. */
-  declare selectable: boolean;
-  /** The prevailing design-token record (ruled, v1): a plain immutable
-   *  record, wholesale-swapped — components opt in by reading tokens
-   *  (`fill = { theme.buttonFill }`); re-skinning a subtree is one set. */
-  declare theme: Theme;
-  /** The applied style bundles' names (`styles = [card, danger]`) — a
-   *  STATIC list (ruled v1): the bundles' sets merge at construction, so
-   *  this slot is introspection, not a live channel. */
-  declare styles: readonly string[] | null;
-  /** The prevailing stylesheet (the external channel): provide one anywhere
-   *  and that subtree reskins — its class-keyed entries land as rank-2
-   *  offers through per-view appliers (stylesheet.ts); assigning another
-   *  stylesheet re-skins live, one settle. */
-  declare stylesheet: Stylesheet | null;
-
-  /** Resolve a declared stylesheet by name — the honest public call for
-   *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and
-   *  a bare `Dark` is (correctly) just an unresolved identifier, NOT sugar:
-   *  `stylesheet = { night ? this.lookupStylesheet("Dark")
-   *                        : this.lookupStylesheet("Light") }`.
-   *  The bare-name form `stylesheet = Dark` is the DECLARATIVE surface and is
-   *  compile-checked there; inside a body the name is a runtime string, so a
-   *  miss throws loud + positioned (stylesheetByName) rather than resolving to a
-   *  silent null. Resolved against the program registry at the tree root. */
-  lookupStylesheet(name: string): Stylesheet {
-    let root: Node = this;
-    while (root.parent !== null) root = root.parent;
-    return stylesheetByName(root, name);
-  }
+  // The text-face, rich-text-structure, iconSize, theme, styles, and stylesheet
+  // slots moved OFF View with provided values (docs/system-design/style.md): a
+  // container draws no glyphs. They live with the text leaves (Text, RichText,
+  // TextInput — face + rich), Icon (iconSize), and Control (theme) as provided
+  // reads; `style`/`stylesheet` bundles are retired in favour of provided values
+  // and subclassing.
   /** How this view arranges its children (language §5: a reactive slot, not
    *  a child and not a container type); null = none — absolute x/y. Written
    *  as the member `layout: SimpleLayout [ … ]`; assigning swaps the live
@@ -718,7 +651,6 @@ export class View extends Node {
       INSTALLED.delete(this);
       undoLayout();
     }
-    disposeApplier(this);
     disposeBindings(this);
     // the visibility feed dies with the view — the backend watch, the generic
     // computer, and any at-rest flush still pending
@@ -743,9 +675,9 @@ export class View extends Node {
    *  exactly the paint order the Canvas walk uses: content, then children. */
   protected flush(s: Surface): void {
     // Pushers fire on CHANGE; the attach flush carries pre-attach state
-    // across (the Image.stretches discipline). Phase-2 selection: a
-    // container constructed `selectable = true` realizes its surface now.
-    if (this.selectable === true) s.setSelectableRegion?.(true);
+    // across (the Image.stretches discipline). Text selection is realized by
+    // the text leaves themselves now (Text/TextInput's `selectable` push), not
+    // by a container slot — `selectable` moved off View with provided values.
     // an armed visibility feed follows the view onto its (re)attached surface
     if (this.visArmed) this.startVisibility();
     s.setX(this.x);
@@ -1348,38 +1280,10 @@ defineAttributes(View, {
   scrollY: { def: 0, push: (v, y: number) => v.surface?.scrollToY?.(y) },
   claim: { def: "both" },
   scrollX: { def: 0, push: (v, x: number) => v.surface?.scrollToX?.(x) },
-  // The prevailing built-ins: model-side on View (no push — Text's style
-  // derive is the consumer that crosses the seam). Defaults are the
-  // browser-native text defaults Text carried through R3–R9.
-  textColor: { def: 0x000000, prevailing: true },
-  selectable: {
-    def: false,
-    prevailing: true,
-    // Phase-2 selection: an explicitly-selectable container realizes as a
-    // selection surface (optional-chained — DOM-only affordance).
-    push: (v, val) => v.surface?.setSelectableRegion?.(val === true),
-  },
-  fontSize: { def: 16, prevailing: true },
-  fontFamily: { def: "sans-serif", prevailing: true },
-  fontWeight: { def: "normal", prevailing: true },
-  letterSpacing: { def: 0, prevailing: true },
-  iconSize: { def: 16, prevailing: true },
-  // Rich-text structure overrides — consumed by Markdown/HTMLText (null color =
-  // the theme-aware house token; headingWeight = the house bold).
-  headingColor: { def: null, prevailing: true },
-  headingWeight: { def: "bold", prevailing: true },
-  linkColor: { def: null, prevailing: true },
-  codeColor: { def: null, prevailing: true },
-  codeSize: { def: 0, prevailing: true },
-  codeFamily: { def: "", prevailing: true },
-  codeBackground: { def: null, prevailing: true },
-  codeRule: { def: null, prevailing: true },
-  richTextLayout: { def: null, prevailing: true },
-  theme: { def: DEFAULT_THEME, prevailing: true },
-  styles: { def: null },
-  // The pusher installs appliers under a newly-providing view (existing
-  // appliers re-run through their own tracked follow of this slot).
-  stylesheet: { def: null, prevailing: true, push: (v) => stylesheetArrived(v) },
+  // The text-face / rich-text / iconSize / theme / styles / stylesheet slots
+  // moved off View with provided values — they now live with the text leaves,
+  // Icon, and Control (attributes.ts providedDefault). A container that sets one
+  // PROVIDES it: an undeclared set becomes an instance-slot provision.
   layout: {
     def: null,
     // The install/uninstall side of the slot: detach the old arrangement

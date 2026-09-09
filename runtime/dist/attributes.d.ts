@@ -45,6 +45,11 @@ export interface AttrSpec<S, V> {
      *  no carrier of this hook follows or defBinds. */
     tracked?: (self: S, v: V) => V;
 }
+/** Set a provision on a node — the value a descendant's `provided("name")`
+ *  reads when this node is the nearest provider. Equality-gated, and wakes the
+ *  readers below. Both a literal provision and a bound one (whose `{ }`
+ *  re-derives) land here. */
+export declare function provideWrite(self: object, name: string, value: unknown): void;
 /** Declare a class's reactive attributes: defaults + pushes, installed as
  *  prototype accessors. Call once per class, at module load, right under the
  *  class declaration (whose fields are `declare`d — the accessors here are
@@ -72,6 +77,15 @@ export declare function defineAttributes<S extends object>(ctor: abstract new ()
  *  terminal (`provided("fontSize", 15)`): when nothing above provides the name,
  *  a defaulted read returns the default and a bare (required) read throws,
  *  naming the missing value. */
+/** A slot's default binding that reads the nearest provided value, falling to
+ *  `def`. This is how the text leaves (Text, RichText, TextInput) declare their
+ *  face slots off `View` — `fontSize: { def: 16, defBinding: providedDefault(
+ *  "fontSize", 16) }` — so a bare run inherits its region's style (the container
+ *  provides it) yet a bare, unprovided run still has a sensible default. The
+ *  provided read is skipped once the slot is set locally (attributes.ts accessor
+ *  only evaluates a defBinding on an unset slot), so `Text [ fontSize = 70 ]`
+ *  overrides without consulting the tree. */
+export declare function providedDefault(name: string, def: unknown): (this: unknown) => unknown;
 export declare function providedRead(self: object, name: string, hasDefault: boolean, dflt: unknown): unknown;
 /** A runtime-side write: a constraint's apply, auto-size, a load result.
  *  Same store/push/wake as the setter, but it neither marks the slot as

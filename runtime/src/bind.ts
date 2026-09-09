@@ -11,10 +11,10 @@
 
 import { DeclareError, type Pos } from "./errors.js";
 import { Constraint } from "./reactive.js";
-import { followedValue, markPercent, own, setBound } from "./attributes.js";
+import { followedValue, markPercent, own, setBound, provideWrite } from "./attributes.js";
 import { compileExpr, type ExprFn } from "./expr.js";
 import { View, inheritedCursor, withCursorDefining } from "./view.js";
-import { authoredName, type Node } from "./node.js";
+import { authoredName, onDiscard, type Node } from "./node.js";
 import { coerceData, toCursor } from "./data.js";
 import { splitPath, type PathSeg } from "./datapath.js";
 import type { AttrType } from "./value.js";
@@ -28,6 +28,45 @@ import type { AttrType } from "./value.js";
  *  (a class-body member on the class root itself binds to that root).
  *  `view` is any Node since R8 — a DataSource's `url = { … }` binds the
  *  same way a View attribute does. */
+/** Bind a `{ }` PROVISION — `App [ theme = { … } ]` where `theme` is not a slot
+ *  of the node's class. Same standing computation as bindConstraint, but the
+ *  result lands in the node's provision store (provideWrite) rather than a slot,
+ *  so a descendant's `provided("theme")` re-derives when the { } does. No slot
+ *  owner (there is no slot); teardown rides onDiscard. */
+export function provideBind(
+  view: Node,
+  name: string,
+  src: string,
+  pos: Pos,
+  classroot: View | null,
+  deps?: readonly string[]
+): void {
+  const c = compileExpr(src);
+  if ("error" in c) throw new DeclareError(`${view.constructor.name} provides ${name} = { … } ${c.error}`, pos);
+  const fn = c.fn;
+  const k = new Constraint(
+    `${view.constructor.name} provides ${name}`,
+    () => fn.call(view, view.parent, classroot),
+    (v) => provideWrite(view, name, v)
+  );
+  k.source = src;
+  if (pos != null && typeof (pos as { line?: number }).line === "number") {
+    k.sourcePos = { line: (pos as { line: number }).line, col: (pos as { col?: number }).col ?? 0 };
+  }
+  onDiscard(view, () => k.dispose());
+  const regionReactive = deps !== undefined && deps.some((rp) => rp.startsWith(":") || rp.includes(".read(") || rp.includes(".value."));
+  if (deps !== undefined && deps.length > 0 && !regionReactive) {
+    const probes = deps.map((rp) => compileExpr(rp)).filter((r): r is { fn: ExprFn } => "fn" in r).map((r) => r.fn);
+    k.wire(() => {
+      for (const p of probes) {
+        try { p.call(view, view.parent, classroot); } catch { /* a null-value projection — its tracked prefix is already wired */ }
+      }
+    }, deps);
+  } else {
+    k.run();
+  }
+}
+
 export function bindConstraint(
   view: Node,
   name: string,

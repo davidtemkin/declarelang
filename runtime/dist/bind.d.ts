@@ -12,6 +12,12 @@ import type { AttrType } from "./value.js";
  *  (a class-body member on the class root itself binds to that root).
  *  `view` is any Node since R8 — a DataSource's `url = { … }` binds the
  *  same way a View attribute does. */
+/** Bind a `{ }` PROVISION — `App [ theme = { … } ]` where `theme` is not a slot
+ *  of the node's class. Same standing computation as bindConstraint, but the
+ *  result lands in the node's provision store (provideWrite) rather than a slot,
+ *  so a descendant's `provided("theme")` re-derives when the { } does. No slot
+ *  owner (there is no slot); teardown rides onDiscard. */
+export declare function provideBind(view: Node, name: string, src: string, pos: Pos, classroot: View | null, deps?: readonly string[]): void;
 export declare function bindConstraint(view: Node, name: string, src: string, pos: Pos, classroot: View | null, 
 /** The compiler's extracted dependency read-paths (docs/system-design/constraints.md §5).
  *  When present, the constraint is wired on the static path — edges fixed once,

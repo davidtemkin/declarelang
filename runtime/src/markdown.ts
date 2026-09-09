@@ -19,12 +19,12 @@ import { Text } from "./text.js";
 import type { RenderBackend, RichBlock, RichRun, Surface } from "./backend.js";
 import { Layout, type Box } from "./layout.js";
 import { Constraint } from "./reactive.js";
-import { defineAttributes, prevailingProvided } from "./attributes.js";
+import { defineAttributes, providedDefault, providedRead } from "./attributes.js";
 import { fontMetrics, fontString, textWidth, transformText, type FontWeight, type TextTransform } from "./measure.js";
 import { parse, type Block, type Inline } from "./md.js";
 import { headingSlug } from "./slug.js";
 import { parseHtml, type Unsupported } from "./html.js";
-import { coerce, type Fill, type Shadow, type Outline } from "./value.js";
+import { coerce, type Fill, type Shadow, type Outline, type Color } from "./value.js";
 import type { Literal } from "./parser.js";
 import { styleBundles } from "./style-bundles.js";
 import { compileExpr } from "./expr.js";
@@ -645,7 +645,12 @@ class TextFlow extends View {
    *  not a flow (a `Text` is a label). `prevailingProvided` is tracked, so a
    *  provision appearing later re-flows. */
   private effSelectable(): boolean {
-    return prevailingProvided(this, "selectable") ? this.selectable : true;
+    // A flowing document is selectable by nature: DEFAULT true, so a bare
+    // Markdown/HTMLText selects, yet a provider above — a container's
+    // `selectable = false`, or `selectable = false` on the Markdown instance
+    // (a provision, since RichText declares no such slot) — overrides. Read as
+    // a provided value, tracked, so a provision appearing later re-flows.
+    return providedRead(this, "selectable", true, true) as boolean;
   }
 
   override attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
@@ -1084,6 +1089,23 @@ function buildQuote(b: Extract<Block, { t: "blockquote" }>, width: number, ctx: 
 // parser. Shared attributes (lineHeight/bodyColor/scale) and the `link` event
 // live on the base, so both formats inherit them.
 export abstract class RichText extends View {
+  // FACE + rich-text STRUCTURE slots (off View — docs/system-design/style.md):
+  // each defaults to the nearest provided value, so prose inherits its region's
+  // style; `selectable` defaults TRUE (a flowing document selects by nature).
+  declare textColor: Color;
+  declare fontSize: number;
+  declare fontFamily: string;
+  declare fontWeight: FontWeight;
+  declare letterSpacing: number;
+  declare headingColor: Color;
+  declare headingWeight: FontWeight;
+  declare linkColor: Color;
+  declare codeColor: Color;
+  declare codeSize: number;
+  declare codeFamily: string;
+  declare codeBackground: Color;
+  declare codeRule: Color;
+  declare richTextLayout: Readonly<Record<string, { maxWidth?: number; margin?: readonly [number, number]; align?: "left" | "center" | "right" }>> | null;
   declare lineHeight: number;
   declare bodyColor: number | null;
   declare linkUnderline: boolean;
@@ -1287,6 +1309,29 @@ export class HTMLText extends RichText {
 
 // Shared attributes live on the RichText base; Markdown/HTMLText inherit them
 // and add only their own source attribute(s).
-defineAttributes(RichText, { lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null } });
+defineAttributes(RichText, {
+  // FACE slots, off View: each defaults to the nearest provided value.
+  textColor: { def: 0x000000, defBinding: providedDefault("textColor", 0x000000) },
+  fontSize: { def: 16, defBinding: providedDefault("fontSize", 16) },
+  fontFamily: { def: "sans-serif", defBinding: providedDefault("fontFamily", "sans-serif") },
+  fontWeight: { def: "normal", defBinding: providedDefault("fontWeight", "normal") },
+  letterSpacing: { def: 0, defBinding: providedDefault("letterSpacing", 0) },
+  // `selectable` is NOT declared here: RichText reads it as a provided value
+  // (effSelectable / TextFlow), so a container's provision reaches the flow
+  // children without RichText's own slot shadowing the walk.
+  // Rich-text STRUCTURE slots, off View: heading/link/code/richTextLayout —
+  // null color = the theme-aware house token (resolved in rebuild()).
+  headingColor: { def: null, defBinding: providedDefault("headingColor", null) },
+  headingWeight: { def: "bold", defBinding: providedDefault("headingWeight", "bold") },
+  linkColor: { def: null, defBinding: providedDefault("linkColor", null) },
+  linkUnderline: { def: false, defBinding: providedDefault("linkUnderline", false) },
+  codeColor: { def: null, defBinding: providedDefault("codeColor", null) },
+  codeSize: { def: 0, defBinding: providedDefault("codeSize", 0) },
+  codeFamily: { def: "", defBinding: providedDefault("codeFamily", "") },
+  codeBackground: { def: null, defBinding: providedDefault("codeBackground", null) },
+  codeRule: { def: null, defBinding: providedDefault("codeRule", null) },
+  richTextLayout: { def: null, defBinding: providedDefault("richTextLayout", null) },
+  lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null },
+});
 defineAttributes(Markdown, { text: { def: "" } });
 defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, textStyles: { def: {} } });

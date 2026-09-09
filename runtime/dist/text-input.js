@@ -14,7 +14,7 @@
 // the native element consumes character input directly while it holds the
 // caret.
 import { fireEvent, onDiscard } from "./view.js";
-import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
+import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault, providedRead } from "./attributes.js";
 import { Constraint, settle } from "./reactive.js";
 import { Focus } from "./focus.js";
 import { fontMetrics, fontString, wrapEditable } from "./measure.js";
@@ -50,7 +50,12 @@ export class TextInput extends Editor {
         // the slot. Surface fill, a 1px line edge that turns accent when the
         // field holds keyboard focus, the theme's controlRadius geometry token.
         const tok = (name, fallback) => {
-            const v = this.theme?.[name];
+            // The house field chrome reads the PROVIDED theme (a component-library
+            // value now — off View); unprovided it is null and the fallbacks below
+            // stand in, so a bare, library-free TextInput still renders articulated.
+            // Read inside the derives, so a provided theme change re-styles the field.
+            const theme = providedRead(this, "theme", true, null);
+            const v = theme?.[name];
             return typeof v === "number" ? v : fallback;
         };
         if (!isSet(this, "fill") && ownerOf(this, "fill") === null)
@@ -229,6 +234,12 @@ export class TextInput extends Editor {
     }
 }
 defineAttributes(TextInput, {
+    textColor: { def: 0x000000, defBinding: providedDefault("textColor", 0x000000) },
+    fontSize: { def: 16, defBinding: providedDefault("fontSize", 16) },
+    fontFamily: { def: "sans-serif", defBinding: providedDefault("fontFamily", "sans-serif") },
+    fontWeight: { def: "normal", defBinding: providedDefault("fontWeight", "normal") },
+    letterSpacing: { def: 0, defBinding: providedDefault("letterSpacing", 0) },
+    selectable: { def: false, defBinding: providedDefault("selectable", false) },
     text: { def: "", push: (t) => t.syncEditable() },
     placeholder: { def: "", push: (t) => t.syncEditable() },
     multiline: { def: false, push: (t) => t.syncEditable() },

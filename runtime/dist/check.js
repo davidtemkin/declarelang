@@ -1148,7 +1148,28 @@ function attributeMiss(schema, name) {
 export function checkAttr(schema, attr) {
     const type = attrType(schema, attr.name);
     if (type === null) {
-        return { ok: false, error: new DeclareError(`${schema.name} has no attribute '${attr.name}'${attributeMiss(schema, attr.name)}`, attr.pos) };
+        // A PROVISION (provided values): a set of a name the node's class does not
+        // declare provides that value to the subtree, read by a descendant's
+        // `provided("name")`. The value is validated for its own well-formedness —
+        // a `{ }` compiles, a literal coerces by its written form — but not against
+        // a slot type (there is none; provided() is `any`, typed where it is read).
+        if (attr.bind === "two") {
+            return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} <-> …: the two-way arrow edits an editor's value slot — '${attr.name}' is not a slot of ${schema.name}`, attr.pos) };
+        }
+        if (attr.value.kind === "code") {
+            const e = validateExpr(attr.value.src);
+            if (e !== null)
+                return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} = { … } ${e}`, attr.value.pos) };
+            return { ok: true, provision: { name: attr.name, binding: { src: attr.value.src, pos: attr.value.pos } } };
+        }
+        if (attr.value.kind === "path") {
+            return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} = :${attr.value.path}: a provided value is a plain value or a { }, not a datapath`, attr.value.pos) };
+        }
+        const v = coerceToken(attr.value);
+        if (v === undefined) {
+            return { ok: false, error: new DeclareError(`${schema.name}.${attr.name}: ${describeLiteral(attr.value)} is not a value — a provided value is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow/frost), or a { } expression`, attr.value.pos) };
+        }
+        return { ok: true, provision: { name: attr.name, value: v } };
     }
     if (isReadOnly(schema, attr.name)) {
         return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`, attr.pos) };

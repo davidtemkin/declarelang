@@ -24,12 +24,21 @@
 
 import { View, onDiscard } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
-import { shadowEqual, outlineEqual, type Fill, type Shadow, type Outline } from "./value.js";
-import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight, type TextTransform } from "./measure.js";
-import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
+import { shadowEqual, outlineEqual, type Fill, type Shadow, type Outline, type Color } from "./value.js";
+import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight, type TextTransform, type FontWeight } from "./measure.js";
+import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 
 export class Text extends View {
+  // The FACE slots (off View — docs/system-design/style.md): each defaults to
+  // the nearest provided value (attributes.ts providedDefault), so a bare Text
+  // inherits its region's style.
+  declare textColor: Color;
+  declare fontSize: number;
+  declare fontFamily: string;
+  declare fontWeight: FontWeight;
+  declare letterSpacing: number;
+  declare selectable: boolean;
   declare text: string;
   /** The glyphs' drop shadow (a decoration value, styling rung); null = none.
    *  Replaces the two-stacked-runs idiom (weather's ShadowText). */
@@ -45,8 +54,6 @@ export class Text extends View {
   declare underline: boolean;
   declare strike: boolean;
   declare lineHeight: number;
-  // `selectable` is a prevailing View slot now (inherited): the textStyle derive
-  // below reads `this.selectable` so a `selectable` container opts a whole subtree in.
 
   /** The per-line advance: the declared leading (a fontSize multiplier, the
    *  Markdown convention) or, at the 0 default, the font's natural line box. */
@@ -174,6 +181,19 @@ export class Text extends View {
 }
 
 defineAttributes(Text, {
+  // The FACE slots, off View (docs/system-design/style.md): each defaults to the
+  // nearest provided value, so a bare Text inherits its region's style; setting
+  // one overrides just this run. `selectable` carries the DOM selection push.
+  textColor: { def: 0x000000, defBinding: providedDefault("textColor", 0x000000) },
+  fontSize: { def: 16, defBinding: providedDefault("fontSize", 16) },
+  fontFamily: { def: "sans-serif", defBinding: providedDefault("fontFamily", "sans-serif") },
+  fontWeight: { def: "normal", defBinding: providedDefault("fontWeight", "normal") },
+  letterSpacing: { def: 0, defBinding: providedDefault("letterSpacing", 0) },
+  selectable: {
+    def: false,
+    defBinding: providedDefault("selectable", false),
+    push: (v, val) => v.surface?.setSelectableRegion?.(val === true),
+  },
   text: { def: "", push: (t, v) => t.surface?.setText(v) },
   textShadow: { def: null, equal: shadowEqual },
   wrap: { def: true },

@@ -101,6 +101,32 @@ interface Carrier {
    *  installed by the per-view applier, cleared on swap; below every author
    *  provision, above the follow and the declaration default). */
   $stylesheetMarks?: Set<string>;
+  /** PROVISIONS — values this node makes available to its subtree under a name
+   *  it does NOT declare as an attribute (`App [ accent = #E05252 ]`, a set of a
+   *  name no schema of the node's class carries). A descendant reads them with
+   *  `provided("accent")`. Absent until the node provides something; each entry
+   *  owns a cell (created on first tracked read) so a bound provision waking
+   *  re-derives its readers. Kept separate from `$attrs` because a provision has
+   *  no accessor and no declared type — it is addressed only through the walk. */
+  $provides?: Record<string, unknown>;
+  $provideCells?: Record<string, Cell>;
+}
+
+function provideCellFor(self: Carrier, name: string): Cell {
+  const cells = (self.$provideCells ??= Object.create(null) as Record<string, Cell>);
+  return (cells[name] ??= new Cell());
+}
+
+/** Set a provision on a node — the value a descendant's `provided("name")`
+ *  reads when this node is the nearest provider. Equality-gated, and wakes the
+ *  readers below. Both a literal provision and a bound one (whose `{ }`
+ *  re-derives) land here. */
+export function provideWrite(self: object, name: string, value: unknown): void {
+  const p = self as Carrier;
+  const store = (p.$provides ??= Object.create(null) as Record<string, unknown>);
+  if (name in store && store[name] === value) return;
+  store[name] = value;
+  p.$provideCells?.[name]?.changed();
 }
 
 /** Walk the constructor chain to the nearest class with a table, memoizing
@@ -323,6 +349,20 @@ function cellFor(self: Carrier, name: string): Cell {
  *  terminal (`provided("fontSize", 15)`): when nothing above provides the name,
  *  a defaulted read returns the default and a bare (required) read throws,
  *  naming the missing value. */
+/** A slot's default binding that reads the nearest provided value, falling to
+ *  `def`. This is how the text leaves (Text, RichText, TextInput) declare their
+ *  face slots off `View` — `fontSize: { def: 16, defBinding: providedDefault(
+ *  "fontSize", 16) }` — so a bare run inherits its region's style (the container
+ *  provides it) yet a bare, unprovided run still has a sensible default. The
+ *  provided read is skipped once the slot is set locally (attributes.ts accessor
+ *  only evaluates a defBinding on an unset slot), so `Text [ fontSize = 70 ]`
+ *  overrides without consulting the tree. */
+export function providedDefault(name: string, def: unknown): (this: unknown) => unknown {
+  return function (this: unknown): unknown {
+    return providedRead(this as object, name, true, def);
+  };
+}
+
 export function providedRead(self: object, name: string, hasDefault: boolean, dflt: unknown): unknown {
   for (
     let p = (self as { parent?: unknown }).parent;
@@ -330,10 +370,19 @@ export function providedRead(self: object, name: string, hasDefault: boolean, df
     p = (p as { parent?: unknown }).parent
   ) {
     const pc = p as Carrier;
+    // A named provision (an undeclared set — `App [ accent = #E05252 ]`).
+    if (pc.$provides !== undefined && name in pc.$provides) {
+      if (isTracking()) provideCellFor(pc, name).track();
+      return pc.$provides[name];
+    }
+    // A DECLARED slot of this ancestor's class (an instance-declared provision
+    // — `App [ density: number = 2 ]` — or an ordinary attribute a descendant
+    // names): its effective value, instance override else declaration default.
     const pd = tableFor(DEFAULTS, p.constructor);
-    if (pd === null || !(name in pd)) continue;
-    if (isTracking()) cellFor(pc, name).track();
-    return (pc.$attrs ?? pd)[name];
+    if (pd !== null && name in pd) {
+      if (isTracking()) cellFor(pc, name).track();
+      return (pc.$attrs ?? pd)[name];
+    }
   }
   if (hasDefault) return dflt;
   throw new DeclareError(

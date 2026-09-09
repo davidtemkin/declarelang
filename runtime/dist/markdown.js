@@ -17,7 +17,7 @@ import { View, onDiscard, fireEvent } from "./view.js";
 import { Text } from "./text.js";
 import { Layout } from "./layout.js";
 import { Constraint } from "./reactive.js";
-import { defineAttributes, prevailingProvided } from "./attributes.js";
+import { defineAttributes, providedDefault, providedRead } from "./attributes.js";
 import { fontMetrics, fontString, textWidth, transformText } from "./measure.js";
 import { parse } from "./md.js";
 import { headingSlug } from "./slug.js";
@@ -820,7 +820,12 @@ class TextFlow extends View {
      *  not a flow (a `Text` is a label). `prevailingProvided` is tracked, so a
      *  provision appearing later re-flows. */
     effSelectable() {
-        return prevailingProvided(this, "selectable") ? this.selectable : true;
+        // A flowing document is selectable by nature: DEFAULT true, so a bare
+        // Markdown/HTMLText selects, yet a provider above — a container's
+        // `selectable = false`, or `selectable = false` on the Markdown instance
+        // (a provision, since RichText declares no such slot) — overrides. Read as
+        // a provided value, tracked, so a provision appearing later re-flows.
+        return providedRead(this, "selectable", true, true);
     }
     attach(backend, parentSurface, before = null) {
         super.attach(backend, parentSurface, before);
@@ -1480,7 +1485,30 @@ export class HTMLText extends RichText {
 }
 // Shared attributes live on the RichText base; Markdown/HTMLText inherit them
 // and add only their own source attribute(s).
-defineAttributes(RichText, { lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null } });
+defineAttributes(RichText, {
+    // FACE slots, off View: each defaults to the nearest provided value.
+    textColor: { def: 0x000000, defBinding: providedDefault("textColor", 0x000000) },
+    fontSize: { def: 16, defBinding: providedDefault("fontSize", 16) },
+    fontFamily: { def: "sans-serif", defBinding: providedDefault("fontFamily", "sans-serif") },
+    fontWeight: { def: "normal", defBinding: providedDefault("fontWeight", "normal") },
+    letterSpacing: { def: 0, defBinding: providedDefault("letterSpacing", 0) },
+    // `selectable` is NOT declared here: RichText reads it as a provided value
+    // (effSelectable / TextFlow), so a container's provision reaches the flow
+    // children without RichText's own slot shadowing the walk.
+    // Rich-text STRUCTURE slots, off View: heading/link/code/richTextLayout —
+    // null color = the theme-aware house token (resolved in rebuild()).
+    headingColor: { def: null, defBinding: providedDefault("headingColor", null) },
+    headingWeight: { def: "bold", defBinding: providedDefault("headingWeight", "bold") },
+    linkColor: { def: null, defBinding: providedDefault("linkColor", null) },
+    linkUnderline: { def: false, defBinding: providedDefault("linkUnderline", false) },
+    codeColor: { def: null, defBinding: providedDefault("codeColor", null) },
+    codeSize: { def: 0, defBinding: providedDefault("codeSize", 0) },
+    codeFamily: { def: "", defBinding: providedDefault("codeFamily", "") },
+    codeBackground: { def: null, defBinding: providedDefault("codeBackground", null) },
+    codeRule: { def: null, defBinding: providedDefault("codeRule", null) },
+    richTextLayout: { def: null, defBinding: providedDefault("richTextLayout", null) },
+    lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null },
+});
 defineAttributes(Markdown, { text: { def: "" } });
 defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, textStyles: { def: {} } });
 //# sourceMappingURL=markdown.js.map

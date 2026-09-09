@@ -11,8 +11,7 @@
 // the full state once — literals cost no reactive machinery at all.
 import { Node, onDiscard, runRetire, authoredName } from "./node.js";
 import { DeclareError } from "./errors.js";
-import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
-import { disposeApplier, stylesheetArrived, stylesheetByName } from "./stylesheet.js";
+import { backdropEqual, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef } from "./backend.js";
 import { Tip } from "./tip.js";
 let viewCreator = null;
@@ -135,21 +134,6 @@ export class View extends Node {
      *  element's `link`. Read only by the static extractor (static-html.ts) to wrap the
      *  subtree in `<a href>`; undefined for all but the handful of navigable views. */
     _navLink;
-    /** Resolve a declared stylesheet by name — the honest public call for
-     *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and
-     *  a bare `Dark` is (correctly) just an unresolved identifier, NOT sugar:
-     *  `stylesheet = { night ? this.lookupStylesheet("Dark")
-     *                        : this.lookupStylesheet("Light") }`.
-     *  The bare-name form `stylesheet = Dark` is the DECLARATIVE surface and is
-     *  compile-checked there; inside a body the name is a runtime string, so a
-     *  miss throws loud + positioned (stylesheetByName) rather than resolving to a
-     *  silent null. Resolved against the program registry at the tree root. */
-    lookupStylesheet(name) {
-        let root = this;
-        while (root.parent !== null)
-            root = root.parent;
-        return stylesheetByName(root, name);
-    }
     /** The enclosing class instance — the node this view was *written* inside
      *  (a named class's root, or the App root, whose whole tree is the
      *  anonymous App class, language §5/§11): a class-body child points at its
@@ -477,7 +461,6 @@ export class View extends Node {
             INSTALLED.delete(this);
             undoLayout();
         }
-        disposeApplier(this);
         disposeBindings(this);
         // the visibility feed dies with the view — the backend watch, the generic
         // computer, and any at-rest flush still pending
@@ -510,10 +493,9 @@ export class View extends Node {
      *  exactly the paint order the Canvas walk uses: content, then children. */
     flush(s) {
         // Pushers fire on CHANGE; the attach flush carries pre-attach state
-        // across (the Image.stretches discipline). Phase-2 selection: a
-        // container constructed `selectable = true` realizes its surface now.
-        if (this.selectable === true)
-            s.setSelectableRegion?.(true);
+        // across (the Image.stretches discipline). Text selection is realized by
+        // the text leaves themselves now (Text/TextInput's `selectable` push), not
+        // by a container slot — `selectable` moved off View with provided values.
         // an armed visibility feed follows the view onto its (re)attached surface
         if (this.visArmed)
             this.startVisibility();
@@ -1138,38 +1120,10 @@ defineAttributes(View, {
     scrollY: { def: 0, push: (v, y) => v.surface?.scrollToY?.(y) },
     claim: { def: "both" },
     scrollX: { def: 0, push: (v, x) => v.surface?.scrollToX?.(x) },
-    // The prevailing built-ins: model-side on View (no push — Text's style
-    // derive is the consumer that crosses the seam). Defaults are the
-    // browser-native text defaults Text carried through R3–R9.
-    textColor: { def: 0x000000, prevailing: true },
-    selectable: {
-        def: false,
-        prevailing: true,
-        // Phase-2 selection: an explicitly-selectable container realizes as a
-        // selection surface (optional-chained — DOM-only affordance).
-        push: (v, val) => v.surface?.setSelectableRegion?.(val === true),
-    },
-    fontSize: { def: 16, prevailing: true },
-    fontFamily: { def: "sans-serif", prevailing: true },
-    fontWeight: { def: "normal", prevailing: true },
-    letterSpacing: { def: 0, prevailing: true },
-    iconSize: { def: 16, prevailing: true },
-    // Rich-text structure overrides — consumed by Markdown/HTMLText (null color =
-    // the theme-aware house token; headingWeight = the house bold).
-    headingColor: { def: null, prevailing: true },
-    headingWeight: { def: "bold", prevailing: true },
-    linkColor: { def: null, prevailing: true },
-    codeColor: { def: null, prevailing: true },
-    codeSize: { def: 0, prevailing: true },
-    codeFamily: { def: "", prevailing: true },
-    codeBackground: { def: null, prevailing: true },
-    codeRule: { def: null, prevailing: true },
-    richTextLayout: { def: null, prevailing: true },
-    theme: { def: DEFAULT_THEME, prevailing: true },
-    styles: { def: null },
-    // The pusher installs appliers under a newly-providing view (existing
-    // appliers re-run through their own tracked follow of this slot).
-    stylesheet: { def: null, prevailing: true, push: (v) => stylesheetArrived(v) },
+    // The text-face / rich-text / iconSize / theme / styles / stylesheet slots
+    // moved off View with provided values — they now live with the text leaves,
+    // Icon, and Control (attributes.ts providedDefault). A container that sets one
+    // PROVIDES it: an undeclared set becomes an instance-slot provision.
     layout: {
         def: null,
         // The install/uninstall side of the slot: detach the old arrangement

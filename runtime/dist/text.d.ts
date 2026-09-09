@@ -1,8 +1,14 @@
 import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
-import { type Fill, type Shadow, type Outline } from "./value.js";
-import { type TextTransform } from "./measure.js";
+import { type Fill, type Shadow, type Outline, type Color } from "./value.js";
+import { type TextTransform, type FontWeight } from "./measure.js";
 export declare class Text extends View {
+    textColor: Color;
+    fontSize: number;
+    fontFamily: string;
+    fontWeight: FontWeight;
+    letterSpacing: number;
+    selectable: boolean;
     text: string;
     /** The glyphs' drop shadow (a decoration value, styling rung); null = none.
      *  Replaces the two-stacked-runs idiom (weather's ShadowText). */

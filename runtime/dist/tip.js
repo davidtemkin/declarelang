@@ -10,6 +10,7 @@
 // fact to subscribers: the active tip (text + the target's root-space box),
 // or null. The library Tooltip singleton renders it (`Tip [ onTip(e) { … } ]`),
 // the same wiring contract as Focus/Keys (sources.ts).
+import { providedRead } from "./attributes.js";
 import { rootFrameBox } from "./interaction.js";
 // The default show delay; a theme overrides per preset (`tooltipDelay` —
 // desktop help tags conventionally wait ~1s, Material ~500ms).
@@ -40,7 +41,7 @@ class TipService {
             this.publish(view); // showing, or still warm — retarget instantly (the OS rule)
             return;
         }
-        const theme = view.theme;
+        const theme = providedRead(view, "theme", true, null);
         const delay = typeof theme?.tooltipDelay === "number" ? theme.tooltipDelay : SHOW_DELAY_MS;
         this.timer = setTimeout(() => {
             this.timer = null;

@@ -34,6 +34,22 @@ const DEFAULTS = new WeakMap();
 const PUSHERS = new WeakMap();
 const PREVAILING = new WeakMap();
 const EQUALS = new WeakMap();
+function provideCellFor(self, name) {
+    const cells = (self.$provideCells ??= Object.create(null));
+    return (cells[name] ??= new Cell());
+}
+/** Set a provision on a node — the value a descendant's `provided("name")`
+ *  reads when this node is the nearest provider. Equality-gated, and wakes the
+ *  readers below. Both a literal provision and a bound one (whose `{ }`
+ *  re-derives) land here. */
+export function provideWrite(self, name, value) {
+    const p = self;
+    const store = (p.$provides ??= Object.create(null));
+    if (name in store && store[name] === value)
+        return;
+    store[name] = value;
+    p.$provideCells?.[name]?.changed();
+}
 /** Walk the constructor chain to the nearest class with a table, memoizing
  *  the answer for classes that declare nothing of their own (App). Classes
  *  declare their attributes at module load, before any instance exists, so
@@ -249,15 +265,37 @@ function cellFor(self, name) {
  *  terminal (`provided("fontSize", 15)`): when nothing above provides the name,
  *  a defaulted read returns the default and a bare (required) read throws,
  *  naming the missing value. */
+/** A slot's default binding that reads the nearest provided value, falling to
+ *  `def`. This is how the text leaves (Text, RichText, TextInput) declare their
+ *  face slots off `View` — `fontSize: { def: 16, defBinding: providedDefault(
+ *  "fontSize", 16) }` — so a bare run inherits its region's style (the container
+ *  provides it) yet a bare, unprovided run still has a sensible default. The
+ *  provided read is skipped once the slot is set locally (attributes.ts accessor
+ *  only evaluates a defBinding on an unset slot), so `Text [ fontSize = 70 ]`
+ *  overrides without consulting the tree. */
+export function providedDefault(name, def) {
+    return function () {
+        return providedRead(this, name, true, def);
+    };
+}
 export function providedRead(self, name, hasDefault, dflt) {
     for (let p = self.parent; typeof p === "object" && p !== null; p = p.parent) {
         const pc = p;
+        // A named provision (an undeclared set — `App [ accent = #E05252 ]`).
+        if (pc.$provides !== undefined && name in pc.$provides) {
+            if (isTracking())
+                provideCellFor(pc, name).track();
+            return pc.$provides[name];
+        }
+        // A DECLARED slot of this ancestor's class (an instance-declared provision
+        // — `App [ density: number = 2 ]` — or an ordinary attribute a descendant
+        // names): its effective value, instance override else declaration default.
         const pd = tableFor(DEFAULTS, p.constructor);
-        if (pd === null || !(name in pd))
-            continue;
-        if (isTracking())
-            cellFor(pc, name).track();
-        return (pc.$attrs ?? pd)[name];
+        if (pd !== null && name in pd) {
+            if (isTracking())
+                cellFor(pc, name).track();
+            return (pc.$attrs ?? pd)[name];
+        }
     }
     if (hasDefault)
         return dflt;

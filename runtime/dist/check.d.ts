@@ -55,6 +55,16 @@ export type CheckedAttr = {
         plan?: readonly PathSeg[];
     };
 } | {
+    ok: true;
+    provision: {
+        name: string;
+        value?: AttrValue;
+        binding?: {
+            src: string;
+            pos: Pos;
+        };
+    };
+} | {
     ok: false;
     error: DeclareError;
 };
