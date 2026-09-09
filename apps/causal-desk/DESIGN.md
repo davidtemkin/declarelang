@@ -354,6 +354,8 @@ highlighting, and value motion. This proves the central interaction.
 Add comparison selection, Shapley contributions, the contribution bridge, and path
 highlighting from a contribution to the selected result.
 
+Implementation tickets: [SLICE-3-TICKETS.md](SLICE-3-TICKETS.md).
+
 ### Slice 4: responsive instrument
 
 Complete narrow-layout behavior, keyboard traversal, reduced motion, direct numeric entry,
