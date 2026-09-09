@@ -22,6 +22,14 @@ script {
     type ScenarioDocument = { scenarios: ScenarioRecord[] }
     type AssumptionDocument = { assumptions: Record<string, number> }
     type ValueMap = Record<string, number>
+    type ContributionRecord = {
+        id: string
+        label: string
+        value: number
+        formatted: string
+        absoluteValue: number
+    }
+    type ContributionWork = { row: ContributionRecord, order: number }
 
     const CARD_W = 174
     const CARD_H = 68
@@ -59,6 +67,12 @@ script {
         return { assumptions: { ...defaults, ...overrides } }
     }
 
+    function assumptionMap(modelValue: object, scenarioValue: object,
+        workingValue: object, id: string): ValueMap {
+        return asAssumptions(scenarioAssumptions(modelValue, scenarioValue,
+            workingValue, id)).assumptions
+    }
+
     function assumptionAt(modelValue: object, scenarioValue: object, workingValue: object,
         scenarioId: string, factorId: string): number {
         const assumptions = asAssumptions(scenarioAssumptions(modelValue,
@@ -75,9 +89,8 @@ script {
 
     function computeScenarioModel(modelValue: object, scenarioValue: object,
         workingValue: object, scenarioId: string): object {
-        const assumptions = asAssumptions(scenarioAssumptions(modelValue,
-            scenarioValue, workingValue, scenarioId)).assumptions
-        return computeModel(modelValue, assumptions)
+        return computeModel(modelValue, assumptionMap(modelValue, scenarioValue,
+            workingValue, scenarioId))
     }
 
     function computeModel(value: object, assumptions: Record<string, number>): object {
@@ -136,6 +149,108 @@ script {
         const sign = value >= 0 ? "+" : "−"
         if (unit == "percent") return sign + (Math.abs(value) * 100).toFixed(1) + " pp"
         return sign + formatValue(Math.abs(value), unit)
+    }
+
+    function factorial(n: number): number {
+        let result = 1
+        for (let i = 2; i <= n; i = i + 1) result = result * i
+        return result
+    }
+
+    function bitCount(mask: number, width: number): number {
+        let count = 0
+        for (let i = 0; i < width; i = i + 1) {
+            if ((mask & (1 << i)) != 0) count = count + 1
+        }
+        return count
+    }
+
+    function subsetAssumptions(comparison: ValueMap, active: ValueMap,
+        changed: FactorRecord[], mask: number): ValueMap {
+        const result: ValueMap = { ...comparison }
+        for (let i = 0; i < changed.length; i = i + 1) {
+            if ((mask & (1 << i)) != 0) {
+                const id = changed[i].id
+                result[id] = active[id]
+            }
+        }
+        return result
+    }
+
+    function subsetValue(modelValue: object, comparison: ValueMap, active: ValueMap,
+        changed: FactorRecord[], mask: number, selectedId: string): number {
+        return numberAt(computeModel(modelValue,
+            subsetAssumptions(comparison, active, changed, mask)), selectedId)
+    }
+
+    function buildContributionData(modelValue: object, scenarioValue: object,
+        workingValue: object, activeScenarioId: string, comparisonScenarioId: string,
+        selectedId: string): object {
+        const selected = factorAt(modelValue, selectedId)
+        if (!selected || selected.kind != "derived") {
+            return { rows: [], total: 0, residual: 0 }
+        }
+
+        const active = assumptionMap(modelValue, scenarioValue, workingValue,
+            activeScenarioId)
+        const comparison = assumptionMap(modelValue, scenarioValue, workingValue,
+            comparisonScenarioId)
+        const activeResult = numberAt(computeModel(modelValue, active), selectedId)
+        const comparisonResult = numberAt(computeModel(modelValue, comparison), selectedId)
+        if (!Number.isFinite(activeResult) || !Number.isFinite(comparisonResult)) {
+            return { rows: [], total: Number.NaN, residual: Number.NaN }
+        }
+
+        const changed: FactorRecord[] = []
+        for (const f of asDocument(modelValue).factors) {
+            if (f.kind == "assumption" && materiallyDifferent(active[f.id], comparison[f.id])) {
+                changed.push(f)
+            }
+        }
+        if (changed.length == 0) return { rows: [], total: 0, residual: 0 }
+
+        const n = changed.length
+        const subsetCount = 1 << n
+        const denominator = factorial(n)
+        const work: ContributionWork[] = []
+        let total = 0
+        for (let i = 0; i < n; i = i + 1) {
+            const bit = 1 << i
+            let value = 0
+            let valid = true
+            for (let mask = 0; mask < subsetCount; mask = mask + 1) {
+                if ((mask & bit) != 0) continue
+                const size = bitCount(mask, n)
+                const before = subsetValue(modelValue, comparison, active,
+                    changed, mask, selectedId)
+                const after = subsetValue(modelValue, comparison, active,
+                    changed, mask | bit, selectedId)
+                if (!Number.isFinite(before) || !Number.isFinite(after)) {
+                    valid = false
+                    break
+                }
+                const weight = factorial(size) * factorial(n - size - 1) / denominator
+                value = value + weight * (after - before)
+            }
+            if (!valid || !Number.isFinite(value)) {
+                return { rows: [], total: Number.NaN, residual: Number.NaN }
+            }
+            const row: ContributionRecord = {
+                id: changed[i].id,
+                label: changed[i].label,
+                value,
+                formatted: formatDelta(value, selected.unit),
+                absoluteValue: Math.abs(value)
+            }
+            work.push({ row, order: i })
+            total = total + value
+        }
+        work.sort((a, b) => b.row.absoluteValue - a.row.absoluteValue || a.order - b.order)
+        return {
+            rows: work.map(entry => entry.row),
+            total,
+            residual: activeResult - comparisonResult - total
+        }
     }
 
     function dependencyRows(value: object, selectedId: string, values: object,

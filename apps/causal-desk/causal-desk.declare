@@ -21,7 +21,10 @@ class CausalModel extends Node [
         app.scenarioDocument.value, app.workingScenario.value, app.comparisonScenarioId) },
 
     dependencyData: Dataset [ contents = { dependencyRows(app.modelDocument.value,
-        app.selectedFactorId, classroot.values, classroot.comparisonValues) } ]
+        app.selectedFactorId, classroot.values, classroot.comparisonValues) } ],
+    contributionData: Dataset [ contents = { buildContributionData(app.modelDocument.value,
+        app.scenarioDocument.value, app.workingScenario.value, app.activeScenarioId,
+        app.comparisonScenarioId, app.selectedFactorId) } ]
     ]
 
 
