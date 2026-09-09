@@ -16,9 +16,21 @@ include [ "causal-desk-logic.declare", "causal-desk-inspector.declare",
     ]
 
 
-App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
+App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = #DDE6EA,
     fontFamily = ["Inter", "SF Pro Text", "system-ui"],
     theme = { ({ ...Themes.sanFrancisco(true), accent: 0x75D6FF }) },
+
+    desktop: boolean = { app.width >= 1220 },
+    stacked: boolean = { app.width < 1220 },
+    mobile: boolean = { app.width < 720 },
+    compactTablet: boolean = { app.width >= 720 && app.width < 890 },
+    frameGutter: number = { mobile ? 16 : stacked ? 24 : 28 },
+    headerY: number = { desktop ? 22 : 20 },
+    headerHeight: number = { desktop ? 56 : mobile ? 174 : 154 },
+    graphY: number = { desktop ? 94 : headerY + headerHeight + 16 },
+    graphHeight: number = { desktop ? app.height - 122 : 620 },
+    inspectorWidth: number = { desktop ? 336 : Math.min(560, app.width - (mobile ? 32 : 48)) },
+    inspectorY: number = { desktop ? 94 : graphY + graphHeight + 20 },
 
     selectedFactorId: string = "operatingMargin",
     selectedLabel: string = { textAt(modelDocument.value, selectedFactorId, "label") },
@@ -152,7 +164,7 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
 
     model: CausalModel [ ],
 
-    header: CausalHeader [ x = 28, y = 22 ],
-    graph: CausalGraph [ x = 28, y = 94 ],
+    header: CausalHeader [ x = { frameGutter }, y = { headerY } ],
+    graph: CausalGraph [ x = { frameGutter }, y = { graphY } ],
     inspector: CausalInspector [ ]
     ]
