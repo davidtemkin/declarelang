@@ -111,7 +111,13 @@ sights" reading; `theme.focusRingInnerWidth` adds the Fluent two-tone band.
 **Internal.** The idle-fade generation counter, so a retarget cancels the pending fade.
 */
 
-class FocusRing extends View [ opacity = 0,
+class FocusRing extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    opacity = 0,
 
     // an OVERLAY owns the keys (an open menu — Keys.navClaim): the ring
     // stands down while it's up — the menu's rover is the focus story, and

@@ -65,7 +65,13 @@ cursor). Always clamped inside the app.
 **Internal.** The pointer's y where it came to rest.
 */
 
-class Tooltip extends View [ visible = { shown && tipText != "" },
+class Tooltip extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    visible = { shown && tipText != "" },
 
     tipText: string = "",
     shown:   boolean = false,

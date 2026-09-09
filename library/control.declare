@@ -147,6 +147,15 @@ Space and Enter run `press()`; ArrowDown opens `menu`. Ignores auto-repeat.
 */
 
 class Control extends View [
+    // The design-token record every widget styles off. It is a PROVIDED value
+    // (docs/system-design/style.md): the app provides it once (`App [ theme =
+    // { … } ]`), and Control reads it here — so a widget body reads `theme.accent`
+    // as a plain, typed member. The default is the house look, so a widget in an
+    // app that never mentions a theme still renders (replacing the old runtime
+    // DEFAULT_THEME floor with a visible library default).
+
+    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+
     disabled: boolean = false,
     focused:  boolean = false,
 

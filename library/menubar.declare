@@ -78,7 +78,13 @@ the bar.
 
 include [ "menu.declare" ]
 
-class MenuBar extends View [ height = 25,
+class MenuBar extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    height = 25,
 
     // menu records: { id, label, bold?, kind?, items } — `kind` names an
     // author class rendered AS the title (a brand mark in the leading

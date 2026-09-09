@@ -58,6 +58,12 @@ Runs `press()` when enabled.
 include [ "control.declare" ]
 
 class RadioGroup extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+
     value: string = "",
 
     input(v: string) { value = v },

@@ -147,23 +147,27 @@ Builds the named icon. Fires once.
 
 class IconHost extends View [
     kind: string = "",
+
+    // Size from the CONTEXT: `iconSize` defaults to the nearest provided value
+    // (a host states it once — a menu row 16, a button 18 — and every icon
+    // beneath answers), and a use site overrides just this one.
+
+    iconSize: number = { provided("iconSize", 16) },
     width  = { classroot.kind == "" ? 0 : iconSize },
     height = { iconSize },
     y = center,
     visible = { classroot.kind != "" },
 
     // THE INK CHANNEL. `createView` cannot pass attributes, so the only way to
-    // reach the icon it builds is a PREVAILING slot — and the one `Icon.ink`
-    // reads is `textColor`. Publishing it here is what lets a host state its
-    // ink at all.
+    // reach the icon it builds is a PROVIDED value — and the one `Icon.ink`
+    // reads is `textColor`, which the host PROVIDES here from its `ink`.
     //
-    // The default matters more than it looks: prevailing `textColor` falls back
-    // to 0x000000 platform-wide, so an icon that inherited it rendered BLACK —
-    // fine on a light surface by luck, invisible on a dark one. Every
-    // host-created icon in the corpus was doing that. `theme.text` is a floor
-    // that is never invisible in either palette.
+    // The default matters more than it looks: an icon that inherited a bare
+    // `textColor` would fall back to black — fine on a light surface by luck,
+    // invisible on a dark one. The provided theme's `text` token is a floor that
+    // is never invisible in either palette.
 
-    ink: Color = { theme.text },
+    ink: Color = { provided("theme").text },
     textColor = { classroot.ink },
 
     onInit() { if (this.kind != "") this.createView(this.kind, ({ })) }
@@ -176,18 +180,22 @@ class Icon extends View [
 
     isIcon: boolean = true,
 
-    // Size comes from the CONTEXT: `iconSize` is prevailing, so a menu states 16
-    // once and every icon in every row answers. A use site may override it.
+    // Size and ink come from the CONTEXT via provided values: `iconSize` defaults
+    // to the nearest provided value (a menu states 16 once and every icon answers),
+    // and `textColor` to the nearest provided text colour — each overridable at the
+    // use site. So `iconSize`/`textColor` on the icon win, a container's provision
+    // cascades, and a bare icon has a sensible floor.
+
+    iconSize:  number = { provided("iconSize", 16) },
+    textColor: Color  = { provided("textColor", 0x000000) },
 
     width  = { iconSize },
     height = { this.width },
     y = center,
 
-    // Follows the PREVAILING text colour, so an icon beside a muted label goes
-    // muted on its own. The trap: that slot falls back to 0x000000 platform-wide,
-    // so an icon in a context which never states a text colour renders BLACK and
-    // disappears on a dark surface. State `ink` unless you know the context sets
-    // one — `IconHost` does it for every icon built by name.
+    // Follows the effective text colour, so an icon beside a muted label goes
+    // muted on its own. State `ink` directly to override — `IconHost` does it for
+    // every icon built by name.
 
     ink: Color = { textColor },
     weight: number = 1.6,        // stroke width in FINAL pixels, not authored ones

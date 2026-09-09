@@ -17,7 +17,13 @@ The value that reads as full. Defaults to 100 — set it to your own total and p
 raw counts as `value` rather than converting to a percentage yourself.
 */
 
-class ProgressBar extends View [ width = 220, height = 8, cornerRadius = 4,
+class ProgressBar extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    width = 220, height = 8, cornerRadius = 4,
     value: number = 0,
     min:   number = 0,
     max:   number = 100,

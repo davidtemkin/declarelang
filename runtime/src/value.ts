@@ -303,6 +303,10 @@ const DECLARED_TYPES: Readonly<Record<string, AttrType>> = {
   array: { kind: "array" },
   object: { kind: "object" },
   View: { kind: "view" },
+  // The design-token record widgets style off (`theme: Theme = provided("theme",
+  // …)` on Control). A named record type — declarable so the library reads
+  // `this.theme.accent` typed, not `any`.
+  Theme: { kind: "record", name: "Theme" },
   // Built-in VALUE ENUMS, declarable by name so a library-authored class keeps
   // the bare-token use-site surface (`axis = x`, `align = center`) — these are
   // as built-in as Color. (User-authored unions remain their own future

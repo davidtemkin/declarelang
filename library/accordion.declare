@@ -73,6 +73,12 @@ Applies `initial`. Fires once per pane.
 include [ "control.declare", "icons/core.declare" ]
 
 class Accordion extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+
     value: string = "",
 
     // one open pane at a time, stacked flush — the sliding heights ARE the

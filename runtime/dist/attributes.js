@@ -289,12 +289,15 @@ export function providedRead(self, name, hasDefault, dflt) {
         }
         // A DECLARED slot of this ancestor's class (an instance-declared provision
         // — `App [ density: number = 2 ]` — or an ordinary attribute a descendant
-        // names): its effective value, instance override else declaration default.
+        // names). Read its EFFECTIVE value through the accessor, not the stored
+        // table: a declarer whose slot is ITSELF a provided read (`Control [ theme:
+        // Theme = provided("theme", …) ]`) then forwards transparently up the chain
+        // — its defBinding runs and continues the walk — instead of shadowing the
+        // real provider with its own (unevaluated) default. The accessor tracks the
+        // slot's cell, so this stays reactive on the wired and tracking paths alike.
         const pd = tableFor(DEFAULTS, p.constructor);
         if (pd !== null && name in pd) {
-            if (isTracking())
-                cellFor(pc, name).track();
-            return (pc.$attrs ?? pd)[name];
+            return p[name];
         }
     }
     if (hasDefault)

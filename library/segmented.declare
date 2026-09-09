@@ -184,6 +184,12 @@ Rings the segment's pill inset, not its whole box.
 include [ "control.declare", "icons/icon.declare" ]
 
 class Segmented extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+
     // the marker (the wrap-probe discipline)
 
     isSegmented: boolean = true,

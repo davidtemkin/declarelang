@@ -183,7 +183,13 @@ Enters the roved row's submenu and puts the rover on its first row — ArrowRigh
 
 include [ "control.declare" ]
 
-class Menu extends View [ visible = { shown }, width = 220,
+class Menu extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    visible = { shown }, width = 220,
     height = { this.panel.height },              // the panel; the backdrop deliberately overflows
 
     items: array = null,

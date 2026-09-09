@@ -134,7 +134,13 @@ include [ "control.declare" ]
 
 include [ "button.declare" ]
 
-class Dialog extends View [ visible = { shown },
+class Dialog extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    visible = { shown },
     x = 0,
     y = 0,
     width = { app.width },
