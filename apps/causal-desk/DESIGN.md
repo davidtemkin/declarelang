@@ -2,9 +2,10 @@
 
 Product and interaction design, version 0.1.
 
-Implementation status (2026-09-08): Slices 1 and 2 are complete. The app includes the
-fixed model, factor inspection, bundled scenarios, a working scenario editor,
-active-versus-base deltas, affected-path highlighting, and spring-driven value changes.
+Implementation status (2026-09-08): Slices 1–3 are complete. The app includes the fixed
+model, factor inspection, bundled scenarios, a working scenario editor, selectable
+comparisons, exact modeled contribution bridges, contribution-path highlighting, and
+spring-driven value changes. Slice 4 remains planned.
 
 ## Product restatement
 

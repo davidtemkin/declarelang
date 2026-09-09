@@ -1,4 +1,4 @@
-// Slice 2 behavioral contract. The app remains Declare; this file only drives
+// Causal Desk behavioral contract. The app remains Declare; this file only drives
 // its public view/attribute surface through verify's real-browser bridge.
 //
 // Run:
@@ -40,6 +40,29 @@ export default async ({ drive, expect, page }) => {
   await drive.settleMotion();
   await expect.attr("app", "activeScenarioId", "fuelShock");
   await expect.approx("app", "selectedValue", 0.1146, 0.0001);
+  await drive.click("app.graph.stage.cards.16");
+  await expect.attr("app", "selectedFactorId", "operatingMargin");
+
+  // The comparison control recomputes attribution without changing the active
+  // scenario or selected result.
+  let contributions = await inspectedContributions();
+  const baseComparisonTotal = contributions.total;
+  await drive.click("app.header.comparisonPicker.5");
+  await drive.settleMotion();
+  await expect.attr("app", "activeScenarioId", "fuelShock");
+  await expect.attr("app", "comparisonScenarioId", "downturn");
+  contributions = await inspectedContributions();
+  if (Math.abs(contributions.total - baseComparisonTotal) < 0.0001) {
+    expect.fail("changing comparison should recompute the contribution total");
+  }
+  const downturnSelected = await expect.explain("app", "selectedValue");
+  const downturnComparison = await expect.explain("app", "selectedComparisonValue");
+  assertClose(contributions.total, downturnSelected.value - downturnComparison.value,
+    0.000000001, "Non-Base comparison contribution sum invariant");
+  await drive.click("app.header.comparisonPicker.3");
+  await drive.settleMotion();
+  await expect.attr("app", "comparisonScenarioId", "base");
+  contributions = await inspectedContributions();
 
   // The derived inspector presents one semantic bridge: comparison, each
   // changed root assumption, then active. Rows are Controls, so a real click
@@ -98,7 +121,6 @@ export default async ({ drive, expect, page }) => {
   // The exposed Dataset is the browser-observable attribution result. Its
   // values are unrounded, so the fixed oracle checks the engine rather than
   // any display formatting.
-  let contributions = await inspectedContributions();
   await expect.equal(contributions.rows.map((row) => row.id), ["jetFuelPrice", "averageFareGrowth"], "Fuel shock contribution order");
   assertClose(contributions.rows[0].value, -0.1002507707, 0.0000001, "Jet fuel contribution");
   assertClose(contributions.rows[1].value, 0.0286916616, 0.0000001, "Average fare contribution");
@@ -106,6 +128,7 @@ export default async ({ drive, expect, page }) => {
   assertClose(contributions.total, (await expect.explain("app", "selectedValue")).value
     - (await expect.explain("app", "selectedComparisonValue")).value, 0.000000001,
     "Contribution sum invariant");
+  const fuelContributionBeforeEdit = contributions.rows[0].value;
 
   // Reversing the scenarios reverses signs while preserving magnitudes.
   const forward = contributions.rows.map((row) => row.value);
@@ -166,6 +189,25 @@ export default async ({ drive, expect, page }) => {
   if (fuelAfter.value <= fuelBefore.value) {
     expect.fail(`drag should raise fuel price, got ${fuelAfter.value}`);
   }
+
+  // Complete the concept loop through public controls: after the edit forks
+  // Working, the derived bridge must be recomputed for the new active value.
+  await drive.click("app.graph.stage.cards.16");
+  await expect.attr("app", "selectedFactorId", "operatingMargin");
+  contributions = await inspectedContributions();
+  const workingSelected = await expect.explain("app", "selectedValue");
+  const workingComparison = await expect.explain("app", "selectedComparisonValue");
+  assertClose(contributions.total, workingSelected.value - workingComparison.value,
+    0.000000001, "Working contribution sum invariant");
+  if (contributions.rows[0]?.value === fuelContributionBeforeEdit) {
+    expect.fail("changing fuel price should recompute the Jet fuel price contribution");
+  }
+  await expect.text("app.inspector.detailBody.derivedDetails.contributionBridge.label",
+    "MODELED DELTA BRIDGE");
+
+  // Return to the edited assumption so the existing reset-input contract still
+  // exercises the public assumption editor.
+  await drive.click("app.graph.stage.cards.7");
 
   // Reset input restores the bundled scenario value without leaving Working.
   await drive.click("app.inspector.detailBody.assumptionEditor.reset");
