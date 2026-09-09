@@ -24,6 +24,8 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     stacked: boolean = { app.width < 1220 },
     mobile: boolean = { app.width < 720 },
     compactTablet: boolean = { app.width >= 720 && app.width < 890 },
+    reducedMotionOverride: boolean = false,
+    effectiveReducedMotion: boolean = { reducedMotionOverride || app.env.reducedMotion == true },
     frameGutter: number = { mobile ? 16 : stacked ? 24 : 28 },
     headerY: number = { desktop ? 22 : 20 },
     headerHeight: number = { desktop ? 56 : mobile ? 174 : 154 },
@@ -98,6 +100,17 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
         },
     toggleInspector() {
         if (stacked) inspectorExpanded = !inspectorExpanded
+        },
+    toggleReducedMotion() {
+        if (app.env.reducedMotion == true) return
+        const turningOff = reducedMotionOverride
+        if (turningOff) {
+            for (const child of graph.stage.cards.children) {
+                const card = child as FactorCard
+                card.animatedValue = card.currentValue
+            }
+        }
+        reducedMotionOverride = !reducedMotionOverride
         },
     syncAssumptionDraft() {
         assumptionDraft = selectedKind == "assumption"

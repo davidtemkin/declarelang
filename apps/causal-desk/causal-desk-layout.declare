@@ -135,7 +135,7 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
             + app.comparisonScenarioLabel.toUpperCase() } ],
 
     detailBody: View [ x = 0, y = 157, width = { parent.width },
-        height = { parent.height - 243 }, scrolls = y, clip = true,
+        height = { parent.height - 300 }, scrolls = y, clip = true,
         description: Text [ x = 22, y = 0, width = { classroot.innerWidth }, fontSize = 12,
             lineHeight = 1.5, wrap = true, textColor = #A7B6BD,
             text = { app.selectedDescription } ],
@@ -235,5 +235,11 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
         text: Text [ x = 34, y = 9, width = { parent.width - 48 }, fontSize = 10, lineHeight = 1.5,
             wrap = true, textColor = #71838C,
             text = "Illustrative inputs only. A dependency is a formula read, not proof of real-world causality." ]
+        ],
+    reducedMotion: Button [ x = 22, y = { parent.height - 126 }, width = { innerWidth }, height = 44,
+        disabled = { app.env.reducedMotion == true },
+        label = { app.env.reducedMotion == true ? "Reduced motion: On (system)"
+            : app.effectiveReducedMotion ? "Reduced motion: On" : "Reduced motion: Off" },
+        onClick() { app.toggleReducedMotion() }
         ]
     ]
