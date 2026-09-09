@@ -18,7 +18,7 @@ class CausalModel extends Node [
     values: object = { computeScenarioModel(app.modelDocument.value,
         app.scenarioDocument.value, app.workingScenario.value, app.activeScenarioId) },
     comparisonValues: object = { computeScenarioModel(app.modelDocument.value,
-        app.scenarioDocument.value, app.workingScenario.value, "base") },
+        app.scenarioDocument.value, app.workingScenario.value, app.comparisonScenarioId) },
 
     dependencyData: Dataset [ contents = { dependencyRows(app.modelDocument.value,
         app.selectedFactorId, classroot.values, classroot.comparisonValues) } ]
@@ -107,12 +107,17 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
     selectedComparisonValue: number = { numberAt(model.comparisonValues, selectedFactorId) },
     selectedDelta: number = { selectedValue - selectedComparisonValue },
     activeScenarioId: string = "base",
+    comparisonScenarioId: string = "base",
     workingSourceId: string = "base",
     activeScenarioLabel: string = { scenarioLabel(scenarioDocument.value, activeScenarioId) },
+    comparisonScenarioLabel: string = { scenarioLabel(scenarioDocument.value, comparisonScenarioId) },
 
     selectFactor(id: string) { selectedFactorId = id },
     selectScenario(id: string) {
         if (id == "working" || scenarioExists(scenarioDocument.value, id)) activeScenarioId = id
+        },
+    selectComparison(id: string) {
+        if (id != "working" && scenarioExists(scenarioDocument.value, id)) comparisonScenarioId = id
         },
     changeSelectedAssumption(value: number) {
         if (selectedKind != "assumption") return
@@ -130,6 +135,7 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
         },
     resetModel() {
         activeScenarioId = "base"
+        comparisonScenarioId = "base"
         workingSourceId = "base"
         workingScenario.set([], scenarioAssumptions(modelDocument.value,
             scenarioDocument.value, ({ assumptions: {} }), "base"))
@@ -209,9 +215,10 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
         title: Text [ x = 0, y = 0, fontSize = 22, fontWeight = bold,
             textColor = #F5FBFE, text = "Causal Desk" ],
         subtitle: Text [ x = 0, y = 31, fontSize = 11, textColor = #71838C,
-            text = { "ILLUSTRATIVE AIRLINE MODEL  ·  " + app.activeScenarioLabel.toUpperCase()
-                + "  ·  COMPARING WITH BASE" } ],
-        scenarioPicker: Segmented [ x = { parent.width - 610 }, y = 8, width = 500,
+            text = "ILLUSTRATIVE AIRLINE MODEL" ],
+        activeLabel: Text [ x = { parent.width - 724 }, y = 0, fontSize = 9,
+            fontWeight = semibold, textColor = #61747E, text = "ACTIVE" ],
+        scenarioPicker: Segmented [ x = { parent.width - 724 }, y = 17, width = 360,
             value = { app.activeScenarioId },
             choices = { [
                 ({ id: "base", label: "Base" }),
@@ -222,8 +229,20 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
                 ] },
             input(v: object) { app.selectScenario("" + v) }
             ],
-        reset: Button [ x = end, y = 8, width = 94, label = "Reset all",
-            disabled = { app.activeScenarioId == "base" },
+        comparisonLabel: Text [ x = { parent.width - 349 }, y = 0, fontSize = 9,
+            fontWeight = semibold, textColor = #61747E, text = "COMPARE WITH" ],
+        comparisonPicker: Segmented [ x = { parent.width - 349 }, y = 17, width = 240,
+            value = { app.comparisonScenarioId },
+            choices = { [
+                ({ id: "base", label: "Base" }),
+                ({ id: "fuelShock", label: "Fuel" }),
+                ({ id: "downturn", label: "Downturn" }),
+                ({ id: "capacitySqueeze", label: "Squeeze" })
+                ] },
+            input(v: object) { app.selectComparison("" + v) }
+            ],
+        reset: Button [ x = end, y = 17, width = 94, label = "Reset all",
+            disabled = { app.activeScenarioId == "base" && app.comparisonScenarioId == "base" },
             onClick() { app.resetModel() }
             ]
         ],
@@ -275,7 +294,7 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
         title: Text [ x = 22, y = 46, width = 292, fontSize = 20, fontWeight = bold,
             textColor = #F5FBFE, text = { app.selectedLabel } ],
         valueLabel: Text [ x = 22, y = 88, fontSize = 10, textColor = #71838C,
-            text = "BASE CASE VALUE" ],
+            text = { app.activeScenarioLabel.toUpperCase() + " VALUE" } ],
         value: Text [ x = 22, y = 107, width = 292, fontSize = 30, fontWeight = bold,
             textColor = #F2C46D,
             text = { formatValue(app.selectedValue, app.selectedUnit) } ],
@@ -283,7 +302,8 @@ App [ minWidth = 1120, minHeight = 760, fill = #0B1217, textColor = #DDE6EA,
             textAlign = right,
             textColor = { app.selectedDelta >= 0 ? 0x79C99E : 0xE58C8C },
             visible = { materiallyDifferent(app.selectedValue, app.selectedComparisonValue) },
-            text = { formatDelta(app.selectedDelta, app.selectedUnit) + " VS BASE" } ],
+            text = { formatDelta(app.selectedDelta, app.selectedUnit) + " VS "
+                + app.comparisonScenarioLabel.toUpperCase() } ],
         description: Text [ x = 22, y = 157, width = 292, fontSize = 12,
             lineHeight = 1.5, wrap = true, textColor = #A7B6BD,
             text = { app.selectedDescription } ],

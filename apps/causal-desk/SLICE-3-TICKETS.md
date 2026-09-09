@@ -67,8 +67,9 @@ with Base. Working remains valid as the active scenario but is not offered as a 
    action. Rebalance their widths inside the existing header; do not change the app's
    `minWidth` in this ticket.
 6. Replace every visible hard-coded `BASE` comparison label with the comparison scenario's
-   label. This includes the header subtitle, inspector value label, inspector delta suffix,
-   and any graph legend/reference copy.
+   label. This includes the header subtitle, inspector delta suffix, and any graph
+   legend/reference copy. The inspector's primary value is the active value, so label it
+   with the active scenario rather than the comparison scenario.
 7. `resetModel()` must reset both active and comparison scenario IDs to `"base"`.
 8. Correct percentage-delta wording while touching these labels: a delta between two
    percentage values is expressed in percentage points (`pp`), not percent. For example,

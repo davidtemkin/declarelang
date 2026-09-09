@@ -134,6 +134,7 @@ script {
 
     function formatDelta(value: number, unit: string): string {
         const sign = value >= 0 ? "+" : "−"
+        if (unit == "percent") return sign + (Math.abs(value) * 100).toFixed(1) + " pp"
         return sign + formatValue(Math.abs(value), unit)
     }
 

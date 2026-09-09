@@ -13,6 +13,19 @@ export default async ({ drive, expect }) => {
   await expect.approx("app", "selectedValue", 0.1861, 0.0001);
   await expect.count("app.inspector.dependencies", "DependencyRow", 2);
 
+  // Comparison is independently selectable; changing it leaves the active
+  // scenario and selected factor untouched while changing the reference value.
+  await expect.attr("app", "comparisonScenarioId", "base");
+  await drive.click("app.header.comparisonPicker.5");
+  await drive.settleMotion();
+  await expect.attr("app", "comparisonScenarioId", "downturn");
+  await expect.attr("app", "activeScenarioId", "base");
+  await expect.attr("app", "selectedFactorId", "operatingMargin");
+  await expect.approx("app", "selectedComparisonValue", 0.0849, 0.0001);
+  await drive.click("app.header.comparisonPicker.3");
+  await drive.settleMotion();
+  await expect.attr("app", "comparisonScenarioId", "base");
+
   // Pick Fuel shock. Segmented has three structural children before its choices.
   // The model re-evaluates while Base remains the comparison.
   await drive.click("app.header.scenarioPicker.4");
