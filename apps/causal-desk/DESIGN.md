@@ -376,6 +376,8 @@ Declare does not yet provide persistent Datasets and intentionally rejects direc
 storage globals. Implementation therefore waits on that platform capability rather than adding
 an app-specific TypeScript shim. See [SLICE-5-DESIGN.md](SLICE-5-DESIGN.md).
 
+Dependency-aware implementation tickets: [SLICE-5-TICKETS.md](SLICE-5-TICKETS.md).
+
 ## Acceptance test for the concept
 
 The concept succeeds when a new user can complete this loop without instruction:
