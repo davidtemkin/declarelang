@@ -56,7 +56,15 @@ class FactorCard extends Control [ width = 174, height = 68, cornerRadius = 12,
         visible = { changed }, text = { formatDelta(delta, :unit as string) } ],
 
     press() { app.selectFactor(factorId) },
-    onClick() { if (!disabled) press() }
+    onClick() { if (!disabled) press() },
+    onKeyDown(e: KeyEvent) {
+        if (disabled) return
+        if ((e.key == "Enter" || e.key == " ") && !e.repeat) press()
+        else if (e.key == "ArrowUp" || e.key == "ArrowDown"
+            || e.key == "ArrowLeft" || e.key == "ArrowRight") {
+            app.moveFactorFocus(factorId, e.key)
+        }
+        }
     ]
 
 

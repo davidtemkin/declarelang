@@ -61,6 +61,24 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
         syncAssumptionDraft()
         if (stacked) inspectorExpanded = true
         },
+    focusFactor(id: string) {
+        let card = null
+        for (const child of graph.stage.cards.children) {
+            const candidate = child as FactorCard
+            if (candidate.factorId == id && candidate.visible) {
+                card = child
+                break
+            }
+        }
+        if (card == null) return
+        Focus.focus(card)
+        selectFactor(id)
+        if (mobile) card.scrollIntoView("nearest")
+        },
+    moveFactorFocus(currentId: string, key: string) {
+        const nextId = nextFactorId(modelDocument.value, currentId, key)
+        if (nextId != "") focusFactor(nextId)
+        },
     selectScenario(id: string) {
         if (id == "working" || scenarioExists(scenarioDocument.value, id)) {
             activeScenarioId = id

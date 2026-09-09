@@ -59,6 +59,16 @@ class CausalGraph extends View [ width = { app.desktop ? app.width - 420 : app.w
         width = { app.mobile || app.compactTablet ? 820 : parent.width - 44 }, height = 540,
         edges: EdgeField [ width = { parent.width }, height = { parent.height } ],
         cards: View [ width = { parent.width }, height = { parent.height },
+            tabOrder() {
+                const ordered = visibleFactorIds(app.modelDocument.value)
+                const result = []
+                for (const id of ordered) {
+                    const card = this.children.find(child =>
+                        (child as FactorCard).factorId == id && child.visible)
+                    if (card != null) result.push(card)
+                }
+                return result
+                },
             datapath = { app.modelDocument.value },
             FactorCard [ datapath = :factors[] ]
             ]

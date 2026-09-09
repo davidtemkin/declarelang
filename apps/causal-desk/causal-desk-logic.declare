@@ -312,6 +312,50 @@ script {
         return f?.shown ? f : undefined
     }
 
+    function visibleFactorIds(value: object): string[] {
+        return asDocument(value).factors.filter(f => f.shown).map(f => f.id)
+    }
+
+    function nextFactorId(value: object, currentId: string, key: string): string {
+        const document = asDocument(value)
+        const factors = document.factors.filter(f => f.shown)
+        const currentIndex = factors.findIndex(f => f.id == currentId)
+        if (currentIndex < 0) return ""
+        if (key == "ArrowDown") {
+            return currentIndex + 1 < factors.length ? factors[currentIndex + 1].id : ""
+        }
+        if (key == "ArrowUp") {
+            return currentIndex > 0 ? factors[currentIndex - 1].id : ""
+        }
+        if (key != "ArrowLeft" && key != "ArrowRight") return ""
+
+        const current = factors[currentIndex]
+        let bestIndex = -1
+        let bestColumnDistance = 1e99
+        let bestDistance = 1e99
+        // Horizontal model distance chooses the adjacent dependency column;
+        // rowY chooses within that column, and the factor walk supplies the
+        // document-order tie break without consulting rendered coordinates.
+        for (let i = 0; i < factors.length; i = i + 1) {
+            const candidate = factors[i]
+            const connected = key == "ArrowRight"
+                ? document.dependencies.some(edge => edge.from == current.id && edge.to == candidate.id)
+                : document.dependencies.some(edge => edge.from == candidate.id && edge.to == current.id)
+            if (!connected) continue
+            const columnDistance = key == "ArrowRight"
+                ? candidate.column - current.column : current.column - candidate.column
+            if (columnDistance < 0) continue
+            const distance = Math.abs(candidate.rowY - current.rowY)
+            if (columnDistance < bestColumnDistance
+                || columnDistance == bestColumnDistance && distance < bestDistance) {
+                bestIndex = i
+                bestColumnDistance = columnDistance
+                bestDistance = distance
+            }
+        }
+        return bestIndex < 0 ? "" : factors[bestIndex].id
+    }
+
     // Reachability is intentionally iterative. The model is a DAG today, but a
     // malformed or future cyclic document must not make path highlighting recurse
     // forever. The visited list is checked before expanding each node, so every
