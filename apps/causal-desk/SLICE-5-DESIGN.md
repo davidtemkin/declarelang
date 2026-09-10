@@ -1,8 +1,8 @@
 # Causal Desk — Slice 5 persistence design
 
-Platform alignment reviewed 2026-09-10: the proposed
+Implemented 2026-09-10, aligned with the
 [Dataset persistence contract](../../docs/system-design/dataset-persistence.md#9-causal-desk-integration-contract)
-fixes the lifecycle used below. It is design only; the platform implementation gate remains.
+which defines the lifecycle used below. See [verification evidence](SLICE-5-EVIDENCE.md).
 
 Slice 5 lets an analyst return to one locally saved Working scenario without turning Causal
 Desk into a scenario-management product. It preserves the current fixed-model boundary,
@@ -11,14 +11,14 @@ mistaken for the bundled Base case.
 
 ## Status and prerequisite
 
-This slice is **designed but not implementation-ready**.
+This slice is **implemented** on `feat/causal-desk-saved-drafts`, based on the verified
+`feat/dataset-persistence` platform branch. It is not a merge or deployment claim.
 
-Declare currently rejects direct access to browser `localStorage`, and persistent Datasets are
-still an open language/runtime capability (`L-28` in `docs/system-design/open-items.md`). Causal
-Desk production code remains all Declare, so this slice will not add a browser-global call or an
-app-specific TypeScript storage shim.
+Declare's `Dataset` + `Persistence` capability owns IndexedDB, acknowledgements and retries.
+Causal Desk production code remains all Declare: no browser storage globals or app-specific
+TypeScript adapter. Broader platform `L-28` work is distinct from this completed browser slice.
 
-Implementation begins only when Declare provides a persistent Dataset with:
+The platform prerequisite supplies a persistent Dataset with:
 
 - last-known-value loading at boot;
 - an observable loading, ready, and failed lifecycle;
@@ -170,10 +170,17 @@ When Working is active, a `Clear saved work` action is available near the save i
 4. selects Base as active and comparison.
 
 Bundled scenarios are immutable and cannot be deleted.
+The library Dialog follows dismiss-then-deliver: it closes on confirmation, while the
+in-flow local-work panel reports the pending deletion. Working resets only on the matching
+successful erase receipt. This replaces the original proposal to hold the modal open until
+acknowledgement and preserves the platform's standard dialog/focus contract.
 Lock editing while confirmed deletion is pending. Platform erase pauses autosave and cancels
 unsent writes; resetting to Base must not stage a new record. The next deliberate Working edit
 stages and explicitly commits once to resume autosave after a successful Clear. On failure preserve Working, release
 the editing lock, retain the warning/pause, and offer safe retry; do not claim Clear succeeded.
+During the lock, the native text field is hidden (TextInput has no disabled property); sliders,
+Apply, reset and scenario controls are disabled. Cancel is the default confirmation action;
+keyboard users activate the focused destructive action with Space.
 
 ## State ownership
 

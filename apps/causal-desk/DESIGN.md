@@ -2,12 +2,13 @@
 
 Product and interaction design, version 0.1.
 
-Implementation status (2026-09-09): Slices 1–4 are complete. The app includes the fixed
+Implementation status (2026-09-10): Slices 1–5 are complete. The app includes the fixed
 model, factor inspection, bundled scenarios, a working scenario editor, selectable
 comparisons, exact modeled contribution bridges, responsive layouts, keyboard traversal,
 direct numeric entry, reduced-motion support, explicit validation/error states, and
-contribution-path highlighting. Slice 5's saved-record contract is complete; local storage
-integration waits on Declare's persistent Dataset capability.
+contribution-path highlighting. Slice 5 adds one device-local Working draft through Declare's
+persistent Dataset, acknowledged autosave, explicit recovery, safe clearing and storage-error
+recovery. See [Slice 5 evidence and verification](SLICE-5-EVIDENCE.md).
 
 ## Product restatement
 
@@ -366,15 +367,16 @@ empty/error states, and visual polish.
 
 Implementation tickets: [SLICE-4-TICKETS.md](SLICE-4-TICKETS.md).
 
-### Slice 5: local Working-scenario persistence (designed, platform-blocked)
+### Slice 5: local Working-scenario persistence (complete)
 
 Save one Working scenario locally, surface durable save state, and explicitly offer Restore or
 Discard on return. Only the versioned Working-scenario record persists; selections and other UI
 state remain transient.
 
-Declare does not yet provide persistent Datasets and intentionally rejects direct browser
-storage globals. Implementation therefore waits on that platform capability rather than adding
-an app-specific TypeScript shim. See [SLICE-5-DESIGN.md](SLICE-5-DESIGN.md).
+Implemented entirely in Declare using `Dataset` + `Persistence`. Storage lifecycle remains
+separate from the live model, and old drafts never silently replace Base. Failed operations
+preserve analysis; Retry follows platform authority and Clear resets only after durable erase.
+See [SLICE-5-DESIGN.md](SLICE-5-DESIGN.md).
 
 Dependency-aware implementation tickets: [SLICE-5-TICKETS.md](SLICE-5-TICKETS.md).
 

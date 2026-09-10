@@ -1,10 +1,11 @@
-// Named visual states for the complete Slice 4 responsive/accessibility loop.
+// Named model states, with deterministic local-storage isolation between pages.
+// Additional lifecycle/error captures live in persistence-visual.mjs.
 //
 // Bless:
 // node tools/verify.mjs apps/causal-desk/causal-desk.declare \
 //   --states apps/causal-desk/tests/states.mjs --bless
 
-export default [
+const states = [
   {
     name: "operating-margin",
     viewport: { width: 1280, height: 800 },
@@ -168,3 +169,23 @@ export default [
     },
   },
 ];
+
+export default states.map(state => ({ ...state, clock: '2026-09-10T12:00:00.000Z',
+  route: async context => {
+    const { page, drive } = context;
+    await page.waitForFunction(() => __app.draft.savedRecord.disk.loadStatus === 'loaded');
+    if (await page.evaluate(() => __app.draft.savedRecord.disk.exists || __app.draft.hasCandidate)) {
+      await page.evaluate(() => __app.draft.savedRecord.disk.erase());
+      await page.waitForFunction(() => !__app.draft.savedRecord.disk.pending && !__app.draft.savedRecord.disk.exists);
+    }
+    if (state.route) await state.route(context);
+    await page.waitForFunction(() => !__app.draft.stageQueued);
+    await drive.wait(1000); await drive.settleMotion();
+    if (await page.evaluate(() => __app.draft.workingGeneration > 0)) {
+      // A pinned Date cannot advance a real-time debounce deadline. Explicit
+      // commit captures the same staged envelope; autosave has its own clock tests.
+      await page.evaluate(() => __app.draft.savedRecord.disk.commit());
+      await page.waitForFunction(() => __app.draft.saved);
+    }
+  },
+}));

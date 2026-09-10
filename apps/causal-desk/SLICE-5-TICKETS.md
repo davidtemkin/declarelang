@@ -29,8 +29,26 @@ complete only when the Declare repository exposes and documents:
 [author guide](../../docs/guide/23-saving-data.md) and
 [verified cases / gate results](../../docs/system-design/dataset-persistence-evidence.md).
 The external gate is **complete in this checkout**: all source, visual and derived
-gates passed. This is not a claim that the branch is merged or that CD-S5 is implemented.
-The app tickets are unblocked; no app storage shim is authorized or needed.
+gates passed. This platform result alone was not a claim that CD-S5 was implemented or merged.
+The app tickets are implemented on `feat/causal-desk-saved-drafts`; no app storage shim was needed.
+
+## Delivery ledger — 2026-09-10
+
+| Ticket | Status | Delivery |
+|---|---|---|
+| CD-S5-00 | Complete | Existing record-contract implementation |
+| CD-S5-01 | Complete | `9f555306` storage coordinator |
+| CD-S5-02 | Complete | `fa6c0696` acknowledged autosave |
+| CD-S5-03 | Complete | `6a7c51c2` explicit recovery |
+| CD-S5-04 | Complete | `d3b33acb` safe clear |
+| CD-S5-05 | Complete | `d3b33acb` failure states and retry |
+| CD-S5-06 | Complete | `ee6a1ae3` responsive, keyboard and renderer acceptance |
+| CD-S5-07 | Complete | Final `test(causal-desk): cover durable working scenarios` commit |
+
+The final evidence and reproducible command are in [SLICE-5-EVIDENCE.md](SLICE-5-EVIDENCE.md).
+Tickets 04 and 05 share a commit because acknowledged clear and failed-delete recovery form
+one safety boundary. The platform Dialog amendment is recorded in the design: confirmation
+dismisses first; the panel owns pending status and resets Working only after acknowledgement.
 
 The platform work must include compiler/runtime documentation and its own conformance tests. An
 app agent must read the landed API and use it exactly; it must not infer syntax from this plan.
@@ -294,8 +312,9 @@ affecting bundled scenarios.
 1. Show `Clear saved work` only when a local record exists or Working contains overrides.
 2. Use the library Dialog for confirmation. State that the action removes work from this device
    and cannot be undone.
-3. Confirm first deletes durably. Only after acknowledgement reset Working to Base, set active
-   and comparison to Base, clear contribution selection and validation draft, and close Dialog.
+3. Confirm dismisses the library Dialog and starts durable deletion. Only after acknowledgement
+   reset Working to Base, set active and comparison to Base, and clear contribution selection
+   and validation draft. The in-flow panel reports deletion while the modal is closed.
    Lock editing during deletion; do not stage/save the reset. Preserve the platform autosave
    pause until the next deliberate Working edit stages and explicitly commits once.
 4. Cancel changes nothing and restores focus to the opener.
