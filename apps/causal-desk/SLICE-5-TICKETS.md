@@ -25,6 +25,12 @@ complete only when the Declare repository exposes and documents:
 - a test-isolated namespace; and
 - verifier support for cold-boot persistence and deterministic lifecycle failure injection.
 
+2026-09-10: that interface is implemented on `feat/dataset-persistence`; see the
+[author guide](../../docs/guide/23-saving-data.md) and
+[verified cases / release blockers](../../docs/system-design/dataset-persistence-evidence.md).
+The external gate remains **open**, because repository unit/visual gates have not
+all passed. This note does not authorize CD-S5 implementation or an app storage shim.
+
 The platform work must include compiler/runtime documentation and its own conformance tests. An
 app agent must read the landed API and use it exactly; it must not infer syntax from this plan.
 

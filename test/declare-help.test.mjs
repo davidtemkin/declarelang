@@ -60,6 +60,18 @@ await test("every attribute of every schema resolves through the scoped form", (
 });
 
 // ── the concept table: every synonym target resolves, every negative answers ─
+await test("persistence help preserves nullable facts, generated error codes and generic candidate typing", () => {
+  assert.equal(model.spine.schemas.Persistence.attrs.error, 'PersistenceError | null');
+  assert.equal(model.spine.schemas.Persistence.attrs.savedAt, 'string | null');
+  const error = model.spine.types.shared.interfaces.find(i => i.name === 'PersistenceError');
+  assert.ok(error.members.join(' ').includes('"conflict"'));
+  assert.equal(error.members.join(' ').includes('${'), false);
+  const deep = model.spine.types.shared.aliases.find(i => i.name === 'DeepReadonly');
+  assert.equal(deep.typeParameters, '<T>');
+  assert.ok(help('DeepReadonly').out.includes('DeepReadonly<T>'));
+  assert.ok(help('Persistence.onResult').out.includes('PersistenceResult'));
+});
+
 await test("every concept synonym points at a live reference entry", () => {
   for (const [syn, target] of Object.entries(model.spine.concepts.synonyms)) {
     assert.ok(model.reference[target], `synonym '${syn}' targets '${target}', which is not in the reference`);

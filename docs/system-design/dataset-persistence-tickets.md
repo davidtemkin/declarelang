@@ -39,8 +39,8 @@ fallbacks. No platform gate is complete until PP-05 passes.
 | PP-01 | PP-00 | complete | `b7631bd8`; PP-01 execution evidence below |
 | PP-02 | PP-00 | complete | `3622aaad`; PP-02 execution evidence below |
 | PP-03 | PP-00 | complete | `d4fcf166`; PP-03 execution evidence below |
-| PP-04 | PP-01, PP-02 | implemented; regression gate open | PP-04 evidence below |
-| PP-05 | PP-03, PP-04 | planned | — |
+| PP-04 | PP-01, PP-02 | implemented; regression gate open | `b1093b17`; PP-04 evidence below |
+| PP-05 | PP-03, PP-04 | implemented; release gates blocked | [Execution evidence](dataset-persistence-evidence.md) |
 
 ```text
 PP-00 ──┬── PP-01 ──┐
@@ -452,8 +452,9 @@ browser/version, author documentation links, and verified external gate for CD-S
 
 ## Coverage ledger and release decision
 
-Implementers replace these planned owners with exact test names/results at handoff.
-Every trace must have an executable assertion; references alone are not evidence.
+Exact executable cases, results and remaining release blockers are in the
+[execution evidence](dataset-persistence-evidence.md#trace-ledger). The ownership
+table below remains the routing map, not a claim that release gates have passed.
 
 | Traces | Primary owner | Integrated confirmation |
 |---|---|---|

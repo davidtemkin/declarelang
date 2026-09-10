@@ -1,10 +1,10 @@
 # Dataset persistence — implementation contract
 
-Status: **reviewed design, ready for browser implementation**, 2026-09-10.
-No proposed member is shipped. The [review and acceptance record](dataset-persistence-review.md)
+Status: **implemented on the feature branch; release verification in progress**, 2026-09-10.
+The platform gate is not yet complete. The [review and acceptance record](dataset-persistence-review.md)
 records criticisms, decisions, counterexamples, and implementation dependency order.
 The [implementation tickets](dataset-persistence-tickets.md) define PP-00–PP-05
-ownership, verification, and the external platform gate. All are initially planned.
+ownership, verification, and the external platform gate. See their execution evidence.
 `text` fences illustrate proposed source, not executable reference examples.
 
 ## 1. Scope and governing rule
@@ -20,7 +20,7 @@ Native hosts report `unsupported` until they implement the same contract. Native
 storage and indexed collections are explicit later milestones. L-28 remains open
 for those extensions. Cloud sync, remote cache reconciliation, multi-key transactions,
 and automatic migrations are excluded. Causal Desk is the first consumer, not the
-platform's storage schema. This change remains design only.
+platform's storage schema. Browser implementation does not complete the app's Slice 5.
 
 Evidence checked: [Dataset](../../runtime/src/data.ts), [Editor](../../runtime/src/editor.ts),
 [construction](../../runtime/src/instantiate.ts), [checking](../../runtime/src/check.ts),

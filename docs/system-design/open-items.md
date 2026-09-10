@@ -751,10 +751,11 @@ app's constraints move to tracking — exactly the ones that were stale before.
 
 ## L-28 — Dataset persistence, IndexedDB-shaped · design · GH #23
 
-Reviewed design-only contract (2026-09-10): [Dataset persistence](dataset-persistence.md)
-specifies a Dataset-owned persistence policy, reactive recovery/save lifecycle,
-acknowledged writes, host isolation, and Causal Desk integration. It is not a shipped
-API. Browser document persistence is ready for implementation with an explicit
+Browser document implementation is on `feat/dataset-persistence` (2026-09-10), with
+real DOM/canvas cold-page recovery, acknowledgement, erase and cross-tab tests.
+[Dataset persistence](dataset-persistence.md) specifies the Dataset-owned policy,
+reactive recovery/save lifecycle, acknowledged writes and host isolation. The platform
+gate remains pending the complete [release evidence](dataset-persistence-evidence.md), with an explicit
 [host contract](dataset-persistence-host.md) and
 [review, acceptance traces, and dependency order](dataset-persistence-review.md).
 Execution is tracked in [PP-00–PP-05 implementation tickets](dataset-persistence-tickets.md).

@@ -32,6 +32,8 @@ const SUITE = [
   "test/persistence-lifecycle.test.mjs",
   "test/persistence-queue.test.mjs",
   "test/persistence-indexeddb.test.mjs",
+  "test/persistence-browser.test.mjs",
+  "test/persistence-production.test.mjs",
   "test/table.test.mjs",
   "test/components.test.mjs",
   "test/tracker.test.mjs",

@@ -94,7 +94,7 @@ import { PERSISTENCE_ERROR_CODES } from "../../runtime/dist/persistence/errors.j
  *  check that fires on correct code is the cardinal sin (diagnostics.md §4 /
  *  verify-and-evals.md). `any` under-reports instead; schema-typed records
  *  close the hole when the `schema` construct lands. */
-const PRELUDE = `type Percent = { percent: number };
+export const PRELUDE = `type Percent = { percent: number };
 type Length = number | Percent;
 type Color = number | null;
 type Shape = string | null;
@@ -319,6 +319,10 @@ export function tsType(t: AttrType): string {
 /** The event-payload type names, writable in a handler's signature. Declared
  *  in the prelude above; the shapes live in the runtime (events.ts, keys.ts,
  *  tip.ts, focus.ts) and this list is what makes them nameable by an author. */
+export const PERSISTENCE_ATTRIBUTE_TYPES: Readonly<Record<string, string>> = Object.freeze({
+  candidate: "PersistenceJson", error: "PersistenceError | null",
+  savedAt: "string | null", candidateSavedAt: "string | null",
+});
 const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TipEvent", "StreamMessage", "Draw", "DrawGradient", "PersistenceResult", "PersistenceError"]);
 
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
@@ -646,8 +650,8 @@ function emitClass(
   }
   const readOnlyHere = new Set(s.readOnly ?? []);
   for (const [name, t] of Object.entries(s.attrs)) {
-    if (s.name === "Persistence" && ["candidate", "error", "savedAt", "candidateSavedAt"].includes(name)) {
-      const type = name === "candidate" ? "PersistenceJson" : name === "error" ? "PersistenceError | null" : "string | null";
+    if (s.name === "Persistence" && PERSISTENCE_ATTRIBUTE_TYPES[name]) {
+      const type = PERSISTENCE_ATTRIBUTE_TYPES[name];
       lines.push(`  readonly ${name}: ${type};`);
       continue;
     }

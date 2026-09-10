@@ -108,6 +108,7 @@ to learn it, or jump to the chapter your task needs:
 | hover / press / drag & drop, hit-testing (`viewAt`), clicks, keyboard | `docs/guide/07-interaction.md` |
 | the standard library (buttons, inputs), the value pattern | `docs/guide/08-controls.md` |
 | lists, datasets, editing data, loading documents | `docs/guide/09-data.md` |
+| saved documents, recovery, acknowledged saves, storage failures | `docs/guide/23-saving-data.md` |
 | big collections, `virtualize`, selection, `DataGrid` | `docs/guide/10-scale.md` |
 | your own component, control, icon, or layout | `docs/guide/11-make-your-own.md` |
 | menus, dialogs, popovers, tooltips — anything over the flow | `docs/guide/12-above-the-flow.md` |

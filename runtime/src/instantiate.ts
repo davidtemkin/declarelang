@@ -263,7 +263,7 @@ function buildTree(program: Program, trusted: boolean, persistence?: Persistence
     pending: [],
     expanding: new Set(),
     trusted,
-    persistence,
+    persistence: persistence && Object.freeze({ ...persistence }),
   };
   // The `style` bundles a `<span class>` inside RichText resolves against (the
   // by-name cascade's global tier) — module-scoped for the running program.

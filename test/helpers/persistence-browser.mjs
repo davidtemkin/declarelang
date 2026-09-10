@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import puppeteer from "puppeteer-core";
 
 /** Test-owned origin; serves only built persistence modules and an empty fixture page. */
-export async function persistenceBrowser() {
+export async function persistenceBrowser({ artifacts = [] } = {}) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   const executablePath = [process.env.PUPPETEER_EXECUTABLE_PATH, process.env.CHROME_PATH,
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome",
@@ -13,6 +13,12 @@ export async function persistenceBrowser() {
   if (!executablePath) throw new Error("No browser found; persistence conformance is UNVERIFIED");
   const server = http.createServer((req, res) => {
     const name = new URL(req.url, "http://fixture").pathname;
+    if (name === '/favicon.ico') { res.writeHead(204); res.end(); return; }
+    const artifact = artifacts.find(a => '/production/' + a.name === name || (name === '/production/' && a.name === 'index.html'));
+    if (artifact) {
+      res.setHeader('Content-Type', artifact.name.endsWith('.html') ? 'text/html' : 'text/javascript');
+      res.end(artifact.contents); return;
+    }
     if (name === "/") { res.setHeader("Content-Type", "text/html"); res.end("<!doctype html><title>Persistence fixture</title>"); return; }
     if (!/^\/runtime\/dist\/persistence\/[a-z-]+\.js$/.test(name)) { res.writeHead(404); res.end(); return; }
     res.setHeader("Content-Type", "text/javascript");

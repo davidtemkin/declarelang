@@ -15,6 +15,7 @@
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
 import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, afterSettle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, mountEmbeddedApp } from "../runtime/dist/index.js";
+import { browserPersistence } from "../runtime/dist/persistence/browser.js";
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -72,7 +73,9 @@ export async function bootHost(cfg) {
   // first paint (docs/system-design/location.md §2): a deep link is just an initial state, so
   // every constraint derives from it as if the user had already navigated there —
   // no home→target flash. Un-fused from renderAsync so the seed lands pre-mount.
-  const app = build(cfg.source, { deps: cfg.deps });
+  const entryURL = new URL(cfg.mainId ?? location.href, DISTRO_ROOT).href;
+  const persistence = browserPersistence(entryURL, cfg.persistence);
+  const app = build(cfg.source, { deps: cfg.deps, persistence });
   host.__declareApp = app;                            // the per-box handle (an embedder's way in)
   // The MAIN app's own directories (boot-uniform passes the program's dir):
   // ASSETS — everything asset-base.ts resolves: bitmaps, media, web font
@@ -393,8 +396,12 @@ export async function bootHost(cfg) {
       // child's true program URL may set it instead, restoring the natives.
       const backend = new DomBackend();
       backend.linkBase = "";
+      const childEntry = name && !name.startsWith("__") && cfg.demoBase
+        ? new URL(name + ".declare", new URL(cfg.demoBase, document.baseURI)).href
+        : cfg.childEntryURL ?? (name === "__page__" ? entryURL : null);
       const childApp = await renderAsync(compiled.source, box, backend,
-        { deps: compiled.deps, assetBase: childAssetBase(name || "") });
+        { deps: compiled.deps, assetBase: childAssetBase(name || ""),
+          persistence: childEntry ? browserPersistence(new URL(childEntry, DISTRO_ROOT).href, cfg.persistence) : undefined });
       box.__childApp = childApp;
       if (childApp) {
         childApp.demoSources = seeds;                     // populate a nested copy's own editors

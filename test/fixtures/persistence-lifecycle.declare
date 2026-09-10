@@ -31,7 +31,7 @@ App [ minWidth = 360, scrolls = y, fill = #101820, textColor = #E6EDF2,
             layout: SimpleLayout [ axis = y, spacing = 8 ],
             datapath = { app.db.value },
             Text [ text = "Amount" ],
-            amount: TextInput [ width = 100%, height = 44, text <-> :amount, commitOn = "input" ]
+            amount: TextInput [ width = 100%, height = 44, textColor = #18222C, text <-> :amount, commitOn = "input" ]
             ],
         Text [ width = 100%, wrap = true, text = { "Committed amount: " + app.db.value?.amount } ],
         save: Button [ width = 100%, height = 44, label = "Save",

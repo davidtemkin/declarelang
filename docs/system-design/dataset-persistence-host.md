@@ -1,15 +1,30 @@
 # Dataset persistence — host contract
 
-Design only; companion to the [implementation contract](dataset-persistence.md).
-These are proposed internal TypeScript interfaces, not new Declare syntax or an
-app-accessible storage API. Browser DOM and canvas use the same provider.
+Implemented on the feature branch; companion to the [implementation contract](dataset-persistence.md).
+The executable host interfaces are in [context.ts](../../runtime/src/persistence/context.ts)
+and [types.ts](../../runtime/src/persistence/types.ts). They are not an app-accessible
+storage API. Browser DOM and canvas use the same provider; release gates remain in
+[the execution evidence](dataset-persistence-evidence.md).
 
 ## Scope and injection
 
-Add an optional persistence configuration to the host's app-bootstrap options:
-`{ provider, appId?, namespace? }`. The runtime resolves this once per app root.
+The host's app-bootstrap options accept `persistence` with optional `provider`,
+`entryURL`, `appId`, `namespace`, and a host-owned `clock`. Supply these before build;
+the runtime resolves policy identity before authored init.
 The browser supplies its IndexedDB provider by default; unsupported hosts supply
 an adapter that rejects with `unsupported`. Never silently substitute memory.
+
+`browserPersistence(entryURL, overrides)` installs the browser provider lazily. Shared
+dev/static boot passes the canonical entry URL; live preview islands use the viewed
+or named child program, never the viewer's identity. Unknown anonymous islands remain
+unsupported. Standalone production builds derive `<program-name>.declare` beside their
+generated page. Embedders may call `renderProgramAsync(..., assetBase, persistence)`
+or `renderAsync(..., { persistence })` with a stable explicit appId.
+
+The verifier's `withHost` supplies a fresh namespace. Its optional host-only
+`persistenceModule` loads a trusted test adapter before app construction; it is not
+an authored attribute or production default. The browser suite uses that seam for
+controlled delay/quota outcomes while successful operations use real IndexedDB.
 
 Browser identity is the tuple `(origin, appId, namespace, key)`:
 

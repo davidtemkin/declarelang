@@ -303,7 +303,7 @@ function answer() {
       for (const mline of i.members.slice(0, cap)) say(`  ${mline}`);
       if (i.members.length > cap) say(`  …and ${i.members.length - cap} more — declare-help ${i.name} --all`);
     }) ||
-    sharedHit("shared-alias", "aliases", (a) => say(`${a.name} — a shared type alias: ${a.type}`)) ||
+    sharedHit("shared-alias", "aliases", (a) => say(`${a.name}${a.typeParameters ?? ""} — a shared type alias: ${a.type}`)) ||
     sharedHit("shared-function", "functions", (f) => say(`${f.name} — a shared function, callable in any { } body: ${f.signature}`)) ||
     sharedHit("shared-namespace", "namespaces", (n) => {
       say(`${n.name} — a shared namespace:`);

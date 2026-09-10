@@ -164,6 +164,20 @@ await test("P21 authored Save and leave cancellation ignores an eventual success
     h.app.leave(); await drain(); await h.finish(); assert.equal(h.app.navigated, 1);
   } finally { h.app.discard(); }
 });
+await test("same-root replacement releases key ownership and initializes an imperative policy before onInit", async () => {
+  const h = await fixture(`class Holder extends View [
+    db: Dataset [disk: Persistence [key="note", save="manual"]] {{"n":0,"rows":[1,2]}},
+    onInit() { classroot.db.disk.commit() }
+  ]\n` + source());
+  try {
+    await h.boot(); h.app.db.set(['n'], 32); h.disk.commit(); await drain();
+    h.app.db.discard(); const child = h.app.createView('Holder'); await drain();
+    assert.equal(h.provider.pending.length, 1); assert.equal(h.provider.pending[0].operation, 'commit');
+    await h.finish(); await h.finish();
+    assert.equal(child.db.disk.recovery, 'available', 'onInit save intent was captured before boot read');
+    assert.equal(child.db.disk.candidate.n, 32); assert.equal(child.db.disk.error, null);
+  } finally { h.app.discard(); }
+});
 await test("unsupported host reports failure, and plain Dataset never invokes storage", async () => {
   const c = await compile(source()); const app = build(c.source);
   try { await drain(); assert.equal(app.db.disk.error.code, 'unsupported'); assert.equal(app.db.disk.saved, false); }

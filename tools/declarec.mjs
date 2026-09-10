@@ -185,6 +185,8 @@ export async function buildProduction(source, opts = {}) {
   const entry =
     `import ${JSON.stringify(join(RUNTIME, "services.js"))};\n` +
     `import { renderProgramAsync } from ${JSON.stringify(join(RUNTIME, "boot.js"))};\n` +
+    (built.usedComponents.includes("Persistence")
+      ? `import { browserPersistence } from ${JSON.stringify(join(RUNTIME, "persistence/browser.js"))};\n` : "") +
     `import { hydrateProgram } from ${JSON.stringify(join(RUNTIME, "hydrate.js"))};\n` +
     `import { ${backend.cls} } from ${JSON.stringify(join(RUNTIME, backend.file))};\n` +
     `const PROGRAM = hydrateProgram(JSON.parse(${JSON.stringify(programJson)}));\n` +
@@ -192,7 +194,8 @@ export async function buildProduction(source, opts = {}) {
     // The host is the app's element: clear it before mount, so a `--crawler`
     // build's embedded static block (crawler content, capabilities.md §5)
     // is replaced by the real app the moment it runs.
-    `if (host) { host.replaceChildren(); renderProgramAsync(PROGRAM, host, new ${backend.cls}()); }\n`;
+    `if (host) { host.replaceChildren(); renderProgramAsync(PROGRAM, host, new ${backend.cls}(), undefined, ${
+      built.usedComponents.includes("Persistence") ? `browserPersistence(new URL(${JSON.stringify(name + ".declare")}, location.href).href)` : "undefined"}); }\n`;
 
   // Registry slimming (on by default; opts.slim === false keeps the full set):
   // substitute the runtime's registry.js with a subset carrying only the
