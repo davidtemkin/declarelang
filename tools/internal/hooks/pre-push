@@ -1,5 +1,7 @@
 #!/bin/sh
-# A PUSH IS A PUBLICATION. This hook asks two read-only questions and REFUSES if
+# A MAIN OR TAG PUSH IS A PUBLICATION. Review branches carry source only; their
+# artifacts are derived when landing on main (CONTRIBUTING.md). For publication,
+# this hook asks two read-only questions and REFUSES if
 # either answer is wrong. It regenerates nothing, stages nothing, commits
 # nothing, and runs no tests.
 #
@@ -44,11 +46,43 @@
 # gates — `npm run test:derived` — are the answer to that, run by you after a
 # derive, and by CI on what actually reached the remote.
 #
-# It also assumes you are pushing HEAD. `git push origin <sha>:main` for some
-# other commit is not checked; the refs are on stdin if that ever needs fixing.
+# Publication refs must resolve to HEAD: checking this worktree for a different
+# pushed commit would certify the wrong artifacts. Annotated tags are peeled.
 #
 # Escape hatch: git push --no-verify (you own the consequence — and CI is the
 # net under it).
+
+# Git supplies local ref, local object, remote ref, remote object for EVERY
+# update. Classify the destination, not the current or source branch. A mixed
+# push must satisfy publication checks if even one destination publishes.
+PUBLICATION=0
+while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA EXTRA; do
+  if [ -z "$LOCAL_REF" ] || [ -z "$LOCAL_SHA" ] || [ -z "$REMOTE_REF" ] ||
+     [ -z "$REMOTE_SHA" ] || [ -n "$EXTRA" ]; then
+    echo "pre-push: malformed ref update; refusing unchecked push."
+    exit 1
+  fi
+  case "$REMOTE_REF" in
+    refs/heads/main|refs/heads/master|refs/tags/*) PUBLICATION=1 ;;
+    refs/heads/*) continue ;;
+    *) echo "pre-push: unknown destination $REMOTE_REF; refusing unchecked push."; exit 1 ;;
+  esac
+  case "$LOCAL_SHA" in
+    *[!0]*) ;;
+    *) echo "pre-push: refusing deletion of publication ref $REMOTE_REF."; exit 1 ;;
+  esac
+  PUSHED_COMMIT=$(git rev-parse --verify "${LOCAL_SHA}^{commit}" 2>/dev/null) || exit 1
+  CHECKED_COMMIT=$(git rev-parse --verify HEAD 2>/dev/null) || exit 1
+  if [ "$PUSHED_COMMIT" != "$CHECKED_COMMIT" ]; then
+    echo "pre-push: $REMOTE_REF does not point to HEAD."
+    echo "  Check out the published commit before checking its artifacts and pushing."
+    exit 1
+  fi
+done
+if [ "$PUBLICATION" -eq 0 ]; then
+  echo "pre-push: review-only refs; derive artifacts when landing on main."
+  exit 0
+fi
 
 # (1) is a verdict about the LEDGER, and the message must not claim more: --dry
 # knows a rule's inputs moved since that rule last ran, not whether re-running

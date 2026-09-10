@@ -25,7 +25,7 @@ Everything here is enforced by something runnable. Nothing is honour-system.
 ```sh
 node tools/verify.mjs <file>   # one program, six rungs: parse → resolve → analyze → boot → input → pixels
 npm test                       # everything that tests the sources — no derive needed
-npm run derive                 # regenerate the committed artifacts (required before a push) — stages its outputs
+npm run derive                 # regenerate committed artifacts (before a publication push) — stages its outputs
 npm run test:derived           # the artifact gates — only meaningful straight after a derive
 npm run test:ladder            # the slow rungs — real input, real pixels, headless Chromium
 ```
@@ -66,7 +66,7 @@ meaningful straight after `npm run derive`:
 
 **Nothing regenerates on commit.** `npm run derive` is what writes the derived artifacts —
 the prewarm cache, stamped stats, the model, crawler bakes, bundles, the build id — and you
-run it yourself, before a push. Neither hook derives; neither hook writes. (One exception to
+run it yourself, before a publication push. Neither hook derives; neither hook writes. (One exception to
 "only derive writes": a suite that boots the dev server rebuilds a stale platform bundle via
 `rebuildStale()`. See [`docs/operational/derive.md`](docs/operational/derive.md).)
 **Never hand-edit a generated file** — `docs/declare-model.json` above all. It is written by
@@ -158,3 +158,8 @@ them). Stage only the files you authored. Whoever lands the PR re-runs the deriv
 (`node tools/internal/derive.mjs`) on top of current main — the same staleness gates
 check the result either way. Quick self-check before pushing: if `bundles/`, `dist/`, or
 `declare-model.json` appear in your diff, unstage them.
+
+The pre-push hook permits source-only review branches. It classifies **remote destinations**:
+updates to `main`, `master`, or any tag still require the existing derivation, committed-output,
+and release checks, even in a mixed push. Publication refs must resolve to the checked-out
+HEAD so those checks inspect the commit being published. See [shipping](docs/operational/shipping.md).

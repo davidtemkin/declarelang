@@ -13,12 +13,13 @@ node tools/internal/run-gates.mjs       # run the test suites your edits touch
 
 **`npm run derive` is the writer, and you are the only thing that runs it.** No hook
 derives; committing writes nothing. That is deliberate: a commit is a local
-checkpoint, a push is a publication, and a distro only has to be coherent when it is
-published.
+checkpoint, a push to main or a tag is a publication, and a distro only has to be coherent
+when it is published. Review branches carry source-only PRs; the landing maintainer derives
+the integrated tree on current main. See [the review workflow](shipping.md#review-branches-source-only-prs).
 
 One honest exception, so the claim is not overstated: `npm test` is not perfectly
 read-only. It runs its own `tsc -b` (writing `compiler/dist` and `runtime/dist`, which
-are build outputs, not committed artifacts), and any suite that boots the dev server
+are tracked build outputs), and any suite that boots the dev server
 calls `rebuildStale()` — which rebuilds a stale `bundles/declare-*.js`, and `bundles`
 IS a derived output. So a test run on a tree with stale bundles quietly makes them
 fresh, after which the pre-push gate will correctly report them as uncommitted. Left
@@ -43,7 +44,12 @@ pitfalls, including the second derive turn after a commit — see
 | `git commit` | nothing | pre-commit checks the staged `.declare` files are canon. **Writes nothing** — derived artifacts may be stale, which is the expected state | silent on success; on failure, the files and the `format --write` line | a staged `.declare` that isn't canon |
 | `npm test` | nothing | every suite that tests the SOURCES. Writes its own `tsc -b` output, and may rebuild a stale bundle via `rebuildStale()` when a suite boots the dev server | per-suite pass/fail | nothing downstream — informational, not a gate |
 | `npm run test:derived` | `npm run derive` | the suites whose subject IS an artifact: `docs`, `schema-completeness`, `declare-help`, `prewarm`, `ops`. Read-only | which artifact disagrees with the tree | nothing mechanically — it is what tells you a push will be honest |
-| `git push` | artifacts fresh **and committed** | pre-push asks two read-only questions: `--dry` (fresh on disk?) and `git status` on the derived outputs (is what's on disk what you're publishing?). **Writes nothing** | silent on success; on refusal, which check failed and the commands | stale artifacts; derived artifacts uncommitted or untracked. Escape: `--no-verify` |
+| review-branch `git push` | verified source, selectively committed | allows source-only branch destinations; **writes nothing** | reminder to derive when landing on main | malformed or unknown ref destinations |
+| publication `git push` | artifacts fresh **and committed**, pushed commit is HEAD | checks `--dry`, derived-output status, and release declaration; **writes nothing** | on refusal, which check failed and the commands | stale/uncommitted artifacts, incomplete release, non-HEAD publication, publication deletion. Escape: `--no-verify` |
+
+Publication destinations are `refs/heads/main`, `refs/heads/master`, and `refs/tags/*`.
+One such update makes the entire push subject to publication checks, regardless of source
+branch or other destinations. Annotated tags are resolved to their commit.
 
 **The one rule you have to hold in your head:** `test:derived` is only meaningful
 straight after `derive`. Everything else is free-standing or enforced by a refusal.
@@ -136,7 +142,7 @@ The rules of trust, in order:
 - **Skipping is only as good as the input maps**, which err coarse on purpose. If a
   suite ever misses a regression through a skip, fix its input list — that is the
   whole repair.
-- **Run `--all` before a push**, and after structural changes (the toolchain, the
+- **Run `--all` before a publication push**, and after structural changes (the toolchain, the
   test harness, anything under `tools/internal/`). `npm test` and
   `npm run test:derived` remain the full, unconditional chains and never skip.
 
@@ -157,8 +163,9 @@ The rules of trust, in order:
   doesn't track, and `git commit -am` cannot pick up a new content-hashed bundle.
   Re-run `npm run derive` — it stages its outputs itself; stamped files you edited are
   yours to stage.
-- **"pre-push refused and I don't want to derive right now"** — then don't push;
-  a push is a deploy. `git push --no-verify` exists and you own the consequence.
+- **"pre-push refused and I don't want to derive right now"** — push a source-only
+  review branch instead. Publishing main or a tag requires current artifacts;
+  `git push --no-verify` exists and you own the consequence.
 - **"I edited a generated file and my edit survived"** — only until its rule's
   inputs change; outputs are regenerated over hand edits. Edit the *source* the
   artifact derives from (the rule's inputs say which).
