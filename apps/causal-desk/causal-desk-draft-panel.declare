@@ -1,7 +1,7 @@
 // A stable place for local-work status, separate from calculation and input errors.
 
 class CausalDraftPanel extends View [ width = { app.width - app.frameGutter * 2 },
-    mainHeight: number = { app.draft.hasCandidate ? (app.mobile ? 244 : 164) : (app.mobile ? 96 : 64) },
+    mainHeight: number = { app.draft.hasCandidate ? (app.mobile ? (app.draft.canKeep ? 244 : 180) : 164) : (app.mobile ? 96 : 64) },
     height = { mainHeight + (app.draft.failureText != "" ? (app.mobile ? 144 : 100) : 0) }, cornerRadius = 10,
     fill = #111B21, stroke = { stroke(1, 0x2B3B43) },
     label: Text [ x = 16, y = 12, width = { parent.width - (app.draft.canClear ? 200 : 32) },

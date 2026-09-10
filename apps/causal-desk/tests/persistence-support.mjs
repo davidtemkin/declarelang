@@ -7,15 +7,25 @@ export { assert };
 export const appDir = new URL('../', import.meta.url).pathname;
 const compiled = await compile(await readFile(new URL('../causal-desk.declare', import.meta.url), 'utf8'), { originDir: appDir });
 assert.deepEqual(compiled.errors, []);
-export const withCausal = (fn, options = {}) => withHost({ compiled, appDir, ...options }, fn);
+export const withCausal = (fn, options = {}) => withHost({ compiled, appDir,
+  persistenceModule: '/test/helpers/persistence-browser-controls.mjs', ...options }, fn);
 export const ready = async a => {
   await a.page.bringToFront();
   await a.page.waitForFunction(() => __app.draft.savedRecord.disk.loadStatus !== 'loading');
 };
 export const saved = async a => {
   // The verifier virtualizes debounce timers; wall-clock polling cannot fire them.
+  await a.page.waitForFunction(() => !__app.draft.stageQueued);
+  await a.page.evaluate(() => globalThis.__persistenceTest?.clock.advance(1000));
   await a.drive.wait(1000);
-  await a.page.waitForFunction(() => __app.draft.saved);
+  try { await a.page.waitForFunction(() => __app.draft.saved); }
+  catch (error) {
+    const state = await a.page.evaluate(() => ({ generation: __app.draft.workingGeneration,
+      staged: __app.draft.stagedWorkingGeneration, status: __app.draft.statusText,
+      record: __app.draft.savedRecord.value, write: __app.draft.savedRecord.disk.writeStatus,
+      revision: __app.draft.savedRecord.disk.revision, savedRevision: __app.draft.savedRecord.disk.savedRevision }));
+    throw new Error(`Save did not settle: ${JSON.stringify(state)}`, { cause: error });
+  }
 };
 export async function click(a, path) {
   await a.page.bringToFront();

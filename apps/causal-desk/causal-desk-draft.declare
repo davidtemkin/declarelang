@@ -33,7 +33,7 @@ class CausalDraft extends Node [
         "2000-01-01T00:00:00.000Z").overrides).length > 0 },
     canClear: boolean = { !hasCandidate && (savedRecord.disk.exists || hasWorkingOverrides) },
     recoveryText: string = { canRestore
-        ? "Saved Working scenario from " + (validation as SavedScenarioValidation).record!.savedAt
+        ? "Saved Working scenario from " + (validation as SavedScenarioValidation).record!.savedAt.slice(0, 16).replace("T", " ") + " UTC"
             + ". Restore it, or discard the saved copy."
         : savedRecord.disk.recovery == "invalid" ? "Saved draft could not be read. Nothing has been restored."
         : (validation as SavedScenarioValidation).message + " Nothing has been restored." },
@@ -47,7 +47,7 @@ class CausalDraft extends Node [
         : editingLocked ? "Clearing local work… waiting for confirmation"
         : savedRecord.disk.failed ? "Local saving unavailable · changes remain in this session"
         : stagingError != "" ? "Working draft is invalid · changes remain in this session"
-        : hasCandidate ? "Saved Working scenario available"
+        : hasCandidate ? (canRestore ? "Saved Working scenario available" : "Saved draft needs attention")
         : saved ? "Saved on this device · " + (savedRecord.disk.savedAt ?? "").slice(11, 19) + " UTC"
         : state == "saving" ? "Saving locally…" : "Local draft · none" },
 
@@ -98,7 +98,7 @@ class CausalDraft extends Node [
         if (index >= 0) Focus.focus(choices[index] as View)
         },
     requestRestore() {
-        if (!canRestore || savedRecord.disk.pending) return
+        if (!canRestore || savedRecord.disk.pending || eraseIntent != "") return
         if (workingGeneration == 0) { restoreSavedScenario(); return }
         app.draftDialog.open("Replace current work?",
             "Restoring this saved draft replaces the Working edits made in this session.",
@@ -126,7 +126,7 @@ class CausalDraft extends Node [
         afterSettle(this.focusScenario)
         },
     requestDiscard() {
-        if (!hasCandidate || savedRecord.disk.pending) return
+        if (!hasCandidate || savedRecord.disk.pending || eraseIntent != "") return
         app.draftDialog.open("Discard saved draft?",
             "Remove the saved copy from this device? This cannot be undone. Current-session work is kept.",
             [({ id: "cancel", label: "Cancel", cancel: true, default: true }),
@@ -134,7 +134,7 @@ class CausalDraft extends Node [
             (id) => { if (id == "discard") this.discardSavedScenario() })
         },
     discardSavedScenario() {
-        if (!hasCandidate || savedRecord.disk.pending) return
+        if (!hasCandidate || savedRecord.disk.pending || eraseIntent != "") return
         eraseIntent = "discard"
         eraseRequest = savedRecord.disk.erase()
         },
