@@ -21,6 +21,7 @@ const messages: Record<PersistenceErrorCode, string> = {
   aborted: "This operation was canceled or is no longer eligible.",
 };
 const retryable = new Set<PersistenceErrorCode>(["blocked", "unavailable", "quota", "io"]);
+export const PERSISTENCE_ERROR_CODES: readonly PersistenceErrorCode[] = Object.freeze(Object.keys(messages) as PersistenceErrorCode[]);
 
 export function persistenceError(code: PersistenceErrorCode, operation: PersistenceOperation): PersistenceError {
   return Object.freeze({ code, operation, message: messages[code], retryable: retryable.has(code) });

@@ -146,6 +146,8 @@ export { Tip } from "./tip.js";
 export { Animator, AnimatorGroup } from "./animator.js";
 export type { Cursor } from "./data.js";
 export { settle, afterSettle, observe } from "./reactive.js";
+export { Persistence } from "./persistence/node.js";
+export type { PersistenceError, PersistenceResult } from "./persistence/types.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export type { InspectNode, Provenance } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";

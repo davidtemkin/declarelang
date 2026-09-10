@@ -36,8 +36,8 @@ fallbacks. No platform gate is complete until PP-05 passes.
 | Ticket | Depends on | Status | Commit / evidence |
 |---|---|---|---|
 | PP-00 | — | complete | `68eb9e65`; PP-00 execution evidence below |
-| PP-01 | PP-00 | planned | — |
-| PP-02 | PP-00 | complete | PP-02 execution evidence below |
+| PP-01 | PP-00 | complete | PP-01 execution evidence below |
+| PP-02 | PP-00 | complete | `3622aaad`; PP-02 execution evidence below |
 | PP-03 | PP-00 | complete | `d4fcf166`; PP-03 execution evidence below |
 | PP-04 | PP-01, PP-02 | planned | — |
 | PP-05 | PP-03, PP-04 | planned | — |
@@ -179,6 +179,20 @@ live storage scheduling is deliberately integrated in PP-04.
 diagnostics, and a minimal legal fixture PP-04 can boot.
 
 **Commit:** `feat(persistence): type and construct Dataset policies`
+
+### Execution evidence — 2026-09-10
+
+- Policy schema/registry and `Persistence` node shell are implemented; Dataset
+  construction admits one named policy and keeps its physical Dataset parent.
+  Compiler candidate typing follows the owner schema, with immutable facts/results
+  and synchronous numeric commands. Parent typing now reflects the Dataset owner.
+- Passed forced build, 6 syntax cases, 12 scaffold cases, 15 compiler/production
+  cases, and 18 existing Dataset-schema cases. Source-known policy errors carry
+  positions; invalid embedded schema data retains its existing build-time refusal.
+- `bindPersistence`/`publishPersistence` are runtime-only wiring functions. The
+  structural shell refuses unbound commands rather than reporting fake success;
+  PP-04 supplies the engine before authored init. Generated build outputs remain
+  uncommitted under the repository's source-only feature-branch convention.
 
 ## PP-02 — Implement bounded lifecycle, recovery, and command ordering
 

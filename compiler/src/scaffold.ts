@@ -81,6 +81,7 @@ import { MOTION_TOKENS } from "../../runtime/dist/animate.js";
 import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { EVENT_PAYLOAD, handlerName } from "../../runtime/dist/schema.js";
+import { PERSISTENCE_ERROR_CODES } from "../../runtime/dist/persistence/errors.js";
 
 /** The fixed value-type prelude — the closed vocabulary of value.ts as TS
  *  types, plus the value constructors in scope for every body. Mirrors
@@ -106,6 +107,17 @@ interface Backdrop { blur: number; saturate: number }
 type Theme = Readonly<Record<string, any>>;
 interface Cursor { readonly data: any; readonly path: readonly string[] }
 interface IslandPost { readonly topic: string; readonly payload: unknown }
+type PersistenceJson = null | boolean | number | string | readonly PersistenceJson[] | { readonly [key: string]: PersistenceJson };
+type DeepReadonly<T> = T extends object ? { readonly [P in keyof T]: DeepReadonly<T[P]> } : T;
+interface PersistenceError {
+  readonly code: ${PERSISTENCE_ERROR_CODES.map(code => JSON.stringify(code)).join(" | ")};
+  readonly message: string; readonly operation: "load" | "commit" | "erase"; readonly retryable: boolean;
+}
+interface PersistenceResult {
+  readonly requestId: number; readonly operation: "load" | "commit" | "erase"; readonly ok: boolean;
+  readonly revision: number | null; readonly storedRevision: string | null; readonly savedAt: string | null;
+  readonly error: PersistenceError | null;
+}
 declare function gradient(...args: (Color | string | { offset: number | null; color: Color })[]): Gradient;
 declare function stroke(width: number, color: Color): Stroke;
 declare function outline(width: number, color: Color): Outline;
@@ -307,7 +319,7 @@ export function tsType(t: AttrType): string {
 /** The event-payload type names, writable in a handler's signature. Declared
  *  in the prelude above; the shapes live in the runtime (events.ts, keys.ts,
  *  tip.ts, focus.ts) and this list is what makes them nameable by an author. */
-const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TipEvent", "StreamMessage", "Draw", "DrawGradient"]);
+const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TipEvent", "StreamMessage", "Draw", "DrawGradient", "PersistenceResult", "PersistenceError"]);
 
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
@@ -547,6 +559,10 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  fetch(): Promise<void>;`,
     `  clear(): void;`,
   ],
+  Persistence: [
+    `  commit(): number;`, `  replace(): number;`, `  restore(): boolean;`,
+    `  erase(): number;`, `  retry(): number;`, `  reload(): number;`,
+  ],
   Animator: [`  start(): void;`, `  stop(): void;`],
   AnimatorGroup: [`  start(): void;`, `  stop(): void;`],
   // The socket's one verb (streams.ts): a call you make; onMessage is it
@@ -630,6 +646,11 @@ function emitClass(
   }
   const readOnlyHere = new Set(s.readOnly ?? []);
   for (const [name, t] of Object.entries(s.attrs)) {
+    if (s.name === "Persistence" && ["candidate", "error", "savedAt", "candidateSavedAt"].includes(name)) {
+      const type = name === "candidate" ? "PersistenceJson" : name === "error" ? "PersistenceError | null" : "string | null";
+      lines.push(`  readonly ${name}: ${type};`);
+      continue;
+    }
     lines.push(...memberSig(name, t, t.kind === "color" && nonNullColors.has(name), readOnlyHere.has(name)));
   }
   if (s.base === null) {

@@ -621,6 +621,8 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
     return constructAnimatorGroup(el, schema, outer, ctx);
   }
   if (schema !== null && Object.hasOwn(SOURCES, el.tag)) {
+    if (el.tag === "Persistence" && parentSchema?.name !== "Dataset")
+      throw new DeclareError("Persistence belongs directly to a literal-seed Dataset", el.pos);
     return constructSource(el, schema, outer, ctx);
   }
   if (schema !== null && descendsFrom(schema, "State")) {
@@ -898,7 +900,9 @@ function effectiveStyles(
  *  `{ }` bindings in pass two). Mirrors checkDataNode for unchecked trees. */
 function constructData(el: Element, schema: ComponentSchema, outer: View | null, ctx: Ctx): Node {
   const handlers = el.methods.filter((m) => el.tag === "DataSource" && m.name === "onLoad");
-  if (el.decls.length > 0 || el.methods.length > handlers.length || el.children.length > 0) {
+  if (el.decls.length > 0 || el.methods.length > handlers.length || el.children.some(c => c.tag !== "Persistence") ||
+      el.children.length > 1 || (el.children.length > 0 &&
+        (el.tag !== "Dataset" || el.raw === undefined || el.attrs.some(a => a.name === "contents")))) {
     throw new DeclareError(`a ${el.tag} takes attributes only`, el.pos);
   }
   const node = new DATA[el.tag]();
@@ -964,6 +968,14 @@ function constructData(el: Element, schema: ComponentSchema, outer: View | null,
     }
   } else if (el.raw !== undefined) {
     throw new DeclareError(`a ${el.tag}'s data arrives from its url — only a Dataset embeds a { } body`, el.raw.pos);
+  }
+  for (const child of el.children) {
+    if (child.name === null) throw new DeclareError("Persistence needs a name — write 'disk: Persistence [ … ]'", child.pos);
+    const policy = constructSource(child, ctx.schemas.Persistence, outer, ctx);
+    policy.classroot = outer;
+    node.appendChild(policy);
+    if (child.name in node) throw new DeclareError(`'${child.name}' is already a Dataset member — choose another policy name`, child.pos);
+    (node as unknown as Record<string, unknown>)[child.name] = policy;
   }
   return node;
 }

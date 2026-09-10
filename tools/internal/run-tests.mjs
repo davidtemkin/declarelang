@@ -27,6 +27,7 @@ const SUITE = [
   "test/dataschema.test.mjs",
   "test/datasource-failure.test.mjs",
   "test/persistence-contract.test.mjs",
+  "test/persistence-syntax.test.mjs",
   "test/persistence-lifecycle.test.mjs",
   "test/persistence-queue.test.mjs",
   "test/persistence-indexeddb.test.mjs",
