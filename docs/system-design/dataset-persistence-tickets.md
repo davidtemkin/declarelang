@@ -1,6 +1,6 @@
 # Dataset persistence — implementation tickets
 
-Status: **planned; no ticket implemented by this document**, 2026-09-10.
+Status: **implementation in progress**, 2026-09-10; see ticket evidence below.
 Scope: browser document persistence, shared by DOM and browser canvas. These six
 tickets operationalize the reviewed design; they do not authorize native storage,
 indexed collections, cloud sync, navigation redesign, or Causal Desk implementation.
@@ -35,7 +35,7 @@ fallbacks. No platform gate is complete until PP-05 passes.
 
 | Ticket | Depends on | Status | Commit / evidence |
 |---|---|---|---|
-| PP-00 | — | planned | — |
+| PP-00 | — | complete | PP-00 execution evidence below |
 | PP-01 | PP-00 | planned | — |
 | PP-02 | PP-00 | planned | — |
 | PP-03 | PP-00 | planned | — |
@@ -116,6 +116,21 @@ without Declare construction, browser globals, or a persistence lifecycle engine
 entry point, and targeted command. PP-01/02/03 consume these instead of inventing peers.
 
 **Commit:** `feat(persistence): establish snapshot and provider contracts`
+
+### Execution evidence — 2026-09-10
+
+- Implemented shared types and `PersistenceBinding`/`PersistenceEngine` in
+  `runtime/src/persistence/types.ts`; runtime supplies capture/validate/adopt,
+  publish/deliver/defer/requestSettle; engine receives acceptedMutation/settled/retire.
+- `codec.ts` owns portableCopy/encodeSnapshot/decodeSnapshot/freezeCandidate;
+  `records.ts` owns policy/scope validation and payload/control classification;
+  `errors.ts` owns safe stable errors. No Dataset behavior changed.
+- ControlledProvider/ControlledClock and providerConformance live in `test/helpers/`.
+  Tests explicitly complete/fail operation IDs and advance controlled time.
+- Passed `npm run build`, contract suite (10 cases), existing Dataset-schema suite
+  (18 cases). Build initially lacked visible Node types under pnpm; a local ignored
+  `node_modules/@types` link to the existing pnpm types fixed resolution without
+  changing manifests/lockfiles. Browser verification belongs to later tickets.
 
 ## PP-01 — Admit and type the Dataset-owned policy
 

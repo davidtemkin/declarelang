@@ -26,6 +26,7 @@ const SUITE = [
   "test/materialization.test.mjs",
   "test/dataschema.test.mjs",
   "test/datasource-failure.test.mjs",
+  "test/persistence-contract.test.mjs",
   "test/table.test.mjs",
   "test/components.test.mjs",
   "test/tracker.test.mjs",
