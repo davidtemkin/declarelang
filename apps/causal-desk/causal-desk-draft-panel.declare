@@ -1,0 +1,11 @@
+// A stable place for local-work status, separate from calculation and input errors.
+
+class CausalDraftPanel extends View [ width = { app.width - app.frameGutter * 2 },
+    height = { app.mobile ? 96 : 64 }, cornerRadius = 10,
+    fill = #111B21, stroke = { stroke(1, 0x2B3B43) },
+    label: Text [ x = 16, y = 12, fontSize = 10, fontWeight = semibold,
+        textColor = #A7B6BD, text = "WORKING DRAFT · THIS DEVICE" ],
+    status: Text [ x = 16, y = 32, width = { parent.width - 32 },
+        fontSize = 12, wrap = true, textColor = #DDE6EA,
+        text = { app.draft.statusText } ]
+    ]

@@ -26,6 +26,12 @@ class CausalDraft extends Node [
     state: string = { checking ? "checking" : savedRecord.disk.failed || stagingError != "" ? "failed"
         : hasCandidate ? "recovery" : saved ? "saved"
         : savedRecord.disk.pending || workingGeneration != stagedWorkingGeneration ? "saving" : "none" },
+    statusText: string = { checking ? "Checking for a local draft…"
+        : savedRecord.disk.failed ? "Local saving unavailable · changes remain in this session"
+        : stagingError != "" ? "Working draft is invalid · changes remain in this session"
+        : hasCandidate ? "Saved Working scenario available"
+        : saved ? "Saved on this device · " + (savedRecord.disk.savedAt ?? "").slice(11, 19) + " UTC"
+        : state == "saving" ? "Saving locally…" : "Local draft · none" },
 
     saveWorkingScenario() {
         workingGeneration = workingGeneration + 1

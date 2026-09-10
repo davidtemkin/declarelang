@@ -164,7 +164,7 @@ export default async ({ drive, expect, page }) => {
   await expect.attr("app", "desktop", true);
   await expect.attr("app", "mobile", false);
   await expect.attr("app.graph", "x", 28);
-  await expect.attr("app.graph", "y", 94);
+  await expect.attr("app.graph", "y", 182);
   await expect.attr("app.graph", "width", 860);
   await expect.attr("app.inspector", "x", 916);
   await expect.attr("app.inspector", "width", 336);
@@ -195,11 +195,11 @@ export default async ({ drive, expect, page }) => {
   await expect.attr("app.header", "x", 24);
   await expect.attr("app.header", "y", 20);
   await expect.attr("app.graph", "x", 24);
-  await expect.attr("app.graph", "y", 220);
+  await expect.attr("app.graph", "y", 308);
   await expect.attr("app.inspector", "x", 170);
-  await expect.attr("app.summary", "y", 856);
+  await expect.attr("app.summary", "y", 944);
   await expect.attr("app.summary", "visible", true);
-  await expect.attr("app.inspector", "y", 948);
+  await expect.attr("app.inspector", "y", 1036);
   await expect.attr("app.inspector", "width", 560);
   await expect.attr("app.inspector", "visible", true);
   await assertNarrowTargets("tablet");
@@ -288,14 +288,14 @@ export default async ({ drive, expect, page }) => {
   await expect.attr("app.header", "x", 16);
   await expect.attr("app.header", "width", 358);
   await expect.attr("app.graph", "x", 16);
-  await expect.attr("app.graph", "y", 220);
+  await expect.attr("app.graph", "y", 340);
   await expect.attr("app.graph", "width", 358);
   await expect.attr("app.graph", "scrolls", "x");
   await expect.attr("app.graph.stage", "width", 820);
   await expect.attr("app.inspector", "x", 16);
-  await expect.attr("app.summary", "y", 856);
+  await expect.attr("app.summary", "y", 976);
   await expect.attr("app.summary", "visible", true);
-  await expect.attr("app.inspector", "y", 948);
+  await expect.attr("app.inspector", "y", 1068);
   await expect.attr("app.inspector", "width", 358);
   await expect.attr("app.inspector", "visible", true);
   await assertNarrowTargets("mobile");
@@ -394,5 +394,5 @@ export default async ({ drive, expect, page }) => {
   await expect.attr("app", "selectedContributionFactorId", "jetFuelPrice");
   await expect.attr("app.summary", "visible", false);
   await expect.attr("app.inspector", "visible", true);
-  await expect.attr("app.inspector", "y", 94);
+  await expect.attr("app.inspector", "y", 182);
 };

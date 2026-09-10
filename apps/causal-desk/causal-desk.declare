@@ -12,7 +12,7 @@ merely consumed.
 */
 
 include [ "causal-desk-logic.declare", "causal-desk-persistence.declare", "causal-desk-draft.declare",
-    "causal-desk-inspector.declare",
+    "causal-desk-inspector.declare", "causal-desk-draft-panel.declare",
     "causal-desk-model.declare", "causal-desk-layout.declare"
     ]
 
@@ -30,12 +30,13 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     frameGutter: number = { mobile ? 16 : stacked ? 24 : 28 },
     headerY: number = { desktop ? 22 : 20 },
     headerHeight: number = { desktop ? 56 : 184 },
-    graphY: number = { desktop ? 94 : headerY + headerHeight + 16 },
-    graphHeight: number = { desktop ? app.height - 122 : 620 },
+    draftY: number = { headerY + headerHeight + 12 },
+    graphY: number = { draftY + draftPanel.height + 28 },
+    graphHeight: number = { desktop ? Math.max(620, app.height - graphY - 28) : 620 },
     inspectorWidth: number = { desktop ? 336 : Math.min(560, app.width - (mobile ? 32 : 48)) },
     summaryY: number = { graphY + graphHeight + 16 },
     summaryHeight: number = 76,
-    inspectorY: number = { desktop ? 94 : summaryY + summaryHeight + 16 },
+    inspectorY: number = { desktop ? graphY : summaryY + summaryHeight + 16 },
     inspectorExpanded: boolean = true,
 
     selectedFactorId: string = "operatingMargin",
@@ -136,23 +137,30 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
         if (key == "Escape") syncAssumptionDraft()
         },
     changeSelectedAssumption(value: number) {
-        if (selectedKind != "assumption") return
+        if (selectedKind != "assumption" || draft.editingLocked || !Number.isFinite(value)) return
         if (activeScenarioId != "working") workingSourceId = activeScenarioId
         workingScenario.set([], withAssumption(modelDocument.value, scenarioDocument.value,
             workingScenario.value, activeScenarioId, selectedFactorId, value))
         activeScenarioId = "working"
         selectedContributionFactorId = ""
         syncAssumptionDraft()
+        draft.saveWorkingScenario()
         },
     resetSelectedAssumption() {
-        if (selectedKind != "assumption") return
+        if (selectedKind != "assumption" || draft.editingLocked) return
         const reset = assumptionAt(modelDocument.value, scenarioDocument.value,
             workingScenario.value, workingSourceId, selectedFactorId)
         workingScenario.set([], withAssumption(modelDocument.value, scenarioDocument.value,
             workingScenario.value, "working", selectedFactorId, reset))
         syncAssumptionDraft()
+        draft.saveWorkingScenario()
         },
     resetModel() {
+        if (draft.editingLocked) return
+        resetWorkingToBase()
+        draft.saveWorkingScenario()
+        },
+    resetWorkingToBase() {
         activeScenarioId = "base"
         comparisonScenarioId = "base"
         selectedContributionFactorId = ""
@@ -234,6 +242,7 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     draft: CausalDraft [ ],
 
     header: CausalHeader [ x = { frameGutter }, y = { headerY } ],
+    draftPanel: CausalDraftPanel [ x = { frameGutter }, y = { draftY } ],
     graph: CausalGraph [ x = { frameGutter }, y = { graphY } ],
     status: CausalCalculationStatus [ x = { frameGutter }, y = { graphY - 16 } ],
     summary: CausalFactorSummary [ x = { frameGutter }, y = { summaryY } ],

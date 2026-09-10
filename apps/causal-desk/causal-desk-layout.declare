@@ -124,7 +124,7 @@ class CausalFactorSummary extends View [ width = { app.width - app.frameGutter *
 
 class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.width - app.inspectorWidth) / 2 },
     y = { app.inspectorY }, width = { app.inspectorWidth },
-    height = { app.desktop ? app.height - 122 : 680 },
+    height = { app.desktop ? app.graphHeight : 680 },
     visible = { app.desktop || app.inspectorExpanded }, cornerRadius = 18, fill = #111B21,
     stroke = { stroke(1, 0x2B3B43) },
     innerWidth: number = { width - 44 },
