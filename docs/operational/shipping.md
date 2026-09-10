@@ -9,8 +9,8 @@ wrote in Declare is a different page: [`building.md`](building.md).)
 
 This repository doesn't just hold sources — it holds the finished product too.
 The bundles, the docs model, the prewarm cache, the baked pages are all
-**committed**, and GitHub Pages serves whatever lands on `main`. A push isn't
-just sharing code — **a push is a deploy**.
+**committed**, and GitHub Pages serves whatever lands on `main`. A push to `main`
+isn't just sharing code — **it is a deploy**. A review-branch push is not.
 
 That creates exactly one danger: publishing generated files that no longer
 match the sources they were generated from. The whole scheme below exists to
@@ -42,7 +42,7 @@ artifact stale, deliberately: commits are local save points, and a stale
 checkpoint hurts no one. Nothing regenerates on commit; nothing is written on
 your behalf.
 
-**`git push` — the gate.** Because a push is the deploy, this is where
+**Publication `git push` — the gate.** Because a push to main is the deploy, this is where
 staleness becomes a defect. The hook asks two read-only questions and refuses
 if either fails — it never fixes anything itself:
 
@@ -52,7 +52,26 @@ if either fails — it never fixes anything itself:
    HEAD, so freshly derived files that were never committed would still deploy
    the old ones. This is a plain `git status` over derive's output files.
 
-## The everyday loop
+The existing release-declaration check also runs. The hook classifies every **remote
+destination**: `main`, `master`, and tags require publication checks, including in a mixed
+push. Each publication ref must resolve to HEAD (annotated tags are peeled); check out the
+commit being published rather than certifying it against an unrelated worktree. Publication
+deletions and unknown ref namespaces are refused.
+
+## Review branches: source-only PRs
+
+Create a feature branch, edit and verify the source, selectively commit authored files,
+then push the branch and open a PR. The hook allows non-publication branch destinations
+without requiring generated artifacts. It does not derive, stage, or change files.
+
+Do not include locally regenerated artifacts in the PR. Whoever integrates it derives
+and verifies the combined tree on current main before publication, as required by
+[CONTRIBUTING.md](../../CONTRIBUTING.md#pull-requests-carry-source-never-build-output).
+The local hook does not run for GitHub UI merges; a source-only PR is not permission to
+merge an underived tree directly into the served branch. The workflow below describes
+publication, not the review-branch push.
+
+## The publication loop
 
 ```sh
 # 1. edit, keeping .declare files canon
