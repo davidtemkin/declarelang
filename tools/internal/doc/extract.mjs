@@ -28,7 +28,7 @@ function canonize(src) {
   try { return formatSource(src); } catch { return src; }
 }
 import { TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES } from "../../../runtime/dist/registry.js";
-import { LANGUAGE_API, LANGUAGE_STATICS } from "../../../compiler/dist/scaffold.js";
+import { LANGUAGE_API, LANGUAGE_STATICS, PERSISTENCE_ATTRIBUTE_TYPES } from "../../../compiler/dist/scaffold.js";
 import { compile } from "../../../compiler/dist/compile-node.js";
 import { settleHeadless } from "../../../compiler/dist/headless.js";
 import { parseProgram } from "../../../runtime/dist/parser.js";
@@ -41,7 +41,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const TARGETS = [                                        // the documented component surface
   "View", "App", "Text", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
   "Layout", "TweenLayout", "Editor",
-  "Dataset", "DataSource",
+  "Dataset", "DataSource", "Persistence",
   "Animator", "AnimatorGroup", "Spring", "Time", "Keys", "Focus", "Tip",
   "Stream", "EventStream", "Socket",
   "State", "Node",
@@ -316,7 +316,7 @@ const METHODS = readMethods([
   "runtime/src/markdown.ts", "runtime/src/text-input.ts", "runtime/src/layout.ts",
   "runtime/src/data.ts", "runtime/src/animator.ts", "runtime/src/spring.ts",
   "runtime/src/state.ts", "runtime/src/node.ts", "runtime/src/editor.ts",
-  "runtime/src/streams.ts",
+  "runtime/src/streams.ts", "runtime/src/persistence/node.ts",
 ]);
 // A class is ABSTRACT when no registry can instantiate it by name: Layout,
 // TweenLayout, RichText and Editor are bases you extend, never tags you write.
@@ -416,7 +416,7 @@ for (const name of TARGETS) {
       doc, docSegs: await segmentize(doc, id), api: doc !== null,
       source: d ? { file: d.file, line: d.line } : { file: "runtime/src/schema.ts", line: 0 },
       parent: clsId, seeAlso: [],
-      type: renderType(schema.attrs[attr]),
+      type: (name === "Persistence" && PERSISTENCE_ATTRIBUTE_TYPES[attr]) || renderType(schema.attrs[attr]),
       default: d?.default ?? null,
       prevailing: (schema.prevailing ?? []).includes(attr),
       readOnly: (schema.readOnly ?? []).includes(attr),

@@ -21,6 +21,7 @@ import { TextInput } from "./text-input.js";
 import { Markdown, HTMLText } from "./markdown.js";
 import { Layout, TweenLayout } from "./layout.js";
 import { Dataset, DataSource } from "./data.js";
+import { Persistence } from "./persistence/node.js";
 import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
 import { Time } from "./time.js";
@@ -63,6 +64,7 @@ export const ANIMATORS: Readonly<Record<string, new () => Animator>> = { Animato
  *  checking applies, and because being ordinary components is what lets an app
  *  that never listens drop the service code entirely (slim-registry). */
 export const SOURCES: Readonly<Record<string, new () => Node>> = {
+  Persistence,
   Keys: KeysSource,
   Focus: FocusSource,
   Tip: TipSource,
@@ -124,4 +126,5 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "Socket", table: "SOURCES", module: "streams.js", export: "Socket" },
   { name: "AnimatorGroup", table: "ANIMATOR_GROUPS", module: "animator.js", export: "AnimatorGroup" },
   { name: "State", table: "STATES", module: "state.js", export: "State" },
+  { name: "Persistence", table: "SOURCES", module: "persistence/node.js", export: "Persistence" },
 ];

@@ -295,6 +295,8 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
     const title = relPath.split("/").pop();
     const cfg = {
       backend: backendClass, source: r.source, deps: r.deps, location: mode,
+      mainId: platURL("apps/viewer/viewer.declare"),
+      childEntryURL: "/" + relPath.replace(/^\/+/, ""),
       // the viewed program's own directory — the island's relative data urls
       // (e.g. the Tracker's issues.json) resolve here, not at the Viewer's <base>
       dataBase: "/" + relPath.replace(/^\/+/, "").replace(/[^/]*$/, ""),

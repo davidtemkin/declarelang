@@ -42,7 +42,7 @@ const EXEMPT = new Map([
   ["App.liveReport", "same — the last live recompile's rendered report"],
 ]);
 
-const SRC = readdirSync("runtime/src").filter((f) => f.endsWith(".ts"))
+const SRC = readdirSync("runtime/src", { recursive: true }).filter((f) => f.endsWith(".ts"))
   .map((f) => readFileSync("runtime/src/" + f, "utf8")).join("\n");
 
 /** Every attribute name reachable on a schema, walking its base chain. */

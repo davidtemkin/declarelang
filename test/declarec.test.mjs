@@ -142,7 +142,14 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // which took 1.5 KB back and returned the ceiling under where typed data put
   // it. Dev builds keep the sentences.
   const gz = out.sizes.totalGzip;
-  assert.ok(gz > 20 * 1024 && gz < 86 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  // 87 (2026-09-10): measured 86.1 with Dataset mutation/lifetime and settle
+  // completion seams. Calendar ships NO persistence engine/provider (metafile
+  // assertion below); the small always-on integration cost is accounted here.
+  assert.ok(gz > 20 * 1024 && gz < 87 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  for (const output of Object.values(out.metafile.outputs)) {
+    assert.equal(Object.entries(output.inputs).some(([file, info]) =>
+      file.includes('/persistence/') && info.bytesInOutput > 0), false, 'nonpersistent app ships no storage implementation');
+  }
 });
 
 // THE STUB-DRIFT TRAP, made structural. The production build replaces

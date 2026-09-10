@@ -79,6 +79,7 @@ async function run() {
     const viewedDir = new URL(".", target).href;    // the file's own directory — the island child's data/asset base
     document.title = (relPath.split("/").pop() || "source") + " — source";
     await bootHost({
+      mainId: new URL(VIEWER_MAIN, ROOT).href, childEntryURL: target,
       source, deps,
       // The `?viewer=reader|source|edit` request selects the opening tab; the host
       // translates it into the viewer's INITIAL location (docs/system-design/location.md §4).

@@ -21,6 +21,7 @@ import { localPoint } from "./dom-backend.js";
 import { observe } from "./reactive.js";
 // Type-only — erased by tsc, so no runtime dependency on the parser.
 import type { Program } from "./parser.js";
+import type { PersistenceHostOptions } from "./persistence/context.js";
 
 /** A web font to make available before first paint: `src` is a URL (a
  *  self-hosted woff2 or a CDN), `weight`/`style` mirror the CSS descriptors. */
@@ -546,8 +547,8 @@ function startTitleMirror(app: App, _host: HTMLElement): void {
  *  and mount, with NO parse and NO typecheck (both done at build time). This is
  *  the production entry point: importing it pulls the runtime's run-path only,
  *  never the parser or checker. */
-export function renderProgram(program: Program, host: HTMLElement, backend: RenderBackend): App {
-  const root = instantiate(program);
+export function renderProgram(program: Program, host: HTMLElement, backend: RenderBackend, persistence?: PersistenceHostOptions): App {
+  const root = instantiate(program, persistence);
   if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
   mountApp(root, host, backend);
   startTitleMirror(root, host);
@@ -558,8 +559,8 @@ export function renderProgram(program: Program, host: HTMLElement, backend: Rend
  *  first paint measures against the real metrics (mirrors renderAsync).
  *  `assetBase` states the program's own directory when the page is served from
  *  elsewhere — its relative bitmaps and faces resolve there (image.ts). */
-export async function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend, assetBase?: string | null): Promise<App> {
-  const root = instantiate(program);
+export async function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend, assetBase?: string | null, persistence?: PersistenceHostOptions): Promise<App> {
+  const root = instantiate(program, persistence);
   if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
   if (assetBase != null) {
     setAppAssetBase(root, assetBase);

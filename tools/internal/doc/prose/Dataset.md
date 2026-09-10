@@ -12,8 +12,9 @@ grid: View [ datapath = { classroot.cal.value },
     ]
 ```
 
-Read or replace the whole value through `.value` (a reactive slot — writing it wakes
-every reader); a whole-value swap re-renders the datapaths that read it in one settle.
+Replace the whole value with `set([], value)`; `.value` itself is read-only.
+A literal-seed Dataset can own one named [Persistence](declare-docs:Persistence)
+policy. Derived and fetched data need a separate writable Dataset to persist.
 
 ## schema
 The optional data shape (`schema = [ city: string, rows[]: [ id: string, n?: number ] ]`):

@@ -1,0 +1,57 @@
+// A stable place for local-work status, separate from calculation and input errors.
+
+class CausalDraftPanel extends View [ width = { app.width - app.frameGutter * 2 },
+    mainHeight: number = { app.draft.hasCandidate ? (app.mobile ? (app.draft.canKeep ? 244 : 180) : 164) : (app.mobile ? 96 : 64) },
+    height = { mainHeight + (app.draft.failureText != "" ? (app.mobile ? 144 : 100) : 0) }, cornerRadius = 10,
+    fill = #111B21, stroke = { stroke(1, 0x2B3B43) },
+    label: Text [ x = 16, y = 12, width = { parent.width - (app.draft.canClear ? 200 : 32) },
+        fontSize = 10, fontWeight = semibold, textColor = #A7B6BD, text = "LOCAL WORK · THIS DEVICE" ],
+    status: Text [ x = 16, y = 32, width = { parent.width - (app.draft.canClear ? 200 : 32) },
+        fontSize = 12, wrap = true, textColor = #DDE6EA,
+        text = { app.draft.statusText } ],
+    clearWork: Button [ x = { parent.width - 172 }, y = { app.mobile ? 26 : 10 },
+        width = 156, height = 44, label = "Clear saved work", visible = { app.draft.canClear },
+        disabled = { app.draft.editingLocked || app.draft.eraseIntent != ""
+            || app.draft.savedRecord.disk.loadStatus != "loaded" },
+        onClick() { app.draft.requestClear() }
+        ],
+    recovery: View [ visible = { app.draft.hasCandidate }, x = 16, y = 58,
+        width = { parent.width - 32 }, height = { app.mobile ? 170 : 88 },
+        message: Text [ width = { parent.width }, fontSize = 12, lineHeight = 1.5,
+            wrap = true, textColor = #A7B6BD, text = { app.draft.recoveryText } ],
+        restore: Button [ x = 0, y = { app.mobile ? 60 : 44 },
+            width = { app.mobile ? (parent.width - 12) / 2 : 108 }, height = 44,
+            label = "Restore", primary = true, visible = { app.draft.canRestore },
+            disabled = { app.draft.savedRecord.disk.pending || app.draft.eraseIntent != "" },
+            onClick() { app.draft.requestRestore() }
+            ],
+        discardDraft: Button [ x = { app.draft.canRestore ? (app.mobile ? (parent.width + 12) / 2 : 120) : 0 },
+            y = { app.mobile ? 60 : 44 }, width = { app.mobile ? (parent.width - 12) / 2 : 108 }, height = 44,
+            label = "Discard", disabled = { app.draft.savedRecord.disk.pending || app.draft.eraseIntent != "" },
+            onClick() { app.draft.requestDiscard() }
+            ],
+        keep: Button [ x = { app.mobile ? 0 : 240 }, y = { app.mobile ? 116 : 44 },
+            width = { app.mobile ? parent.width : 168 }, height = 44,
+            label = "Keep current work", visible = { app.draft.canKeep },
+            disabled = { app.draft.savedRecord.disk.pending || app.draft.eraseIntent != "" },
+            onClick() { app.draft.keepCurrentWork() }
+            ]
+        ],
+    failure: View [ x = 16, y = { parent.mainHeight }, width = { parent.width - 32 },
+        height = { app.mobile ? 128 : 84 }, visible = { app.draft.failureText != "" },
+        message: Text [ width = { parent.width }, fontSize = 12, lineHeight = 1.5, wrap = true,
+            textColor = #FFD29B, text = { app.draft.failureText } ],
+        code: Text [ y = { app.mobile ? 88 : 50 }, fontSize = 10, textColor = #A7B6BD,
+            text = { app.draft.failureCode } ],
+        retryAction: Button [ x = end, y = { app.mobile ? 84 : 40 }, width = 100, height = 44,
+            label = "Retry", visible = { app.draft.canRetry },
+            onClick() { app.draft.retryStorage() }
+            ]
+        ]
+    ]
+
+
+class CausalDraftDialog extends Dialog [ ignoreScroll = true,
+    theme = { ({ ...app.theme, dialogWidth: Math.min(440, app.width - 32),
+        dialogButtons: app.mobile ? "stack" : "end", buttonHeight: 44 }) }
+    ]

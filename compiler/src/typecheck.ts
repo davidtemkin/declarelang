@@ -500,12 +500,12 @@ class CaseEmitter {
    *  chains. */
   private namedMembers = new Map<Element, readonly string[]>();
 
-  assignTypes(el: Element, classRoot: boolean): string {
+  assignTypes(el: Element, classRoot: boolean, ownerDoc: string | null = null): string {
     const members: string[] = [];
     const childTypes = new Set<string>();
     const named: string[] = [];
     for (const child of el.children) {
-      const childType = this.assignTypes(child, false);
+      const childType = this.assignTypes(child, false, this.docTypeOf(el));
       childTypes.add(childType);
       if (child.name !== null) named.push(`  ${child.name}: ${childType};`);
       // A State's children REPARENT to the state's owner when it applies, so
@@ -583,6 +583,7 @@ class CaseEmitter {
     // projects the NAME; the inline literal projects structurally.
     const doc = this.docTypeOf(el);
     if (doc !== null) members.push(`  value: ${doc} | null;`);
+    if (el.tag === "Persistence" && ownerDoc !== null) members.push(`  readonly candidate: DeepReadonly<${ownerDoc}> | null;`);
     if (members.length === 0) {
       this.instType.set(el, el.tag);
       return el.tag;
@@ -682,6 +683,8 @@ class CaseEmitter {
         break;
       }
     }
+    // Persistence is owned by the Dataset itself, not reparented through it like a State.
+    if (levels[0].tag === "Persistence" && levels[1]?.tag === "Dataset") parent = ty(levels[1]);
     const root = ty(levels[levels.length - 1]);
     const inst = (t: string) => `(undefined as unknown as ${t})`;
     // A parameter's WRITTEN type is what makes the body check: `f(v: number)`

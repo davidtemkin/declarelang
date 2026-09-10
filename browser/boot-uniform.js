@@ -510,7 +510,7 @@ export default async function boot(cfg) {
   let app;
   try {
     app = await bootHost({                                         // render first — nothing below delays first paint
-      source: program, deps, backend: cfg.backend,
+      source: program, deps, backend: cfg.backend, mainId, persistence: cfg.persistence,
       host: cfg.host,                                              // an explicit mount element — several apps per page, each in its own marked div
       location: cfg.location,
       mainAssetBase: mainDir.href,                                 // per-app asset AND data base — N tenants, each its own program dir

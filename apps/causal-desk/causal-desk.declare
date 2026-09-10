@@ -1,0 +1,251 @@
+/*
+# Causal Desk
+
+An experimental scenario-modeling instrument for financial analysts. Select a
+bundled scenario or edit an assumption into a working case, then trace the
+result through values, formulas, deltas, and immediate dependencies.
+
+The graph is deliberately not a generic node editor. Its edges mean only "this
+formula reads that value," and every formula is visible. Constants, assumptions,
+and derived results remain distinct so the model can be questioned rather than
+merely consumed.
+*/
+
+include [ "causal-desk-logic.declare", "causal-desk-persistence.declare", "causal-desk-draft.declare",
+    "causal-desk-inspector.declare", "causal-desk-draft-panel.declare",
+    "causal-desk-model.declare", "causal-desk-layout.declare"
+    ]
+
+
+App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = #DDE6EA,
+    fontFamily = ["Inter", "SF Pro Text", "system-ui"],
+    theme = { ({ ...Themes.sanFrancisco(true), accent: 0x75D6FF }) },
+
+    desktop: boolean = { app.width >= 1220 },
+    stacked: boolean = { app.width < 1220 },
+    mobile: boolean = { app.width < 720 },
+    compactTablet: boolean = { app.width >= 720 && app.width < 890 },
+    reducedMotionOverride: boolean = false,
+    effectiveReducedMotion: boolean = { reducedMotionOverride || app.env.reducedMotion == true },
+    frameGutter: number = { mobile ? 16 : stacked ? 24 : 28 },
+    headerY: number = { desktop ? 22 : 20 },
+    headerHeight: number = { desktop ? 56 : 184 },
+    draftY: number = { headerY + headerHeight + 12 },
+    graphY: number = { draftY + draftPanel.height + 28 },
+    graphHeight: number = { desktop ? Math.max(620, app.height - graphY - 28) : 620 },
+    inspectorWidth: number = { desktop ? 336 : Math.min(560, app.width - (mobile ? 32 : 48)) },
+    summaryY: number = { graphY + graphHeight + 16 },
+    summaryHeight: number = 76,
+    inspectorY: number = { desktop ? graphY : summaryY + summaryHeight + 16 },
+    inspectorExpanded: boolean = true,
+
+    selectedFactorId: string = "operatingMargin",
+    selectedLabel: string = { textAt(modelDocument.value, selectedFactorId, "label") },
+    selectedKind: string = { textAt(modelDocument.value, selectedFactorId, "kind") },
+    selectedUnit: string = { textAt(modelDocument.value, selectedFactorId, "unit") },
+    selectedDescription: string = { textAt(modelDocument.value, selectedFactorId, "description") },
+    selectedFormula: string = { textAt(modelDocument.value, selectedFactorId, "formula") },
+    selectedMin: number = { numericFieldAt(modelDocument.value, selectedFactorId, "min") },
+    selectedMax: number = { numericFieldAt(modelDocument.value, selectedFactorId, "max") },
+    selectedStep: number = { numericFieldAt(modelDocument.value, selectedFactorId, "step") },
+    assumptionDraft: string = "",
+    assumptionValidation: string = "",
+    selectedValue: number = { numberAt(model.values, selectedFactorId) },
+    selectedComparisonValue: number = { numberAt(model.comparisonValues, selectedFactorId) },
+    selectedDelta: number = { selectedValue - selectedComparisonValue },
+    calculationStatus: string = { modelCalculationStatus(modelDocument.value,
+        model.values, model.comparisonValues) },
+    activeScenarioId: string = "base",
+    comparisonScenarioId: string = "base",
+    workingSourceId: string = "base",
+    activeScenarioLabel: string = { scenarioLabel(scenarioDocument.value, activeScenarioId) },
+    comparisonScenarioLabel: string = { scenarioLabel(scenarioDocument.value, comparisonScenarioId) },
+
+    selectFactor(id: string) {
+        selectedFactorId = id
+        selectedContributionFactorId = ""
+        syncAssumptionDraft()
+        if (stacked) inspectorExpanded = true
+        },
+    focusFactor(id: string) {
+        let card = null
+        for (const child of graph.stage.cards.children) {
+            const candidate = child as FactorCard
+            if (candidate.factorId == id && candidate.visible) {
+                card = child
+                break
+            }
+        }
+        if (card == null) return
+        Focus.focus(card)
+        selectFactor(id)
+        if (mobile) card.scrollIntoView("nearest")
+        },
+    moveFactorFocus(currentId: string, key: string) {
+        const nextId = nextFactorId(modelDocument.value, currentId, key)
+        if (nextId != "") focusFactor(nextId)
+        },
+    selectScenario(id: string) {
+        if (id == "working" || scenarioExists(scenarioDocument.value, id)) {
+            activeScenarioId = id
+            selectedContributionFactorId = ""
+            syncAssumptionDraft()
+            }
+        },
+    selectComparison(id: string) {
+        if (id != "working" && scenarioExists(scenarioDocument.value, id)) {
+            comparisonScenarioId = id
+            selectedContributionFactorId = ""
+            }
+        },
+    selectedContributionFactorId: string = "",
+    selectContribution(id: string) {
+        selectedContributionFactorId = selectedContributionFactorId == id ? "" : id
+        },
+    toggleInspector() {
+        if (stacked) inspectorExpanded = !inspectorExpanded
+        },
+    toggleReducedMotion() {
+        if (app.env.reducedMotion == true) return
+        const turningOff = reducedMotionOverride
+        if (turningOff) {
+            for (const child of graph.stage.cards.children) {
+                const card = child as FactorCard
+                card.animatedValue = card.currentValue
+            }
+        }
+        reducedMotionOverride = !reducedMotionOverride
+        },
+    syncAssumptionDraft() {
+        assumptionDraft = selectedKind == "assumption"
+            ? formatValue(selectedValue, selectedUnit) : ""
+        assumptionValidation = ""
+        },
+    commitAssumptionDraft() {
+        if (selectedKind != "assumption") return
+        const parsed = parseNumericAssumption(assumptionDraft, selectedUnit,
+            selectedMin, selectedMax) as { ok: boolean, value: number, message: string }
+        if (!parsed.ok) {
+            assumptionValidation = parsed.message
+            return
+        }
+        changeSelectedAssumption(parsed.value)
+        syncAssumptionDraft()
+        },
+    handleAssumptionKey(key: string) {
+        if (key == "Enter") commitAssumptionDraft()
+        if (key == "Escape") syncAssumptionDraft()
+        },
+    changeSelectedAssumption(value: number) {
+        if (selectedKind != "assumption" || draft.editingLocked || !Number.isFinite(value)) return
+        if (activeScenarioId != "working") workingSourceId = activeScenarioId
+        workingScenario.set([], withAssumption(modelDocument.value, scenarioDocument.value,
+            workingScenario.value, activeScenarioId, selectedFactorId, value))
+        activeScenarioId = "working"
+        selectedContributionFactorId = ""
+        syncAssumptionDraft()
+        draft.saveWorkingScenario()
+        },
+    resetSelectedAssumption() {
+        if (selectedKind != "assumption" || draft.editingLocked) return
+        const reset = assumptionAt(modelDocument.value, scenarioDocument.value,
+            workingScenario.value, workingSourceId, selectedFactorId)
+        workingScenario.set([], withAssumption(modelDocument.value, scenarioDocument.value,
+            workingScenario.value, "working", selectedFactorId, reset))
+        syncAssumptionDraft()
+        draft.saveWorkingScenario()
+        },
+    resetModel() {
+        if (draft.editingLocked) return
+        resetWorkingToBase()
+        draft.saveWorkingScenario()
+        },
+    resetWorkingToBase() {
+        activeScenarioId = "base"
+        comparisonScenarioId = "base"
+        selectedContributionFactorId = ""
+        workingSourceId = "base"
+        workingScenario.set([], scenarioAssumptions(modelDocument.value,
+            scenarioDocument.value, ({ assumptions: {} }), "base"))
+        syncAssumptionDraft()
+        },
+
+    modelDocument: Dataset {
+        {
+          "factors": [
+            { "id": "baseRevenue", "label": "Base revenue", "kind": "constant", "unit": "usdMillions", "base": 10000, "column": 0, "rowY": 0, "shown": false, "description": "Illustrative revenue before demand and fare changes.", "formula": "" },
+            { "id": "baseFuelGallons", "label": "Base fuel gallons", "kind": "constant", "unit": "millionGallons", "base": 750, "column": 0, "rowY": 0, "shown": false, "description": "Illustrative fuel consumption before capacity changes.", "formula": "" },
+            { "id": "baseLaborExpense", "label": "Base labor expense", "kind": "constant", "unit": "usdMillions", "base": 2700, "column": 0, "rowY": 0, "shown": false, "description": "Illustrative labor expense before modeled growth.", "formula": "" },
+            { "id": "baseOtherExpense", "label": "Base other expense", "kind": "constant", "unit": "usdMillions", "base": 3500, "column": 0, "rowY": 0, "shown": false, "description": "Illustrative non-fuel, non-labor expense before modeled growth.", "formula": "" },
+            { "id": "demandGrowth", "label": "Demand growth", "kind": "assumption", "unit": "percent", "base": 0.03, "min": -0.1, "max": 0.15, "step": 0.005, "column": 0, "rowY": 28, "shown": true, "description": "Modeled change in passenger demand from the illustrative baseline.", "formula": "" },
+            { "id": "averageFareGrowth", "label": "Average fare", "kind": "assumption", "unit": "percent", "base": 0.02, "min": -0.1, "max": 0.15, "step": 0.005, "column": 0, "rowY": 112, "shown": true, "description": "Modeled change in average fare from the illustrative baseline.", "formula": "" },
+            { "id": "capacityGrowth", "label": "Capacity growth", "kind": "assumption", "unit": "percent", "base": 0.02, "min": -0.1, "max": 0.15, "step": 0.005, "column": 0, "rowY": 196, "shown": true, "description": "Modeled change in available capacity from the illustrative baseline.", "formula": "" },
+            { "id": "jetFuelPrice", "label": "Jet fuel price", "kind": "assumption", "unit": "usdPerGallon", "base": 2.7, "min": 1.5, "max": 5, "step": 0.05, "column": 0, "rowY": 280, "shown": true, "description": "Average modeled jet fuel price per gallon.", "formula": "" },
+            { "id": "laborCostGrowth", "label": "Labor cost growth", "kind": "assumption", "unit": "percent", "base": 0.04, "min": -0.02, "max": 0.15, "step": 0.005, "column": 0, "rowY": 364, "shown": true, "description": "Modeled change in labor expense from the illustrative baseline.", "formula": "" },
+            { "id": "nonFuelInflation", "label": "Non-fuel inflation", "kind": "assumption", "unit": "percent", "base": 0.03, "min": -0.02, "max": 0.12, "step": 0.005, "column": 0, "rowY": 448, "shown": true, "description": "Modeled inflation applied to other operating expense.", "formula": "" },
+            { "id": "revenue", "label": "Revenue", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 1, "rowY": 70, "shown": true, "description": "Revenue after modeled demand and average-fare changes.", "formula": "Base revenue × (1 + demand growth) × (1 + average fare growth)" },
+            { "id": "fuelExpense", "label": "Fuel expense", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 1, "rowY": 196, "shown": true, "description": "Fuel consumption adjusted for capacity, multiplied by jet fuel price.", "formula": "Base fuel gallons × (1 + capacity growth) × jet fuel price" },
+            { "id": "laborExpense", "label": "Labor expense", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 1, "rowY": 322, "shown": true, "description": "Base labor expense adjusted by modeled labor cost growth.", "formula": "Base labor expense × (1 + labor cost growth)" },
+            { "id": "otherExpense", "label": "Other expense", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 1, "rowY": 448, "shown": true, "description": "Other expense adjusted for both capacity and non-fuel inflation.", "formula": "Base other expense × (1 + capacity growth) × (1 + non-fuel inflation)" },
+            { "id": "operatingExpense", "label": "Operating expense", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 2, "rowY": 260, "shown": true, "description": "The sum of modeled fuel, labor, and other operating expenses.", "formula": "Fuel expense + labor expense + other expense" },
+            { "id": "operatingIncome", "label": "Operating income", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 2, "rowY": 386, "shown": true, "description": "Modeled revenue less modeled operating expense.", "formula": "Revenue − operating expense" },
+            { "id": "operatingMargin", "label": "Operating margin", "kind": "derived", "unit": "percent", "base": 0, "column": 3, "rowY": 322, "shown": true, "description": "Modeled operating income as a share of modeled revenue.", "formula": "Operating income ÷ revenue" }
+          ],
+          "dependencies": [
+            { "from": "baseRevenue", "to": "revenue" },
+            { "from": "demandGrowth", "to": "revenue" },
+            { "from": "averageFareGrowth", "to": "revenue" },
+            { "from": "baseFuelGallons", "to": "fuelExpense" },
+            { "from": "capacityGrowth", "to": "fuelExpense" },
+            { "from": "jetFuelPrice", "to": "fuelExpense" },
+            { "from": "baseLaborExpense", "to": "laborExpense" },
+            { "from": "laborCostGrowth", "to": "laborExpense" },
+            { "from": "baseOtherExpense", "to": "otherExpense" },
+            { "from": "capacityGrowth", "to": "otherExpense" },
+            { "from": "nonFuelInflation", "to": "otherExpense" },
+            { "from": "fuelExpense", "to": "operatingExpense" },
+            { "from": "laborExpense", "to": "operatingExpense" },
+            { "from": "otherExpense", "to": "operatingExpense" },
+            { "from": "revenue", "to": "operatingIncome" },
+            { "from": "operatingExpense", "to": "operatingIncome" },
+            { "from": "revenue", "to": "operatingMargin" },
+            { "from": "operatingIncome", "to": "operatingMargin" }
+          ]
+        }
+        },
+
+    scenarioDocument: Dataset {
+        {
+          "scenarios": [
+            { "id": "base", "label": "Base", "description": "Illustrative base case.", "assumptions": {} },
+            { "id": "fuelShock", "label": "Fuel shock", "description": "Higher fuel price with partial fare recovery.", "assumptions": { "jetFuelPrice": 4.1, "averageFareGrowth": 0.055 } },
+            { "id": "downturn", "label": "Downturn", "description": "Demand and fares weaken while capacity contracts.", "assumptions": { "demandGrowth": -0.07, "averageFareGrowth": -0.035, "capacityGrowth": -0.04 } },
+            { "id": "capacitySqueeze", "label": "Squeeze", "description": "Tighter capacity supports fares while labor costs rise.", "assumptions": { "capacityGrowth": -0.025, "averageFareGrowth": 0.075, "laborCostGrowth": 0.085 } }
+          ]
+        }
+        },
+
+    workingScenario: Dataset {
+        {
+          "assumptions": {
+            "demandGrowth": 0.03,
+            "averageFareGrowth": 0.02,
+            "capacityGrowth": 0.02,
+            "jetFuelPrice": 2.7,
+            "laborCostGrowth": 0.04,
+            "nonFuelInflation": 0.03
+          }
+        }
+        },
+
+    model: CausalModel [ ],
+    draft: CausalDraft [ ],
+
+    header: CausalHeader [ x = { frameGutter }, y = { headerY } ],
+    draftPanel: CausalDraftPanel [ x = { frameGutter }, y = { draftY } ],
+    graph: CausalGraph [ x = { frameGutter }, y = { graphY } ],
+    status: CausalCalculationStatus [ x = { frameGutter }, y = { graphY - 16 } ],
+    summary: CausalFactorSummary [ x = { frameGutter }, y = { summaryY } ],
+    inspector: CausalInspector [ ],
+    draftDialog: CausalDraftDialog [ ]
+    ]
