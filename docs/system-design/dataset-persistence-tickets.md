@@ -37,8 +37,8 @@ fallbacks. No platform gate is complete until PP-05 passes.
 |---|---|---|---|
 | PP-00 | — | complete | `68eb9e65`; PP-00 execution evidence below |
 | PP-01 | PP-00 | planned | — |
-| PP-02 | PP-00 | planned | — |
-| PP-03 | PP-00 | complete | PP-03 execution evidence below |
+| PP-02 | PP-00 | complete | PP-02 execution evidence below |
+| PP-03 | PP-00 | complete | `d4fcf166`; PP-03 execution evidence below |
 | PP-04 | PP-01, PP-02 | planned | — |
 | PP-05 | PP-03, PP-04 | planned | — |
 
@@ -228,6 +228,21 @@ dependency. Build in the following checkpoints within this ticket:
 retirement procedure, scope coordinator, and runtime wiring checklist for PP-04.
 
 **Commit:** `feat(persistence): implement bounded recovery and save lifecycle`
+
+### Execution evidence — 2026-09-10
+
+- `DocumentPersistence` implements PersistenceEngine over the shared binding;
+  `SnapshotQueue` bounds pinned work; `inStorageLane` serializes issued work across
+  retiring/replacement owners. No parser, Dataset, or browser imports in the engine.
+- Forced build and 27 controlled lifecycle/queue cases pass, plus the 10 shared
+  contract cases. Coverage includes boot/edit races, load/replace retry, erase
+  barriers, stale receipts, byte/slot saturation, maxDelay, failed settles,
+  configuration failures, stalled transactions, and retired-owner suppression.
+- Extra counterexamples pin acknowledgement-before-settle ordering and prevent an
+  older queued save from clearing a newer capture error. Actual Dataset/init/Editor
+  wiring and public event behavior remain PP-04, not claimed by these seam tests.
+- Targeted suites: `test/persistence-lifecycle.test.mjs` and
+  `test/persistence-queue.test.mjs`; controlled binding in `test/helpers/persistence-engine.mjs`.
 
 ## PP-03 — Implement transactional IndexedDB storage
 
