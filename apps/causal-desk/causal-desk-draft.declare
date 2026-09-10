@@ -1,0 +1,57 @@
+// The platform owns I/O, coalescing and acknowledgement. This coordinator owns
+// only the boundary between a saved envelope and the live Working scenario.
+
+class CausalDraft extends Node [
+    savedRecord: Dataset [
+        disk: Persistence [ key = "causal-desk/airline-operating-margin/working-scenario",
+            restoreOn = "manual", save = "auto", conflict = "overwrite",
+            onResult(r: PersistenceResult) { classroot.received(r) }
+            ]
+        ] { null },
+
+    workingGeneration: number = 0,
+    stagedWorkingGeneration: number = 0,
+    stageQueued: boolean = false,
+    stagingError: string = "",
+    eraseIntent: string = "",
+    eraseRequest: number = 0,
+    checking: boolean = { savedRecord.disk.loadStatus == "loading" },
+    hasCandidate: boolean = { savedRecord.disk.recovery != "none" },
+    validation: object = { validateSavedScenarioRecord(
+        savedRecord.disk.candidate as object, app.modelDocument.value, app.scenarioDocument.value) },
+    canRestore: boolean = { savedRecord.disk.recovery == "available" && (validation as SavedScenarioValidation).ok },
+    editingLocked: boolean = { eraseIntent == "clear" && savedRecord.disk.pending },
+    held: boolean = { savedRecord.disk.loadStatus != "loaded" || hasCandidate || eraseIntent != "" },
+    saved: boolean = { savedRecord.disk.saved && workingGeneration == stagedWorkingGeneration },
+    state: string = { checking ? "checking" : savedRecord.disk.failed || stagingError != "" ? "failed"
+        : hasCandidate ? "recovery" : saved ? "saved"
+        : savedRecord.disk.pending || workingGeneration != stagedWorkingGeneration ? "saving" : "none" },
+
+    saveWorkingScenario() {
+        workingGeneration = workingGeneration + 1
+        queueStage()
+        },
+    queueStage() {
+        if (stageQueued) return
+        stageQueued = true
+        afterSettle(this.stageLatest)
+        },
+    stageEnvelope() -> boolean {
+        const record = buildSavedScenarioRecord(app.modelDocument.value, app.scenarioDocument.value,
+            app.workingScenario.value, app.workingSourceId, new Date().toISOString())
+        const checked = validateSavedScenarioRecord(record, app.modelDocument.value, app.scenarioDocument.value)
+        stagingError = checked.ok ? "" : checked.code
+        if (!checked.ok) return false
+        savedRecord.set([], record)
+        stagedWorkingGeneration = workingGeneration
+        return true
+        },
+    stageLatest() {
+        stageQueued = false
+        if (held || workingGeneration == stagedWorkingGeneration) return
+        if (stageEnvelope() && savedRecord.disk.autosavePaused) savedRecord.disk.commit()
+        },
+    received(r: PersistenceResult) {
+        if (r.operation == "load" && r.ok) queueStage()
+        }
+    ]
