@@ -3,6 +3,8 @@
 Status: **reviewed design, ready for browser implementation**, 2026-09-10.
 No proposed member is shipped. The [review and acceptance record](dataset-persistence-review.md)
 records criticisms, decisions, counterexamples, and implementation dependency order.
+The [implementation tickets](dataset-persistence-tickets.md) define PP-00–PP-05
+ownership, verification, and the external platform gate. All are initially planned.
 `text` fences illustrate proposed source, not executable reference examples.
 
 ## 1. Scope and governing rule

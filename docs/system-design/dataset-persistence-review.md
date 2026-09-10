@@ -83,6 +83,9 @@ Assert live values, stored bytes/tokens, reactive state, and terminal result IDs
 
 ## Implementation dependency graph
 
+Execute the bounded [PP-00–PP-05 tickets](dataset-persistence-tickets.md) for scope,
+file ownership, prerequisite evidence, checks, and conventional commit names.
+
 Each work package lands with its contract tests and documentation. No package is
 authorized by this design review itself; this is the recommended implementation order.
 

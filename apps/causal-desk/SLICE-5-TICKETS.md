@@ -14,6 +14,7 @@ Slice 5 depends on Declare open item `L-28`: persistent Datasets. Direct browser
 Causal Desk-specific TypeScript adapter are outside the accepted architecture.
 
 `PLAT-PERSIST-01` is an external prerequisite, not a Causal Desk implementation ticket. It is
+tracked by [platform PP-00–PP-05](../../docs/system-design/dataset-persistence-tickets.md) and is
 complete only when the Declare repository exposes and documents:
 
 - a persistent Dataset that loads its last-known value at boot;

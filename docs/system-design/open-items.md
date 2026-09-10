@@ -757,6 +757,7 @@ acknowledged writes, host isolation, and Causal Desk integration. It is not a sh
 API. Browser document persistence is ready for implementation with an explicit
 [host contract](dataset-persistence-host.md) and
 [review, acceptance traces, and dependency order](dataset-persistence-review.md).
+Execution is tracked in [PP-00–PP-05 implementation tickets](dataset-persistence-tickets.md).
 Native adapters and indexed collections remain separate parts of this open item.
 
 The offline-notes request (ultrasaurus, 2026-08-19): a persisted Dataset should serve
