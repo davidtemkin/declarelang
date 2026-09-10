@@ -137,8 +137,8 @@ app-facing lifecycle. The initial Base experience remains usable while storage l
 
 1. Read the landed persistent-Dataset documentation and verify its behavior with the smallest
    probe before editing Causal Desk. Record the exact API used in a comment beside the Dataset.
-2. Add one persistence node/class containing the persistent Dataset. Use the logical key from
-   `CD-S5-00` plus the verifier-provided test namespace.
+2. Add one persistence node/class containing the persistent Dataset. Keep the logical key from
+   `CD-S5-00` unchanged; supply test isolation through the host namespace, not key concatenation.
 3. Expose app-facing derived state for checking, no draft, recoverable draft, committing, saved,
    and failed. Derive these states from Dataset lifecycle and validated content; do not maintain
    a competing status flag.
@@ -146,6 +146,9 @@ app-facing lifecycle. The initial Base experience remains usable while storage l
    not mutate it or change active/comparison selection.
 5. A corrupt or stale loaded value becomes a rejected recovery candidate with its validation
    code; it never reaches model calculation.
+6. Establish the shared coordinator seams and generation bookkeeping here: stage latest Working,
+   hold/release staging during recovery, and explicit commit after erase. CD-S5-02 wires normal
+   edits/status to them; CD-S5-03 wires recovery. Neither parallel ticket invents a second coordinator.
 
 ### Acceptance and verification
 
@@ -179,15 +182,22 @@ and reports honest progress without delaying model interaction.
 
 ### Implementation
 
-1. Add `saveWorkingScenario()` as the only app method that builds and commits a stored record.
+1. Wire the CD-S5-01 `saveWorkingScenario()` coordinator to schedule an after-settle rebuild
+   of the stored envelope from latest accepted Working data. Use the reviewed
+   [platform contract](../../docs/system-design/dataset-persistence.md#9-causal-desk-integration-contract):
+   manual recovery, automatic saving, explicit overwrite policy. Do not issue a pinned
+   commit command for every slider event.
 2. Call it after the existing shared Working-scenario mutation seam succeeds. Rejected numeric
    input and bundled-scenario selection must not write storage.
-3. Show `Saving locally…`, then `Saved on this device · <time>` only after durable acknowledgement.
-   Use text, not color alone.
+3. Advance workingGeneration on accepted Working mutations and stagedWorkingGeneration with
+   envelope replacement. Show Saved only when both match AND platform saved is true. Receipt
+   time supplies the UI timestamp. Use text, not color alone.
 4. Coalesce superseded writes using the persistent Dataset's supported semantics. Do not add
    polling, timers, unload handlers, or a second copy of Working values.
 5. A save failure leaves the in-memory scenario and all calculations intact; detailed recovery
    behavior is completed in `CD-S5-05`.
+6. Hold staging during load, unresolved recovery, and clearing. Support explicit commit to
+   resume after erase without recreating a draft from the Clear-to-Base reset itself.
 
 ### Acceptance and verification
 
@@ -195,6 +205,7 @@ and reports honest progress without delaying model interaction.
 - Rapid successive edits end with the newest acknowledged record.
 - Stored content is override-only and carries the correct source and timestamp.
 - The UI never says Saved before acknowledgement.
+- An older envelope acknowledgement never labels a newer Working generation Saved.
 - Invalid entry performs no durable write.
 - A cold boot after acknowledgement exposes the exact record as a recovery candidate.
 
@@ -224,20 +235,26 @@ saved Working draft. Nothing stale silently becomes the active analysis.
 
 1. Add a recovery panel in normal document flow above the graph. It displays the saved timestamp
    and 44px Restore and Discard controls.
-2. `restoreSavedScenario()` validates again, then atomically replaces `workingScenario`, sets
+2. `restoreSavedScenario()` validates again, confirms if early Working edits would be replaced,
+   adopts the platform candidate and atomically replaces `workingScenario`, sets
    `workingSourceId`, activates Working, uses Base comparison, and dismisses the candidate.
 3. Preserve the selected factor when valid; clear contribution selection because its rows may
    change. Do not restore any other UI state.
-4. `discardSavedScenario()` durably deletes the record and dismisses the panel only after delete
-   acknowledgement. It leaves the current Base model unchanged.
+4. `discardSavedScenario()` confirms, durably deletes, and dismisses the panel only after delete
+   acknowledgement. Preserve current in-memory work; if early Working edits exist, stage and
+   explicitly commit them after delete acknowledgement. Discard must not erase new work.
 5. Move focus predictably: Restore focuses the Working scenario choice; Discard returns focus to
    the main scenario control.
+6. With early Working edits and a valid candidate, offer Keep current work: validate/stage the
+   current envelope and explicitly replace the candidate. Update generation coverage with each
+   restore/stage transition; no automatic adoption or silent replacement.
 
 ### Acceptance and verification
 
 - Cold boot never activates Working before Restore.
 - Restore recovers exact assumptions/source and recomputes values/contributions.
-- Discard followed by a second cold boot shows no recovery panel.
+- Discard without new Working edits followed by a second cold boot shows no recovery panel.
+- Early edits survive read arrival and Discard; Keep current saves them, Restore confirms replacement.
 - A rejected candidate offers Discard but never Restore.
 - Keyboard-only and mobile pointer flows reach both actions.
 - The panel does not overlap header, status, graph, summary, or inspector at any tier.
@@ -271,6 +288,8 @@ affecting bundled scenarios.
    and cannot be undone.
 3. Confirm first deletes durably. Only after acknowledgement reset Working to Base, set active
    and comparison to Base, clear contribution selection and validation draft, and close Dialog.
+   Lock editing during deletion; do not stage/save the reset. Preserve the platform autosave
+   pause until the next deliberate Working edit stages and explicitly commits once.
 4. Cancel changes nothing and restores focus to the opener.
 5. Do not alter `modelDocument`, `scenarioDocument`, bundled values, or formulas.
 
@@ -281,6 +300,7 @@ affecting bundled scenarios.
 - A cold boot after confirmed clear has no recovery candidate.
 - The Dialog traps/restores focus and works at 390×844 with 44px actions.
 - Delete failure does not falsely reset or claim success.
+- In-flight/queued saves cannot recreate the deleted record; the next deliberate edit resumes saving.
 
 ### Commit
 
@@ -309,11 +329,15 @@ states. The analyst can keep working in memory and retry safe operations.
 1. Map persistent-Dataset and record-validation failures to the exact product states in
    `SLICE-5-DESIGN.md`; retain stable machine-readable codes beside readable copy.
 2. Keep the persistence status separate from `calculationStatus` and numeric-entry validation.
-3. Add Retry for failed save/delete when the platform marks the operation retryable. Retry the
-   same complete record or delete intent; do not rebuild from partially committed state.
+3. Add Retry for failed save/delete when the platform marks the operation retryable. For save,
+   stage the latest complete accepted Working snapshot before retrying current data. For delete,
+   preserve the failed delete intent and revision authority. Never replay a stale save snapshot.
 4. Corrupt, stale, and invalid records offer only Discard. Nothing invalid enters
    `workingScenario`.
 5. Storage-unavailable state explains that current-session changes still work.
+6. Distinguish corrupt payload (Discard allowed) from unreadable platform control metadata
+   (host/site-storage repair required). A stalled transaction remains pending with no Retry
+   until its outcome is known. Clear failure releases the editing lock but preserves the pause.
 
 ### Acceptance and verification
 

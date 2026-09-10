@@ -1,5 +1,9 @@
 # Causal Desk — Slice 5 persistence design
 
+Platform alignment reviewed 2026-09-10: the proposed
+[Dataset persistence contract](../../docs/system-design/dataset-persistence.md#9-causal-desk-integration-contract)
+fixes the lifecycle used below. It is design only; the platform implementation gate remains.
+
 Slice 5 lets an analyst return to one locally saved Working scenario without turning Causal
 Desk into a scenario-management product. It preserves the current fixed-model boundary,
 keeps data on the analyst's device, and makes restoration explicit so an old draft is never
@@ -115,8 +119,8 @@ concept loop. The status area may say `LOCAL DRAFT · NONE` when space permits.
 
 ### Saving
 
-Every successful Working-scenario mutation writes the complete versioned record through the
-persistent Dataset. Slider and numeric entry continue to share the existing assumption mutation
+Every successful Working-scenario mutation stages the complete versioned record through the
+persistent Dataset; platform autosave coalesces writes. Slider and numeric entry share the existing assumption mutation
 seam, so persistence does not introduce a second editing path.
 
 The save indicator has three text states:
@@ -125,8 +129,13 @@ The save indicator has three text states:
 - `Saved locally · <time>`
 - `Local saving unavailable · changes remain in this session`
 
-The interface shows `Saved` only after durable commit acknowledgement. A storage failure never
-rolls back or disables the in-memory Working scenario.
+The interface shows `Saved` only after durable commit acknowledgement AND coverage of the
+current Working generation. Advance `workingGeneration` on accepted Working edits; one
+after-settle rebuild reads the latest Working data and records `stagedWorkingGeneration` with
+the new envelope. Saved requires both generations equal and the persistent Dataset saved.
+Use manual recovery, automatic saving, and explicit overwrite policy for the accepted
+last-writer behavior. Hold staging during initial load, unresolved recovery, and clearing.
+A storage failure never rolls back or disables the in-memory Working scenario.
 
 ### Returning with a saved draft
 
@@ -138,8 +147,14 @@ It offers two 44px controls:
 
 - **Restore** — validates and atomically replaces the in-memory Working scenario, selects
   Working as active, leaves Base as comparison, and dismisses the panel.
-- **Discard** — deletes the stored record after confirmation and leaves the current Base state
-  unchanged.
+- **Discard** — deletes the stored record after confirmation and leaves current in-memory
+  work unchanged (normally Base).
+
+If the analyst edited Working before the draft arrived, Restore must confirm replacing those
+edits. Offer **Keep current work** to validate/stage the current envelope and explicitly replace
+the saved candidate. Discard preserves early Working edits and, after deletion acknowledgement,
+stages and explicitly commits that new work. A rejected business record offers only Discard;
+it cannot be restored. Recovery never silently blocks further in-memory editing.
 
 Restoration is explicit because an old local draft must not masquerade as the product's bundled
 starting point. The panel is keyboard reachable, does not cover the graph, and participates in
@@ -155,6 +170,10 @@ When Working is active, a `Clear saved work` action is available near the save i
 4. selects Base as active and comparison.
 
 Bundled scenarios are immutable and cannot be deleted.
+Lock editing while confirmed deletion is pending. Platform erase pauses autosave and cancels
+unsent writes; resetting to Base must not stage a new record. The next deliberate Working edit
+stages and explicitly commits once to resume autosave after a successful Clear. On failure preserve Working, release
+the editing lock, retain the warning/pause, and offer safe retry; do not claim Clear succeeded.
 
 ## State ownership
 
@@ -167,7 +186,7 @@ Restore candidate --------> existing workingScenario Dataset
                                   |
 slider / numeric entry ---------->+----> model values and contributions
                                   |
-                                  +----> persistent Dataset commit
+                                  +----> staged envelope -> coalesced autosave
 ```
 
 The persistent Dataset owns only durable bytes and its lifecycle. The existing
@@ -176,12 +195,16 @@ and formatted values remain derived; none are written to storage.
 
 One app method owns each durable transition:
 
-- `saveWorkingScenario()` builds and commits the versioned record.
+- `saveWorkingScenario()` schedules one after-settle envelope rebuild from accepted Working
+  data and advances coverage bookkeeping; platform autosave owns batching and storage.
 - `restoreSavedScenario()` validates first, then performs one Working-scenario replacement.
 - `discardSavedScenario()` durably removes the record.
 
 Existing slider and numeric-entry handlers continue to mutate the Working scenario through the
 same method they use today, then request a save. No control writes storage directly.
+Explicit commits are acknowledgement barriers for deliberate resume/keep-current/leave actions,
+not one pinned command per slider event. Retry first stages the latest accepted Working data,
+then saves current data; delete retry retains the failed delete intent and revision authority.
 
 ## Failure behavior
 
@@ -191,6 +214,7 @@ same method they use today, then request a save. No control writes storage direc
 | Storage unavailable | `Local saving unavailable` | In-memory editing remains usable |
 | Save fails | Persistent warning with retry | Current Working values remain intact |
 | Corrupt record | `Saved draft could not be read` + Discard | Nothing restored |
+| Unreadable platform control metadata | `Local storage needs repair` + host/site-storage guidance | Preserve work; app cannot safely discard unknown storage metadata |
 | Stale model revision | `Saved draft belongs to an older model` + Discard | Nothing restored |
 | Invalid override | `Saved draft is invalid` + Discard | Nothing partially restored |
 | Delete fails | Warning remains; retry offered | Current model is not falsely reported cleared |
@@ -281,4 +305,3 @@ Revisit the design only after evidence supports one of these needs:
   user confirmation.
 - Concurrent tabs are common: add revision checks and conflict handling rather than silent
   last-write-wins.
-
