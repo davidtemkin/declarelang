@@ -2,6 +2,9 @@
 
 Product and interaction design, version 0.1.
 
+Future opportunities: [potential next steps](NEXT-STEPS.md), including document-to-model
+exploration, example source documents, and a UI/UX rethink. These are not implementation commitments.
+
 Implementation status (2026-09-10): Slices 1–5 are complete. The app includes the fixed
 model, factor inspection, bundled scenarios, a working scenario editor, selectable
 comparisons, exact modeled contribution bridges, responsive layouts, keyboard traversal,
