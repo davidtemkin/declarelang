@@ -13,6 +13,29 @@ export const ready = async a => {
   await a.page.waitForFunction(() => __app.draft.savedRecord.disk.loadStatus !== 'loading');
 };
 export const saved = a => a.page.waitForFunction(() => __app.draft.saved);
+export async function click(a, path) {
+  await a.page.bringToFront();
+  await a.page.evaluate(async path => {
+    const n = __declare.find(path); n.scrollIntoView('nearest');
+    await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame);
+  }, path);
+  await a.drive.click(path);
+}
+export async function confirm(a, id) {
+  await a.page.waitForFunction(() => __app.draftDialog.shown);
+  const path = await a.page.evaluate(id => {
+    const d = __app.draftDialog;
+    const rows = d.arrangement === 'stack' ? d.panel.col.btns.stackInner : d.panel.col.btns.rowInner;
+    const label = d.buttons.find(b => b.id === id).label;
+    const button = rows.children.find(b => b.label === label);
+    return 'app.draftDialog.panel.col.btns.' + (d.arrangement === 'stack' ? 'stackInner' : 'rowInner')
+      + '.' + rows.children.indexOf(button);
+  }, id);
+  await click(a, path);
+  await a.drive.wait(25);
+  await a.drive.settleMotion();
+  await a.page.waitForFunction(() => !__app.draftDialog.shown);
+}
 export const record = (overrides = {}) => ({ schemaVersion: 1, modelId: 'airline-operating-margin',
   modelRevision: '1', workingSourceId: 'fuelShock', overrides: { jetFuelPrice: 4.25 },
   savedAt: '2026-09-10T12:00:00.000Z', ...overrides });

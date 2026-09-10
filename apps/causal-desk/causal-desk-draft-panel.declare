@@ -1,11 +1,39 @@
 // A stable place for local-work status, separate from calculation and input errors.
 
 class CausalDraftPanel extends View [ width = { app.width - app.frameGutter * 2 },
-    height = { app.mobile ? 96 : 64 }, cornerRadius = 10,
+    height = { app.draft.hasCandidate ? (app.mobile ? 244 : 164) : (app.mobile ? 96 : 64) }, cornerRadius = 10,
     fill = #111B21, stroke = { stroke(1, 0x2B3B43) },
     label: Text [ x = 16, y = 12, fontSize = 10, fontWeight = semibold,
         textColor = #A7B6BD, text = "WORKING DRAFT · THIS DEVICE" ],
     status: Text [ x = 16, y = 32, width = { parent.width - 32 },
         fontSize = 12, wrap = true, textColor = #DDE6EA,
-        text = { app.draft.statusText } ]
+        text = { app.draft.statusText } ],
+    recovery: View [ visible = { app.draft.hasCandidate }, x = 16, y = 58,
+        width = { parent.width - 32 }, height = { app.mobile ? 170 : 88 },
+        message: Text [ width = { parent.width }, fontSize = 12, lineHeight = 1.5,
+            wrap = true, textColor = #A7B6BD, text = { app.draft.recoveryText } ],
+        restore: Button [ x = 0, y = { app.mobile ? 60 : 44 },
+            width = { app.mobile ? (parent.width - 12) / 2 : 108 }, height = 44,
+            label = "Restore", primary = true, visible = { app.draft.canRestore },
+            disabled = { app.draft.savedRecord.disk.pending },
+            onClick() { app.draft.requestRestore() }
+            ],
+        discardDraft: Button [ x = { app.draft.canRestore ? (app.mobile ? (parent.width + 12) / 2 : 120) : 0 },
+            y = { app.mobile ? 60 : 44 }, width = { app.mobile ? (parent.width - 12) / 2 : 108 }, height = 44,
+            label = "Discard", disabled = { app.draft.savedRecord.disk.pending },
+            onClick() { app.draft.requestDiscard() }
+            ],
+        keep: Button [ x = { app.mobile ? 0 : 240 }, y = { app.mobile ? 116 : 44 },
+            width = { app.mobile ? parent.width : 168 }, height = 44,
+            label = "Keep current work", visible = { app.draft.canKeep },
+            disabled = { app.draft.savedRecord.disk.pending },
+            onClick() { app.draft.keepCurrentWork() }
+            ]
+        ]
+    ]
+
+
+class CausalDraftDialog extends Dialog [ ignoreScroll = true,
+    theme = { ({ ...app.theme, dialogWidth: Math.min(440, app.width - 32),
+        dialogButtons: app.mobile ? "stack" : "end", buttonHeight: 44 }) }
     ]

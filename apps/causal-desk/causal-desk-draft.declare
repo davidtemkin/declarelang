@@ -20,6 +20,12 @@ class CausalDraft extends Node [
     validation: object = { validateSavedScenarioRecord(
         savedRecord.disk.candidate as object, app.modelDocument.value, app.scenarioDocument.value) },
     canRestore: boolean = { savedRecord.disk.recovery == "available" && (validation as SavedScenarioValidation).ok },
+    canKeep: boolean = { canRestore && workingGeneration > 0 },
+    recoveryText: string = { canRestore
+        ? "Saved Working scenario from " + (validation as SavedScenarioValidation).record!.savedAt
+            + ". Restore it, or discard the saved copy."
+        : savedRecord.disk.recovery == "invalid" ? "Saved draft could not be read. Nothing has been restored."
+        : (validation as SavedScenarioValidation).message + " Nothing has been restored." },
     editingLocked: boolean = { eraseIntent == "clear" && savedRecord.disk.pending },
     held: boolean = { savedRecord.disk.loadStatus != "loaded" || hasCandidate || eraseIntent != "" },
     saved: boolean = { savedRecord.disk.saved && workingGeneration == stagedWorkingGeneration },
@@ -59,5 +65,63 @@ class CausalDraft extends Node [
         },
     received(r: PersistenceResult) {
         if (r.operation == "load" && r.ok) queueStage()
+        if (r.operation == "erase" && r.requestId == eraseRequest && r.ok) {
+            eraseIntent = ""
+            if (workingGeneration > 0) {
+                if (stageEnvelope()) savedRecord.disk.commit()
+            }
+            afterSettle(this.focusScenario)
+        }
+        },
+    focusScenario() {
+        const picker = app.header.scenarioPicker
+        const index = (picker.choices as any[]).findIndex(c => c.id == app.activeScenarioId)
+        const choices = picker.segs()
+        if (index >= 0) Focus.focus(choices[index] as View)
+        },
+    requestRestore() {
+        if (!canRestore || savedRecord.disk.pending) return
+        if (workingGeneration == 0) { restoreSavedScenario(); return }
+        app.draftDialog.open("Replace current work?",
+            "Restoring this saved draft replaces the Working edits made in this session.",
+            [({ id: "cancel", label: "Cancel", cancel: true, default: true }),
+                ({ id: "restore", label: "Restore" })], "",
+            (id) => { if (id == "restore") this.restoreSavedScenario() })
+        },
+    restoreSavedScenario() {
+        const checked = validateSavedScenarioRecord(savedRecord.disk.candidate as object,
+            app.modelDocument.value, app.scenarioDocument.value)
+        if (!checked.ok || checked.record == null || !savedRecord.disk.restore()) return
+        app.workingScenario.set([], workingScenarioFromSavedRecord(app.modelDocument.value,
+            app.scenarioDocument.value, checked.record))
+        app.workingSourceId = checked.record.workingSourceId
+        app.activeScenarioId = "working"
+        app.comparisonScenarioId = "base"
+        app.selectedContributionFactorId = ""
+        if (!visibleFactorIds(app.modelDocument.value).includes(app.selectedFactorId))
+            app.selectedFactorId = "operatingMargin"
+        const generation = workingGeneration + 1
+        workingGeneration = generation
+        stagedWorkingGeneration = generation
+        stagingError = ""
+        app.syncAssumptionDraft()
+        afterSettle(this.focusScenario)
+        },
+    requestDiscard() {
+        if (!hasCandidate || savedRecord.disk.pending) return
+        app.draftDialog.open("Discard saved draft?",
+            "Remove the saved copy from this device? This cannot be undone. Current-session work is kept.",
+            [({ id: "cancel", label: "Cancel", cancel: true, default: true }),
+                ({ id: "discard", label: "Discard" })], "",
+            (id) => { if (id == "discard") this.discardSavedScenario() })
+        },
+    discardSavedScenario() {
+        if (!hasCandidate || savedRecord.disk.pending) return
+        eraseIntent = "discard"
+        eraseRequest = savedRecord.disk.erase()
+        },
+    keepCurrentWork() {
+        if (!canKeep || savedRecord.disk.pending) return
+        if (stageEnvelope()) savedRecord.disk.replace()
         }
     ]

@@ -246,5 +246,6 @@ App [ minWidth = 360, minHeight = 760, scrolls = y, fill = #0B1217, textColor = 
     graph: CausalGraph [ x = { frameGutter }, y = { graphY } ],
     status: CausalCalculationStatus [ x = { frameGutter }, y = { graphY - 16 } ],
     summary: CausalFactorSummary [ x = { frameGutter }, y = { summaryY } ],
-    inspector: CausalInspector [ ]
+    inspector: CausalInspector [ ],
+    draftDialog: CausalDraftDialog [ ]
     ]
