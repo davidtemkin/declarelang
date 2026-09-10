@@ -603,6 +603,11 @@ read the changed region.
 
 **A derived dataset recomputes from its inputs** — `cal: Dataset [ contents = { app.buildModel() } ]`.
 
+**Persistence acknowledges snapshots, not future edits.** A literal-seed Dataset may own
+one named `disk: Persistence [ key = "notes/current" ]`. Browser hosts persist settled
+JSON documents; the Dataset stays usable during loading and failure. Recovery choices
+and save receipts live on the policy, not in the working data. See [Persistence](declare-docs:Persistence).
+
 **Large collections virtualize on one word.** `virtualize = true` on a replicated node builds
 only the rows near the viewport and leaves the rest logical — same records, same paths, same
 behaviour, reconstructed indistinguishably as you scroll. It is a boolean, **off by default** —

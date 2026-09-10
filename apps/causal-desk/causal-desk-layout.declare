@@ -1,0 +1,263 @@
+class CausalHeader extends View [ width = { app.width - app.frameGutter * 2 },
+    height = { app.headerHeight },
+    title: Text [ x = 0, y = 0, fontSize = 22, fontWeight = bold,
+        textColor = #F5FBFE, text = "Causal Desk" ],
+    subtitle: Text [ x = 0, y = { app.desktop ? 31 : 28 }, fontSize = 11, textColor = #71838C,
+        text = "ILLUSTRATIVE AIRLINE MODEL" ],
+    activeLabel: Text [ x = { app.desktop ? parent.width - 724 : 0 }, y = { app.desktop ? 0 : 52 }, fontSize = 9,
+        fontWeight = semibold, textColor = #61747E, text = "ACTIVE" ],
+    scenarioPicker: Segmented [ x = { app.desktop ? parent.width - 724 : 0 }, y = { app.desktop ? 17 : 68 },
+        width = { app.desktop ? 360 : parent.width }, height = { app.desktop ? 30 : 44 },
+        value = { app.activeScenarioId },
+        choices = { [
+            ({ id: "base", label: "Base" }),
+            ({ id: "fuelShock", label: "Fuel shock" }),
+            ({ id: "downturn", label: "Downturn" }),
+            ({ id: "capacitySqueeze", label: "Squeeze" }),
+            ({ id: "working", label: "Working" })
+            ] },
+        input(v: object) { app.selectScenario("" + v) }
+        ],
+    comparisonLabel: Text [ x = { app.desktop ? parent.width - 349 : 0 }, y = { app.desktop ? 0 : 118 }, fontSize = 9,
+        fontWeight = semibold, textColor = #61747E, text = "COMPARE WITH" ],
+    comparisonPicker: Segmented [ x = { app.desktop ? parent.width - 349 : 0 }, y = { app.desktop ? 17 : 134 },
+        width = { app.desktop ? 240 : parent.width }, height = { app.desktop ? 30 : 44 },
+        value = { app.comparisonScenarioId },
+        choices = { [
+            ({ id: "base", label: "Base" }),
+            ({ id: "fuelShock", label: "Fuel" }),
+            ({ id: "downturn", label: "Downturn" }),
+            ({ id: "capacitySqueeze", label: "Squeeze" })
+            ] },
+        input(v: object) { app.selectComparison("" + v) }
+        ],
+    reset: Button [ x = end, y = { app.desktop ? 17 : 0 }, width = 94, height = { app.desktop ? 40 : 44 }, label = "Reset all",
+        disabled = { app.activeScenarioId == "base" && app.comparisonScenarioId == "base" },
+        onClick() { app.resetModel() }
+        ]
+    ]
+
+
+class CausalGraph extends View [ width = { app.desktop ? app.width - 420 : app.width - app.frameGutter * 2 },
+    height = { app.graphHeight },
+    cornerRadius = 18, fill = #0F181D, stroke = { stroke(1, 0x26343B) }, clip = true,
+    scrolls = { app.mobile || app.compactTablet ? "x" : "none" },
+
+    columns: View [ x = { app.mobile ? 16 : 22 }, y = 14,
+        width = { app.mobile || app.compactTablet ? 820 : parent.width - 44 }, height = 22,
+        Text [ x = { graphColumnX(0, parent.width) }, fontSize = 10,
+            fontWeight = semibold, textColor = #61747E, text = "ASSUMPTIONS" ],
+        Text [ x = { graphColumnX(1, parent.width) }, fontSize = 10,
+            fontWeight = semibold, textColor = #61747E, text = "MODEL LINES" ],
+        Text [ x = { graphColumnX(2, parent.width) }, fontSize = 10,
+            fontWeight = semibold, textColor = #61747E, text = "AGGREGATES" ],
+        Text [ x = { graphColumnX(3, parent.width) }, fontSize = 10,
+            fontWeight = semibold, textColor = #61747E, text = "OUTCOME" ]
+        ],
+
+    stage: View [ x = { app.mobile ? 16 : 22 }, y = 38,
+        width = { app.mobile || app.compactTablet ? 820 : parent.width - 44 }, height = 540,
+        edges: EdgeField [ width = { parent.width }, height = { parent.height } ],
+        cards: View [ width = { parent.width }, height = { parent.height },
+            tabOrder() {
+                const ordered = visibleFactorIds(app.modelDocument.value)
+                const result = []
+                for (const id of ordered) {
+                    const card = this.children.find(child =>
+                        (child as FactorCard).factorId == id && child.visible)
+                    if (card != null) result.push(card)
+                }
+                return result
+                },
+            datapath = { app.modelDocument.value },
+            FactorCard [ datapath = :factors[] ]
+            ]
+        ],
+
+    legend: View [ x = { app.mobile ? 16 : 22 }, y = { parent.height - 40 }, height = 22,
+        assumption: View [ width = 10, height = 10, cornerRadius = 3, fill = #152D3B,
+            stroke = { stroke(1, 0x557887) } ],
+        assumptionLabel: Text [ x = 17, y = center, fontSize = 10,
+            textColor = #71838C, text = "ASSUMPTION" ],
+        derived: View [ x = 105, width = 10, height = 10, cornerRadius = 3,
+            fill = #202B32, stroke = { stroke(1, 0x34434B) } ],
+        derivedLabel: Text [ x = 122, y = center, fontSize = 10,
+            textColor = #71838C, text = "DERIVED" ],
+        note: Text [ x = 210, y = center, fontSize = 10, textColor = #52646D,
+            text = "EDGES REPRESENT FORMULA DEPENDENCIES" ]
+        ]
+    ]
+
+
+class CausalCalculationStatus extends View [ width = { app.width - app.frameGutter * 2 }, height = 16,
+    status: Text [ width = { parent.width }, height = { parent.height },
+        fontSize = { app.mobile ? 8 : 9 },
+        fontWeight = semibold, textColor = { app.calculationStatus == "ok" ? 0x79C99E : 0xE58C8C },
+        text = { app.calculationStatus == "ok"
+            ? "MODEL SCOPE · ILLUSTRATIVE DATA · CALCULATION OK"
+            : app.mobile ? "MODEL SCOPE · ILLUSTRATIVE · CALCULATION UNAVAILABLE · NON-FINITE VALUE"
+                : "MODEL SCOPE · ILLUSTRATIVE DATA · CALCULATION UNAVAILABLE — NON-FINITE MODEL VALUE" } ]
+    ]
+
+
+class CausalFactorSummary extends View [ width = { app.width - app.frameGutter * 2 },
+    height = { app.summaryHeight }, visible = { app.stacked },
+    cornerRadius = 12, fill = #111B21, stroke = { stroke(1, 0x2B3B43) },
+
+    label: Text [ x = 16, y = 10, width = { parent.width - 170 }, fontSize = 10,
+        fontWeight = semibold, textColor = #71838C, textTransform = uppercase,
+        text = "SELECTED FACTOR" ],
+    title: Text [ x = 16, y = 28, width = { parent.width - 170 }, fontSize = 15,
+        fontWeight = bold, textColor = #F5FBFE, text = { app.selectedLabel } ],
+    value: Text [ x = 16, y = 50, width = 108, fontSize = 13, fontWeight = bold,
+        textColor = #F2C46D, text = { formatValue(app.selectedValue, app.selectedUnit) } ],
+    delta: Text [ x = 126, y = 52, width = { parent.width - 270 }, fontSize = 11,
+        fontWeight = semibold, textColor = { app.selectedDelta >= 0 ? 0x79C99E : 0xE58C8C },
+        visible = { materiallyDifferent(app.selectedValue, app.selectedComparisonValue) },
+        text = { formatDelta(app.selectedDelta, app.selectedUnit) } ],
+    details: Button [ x = { parent.width - 144 }, y = 16, width = 128, height = 44,
+        label = { app.inspectorExpanded ? "Hide Details" : "Show Details" },
+        onClick() { app.toggleInspector() }
+        ]
+    ]
+
+
+class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.width - app.inspectorWidth) / 2 },
+    y = { app.inspectorY }, width = { app.inspectorWidth },
+    height = { app.desktop ? app.height - 122 : 680 },
+    visible = { app.desktop || app.inspectorExpanded }, cornerRadius = 18, fill = #111B21,
+    stroke = { stroke(1, 0x2B3B43) },
+    innerWidth: number = { width - 44 },
+
+    eyebrow: Text [ x = 22, y = 22, fontSize = 10, fontWeight = semibold,
+        textColor = { app.selectedKind == "assumption" ? 0x78C8E8 : 0x8B9AA2 },
+        textTransform = uppercase, text = { app.selectedKind } ],
+    title: Text [ x = 22, y = 46, width = { innerWidth }, fontSize = 20, fontWeight = bold,
+        textColor = #F5FBFE, text = { app.selectedLabel } ],
+    valueLabel: Text [ x = 22, y = 88, fontSize = 10, textColor = #71838C,
+        text = { app.activeScenarioLabel.toUpperCase() + " VALUE" } ],
+    value: Text [ x = 22, y = 107, width = { innerWidth }, fontSize = 30, fontWeight = bold,
+        textColor = #F2C46D, text = { formatValue(app.selectedValue, app.selectedUnit) } ],
+    delta: Text [ x = { Math.max(22, parent.width - 160) }, y = 119, width = 138, fontSize = 11, fontWeight = semibold,
+        textAlign = right,
+        textColor = { app.selectedDelta >= 0 ? 0x79C99E : 0xE58C8C },
+        visible = { materiallyDifferent(app.selectedValue, app.selectedComparisonValue) },
+        text = { formatDelta(app.selectedDelta, app.selectedUnit) + " VS "
+            + app.comparisonScenarioLabel.toUpperCase() } ],
+
+    detailBody: View [ x = 0, y = 157, width = { parent.width },
+        height = { parent.height - 300 }, scrolls = y, clip = true,
+        description: Text [ x = 22, y = 0, width = { classroot.innerWidth }, fontSize = 12,
+            lineHeight = 1.5, wrap = true, textColor = #A7B6BD,
+            text = { app.selectedDescription } ],
+
+        assumptionEditor: View [ x = 22, y = 59, width = { classroot.innerWidth }, height = 196,
+            visible = { app.selectedKind == "assumption" },
+            rule: View [ width = { parent.width }, height = 1, fill = #2B3B43 ],
+            label: Text [ y = 18, fontSize = 10, fontWeight = semibold,
+                textColor = #71838C, text = "SCENARIO ASSUMPTION" ],
+            slider: Slider [ y = 43, width = { parent.width }, value = { app.selectedValue },
+                min = { app.selectedMin }, max = { app.selectedMax }, step = { app.selectedStep },
+                input(v: number) { app.changeSelectedAssumption(v) }
+                ],
+            range: Text [ y = 75, width = { parent.width }, fontSize = 10, textColor = #71838C,
+                text = { formatValue(app.selectedMin, app.selectedUnit) + "  —  "
+                    + formatValue(app.selectedMax, app.selectedUnit) } ],
+            reset: Button [ x = end, y = 70, width = 108, label = "Reset input",
+                disabled = { app.activeScenarioId != "working" },
+                onClick() { app.resetSelectedAssumption() }
+                ],
+            inputLabel: Text [ y = 100, fontSize = 10, fontWeight = semibold,
+                textColor = #71838C, text = "EDIT VALUE" ],
+            input: TextInput [ x = 0, y = 117, width = { parent.width - 96 }, height = { app.mobile ? 44 : 36 },
+                padding = 8, cornerRadius = 7, fill = #0D151A, stroke = { stroke(1, 0x3A505A) },
+                textColor = #F5FBFE, text = { app.assumptionDraft },
+                placeholder = { app.selectedUnit == "percent" ? "e.g. 5.5%" : "e.g. $4.25" },
+                onInput(t: string) { app.assumptionDraft = "" + t },
+                onKeyDown(e: KeyEvent) { app.handleAssumptionKey(e.key) }
+                ],
+            apply: Button [ x = end, y = 117, width = 88, height = { app.mobile ? 44 : 36 }, label = "Apply",
+                onClick() { app.commitAssumptionDraft() }
+                ],
+            unitHint: Text [ y = 156, fontSize = 9, textColor = #71838C,
+                text = { app.selectedUnit == "percent" ? "Percent; enter human units" : "USD per gallon" } ],
+            error: Text [ y = 174, width = { parent.width }, fontSize = 10, wrap = true,
+                textColor = #F0A0A0, visible = { app.assumptionValidation != "" },
+                text = { "Input error: " + app.assumptionValidation } ]
+            ],
+
+        derivedDetails: View [ x = 0, y = 59, width = { parent.width },
+            visible = { app.selectedKind == "derived" },
+            formulaRule: View [ x = 22, y = 0, width = { classroot.innerWidth }, height = 1, fill = #2B3B43 ],
+            formulaLabel: Text [ x = 22, y = 19, fontSize = 10, fontWeight = semibold,
+                textColor = #71838C, text = "FORMULA" ],
+            formula: Text [ x = 22, y = 41, width = { classroot.innerWidth }, fontSize = 12,
+                height = 44, lineHeight = 1.5, wrap = true, textColor = #DDE6EA,
+                text = { app.selectedFormula } ],
+            contributionBridge: View [ x = 22, y = 99, width = { classroot.innerWidth },
+                height = { contributionBridgeHeight(app.model.contributionData.value) },
+                rule: View [ width = { parent.width }, height = 1, fill = #2B3B43 ],
+                label: Text [ y = 19, fontSize = 10, fontWeight = semibold,
+                    textColor = #F2C46D, text = "MODELED DELTA BRIDGE" ],
+                caveat: Text [ y = 37, width = { parent.width }, height = 28, fontSize = 10,
+                    lineHeight = 1.4, wrap = true, textColor = #71838C,
+                    text = "Rows explain a modeled scenario delta; they are not proof of real-world causal impact." ],
+                comparison: Text [ y = 72, width = { parent.width }, fontSize = 12,
+                    textColor = #A7B6BD, text = { app.comparisonScenarioLabel + " "
+                        + formatValue(app.selectedComparisonValue, app.selectedUnit) },
+                    visible = { app.calculationStatus == "ok" } ],
+                rows: View [ x = 0, y = 98, width = { parent.width },
+                    height = { contributionRowCount(app.model.contributionData.value) * 42 },
+                    datapath = { app.model.contributionData.value },
+                    layout: SimpleLayout [ axis = y, spacing = 4 ],
+                    ContributionRow [ datapath = :rows[] ]
+                    ],
+                noDelta: Text [ y = 104, width = { parent.width }, fontSize = 12,
+                    textColor = #71838C,
+                    visible = { app.calculationStatus == "ok"
+                        && contributionRowCount(app.model.contributionData.value) == 0 },
+                    text = "No modeled delta for this comparison." ],
+                unavailable: Text [ y = 104, width = { parent.width }, height = 40,
+                    lineHeight = 1.5, wrap = true, textColor = #F5FBFE,
+                    visible = { app.calculationStatus != "ok" },
+                    text = "Contribution unavailable because the scenario calculation did not produce a finite result." ],
+                active: Text [ y = { contributionActiveY(app.model.contributionData.value) },
+                    width = { parent.width }, fontSize = 12, fontWeight = semibold,
+                    textColor = #F5FBFE, text = { app.activeScenarioLabel + " "
+                        + formatValue(app.selectedValue, app.selectedUnit) },
+                    visible = { app.calculationStatus == "ok" } ]
+                ],
+            dependencies: View [ x = 22,
+                y = { 99 + contributionBridgeHeight(app.model.contributionData.value) + 18 },
+                width = { classroot.innerWidth }, datapath = { app.model.dependencyData.value },
+                layout: SimpleLayout [ axis = y, spacing = 4 ],
+                dependencyRule: View [ width = { parent.width }, height = 1, fill = #2B3B43 ],
+                dependencyLabel: Text [ y = 19, fontSize = 10, fontWeight = semibold,
+                    textColor = #71838C, text = "IMMEDIATE DEPENDENCIES" ],
+                noDependencies: Text [ y = 50, fontSize = 12, textColor = #71838C,
+                    visible = { dependencyCount(app.model.dependencyData.value) == 0 },
+                    text = "This is a root model input." ],
+                rows: View [ y = 48, width = { parent.width },
+                    datapath = { app.model.dependencyData.value },
+                    layout: SimpleLayout [ axis = y, spacing = 4 ],
+                    DependencyRow [ datapath = :rows[] ]
+                    ]
+                ]
+            ]
+        ],
+
+    notice: View [ x = 22, y = { parent.height - 76 }, width = { innerWidth }, height = 54,
+        cornerRadius = 10, fill = #0D151A, stroke = { stroke(1, 0x26343B) },
+        mark: Text [ x = 12, y = 10, fontSize = 12, fontWeight = bold,
+            textColor = #F2C46D, text = "i" ],
+        text: Text [ x = 34, y = 9, width = { parent.width - 48 }, fontSize = 10, lineHeight = 1.5,
+            wrap = true, textColor = #71838C,
+            text = "Illustrative inputs only. A dependency is a formula read, not proof of real-world causality." ]
+        ],
+    reducedMotion: Button [ x = 22, y = { parent.height - 128 }, width = { innerWidth }, height = 44,
+        disabled = { app.env.reducedMotion == true },
+        label = { app.env.reducedMotion == true ? "Reduced motion: On (system)"
+            : app.effectiveReducedMotion ? "Reduced motion: On" : "Reduced motion: Off" },
+        onClick() { app.toggleReducedMotion() }
+        ]
+    ]

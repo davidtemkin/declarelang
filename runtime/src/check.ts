@@ -570,7 +570,24 @@ function checkElement(
     return; // nothing beneath a misplaced layout to salvage
   } else if (descendsFrom(schema, "Dataset")) {
     checkDataNode(el, schema, errors);
-    return; // a data node's whole surface was judged above — no subtree
+    for (const child of el.children) if (child.tag === "Persistence")
+      checkElement(child, errors, schemas, false, env, schema);
+    return;
+  } else if (el.tag === "Persistence") {
+    checkSourceNode(el, schema, errors);
+    if (el.name === null) errors.push(new DeclareError("Persistence needs a name — write 'disk: Persistence [ … ]'", el.pos));
+    if (parentSchema?.name !== "Dataset") errors.push(new DeclareError(
+      "Persistence belongs directly to a literal-seed Dataset — attach one named policy to that Dataset", el.pos));
+    const key = el.attrs.find(a => a.name === "key");
+    if (!key || (key.value.kind === "string" && (!key.value.value || new TextEncoder().encode(key.value.value).length > 1024)))
+      errors.push(new DeclareError("Persistence.key needs a nonempty string of at most 1024 UTF-8 bytes", key?.pos ?? el.pos));
+    const delay = el.attrs.find(a => a.name === "delay"), max = el.attrs.find(a => a.name === "maxDelay");
+    for (const a of [delay, max]) if (a?.value.kind === "number" && (!Number.isFinite(a.value.value) || a.value.value < 0))
+      errors.push(new DeclareError(`Persistence.${a.name} needs a finite nonnegative number`, a.pos));
+    const d = !delay ? 250 : delay.value.kind === "number" ? delay.value.value : null;
+    const m = !max ? 1000 : max.value.kind === "number" ? max.value.value : null;
+    if (d !== null && m !== null && d > m) errors.push(new DeclareError("Persistence.delay must not exceed maxDelay", el.pos));
+    return;
   } else if (descendsFrom(schema, "Animator")) {
     checkAnimatorNode(el, schema, parentSchema, errors);
     return; // an animator's whole surface is judged here — no subtree
@@ -864,8 +881,13 @@ function checkDataNode(el: Element, schema: ComponentSchema, errors: DeclareErro
     ));
   }
   for (const c of el.children) {
-    errors.push(new DeclareError(`a data node has no children — its structure is its data`, c.pos));
+    if (c.tag !== "Persistence") errors.push(new DeclareError(
+      el.tag === "Dataset" ? "a Dataset permits only one named Persistence child — its other structure is data" :
+        "a data node has no children — its structure is its data", c.pos));
   }
+  const policies = el.children.filter(c => c.tag === "Persistence");
+  if (policies.length > 1 || (policies.length && (el.tag !== "Dataset" || el.raw === undefined || el.attrs.some(a => a.name === "contents"))))
+    errors.push(new DeclareError("Persistence requires exactly one policy on a literal-seed Dataset; use a separate writable Dataset for derived or fetched data", el.pos));
   for (const a of el.attrs) {
     if (a.name === "contents" && a.value.kind !== "code") {
       // A derived value is a constraint over other state, not a literal or a

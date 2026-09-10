@@ -29,6 +29,7 @@ import { DeclareError, DeclareErrors } from "./errors.js";
 // production entry (`renderProgram`) can drop the parser + checker entirely.
 import { mountApp, loadFonts } from "./boot.js";
 import { setAppAssetBase } from "./asset-base.js";
+import type { PersistenceHostOptions } from "./persistence/context.js";
 
 /** Options for build()/render(): the file-access host `include` resolution
  *  rides and the including file's directory. Both default to a no-op — a
@@ -36,6 +37,7 @@ import { setAppAssetBase } from "./asset-base.js";
  *  stays out of this zero-dependency graph (it is injected by the Node-side
  *  entry, include-node.ts). */
 export interface BuildOptions {
+  persistence?: PersistenceHostOptions;
   host?: IncludeHost;
   originDir?: string;
   /** The compiler's extracted constraint dependencies, in `forEachCodeValue`
@@ -68,7 +70,7 @@ export function build(source: string, opts: BuildOptions = {}): App {
   if (errors.length > 0) throw new DeclareErrors(errors);
   if (opts.deps !== undefined) applyDeps(program, opts.deps);
   if (opts.links !== undefined) applyLinks(program, opts.links);
-  const root = instantiate(program);
+  const root = instantiate(program, opts.persistence);
   if (!(root instanceof App)) {
     throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
   }
@@ -146,6 +148,9 @@ export { Tip } from "./tip.js";
 export { Animator, AnimatorGroup } from "./animator.js";
 export type { Cursor } from "./data.js";
 export { settle, afterSettle, observe } from "./reactive.js";
+export { Persistence } from "./persistence/node.js";
+export type { PersistenceError, PersistenceResult } from "./persistence/types.js";
+export type { PersistenceHostOptions } from "./persistence/context.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export type { InspectNode, Provenance } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";

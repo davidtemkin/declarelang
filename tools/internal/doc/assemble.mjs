@@ -31,7 +31,7 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FLAG_SPECS, DEFAULT_FLAGS } from "../../../compiler/dist/flags.js";
 import { REQ } from "../../../compiler/dist/reqtypes.js";
-import { LANGUAGE_API } from "../../../compiler/dist/scaffold.js";
+import { LANGUAGE_API, PRELUDE, PERSISTENCE_ATTRIBUTE_TYPES } from "../../../compiler/dist/scaffold.js";
 import { SCHEMAS, RichTextSchema, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES } from "../../../runtime/dist/schema.js";
 import { DECLARED_TYPE_NAMES } from "../../../runtime/dist/value.js";
 import { RESERVED, programSchemas } from "../../../runtime/dist/program-schema.js";
@@ -61,7 +61,8 @@ function schemaSpine() {
   for (const [name, s] of Object.entries(all)) {
     out[name] = {
       base: s.base?.name ?? null,
-      attrs: Object.fromEntries(Object.entries(s.attrs).map(([k, t]) => [k, attrTypeTag(t)])),
+      attrs: Object.fromEntries(Object.entries(s.attrs).map(([k, t]) =>
+        [k, (name === "Persistence" && PERSISTENCE_ATTRIBUTE_TYPES[k]) || attrTypeTag(t)])),
       prevailing: s.prevailing ?? [],
       readOnly: s.readOnly ?? [],
       events: s.events ?? [],
@@ -160,13 +161,9 @@ function typeSpine() {
  *  Parsed from the PRELUDE text rather than re-declared here, so the reference
  *  cannot drift from what the compiler actually emits. */
 function sharedTypes() {
-  const src = readFileSync(join(ROOT, "compiler/src/scaffold.ts"), "utf8");
-  // The template literal closes with a backtick-semicolon at the END of its last
-  // line, not on a line of its own — splitting on "\n`;" therefore ran to EOF and
-  // scanned the whole of scaffold.ts. The three forms parsed here happen not to
-  // appear after the prelude, so it produced correct output by luck; the
-  // form-agnostic gate is what exposed it.
-  const prelude = src.split("const PRELUDE = `")[1]?.split(/`;\s*$/m)[0] ?? "";
+  // Read the emitted vocabulary, not uninterpolated template source. Generated
+  // unions must document their members, never literal interpolation expressions.
+  const prelude = PRELUDE;
   const out = { interfaces: [], aliases: [], functions: [], namespaces: [] };
   // Line-based, because the PRELUDE mixes forms: block interfaces, one-liners
   // (`interface Touch { id: number; x: number }`), and `extends` (`interface
@@ -214,8 +211,8 @@ function sharedTypes() {
     }
     out.namespaces.push({ name, members: members.filter(Boolean) });
   }
-  for (const m of prelude.matchAll(/^type\s+([A-Za-z]\w*)\s*=\s*([^\n]+?);?$/gm)) {
-    out.aliases.push({ name: m[1], type: m[2].trim().replace(/;$/, "") });
+  for (const m of prelude.matchAll(/^type\s+([A-Za-z]\w*)(<[^\n>]+>)?\s*=\s*([^\n]+?);?$/gm)) {
+    out.aliases.push({ name: m[1], ...(m[2] ? { typeParameters: m[2] } : {}), type: m[3].trim().replace(/;$/, "") });
   }
   for (const m of prelude.matchAll(/^declare function\s+([A-Za-z]\w*)([^\n]*?);?$/gm)) {
     out.functions.push({ name: m[1], signature: (m[1] + m[2]).replace(/;$/, "").trim() });
@@ -601,7 +598,7 @@ const sharedTypesDoc = (spine) => {
 
   const valueIfaces = t.interfaces.filter((i) => !PAYLOADS.includes(i.name) && i.name !== "Draw");
   out.push("", "## Value types", "", "| type | what it is | shape |", "|---|---|---|");
-  for (const a of t.aliases) out.push(`| \`${a.name}\` |${note(a.name).replace(/^ — /, " ")} | ${cell(a.type)} |`);
+  for (const a of t.aliases) out.push(`| \`${a.name}${a.typeParameters ?? ""}\` |${note(a.name).replace(/^ — /, " ")} | ${cell(a.type)} |`);
   for (const i of valueIfaces) out.push(`| \`${i.name}\` |${note(i.name).replace(/^ — /, " ")} | ${i.members.map(cell).join(" · ")} |`);
 
   out.push("", "## Global functions", "", "| call | what it does |", "|---|---|");

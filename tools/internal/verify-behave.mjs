@@ -11,6 +11,7 @@ import http from "node:http";
 import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
 import { join, resolve, dirname, extname, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { randomUUID } from "node:crypto";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -43,9 +44,11 @@ export class VerifyAssertion extends Error {}
 // touches live network, §2.6), one headless Chrome, and a host page embedding
 // the ALREADY-compiled source + deps — the dev server's own host-page shape.
 
-async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend" }, fn) {
+export async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend", persistence = {}, persistenceModule = null }, fn) {
   const baseHref = "/" + relative(ROOT, resolve(appDir)).split("\\").join("/") + "/";
-  const cfg = { backend: backendClass, source: compiled.source, deps: compiled.deps };
+  const cfg = { backend: backendClass, source: compiled.source, deps: compiled.deps,
+    mainId: baseHref + "persistence-fixture.declare",
+    persistence: { namespace: "verify-" + randomUUID(), ...persistence } };
   // The viewport meta is LOAD-BEARING: without it a mobile-sized emulation
   // renders the legacy 980px desktop layout viewport, so every phone assertion
   // silently measured a desktop — which falsified the mobile half of any
@@ -59,6 +62,7 @@ async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "
 import { bootHost } from "/browser/host-client.js";
 const cfg = ${JSON.stringify(cfg)};
 cfg.compile = async () => null;
+${persistenceModule ? `cfg.persistence = { ...cfg.persistence, ...(await import(${JSON.stringify(persistenceModule)})).createPersistence() };` : ""}
 bootHost(cfg);
 </script>`;
 

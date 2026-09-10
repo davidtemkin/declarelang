@@ -751,6 +751,16 @@ app's constraints move to tracking — exactly the ones that were stale before.
 
 ## L-28 — Dataset persistence, IndexedDB-shaped · design · GH #23
 
+Browser document implementation is on `feat/dataset-persistence` (2026-09-10), with
+real DOM/canvas cold-page recovery, acknowledgement, erase and cross-tab tests.
+[Dataset persistence](dataset-persistence.md) specifies the Dataset-owned policy,
+reactive recovery/save lifecycle, acknowledged writes and host isolation. The platform
+gate passed on that branch; see the [release evidence](dataset-persistence-evidence.md), the explicit
+[host contract](dataset-persistence-host.md) and
+[review, acceptance traces, and dependency order](dataset-persistence-review.md).
+Execution is tracked in [PP-00–PP-05 implementation tickets](dataset-persistence-tickets.md).
+Native adapters and indexed collections remain separate parts of this open item.
+
 The offline-notes request (ultrasaurus, 2026-08-19): a persisted Dataset should serve
 its last-known value at boot, independent of any fetch resolving. The issue's four
 design questions are the right ones and the data round starts from them: (1) single

@@ -7557,8 +7557,6 @@ await test("visibility facts: pay-per-use — an unbound view installs no comput
   } finally { app.discard(); }
 });
 
-summarize("unit");
-
 // ── the device profile: three independent facts, none of them a guess ───────
 
 await test("device profile: the facts are read-only, and a hybrid is expressible", () => {
@@ -7889,11 +7887,10 @@ await test("app.reveal(target): the default landing stays callable from a handle
 // ── the two wrap rules: a box of text, and an editable ────────────────────
 // Measured against Chrome (2026-09-05). They are NOT the same rule, and the
 // field is where it shows: Chrome's UA stylesheet puts overflow-wrap:
-// break-word on every textarea, and a line's own indent is measured — the
-// legacy breaker drops it, which is pinned here as the behavior Text and the
-// canvas painter still depend on until their baselines are re-blessed.
+// break-word on every textarea. Both rules measure a line's own indent, but
+// only an editable breaks an otherwise unbreakable word.
 
-await test("wrapLines vs wrapEditable: break-word and indent are the field's rules, not the box's", () => {
+await test("wrapLines vs wrapEditable: both count indent; only the field breaks long words", () => {
   // a deterministic stand-in for the browser: one unit per character
   provideMeasurer({ set font(_) {}, set letterSpacing(_) {}, measureText: (t) => ({ width: t.length }) });
 
@@ -7911,10 +7908,12 @@ await test("wrapLines vs wrapEditable: break-word and indent are the field's rul
   assert.deepEqual(wrapEditable("hi supercalifragilistic", "10px mono", 8),
     ["hi", "supercal", "ifragili", "stic"], "…after taking the ordinary break first");
 
-  // the indent: measured by the field, dropped by the legacy breaker
+  // pre-wrap preserves leading spaces in both the field and the text box
   assert.deepEqual(wrapEditable("        v: number = 40,", "10px mono", 20), ["        v: number =", "40,"]);
-  assert.deepEqual(wrapLines("        v: number = 40,", "10px mono", 20), ["v: number = 40,"],
-    "the known under-count — pinned so re-blessing it is a deliberate act");
+  assert.deepEqual(wrapLines("        v: number = 40,", "10px mono", 20), ["        v: number =", "40,"],
+    "the text box counts indentation when measuring wrapped height");
 
   provideMeasurer(undefined);   // leave the seam as we found it
 });
+
+summarize("unit");

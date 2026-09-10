@@ -1041,6 +1041,25 @@ const SpringSchema: ComponentSchema = {
 // TAGS, like Node), so it is subclassable — `class DesktopClock extends Time
 // [ tick = minute, text: string = { … this.now … } ]`. Heartbeat folded in
 // here 2026-08-29: it was exactly `Time [ tick = frame ]`.
+const PersistenceSchema: ComponentSchema = {
+  name: "Persistence", base: NodeSchema,
+  attrs: {
+    key: { kind: "string" }, restoreOn: literalUnion("load", "manual"),
+    save: literalUnion("auto", "manual"), delay: { kind: "number" }, maxDelay: { kind: "number" },
+    conflict: literalUnion("fail", "overwrite"),
+    loadStatus: literalUnion("loading", "loaded", "failed"),
+    writeStatus: literalUnion("idle", "queued", "committing", "erasing", "failed"),
+    recovery: literalUnion("none", "available", "invalid"), candidate: { kind: "object" },
+    candidateSavedAt: { kind: "object" }, exists: { kind: "boolean" }, revision: { kind: "number" },
+    savedRevision: { kind: "number" }, savedAt: { kind: "object" }, autosavePaused: { kind: "boolean" },
+    error: { kind: "object" }, pending: { kind: "boolean" }, dirty: { kind: "boolean" },
+    saved: { kind: "boolean" }, failed: { kind: "boolean" },
+  },
+  readOnly: ["loadStatus", "writeStatus", "recovery", "candidate", "candidateSavedAt", "exists",
+    "revision", "savedRevision", "savedAt", "autosavePaused", "error", "pending", "dirty", "saved", "failed"],
+  events: ["result"],
+};
+
 const TimeSchema: ComponentSchema = {
   name: "Time",
   base: NodeSchema,
@@ -1178,6 +1197,7 @@ export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   Editor: EditorSchema,
   TweenLayout: TweenLayoutSchema,
   Dataset: DatasetSchema,
+  Persistence: PersistenceSchema,
   DataSource: DataSourceSchema,
   Animator: AnimatorSchema,
   AnimatorGroup: AnimatorGroupSchema,
@@ -1287,6 +1307,7 @@ export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
   tip: "TipEvent",
   message: "StreamMessage",                        // Stream: data/type/id (streams.ts)
   post: "IslandPost",                              // Island bridge: { topic, payload } (view.ts)
+  result: "PersistenceResult",
   // payload-free: focus, blur, escapeFocus, init, enter, load, ready,
   // start, stop, repeat, apply, remove, open, close, error
 };

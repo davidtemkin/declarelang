@@ -1,0 +1,77 @@
+script {
+    function contributionRows(value: object): object[] {
+        return (value as { rows?: object[] }).rows ?? []
+    }
+
+    function contributionRowCount(value: object): number {
+        return contributionRows(value).length
+    }
+
+    function contributionMaximum(value: object): number {
+        let maximum = 0
+        for (const row of contributionRows(value)) {
+            const magnitude = Number((row as { absoluteValue?: number }).absoluteValue ?? 0)
+            if (Number.isFinite(magnitude) && magnitude > maximum) maximum = magnitude
+            }
+        return maximum
+    }
+
+    function contributionBarWidth(value: number, maximum: number): number {
+        if (!Number.isFinite(value) || maximum <= 0) return 0
+        return 268 * Math.abs(value) / maximum
+    }
+
+    function contributionBridgeHeight(value: object): number {
+        const rows = contributionRowCount(value)
+        return (rows == 0 ? 168 : 142) + rows * 42
+    }
+
+    function contributionActiveY(value: object): number {
+        const rows = contributionRowCount(value)
+        return (rows == 0 ? 132 : 106) + rows * 42
+    }
+    }
+
+
+class ContributionRow extends Control [ width = { parent.width }, height = 38,
+    cornerRadius = 7, cursor = "pointer",
+
+    rowId: string = { :id },
+    rowLabel: string = { :label },
+    contributionValue: number = { :value as number },
+    contributionFormatted: string = { :formatted as string },
+    maximum: number = { contributionMaximum(app.model.contributionData.value) },
+    magnitudeWidth: number = { contributionBarWidth(contributionValue, maximum) },
+    positive: boolean = { contributionValue >= 0 },
+    selected: boolean = { app.selectedContributionFactorId == rowId },
+
+    fill = { selected ? 0x183C50 : down ? 0x182E38 : hot ? 0x152A33 : 0x132129 },
+    stroke = { stroke(selected ? 1.5 : 1,
+        selected ? 0x75D6FF : positive ? 0x3D8F72 : 0xA85B65) },
+
+    label: Text [ x = 12, y = 5, width = 166, fontSize = 11,
+        fontWeight = semibold, textColor = { selected ? 0xF5FBFE : 0xDDE6EA },
+        text = { rowLabel } ],
+    value: Text [ x = 178, y = 5, width = { parent.width - 190 }, fontSize = 11,
+        fontWeight = semibold, textAlign = right,
+        textColor = { positive ? 0x79C99E : 0xE58C8C }, text = { contributionFormatted } ],
+    track: View [ x = 12, y = 27, width = { parent.width - 24 }, height = 4,
+        cornerRadius = 2, fill = 0x24343B ],
+    magnitude: View [ x = 12, y = 27, width = { magnitudeWidth }, height = 4,
+        cornerRadius = 2, fill = { positive ? 0x4CA77E : 0xC46872 } ],
+
+    press() { app.selectContribution(rowId) },
+    onClick() { if (!disabled) press() }
+    ]
+
+
+class DependencyRow extends View [ width = { parent.width }, height = 48,
+
+    dot: View [ x = 0, y = 17, width = 8, height = 8, cornerRadius = 4, fill = #75D6FF ],
+    label: Text [ x = 18, y = 7, width = { parent.width - 122 }, fontSize = 12,
+        fontWeight = medium, textColor = #DDE6EA, text = :label ],
+    role: Text [ x = 18, y = 27, fontSize = 10, textColor = #71838C,
+        textTransform = uppercase, text = :kind ],
+    value: Text [ x = { parent.width - 96 }, y = 13, width = 96, fontSize = 13,
+        fontWeight = semibold, textAlign = right, textColor = #F2C46D, text = :formatted ]
+    ]
