@@ -751,6 +751,12 @@ app's constraints move to tracking — exactly the ones that were stale before.
 
 ## L-28 — Dataset persistence, IndexedDB-shaped · design · GH #23
 
+Design-only proposal (2026-09-10): [Dataset persistence](dataset-persistence.md)
+specifies a Dataset-owned persistence policy, reactive recovery/save lifecycle,
+acknowledged writes, host isolation, and Causal Desk integration. It is not a shipped
+API. Document persistence is the proposed first milestone; indexed collections
+remain a separate part of this open item.
+
 The offline-notes request (ultrasaurus, 2026-08-19): a persisted Dataset should serve
 its last-known value at boot, independent of any fetch resolving. The issue's four
 design questions are the right ones and the data round starts from them: (1) single
