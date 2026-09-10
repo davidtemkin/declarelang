@@ -755,7 +755,7 @@ Browser document implementation is on `feat/dataset-persistence` (2026-09-10), w
 real DOM/canvas cold-page recovery, acknowledgement, erase and cross-tab tests.
 [Dataset persistence](dataset-persistence.md) specifies the Dataset-owned policy,
 reactive recovery/save lifecycle, acknowledged writes and host isolation. The platform
-gate remains pending the complete [release evidence](dataset-persistence-evidence.md), with an explicit
+gate passed on that branch; see the [release evidence](dataset-persistence-evidence.md), the explicit
 [host contract](dataset-persistence-host.md) and
 [review, acceptance traces, and dependency order](dataset-persistence-review.md).
 Execution is tracked in [PP-00–PP-05 implementation tickets](dataset-persistence-tickets.md).

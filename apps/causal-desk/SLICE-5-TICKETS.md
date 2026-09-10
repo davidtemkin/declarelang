@@ -27,9 +27,10 @@ complete only when the Declare repository exposes and documents:
 
 2026-09-10: that interface is implemented on `feat/dataset-persistence`; see the
 [author guide](../../docs/guide/23-saving-data.md) and
-[verified cases / release blockers](../../docs/system-design/dataset-persistence-evidence.md).
-The external gate remains **open**, because repository unit/visual gates have not
-all passed. This note does not authorize CD-S5 implementation or an app storage shim.
+[verified cases / gate results](../../docs/system-design/dataset-persistence-evidence.md).
+The external gate is **complete in this checkout**: all source, visual and derived
+gates passed. This is not a claim that the branch is merged or that CD-S5 is implemented.
+The app tickets are unblocked; no app storage shim is authorized or needed.
 
 The platform work must include compiler/runtime documentation and its own conformance tests. An
 app agent must read the landed API and use it exactly; it must not infer syntax from this plan.
@@ -75,8 +76,8 @@ coverage.
 
 ## CD-S5-00 — Define the saved-record contract
 
-Status: complete on `feat/causal-desk`. The remaining app tickets still wait on
-`PLAT-PERSIST-01`.
+Status: complete on `feat/causal-desk`. `PLAT-PERSIST-01` is now verified on
+`feat/dataset-persistence`; the remaining app tickets can proceed in that checkout.
 
 ### Outcome
 

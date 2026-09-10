@@ -5,8 +5,9 @@ generated outputs remain local per CONTRIBUTING. Unrelated pnpm files are untouc
 
 ## Decision
 
-**Implementation verified at the feature boundary; PP-05 and PLAT-PERSIST-01 remain
-blocked on repository unit/visual gates.** No baseline has been blessed.
+**PP-00–PP-05 and PLAT-PERSIST-01 are complete on `feat/dataset-persistence`.**
+Source, visual and derived gates all pass. The reviewed baseline updates are
+explained below; no renderer behavior or comparison tolerance was weakened.
 No Causal Desk behavior was changed. Native providers, indexed collections, sync,
 retention guarantees and app-level migrations remain out of scope.
 
@@ -43,29 +44,44 @@ retention guarantees and app-level migrations remain out of scope.
 - Calendar production weight measured 88,160 bytes total gzip (86.1 KiB). Raised
   the accounting ceiling from 86 to 87 KiB for the general mutation/settle seams;
   a new esbuild-metafile assertion proves Calendar ships no persistence module.
-- `npm test`: completed 65 suites in 7.6 minutes; two nonzero exits, for the stale
-  error-code catalog and production test harness assumptions. Derive fixed the
-  catalog; production tests now exercise keyboard UI instead of the debug-only
-  inspection API. Both reruns pass. Final source rerun: all eight selected suites
-  pass (scaffold, syntax, production compilation, contract, runtime, lifecycle,
-  queue and error codes). Final browser rerun: 4 integration + 2 production pass.
-- `npm run derive`: passed. `npm run test:derived`: all five suites pass, including
+- Final `npm test`: all 65 suites pass (6.4 minutes), including 468 unit cases,
+  four real-browser integration cases and two production cold-boot cases.
+  The earlier error-code catalog and production harness failures remain fixed:
+  derive supplies the catalog; production tests drive keyboard UI rather than
+  relying on the debug-only inspection API.
+- Final `npm run derive`: passed. `npm run test:derived`: all five suites pass (1.0 minute), including
   129 documentation checks, shared/nullable type projection, actual generated error
   codes, guide/skill routing, and reference freshness. `assemble --check` passes.
-- `npm run test:ladder`: Causal Desk passes; seven existing app entries fail R6
-  (Calendar, Controls, Desktop, Docs, Sampler, Tracker, Viewer). The eval-reference
-  half was short-circuited by that failure; its separate `--ladder` run passes all
-  four references through R5. No app baseline was updated.
-- The unit output also prints a real indentation failure after `summarize("unit")`
-  at line 7560, so the process exit code misses it. The expectation at line 7916
-  conflicts with unchanged `measure.ts`. This is explicitly counted as a failed
-  gate here; a green exit code is not accepted as evidence that it passed.
-- An isolated checkout of pre-integration `b7631bd8` reproduces Calendar's visual
-  failure. Its narrow and wide `.actual.png` files have identical SHA-256 hashes
-  to this branch's actuals. This confirms those differences predate integration;
-  the other app differences still require individual review.
+- Final `npm run test:ladder`: all eight apps pass their declared R5/R6 checks;
+  all four eval references pass through R5. Causal Desk baselines are unchanged.
+- `6c429994` repairs the unit gate: moving `summarize("unit")` after every case
+  first made the unchanged failing expectation exit 1. Correcting that stale
+  expectation then produced 468 passed / 0 failed. `wrapLines` intentionally
+  counts indentation since `ee0da33d`; no runtime behavior was changed.
 - The fixture works with browser reduced motion enabled; no claim is made that
   the runtime exposes an `app.env.reducedMotion` fact (it currently does not).
+
+## Visual baseline review — 2026-09-10
+
+The pre-persistence checkout `cd9e4353`, force-built with the same dependencies
+and Chrome, reproduced all seven failing app entries. Representative current and
+control captures were byte-identical; Tracker also matched outside its existing
+performance-readout masks. The new guide entry accounts for Docs' feature-only
+differences, confined to the navigation column below y=649.
+
+Historical-rule probes ran only in that disposable checkout:
+
+| Apps | Cause and evidence |
+|---|---|
+| Calendar, Controls, Viewer | Restoring pre-`2d58d7d4` drawing density/CSS sizing makes all 6/3/3 old states pass. The current renderer intentionally rasterizes scaled drawings crisply at rest. |
+| Docs | The same raster probe makes both pre-feature guide states pass. The current guide additionally includes the intentional “23. Saving data” entry. |
+| Sampler, Tracker | Raster rollback alone leaves text differences. Also restoring pre-`5427654a` optical Text centering makes all 11/4 old states pass. Current raw Text deliberately box-centers; TextLabel is the optical alternative. |
+| Desktop | Restoring optical Text centering, while retaining its already-updated raster rules, leaves only 294 pixels at y=767, maximum channel difference 6. The remaining wallpaper-edge drift also predates persistence. Window layout and content were visually reviewed. |
+
+Refreshed 32 baselines using each reviewed app's `--states ... --bless` command,
+then ran the complete comparison ladder without `--bless`. No tolerance, mask,
+runtime implementation or state route was relaxed. The probes were not copied
+to the feature branch. The audited disposable checkout was removed afterward.
 
 ## Trace ledger
 
@@ -100,15 +116,17 @@ the authority for trace numbering; the review's trace table is.
 | P22 | Browser cold-page and production cold-page tests; IndexedDB scope cleanup sentinel/conformance |
 | P23–P26 | Not claimed: Causal Desk integration tickets remain separate |
 
-## Remaining release work
+## Handoff
 
-1. Correct the stale text-wrap expectation and move the unit summary after its
-   trailing tests, with approval; rendering code need not change for that mismatch.
-2. Review the existing-app visual failures individually. Approve baseline updates
-   only after identifying their causes; no blanket blessing or relaxed tolerance.
-3. Rerun the full source and visual gates, then mark PLAT-PERSIST-01 complete.
+1. Land the source branch using the repository's derive-on-current-main workflow.
+   No push, merge or deployment is claimed by this evidence.
+2. Causal Desk CD-S5-01 and later can now use the verified platform API in this
+   checkout. Follow the existing ticket DAG; no app integration was implemented here.
+3. Keep L-28 open for native adapters and indexed collections, which this browser
+   document-persistence implementation does not claim to complete.
 
-Logs from this run are under `/private/tmp/declare-persistence-*.log`; screenshots
+Feature logs are under `/private/tmp/declare-persistence-*.log`; final gate and
+historical-rule probe logs are under `/private/tmp/declare-gates-*.log`. Screenshots
 are the verifier's ignored `.actual.png` outputs beside each app's baselines.
 Generated artifacts were audited and removed from staging for the source-only
 feature commit; they remain on disk for inspection. The disposable baseline

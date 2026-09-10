@@ -39,8 +39,8 @@ fallbacks. No platform gate is complete until PP-05 passes.
 | PP-01 | PP-00 | complete | `b7631bd8`; PP-01 execution evidence below |
 | PP-02 | PP-00 | complete | `3622aaad`; PP-02 execution evidence below |
 | PP-03 | PP-00 | complete | `d4fcf166`; PP-03 execution evidence below |
-| PP-04 | PP-01, PP-02 | implemented; regression gate open | `b1093b17`; PP-04 evidence below |
-| PP-05 | PP-03, PP-04 | implemented; release gates blocked | [Execution evidence](dataset-persistence-evidence.md) |
+| PP-04 | PP-01, PP-02 | complete | `b1093b17`; [final gate evidence](dataset-persistence-evidence.md) |
+| PP-05 | PP-03, PP-04 | complete | `9f20db46`; [final gate evidence](dataset-persistence-evidence.md) |
 
 ```text
 PP-00 ──┬── PP-01 ──┐
@@ -385,11 +385,10 @@ and legal fixture/commands ready for PP-05's real browser provider.
 - Forced build passed; runtime (12), syntax (6), engine lifecycle (14), and queue
   (13) cases pass. Databinding, dataschema, datasource-failure, and materialization
   regressions pass. Fixture format/check/typecheck and verify R1–R4 pass.
-- Corrected a DataSource diagnostic regression. The unit suite additionally has
-  an unrelated existing failure at `unit.test.mjs:7916`: it expects wrapLines to
-  discard indentation, while unchanged `measure.ts` preserves it. Reproduced with
-  only `measure.js` imported, no persistence runtime. This keeps the broad gate open;
-  no text behavior or baseline was changed to hide it.
+- Corrected a DataSource diagnostic regression. The unrelated stale wrapLines
+  expectation was subsequently repaired in `6c429994`, with the unit summary moved
+  after every case so trailing failures cannot produce a green exit. All 468 unit
+  cases and all 65 source suites now pass; see the final gate evidence.
 - Runtime tests found and prevent delayed boot success clearing a failed-settle
   error. Result delivery cannot be dropped by a later failed afterSettle batch.
 
@@ -452,9 +451,10 @@ browser/version, author documentation links, and verified external gate for CD-S
 
 ## Coverage ledger and release decision
 
-Exact executable cases, results and remaining release blockers are in the
+Exact executable cases, results and baseline-review evidence are in the
 [execution evidence](dataset-persistence-evidence.md#trace-ledger). The ownership
-table below remains the routing map, not a claim that release gates have passed.
+table below is the routing map. All browser release gates passed on 2026-09-10;
+PLAT-PERSIST-01 is complete in this feature checkout, not yet claimed merged/deployed.
 
 | Traces | Primary owner | Integrated confirmation |
 |---|---|---|
