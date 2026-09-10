@@ -57,6 +57,16 @@ export interface Cursor {
 // can never collide) and weak: cells live exactly as long as their data.
 const CELLS = new WeakMap<object, Map<string, Cell>>();
 
+// Optional accepted-write observers. Ordinary Datasets allocate no observer state.
+const MUTATIONS = new WeakMap<Dataset, Set<() => void>>();
+export function observeDatasetMutation(data: Dataset, observer: () => void): () => void {
+  let observers = MUTATIONS.get(data);
+  if (!observers) MUTATIONS.set(data, observers = new Set());
+  observers.add(observer);
+  return () => { observers!.delete(observer); if (!observers!.size) MUTATIONS.delete(data); };
+}
+function acceptedMutation(data: Dataset): void { for (const observer of MUTATIONS.get(data) ?? []) observer(); }
+
 // container → its current location. Written when a dataset adopts a value
 // (arrival, embedded parse, an inserted subtree); healed lazily by toCursor
 // when structure has shifted underneath it. This is what lets the doc's
@@ -283,6 +293,7 @@ export class Dataset extends Node {
     this.wakeChain(chain);
     if (key !== at) wakeAll(container); // an append is structural: length/order readers wake
     wakeTree(old);
+    acceptedMutation(this);
   }
 
   /** Insert `v` at `index` of the array at `path`. */
@@ -297,15 +308,18 @@ export class Dataset extends Node {
     tagTree(this, v, [...segs, String(index)]);
     wakeAll(arr);
     this.wakeChain(chain);
+    acceptedMutation(this);
   }
 
   /** Remove (and return) the element at `index` of the array at `path`. */
   removeAt(path: string | readonly (string | number)[], index: number): unknown {
     const { arr, chain } = this.array(path);
-    const [removed] = arr.splice(index, 1);
+    const removedItems = arr.splice(index, 1);
+    const [removed] = removedItems;
     wakeAll(arr);
     this.wakeChain(chain);
     wakeTree(removed);
+    if (removedItems.length) acceptedMutation(this);
     return removed;
   }
 
@@ -321,6 +335,7 @@ export class Dataset extends Node {
     arr.splice(to, 0, item);
     wakeAll(arr);
     this.wakeChain(chain);
+    acceptedMutation(this);
   }
 
   /** The ShapeField whose slot `segs` (root-relative) addresses under this
@@ -422,6 +437,7 @@ defineAttributes(Dataset, {
       const raw = unwrapValue(v);
       if (raw !== v) { setBound(d, "value", raw); return; }
       tagTree(d, v, []);
+      acceptedMutation(d);
     },
     // a TRACKED reader gets the tracking view (see trackedView above);
     // untracked readers — handlers, methods — keep the raw tree

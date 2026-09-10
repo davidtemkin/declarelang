@@ -882,7 +882,8 @@ function checkDataNode(el: Element, schema: ComponentSchema, errors: DeclareErro
   }
   for (const c of el.children) {
     if (c.tag !== "Persistence") errors.push(new DeclareError(
-      "a Dataset permits only one named Persistence child — its other structure is data", c.pos));
+      el.tag === "Dataset" ? "a Dataset permits only one named Persistence child — its other structure is data" :
+        "a data node has no children — its structure is its data", c.pos));
   }
   const policies = el.children.filter(c => c.tag === "Persistence");
   if (policies.length > 1 || (policies.length && (el.tag !== "Dataset" || el.raw === undefined || el.attrs.some(a => a.name === "contents"))))

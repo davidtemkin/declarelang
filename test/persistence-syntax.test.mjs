@@ -17,7 +17,9 @@ await test("P01 legal typed and untyped policies construct one named nonvisual c
     assert.ok(app.db.disk instanceof Persistence); assert.equal(app.db.disk.parent, app.db);
     assert.equal(app.db.children.length, 1); assert.equal(app.db.disk.classroot, app);
     assert.equal(app.db.disk.key, "note"); assert.equal(app.db.disk.saved, false);
-    assert.throws(() => app.db.disk.commit(), /not bound/, "shell cannot pretend to save");
+    assert.equal(typeof app.db.disk.commit(), "number");
+    assert.equal(app.db.disk.saved, false, "accepting a command is not an acknowledgement");
+    app.discard();
   }
 });
 await test("ordinary Dataset and schema checks remain unchanged", async () => {
@@ -69,5 +71,6 @@ await test("handler scope and numeric commands use the injected engine seam", as
   assert.equal(app.db.disk.commit(), 17);
   app.db.disk.onResult({ requestId: 3 }); assert.equal(app.got, 3);
   assert.throws(() => { app.db.disk.saved = true; }, /read.?only/i);
+  app.discard();
 });
 summarize("persistence-syntax");

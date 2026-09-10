@@ -228,7 +228,9 @@ export class DocumentPersistence implements PersistenceEngine {
     this.s.exists = receipt.kind !== "absent";
     if (receipt.kind === "absent") {
       this.clearRecovery(); this.s.savedRevision = -1; this.s.savedAt = null;
-      if (this.configured) { this.clearError(); this.halted = false; }
+      if (this.configured && (!this.s.error || this.s.error.operation === "load")) {
+        this.clearError(); this.halted = false;
+      }
       this.scheduleAuto(); this.result(job); return;
     }
     try {
@@ -236,7 +238,7 @@ export class DocumentPersistence implements PersistenceEngine {
       const value = decodeSnapshot(receipt.json); this.binding.validate(value);
       this.s.candidate = freezeCandidate(value); this.s.candidateSavedAt = receipt.savedAt;
       this.s.recovery = "available";
-      const adopt = !job.manualRead && this.policy.restoreOn === "load" && !this.localIntent && this.configured;
+      const adopt = !job.manualRead && this.policy.restoreOn === "load" && !this.localIntent && this.configured && !this.halted;
       if (adopt) this.restore();
       else for (const queued of this.queue.clear()) this.result(queued, persistenceError("recovery_pending", "commit"));
       this.result(job, null, adopt ? this.s.revision : null, receipt.revision, receipt.savedAt);

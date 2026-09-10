@@ -1,6 +1,8 @@
 import { Node } from "../node.js";
 import { defineAttributes, setBound } from "../attributes.js";
 import { DeclareError } from "../errors.js";
+import { preparePolicy } from "./integration.js";
+import type { PersistenceHostOptions } from "./context.js";
 import type { PersistenceEngine, PersistenceError, PersistencePolicy, PersistenceState,
   ReadonlyJson } from "./types.js";
 
@@ -13,6 +15,8 @@ export function publishPersistence(node: Persistence, state: PersistenceState): 
 
 /** A Dataset's storage policy. Runtime binding owns all scheduling and owner lifetime. */
 export class Persistence extends Node {
+  /** @internal Runtime construction hook, not an authored command. */
+  _preparePersistence(options: PersistenceHostOptions): (() => void) | null { return preparePolicy(this, options); }
   declare key: string;
   declare restoreOn: PersistencePolicy["restoreOn"];
   declare save: PersistencePolicy["save"];
@@ -47,8 +51,12 @@ export class Persistence extends Node {
   reload(): number { return this.engine().reload(); }
 }
 defineAttributes(Persistence, {
-  key: { def: "" }, restoreOn: { def: "load" }, save: { def: "auto" },
-  delay: { def: 250 }, maxDelay: { def: 1000 }, conflict: { def: "fail" },
+  key: { def: "", push: n => engines.get(n)?.configurationFailed() },
+  restoreOn: { def: "load", push: n => engines.get(n)?.configurationFailed() },
+  save: { def: "auto", push: n => engines.get(n)?.configurationFailed() },
+  delay: { def: 250, push: n => engines.get(n)?.configurationFailed() },
+  maxDelay: { def: 1000, push: n => engines.get(n)?.configurationFailed() },
+  conflict: { def: "fail", push: n => engines.get(n)?.configurationFailed() },
   loadStatus: { def: "loading", readOnly: true }, writeStatus: { def: "idle", readOnly: true },
   recovery: { def: "none", readOnly: true }, candidate: { def: null, readOnly: true },
   candidateSavedAt: { def: null, readOnly: true }, exists: { def: false, readOnly: true },

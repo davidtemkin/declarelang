@@ -36,10 +36,10 @@ fallbacks. No platform gate is complete until PP-05 passes.
 | Ticket | Depends on | Status | Commit / evidence |
 |---|---|---|---|
 | PP-00 | — | complete | `68eb9e65`; PP-00 execution evidence below |
-| PP-01 | PP-00 | complete | PP-01 execution evidence below |
+| PP-01 | PP-00 | complete | `b7631bd8`; PP-01 execution evidence below |
 | PP-02 | PP-00 | complete | `3622aaad`; PP-02 execution evidence below |
 | PP-03 | PP-00 | complete | `d4fcf166`; PP-03 execution evidence below |
-| PP-04 | PP-01, PP-02 | planned | — |
+| PP-04 | PP-01, PP-02 | implemented; regression gate open | PP-04 evidence below |
 | PP-05 | PP-03, PP-04 | planned | — |
 
 ```text
@@ -376,6 +376,22 @@ operations, including initialization, successful settle, failed settle, and disc
 and legal fixture/commands ready for PP-05's real browser provider.
 
 **Commit:** `feat(persistence): bind Dataset saves to settled node lifetime`
+
+### Execution evidence — 2026-09-10
+
+- Real Dataset root/leaf/insert/remove/move and accepted editor writes now feed
+  post-settle snapshots. Policy configuration latches before authored init; node
+  retirement removes observers and suppresses old events without canceling issued I/O.
+- Forced build passed; runtime (12), syntax (6), engine lifecycle (14), and queue
+  (13) cases pass. Databinding, dataschema, datasource-failure, and materialization
+  regressions pass. Fixture format/check/typecheck and verify R1–R4 pass.
+- Corrected a DataSource diagnostic regression. The unit suite additionally has
+  an unrelated existing failure at `unit.test.mjs:7916`: it expects wrapLines to
+  discard indentation, while unchanged `measure.ts` preserves it. Reproduced with
+  only `measure.js` imported, no persistence runtime. This keeps the broad gate open;
+  no text behavior or baseline was changed to hide it.
+- Runtime tests found and prevent delayed boot success clearing a failed-settle
+  error. Result delivery cannot be dropped by a later failed afterSettle batch.
 
 ## PP-05 — Prove browser conformance and publish author guidance
 

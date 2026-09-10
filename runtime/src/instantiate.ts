@@ -48,12 +48,13 @@
 import type { Element, Attr, Method, Program } from "./parser.js";
 import { DeclareError } from "./errors.js";
 import { View, fireEvent } from "./view.js";
-import { Node } from "./node.js";
+import { Node, onDiscard } from "./node.js";
 import { Layout } from "./layout.js";
 import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
 import { State, type Override } from "./state.js";
-import { Constraint } from "./reactive.js";
+import { Constraint, settle, isSettling, onSettleCompletion } from "./reactive.js";
+import type { PersistenceHostOptions } from "./persistence/context.js";
 import { attrType, descendsFrom, type ComponentSchema } from "./schema.js";
 // The validators (check.js) and the schema half (program-schema.js) import
 // separately ON PURPOSE: a precompiled program was fully checked at build
@@ -131,6 +132,7 @@ interface Ctx {
    *  while the Inspector evaluates a freshly-parsed element (createElementIn),
    *  whose tree nothing has checked. */
   trusted: boolean;
+  persistence?: PersistenceHostOptions;
 }
 
 /** Route one attribute: the trusted fast path reads the answer off the value's
@@ -174,7 +176,7 @@ type Pending =
 
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
-export function instantiate(input: Element | Program): View {
+export function instantiate(input: Element | Program, persistence?: PersistenceHostOptions): View {
   const program: Program =
     "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
   // The compiler stamps `trusted` on a program it fully checked (declarec —
@@ -213,7 +215,7 @@ export function instantiate(input: Element | Program): View {
     Object.assign(scriptScope, evalScript(program.scripts.map((s) => s.src).join("\n;\n")));
   }
   CURRENT_SCRIPTS = scriptScope;
-  return withScriptScope(scriptScope, () => buildTree(program, trusted));
+  return withScriptScope(scriptScope, () => buildTree(program, trusted, persistence));
 }
 
 /** The last program's script scope — replicated instances compile their
@@ -224,7 +226,7 @@ export function instantiate(input: Element | Program): View {
  *  bound it; the first materialized instance threw ReferenceError.) */
 let CURRENT_SCRIPTS: Record<string, unknown> = {};
 
-function buildTree(program: Program, trusted: boolean): View {
+function buildTree(program: Program, trusted: boolean, persistence?: PersistenceHostOptions): View {
   const programShapes = shapeNames(program);
   const { infos, schemas, errors } = programSchemas(program.classes, programShapes);
   if (errors.length > 0) throw errors[0];
@@ -261,6 +263,7 @@ function buildTree(program: Program, trusted: boolean): View {
     pending: [],
     expanding: new Set(),
     trusted,
+    persistence,
   };
   // The `style` bundles a `<span class>` inside RichText resolves against (the
   // by-name cascade's global tier) — module-scoped for the running program.
@@ -288,7 +291,7 @@ function buildTree(program: Program, trusted: boolean): View {
   // children — the LFC's oninit ordering, kept as intent). Firing here, not
   // at attach, keeps init a *model* fact: a built-but-unrendered tree is
   // initialized, and the model stays Node-importable.
-  initTree(root);
+  initializeTree(root, ctx);
   return root;
 }
 
@@ -321,6 +324,26 @@ function installPending(pending: readonly Pending[], ctx: Ctx): void {
  *  view arrived (the initial build, or a later replication reconcile whose
  *  own initTree ran before the root's walk reached it). */
 const INITED = new WeakSet<Node>();
+
+/** Only persistent subtrees need the pre-init settle/latch phase. */
+function initializeTree(root: View, ctx: Ctx): void {
+  const latches: Array<() => void> = [];
+  const visit = (node: Node): void => {
+    if (SOURCES.Persistence && node instanceof SOURCES.Persistence) {
+      const latch = (node as Node & { _preparePersistence(o: PersistenceHostOptions): (() => void) | null })
+        ._preparePersistence(ctx.persistence ?? {});
+      if (latch) latches.push(latch);
+    }
+    for (const child of node.children) visit(child);
+  };
+  visit(root);
+  if (!latches.length) { initTree(root); return; }
+  const initialize = () => { for (const latch of latches) latch(); initTree(root); };
+  if (isSettling()) {
+    const stop = onSettleCompletion(success => { stop(); if (success) initialize(); });
+    onDiscard(root, stop);
+  } else { settle(); initialize(); }
+}
 
 /** Mark a whole subtree as already-inited WITHOUT firing anything — the
  *  membership-anchored lifecycle (materialization.md §2, RULED 2026-07-30):
@@ -1507,7 +1530,7 @@ function materializer(ctx: Ctx) {
         // construct does
         finish: () => {
           withScriptScope(CURRENT_SCRIPTS, () => installPending(pending, ctx));
-          initTree(node);
+          initializeTree(node, ctx);
         },
         // Membership-anchored init (the D5 ruling): the reconciler calls this
         // before finish when the record's membership already fired its init —

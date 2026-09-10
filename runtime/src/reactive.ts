@@ -291,6 +291,13 @@ function enqueue(c: Constraint): void {
 
 /** Steps registered by `afterSettle`, drained at the close of the settle. */
 const after: Array<() => void> = [];
+// Internal successful/failed completion seam: unlike afterSettle, these observers
+// see the outcome after every wave drains and after failed queues are abandoned.
+const completions = new Set<(success: boolean) => void>();
+export function onSettleCompletion(observer: (success: boolean) => void): () => void {
+  completions.add(observer); return () => { completions.delete(observer); };
+}
+export function isSettling(): boolean { return flushing; }
 
 /** The outer-loop guard — AFTER_LIMIT passes means a step (transitively)
  *  re-registers itself every pass, the afterSettle spelling of a cycle. */
@@ -324,6 +331,7 @@ export function settle(): void {
   scheduled = false;
   if (flushing) return;
   flushing = true;
+  let success = false;
   try {
     for (let passes = 0; ; ) {
       stamp++;
@@ -341,6 +349,7 @@ export function settle(): void {
       const batch = after.splice(0);
       for (const step of batch) step();
     }
+    success = true;
   } finally {
     flushing = false;
     for (const phase of [0, 1] as const) {
@@ -353,6 +362,7 @@ export function settle(): void {
     // Steps too: a throw (a cycle, a step that threw) must not leak the
     // remainder into whatever unrelated settle comes next.
     after.length = 0;
+    for (const observer of [...completions]) observer(success);
   }
 }
 
