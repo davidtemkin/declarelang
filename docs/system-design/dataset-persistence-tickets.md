@@ -35,10 +35,10 @@ fallbacks. No platform gate is complete until PP-05 passes.
 
 | Ticket | Depends on | Status | Commit / evidence |
 |---|---|---|---|
-| PP-00 | — | complete | PP-00 execution evidence below |
+| PP-00 | — | complete | `68eb9e65`; PP-00 execution evidence below |
 | PP-01 | PP-00 | planned | — |
 | PP-02 | PP-00 | planned | — |
-| PP-03 | PP-00 | planned | — |
+| PP-03 | PP-00 | complete | PP-03 execution evidence below |
 | PP-04 | PP-01, PP-02 | planned | — |
 | PP-05 | PP-03, PP-04 | planned | — |
 
@@ -276,6 +276,22 @@ using real IndexedDB. It can be tested before the Declare lifecycle is wired.
 and real-browser conformance results. PP-05 consumes it without reimplementing storage.
 
 **Commit:** `feat(persistence): add transactional IndexedDB provider`
+
+### Execution evidence — 2026-09-10
+
+- `IndexedDBProvider` in `runtime/src/persistence/indexeddb.ts` implements the
+  shared provider, with strict/default diagnostics, copied operation arguments,
+  open deadline/late cleanup, and terminal-transaction receipts. Browser boot
+  installation still belongs to PP-05; no authored Dataset support is claimed.
+- Passed forced TypeScript build, shared contract tests, and 11 real-browser
+  adapter cases on Chrome/152.0.7977.83. The local-server/browser test required
+  sandbox escalation. Scope cleanup preserves sentinel data in another namespace.
+- Browser suite verifies concurrent tabs, abort-after-put, cold page recreation,
+  denied/quota injection, both durability paths, stalled open/late close, and
+  versionchange close/reopen including an active write. Deadline cases use a
+  controlled opener/clock; transaction-stall lifecycle remains PP-02/PP-05.
+- Targeted command: `node test/persistence-indexeddb.test.mjs`; reusable browser
+  driver and scoped fixture operations are in `test/helpers/persistence-browser.mjs`.
 
 ## PP-04 — Wire persistence into Dataset and reactive lifetime
 
