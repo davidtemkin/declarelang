@@ -12,7 +12,11 @@ export const ready = async a => {
   await a.page.bringToFront();
   await a.page.waitForFunction(() => __app.draft.savedRecord.disk.loadStatus !== 'loading');
 };
-export const saved = a => a.page.waitForFunction(() => __app.draft.saved);
+export const saved = async a => {
+  // The verifier virtualizes debounce timers; wall-clock polling cannot fire them.
+  await a.drive.wait(1000);
+  await a.page.waitForFunction(() => __app.draft.saved);
+};
 export async function click(a, path) {
   await a.page.bringToFront();
   await a.page.evaluate(async path => {

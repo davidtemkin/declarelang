@@ -21,6 +21,17 @@ class CausalDraft extends Node [
         savedRecord.disk.candidate as object, app.modelDocument.value, app.scenarioDocument.value) },
     canRestore: boolean = { savedRecord.disk.recovery == "available" && (validation as SavedScenarioValidation).ok },
     canKeep: boolean = { canRestore && workingGeneration > 0 },
+    failureCode: string = { savedRecord.disk.error?.code ?? (stagingError != "" ? stagingError
+        : hasCandidate && !canRestore ? (validation as SavedScenarioValidation).code : "") },
+    failureText: string = { savedRecord.disk.error != null
+        ? savedRecord.disk.error.message + " Current-session analysis is still available."
+        : stagingError != "" ? "The Working draft cannot be saved. Correct its assumptions and try again." : "" },
+    canRetry: boolean = { savedRecord.disk.error?.retryable == true && !savedRecord.disk.pending
+        && (!hasCandidate || eraseIntent != "") },
+    hasWorkingOverrides: boolean = { Object.keys(buildSavedScenarioRecord(app.modelDocument.value,
+        app.scenarioDocument.value, app.workingScenario.value, app.workingSourceId,
+        "2000-01-01T00:00:00.000Z").overrides).length > 0 },
+    canClear: boolean = { !hasCandidate && (savedRecord.disk.exists || hasWorkingOverrides) },
     recoveryText: string = { canRestore
         ? "Saved Working scenario from " + (validation as SavedScenarioValidation).record!.savedAt
             + ". Restore it, or discard the saved copy."
@@ -33,6 +44,7 @@ class CausalDraft extends Node [
         : hasCandidate ? "recovery" : saved ? "saved"
         : savedRecord.disk.pending || workingGeneration != stagedWorkingGeneration ? "saving" : "none" },
     statusText: string = { checking ? "Checking for a local draft…"
+        : editingLocked ? "Clearing local work… waiting for confirmation"
         : savedRecord.disk.failed ? "Local saving unavailable · changes remain in this session"
         : stagingError != "" ? "Working draft is invalid · changes remain in this session"
         : hasCandidate ? "Saved Working scenario available"
@@ -66,8 +78,14 @@ class CausalDraft extends Node [
     received(r: PersistenceResult) {
         if (r.operation == "load" && r.ok) queueStage()
         if (r.operation == "erase" && r.requestId == eraseRequest && r.ok) {
+            const cleared = eraseIntent == "clear"
             eraseIntent = ""
-            if (workingGeneration > 0) {
+            if (cleared) {
+                app.resetWorkingToBase()
+                workingGeneration = 0
+                stagedWorkingGeneration = 0
+                stagingError = ""
+            } else if (workingGeneration > 0) {
                 if (stageEnvelope()) savedRecord.disk.commit()
             }
             afterSettle(this.focusScenario)
@@ -121,7 +139,26 @@ class CausalDraft extends Node [
         eraseRequest = savedRecord.disk.erase()
         },
     keepCurrentWork() {
-        if (!canKeep || savedRecord.disk.pending) return
+        if (!canKeep || savedRecord.disk.pending || eraseIntent != "") return
         if (stageEnvelope()) savedRecord.disk.replace()
+        },
+    retryStorage() {
+        if (!canRetry) return
+        if (eraseIntent != "") { eraseRequest = savedRecord.disk.retry(); return }
+        if (savedRecord.disk.error?.operation == "commit" && !stageEnvelope()) return
+        savedRecord.disk.retry()
+        },
+    requestClear() {
+        if (!canClear || checking || editingLocked || eraseIntent != "") return
+        app.draftDialog.open("Clear saved work?",
+            "Remove saved and current Working changes from this device? This cannot be undone. Bundled scenarios are kept.",
+            [({ id: "cancel", label: "Cancel", cancel: true, default: true }),
+                ({ id: "clear", label: "Clear work" })], "",
+            (id) => { if (id == "clear") this.clearSavedWork() })
+        },
+    clearSavedWork() {
+        if (savedRecord.disk.loadStatus != "loaded" || editingLocked || eraseIntent != "") return
+        eraseIntent = "clear"
+        eraseRequest = savedRecord.disk.erase()
         }
     ]

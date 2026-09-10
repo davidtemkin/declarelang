@@ -7,6 +7,7 @@ class CausalHeader extends View [ width = { app.width - app.frameGutter * 2 },
     activeLabel: Text [ x = { app.desktop ? parent.width - 724 : 0 }, y = { app.desktop ? 0 : 52 }, fontSize = 9,
         fontWeight = semibold, textColor = #61747E, text = "ACTIVE" ],
     scenarioPicker: Segmented [ x = { app.desktop ? parent.width - 724 : 0 }, y = { app.desktop ? 17 : 68 },
+        disabled = { app.draft.editingLocked },
         width = { app.desktop ? 360 : parent.width }, height = { app.desktop ? 30 : 44 },
         value = { app.activeScenarioId },
         choices = { [
@@ -21,6 +22,7 @@ class CausalHeader extends View [ width = { app.width - app.frameGutter * 2 },
     comparisonLabel: Text [ x = { app.desktop ? parent.width - 349 : 0 }, y = { app.desktop ? 0 : 118 }, fontSize = 9,
         fontWeight = semibold, textColor = #61747E, text = "COMPARE WITH" ],
     comparisonPicker: Segmented [ x = { app.desktop ? parent.width - 349 : 0 }, y = { app.desktop ? 17 : 134 },
+        disabled = { app.draft.editingLocked },
         width = { app.desktop ? 240 : parent.width }, height = { app.desktop ? 30 : 44 },
         value = { app.comparisonScenarioId },
         choices = { [
@@ -32,7 +34,7 @@ class CausalHeader extends View [ width = { app.width - app.frameGutter * 2 },
         input(v: object) { app.selectComparison("" + v) }
         ],
     reset: Button [ x = end, y = { app.desktop ? 17 : 0 }, width = 94, height = { app.desktop ? 40 : 44 }, label = "Reset all",
-        disabled = { app.activeScenarioId == "base" && app.comparisonScenarioId == "base" },
+        disabled = { app.draft.editingLocked || (app.activeScenarioId == "base" && app.comparisonScenarioId == "base") },
         onClick() { app.resetModel() }
         ]
     ]
@@ -157,6 +159,7 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
             label: Text [ y = 18, fontSize = 10, fontWeight = semibold,
                 textColor = #71838C, text = "SCENARIO ASSUMPTION" ],
             slider: Slider [ y = 43, width = { parent.width }, value = { app.selectedValue },
+                disabled = { app.draft.editingLocked },
                 min = { app.selectedMin }, max = { app.selectedMax }, step = { app.selectedStep },
                 input(v: number) { app.changeSelectedAssumption(v) }
                 ],
@@ -164,12 +167,13 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
                 text = { formatValue(app.selectedMin, app.selectedUnit) + "  —  "
                     + formatValue(app.selectedMax, app.selectedUnit) } ],
             reset: Button [ x = end, y = 70, width = 108, label = "Reset input",
-                disabled = { app.activeScenarioId != "working" },
+                disabled = { app.draft.editingLocked || app.activeScenarioId != "working" },
                 onClick() { app.resetSelectedAssumption() }
                 ],
             inputLabel: Text [ y = 100, fontSize = 10, fontWeight = semibold,
                 textColor = #71838C, text = "EDIT VALUE" ],
             input: TextInput [ x = 0, y = 117, width = { parent.width - 96 }, height = { app.mobile ? 44 : 36 },
+                visible = { !app.draft.editingLocked },
                 padding = 8, cornerRadius = 7, fill = #0D151A, stroke = { stroke(1, 0x3A505A) },
                 textColor = #F5FBFE, text = { app.assumptionDraft },
                 placeholder = { app.selectedUnit == "percent" ? "e.g. 5.5%" : "e.g. $4.25" },
@@ -177,6 +181,7 @@ class CausalInspector extends View [ x = { app.desktop ? app.width - 364 : (app.
                 onKeyDown(e: KeyEvent) { app.handleAssumptionKey(e.key) }
                 ],
             apply: Button [ x = end, y = 117, width = 88, height = { app.mobile ? 44 : 36 }, label = "Apply",
+                disabled = { app.draft.editingLocked },
                 onClick() { app.commitAssumptionDraft() }
                 ],
             unitHint: Text [ y = 156, fontSize = 9, textColor = #71838C,
