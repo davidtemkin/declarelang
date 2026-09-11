@@ -961,7 +961,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
     // ── the shared MENUS (one instance each — the record-driven door) ──────
 
-    facetMenu: Menu [ width = 190 ],
+    facetMenu: Menu [ ],
 
     openFacet(anchor: View, field: string) {
         const cur = draft.value.it != null ? (draft.value.it as any)[field] : null
@@ -980,7 +980,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         m.openFor(anchor)
         },
 
-    addLabelMenu: Menu [ width = 190 ],
+    addLabelMenu: Menu [ ],
 
     openAddLabel(anchor: View) {
         const have = draft.value.it != null ? ((draft.value.it as any).labels ?? []) : []
@@ -994,7 +994,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         m.openFor(anchor)
         },
 
-    bulkMenu: Menu [ width = 210 ],
+    bulkMenu: Menu [ ],
 
     openBulk(anchor: View) {
         const m = this.bulkMenu as any
@@ -1037,7 +1037,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         m.open(row, e)
         },
 
-    sortMenu: Menu [ width = 190 ],
+    sortMenu: Menu [ ],
 
     openSort(anchor: View) {
         const m = this.sortMenu as any
@@ -1050,7 +1050,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         m.openFor(anchor)
         },
 
-    gaugeMenu: Menu [ width = 230 ],
+    gaugeMenu: Menu [ ],
 
     openGauge(anchor: View) {
         const n = this.issuesOf().length
@@ -1064,7 +1064,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         m.openFor(anchor)
         },
 
-    appearanceMenu: Menu [ width = 190,
+    appearanceMenu: Menu [
         items = { [
             ({ id: "light", label: "Light", icon: "SunIcon", checked: app.themeMode == "light" }),
             ({ id: "auto", label: "System", icon: "AutoIcon", checked: app.themeMode == "auto" }),

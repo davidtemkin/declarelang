@@ -101,6 +101,16 @@ Read-only in practice.
 Whether any row carries an `icon` — which is what decides the icon gutter exists at
 all. **A menu with no icons has no gutter**, and the text edge moves accordingly.
 
+## hasChecks
+Whether any row *can* be checked — a record carrying `checked`, true or false — which
+is what decides the check column exists, exactly as AppKit reserves its state column
+for any item with a state image to draw (measured 2026-09-11). A menu of plain
+commands leads its text 17 in; one with a checkable row, 24.
+
+## checkW
+What the check column adds to the leading air when it exists (7 — the Mac's 25.5 vs
+17.5, measured), else 0: the amount every column to its right shifts by.
+
 ## textEdge
 The x every row's label starts at — one line for the whole menu, icons or not, and what
 a `kind` row must align its own content to.
@@ -275,14 +285,19 @@ class Menu extends View [
     opener: View = null,
     shown: boolean = false,
 
-    // THE COLUMN MODEL (ruled 2026-07-31, resolving the classic menus' own unevenness):
-    // a CHECK column is ALWAYS present — fixed leading space whether or not
-    // anything is checked or even checkable; an ICON column exists only when
-    // some row in THIS menu carries an icon (no icons → no gutter at all);
-    // and the TEXT LEFT EDGE is one line for every row, icons or not.
-    // Custom (kind) rows align their content to the same text edge.
-    //   check col: x 7..24   ·   icon col (iff hasIcons): x 24..44
-    //   text edge: 50 with icons, 24 without
+    // THE COLUMN MODEL (ruled 2026-07-31; the check column re-ruled 2026-09-11
+    // to match AppKit, measured): a CHECK column exists when some row in THIS
+    // menu CAN be checked — a record carrying `checked`, true or false — the way
+    // an NSMenuItem reserves the state column for any item with a state image to
+    // draw (a checked or mixed item, or an unchecked one given an off-state
+    // image); a menu whose rows carry no `checked` leads its text 17 in, as the
+    // Mac does (17.5 measured). An ICON column exists only when some row
+    // carries an icon (no icons → no gutter at all); and the TEXT LEFT EDGE is
+    // one line for every row, icons or not. Custom (kind) rows align their
+    // content to the same text edge.
+    //   check col (iff hasChecks): x 7..24   ·   icon col (iff hasIcons): x 24..44 (17..37 without checks)
+    //   text edge: 50 with icons, 24 without — 43 and 17 when no check column (the
+    //   column's own increment is 7: the Mac's 25.5 vs 17.5, measured)
     //
     // The 6px between the icon column and the text edge is measured, not picked
     // (2026-08-03). The Mac leaves about 7.5pt from its icon BOX to its text,
@@ -292,8 +307,10 @@ class Menu extends View [
     // tight extreme at once, uniformly, which is what read as crowding: the
     // right number to match is the Mac's AVERAGE air (≈9.5pt), not its minimum.
 
-    hasIcons: boolean = { (this.items || []).some((r) => r.icon != null) },
-    textEdge: number = { hasIcons ? 50 : 24 },
+    hasIcons:  boolean = { (this.items || []).some((r) => r.icon != null) },
+    hasChecks: boolean = { (this.items || []).some((r) => r.checked != null) },
+    checkW:    number  = { hasChecks ? 7 : 0 },
+    textEdge:  number  = { (hasIcons ? 43 : 17) + checkW },
 
     // the cascade: ONE lazily-created child Menu (app.createView — a Menu
     // cannot declare a Menu child without recursing), reused across rows;
@@ -568,7 +585,7 @@ class Menu extends View [
                 // the row's ink reaches the created icon through the provided
                 // text colour — the same channel IconHost publishes
 
-                icoHost: View [ x = 25, y = center, width = 16, height = 16,
+                icoHost: View [ x = { 18 + classroot.checkW }, y = center, width = 16, height = 16,
                     textColor = { parent.hot || classroot.activeRow == parent
                                 ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText)
                                 : theme.text },
