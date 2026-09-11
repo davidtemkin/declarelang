@@ -53,6 +53,12 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         // `-[_NSWindowTransformAnimation dealloc]`, on the CA commit AFTER the
         // close, which points nowhere near here. ARC owns this window.
         window.isReleasedWhenClosed = false
+        // A FLOOR, the browser's own: a window can be dragged no smaller than
+        // this (Safari refuses below ~336 wide; Chrome about 400). Below an
+        // APP's declared minimums the page pans, exactly as a browser page does
+        // — the App's floors are the program's business (App.bindExtent), the
+        // window's floor is the host's.
+        window.contentMinSize = NSSize(width: 400, height: 300)
         window.delegate = self
         window.contentView = view
         view.bridge = bridge
@@ -167,7 +173,14 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         // poisons its own next launch with a URL whose server is gone (a test
         // server's port is dead the moment the suite exits). Observed exactly
         // that: a gate run booted an empty window off a stale test port.
-        if !Launch.isAutomated { UserDefaults.standard.set(url, forKey: "lastURL") }
+        // ONLY A DESTINATION IS REMEMBERED. A `.stay` open is a MODE of this
+        // window — Source mode's Viewer, the error page — not a place: remember
+        // it and the next launch restores into a stale error page (or the Viewer)
+        // instead of the program (observed 2026-09-10: the error page, query and
+        // all, came back as "the last program"). `.replay` is a real destination.
+        if history != .stay && !Launch.isAutomated { UserDefaults.standard.set(url, forKey: "lastURL") }
+        // A real open resets the error page's retry budget (see showError).
+        if !url.hasPrefix(Bridge.platformBase() + "apps/error/") { errorPageRetried = false }
         window.title = "Loading…"
         // "This window is starting" — the app keeps its dock icon bouncing (and
         // holds back its activation) while any window is in this state.
@@ -323,6 +336,17 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     /// `subjectURL` holds what to come back to.
     private(set) var viewing = false
     private var subjectURL = ""
+    /// The failure message the error page is currently showing — so a second
+    /// report of the same failure is recognised as a repeat, not as the error
+    /// page itself having failed (see showError).
+    private var errorShown = ""
+    /// The program the error page was opened FOR — what its Retry re-opens.
+    /// Kept apart from currentURL, which is the error page itself while it shows.
+    private var errorSubject = ""
+    /// The error page's one-shot retry budget: a NEW failure while an error page
+    /// is up re-opens the page once; a second such failure with no successful
+    /// open between means the page itself cannot load. Reset by `open()`.
+    private var errorPageRetried = false
 
     @objc func toggleViewer() {
         if viewing {
@@ -397,21 +421,14 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         // ⚠ `commit ms` measures tree.apply() ONLY — the HOST half. Everything
         // above it here is the runtime re-laying out in JS, on this same
         // thread, and it was invisible in every resize number measured so far.
-        let t0 = CFAbsoluteTimeGetCurrent()
+        // The runtime re-lays out on ITS thread now (Bridge, THE RUNTIME
+        // THREAD): these are posts, and the resize timings that used to be
+        // taken here measured main-thread JS that no longer exists.
+        bridge.cachedScale = window.backingScaleFactor
         bridge.call("__declareResize", [Double(s.width), Double(s.height), Double(window.backingScaleFactor)])
-        let t1 = CFAbsoluteTimeGetCurrent()
         bridge.call("__declareSettle", [])
-        let t2 = CFAbsoluteTimeGetCurrent()
         bridge.pump()
-        let t3 = CFAbsoluteTimeGetCurrent()
-        if bridge.tree?.statsOn == true {
-            bridge.resizeN += 1
-            bridge.resizeMs += (t3 - t0) * 1000
-            bridge.resizeJsMs += (t1 - t0) * 1000
-            bridge.resizeSettleMs += (t2 - t1) * 1000
-            bridge.resizePumpMs += (t3 - t2) * 1000
-            bridge.resizeMaxMs = max(bridge.resizeMaxMs, (t3 - t0) * 1000)
-        }
+        if bridge.tree?.statsOn == true { bridge.resizeN += 1 }
         // The root app is already resized and flushed by the two calls above;
         // the frame request is for the observers that follow one frame behind
         // (an island's tenant re-deriving from its box's new size).
@@ -424,6 +441,7 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         // ⚠ the name mac-env.js actually defines — this called "__declareEnvChanged"
         // for a while, which bridge.call nil-guards into silence: live dark-mode
         // flips never reached the app's media queries (found 2026-08-19).
+        bridge.cachedAppearance = Bridge.appearance()
         bridge.call("__declareAppearanceChanged", []); bridge.needsFrame()
     }
 
@@ -439,11 +457,56 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     func showError(_ msg: String) {
         window.title = "Declare"
         NSLog("[error] %@", msg)
+        // THE ERROR STATE, IN THE WINDOW. One window is one Declare app, and an
+        // app is either running or in error — so the window shows the error, as
+        // a baked chrome program (apps/error), opened with `.stay` exactly as
+        // Source mode opens the Viewer: a mode of this window, not a destination.
+        // Non-modal: the titlebar stays live (‹›, Open Location…, View Source),
+        // other windows are untouched, and a harness can read the state instead
+        // of hanging on runModal — so under automation this now shows too. The
+        // page carries the diagnostics and the failed address through env; its
+        // Retry re-opens the subject, and a fixed file simply loads.
+        //
+        // ⚠ RECURSION GUARD: if the error page ITSELF cannot come up (the
+        // platform is broken, not the program), `bootFailed` fires again with the
+        // error page as currentURL — that case falls through to the native alert
+        // below, the last resort that needs no compiler.
+        let errorPage = Bridge.platformBase() + "apps/error/error.declare"
+        let showErrorPage = { (subject: String) in
+            self.errorShown = msg
+            let q = "?errors=" + Self.queryEnc(msg) + "&subject=" + Self.queryEnc(subject)
+            self.open(errorPage + q, history: .stay)
+        }
+        if !currentURL.hasPrefix(errorPage) { errorSubject = currentURL; showErrorPage(currentURL); return }
+        // An error page is already up. Three cases, told apart without guessing:
+        //  • the SAME message again — a failure can be reported twice for one
+        //    boot; a repeat of what is on screen is not news. Ignore.
+        //  • a DIFFERENT message, first time — a new failure arrived while an
+        //    error page was showing (a boot driven from the control channel, or
+        //    a launch that restored into one). Show it: re-open the page with
+        //    the new message, and spend the one retry.
+        //  • a DIFFERENT message, retry already spent — two different failures
+        //    in a row with no successful open between: the error PAGE cannot
+        //    load, the platform is broken. The native alert is the last resort.
+        // `open()` of any real program resets the budget.
+        if msg == errorShown { NSLog("[error] re-reported the error already shown — ignored"); return }
+        if !errorPageRetried {
+            errorPageRetried = true
+            NSLog("[error] a new failure while an error page was up — showing it")
+            showErrorPage(errorSubject)
+            return
+        }
+        NSLog("[error] the error page itself failed to load — falling back to the native alert")
         if Launch.isAutomated { return }
         let a = NSAlert()
         a.messageText = "Could not load this program"
-        a.informativeText = msg + "\n\nIs the Declare dev server running?\n  npm start  (or: PORT=8260 node server/index.mjs)"
+        // The hint is the actionable line and stays in the alert body; the error
+        // text itself (a compile can report dozens of diagnostics) goes into a
+        // FIXED-SIZE scrolling accessory, so a long list scrolls inside the dialog
+        // instead of stretching it off the screen.
+        a.informativeText = "Is the Declare dev server running?\n  npm start  (or: PORT=8260 node server/index.mjs)"
         a.alertStyle = .warning
+        a.accessoryView = Self.errorScroller(msg)
         a.addButton(withTitle: "Open Location…")
         a.addButton(withTitle: "Cancel")
         // Reuse THIS window: the person is retrying the thing that just failed,
@@ -451,9 +514,69 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         if a.runModal() == .alertFirstButtonReturn { owner?.promptForLocation(into: self) }
     }
 
+    /// Percent-encode a value for a URL query. STRICT — `.urlQueryAllowed` leaves
+    /// `&`, `=` and `+` alone, which would split a diagnostic containing them into
+    /// bogus extra parameters; only unreserved characters pass through.
+    private static func queryEnc(_ s: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
+    }
+
+    /// A fixed-size, scrolling text box for the error dialog's accessory — the
+    /// full diagnostic text (however long) scrolls inside a stable box rather than
+    /// growing the alert. Read-only but selectable, so the text can be copied.
+    private static func errorScroller(_ text: String) -> NSScrollView {
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 460, height: 260))
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+        scroll.autohidesScrollers = true
+        let content = scroll.contentSize
+        let tv = NSTextView(frame: NSRect(origin: .zero, size: content))
+        tv.isEditable = false
+        tv.isSelectable = true
+        tv.drawsBackground = false
+        tv.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        tv.textContainerInset = NSSize(width: 6, height: 6)
+        // The NSTextView-in-NSScrollView recipe, all of it: the text view must be
+        // ALLOWED TO GROW past the clip (maxSize) while tracking the clip's width
+        // (autoresizingMask + widthTracksTextView). Without minSize/maxSize the
+        // document never exceeds the visible 260px, so there is nothing to scroll
+        // and the wheel does nothing — the first version of this box.
+        tv.minSize = NSSize(width: 0, height: content.height)
+        tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        tv.isVerticallyResizable = true
+        tv.isHorizontallyResizable = false
+        tv.autoresizingMask = [.width]
+        tv.textContainer?.containerSize = NSSize(width: content.width, height: CGFloat.greatestFiniteMagnitude)
+        tv.textContainer?.widthTracksTextView = true
+        tv.string = text          // set LAST, so layout sizes the grown document
+        scroll.documentView = tv
+        return scroll
+    }
+
     // ── NSWindowDelegate ────────────────────────────────────────────────────
 
-    func windowDidResize(_ n: Notification) { syncSize(); view.repositionOverlays() }
+    func windowDidResize(_ n: Notification) {
+        // The runtime re-lays out on its own thread; without a wait the window
+        // shows its new size one frame before the app fills it, and everything
+        // anchored to the right or bottom edge stutters against the frame
+        // during a drag (measured 2026-09-10: 29 of 29 steps one step behind).
+        // So: post the resize, then hold the frame for the commit — bounded.
+        let before = bridge.commitCount
+        syncSize()
+        bridge.waitForCommit(after: before, timeout: 0.05)
+        view.repositionOverlays()
+        // DECLARE_DEBUG_RESIZE: the RACE a drag exposes — the view already has
+        // its new height here, the runtime's re-layout is a frame away, and
+        // any root placement that depends on the view height shows up as a
+        // non-zero offset for exactly that frame (the bob during a drag).
+        if ProgramWindow.resizeDebug, let r = bridge.tree?.root {
+            NSLog("[resize] view=%.0fx%.0f root=%.0fx%.0f rootPos=(%.0f,%.0f) live=%d", view.bounds.width, view.bounds.height,
+                  r.box.width, r.box.height, r.layer.position.x, r.layer.position.y, window.inLiveResize ? 1 : 0)
+        }
+    }
+    static let resizeDebug = ProcessInfo.processInfo.environment["DECLARE_DEBUG_RESIZE"] != nil
 
     /// The occlusion fact → the app's `pageVisible` slot (runtime schema.ts):
     /// fully covered by other windows, miniaturized, or on a sleeping display

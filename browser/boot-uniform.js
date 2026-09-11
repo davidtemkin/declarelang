@@ -300,7 +300,12 @@ async function serverCompile(mainUrl, source) {
  *   launcher?: boolean,            // entry page: a bare-path query launches that program (see launchTarget)
  * }}
  */
+// The cfg of the boot in progress — so `showError` can boot the error page
+// through this same entry with the same hosting settings (backend, location…).
+let currentCfg = null;
+
 export default async function boot(cfg) {
+  currentCfg = cfg;
   if (cfg.launcher) {
     const target = launchTarget(location.href);
     if (target !== null) { await launchTo(target); return; }
@@ -414,7 +419,7 @@ export default async function boot(cfg) {
       // The compile's own rendered report — the ONE renderer's output (code,
       // line/col, hint), identical bytes whether the CLI, the server, or the
       // in-browser worker produced it.
-      return showError(out.report || "compile failed");
+      return showError(out.report || "compile failed", mainUrl.href);
     }
     program = out.source;
     deps = out.deps;                                               // static-constraint deps ride in the ONE compile result
@@ -522,7 +527,7 @@ export default async function boot(cfg) {
     // blank page with an empty console is the one outcome this page must
     // never produce (field report 2026-08-21: all five builders saw it).
     console.error("[Declare] boot failed:", e);
-    return showError("boot failed — the program compiled but did not come up:\n\n" + ((e && e.stack) || e));
+    return showError("boot failed — the program compiled but did not come up:\n\n" + ((e && e.stack) || e), mainUrl.href);
   }
   sRender.end();
   // The stamp lands on the bridge (runtime/src/inspect.ts declares the slot;
@@ -558,8 +563,31 @@ export default async function boot(cfg) {
   return app;
 }
 
-function showError(msg) {
+// THE ERROR PAGE IS A PROGRAM. The same apps/error/error.declare the Mac host
+// opens into its window — ONE error page for both hosts — booted through this
+// very entry with the failed boot's own hosting settings, the diagnostics and
+// the failed address riding `app.env` (the mac's `?errors=&subject=` contract,
+// so `error.declare` reads both the same way). Only if IT cannot come up — the
+// platform itself is broken, not the program — does the hand-built panel below
+// render: the last resort that needs no compiler. `showingErrorPage` keeps a
+// failing error page from recursing into itself, and `panelShown` keeps the
+// nested failure and the outer fallback from stacking two panels.
+let showingErrorPage = false, panelShown = false;
+async function showError(msg, subject) {
+  console.error("[Declare] " + msg);
   const host = document.getElementById("host");
+  if (!showingErrorPage && currentCfg !== null) {
+    showingErrorPage = true;
+    try {
+      if (host) host.textContent = "";                 // a half-mounted failed boot leaves nothing behind
+      const app = await boot({ ...currentCfg, main: new URL("../apps/error/error.declare", import.meta.url).href, launcher: false });
+      if (app) { app.env = { errors: String(msg), subject: subject ?? "" }; return app; }
+    } catch (e) {
+      console.error("[Declare] the error page itself failed — falling back to the plain panel:", e);
+    }
+  }
+  if (panelShown) return;
+  panelShown = true;
   const p = document.createElement("div");
   p.setAttribute("role", "alert");
   p.style.cssText = "position:fixed;inset:0;margin:0;padding:24px;background:#0B141B;color:#E7EEF2;overflow:auto;box-sizing:border-box;font:13px/1.55 ui-monospace,Menlo,monospace";
@@ -570,5 +598,4 @@ function showError(msg) {
   m.style.whiteSpace = "pre-wrap"; m.textContent = String(msg);
   p.appendChild(h); p.appendChild(m);
   (host || document.body).appendChild(p);
-  console.error("[Declare] " + msg);
 }

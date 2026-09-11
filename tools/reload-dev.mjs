@@ -15,11 +15,13 @@
 // agent chasing a stale build for half an hour (field report 2026-08-21); now
 // it is named.
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SERVER_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "server");
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SERVER_DIR = path.join(ROOT, "server");
 
 let pidFiles = [];
 try { pidFiles = readdirSync(SERVER_DIR).filter((f) => /^\.dev-reload\..+\.pid$/.test(f)); } catch { /* no server dir */ }
@@ -58,3 +60,37 @@ if (!signaledPorts.has(port)) {
 
 if (pidFiles.length === 0) console.log("reload: no dev server running — nothing to signal");
 else if (signaled === 0) console.log("reload: no reachable dev server — nothing reloaded");
+
+// ── the Mac app, OPT-IN ─────────────────────────────────────────────────────
+//
+// A platform build makes the installed Mac app stale: it bakes the runtime, the
+// compiler, the library and the chrome programs (build-mac-app.mjs BAKE), and
+// none of those is served from the tree at run time. So with the local opt-in
+// set, bring the app up to date here — in the same breath as the dev server,
+// which is the one step every platform build already runs afterwards.
+//
+//   • `build:mac` SELF-SKIPS when nothing baked changed (a content hash over the
+//     source roots, ~100ms), so a reload that touched nothing the app bakes costs
+//     nothing. A real change rebuilds (derive → swift → package, verified).
+//   • A REBUILD is smoke-verified by ONE launch — test/mac-shell.test.mjs (~6s):
+//     the host comes up, answers the control channel, opens and closes windows.
+//     The full native render gate (`npm run test:mac`) stays a deliberate step.
+//
+// OPT-IN, PER MACHINE, NEVER COMMITTED: the flag file `.derive/mac-auto` (the
+// .derive/ dir is already untracked) or DECLARE_MAC_AUTO=1 for one run. Absent
+// the flag this block is inert — a distro user, a commit, CI never need Swift.
+const MAC_AUTO = process.env.DECLARE_MAC_AUTO === "1" || existsSync(path.join(ROOT, ".derive", "mac-auto"));
+if (MAC_AUTO) {
+  const b = spawnSync(process.execPath, [path.join(ROOT, "tools/internal/build-mac-app.mjs")],
+                      { cwd: ROOT, encoding: "utf8" });
+  process.stdout.write((b.stdout ?? "").split("\n").filter(Boolean).map((l) => "mac: " + l).join("\n") + "\n");
+  if (b.status !== 0) { process.stderr.write(b.stderr ?? ""); console.log("mac: ✗ the app did not build — see above"); process.exit(1); }
+  if (/already current/.test(b.stdout ?? "")) {
+    console.log("mac: app already current — no rebuild, no verify");
+  } else {
+    console.log("mac: app rebuilt — smoke-verifying with one launch (test/mac-shell.test.mjs)…");
+    const v = spawnSync(process.execPath, [path.join(ROOT, "test/mac-shell.test.mjs")], { cwd: ROOT, stdio: "inherit" });
+    if (v.status !== 0) { console.log("mac: ✗ smoke verify FAILED — the rebuilt app is installed but did not pass its launch check"); process.exit(1); }
+    console.log("mac: ✓ rebuilt and smoke-verified");
+  }
+}

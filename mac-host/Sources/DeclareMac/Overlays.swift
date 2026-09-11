@@ -11,6 +11,37 @@ import AppKit
 
 /// A rich-text flow: laid out by AppKit's text system, selectable natively,
 /// and reporting its flowed height back so the runtime can size the view.
+/// Bitmaps for INLINE IMAGES in rich flows (CommonMark `![alt](src)`), keyed by
+/// src: one load per URL, shared by every flow that shows it. A local source
+/// (file:, data:) decodes synchronously so the image is in its first layout; a
+/// network one loads on the shared session and calls every waiting flow back to
+/// re-lay itself out — the native twin of a DOM <img> load reflowing the page.
+enum RichImages {
+    enum State { case loaded(CGImage), failed, pending }
+    private static var done: [String: State] = [:]
+    private static var waiting: [String: [() -> Void]] = [:]
+
+    static func image(_ src: String, onLoad: @escaping () -> Void) -> State {
+        if let s = done[src] { return s }
+        if waiting[src] != nil { waiting[src]!.append(onLoad); return .pending }
+        guard let url = URL(string: src), url.scheme != nil else { done[src] = .failed; return .failed }
+        if url.isFileURL || url.scheme == "data" {
+            let s: State = Bridge.decode(try? Data(contentsOf: url)).map { .loaded($0) } ?? .failed
+            done[src] = s
+            return s
+        }
+        waiting[src] = [onLoad]
+        Bridge.net.dataTask(with: url) { data, _, _ in
+            let cg = Bridge.decode(data)
+            DispatchQueue.main.async {
+                done[src] = cg.map { .loaded($0) } ?? .failed
+                for cb in waiting.removeValue(forKey: src) ?? [] { cb() }
+            }
+        }.resume()
+        return .pending
+    }
+}
+
 final class RichOverlay: NSObject, NSTextViewDelegate {
     private let id: Int
     private unowned let view: DeclareView
@@ -220,6 +251,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         text.isSelectable = selectable
         lastJSON = json
         lastWidth = width
+        lastStyle = style
         wraps = blocks.contains { ($0["pre"] as? NSNumber)?.boolValue != true }
         // WIDTH FIRST, and on both the view and its container: a container that
         // still believes it is unbounded lays every paragraph on one line, and
@@ -270,6 +302,40 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
             let blockStart = s.length
             for r in (b["runs"] as? [[String: Any]] ?? []) {
                 if (r["br"] as? NSNumber)?.boolValue == true { s.append(NSAttributedString(string: "\u{2028}")); continue }
+                // An INLINE IMAGE run (`![alt](src)`): an NSTextAttachment sized to
+                // its natural aspect capped to the flow width, bottom on the baseline
+                // (bounds.origin.y = 0) — the DOM/canvas placement. A pending bitmap
+                // occupies nothing until it lands, whereupon RichImages calls
+                // reflowForImage; a FAILED load renders the alt text, as the other
+                // backends do.
+                if let img = r["img"] as? [String: Any], let src = img["src"] as? String {
+                    switch RichImages.image(src, onLoad: { [weak self] in self?.reflowForImage() }) {
+                    case .loaded(let cg):
+                        let natW = CGFloat(cg.width), natH = CGFloat(cg.height)
+                        let w = min(natW, max(1, width)), h = natW > 0 ? (natH * w / natW).rounded() : 0
+                        let att = NSTextAttachment()
+                        att.image = NSImage(cgImage: cg, size: NSSize(width: w, height: h))
+                        att.bounds = CGRect(x: 0, y: 0, width: w, height: h)
+                        // A fixed max line height would CLIP an image taller than the
+                        // line; lift the cap for this block so its line grows to fit
+                        // (min stays, so the block's other lines do not shrink).
+                        if para.maximumLineHeight > 0, h > para.maximumLineHeight { para.maximumLineHeight = 0 }
+                        if ProcessInfo.processInfo.environment["DECLARE_DEBUG_RICH"] != nil {
+                            NSLog("[rich-image] id=%d %.0fx%.0f (natural %dx%d) src=%@", id, w, h, cg.width, cg.height, String(src.prefix(48)))
+                        }
+                        let a = NSMutableAttributedString(attachment: att)
+                        a.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: a.length))
+                        if let href = img["href"] as? String { a.addAttribute(.link, value: href, range: NSRange(location: 0, length: a.length)) }
+                        s.append(a)
+                    case .failed:
+                        var alt: [NSAttributedString.Key: Any] = [.font: TextEngine.nsFont(TextEngine.parse(style.fontCSS)), .paragraphStyle: para]
+                        if let c = style.color { alt[.foregroundColor] = c }
+                        s.append(NSAttributedString(string: (img["alt"] as? String) ?? "", attributes: alt))
+                    case .pending:
+                        break
+                    }
+                    continue
+                }
                 guard let t = r["text"] as? String else { continue }
                 let size = (r["size"] as? NSNumber)?.doubleValue ?? Double(style.fontCSS.contains("px") ? 13 : 13)
                 let weight = r["weight"]
@@ -487,6 +553,26 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     nonisolated(unsafe) static var redrawMP = 0.0
     nonisolated(unsafe) static var redrawMs = 0.0
     nonisolated(unsafe) static var statsOn = false
+
+    /// The text style `set()` was last given — kept so an image landing can
+    /// re-lay this flow out from its last blocks without the caller's help.
+    private var lastStyle: TextStyleSpec? = nil
+
+    /// An inline image's bitmap landed (or failed to): re-lay this flow out from
+    /// its last blocks, repaint, and tell the runtime the new height so the
+    /// document re-stacks below it — the native twin of a DOM <img> load
+    /// reflowing the page. Nothing native pushed a rich height before this;
+    /// the JS side (`__declareRichHeight` → the flow's onResize) already listens.
+    private func reflowForImage() {
+        guard !lastJSON.isEmpty, let style = lastStyle else { return }
+        let json = lastJSON
+        lastJSON = ""                                   // bust the same-content early-out
+        let blocks = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [[String: Any]] ?? []
+        let h = set(blocks: blocks, selectable: selectable, width: lastWidth, style: style, json: json)
+        _ = redraw()
+        bridge.call("__declareRichHeight", [id, Double(h)])
+        bridge.needsFrame()
+    }
 
     /// Raster the current band. ANSWERS WHETHER IT DREW — every caller has
     /// already committed state that is only true if it did (see ensureBand).
@@ -907,7 +993,27 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
         if sel == #selector(NSResponder.insertNewline(_:)) {
             bridge.call("__declareEditEnter", [id]); return true
         }
-        return false
+        return traversal(sel)
+    }
+    /// The multiline editor's commands (NSTextViewDelegate): Tab must TRAVERSE,
+    /// never insert a tab character.
+    func textView(_ textView: NSTextView, doCommandBy sel: Selector) -> Bool { traversal(sel) }
+
+    /// DECLARE OWNS TAB TRAVERSAL (keys.ts, focus.ts): a Tab inside a native
+    /// field is the same keystroke the DeclareView forwards — it goes to the
+    /// runtime's key path, whose Focus walk answers with EDITFOCUS on the next
+    /// field (or none). Left to AppKit, the single-line field handed Tab to
+    /// the window's own key-view loop (which knows nothing of the walk — some
+    /// presses "ate" the key) and the multiline one inserted a tab character.
+    private func traversal(_ sel: Selector) -> Bool {
+        let mods: Int
+        if sel == #selector(NSResponder.insertTab(_:)) { mods = 0 }
+        else if sel == #selector(NSResponder.insertBacktab(_:)) { mods = 1 }   // shift
+        else { return false }
+        bridge.call("__declareKey", ["keydown", "Tab", mods, 0])
+        bridge.call("__declareKey", ["keyup", "Tab", mods, 0])
+        bridge.needsFrame()
+        return true
     }
 
     /// EDITSEL — the caret/selection write half (TextInput.select, #22).
@@ -930,8 +1036,20 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
     func setFocus(_ on: Bool) {
         let responder: NSView? = multiline ? textView : field
         if on { view.window?.makeFirstResponder(responder) }
-        else if view.window?.firstResponder === responder { view.window?.makeFirstResponder(view) }
+        else if ownsFirstResponder { view.window?.makeFirstResponder(view) }
         bridge.call("__declareEditFocus", [id, on])
+    }
+    /// Is this editable the window's first responder? A single-line field is
+    /// edited by the window's FIELD EDITOR — an NSTextView whose delegate is
+    /// the field — so identity against the NSTextField itself never matched,
+    /// and a field Declare had tabbed AWAY from kept the keyboard: the next
+    /// Tab went back into its delegate instead of to the view (the "eaten"
+    /// Tab in the sampler, 2026-09-10).
+    private var ownsFirstResponder: Bool {
+        guard let fr = view.window?.firstResponder else { return false }
+        if fr === textView || fr === field { return true }
+        if let ed = fr as? NSTextView, let f = field, ed.delegate === f { return true }
+        return false
     }
 
     func place(_ r: CGRect, clippedTo vis: CGRect) {

@@ -1,0 +1,65 @@
+// error — a window's ERROR STATE, as a program. One window is one Declare app,
+// and an app is either running or in error; when a program fails to load, the
+// Mac host opens THIS into the same window (ProgramWindow.showError → `open(…,
+// .stay)`, the Source-mode mechanism: a mode of the window, not a destination),
+// passing the diagnostics and the failed program's address through env. It is
+// IN-WINDOW and NON-MODAL: the titlebar stays live (‹›, Open Location…, View
+// Source), other windows are untouched, and a harness can read the state instead
+// of hanging on a modal run loop. Styled to the web's own compile-error panel
+// (browser/boot-uniform.js showError — dark ground, red heading, monospace
+// diagnostics) so both hosts show one error page. Retry re-opens the subject;
+// a fixed file simply loads and the window is running again.
+//
+// DEPENDENCY-LIGHT, not dependency-free. This page must come up when other
+// programs cannot, so it leans on View, Text and HTMLText — plus the library's
+// real `Button` for Retry (a hand-rolled View with a Text at a guessed y sat
+// its label off the baseline). That is a safe lean: the library is BAKED into
+// the app, so if it cannot compile the platform itself is broken — which is
+// exactly the case the host's native last-resort alert exists for. The host's
+// `bootFailed` message is one diagnostic per line (a leading "N errors" count
+// first), so each line becomes a wrapped, selectable row.
+
+use [ Button ]
+
+style err [ fontFamily = "ui-monospace, SFMono-Regular, Menlo, monospace" ]
+
+App [ minWidth = 360,
+    theme = SanFranciscoDark,                     // the Button styles from the provided theme; dark matches the page
+    fill = #0B141B, textColor = #E7EEF2,
+
+    // the two env values the host passes; both guarded, so an unhosted open
+    // (a person double-clicking this file) still renders a sensible page
+
+    errors: string = { "" + (app.env.errors || "No diagnostics were passed.") },
+    subject: string = { "" + (app.env.subject || "") },
+
+    // HTML-escape a diagnostic so its own `<`/`&` render literally, then one
+    // paragraph per line in the monospace style — a wrapped, selectable list.
+
+    esc(s: string) -> string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") },
+    listHtml: string = { app.errors.split("\n").filter(l => l.trim() !== "").map(l => "<p><span class='err'>" + app.esc(l) + "</span></p>").join("") },
+
+    body: View [ x = 0, y = 0, width = { app.width }, height = { app.height }, scrolls = y, clip = true,
+        col: View [ x = 24, y = 24, width = { app.width - 48 },
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            head: Text [ fontSize = 15, fontWeight = semibold, textColor = #FF6B6B, text = "Could not load this program" ],
+            where: Text [ visible = { app.subject != "" }, width = { parent.width }, wrap = true, fontSize = 12, textColor = #8FA3B0, text = { app.subject } ],
+
+            // Retry sits up top, before a possibly long list — the action is what
+            // a person came back for after fixing the file. The library's real
+            // Button: label centred on its cap-band, hover/press states, keyboard
+            // activation — none of which a View with a Text inside it gets right.
+            // Sized SUBORDINATE to the 15px headline: the theme's 40px control
+            // would outweigh the message it serves. The label takes the ambient
+            // fontSize, so one number sets the type; height sets the box.
+
+            retry: Button [ visible = { app.subject != "" }, height = 34, fontSize = 13, label = "Retry", primary = true,
+                onClick() { app.navigate(app.subject) }
+                ],
+            list: HTMLText [ width = { parent.width }, fontSize = 13, lineHeight = 1.55, bodyColor = #E7EEF2, dark = true, selectable = true, html = { app.listHtml } ],
+            hint: Text [ width = { parent.width }, wrap = true, fontSize = 12, textColor = #8FA3B0,
+                text = "Open Location… is in the titlebar. If this program is served by the dev server, check that it is running: npm start  (or: PORT=8260 node server/index.mjs)" ],
+            pad: View [ width = 1, height = 40 ]
+            ]
+        ]
+    ]

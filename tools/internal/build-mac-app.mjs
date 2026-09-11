@@ -107,12 +107,124 @@ const BAKE = [
   // homes (browser/mac-boot.js platformBase).
   { from: "apps/inspector", to: "Contents/Resources/apps/inspector", dir: true, only: /\.declare$/ },
   { from: "apps/viewer", to: "Contents/Resources/apps/viewer", dir: true, only: /\.declare$/ },
+  // The window's ERROR STATE is a program too (ProgramWindow.showError opens it
+  // with `.stay`, the Source-mode mechanism) — so it must be baked, like them.
+  { from: "apps/error", to: "Contents/Resources/apps/error", dir: true, only: /\.declare$/ },
   // GENERATED from the desktop's own Declare Viewer glyph (mac-host/make-icon.mjs
   // instantiates the real AppGlyph and screenshots it, so the app icon cannot
   // drift from the one the program draws). Committed, so a build never needs a
   // running server; regenerate with `node mac-host/make-icon.mjs`.
   { from: "mac-host/Declare.icns", to: "Contents/Resources/Declare.icns" },
 ];
+
+// Content hashing, shared by the self-skip, the toolchain id and the copy check.
+const hashOf = (f) => createHash("sha256").update(readFileSync(f)).digest("hex");
+function filesUnder(dir, rel = "") {
+  const out = [];
+  for (const e of readdirSync(path.join(dir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
+    if (e.name === ".DS_Store") continue;
+    const r = path.join(rel, e.name);
+    if (e.isDirectory()) out.push(...filesUnder(dir, r));
+    else out.push(r);
+  }
+  return out;
+}
+
+// ── the self-skip: is the installed app already built from THIS tree? ───────
+//
+// The app is a pure function of the SOURCE roots below — every BAKE item is
+// either one of them or derived from them (src → dist → bundles). So a content
+// hash over these, recorded in the app at build time, answers "would rebuilding
+// change anything?" BEFORE running tsc, the bundles, swift or codesign. Match →
+// exit; this is what lets an automatic hook call `build:mac` after every
+// platform build without paying a full rebuild when nothing baked moved.
+//
+// Hashed UPSTREAM of dist/bundles on purpose: a src edit changes the hash before
+// tsc has run, so the skip can never wrongly honour a dist that is one edit
+// behind its src. Content, not mtime: a checkout that restores the same bytes
+// keeps the app; a `touch` does not force a rebuild.
+//
+// Deliberately a little BROAD (all of `browser/`, both tsconfigs, this script
+// itself) — an unnecessary rebuild is cheap, a wrong skip ships a stale app.
+// Directories BAKE takes only `*.declare` from are filtered the same way here,
+// so a regenerated `index.html` stub (a web cache-buster) does not re-bake.
+const SKIP_INPUTS = [
+  { at: "runtime/src" }, { at: "compiler/src" },                  // → dist → the two bundles
+  { at: "tsconfig.json" }, { at: "runtime/tsconfig.json" }, { at: "compiler/tsconfig.json" },
+  { at: "browser" },                                               // → declare-mac.js + mac-env.js
+  { at: "library" },                                               // baked source
+  { at: "apps/inspector", only: /\.declare$/ }, { at: "apps/viewer", only: /\.declare$/ },
+  { at: "apps/error", only: /\.declare$/ },
+  { at: "mac-host/Sources" }, { at: "mac-host/Package.swift" },    // the Swift binary
+  { at: "mac-host/Declare.icns" },
+  { at: "tools/internal/build-mac.mjs" }, { at: "tools/internal/build-compiler.mjs" },
+  { at: "tools/internal/build-boot.mjs" }, { at: "tools/internal/build-mac-app.mjs" },
+];
+function inputHashOf() {
+  const h = createHash("sha256");
+  for (const { at, only } of SKIP_INPUTS) {
+    const p = path.join(ROOT, at);
+    if (!existsSync(p)) continue;
+    if (statSync(p).isDirectory()) {
+      for (const f of filesUnder(p)) {
+        if (only && !only.test(f)) continue;
+        h.update(`${at}/${f}\0`); h.update(readFileSync(path.join(p, f))); h.update("\0");
+      }
+    } else { h.update(`${at}\0`); h.update(readFileSync(p)); h.update("\0"); }
+  }
+  return h.digest("hex").slice(0, 12);
+}
+
+// Flags ride with an optional destination argument; a flag is never a path.
+const FLAGS = new Set(process.argv.slice(2).filter((a) => a.startsWith("--")));
+const DEST_ARG = process.argv.slice(2).find((a) => !a.startsWith("--"));
+const FORCE = FLAGS.has("--force");
+
+// ── where it lands ──────────────────────────────────────────────────────────
+//
+// /Applications is the install: LaunchServices only claims the .declare
+// extension for an app in an Applications directory, so a double-click reaches
+// nothing until it lives in one. ~/Applications when /Applications needs an
+// admin this shell does not have. An explicit argument overrides both.
+//
+// ONE APP ON THE MACHINE, always the newest build — the harnesses launch this
+// same path, so what the gates measure is what ships. There is deliberately no
+// second, tree-reading "dev build" to diverge from it.
+function destination() {
+  if (DEST_ARG) return path.resolve(DEST_ARG);
+  // SEARCH is shared with the rigs (mac-host/app.mjs) so that where a build
+  // writes and where a harness looks cannot drift apart.
+  //
+  // ⚠ TEST FOR WRITABILITY, not existence. `mkdirSync(d, {recursive:true})`
+  // SUCCEEDS on a directory that already exists but is not writable, so using it
+  // as the probe picks /Applications on a locked-down machine and then fails
+  // half way through the copy, with the previous app already gone.
+  for (const d of SEARCH) {
+    try { mkdirSync(d, { recursive: true }); accessSync(d, constants.W_OK); return d; } catch { /* next */ }
+  }
+  return MAC;
+}
+const DEST = path.join(destination(), "Declare Mac.app");
+
+// ASSEMBLE BESIDE IT, SWAP AT THE END. The verification below is allowed to
+// fail the build, and a build that fails must not also destroy the app you had
+// installed — assembling in place means a typo in the tree leaves the machine
+// with no Declare Mac at all. Staged next to the destination rather than in
+// /tmp so the final move is a rename within one filesystem.
+const OUT = DEST + ".staging";
+
+const inputHash = inputHashOf();
+{
+  const installed = path.join(DEST, "Contents/Resources/platform.json");
+  let prev = null;
+  try { prev = JSON.parse(readFileSync(installed, "utf8")).inputs ?? null; } catch { /* no app, or an older one without the stamp → rebuild */ }
+  if (!FORCE && prev === inputHash) {
+    say(`build-mac-app: ${DEST}`);
+    say(`  already current — inputs ${inputHash} match the installed app; nothing baked changed (--force to rebuild anyway)`);
+    process.exit(0);
+  }
+  if (prev !== null) say(`build-mac-app: inputs ${prev} → ${inputHash} — rebuilding`);
+}
 
 // ── the chain, walked ───────────────────────────────────────────────────────
 
@@ -167,39 +279,6 @@ step("swift build -c release", "bash", [path.join(MAC, "build.sh")], MAC,
      "the Swift host did not build — see the error above.");
 if (!existsSync(BIN)) die(`${BIN} is missing after a successful build.`);
 
-// ── where it lands ──────────────────────────────────────────────────────────
-//
-// /Applications is the install: LaunchServices only claims the .declare
-// extension for an app in an Applications directory, so a double-click reaches
-// nothing until it lives in one. ~/Applications when /Applications needs an
-// admin this shell does not have. An explicit argument overrides both.
-//
-// ONE APP ON THE MACHINE, always the newest build — the harnesses launch this
-// same path, so what the gates measure is what ships. There is deliberately no
-// second, tree-reading "dev build" to diverge from it.
-function destination() {
-  if (process.argv[2]) return path.resolve(process.argv[2]);
-  // SEARCH is shared with the rigs (mac-host/app.mjs) so that where a build
-  // writes and where a harness looks cannot drift apart.
-  //
-  // ⚠ TEST FOR WRITABILITY, not existence. `mkdirSync(d, {recursive:true})`
-  // SUCCEEDS on a directory that already exists but is not writable, so using it
-  // as the probe picks /Applications on a locked-down machine and then fails
-  // half way through the copy, with the previous app already gone.
-  for (const d of SEARCH) {
-    try { mkdirSync(d, { recursive: true }); accessSync(d, constants.W_OK); return d; } catch { /* next */ }
-  }
-  return MAC;
-}
-const DEST = path.join(destination(), "Declare Mac.app");
-
-// ASSEMBLE BESIDE IT, SWAP AT THE END. The verification below is allowed to
-// fail the build, and a build that fails must not also destroy the app you had
-// installed — assembling in place means a typo in the tree leaves the machine
-// with no Declare Mac at all. Staged next to the destination rather than in
-// /tmp so the final move is a rename within one filesystem.
-const OUT = DEST + ".staging";
-
 // ── assemble ────────────────────────────────────────────────────────────────
 rmSync(OUT, { recursive: true, force: true });
 for (const item of BAKE) {
@@ -217,19 +296,6 @@ for (const item of BAKE) {
   } else {
     copyFileSync(src, dst);
   }
-}
-
-// Content hashing, shared by the toolchain id and the copy check below.
-const hashOf = (f) => createHash("sha256").update(readFileSync(f)).digest("hex");
-function filesUnder(dir, rel = "") {
-  const out = [];
-  for (const e of readdirSync(path.join(dir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
-    if (e.name === ".DS_Store") continue;
-    const r = path.join(rel, e.name);
-    if (e.isDirectory()) out.push(...filesUnder(dir, r));
-    else out.push(r);
-  }
-  return out;
 }
 
 // ── the toolchain id ────────────────────────────────────────────────────────
@@ -364,9 +430,10 @@ if (mismatched.length) {
 }
 
 // What is in here, and what it was built from — so `ctl platform` and anyone
-// holding the .app can answer that without the tree.
+// holding the .app can answer that without the tree. `inputs` is the source
+// hash the self-skip compares on the next build (see SKIP_INPUTS).
 writeFileSync(path.join(OUT, "Contents/Resources/platform.json"),
-              JSON.stringify({ toolchain: toolchain || "unstamped", baked: manifest }, null, 2) + "\n");
+              JSON.stringify({ toolchain: toolchain || "unstamped", inputs: inputHash, baked: manifest }, null, 2) + "\n");
 
 // ── sign ────────────────────────────────────────────────────────────────────
 //
