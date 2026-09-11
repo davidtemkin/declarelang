@@ -180,7 +180,7 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         // all, came back as "the last program"). `.replay` is a real destination.
         if history != .stay && !Launch.isAutomated { UserDefaults.standard.set(url, forKey: "lastURL") }
         // A real open resets the error page's retry budget (see showError).
-        if !url.hasPrefix(Bridge.platformBase() + "apps/error/") { errorPageRetried = false }
+        if !url.hasPrefix(Bridge.platformBase() + "library/platform-apps/error/") { errorPageRetried = false }
         window.title = "Loading…"
         // "This window is starting" — the app keeps its dock icon bouncing (and
         // holds back its activation) while any window is in this state.
@@ -380,7 +380,7 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
             // which no server ever classifies. Point Source mode at an http
             // viewer URL and requestType would answer PROGRAM: the server would
             // return viewer.declare COMPILED instead of running it.
-            open(Bridge.platformBase() + "apps/viewer/viewer.declare?program=" + (subjectURL.addingPercentEncoding(
+            open(Bridge.platformBase() + "library/platform-apps/viewer/viewer.declare?program=" + (subjectURL.addingPercentEncoding(
                 withAllowedCharacters: .urlQueryAllowed) ?? subjectURL), history: .stay)
         }
         refreshChrome()
@@ -459,7 +459,7 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         NSLog("[error] %@", msg)
         // THE ERROR STATE, IN THE WINDOW. One window is one Declare app, and an
         // app is either running or in error — so the window shows the error, as
-        // a baked chrome program (apps/error), opened with `.stay` exactly as
+        // a baked chrome program (library/platform-apps/error), opened with `.stay` exactly as
         // Source mode opens the Viewer: a mode of this window, not a destination.
         // Non-modal: the titlebar stays live (‹›, Open Location…, View Source),
         // other windows are untouched, and a harness can read the state instead
@@ -471,7 +471,7 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         // platform is broken, not the program), `bootFailed` fires again with the
         // error page as currentURL — that case falls through to the native alert
         // below, the last resort that needs no compiler.
-        let errorPage = Bridge.platformBase() + "apps/error/error.declare"
+        let errorPage = Bridge.platformBase() + "library/platform-apps/error/error.declare"
         let showErrorPage = { (subject: String) in
             self.errorShown = msg
             let q = "?errors=" + Self.queryEnc(msg) + "&subject=" + Self.queryEnc(subject)

@@ -259,7 +259,7 @@ export async function macBoot(url) {
   // window has for "run this program WITH these parameters".
   //
   // Source mode is what needed it: the window boots
-  // `apps/viewer/viewer.declare?program=<the program>`, and the Viewer reads
+  // `library/platform-apps/viewer/viewer.declare?program=<the program>`, and the Viewer reads
   // `app.env.program` to know what to read. Without this it came up with its
   // chrome and an empty document — the program it was pointed at simply never
   // reached it.
@@ -560,7 +560,7 @@ async function toggleInspector(subject, slot = "") {
       }
     }
     const compiled = await inspectorProgram();
-    if (compiled === null) { log("inspector: could not load apps/inspector"); return; }
+    if (compiled === null) { log("inspector: could not load library/platform-apps/inspector"); return; }
     const ov = createOverlaySurface();
     if (ov === null) { log("inspector: no root to overlay"); return; }
     inspectorOverlay = ov;
@@ -603,7 +603,7 @@ async function inspectorProgram() {
   // the same relative path the tree uses (bundle.sh), so one URL names it.
   const base = platformBase();
   if (!base) return null;
-  const url = new URL("apps/inspector/inspector.declare", base).href;
+  const url = new URL("library/platform-apps/inspector/inspector.declare", base).href;
   try {
     const src = await (await fetch(url)).text();
     const dir = url.replace(/[^/]*$/, "");

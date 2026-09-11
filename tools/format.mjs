@@ -55,7 +55,7 @@
 //
 // Deliberately NOT implemented (conservative v1 — see the design summary in
 // test/format.test.mjs): header-line packing and width-based re-wrapping. The
-// exemplar (apps/viewer/viewer.declare) fills headers by judgment,
+// exemplar (library/platform-apps/viewer/viewer.declare) fills headers by judgment,
 // not to a mechanical width (it carries 154-char lines the canon's own dial
 // would re-wrap), so the formatter keeps the author's line breaks and only
 // normalizes what the canon states mechanically.

@@ -88,7 +88,7 @@ try {
   });
 
   // The Viewer's edit pane runs the VIEWED file as an island child while the
-  // document belongs to apps/viewer/. Its relative bitmaps and web faces mean
+  // document belongs to library/platform-apps/viewer/. Its relative bitmaps and web faces mean
   // "beside my .declare" (asset-base.ts) — and a face the child could not load
   // used to reject out of renderAsync and abort the mount, so every app with a
   // `font … Face [ src = "…" ]` showed a blank pane and said nothing.

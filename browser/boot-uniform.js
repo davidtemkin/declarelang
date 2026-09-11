@@ -570,7 +570,7 @@ export default async function boot(cfg) {
   return app;
 }
 
-// THE ERROR PAGE IS A PROGRAM. The same apps/error/error.declare the Mac host
+// THE ERROR PAGE IS A PROGRAM. The same library/platform-apps/error/error.declare the Mac host
 // opens into its window — ONE error page for both hosts — booted through this
 // very entry with the failed boot's own hosting settings, the diagnostics and
 // the failed address riding `app.env` (the mac's `?errors=&subject=` contract,
@@ -587,7 +587,7 @@ async function showError(msg, subject) {
     showingErrorPage = true;
     try {
       if (host) host.textContent = "";                 // a half-mounted failed boot leaves nothing behind
-      const app = await boot({ ...currentCfg, main: new URL("../apps/error/error.declare", import.meta.url).href, launcher: false });
+      const app = await boot({ ...currentCfg, main: new URL("../library/platform-apps/error/error.declare", import.meta.url).href, launcher: false });
       if (app) { app.env = { errors: String(msg), subject: subject ?? "" }; return app; }
     } catch (e) {
       console.error("[Declare] the error page itself failed — falling back to the plain panel:", e);

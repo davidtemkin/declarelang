@@ -169,7 +169,7 @@ export function createDeclareServer(config = {}) {
   // anyway, so it compiles regardless).
   const bootPrefix = mounts.platform.dir === mounts.root.dir ? "/" : PLAT;
   const bootURL = (rel) => bootPrefix + rel;               // platform boot asset → its ROOT-consistent URL
-  const VIEWER_DIR = path.join(PLATFORM_DIR, "apps", "viewer");
+  const VIEWER_DIR = path.join(PLATFORM_DIR, "library", "platform-apps", "viewer");
 
   // ── this server's IDENTITY ─────────────────────────────────────────────────
   // Who is answering: pid, the root it serves, when it started. Printed in the
@@ -300,7 +300,7 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
       dataBase: "/" + relPath.replace(/^\/+/, "").replace(/[^/]*$/, ""),
       // …and the same directory for the island's relative BITMAPS and web faces
       // (`Face [ src = "resources/fonts/vera.ttf" ]`), which the Viewer's <base>
-      // would otherwise 404 against apps/viewer/ — a missing face used to abort
+      // would otherwise 404 against library/platform-apps/viewer/ — a missing face used to abort
       // the child's render outright and leave the edit pane blank
       assetBase: "/" + relPath.replace(/^\/+/, "").replace(/[^/]*$/, ""),
       seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath,
@@ -314,7 +314,7 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
     // edited, not against nothing (the originDir fix, embeddable-server.md §7.1).
     const mainQuery = "/" + relPath.replace(/^\/+/, "");
     return `<!doctype html><meta charset="utf-8"><title>${esc(title)} — source</title>
-<base href="${platURL("apps/viewer/")}">
+<base href="${platURL("library/platform-apps/viewer/")}">
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">

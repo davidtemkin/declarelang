@@ -100,16 +100,14 @@ const BAKE = [
     inputs: bundleInputs("bundles/declare-compiler-mac.js") },
   // NOT bundles/version.json — that one is WRITTEN, not copied. See `toolchain`.
   // Components, icons and themes — all .declare source, compiled on device.
-  { from: "library", to: "Contents/Resources/library", dir: true },
-  // THE CHROME PROGRAMS are platform too: the Inspector mounts OVER a running
-  // program, the Viewer IS this window's other way of looking at one. Neither is
-  // an application. Same relative path as the tree, so one URL resolves in both
-  // homes (browser/mac-boot.js platformBase).
-  { from: "apps/inspector", to: "Contents/Resources/apps/inspector", dir: true, only: /\.declare$/ },
-  { from: "apps/viewer", to: "Contents/Resources/apps/viewer", dir: true, only: /\.declare$/ },
-  // The window's ERROR STATE is a program too (ProgramWindow.showError opens it
-  // with `.stay`, the Source-mode mechanism) — so it must be baked, like them.
-  { from: "apps/error", to: "Contents/Resources/apps/error", dir: true, only: /\.declare$/ },
+  // Source and manifests only (.declare + .json): library/platform-apps/ carries a
+  // viewer tests/ folder whose PNG baselines are no business of the bundle.
+  // THE PLATFORM APPS (library/platform-apps: the Inspector mounts OVER a running
+  // program, the Viewer IS this window's other way of looking at one, the error
+  // page is the window's ERROR STATE — ProgramWindow.showError opens it with
+  // `.stay`) ride in with the library. None is an application. Same relative path
+  // as the tree, so one URL resolves in both homes (browser/mac-boot.js platformBase).
+  { from: "library", to: "Contents/Resources/library", dir: true, only: /\.(declare|json)$/ },
   // GENERATED from the desktop's own Declare Viewer glyph (mac-host/make-icon.mjs
   // instantiates the real AppGlyph and screenshots it, so the app icon cannot
   // drift from the one the program draws). Committed, so a build never needs a
@@ -152,9 +150,7 @@ const SKIP_INPUTS = [
   { at: "runtime/src" }, { at: "compiler/src" },                  // → dist → the two bundles
   { at: "tsconfig.json" }, { at: "runtime/tsconfig.json" }, { at: "compiler/tsconfig.json" },
   { at: "browser" },                                               // → declare-mac.js + mac-env.js
-  { at: "library" },                                               // baked source
-  { at: "apps/inspector", only: /\.declare$/ }, { at: "apps/viewer", only: /\.declare$/ },
-  { at: "apps/error", only: /\.declare$/ },
+  { at: "library", only: /\.(declare|json)$/ },                   // baked source, the platform apps included
   { at: "mac-host/Sources" }, { at: "mac-host/Package.swift" },    // the Swift binary
   { at: "mac-host/Declare.icns" },
   { at: "tools/internal/build-mac.mjs" }, { at: "tools/internal/build-compiler.mjs" },

@@ -1,6 +1,6 @@
 // browser/inspector-boot.js — mount the Declare Inspector over a running app.
 //
-// The Inspector is an ordinary Declare program (apps/inspector/inspector.declare)
+// The Inspector is an ordinary Declare program (library/platform-apps/inspector/inspector.declare)
 // that happens to be ABOUT another program. This module is the only glue: it
 // names the subject (setInspectionTarget), compiles the Inspector, and mounts it
 // as a CHROME app — page-level, but never seizing the focus root, the keys
@@ -49,7 +49,7 @@ export async function openInspector(subject, origin = undefined) {
 
   const [client, src] = await Promise.all([
     loadCompiler().then(ensureLibrary),
-    fetch(new URL("apps/inspector/inspector.declare", ROOT), { cache: "no-cache" })
+    fetch(new URL("library/platform-apps/inspector/inspector.declare", ROOT), { cache: "no-cache" })
       .then((r) => { if (!r.ok) throw new Error(r.status + " fetching the Inspector"); return r.text(); }),
   ]);
   const out = await client.compile(src);

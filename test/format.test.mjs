@@ -3,7 +3,7 @@
 //
 //   1. IDEMPOTENCE — format(format(x)) === format(x), byte-equal, for every
 //      corpus file (apps/**/[a-z]*.declare + library/*.declare).
-//   2. EXEMPLAR — apps/viewer/viewer.declare is the canon's
+//   2. EXEMPLAR — library/platform-apps/viewer/viewer.declare is the canon's
 //      exemplar: formatting it must be a PERFECT no-op (its alignment slip,
 //      glued comment blocks, and 3-space trailing gaps were fixed in-file as
 //      canon fixes under the 2026-07-13 rulings).
@@ -39,7 +39,7 @@ import { test, summarize } from "./harness.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 
-// ── corpus: apps/**/[a-z]*.declare + test/probe/** + library/*.declare ────
+// ── corpus: apps/**/[a-z]*.declare + library/platform-apps/** + test/probe/** + library/*.declare ────
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -51,6 +51,7 @@ function walk(dir, out = []) {
 }
 const corpus = [
   ...walk(resolve(ROOT, "apps")),
+  ...walk(resolve(ROOT, "library", "platform-apps")),
   // the probe fixtures live under test/ (they were never apps — no
   // <dir>/<dir>.declare), but they are Declare sources and stay formatted
   ...walk(resolve(ROOT, "test", "probe")),
@@ -94,7 +95,7 @@ for (const file of corpus) {
 // now agree byte-for-byte; any regression in either fails here.
 
 await test("exemplar: viewer.declare formats to itself, byte-exact", () => {
-  const file = resolve(ROOT, "apps/viewer/viewer.declare");
+  const file = resolve(ROOT, "library/platform-apps/viewer/viewer.declare");
   const src = readFileSync(file, "utf8");
   const out = formatSource(src);
   if (out !== src) {

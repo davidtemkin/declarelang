@@ -44,6 +44,7 @@ function discover() {
     }
   };
   walk(join(ROOT, "apps"));
+  walk(join(ROOT, "library", "platform-apps"));
   return found.sort((a, b) => a.file.localeCompare(b.file));
 }
 

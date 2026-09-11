@@ -40,7 +40,7 @@ export const PREWARMED = [
   { main: "apps/tracker/tracker.declare", props: { render: "dom" } },
   // every View Source / ?viewer= page boots the viewer — high-traffic on the
   // static deploy, so its first paint deserves the compiler-free path too
-  { main: "apps/viewer/viewer.declare", props: { render: "dom" } },
+  { main: "library/platform-apps/viewer/viewer.declare", props: { render: "dom" } },
   // Weather and Birds joined the homepage's Apps menu (2026-08-13), so they are
   // front-door destinations now — same compiler-free first paint as the rest of
   // the menu. (Prewarm only; the crawler bake stays homepage-only, per the

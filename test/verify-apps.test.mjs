@@ -51,6 +51,11 @@ const htmlEntryPrograms = [
   "apps/two-way/dial.declare",
   "apps/two-way/pulse.declare",
   "apps/two-way/crossings.declare",
+  // the platform's own programs (library/platform-apps): booted by the hosts,
+  // never browsed to, and runnable examples all the same
+  "library/platform-apps/error/error.declare",
+  "library/platform-apps/inspector/inspector.declare",
+  "library/platform-apps/viewer/viewer.declare",
 ];
 for (const f of htmlEntryPrograms) {
   test(`example ${f} — clean through R4 (compile, typecheck, boot)`, () => assertClean(verify(f), f));

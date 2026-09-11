@@ -268,7 +268,7 @@ const CLI = resolve(HERE, "../tools/declarec.mjs");
 const runCheck = (args) => spawnSync(process.execPath, [CLI, "check", ...args], { encoding: "utf8" });
 
 await test("check: a clean program exits 0", () => {
-  const r = runCheck([resolve(HERE, "../apps/viewer/viewer.declare")]);
+  const r = runCheck([resolve(HERE, "../library/platform-apps/viewer/viewer.declare")]);
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /1 file\(s\) clean/);
 });

@@ -34,8 +34,6 @@ territory.
 | [birds](birds/) | a field guide with a quiz | `location` + `waypoint`: URL, history, back button |
 | [homepage](homepage/) | the project site itself | document flow, theming, live compiled examples |
 | [docs](docs/) | the reference, self-hosted | data-driven UI over a doc model; Markdown component |
-| [viewer](viewer/) | source reader / editor for `.declare` files | the `?viewer` machinery behind every "read the source" link |
-| [inspector](inspector/) | live object browser for a running app | introspection; an overlay that stays out of the way |
 | [two-way](two-way/) | HTML ⇄ Declare embedding, both directions live | putting Declare into an existing page, or a page into Declare |
 | [controls](controls/) | every Tier 1 control, three use forms | the component contract at a glance |
 | [sampler](sampler/) | the library under four switchable stylings | theming as data |
@@ -129,22 +127,15 @@ model and renders the navigable left-rail/detail-pane browser — Declare
 documenting Declare, with every doc string through the runtime Markdown
 component. The same view doubles as the live object browser's document mode.
 
-### viewer — how source gets read
+### The platform's own programs live elsewhere
 
-The machinery behind every "read the source" link: the server highlights a
-`.declare` file into prose/code segments and this app renders them — Reader,
-verbatim Source, and an Edit workbench (source above, running program below,
-errors sandwiched between), all reached by request type (`?viewer`,
-`?viewer=edit`).
-
-### inspector — the overlay that stays out of the way
-
-A live object browser for a *running* app: what is this object, **why** is
-that value what it is, what happens if I change it. Everything arrives through
-the `Inspect` service — it never touches the subject's objects. Its root
-declares `pointerEvents = "none"` and only the window takes it back, so the
-inspected app stays fully usable; that transparency reference is itself a
-language feature this app motivated.
+Three programs the hosts boot on their own behalf — the **viewer** (the `?viewer`
+machinery behind every "read the source" link: Reader, verbatim Source, and an
+Edit workbench), the **inspector** (a live object browser over a running app,
+fed only by the `Inspect` service, transparent to the pointer), and the
+**error** page (a window's error state, opened in place when a program fails
+to load) — are not applications. They live in `library/platform-apps/`, ride
+into the Mac app with the library, and stay out of this corpus.
 
 ## Integration
 

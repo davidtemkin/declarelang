@@ -2338,7 +2338,7 @@ class Launcher extends Node [
 
     // View & Edit Source opens the running program itself in the Declare
     // Viewer — as an embedded app in a desktop window: the AppWindow hosts
-    // apps/viewer, and `program=` in its env segment names the subject (a
+    // library/platform-apps/viewer, and `program=` in its env segment names the subject (a
     // path valid in this app's transport base). The viewer self-loads that
     // program's ?segments and ?file artifacts — reader mode by default.
 

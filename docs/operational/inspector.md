@@ -15,7 +15,7 @@ a whole program instead of one stylesheet.
                (a directory URL is the same address — …/apps/calendar/?inspector)
 ```
 
-It is itself a Declare program (`apps/inspector/inspector.declare`) reading another one
+It is itself a Declare program (`library/platform-apps/inspector/inspector.declare`) reading another one
 through the [introspection surface](declare-docs:operational:introspection). Opening it
 never reloads or disturbs the app, and the app stays fully usable underneath: the
 overlay takes no pointer events except where its own window is.

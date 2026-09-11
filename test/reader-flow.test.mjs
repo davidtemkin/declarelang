@@ -86,7 +86,7 @@ await test("reader (canvas): same invariant, sealed surface", async () => {
 await test("the viewer inside the CANVAS desktop gets its host's data", async () => {
   // the twin of ad796537: the canvas island mount coupled the child's DATA
   // base to its asset base, so the viewer tenant's `desktop.declare?segments`
-  // resolved against /apps/viewer/ and 404'd — "no code in the viewer" on
+  // resolved against /library/platform-apps/viewer/ and 404'd — "no code in the viewer" on
   // ?render=canvas (found live 2026-08-21). Data resolves through the HOST's
   // space; only assets are child-relative.
   await page.goto(`${B}/apps/desktop/desktop.declare?render=canvas`, { waitUntil: "networkidle0", timeout: 60000 });

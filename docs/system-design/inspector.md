@@ -305,7 +305,7 @@ The in-browser compiler currently exposes whole-program `compile`, `compileTrack
 
 ### 6.3 Phase 2 — the Inspector app (Declare)
 
-`apps/inspector/inspector.declare`, structured as: `InspectorWindow`, `Toolbar`,
+`library/platform-apps/inspector/inspector.declare`, structured as: `InspectorWindow`, `Toolbar`,
 `TreePane`, `ObjectPane`, `WhyPane`, `EvalStrip`, `Overlay`, plus one shared
 `Disclosure`/`ValueTree` component serving all three panes (§5.2a). It reads the subject
 through the bridge API — never by reaching into its objects directly — so the same app can

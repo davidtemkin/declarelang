@@ -587,8 +587,8 @@ final class Bridge {
     static func assertPlatform() {
         guard let res = Bundle.main.resourceURL else { return }
         let need = ["declare-mac.js", "mac-env.js", "bundles/declare-compiler-mac.js",
-                    "library/autoincludes.json", "apps/inspector/inspector.declare",
-                    "apps/viewer/viewer.declare"]
+                    "library/autoincludes.json", "library/platform-apps/inspector/inspector.declare",
+                    "library/platform-apps/viewer/viewer.declare"]
         let missing = need.filter {
             !FileManager.default.fileExists(atPath: res.appendingPathComponent($0).path)
         }

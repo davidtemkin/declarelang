@@ -1,7 +1,7 @@
 // browser/boot-source.js — the SOURCE VIEWER for a plain static host. The browser
 // counterpart of the dev server's sourcePage() (server/index.mjs): given a target
 // `.declare`, run the compiler's highlight() over it IN-BROWSER and render
-// apps/viewer/ seeded with the resulting segments — the same viewer app,
+// library/platform-apps/viewer/ seeded with the resulting segments — the same viewer app,
 // through the same host→app seed channel (cfg.seeds → app.demoSources).
 //
 // The Service Worker routes a top-level navigation to `…/<name>.declare?viewer=reader|source|edit`
@@ -51,7 +51,7 @@ async function run() {
     // boot-uniform states anyway, so that if this module is ever reached on the
     // dev server it resolves the viewer's SOURCE rather than serving a build an
     // edit to the viewer would not show up in.
-    const VIEWER_MAIN = "apps/viewer/viewer.declare", VIEWER_PROPS = { render: "dom" };
+    const VIEWER_MAIN = "library/platform-apps/viewer/viewer.declare", VIEWER_PROPS = { render: "dom" };
     let source, deps;
     const wantBuild = !window.__declareServer && prewarmedEntry(VIEWER_MAIN, VIEWER_PROPS) !== null;
     const warm = wantBuild
@@ -60,7 +60,7 @@ async function run() {
     if (warm) {
       source = warm.program; deps = warm.deps;
     } else {
-      const viewerSrc = await fetch(new URL("apps/viewer/viewer.declare", ROOT), { cache: "no-cache" })
+      const viewerSrc = await fetch(new URL("library/platform-apps/viewer/viewer.declare", ROOT), { cache: "no-cache" })
         .then((r) => { if (!r.ok) throw new Error(r.status + " fetching the code viewer"); return r.text(); });
       const out = await (await clientP).compile(viewerSrc);
       if (!out.source) {
@@ -85,7 +85,7 @@ async function run() {
       // A real URL fragment still wins, so a shared `…#source` deep link holds.
       location: mode,
       // The viewed program's own directory. This page's <base> is the Viewer's,
-      // so without these the island child asks apps/viewer/ for the file's data,
+      // so without these the island child asks library/platform-apps/viewer/ for the file's data,
       // bitmaps and web faces — and a 404'd face aborts the child's render, which
       // is what left the edit pane blank for every app declaring a font.
       dataBase: viewedDir, assetBase: viewedDir,
