@@ -29,9 +29,9 @@
 // wants is NOT this fact — that is the control's own state (library
 // `Control.flash`), composed with these in a constraint.
 //
-// View-free on purpose (the stylesheet.ts discipline): hosts are typed
-// structurally and view.ts injects its own instance test at module init, so
-// view.ts can import this module without a cycle.
+// View-free on purpose: hosts are typed structurally and view.ts injects its
+// own instance test at module init, so view.ts can import this module without
+// a cycle.
 
 import { Cell, Constraint } from "./reactive.js";
 

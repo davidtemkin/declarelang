@@ -11,7 +11,7 @@
 
 import { DeclareError, type Pos } from "./errors.js";
 import { Constraint } from "./reactive.js";
-import { followedValue, markPercent, own, setBound, provideWrite } from "./attributes.js";
+import { defaultOf, markPercent, own, setBound, provideWrite } from "./attributes.js";
 import { compileExpr, type ExprFn } from "./expr.js";
 import { View, inheritedCursor, withCursorDefining } from "./view.js";
 import { authoredName, onDiscard, type Node } from "./node.js";
@@ -124,11 +124,7 @@ export function bindConstraint(
 /** Bind `name = :path` (a value slot reading data, language §9): a standing
  *  computation over exactly that region of the inherited cursor's dataset.
  *  The raw value coerces to the slot's declared type at the boundary; an
- *  unresolved path lands the slot's fallback — the class default, or, on a
- *  PREVAILING slot, the followed value (ruled: the declaration default is
- *  just the chain's end). The fallback is read inside the tracked compute,
- *  so an unresolved prevailing slot keeps following live and lets go of the
- *  chain the moment the path resolves. */
+ *  unresolved path lands the slot's class default (the chain's end). */
 export function bindData(view: View, name: string, path: string, type: AttrType, plan?: readonly PathSeg[]): void {
   const UNRESOLVED = {}; // sentinel: coerceData returns the def verbatim
   const read = plan ?? path; // a selector-bearing path arrives pre-parsed (B3)
@@ -136,7 +132,7 @@ export function bindData(view: View, name: string, path: string, type: AttrType,
     `${view.constructor.name}.${name} = :${path}`,
     () => {
       const v = coerceData(type, view.$data(read), UNRESOLVED);
-      return v === UNRESOLVED ? followedValue(view, name) : v;
+      return v === UNRESOLVED ? defaultOf(view, name) : v;
     },
     (v) => setBound(view, name, v)
   );

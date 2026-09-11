@@ -1,44 +1,39 @@
-// themes — the named theme PRESETS (library-charter §6: design systems are
-// DATA riding one machinery, never code paths). The naming is geographic —
-// the city, not the brand: `cupertino` for the compact-desktop record,
-// `mountainView` for Material 3, `sanFrancisco(dark)` for Declare's own —
-// named for where Declare is made, and it is ALSO the zero-declaration
-// default: an app that never mentions a theme renders sanFrancisco(light)
-// (value.ts DEFAULT_THEME IS the San Francisco light record — one object,
-// not a copy, so the fallback tier can never drift from the named preset).
-// (Flutter half-shares the idea — Material + Cupertino; Redmond: landed.)
+// themes — the built-in theme PRESETS (library-charter §6: design systems are
+// DATA riding one machinery, never code paths). The naming is geographic — the
+// city, not the brand: `Cupertino` for the compact-desktop record,
+// `MountainView` for Material 3, `SanFrancisco` for Declare's own, named for
+// where Declare is made — and `SanFrancisco` is ALSO what a widget renders when
+// nothing provides a theme (control.declare's `theme: Theme = provided("theme",
+// SanFrancisco)`). Each city has a light record and a `…Dark` companion; an app
+// picks the pair it wants (`theme = { app.dark ? CupertinoDark : Cupertino }`).
 //
-// Each preset is a FUNCTION of the one resolved mode fact (dark), returning a
-// plain token record for the prevailing `theme` slot:
-//
-//   theme = { Themes.cupertino(app.dark) }
-//
-// The records carry the full vocabulary the library consults: colors, role
-// radii (buttonRadius pill-capable / fieldRadius), control heights, switch
-// dimensions and grow-on-check, checkbox metrics, field insets, disabled
-// opacities, and the focus-indicator geometry. `tint(c, dark)` derives an
-// active tone from any accent (22% over the surface tone) — what an accent
-// override uses so nothing keeps a stale precomputed tint.
+// A record carries the full vocabulary the library consults: colors, role radii
+// (buttonRadius pill-capable / fieldRadius), control heights, switch dimensions
+// and grow-on-check, checkbox metrics, field insets, disabled opacities, and the
+// focus-indicator geometry. Each preset is a named value in scope inside `{ }`
+// bodies, so an app names the ones it wants directly.
 
 import type { Theme } from "./value.js";
-import { THEME_RECORDS as R } from "./themes-data.js";
+import { THEME_RECORDS } from "./themes-data.js";
 
-// The records are AUTHORED in library/themes/*.declare (stylesheet
-// declarations carrying `theme: Theme [ … ]` records — the language's own
-// channel) and PROJECTED into themes-data.ts by gen-themes.mjs, freshness-
-// gated. This module is just the calling surface over those objects; the
-// zero-declaration default (value.ts DEFAULT_THEME) is R.SanFrancisco by
-// identity, so the fallback tier and the named preset cannot drift.
+// The records are authored in library/themes/*.declare (`theme Name [ … ]`
+// declarations — the language's own record form) and projected into
+// themes-data.ts by gen-themes.mjs, freshness-gated. This module is the calling
+// surface over those objects: the by-name table an app's `{ }` bodies read, and
+// the `tint` helper.
 
-export const Themes = Object.freeze({
-  sanFrancisco: (dark?: boolean): Theme => (dark ? R.SanFranciscoDark : R.SanFrancisco),
-  cupertino: (dark?: boolean): Theme => (dark ? R.CupertinoDark : R.Cupertino),
-  mountainView: (dark?: boolean): Theme => (dark ? R.MountainViewDark : R.MountainView),
-  redmond: (dark?: boolean): Theme => (dark ? R.RedmondDark : R.Redmond),
-  /** An active tone derived from an accent — 22% over the surface tone. */
-  tint(c: number, dark?: boolean): number {
-    const base = dark ? 0x22 : 0xFF;
-    const mix = (ch: number): number => Math.round(ch * 0.22 + base * 0.78);
-    return (mix((c >> 16) & 255) << 16) | (mix((c >> 8) & 255) << 8) | mix(c & 255);
-  },
-});
+/** The built-in theme presets, keyed by name — the values a body's bare
+ *  `SanFrancisco` / `CupertinoDark` reference, and the set `theme = Name`
+ *  resolves against. */
+export const THEME_PRESETS: Readonly<Record<string, Theme>> = THEME_RECORDS;
+
+/** The preset names, for the checker and the scaffold. */
+export const THEME_PRESET_NAMES: readonly string[] = Object.keys(THEME_RECORDS);
+
+/** An active tone derived from an accent — 22% over the surface tone. What an
+ *  accent override uses so nothing keeps a stale precomputed tint. */
+export function tint(c: number, dark?: boolean): number {
+  const base = dark ? 0x22 : 0xFF;
+  const mix = (ch: number): number => Math.round(ch * 0.22 + base * 0.78);
+  return (mix((c >> 16) & 255) << 16) | (mix((c >> 8) & 255) << 8) | mix(c & 255);
+}

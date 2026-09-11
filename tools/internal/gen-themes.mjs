@@ -1,13 +1,11 @@
 // gen-themes — library/themes/*.declare ──► runtime/src/themes-data.ts
 //
 // The theme presets are AUTHORED IN THE LANGUAGE: each city file carries
-// `stylesheet Name [ theme: Theme [ tokens ] ]` declarations, parsed by the
-// real parser and validated by the checker's own token rules
-// (checkThemeRecord + coerceToken — the same functions a compiled program's
-// stylesheet goes through). This tool projects the records into a generated
-// runtime module so the zero-declaration tier needs no include: value.ts
-// aliases DEFAULT_THEME to the SanFrancisco record and themes.ts serves the
-// presets from the same objects — one authored source, no drift (the
+// `theme Name [ tokens ]` declarations, parsed by the real parser and validated
+// by the checker's own token rules (checkThemeRecord + coerceToken — the same
+// functions a program's own `theme` declaration goes through). This tool
+// projects the records into a generated runtime module so themes.ts serves the
+// presets by name from those objects — one authored source, no drift (the
 // freshness gate is test/themes.test.mjs; run this after editing a theme).
 //
 //   node tools/internal/gen-themes.mjs            # regenerate
@@ -28,10 +26,9 @@ const records = [];
 for (const f of readdirSync(SRC).filter((f) => f.endsWith(".declare")).sort()) {
   const source = readFileSync(path.join(SRC, f), "utf8");
   const lib = parseLibrary(source);
-  for (const decl of lib.stylesheets) {
-    const rec = decl.body.children.find((c) => c.name === "theme" && c.tag === "Theme");
-    if (rec === undefined) throw new Error(`gen-themes: ${f}: stylesheet ${decl.name} has no 'theme: Theme [ … ]' record`);
-    const errs = checkThemeRecord(`${f}:${decl.name}`, rec);
+  for (const decl of lib.themes) {
+    const rec = decl.body; // a `theme Name [ … ]` body IS the token record
+    const errs = checkThemeRecord(`theme ${decl.name}`, rec);
     if (errs.length > 0) throw new Error("gen-themes: " + errs.map((e) => e.message).join("\n  "));
     // token order and literal form (color vs number) follow the authored source
     const tokens = rec.attrs.map((a) => ({
@@ -42,28 +39,24 @@ for (const f of readdirSync(SRC).filter((f) => f.endsWith(".declare")).sort()) {
     records.push({ name: decl.name, tokens });
   }
 }
-if (records.length === 0) throw new Error("gen-themes: no theme stylesheets found in library/themes/");
+if (records.length === 0) throw new Error("gen-themes: no theme declarations found in library/themes/");
 
 const emit = (t) => {
   if (t.color && typeof t.value === "number") return `0x${t.value.toString(16).toUpperCase().padStart(6, "0")}`;
   return JSON.stringify(t.value);
 };
-// Each record is its OWN named export so a consumer of one (value.ts's
-// DEFAULT_THEME = SanFrancisco) doesn't carry the others — the assembled
-// THEME_RECORDS table below is the Themes service's surface, and tree-shakes
-// away with it in a production build whose program never says `Themes`.
-// `/* @__PURE__ */` marks each freeze call side-effect-free so esbuild can
-// tree-shake the records a build never references (a production program that
-// doesn't say `Themes` keeps only the default's SanFrancisco).
+// Each record is its OWN named export so a consumer of one doesn't carry the
+// others — the assembled THEME_RECORDS table below is the by-name surface
+// themes.ts serves. `/* @__PURE__ */` marks each freeze side-effect-free so
+// esbuild can tree-shake the records a build never references.
 const decls = records
   .map((r) => `export const ${r.name}: Readonly<Record<string, unknown>> = /* @__PURE__ */ Object.freeze({\n${r.tokens.map((t) => `  ${t.name}: ${emit(t)},`).join("\n")}\n});`)
   .join("\n\n");
 const body = records.map((r) => `  ${r.name},`).join("\n");
 const next = `// GENERATED from library/themes/*.declare by tools/internal/gen-themes.mjs — DO NOT EDIT.
-// The presets are authored in the language (stylesheet Name [ theme: Theme [ … ] ]);
-// this module is their projection into the runtime, so the zero-declaration
-// default (value.ts DEFAULT_THEME = THEME_RECORDS.SanFrancisco) and the named
-// Themes.* surface serve the SAME objects the authored files declare.
+// The presets are authored in the language (theme Name [ … ]); this module is
+// their projection into the runtime, so themes.ts serves the SAME objects the
+// authored files declare, by name.
 
 ${decls}
 

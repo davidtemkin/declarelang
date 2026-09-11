@@ -33,10 +33,10 @@ opening bracket. Declarations, methods, states, layouts, and child instances eac
 line of their own; they never share the header line with plain config.
 
 ```declare-fragment
-card: View [ width = 220, height = 96, cornerRadius = 8, fill = { theme.surface },
+card: View [ width = 220, height = 96, cornerRadius = 8, fill = { provided("theme").surface },
 
     title: Text [ x = 12, y = 10, fontWeight = medium, text = :name ],
-    body:  Text [ x = 12, y = 32, textColor = { theme.textMuted }, text = :summary ]
+    body:  Text [ x = 12, y = 32, textColor = { provided("theme").textMuted }, text = :summary ]
     ]
 ```
 
@@ -100,7 +100,7 @@ handlers — and a blank line before the hanging close. This is what makes a bod
 outline instead of a wall.
 
 ```declare-fragment
-App [ width = 240, height = 320, fill = { theme.bg },
+App [ width = 240, height = 320, fill = { provided("theme").bg },
 
     zip: string = "94403",
 

@@ -10,7 +10,6 @@ import type { Literal, ShapeField } from "./parser.js";
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS, type Motion } from "./animate.js";
-import { SanFrancisco } from "./themes-data.js";
 
 /** A color as one number, or `null` for "no color".
  *
@@ -153,22 +152,16 @@ export function fillEqual(a: Fill, b: Fill): boolean {
 }
 
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
- *  wholesale-swapped, never mutated in place). The default is SAN FRANCISCO
- *  light (docs/system-design/components-baseline.md Contract 2) — this record
- *  IS Themes.sanFrancisco(false), by identity (themes.ts aliases it), so the
- *  zero-declaration tier and the named preset can never drift. `theme.role`
- *  in library components ALWAYS resolves — no provider means San Francisco,
- *  never a fallback expression in component source. `depth` (0 = flat …
- *  1 = dimensional) is the treatment dial components translate in their
- *  decoration constraints. Partial reskin is explicit-base spread:
- *  `theme = { { ...app.theme, accent: 0xE05252 } }`. (The dark-aware house —
- *  a binding default off `app.dark` — is the noted follow-up.) */
+ *  wholesale-swapped, never mutated in place). `theme.role` in library
+ *  components ALWAYS resolves: `Control` declares `theme: Theme = { provided(
+ *  "theme", SanFrancisco) }`, so no provider means San Francisco, never a
+ *  fallback expression in component source. `depth` (0 = flat … 1 =
+ *  dimensional) is the treatment dial components translate in their decoration
+ *  constraints. Partial reskin is explicit-base spread:
+ *  `theme = { { ...provided("theme"), accent: 0xE05252 } }`. */
 export type Theme = Readonly<Record<string, unknown>>;
-// The record itself is AUTHORED IN THE LANGUAGE — library/themes/
-// sanfrancisco.declare — and projected here through themes-data.ts
-// (gen-themes.mjs, freshness-gated), so the no-typing tier serves the very
-// object the authored preset declares.
-export const DEFAULT_THEME: Theme = SanFrancisco as Theme;
+// The preset records live in themes-data.ts and are served by name through
+// themes.ts (the `theme Name [ … ]` declarations project into that module).
 
 /** A parent-relative percentage, as written (`{ percent: 50 }` for `50%`).
  *  It stays symbolic: resolving it against a parent measurement is constraint
@@ -242,9 +235,9 @@ export type AttrType =
   // named slot exists and is numeric is the one animation compile check, run
   // against the TARGET's schema at the element walk (check.ts), not here.
   | { readonly kind: "slotref" }
-  // Styling: a typed token record (View.theme — the prevailing design-token
-  // slot, wholesale-swapped; no literal form — values arrive from `{ }`
-  // bindings or a stylesheet) and the three decoration slots, whose literal
+  // Styling: a typed token record (a Theme — a design-token record, wholesale-
+  // swapped; provided as a named theme, a `{ }` binding, or an inline `Theme
+  // [ … ]` record) and the three decoration slots, whose literal
   // forms are the ruled value CONSTRUCTORS (`gradient(…)`, `stroke(…)`,
   // `shadow(…)`) — self-naming, arity-checked, identical inside `{ }` where
   // the same names are ordinary functions in scope.
@@ -261,19 +254,10 @@ export type AttrType =
   // any enum) or a value constructor (`cubicBezier(…)`, `back(…)`, `steps(…)`,
   // `laszlo(…)`, like `shadow(…)`). Resolves to a Motion value (animate.ts).
   | { readonly kind: "motion" }
-  // Styling: the two channel slots. `styles` holds a static bundle-name list
-  // (`styles = [card, danger]` — consumed at construction, ruled v1);
-  // `stylesheet` holds a declared stylesheet by name (a prevailing slot —
-  // provide it anywhere and the subtree reskins). Both resolve against the
-  // PROGRAM's declarations, so the checker routes them with program context;
-  // coercion here only answers the null form.
-  | { readonly kind: "styles" }
-  | { readonly kind: "stylesheet" }
   // Fonts: `fontFamily` — either a declared `font Name` reference (an ident,
   // resolved against the program's declarations to a family string at
-  // instantiate, like `stylesheet`) or a raw family string (the legacy
-  // literal). Prevailing; stays a plain string at runtime, so the render seam
-  // and both backends are untouched.
+  // instantiate) or a raw family string. Stays a plain string at runtime, so
+  // the render seam and both backends are untouched.
   | { readonly kind: "font" };
 
 /** Declare an enum attribute type: `enumType("Stretch", "none", "width", …)`
@@ -445,16 +429,15 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       return fail("a slot name written as a bare token (like height or x)");
     case "record":
       // A DATA record (schema-typed, `sel: Task = null`): null is the one
-      // literal form — the slot may be empty before anything feeds it,
-      // exactly like a component slot. A house token record (Theme) keeps
-      // its no-literal rule: an "empty" theme is the default record, so
-      // readers' `theme.token` never explodes; values arrive from { }
-      // bindings or a stylesheet.
+      // literal form — the slot may be empty before anything feeds it, exactly
+      // like a component slot. A token record (Theme) arrives as a named theme
+      // (`theme = Cupertino` — an ident routed and resolved before coercion), a
+      // `{ }` binding, or an inline `Theme [ … ]` record.
       if (type.data === true) {
         if (lit.kind === "ident" && lit.name === "null") return ok(null);
         return fail(`a ${type.name} record (provide one with a { } binding), or null for none`);
       }
-      return fail(`a ${type.name} (a token record — provide one with a { } binding or a stylesheet)`);
+      return fail(`a ${type.name} (a named theme, a { } binding, or a Theme [ … ] record)`);
     case "fill":
       return coerceFill(lit);
     case "stroke":
@@ -467,16 +450,10 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       return coerceBackdrop(lit);
     case "motion":
       return coerceMotion(lit);
-    case "styles":
-      if (lit.kind === "ident" && lit.name === "null") return ok(null);
-      return fail("a style list ([card, danger] — names of declared style bundles), or null");
-    case "stylesheet":
-      if (lit.kind === "ident" && lit.name === "null") return ok(null);
-      return fail("a stylesheet declared in this program (by name), or null");
     case "font":
       // A raw family string is the literal form; a `font Name` reference (an
       // ident) resolves against program declarations — routed in
-      // check.ts/instantiate.ts before coercion (like `stylesheet`).
+      // check.ts/instantiate.ts before coercion.
       if (lit.kind === "string") return ok(lit.value);
       return fail("a declared font (by name), or a raw family string like \"Helvetica, sans-serif\"");
   }
@@ -524,7 +501,7 @@ function coerceColor(lit: Literal): Coerced {
   }
 }
 
-// ── Decoration values (styling rung) ────────────────────────────────────────
+// ── Decoration values ───────────────────────────────────────────────────────
 //
 // The literal grammar is the ruled CONSTRUCTOR form — `name(args)`, parallel
 // to how `50%` and `#354D5B` are typed literal forms — with args themselves

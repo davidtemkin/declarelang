@@ -27,7 +27,7 @@ import { validateExpr, CONSTRUCTOR_NAMES } from "./expr.js";
  *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
 export const NOUNS = ["this", "parent", "classroot", "app"];
 
-/** The value-constructor names (styling rung) are reserved as member names:
+/** The value-constructor names are reserved as member names:
  *  in call position a body's `gradient(…)` is always the constructor, so a
  *  member wearing the name would be unreachable there. (`fill`/`stroke`/
  *  `shadow` are already View attributes — the ordinary collision rules cover
@@ -171,7 +171,6 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
     }
     const attrs: Record<string, AttrType> = {};
     const defaults: Record<string, AttrValue | undefined> = {};
-    const prevailing: string[] = [];
     const readOnly: string[] = [];
     for (const d of decl.body.decls) {
       const r = checkDecl(base, d, decl.name, isComponentName, isShape);
@@ -179,10 +178,9 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
       if (Object.hasOwn(attrs, d.name)) continue; // the namespace pass reports the duplicate
       attrs[d.name] = r.type;
       defaults[d.name] = r.value;
-      if (d.prevailing) prevailing.push(d.name);
       if (d.readOnly) readOnly.push(d.name);
     }
-    const schema: ComponentSchema = { name: decl.name, base, attrs, prevailing, readOnly };
+    const schema: ComponentSchema = { name: decl.name, base, attrs, readOnly };
     schemas[decl.name] = schema;
     infos.push({ decl, schema, defaults });
     state.set(decl.name, "done");
@@ -259,7 +257,7 @@ export function coerceToken(lit: Literal): unknown {
 }
 
 /** One checked attribute declaration: its resolved type and coerced default
- *  — or, since the styling rung, a default BINDING (`labelColor: Color =
+ *  — or a default BINDING (`labelColor: Color =
  *  { theme.buttonText }`, the ruled R6 unlock: a live per-instance fallback
  *  below every provision) — or the (unthrown) error. Shared by class
  *  registration and by inline declarations on instances — one message
@@ -370,12 +368,6 @@ export function checkDecl(
         d.pos
       );
     }
-    if (d.prevailing) {
-      return err(
-        `'${d.name}' cannot be both prevailing and external — a followed slot takes its value from the ancestor chain, a boundary slot from the other side of the island; the two sources cannot share one slot`,
-        d.pos
-      );
-    }
     // Data types only: the other side is a SEPARATE program (someday a
     // separate realm) — a component or view is an identity in THIS program's
     // graph and cannot cross; a function cannot be serialized across. This is
@@ -390,7 +382,7 @@ export function checkDecl(
   }
   if (d.def === null) return { ok: true, type, value: undefined };
   if (d.def.kind === "code") {
-    // A default BINDING (styling rung, the ruled R6 unlock): a live
+    // A default BINDING (the ruled R6 unlock): a live
     // per-instance fallback — in effect only while nothing provides the
     // slot, so it never contends with any offer (`labelColor: Color =
     // { theme.buttonText }` is what lets components defer to tokens).
@@ -456,15 +448,13 @@ export function withDecls(
 ): ComponentSchema {
   if (decls.length === 0) return schema;
   const attrs: Record<string, AttrType> = {};
-  const prevailing: string[] = [];
   for (const d of decls) {
     const r = checkDecl(schema, d, schema.name, isComponent, isShape);
     if (r.ok && !Object.hasOwn(attrs, d.name)) {
       attrs[d.name] = r.type;
-      if (d.prevailing) prevailing.push(d.name);
     }
   }
-  return { name: schema.name, base: schema, attrs, prevailing };
+  return { name: schema.name, base: schema, attrs };
 }
 
 /** The many-path attribute (`datapath = :items[]`) that makes an element a

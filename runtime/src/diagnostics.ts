@@ -264,7 +264,7 @@ export const Diag = {
     err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
   // `classroot` reaches the root of the component (class) you are defining, so it
   // is meaningful ONLY inside a class body. `where` names the non-class body the
-  // code is actually in ("the App", "a stylesheet", "a style bundle").
+  // code is actually in ("the App", "a style bundle").
   classrootOutsideClass: (where: string, pos: Pos): DeclareError =>
     err(code4(4003), `'classroot' is the root of a component you define — valid only inside a class body. This code is in ${where}, not a class. Reach values here by a bare name, 'this', or 'app'.`, pos),
   // A CSS color NAME resolved as a bare identifier inside { } — the name form is

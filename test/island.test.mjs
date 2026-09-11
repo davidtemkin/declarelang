@@ -157,9 +157,6 @@ await test("checker: external placement and type rules", async () => {
   // component types cannot cross
   const r2 = await compile(`App [ width = 10, isl: DOMIsland [ external v: View = null ] ]`, {});
   assert.ok(r2.errors.some((e) => /cannot cross/.test(e.message)), "a view-typed external is refused");
-  // prevailing cannot combine
-  const r3 = await compile(`App [ width = 10, isl: DOMIsland [ prevailing external fooX: number = 0 ] ]`, {});
-  assert.ok(r3.errors.some((e) => /prevailing and external/.test(e.message)), "prevailing+external is refused");
   // the happy form is clean
   const r4 = await compile(`App [ width = 10, isl: DOMIsland [ external readonly fooX: number = 0 ] ]`, {});
   assert.equal(r4.errors.length, 0, r4.errors.map((e) => e.message).join("; "));

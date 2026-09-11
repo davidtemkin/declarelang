@@ -115,13 +115,14 @@ This is how the standard library draws every mark a font cannot be trusted with 
 `Checkbox`'s tick, the whole icon set. [Chapter 11](declare-docs:guide:make-your-own)
 shows the `Icon` base and the 16-box convention that keeps a drawn mark crisp at any size.
 
-## Type, and the prevailing rule
+## Type, and provided values
 
 Text style is four attributes — `textColor`, `fontSize`, `fontFamily` (a fallback
-list), `fontWeight` — and they are **prevailing**: an unset slot follows the nearest
-ancestor that sets it, live, until a descendant overrides it. (Slant is separate:
-`italic = true` on a `Text` renders the italic face, per-`Text` — it does not
-prevail.) Set them once, high:
+list), `fontWeight` — and they are **provided values**: each lives on `Text`, and its
+default *reads the nearest ancestor that provides it*. So setting one on a container
+**provides** it to every `Text` beneath, and an unset `Text` inherits it, live, until a
+descendant overrides. (Slant is separate: `italic = true` on a `Text` renders the italic
+face, per-`Text` — it is not provided.) Set them once, high:
 
 ```declare
 App [ fill = white, fontFamily = ["Helvetica Neue", "sans-serif"], fontSize = 15, fontWeight = bold, textColor = black,
@@ -135,34 +136,44 @@ App [ fill = white, fontFamily = ["Helvetica Neue", "sans-serif"], fontSize = 15
 
 Neither `Text` repeats family, size, or weight; the second overrides one thing. This
 is what keeps a real interface free of style repetition — and it *is* a cascade of a
-kind: values flow down the tree until overridden. What it is not is CSS's cascade —
-no selectors, no specificity contest, no `!important`, no rule fighting another rule
-from a different file. One mechanism — nearest ancestor wins, reactively — instead of
-an arbitration system.
+kind: a value flows down the tree from where you provide it until a descendant
+overrides. What it is not is CSS's cascade — no selectors, no specificity contest, no
+`!important`, no rule fighting another rule from a different file. One mechanism —
+nearest provider wins, reactively — instead of an arbitration system. You never write
+the *read*; `Text` does that for you. You only ever type `provided("…")` when your own
+code reaches up the tree for a value — which the theme, next, shows.
 
 ## The `theme` record
 
-`theme` is a prevailing *record* of named tokens. Provide it once; every descendant
-reads roles out of it:
+`theme` is a **provided value** whose value is a *record* of named tokens. You provide it
+once — a plain set on the App — and read a role out of it with `provided("theme")`:
 
 ```declare
-class Heading extends Text [ fontWeight = bold, textColor = { theme.text } ]
+class Heading extends Text [ fontWeight = bold, textColor = { provided("theme").text } ]
 
-App [ fill = { theme.surface }, theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, accent: 0x4C8DFF, surface: 0x101E28 }) },
+App [ fill = { provided("theme").surface }, theme = { { text: 0xE7EEF2, muted: 0x8A9BA6, accent: 0x4C8DFF, surface: 0x101E28 } },
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         Heading [ text = "Signals" ],
-        Text [ textColor = { theme.muted }, text = "muted subtitle" ]
+        Text [ textColor = { provided("theme").muted }, text = "muted subtitle" ]
         ]
     ]
 ```
 
+Two forms sit side by side, and the split is the whole idea. `theme = { … }` on the App
+**provides** the record — a plain set, no keyword. `provided("theme").surface` **reads**
+it — the explicit up-the-tree read, shown because it reaches past this view for a value.
+The library components read it *for* you (a `Button` styles off `provided("theme")` inside
+`Control`), so an app that only sets `theme` and drops widgets on the page never writes
+`provided(…)` at all; you write it only where your *own* code wants a token.
+
 Edit a token in the running example — the accent, the surface — and the reskin is one
 edit, everywhere. Because `theme` is an ordinary reactive value, the two moves you'd
-want are plain TypeScript: `theme = { { ...app.theme, accent: 0xE05252 } }` re-skins a
-subtree partially, and `theme = { app.dark ? app.darkTheme() : app.lightTheme() }`
-swaps the whole record — which is all dark mode *is*. **Style is state.** The title of
-this chapter is not a metaphor.
+want are plain TypeScript: `theme = { { ...provided("theme"), accent: 0xE05252 } }`
+re-skins a subtree partially (provide a modified record lower down), and
+`theme = { app.dark ? app.darkTheme() : app.lightTheme() }` swaps the whole record —
+which is all dark mode *is*. **Style is state.** The title of this chapter is not a
+metaphor.
 
 ### Your tokens are free; the library's are a vocabulary
 
@@ -175,13 +186,16 @@ the record has a contract to meet:
 > do not build one from scratch.
 
 ```declare-fragment
-theme = { Themes.sanFrancisco(app.dark) },                // a preset, light or dark
-theme = { { ...app.theme, accent: 0xCC3333 } }           // one token changed, below
+theme = { app.dark ? SanFranciscoDark : SanFrancisco },       // a preset, light or dark
+theme = { { ...provided("theme"), accent: 0xCC3333 } }        // one token changed, below
 ```
 
-`Themes.sanFrancisco` / `.cupertino` / `.mountainView` / `.redmond` each take a dark
-flag and are available with no include. The vocabulary splits in two, and the split is
-worth knowing:
+The four presets — **SanFrancisco**, **Cupertino**, **MountainView**, **Redmond** —
+each come as a light record and a `…Dark` companion (`SanFranciscoDark`,
+`CupertinoDark`, …), in scope by name with no include: you name the pair you want.
+You can declare your own the same way — `theme Brand [ accent = #E05252, … ]` is a
+top-level named record, the same shape as `font Name [ … ]` and `schema Name [ … ]`.
+The library's vocabulary splits in two, and the split is worth knowing:
 
 - **12 required tokens**, read bare with no fallback — `accent`, `accentText`, `control`,
   `controlHover`, `controlPressed`, `controlRadius`, `controlSelected`, `focusRing`,
@@ -197,8 +211,9 @@ consult rather than what someone remembered to write down.
 
 Two consequences worth internalizing. A theme is a **plain record**, so composing one is
 ordinary TypeScript — spread a preset, override, and hand the result down. And because
-the slot is prevailing, a subtree can carry its own: a dialog, a preview pane, or an
-embedded app can run a different theme from the page around it without either knowing.
+it is a provided value, a subtree can provide its own: a dialog, a preview pane, or an
+embedded app can `theme = { … }` a different record from the page around it, and every
+`provided("theme")` below reads the nearer one, without either knowing.
 
 ## Dark mode is an opt-in, deliberately
 
@@ -209,13 +224,13 @@ honestly is a design decision, and you should never ship a rendition you have ne
 seen. Following the system is one line of stated intent:
 
 ```declare-fragment
-theme = { Themes.sanFrancisco(app.dark) }   // follow the system, live
+theme = { app.dark ? SanFranciscoDark : SanFrancisco }   // follow the system, live
 ```
 
 `app.dark` is reactive, so the flip is immediate when the OS setting changes — no
-listener, no reload. The named presets (`Themes.sanFrancisco`, `Themes.cupertino`,
-`Themes.mountainView`, `Themes.redmond`) are each a function of that one boolean —
-platform-fidelity looks, authored in Declare itself, in the library's own source.
+listener, no reload. Each preset is a light record with a `…Dark` companion, so
+following the system is one reactive choice between the pair — platform-fidelity
+looks, authored in Declare itself, in the library's own source.
 
 ## When text stops being a label
 
@@ -270,9 +285,8 @@ doc: Markdown [ text = { app.article.value || "" },
 outside the set does: `"strip"` unwraps it and keeps the text, `"error"` throws. So
 loaded or untrusted content is never silently mangled. Its styling hook is a **named
 style**, never CSS: a run marked `<span class='hero'>` takes whatever `hero` is defined to
-be — a `style` bundle your app declares once and a plain view can wear too (the next
-section). For a one-off, a local `textStyles = { … }` map on the element is the inline
-alternative.
+be — a top-level `style` bundle your app declares once (the next section). For a one-off, a
+local `textStyles = { … }` map on the element is the inline alternative.
 
 **Media is the same shape.** `Image`, `Video` and `Audio` are leaves whose lifecycle is
 reactive state, like every source in the language: `loaded` and `failed` are read-only
@@ -304,40 +318,42 @@ App [ width = 320, height = 84, fill = #0B141B,
     ]
 ```
 
-Unlike `textColor` and `fontSize` — the *prevailing* slots an ancestor hands down — a
-treatment lives on the run itself and does not cascade. Which raises the obvious question:
-if a look lives on each run, how do you avoid repeating it? A **`style` bundle**. Declare
-the look once, at the top level, refer to it by name, and — since a `<span class>` names the
-same bundle — a container and a run of prose wear one definition alike (a color inside a
-`{ }` body is `0x`, as everywhere):
+Unlike `textColor` and `fontSize` — the provided values an ancestor hands down — a
+treatment lives on the run itself and does not cascade. Which raises two questions: how do
+you reuse a look across whole `Text` views, and how do you reach *inside* parsed prose to
+colour one word?
+
+For a **view**, the answer is the language you already have — a **subclass**. A named look is
+a `class` extending `Text`, and every geometry-and-style trick in this guide is available to
+it; a theme-following field is a `{ }` reading `provided("theme")`:
+
+```declare-fragment
+class Kw   extends Text [ textColor = #C678DD ]
+class Hero extends Text [ fontSize = 40, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
+```
+
+For a **run inside parsed prose**, a subclass has nothing to attach to — there is no view at
+"the third word of a paragraph". So a `<span class='…'>` names a top-level **`style` bundle**
+instead, the one place a look is addressed by name rather than by class:
 
 ```declare
-style kw   [ textColor = #C678DD ]
-style hero [ fontSize = 40, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
+class Hero extends Text [ fontSize = 40, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
+style kw  [ textColor = { provided("theme").accent } ]     // fields may read provided values
 
 App [ width = 380, height = 130, fill = white,
-    Text [ x = 20, y = 16, styles = [hero], text = "Big, gradient-filled" ],
+    Hero [ x = 20, y = 16, text = "Big, gradient-filled" ],
     HTMLText [ x = 20, y = 84, fontSize = 15, bodyColor = 0x33424E,
         html = "<span class='kw'>class</span> Board [ ]" ]
     ]
 ```
 
-A run **wears** a bundle by list — `Text [ styles = [hero] ]` — and the same name is the
-vocabulary rich text speaks: `<span class='kw'>class</span>` resolves the `kw` bundle. One
-definition, two surfaces — a syntax-highlight palette colours both a live code panel and a
-documentation snippet, and a wordmark is a gradient in the header and inline in a sentence,
-from one line. A bundle can sit on a **container** too, but only for the attributes that view
-declares: its *prevailing* slots (`textColor`, `fontSize`, …) then cascade to the descendant
-`Text`, the way a theme does — while the per-run treatments (`textFill`, `outline`, …) belong
-to the run that wears them, since a plain `View` has no `textFill` to set.
-
-Because a bundle field is an ordinary attribute, it can be a `{ }` body:
-`style brand [ textFill = { theme.brand } ]` re-derives when the theme changes, and every
-span and view wearing `brand` follows in the same settle. And a bundle applies *below* your
-own writes — a local attribute always wins, and later names in a `styles` list win over
-earlier ones — so a bundle is a default a view can override, never a rule that fights your
-code. The same three renderers draw all of it: the treatments and the bundles render
-identically on DOM, canvas and the native Mac host.
+`Hero` is a view you drop in; `<span class='kw'>class</span>` resolves the `kw` bundle for a
+run of prose. A bundle field is an ordinary attribute, so it can be a `{ }` body:
+`style kw [ textColor = { provided("theme").accent } ]` re-derives when the theme changes,
+and every highlighted keyword follows in the same settle — so one definition colours a live
+code panel and a documentation snippet alike, and both track dark mode. The same three
+renderers draw all of it: the treatments and the bundles render identically on DOM, canvas
+and the native Mac host.
 
 ## Same program, no DOM — try it
 

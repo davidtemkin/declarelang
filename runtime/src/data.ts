@@ -831,8 +831,6 @@ export function coerceData(type: AttrType, v: unknown, def: unknown): unknown {
     case "shadow":
     case "backdrop":
     case "motion":
-    case "styles":
-    case "stylesheet":
     case "font":
     case "slotref":
       return def; // never data-bound in a useful form; total for safety

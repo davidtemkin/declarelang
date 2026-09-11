@@ -120,9 +120,6 @@ export interface AttributeNode extends NodeBase {
   type: string;
   /** The default, rendered from the decoration table; `null` if there is none. */
   default: string | null;
-  /** A styling-rung slot that follows the nearest providing ancestor when unset
-   *  (schema `prevailing`). */
-  prevailing: boolean;
   /** A computed/intrinsic value a constraint may read but nothing may set
    *  (schema `readOnly` — e.g. `contentWidth`). */
   readOnly: boolean;
@@ -174,12 +171,11 @@ export interface FunctionNode extends NodeBase {
   returns: { type: string; doc: string | null } | null;
 }
 
-/** A `stylesheet Name [ … ]` / `style name [ … ]` declaration on the documented
- *  surface (bundled themes). */
+/** A `style name [ … ]` declaration on the documented surface — a run-style
+ *  bundle a `<span class>` inside parsed prose names. */
 export interface StyleNode extends NodeBase {
   kind: "style";
-  /** `stylesheet` (keyed, prevailing) vs `style` (a named bundle). */
-  form: "stylesheet" | "style";
+  form: "style";
 }
 
 /** A `font Name [ … ]` declaration — the named face container (docs/system-design/fonts.md). */

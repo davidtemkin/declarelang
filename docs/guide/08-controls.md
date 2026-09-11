@@ -59,7 +59,7 @@ A control's value is a plain reactive attribute, used in one of three forms.
 *App-owned* — the truth lives elsewhere: **derive down, deliver up**:
 
 ```declare
-App [ width = 360, height = 200, fill = { theme.bg },
+App [ width = 360, height = 200, theme = { SanFrancisco }, fill = { provided("theme").bg },
     volume: number = 50,
     muted:  boolean = false,
 
@@ -99,13 +99,13 @@ A `Menu`'s items, a `Dialog`'s buttons, a `Segmented`'s choices, a `DataGrid`'s 
 all plain record arrays, with the choice handed back through a method:
 
 ```declare
-App [ width = 340, height = 130, fill = { theme.bg },
+App [ width = 340, height = 130, theme = { SanFrancisco }, fill = { provided("theme").bg },
     page: string = "list",
     Segmented [ x = 20, y = 20, width = 300, value = { app.page },
         choices = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
         input(v: object) { app.page = "" + v }
         ],
-    Text [ x = 20, y = 74, textColor = { theme.text }, text = { "showing: " + app.page } ]
+    Text [ x = 20, y = 74, textColor = { provided("theme").text }, text = { "showing: " + app.page } ]
     ]
 ```
 

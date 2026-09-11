@@ -7,7 +7,7 @@ font Sans [ family = "system-ui" ]
 
 class Lab extends Text [
     x = 0, y = center, width = 132, fontSize = 11.5, wrap = false,
-    textColor = { theme.textMuted }
+    textColor = { provided("theme").textMuted }
     ]
 
 
@@ -24,9 +24,9 @@ class Glyphs extends View [
     height = { parent.height }, width = 130,
     size: number = 14,
     layout: SimpleLayout [ axis = x, spacing = 24 ],
-    a: Text [ y = center, wrap = false, fontSize = { classroot.size }, textColor = { theme.text }, text = "☀︎" ],
-    b: Text [ y = center, wrap = false, fontSize = { classroot.size }, textColor = { theme.text }, text = "◐" ],
-    c: Text [ y = center, wrap = false, fontSize = { classroot.size }, textColor = { theme.text }, text = "☾" ]
+    a: Text [ y = center, wrap = false, fontSize = { classroot.size }, textColor = { provided("theme").text }, text = "☀︎" ],
+    b: Text [ y = center, wrap = false, fontSize = { classroot.size }, textColor = { provided("theme").text }, text = "◐" ],
+    c: Text [ y = center, wrap = false, fontSize = { classroot.size }, textColor = { provided("theme").text }, text = "☾" ]
     ]
 
 
@@ -58,13 +58,13 @@ class Strip extends View [
     ]
 
 
-App [ width = 760, height = 640, fill = { theme.bg },
-    theme = { Themes.sanFrancisco(app.dark) },
+App [ width = 760, height = 640, fill = { provided("theme").bg },
+    theme = { app.dark ? SanFranciscoDark : SanFrancisco },
 
     t1: Text [ x = 24, y = 18, fontSize = 14, fontWeight = semibold,
-        textColor = { theme.text }, text = "Appearance triad — font glyph vs drawn" ],
-    h1: Text [ x = 164, y = 42, fontSize = 10.5, textColor = { theme.textFaint }, text = "font" ],
-    h2: Text [ x = 344, y = 42, fontSize = 10.5, textColor = { theme.textFaint }, text = "drawn" ],
+        textColor = { provided("theme").text }, text = "Appearance triad — font glyph vs drawn" ],
+    h1: Text [ x = 164, y = 42, fontSize = 10.5, textColor = { provided("theme").textFaint }, text = "font" ],
+    h2: Text [ x = 344, y = 42, fontSize = 10.5, textColor = { provided("theme").textFaint }, text = "drawn" ],
 
     compare: View [ x = 24, y = 58, width = { app.width - 48 },
         layout: SimpleLayout [ axis = y, spacing = 0 ],
@@ -75,14 +75,14 @@ App [ width = 760, height = 640, fill = { theme.bg },
         ],
 
     t2: Text [ x = 24, y = 268, fontSize = 14, fontWeight = semibold,
-        textColor = { theme.text }, text = "The rest of the set" ],
+        textColor = { provided("theme").text }, text = "The rest of the set" ],
 
     rest: View [ x = 24, y = 300, width = { app.width - 48 },
         layout: SimpleLayout [ axis = y, spacing = 0 ],
         Strip [ label = "16px", iconSize = 16 ],
         Strip [ label = "18px", iconSize = 18 ],
         Strip [ label = "32px  (crispness)", iconSize = 32, height = 54 ],
-        Strip [ label = "ink follows text", iconSize = 18, textColor = { theme.accent } ]
+        Strip [ label = "ink follows text", iconSize = 18, textColor = { provided("theme").accent } ]
         ],
 
     /* Does the SHAPE change with size? The geometry does not — every icon is one
@@ -94,7 +94,7 @@ App [ width = 760, height = 640, fill = { theme.bg },
        invisible; past ~32 an icon starts reading as a fine-line drawing. */
 
     t3: Text [ x = 24, y = 512, fontSize = 14, fontWeight = semibold,
-        textColor = { theme.text }, text = "Size ramp — same path, constant stroke" ],
+        textColor = { provided("theme").text }, text = "Size ramp — same path, constant stroke" ],
 
     ramp: View [ x = 30, y = 540, height = 72,
         layout: SimpleLayout [ axis = x, spacing = 18 ],

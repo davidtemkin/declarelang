@@ -77,7 +77,7 @@ Calendar, Viewer and Docs each build a bespoke record that mixes:
   `miniCurrentBg`. These have no place in a shared theme.
 
 **The rule:** an app theme is the standard record *extended* with its domain
-tokens — `{ ...Themes.sanFrancisco(dark), ...calendarTokens() }`. Library
+tokens — `{ ...(dark ? SanFranciscoDark : SanFrancisco), ...calendarTokens() }`. Library
 controls then find what they expect; the app keeps every domain name it has.
 This is a **rename, not a recolor**: the app supplies its own values under the
 standard names, so nothing moves visually.

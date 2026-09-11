@@ -303,40 +303,35 @@ if (r9Compiled.errors.length > 0 || r9Compiled.warnings.length > 0) {
 }
 const R9_SOURCE = r9Compiled.source;
 
-// The styling program (the styling rung): every channel and every decoration
-// value on screen at once, on both backends —
-//   prevailing fonts/textColor provided at the App root (label/sub follow),
-//   a stylesheet (Base) with a theme record + class-keyed entries: Chip gets
-//     a GRADIENT fill + an inside stroke; Chip's class body pins
-//     cornerRadius = { theme.radius } (a class-body set outranking the skin —
-//     and a theme-token read),
-//   a bundle (`ring`, applied styles=[ring] on chip2) whose stroke outranks
-//     the Chip entry's (rank 5 > 3),
-//   a { theme.accent } instance binding (panel),
-//   a translucent drop shadow (#00000044, dx=dy=4, blur 0 — deterministic
-//     hard edge) cast by a ROUNDED white box,
+// The styling program (provided values): the whole style surface + every
+// decoration value on screen at once, on both backends —
+//   the text face (fontFamily/fontSize/fontWeight/textColor) PROVIDED at the App
+//     root, so label/sub follow it (a local fontSize/fontWeight on `sub` wins);
+//   a `theme` provided value (a token record) switched by a `mode` slot — Chip
+//     reads its fill/stroke/radius through `provided("theme")`, so a Chip is
+//     styled entirely from the ambient theme;
+//   a { provided("theme").accent } instance binding (panel);
+//   a translucent drop shadow (#00000044, dx=dy=4, blur 0 — deterministic hard
+//     edge) cast by a ROUNDED white box;
 //   an #RRGGBBAA translucent fill literal (veil), and a textShadow.
-// __restyle() swaps the App's stylesheet to Dark: chips go solid dark with a
-// new stroke, the panel re-reads the accent token, the Text entry recolors
-// both runs (an entry OUTRANKS the prevailing follow), the shadow box (no
-// entry names it) must not move a pixel — all in ONE settle, one frame.
-const R10_RAW = `stylesheet Base [
-    theme: Theme [ accent = #E9C46A, radius = 6 ],
-    Chip:  [ fill = gradient(#F8F8F8, #B8B8B8), stroke = stroke(2, #B0B0B0) ],
-  ]
-stylesheet Dark [
-    theme: Theme [ accent = #4FC3F7, radius = 6 ],
-    Chip:  [ fill = #333333, stroke = stroke(2, #777777) ],
-    Text:  [ textColor = #CAD0EC ],
-  ]
-class Chip extends View [ width = 84, height = 32, cornerRadius = { theme.radius } ]
-style ring [ stroke = stroke(2, #3FA34D) ]
-App [ width=240, height=160, fill=#20242C, stylesheet = Base,
-    fontFamily = "Arial", fontSize = 14, fontWeight = bold, textColor = #FFE28A,
+// __restyle() writes `app.mode = "dark"`: the theme provision re-derives, so
+// every chip and the panel re-read the swapped tokens and the provided textColor
+// recolors both runs — while the shadow box and veil (fixed literals) must not
+// move a pixel — all in ONE settle, one frame.
+const R10_RAW = `class Chip extends View [ width = 84, height = 32,
+    fill = { provided("theme").chip }, stroke = { stroke(2, provided("theme").chipStroke) },
+    cornerRadius = { provided("theme").radius } ]
+App [ width=240, height=160, fill=#20242C,
+    mode: string = "base",
+    theme = { app.mode == "dark"
+        ? ({ chip: 0x333333, chipStroke: 0x777777, accent: 0x4FC3F7, radius: 6 })
+        : ({ chip: 0xC8C8C8, chipStroke: 0xB0B0B0, accent: 0xE9C46A, radius: 6 }) },
+    fontFamily = "Arial", fontSize = 14, fontWeight = bold,
+    textColor = { app.mode == "dark" ? 0xCAD0EC : 0xFFE28A },
     chip1: Chip [ x=16, y=16 ],
-    chip2: Chip [ x=16, y=58, styles = [ring],
+    chip2: Chip [ x=16, y=58,
         tag: View [ x = -6, y = 10, width = 10, height = 8, fill = #FF00FF ] ],
-    panel: View [ x=120, y=16, width=90, height=44, fill = { theme.accent } ],
+    panel: View [ x=120, y=16, width=90, height=44, fill = { provided("theme").accent } ],
     shadowBox: View [ x=132, y=76, width=56, height=32, fill=#FFFFFF, cornerRadius=8,
                       shadow = shadow(4, 4, 0, #00000044) ],
     veil: View [ x=200, y=124, width=32, height=24, fill=#FF000080 ],
@@ -674,8 +669,9 @@ const r9PageHtml = (backendClass) => `<!doctype html>
 </script>`;
 
 // The styling page: renders the compiled R10 program and exposes __restyle —
-// the live re-skin (one write to the App's prevailing stylesheet slot),
-// returning how many frames the whole cascade scheduled.
+// the live re-skin (one write to the App's `mode` slot, which the `theme`
+// provision re-derives from), returning how many frames the whole cascade
+// scheduled.
 const r10PageHtml = (backendClass) => `<!doctype html>
 <meta charset="utf-8">
 <style>html,body{margin:0;padding:0}</style>
@@ -686,7 +682,7 @@ const r10PageHtml = (backendClass) => `<!doctype html>
   window.__app = app;
   window.__restyle = async () => {
     const before = window.__rafCalls;
-    app.stylesheet = app.lookupStylesheet("Dark");
+    app.mode = "dark";
     await Promise.resolve(); // land after the settle microtask
     return window.__rafCalls - before;
   };
@@ -2227,23 +2223,21 @@ try {
 
   const R10_PROBES = [
     { at: [5, 5], color: R10_BG, label: "app background" },
-    { at: [58, 32], color: [0xd8, 0xd8, 0xd8], label: "chip1 gradient midpoint (entry fill)" },
-    { at: [58, 17], color: [0xb0, 0xb0, 0xb0], label: "chip1 inside stroke (entry)" },
+    { at: [58, 32], color: [0xc8, 0xc8, 0xc8], label: "chip1 fill (provided theme token)" },
+    { at: [58, 17], color: [0xb0, 0xb0, 0xb0], label: "chip1 inside stroke (provided token)" },
     { at: [16, 16], color: R10_BG, label: "chip1 rounded corner — paint only, bg outside" },
-    { at: [58, 59], color: [0x3f, 0xa3, 0x4d], label: "chip2 ring stroke (bundle outranks the entry)" },
-    { at: [58, 74], color: [0xd8, 0xd8, 0xd8], label: "chip2 gradient (the entry field fell through)" },
+    { at: [58, 74], color: [0xc8, 0xc8, 0xc8], label: "chip2 fill (same ambient theme)" },
     { at: [13, 71], color: [0xff, 0x00, 0xff], label: "a child OVERFLOWS the rounded box — cornerRadius paints, never clips (the lean)" },
-    { at: [160, 30], color: [0xe9, 0xc4, 0x6a], label: "panel = { theme.accent } (Base token)" },
+    { at: [160, 30], color: [0xe9, 0xc4, 0x6a], label: "panel = { provided(\"theme\").accent } (base token)" },
     { at: [160, 92], color: [0xff, 0xff, 0xff], label: "shadow box interior" },
     { at: [190, 95], color: SHADOW_ON_BG, label: "the translucent drop shadow strip" },
     { at: [210, 130], color: VEIL_ON_BG, label: "the #RRGGBBAA translucent fill" },
   ];
 
   const R10_POST_PROBES = [
-    { at: [58, 32], color: [0x33, 0x33, 0x33], label: "chip1 reskinned solid (Dark entry)" },
+    { at: [58, 32], color: [0x33, 0x33, 0x33], label: "chip1 reskinned (dark theme token)" },
     { at: [58, 17], color: [0x77, 0x77, 0x77], label: "chip1 stroke reskinned" },
-    { at: [58, 59], color: [0x3f, 0xa3, 0x4d], label: "chip2 ring STAYS (bundle still outranks)" },
-    { at: [58, 74], color: [0x33, 0x33, 0x33], label: "chip2 fill reskinned" },
+    { at: [58, 74], color: [0x33, 0x33, 0x33], label: "chip2 fill reskinned (ambient theme)" },
     { at: [13, 71], color: [0xff, 0x00, 0xff], label: "the overflowing child still paints (radius never clips)" },
     { at: [160, 30], color: [0x4f, 0xc3, 0xf7], label: "panel re-read the accent token" },
     { at: [160, 92], color: [0xff, 0xff, 0xff], label: "shadow box untouched by the swap" },
@@ -2280,7 +2274,7 @@ try {
     });
   }
 
-  await test("both backends: prevailing text style + the entry-over-follow rank (model)", async () => {
+  await test("both backends: the provided text face cascades, a local set wins (model)", async () => {
     for (const shot of [domR10, canvasR10]) {
       const m = await shot.page.evaluate(() => {
         const app = window.__app;
@@ -2291,10 +2285,10 @@ try {
           chipRadius: app.chip1.cornerRadius,
         };
       });
-      assert.equal(m.labelColor, 0xffe28a, "label follows the App's textColor (no entry names it yet)");
+      assert.equal(m.labelColor, 0xffe28a, "label follows the App's provided textColor");
       assert.equal(m.labelFamily, "Arial", "fontFamily follows the App");
       assert.equal(m.subSize, 11, "a local set wins");
-      assert.equal(m.chipRadius, 6, "the class-body { theme.radius } read the Base token");
+      assert.equal(m.chipRadius, 6, "the Chip's cornerRadius read the provided theme's radius token");
     }
   });
 
@@ -2307,10 +2301,10 @@ try {
     }
   });
 
-  await test("Canvas: the stylesheet swap re-skins in exactly one frame", async () => {
+  await test("Canvas: the theme swap re-skins in exactly one frame", async () => {
     await canvasR10.page.bringToFront();
     const scheduled = await canvasR10.page.evaluate(() => window.__restyle());
-    assert.equal(scheduled, 1, "one write to the prevailing slot, one settle, one frame");
+    assert.equal(scheduled, 1, "one write to `mode`, one settle, one frame");
   });
 
   await domR10.page.evaluate(() => window.__restyle());
@@ -2322,7 +2316,7 @@ try {
       const actual = await samplePixels(shot.page, png, R10_POST_PROBES.map((p) => p.at));
       R10_POST_PROBES.forEach((p, i) => assertColorNear(actual[i], p.color, `${name} ${p.label}`));
       const label = await shot.page.evaluate(() => window.__app.label.textColor);
-      assert.equal(label, 0xcad0ec, "the Text entry outranks the prevailing follow (rank 3 > 2)");
+      assert.equal(label, 0xcad0ec, "the provided textColor swapped, and the label follows it");
     });
   }
 

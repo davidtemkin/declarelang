@@ -68,6 +68,12 @@ Runs `press()` when enabled.
 
 ## onInit
 Applies `initial`. Fires once per pane.
+
+## theme
+The provided design-token record this widget styles off — a **provided value**
+(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
+widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
+house look. See `Control.theme`.
 */
 
 include [ "control.declare", "icons/core.declare" ]
@@ -77,7 +83,7 @@ class Accordion extends View [
     // the app provides it once and this widget reads it, so `theme.x` reads below
     // are plain typed members. Default = the house look (no runtime floor).
 
-    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    theme: Theme = { provided("theme", SanFrancisco) },
 
     value: string = "",
 

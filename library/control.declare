@@ -45,6 +45,14 @@ class Stepper extends Control [ width = 90, height = 26, cornerRadius = 6,
 App [ Stepper [ x = 20, y = 20 ] ]
 ```
 
+## theme
+The design-token record every widget styles off — a **provided value**. An app
+provides it once (`App [ theme = { app.dark ? SanFranciscoDark : SanFrancisco } ]`)
+and `Control` reads it here, so a control body reads `theme.accent` as a plain,
+typed member. The default is `SanFrancisco`, so a control in an app that never
+mentions a theme still renders. Provide a different record on a subtree to reskin
+it; every `provided("theme")` below reads the nearer one.
+
 ## disabled
 Inert: not focusable, no activation, and the gate folded into `hot`/`down` so a
 disabled control never lights up. **Constrain it rather than assigning it**
@@ -150,11 +158,10 @@ class Control extends View [
     // The design-token record every widget styles off. It is a PROVIDED value
     // (docs/system-design/style.md): the app provides it once (`App [ theme =
     // { … } ]`), and Control reads it here — so a widget body reads `theme.accent`
-    // as a plain, typed member. The default is the house look, so a widget in an
-    // app that never mentions a theme still renders (replacing the old runtime
-    // DEFAULT_THEME floor with a visible library default).
+    // as a plain, typed member. The default is `SanFrancisco`, so a widget in an
+    // app that never mentions a theme still renders — the visible library default.
 
-    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    theme: Theme = { provided("theme", SanFrancisco) },
 
     disabled: boolean = false,
     focused:  boolean = false,

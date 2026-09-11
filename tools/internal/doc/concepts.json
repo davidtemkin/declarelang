@@ -51,14 +51,14 @@
   "glass": "View.backdrop",
   "frosted glass": "View.backdrop",
   "backdrop blur": "View.backdrop",
-  "theme": "View.theme",
-  "dark mode": "View.theme",
-  "palette": "View.theme",
+  "theme": "Control.theme",
+  "dark mode": "Control.theme",
+  "palette": "Control.theme",
   "bold": "Markdown",
   "italic": "Text.italic",
   "emphasis": "Markdown",
   "rich text": "Markdown",
-  "font weight": "View.fontWeight",
+  "font weight": "Text.fontWeight",
   "wrap": "Text.wrap",
   "wrapping": "Text.wrap",
   "multiline": "Text.wrap",
@@ -130,10 +130,10 @@
   "uitableview": "View.virtualize",
   "flatlist": "View.virtualize",
   "infinite scroll": "View.virtualize",
-  "letter spacing": "View.letterSpacing",
+  "letter spacing": "Text.letterSpacing",
   "text align": "Text.textAlign",
-  "font family": "View.fontFamily",
-  "typeface": "View.fontFamily",
+  "font family": "Text.fontFamily",
+  "typeface": "Text.fontFamily",
   "italics": "Text.italic",
   "sticky": "View.ignoreScroll",
   "position sticky": "View.ignoreScroll",
@@ -348,17 +348,30 @@
     "named style",
     "reusable style"
    ],
-   "answer": "`style Name [ … ]` — a named bundle of attribute values a view can wear, so a look is declared once and applied by name rather than copied. Top-level, like `class` (parser.ts's `atTop`).\nDistinct from `stylesheet`, which carries THEME TOKENS rather than a bundle of attributes. Guide: 06-style."
+   "answer": "`style Name [ … ]` — a named bundle of run attributes, top-level like `class` (parser.ts's `atTop`). Its job is the `<span class=\"Name\">` run vehicle inside `HTMLText`/`Markdown`: a span wears the bundle, so a highlighted keyword or an inline treatment is declared once and named from prose. A bundle field may be a `{ }` body whose reads follow the theme (`style hot [ textFill = { provided(\"theme\").accent } ]`). To restyle a whole view, set its attributes or subclass it. Guide: 06-style."
   },
   {
    "terms": [
-    "stylesheet",
     "theme",
     "tokens",
     "design tokens",
-    "theming"
+    "theming",
+    "skin",
+    "reskin"
    ],
-   "answer": "`stylesheet Name [ … ]` — declares a swappable SKIN: a dictionary keyed by CLASS name (no selectors, no structural matching, no specificity), resolved by a class-chain walk with field-wise merge, schema-checked at compile time so a stale skin fails loudly. It may carry its own `theme` record, which is what makes a skin theme-aware.\nThe TOP-LEVEL FORM declares; the View ATTRIBUTE of the same name applies — `stylesheet Dark [ … ]` then `App [ stylesheet = Dark ]`. Same word on purpose: it says what kind of thing `Dark` is, and the syntax already tells them apart.\nA sheet is the EXTERNAL channel — style without source edits, imposed on views that never mention it, landing below anything a view sets itself. Compare `styles` (opted into by the view, static after construction) and `theme` (tokens an ancestor provides and bindings read). Guide: 06-style."
+   "answer": "Theming is **provided values**: an app provides a token record once — `App [ theme = { app.dark ? SanFranciscoDark : SanFrancisco } ]` — and code reads a role from it with `provided(\"theme\").accent`; library widgets read it for you through their `theme` slot (`Control.theme`). The built-in presets are named records — `SanFrancisco`/`SanFranciscoDark`, `Cupertino`, `MountainView`, `Redmond` — in scope by name; declare your own with `theme Brand [ … ]`, a top-level named record like `font Name [ … ]`. To reskin a subtree, provide a different `theme` (a `{ }` provision re-styles every reader live) or subclass the component. No selectors, no specificity, no external sheet. Guide: 06-style."
+  },
+  {
+   "terms": [
+    "provided",
+    "provided value",
+    "provided values",
+    "provide",
+    "context",
+    "inherited value",
+    "ancestor value"
+   ],
+   "answer": "`provided(\"name\", default)` — reads the value the nearest ANCESTOR makes available under `name` (bare in `[ ]` like `gradient()`, a call in `{ }`). PROVIDING is just setting a value on a node — no keyword: `App [ accent = #E05252 ]` provides `accent`, and a descendant reads it with `provided(\"accent\")`; nearest-wins, and a `{ }` provision re-derives its readers live. The second argument is the fallback when nothing above provides it; a bare required read throws when unprovided. This is how the text FACE (`fontFamily`, `textColor`, …), `selectable`, and the `theme` record travel down the tree now — the text leaves and `Control` declare those slots as `= provided(\"…\")`, so setting one high on a container still cascades. Guide: 06-style."
   },
   {
    "terms": [

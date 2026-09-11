@@ -85,12 +85,12 @@ canvas every frame, which is what dragged the dock's magnification from 60 to
 nothing after. Measured: 120 icons re-recording their *content* every frame runs
 frame-bound at 16.6ms, cheaper than the 120 text glyphs they replace.
 
-Colour is not a rule — `ink` follows the prevailing text colour, so an icon beside
+Colour is not a rule — `ink` follows the provided text colour, so an icon beside
 a muted label goes muted on its own, and a host that needs a different ink (a
 menu row's check inverting on the hot row) simply sets it.
 
 ## ink
-The mark's colour. Follows the **prevailing `textColor`**, so an icon beside a muted
+The mark's colour. Follows the provided `textColor`, so an icon beside a muted
 label goes muted on its own. **The trap: that slot falls back to black platform-wide**,
 so an icon in a context that never states a text colour renders black and vanishes on a
 dark surface. State `ink` unless you know the context sets one — `IconHost` does it for
@@ -108,6 +108,14 @@ it.** Every icon is one path at one size, scaled — there are no per-size varia
 ## isIcon
 **Internal.** The marker a layout keys on to place an icon without knowing which shape
 it is — not API.
+
+## iconSize
+The mark's size, in px — a **provided value** (a host states it once, every icon beneath
+answers): defaults to the nearest provided `iconSize`, overridable at the use site.
+
+## textColor
+The effective text colour the mark's `ink` follows — a **provided value**, so an icon
+beside a muted label goes muted on its own; set `ink` to override.
 */
 
 /*
@@ -137,12 +145,16 @@ that is only ever computed needs `use [ Name ]` to survive the build.
 
 ## ink
 The colour handed to the icon this host builds. **`createView` cannot pass attributes,
-so a prevailing slot is the only channel that reaches it** — this publishes `textColor`
+so a PROVIDED value is the only channel that reaches it** — this provides `textColor`
 for exactly that. Defaults to `theme.text` rather than the platform's inherited black,
 which is what stops a host-built icon from rendering invisibly on a dark surface.
 
 ## onInit
 Builds the named icon. Fires once.
+
+## iconSize
+The size the built icon takes — a **provided value** (a menu row 16, a button 18);
+defaults to the nearest provided `iconSize`.
 */
 
 class IconHost extends View [

@@ -355,7 +355,7 @@ function analyze(tokens) {
       // declaration modifiers — same recognition as the runtime parser:
       // only before a declaration head, directly or through one more modifier
       // (`external readonly x :`), so members NAMED these still format
-      const isMod = (r) => r === "prevailing" || r === "readonly" || r === "external";
+      const isMod = (r) => r === "readonly" || r === "external";
       while (isMod(tokens[name].raw)) {
         const headNext = tok().kind === "ident" && tok(1).kind === "colon";
         const modThenHead = tok().kind === "ident" && isMod(tokens[idx()].raw) &&
@@ -464,7 +464,7 @@ function analyze(tokens) {
         expect("ident", "the class's name");
         if (tok().kind === "ident" && tok().raw === "extends") { p++; expect("ident", "the base component's name"); }
         parseBody(true);
-      } else if (at("stylesheet", "ident") || at("style", "ident") || at("font", "ident")) {
+      } else if (at("theme", "ident") || at("style", "ident") || at("font", "ident")) {
         p++;
         expect("ident", "the declaration's name");
         parseBody(true);

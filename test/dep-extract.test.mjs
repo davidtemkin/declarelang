@@ -64,10 +64,11 @@ test("ternary takes the union of ALL branches (over-subscription, by design)", a
 });
 
 test("record projection off an attribute — the read-path resolves to the slot cell", async () => {
-  const r = await extract(`App [ v: View [ fill = { app.theme.pageBg } ] ]`);
-  // the read-path keeps the projection (`.pageBg`), which is untracked — evaluating
-  // it under the tracker touches only the `theme` slot cell (verified in the cross-check).
-  assert.deepEqual(readsOf(r, "fill"), ["this.root.theme.pageBg"]);
+  const r = await extract(`App [ pal: Theme = { SanFrancisco }, v: View [ fill = { app.pal.pageBg } ] ]`);
+  // reading a field off a record slot resolves to the SLOT cell — the `.pageBg`
+  // projection is a plain (untracked) property access, so the tracked read-path
+  // is the `pal` slot itself (verified against the tracker in the cross-check).
+  assert.deepEqual(readsOf(r, "fill"), ["this.root.pal"]);
 });
 
 test("interprocedural — reads through a method call into its body", async () => {
@@ -148,17 +149,16 @@ test("residue — opaque call target blocks (not assumed pure)", async () => {
   assert.ok(r.errors.some((x) => /unresolved call target/.test(x.message)), JSON.stringify(r.errors.map((x) => x.message)));
 });
 
-test("language-method effect signature makes the call analyzable (no residue)", async () => {
-  // lookupStylesheet is PURE (effects.ts) — the constraint COMPILES and its only
-  // dep is the ternary condition, statically WIRED (not tracked, not residue).
-  const src = `stylesheet Dark [ View: [ opacity = 0.5 ] ]
-stylesheet Light [ View: [ opacity = 1 ] ]
-App [ night: boolean = true,
-    stylesheet = { night ? this.lookupStylesheet("Dark") : this.lookupStylesheet("Light") },
+test("a conditional theme provision wires to its condition alone (no residue)", async () => {
+  // A `{ }` theme provision switched by a boolean: the preset names are
+  // body-scope globals (not reads), so the constraint COMPILES and its only dep
+  // is the condition, statically WIRED (not tracked, not residue).
+  const src = `App [ night: boolean = true,
+    theme = { night ? SanFranciscoDark : SanFrancisco },
     v: View [ ] ]`;
   const r = await compile(src, {});
   assert.ok(r.source, "should compile: " + r.errors.map((e) => e.message).join("; "));
-  assert.deepEqual(readsOf(extractProgram(parseProgram(r.source)), "stylesheet"), ["this.night"]);
+  assert.deepEqual(readsOf(extractProgram(parseProgram(r.source)), "theme"), ["this.night"]);
 });
 
 test("aggregation over DATA is fine (not node) — no error", async () => {
@@ -503,17 +503,6 @@ async function compileRefuses(src, re) {
   assert.match(r.errors.map((e) => e.message).join("\n"), re);
 }
 
-test("self-dep — bare spread of own slot is refused at compile (the `...theme` trap)", async () => {
-  await compileRefuses(`App [ width = 100, height = 100,
-      theme = { { a: 1 } },
-      p: View [ theme = { { ...theme, b: 2 } } ] ]`, /reads itself/);
-});
-
-test("self-dep — App-root `app.` spelling of own slot is refused at compile", async () => {
-  await compileRefuses(`App [ width = 100, height = 100,
-      theme = { { ...app.theme, a: 1 } } ]`, /reads itself/);
-});
-
 test("self-dep — a set-attribute reading its own slot is refused", async () => {
   await compileRefuses(`App [ width = 100, height = 100,
       v: View [ width = 50, x = { this.x + 1 } ] ]`, /reads itself/);
@@ -521,10 +510,14 @@ test("self-dep — a set-attribute reading its own slot is refused", async () =>
 // (A computed DECL default reading itself takes the inliner path, not this
 // check — its handling is the inliner's cycle guard, out of scope here.)
 
-test("self-dep — a sibling/ancestor base is NOT self (the blessed spread)", async () => {
+test("a subtree reskins by spreading the provided value it overrides — NOT self", async () => {
+  // `p` provides a new theme derived from the one it inherits: `provided("theme")`
+  // in a `theme` provision's own body resolves UP the chain (the value being
+  // overridden), not to the provision being defined — so it is a blessed read,
+  // never a self-dependency.
   const r = await extract(`App [ width = 100, height = 100,
       theme = { { a: 1 } },
-      p: View [ theme = { { ...app.theme, b: 2 } } ] ]`);
+      p: View [ theme = { { ...provided("theme"), b: 2 } } ] ]`);
   assert.equal(errsOf(r, "theme", "p").length, 0);
 });
 

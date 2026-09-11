@@ -3,9 +3,9 @@
 //
 // A `{ }` constraint's dependency analysis (dep-extract.ts) follows a call into a
 // USER method's body to infer the reactive cells it reads. A LANGUAGE-supplied
-// method — a runtime View/component method like `lookupStylesheet` — has no
-// Declare body to follow (its body is runtime TS), so its reactive effect is
-// DECLARED here instead. This is the effect analog of a typed library signature:
+// method — a runtime View/component method like `navigate` — has no Declare body
+// to follow (its body is runtime TS), so its reactive effect is DECLARED here
+// instead. This is the effect analog of a typed library signature:
 // a user method's effect is INFERRED from its body, a language method's is
 // DECLARED, and the two are on the SAME footing — there is no "builtin" privilege
 // tier, and a call into either is analyzable. A method absent from BOTH this
@@ -25,12 +25,6 @@
  *  bare name, matching how dep-extract keys user methods (a same-named user method
  *  is resolved first and shadows an entry here). */
 export const LANGUAGE_METHOD_EFFECTS: ReadonlyMap<string, readonly string[]> = new Map([
-  // View.lookupStylesheet(name) (runtime/src/view.ts) walks parent links —
-  // structural navigation, not a reactive read — to the STATIC stylesheet
-  // registry and looks the name up. It touches no reactive cell → PURE. So
-  // `{ dark ? this.lookupStylesheet("Dark") : this.lookupStylesheet("Light") }`
-  // depends only on `dark`, and is fully analyzable.
-  ["lookupStylesheet", []],
   // App.navigate(to) — the navigation SERVICE ACTION (view.ts, capabilities.md
   // §6). It writes the host channel and reads no reactive cell → PURE for
   // dependency analysis. Registered so a body that reaches it (a handler, or a

@@ -50,12 +50,12 @@ class Stepper extends Control [ width = 96, height = 28, cornerRadius = 7,
     ]
 
 
-App [ width = 320, height = 130,
+App [ width = 320, height = 130, theme = { SanFrancisco },
     n: number = 0,
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         Stepper [ value = { app.n }, input(v: number) { app.n = v } ],
-        Text [ textColor = { theme.text }, text = { `count: ${app.n}` } ]
+        Text [ textColor = { provided("theme").text }, text = { `count: ${app.n}` } ]
         ]
     ]
 ```
@@ -139,10 +139,10 @@ One path, three sizes, no variants. Two details carry that:
   pixels at every size. That is why the three above look like one family instead of the
   large one looking fat.
 
-`ink` follows the prevailing text colour, so an icon beside a muted label goes muted on
-its own — with one trap worth knowing: that slot falls back to black platform-wide, so an
-icon in a context that never sets a text colour renders black and vanishes on a dark
-surface. State `ink` when you are not sure.
+`ink` follows the provided text colour (the `textColor` an ancestor provides), so an icon
+beside a muted label goes muted on its own — with one trap worth knowing: that value falls
+back to black platform-wide, so an icon in a context that never provides a text colour
+renders black and vanishes on a dark surface. State `ink` when you are not sure.
 
 ## An arrangement nobody wrote for you
 

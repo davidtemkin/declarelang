@@ -15,6 +15,12 @@ The value that reads as empty. Defaults to 0.
 ## max
 The value that reads as full. Defaults to 100 — set it to your own total and pass
 raw counts as `value` rather than converting to a percentage yourself.
+
+## theme
+The provided design-token record this widget styles off — a **provided value**
+(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
+widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
+house look. See `Control.theme`.
 */
 
 class ProgressBar extends View [
@@ -22,7 +28,7 @@ class ProgressBar extends View [
     // the app provides it once and this widget reads it, so `theme.x` reads below
     // are plain typed members. Default = the house look (no runtime floor).
 
-    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    theme: Theme = { provided("theme", SanFrancisco) },
     width = 220, height = 8, cornerRadius = 4,
     value: number = 0,
     min:   number = 0,

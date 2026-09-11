@@ -17,7 +17,7 @@ class Row extends View [ width = 288, height = 24,
     ]
 
 App [ width = 320, height = 240, fill = white,
-    d: Dataset [ contents = { ({ rows: app.make(50000) }) } ],
+    d: Dataset [ contents = { { rows: app.make(50000) } } ],
     make(n: number) -> array {
         const out = []
         for (let i = 0; i < n; i++) out.push({ id: i, task: "Task " + i })
@@ -189,7 +189,7 @@ object:
 
 ```declare
 App [ width = 460, height = 240, fill = white, textColor = black,
-    d: Dataset [ contents = { ({ rows: app.make(2000) }) } ],
+    d: Dataset [ contents = { { rows: app.make(2000) } } ],
     make(n: number) -> array {
         const out = []
         const st = ["open", "done", "held"]

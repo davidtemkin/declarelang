@@ -1,9 +1,13 @@
 A run of text, sized by native browser metrics when you don't give it a width or
 height — so a bare `Text [ text = "hi" ]` is exactly as wide and tall as its glyphs.
-Its **style** is not on `Text`: `textColor`, `fontSize`, `fontFamily`, and
-`fontWeight` are `prevailing` slots on `View`, so any ancestor provides them and this
-run renders with the effective values. That is why restyling a region's text means
-setting those on the container, not on each `Text`.
+Its **face** lives with `Text`: `textColor`, `fontSize`, `fontFamily`, `fontWeight`,
+and `letterSpacing` each **default to a provided value** — `fontFamily: string =
+provided("fontFamily", "sans-serif")` and its kin — so a bare run inherits its
+region's style, and setting one on a container **provides** it to every `Text`
+beneath. That is why restyling a region's text means setting those on the container:
+the container provides the value, each run reads it. (These slots used to sit on
+`View`; they came off the geometry base with provided values — a container draws no
+glyphs.)
 
 ```declare
 View [ textColor = royalblue, fontSize = 15,
@@ -54,7 +58,7 @@ A drop shadow on the glyphs — the same `shadow(dx, dy, blur, color)` value as 
 ## outline
 Strokes the glyph **edges** in `outline(width, color)` — outlined letters, **not** a box
 around the run. The stroke rides *under* the fill, so a filled letter shows a thin ring
-and a `textColor`-less one reads hollow. Per-`Text`, **not** a `prevailing` slot — set it
+and a `textColor`-less one reads hollow. Per-`Text`, **not** a provided value — set it
 here, or wear it through a `style` bundle / a `<span class>`. In a `[ ]` literal the color
 is `#RRGGBB`; inside a `{ }` body it is `0xRRGGBB`.
 ```declare
@@ -84,7 +88,7 @@ A rule through the x-height — a struck run. Same decoration contract as `under
 ## ascent
 The effective font's **ascent** above the baseline (the font bounding box — a property
 of the font, not of this run's characters), in px at the effective size. Read-only and
-**reactive**: it re-derives when the effective font changes, a prevailing provider
+**reactive**: it re-derives when the effective font changes, a provider
 re-rooting above included. Measured from the rendering engine, never read from font
 tables — the tables are unreachable for system fonts and carry three competing metric
 sets; what you get is what this engine actually renders. `ascent + descent` is the

@@ -67,7 +67,7 @@ export function setBodyServices(services: Record<string, unknown>): void {
 let SCRIPT_SCOPE: Record<string, unknown> = {};
 const SCRIPT_STACK: Record<string, unknown>[] = [];
 
-/** Run `build` with `scope` as the prevailing script scope. */
+/** Run `build` with `scope` as the active script scope. */
 export function withScriptScope<T>(scope: Record<string, unknown>, build: () => T): T {
   SCRIPT_STACK.push(SCRIPT_SCOPE);
   SCRIPT_SCOPE = scope;

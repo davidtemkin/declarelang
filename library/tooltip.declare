@@ -63,6 +63,12 @@ cursor). Always clamped inside the app.
 
 ## py
 **Internal.** The pointer's y where it came to rest.
+
+## theme
+The provided design-token record this widget styles off — a **provided value**
+(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
+widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
+house look. See `Control.theme`.
 */
 
 class Tooltip extends View [
@@ -70,7 +76,7 @@ class Tooltip extends View [
     // the app provides it once and this widget reads it, so `theme.x` reads below
     // are plain typed members. Default = the house look (no runtime floor).
 
-    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    theme: Theme = { provided("theme", SanFrancisco) },
     visible = { shown && tipText != "" },
 
     tipText: string = "",

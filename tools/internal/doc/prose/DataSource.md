@@ -68,7 +68,7 @@ payload re-derives from live state; also like `url`, changing it sends nothing u
 next `fetch()`.
 
 ## headers
-Request headers, as a plain record: `headers = { ({ "x-api-key": app.key }) }`. They merge
+Request headers, as a plain record: `headers = { { "x-api-key": app.key } }`. They merge
 *over* the ones the source sets for itself, so a JSON `body`'s `Content-Type` is there by
 default and an explicit entry overrides it. Like `url` and `body` this is an ordinary
 reactive slot, which is what keeps an authenticated endpoint declarative rather than
@@ -76,9 +76,9 @@ imperative — the header re-derives when what it reads changes:
 
 ```declare-fragment
 api: DataSource [ url = "/graphql", method = "POST", auto = true,
-    headers = { ({ "x-api-key": app.key,
-                   Authorization: app.token != "" ? "Bearer " + app.token : "" }) },
-    body = { ({ query: app.query }) } ]
+    headers = { { "x-api-key": app.key,
+                   Authorization: app.token != "" ? "Bearer " + app.token : "" } },
+    body = { { query: app.query } } ]
 ```
 
 A header whose value is empty (or null) is **not sent**, so that ternary is the whole

@@ -35,17 +35,17 @@ script {
 // ── a performance in the season list ─────────────────────────────────────────
 
 class PerfRow extends View [ height = 52, width = { parent.width },
-    fill = { hovered ? theme.hover : theme.surface },
+    fill = { hovered ? provided("theme").hover : provided("theme").surface },
     onClick() { app.choose(pid) },
 
     pid: string = { :id },
 
     title: Text [ x = 14, y = 10, fontSize = 15, fontWeight = medium, text = :title ],
-    when:  Text [ x = 14, y = 30, fontSize = 12, textColor = { theme.muted },
+    when:  Text [ x = 14, y = 30, fontSize = 12, textColor = { provided("theme").muted },
         text = { whenText(:startsAt) } ],
-    hall:  Text [ x = { parent.width - 210 }, y = 30, fontSize = 12, textColor = { theme.muted },
+    hall:  Text [ x = { parent.width - 210 }, y = 30, fontSize = 12, textColor = { provided("theme").muted },
         text = :hall ],
-    from:  Text [ x = { parent.width - 70 }, y = 18, fontSize = 13, textColor = { theme.muted },
+    from:  Text [ x = { parent.width - 70 }, y = 18, fontSize = 13, textColor = { provided("theme").muted },
         text = { `from $${:priceFrom}` } ]
     ]
 
@@ -60,7 +60,7 @@ class Seat extends View [ width = 16, height = 16, cornerRadius = 3,
     sold: boolean = { :status === "sold" },
     mine: boolean = { app.holds(sid) },
 
-    fill = { sold ? theme.sold : mine ? theme.accent : hovered ? theme.seatHot : theme.seat },
+    fill = { sold ? provided("theme").sold : mine ? provided("theme").accent : hovered ? provided("theme").seatHot : provided("theme").seat },
     onClick() { if (!sold) app.toggle(sid) }
     ]
 
@@ -69,20 +69,20 @@ class Seat extends View [ width = 16, height = 16, cornerRadius = 3,
 
 class SeatRow extends View [ height = 18,
     layout: SimpleLayout [ axis = x, spacing = 3 ],
-    letter: Text [ width = 16, fontSize = 10, y = center, textColor = { theme.muted }, text = :name ],
+    letter: Text [ width = 16, fontSize = 10, y = center, textColor = { provided("theme").muted }, text = :name ],
     Seat [ datapath = :seats[] ]
     ]
 
 
 class Section extends View [ width = { parent.width },
     layout: SimpleLayout [ axis = y, spacing = 3 ],
-    head: Text [ fontSize = 12, fontWeight = medium, textColor = { theme.muted },
+    head: Text [ fontSize = 12, fontWeight = medium, textColor = { provided("theme").muted },
         text = { `${:name} · $${:price}` } ],
     SeatRow [ datapath = :rows[] ]
     ]
 
 
-App [ fill = { theme.bg }, textColor = { theme.ink }, fontFamily = ["system-ui"],
+App [ fill = { provided("theme").bg }, textColor = { provided("theme").ink }, fontFamily = ["system-ui"],
 
     // ── the theme ────────────────────────────────────────────────────────────
 
@@ -200,9 +200,9 @@ App [ fill = { theme.bg }, textColor = { theme.ink }, fontFamily = ["system-ui"]
     seasonPane: View [ width = { parent.width }, height = { parent.height },
         visible = { app.mode === "season" },
 
-        head: View [ width = { parent.width }, height = 96, fill = { theme.surface },
+        head: View [ width = { parent.width }, height = 96, fill = { provided("theme").surface },
             Text [ x = 20, y = 18, fontSize = 20, fontWeight = bold, text = "The Venue" ],
-            tally: Text [ x = 20, y = 46, fontSize = 13, textColor = { theme.muted },
+            tally: Text [ x = 20, y = 46, fontSize = 13, textColor = { provided("theme").muted },
                 text = { `${app.count.toLocaleString()} performance${app.count === 1 ? "" : "s"}` } ],
 
             search: TextInput [ x = { parent.width - 420 }, y = 40, width = 240, height = 30,
@@ -226,7 +226,7 @@ App [ fill = { theme.bg }, textColor = { theme.ink }, fontFamily = ["system-ui"]
             PerfRow [ datapath = :rows[], virtualize = true ]
             ],
 
-        empty: Text [ x = 20, y = 130, fontSize = 14, textColor = { theme.muted },
+        empty: Text [ x = 20, y = 130, fontSize = 14, textColor = { provided("theme").muted },
             visible = { app.count === 0 },
             text = { `Nothing matches “${app.query}”.` } ]
         ],
@@ -236,8 +236,8 @@ App [ fill = { theme.bg }, textColor = { theme.ink }, fontFamily = ["system-ui"]
     seatsPane: View [ width = { parent.width }, height = { parent.height },
         visible = { app.mode === "seats" },
 
-        head: View [ width = { parent.width }, height = 72, fill = { theme.surface },
-            back: Text [ x = 20, y = 26, fontSize = 14, textColor = { theme.accent },
+        head: View [ width = { parent.width }, height = 72, fill = { provided("theme").surface },
+            back: Text [ x = 20, y = 26, fontSize = 14, textColor = { provided("theme").accent },
                 text = "‹ the season",
                 onClick() { app.mode = "season" }
                 ],
@@ -252,7 +252,7 @@ App [ fill = { theme.bg }, textColor = { theme.ink }, fontFamily = ["system-ui"]
             ],
 
         bar: View [ y = { parent.height - 64 }, width = { parent.width }, height = 64,
-            fill = { theme.surface }, visible = { app.picked.length > 0 },
+            fill = { provided("theme").surface }, visible = { app.picked.length > 0 },
             summary: Text [ x = 20, y = center, fontSize = 16,
                 text = { `${app.picked.length} seat${app.picked.length === 1 ? "" : "s"} · $${app.total}` } ],
             go: Button [ x = { parent.width - 160 }, y = 16, label = "Book seats", primary = true,
@@ -274,7 +274,7 @@ App [ fill = { theme.bg }, textColor = { theme.ink }, fontFamily = ["system-ui"]
         visible = { app.mode === "checkout" },
 
         Text [ x = 20, y = 28, fontSize = 20, fontWeight = bold, text = "Who is coming?" ],
-        recap: Text [ x = 20, y = 60, fontSize = 14, textColor = { theme.muted },
+        recap: Text [ x = 20, y = 60, fontSize = 14, textColor = { provided("theme").muted },
             text = { `${app.picked.length} seat${app.picked.length === 1 ? "" : "s"} · $${app.total}` } ],
 
         nameField: TextInput [ x = 20, y = 100, width = 320, height = 34, fontSize = 16, padding = 8,
@@ -287,12 +287,12 @@ App [ fill = { theme.bg }, textColor = { theme.ink }, fontFamily = ["system-ui"]
             ],
 
         hint: Text [ x = 20, y = 194, width = 420, fontSize = 13, wrap = true,
-            textColor = { theme.muted }, text = { app.note } ],
+            textColor = { provided("theme").muted }, text = { app.note } ],
 
         confirm: Button [ x = 20, y = 232, label = "Confirm booking", primary = true,
             onClick() { app.confirm() }
             ],
-        cancel: Text [ x = 190, y = 240, fontSize = 14, textColor = { theme.muted },
+        cancel: Text [ x = 190, y = 240, fontSize = 14, textColor = { provided("theme").muted },
             text = "Back to the seats",
             onClick() { app.mode = "seats" }
             ]
@@ -304,7 +304,7 @@ App [ fill = { theme.bg }, textColor = { theme.ink }, fontFamily = ["system-ui"]
         visible = { app.mode === "done" },
         Text [ x = 20, y = 28, fontSize = 20, fontWeight = bold, text = "You're going." ],
         codeText: Text [ x = 20, y = 66, fontSize = 16, text = { `Confirmation ${app.code}` } ],
-        what: Text [ x = 20, y = 94, fontSize = 14, textColor = { theme.muted },
+        what: Text [ x = 20, y = 94, fontSize = 14, textColor = { provided("theme").muted },
             text = { `${app.picked.length} seat${app.picked.length === 1 ? "" : "s"} · $${app.total}` } ],
         again: Button [ x = 20, y = 134, label = "Book something else",
             onClick() { app.againAll() }

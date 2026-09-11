@@ -590,8 +590,8 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             // `provided("name")` compiled (compile.ts) to `this.$provided("name")`:
             // a read that resolves the nearest PROVIDING ANCESTOR at runtime.
             // Which ancestor provides depends on the tree, so the edge is dynamic
-            // exactly like a prevailing follow — wired by re-executing the call
-            // under tracking. Record the call itself as the read-path; the probe
+            // — wired by re-executing the call under tracking. Record the call
+            // itself as the read-path; the probe
             // (bind.ts) then tracks whatever ancestor currently provides and
             // re-probes on structural change. The default argument, if any, was
             // already walked for its own reads during the chain descent above.

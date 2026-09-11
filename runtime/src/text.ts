@@ -4,10 +4,10 @@
 // own rasterizer: a real DOM text node there, fillText on the shared canvas
 // here — same glyph geometry, substrate-native inking.
 //
-// Style, since the styling rung, is the PREVAILING quartet declared on View
-// (textColor/fontSize/fontFamily/fontWeight — Text.color is retired into the
-// one textColor slot, ruled): a Text with no style of its own renders with
-// whatever the nearest providing container says, live. The seam push is
+// Style is the face quartet Text declares (textColor/fontSize/fontFamily/
+// fontWeight — one textColor slot carries the glyph color), each a `provided(
+// name, default)` read: a Text with no style of its own renders with whatever
+// the nearest providing container says, live. The seam push is
 // therefore a small *derive* over the effective values (the ruled shape —
 // exactly like the measure derives): it reads the four slots under tracking,
 // so a provider change anywhere up the chain re-styles exactly the runs that
@@ -40,7 +40,7 @@ export class Text extends View {
   declare letterSpacing: number;
   declare selectable: boolean;
   declare text: string;
-  /** The glyphs' drop shadow (a decoration value, styling rung); null = none.
+  /** The glyphs' drop shadow (a decoration value); null = none.
    *  Replaces the two-stacked-runs idiom (weather's ShadowText). */
   declare textShadow: Shadow | null;
   /** A bounded-width run wraps (default) or stays a single line. */
@@ -62,7 +62,7 @@ export class Text extends View {
   }
 
   // ── Author-facing font metrics (compositing.md Part III) — read-only,
-  // REACTIVE intrinsics of the EFFECTIVE font (the prevailing slots): each
+  // REACTIVE intrinsics of the EFFECTIVE font (the face slots): each
   // getter measures through fontString(this), whose slot reads are tracked,
   // so a constraint reading `label.ascent` re-derives when the effective
   // font changes — a provider re-rooting above included. Measurement, not
@@ -145,8 +145,8 @@ export class Text extends View {
     super.flush(s);
     // Style before text: the style creates the run's rendering context, the
     // text is the hot path that changes alone under a constraint. The style
-    // push is a standing derive because the four slots are prevailing: the
-    // effective values can change with no write to THIS view (a provider
+    // push is a standing derive because the four slots read provided values:
+    // the effective values can change with no write to THIS view (a provider
     // re-roots above), and the tracked reads here are what follow it.
     const style = new Constraint(
       `${this.constructor.name}.textStyle`,

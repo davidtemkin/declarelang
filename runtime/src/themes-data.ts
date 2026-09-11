@@ -1,8 +1,7 @@
 // GENERATED from library/themes/*.declare by tools/internal/gen-themes.mjs — DO NOT EDIT.
-// The presets are authored in the language (stylesheet Name [ theme: Theme [ … ] ]);
-// this module is their projection into the runtime, so the zero-declaration
-// default (value.ts DEFAULT_THEME = THEME_RECORDS.SanFrancisco) and the named
-// Themes.* surface serve the SAME objects the authored files declare.
+// The presets are authored in the language (theme Name [ … ]); this module is
+// their projection into the runtime, so themes.ts serves the SAME objects the
+// authored files declare, by name.
 
 export const Cupertino: Readonly<Record<string, unknown>> = /* @__PURE__ */ Object.freeze({
   bg: 0xF5F5F7,

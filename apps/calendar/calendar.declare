@@ -38,7 +38,7 @@ class Ev extends View [ clip = true,
     rowBlock: number = { :dayRow == app.anchorRow ? app.blockness : 0 },
 
     cornerRadius = { app.lerp(5, 1.5, app.yearZoom) },
-    fill = { app.mix(app.catFill(:category), theme.accent, app.yearZoom) },
+    fill = { app.mix(app.catFill(:category), provided("theme").accent, app.yearZoom) },
     opacity = { app.dragId == :id && app.dragging ? 0.2 : 1 },
     x = { app.lerp(4, (parent.width - 3) / 2, app.yearZoom) },
     width = { app.lerp(parent.width - 8, 3, app.yearZoom) },
@@ -92,24 +92,24 @@ class Cell extends View [ clip = true,
     bg: View [ width = { parent.width }, height = { parent.height }, cornerRadius = 8,
         opacity = { 1 - 0.82 * classroot.rowBlock },
         fill = { app.mix(
-              :key == app.dropKey ? theme.dropTargetBg
-            : :today              ? app.mix(theme.todayBg, theme.cellBg, classroot.rowBlock)
-            : !:inMonth           ? theme.outOfMonthBg
-            : :weekend            ? theme.weekendBg
-            :                       theme.cellBg,
-            theme.miniCurrentBg, app.yearZoom) },
-        stroke = { :key == app.dropKey ? stroke(2, app.mix(theme.dropTargetRing, theme.miniCurrentBg, app.yearZoom)) : null } ],
+              :key == app.dropKey ? provided("theme").dropTargetBg
+            : :today              ? app.mix(provided("theme").todayBg, provided("theme").cellBg, classroot.rowBlock)
+            : !:inMonth           ? provided("theme").outOfMonthBg
+            : :weekend            ? provided("theme").weekendBg
+            :                       provided("theme").cellBg,
+            provided("theme").miniCurrentBg, app.yearZoom) },
+        stroke = { :key == app.dropKey ? stroke(2, app.mix(provided("theme").dropTargetRing, provided("theme").miniCurrentBg, app.yearZoom)) : null } ],
 
     // current-day accent bar, fading in as the cell fills the surface
 
-    mark: View [ width = { parent.width }, height = 3, fill = { theme.accent }, visible = { :current }, opacity = { classroot.rowBlock } ],
+    mark: View [ width = { parent.width }, height = 3, fill = { provided("theme").accent }, visible = { :current }, opacity = { classroot.rowBlock } ],
     num: Text [ x = { app.lerp(11, parent.width / 2 - 5, app.yearZoom) }, y = { app.lerp(7, 2, app.yearZoom) },
         fontSize = { app.lerp(13, 9, app.yearZoom) }, wrap = false, fontWeight = semibold,
         opacity = { :inMonth ? 1 : 1 - app.yearZoom },
-        textColor = { :current ? theme.currentDayText : :today ? theme.todayText : :inMonth ? theme.dayNumber : theme.textFaint },
+        textColor = { :current ? provided("theme").currentDayText : :today ? provided("theme").todayText : :inMonth ? provided("theme").dayNumber : provided("theme").textFaint },
         text = { "" + :num } ],
     dow: Text [ x = 34, y = 8, fontSize = 11, wrap = false, opacity = { classroot.rowBlock },
-        textColor = { :current ? theme.currentDayText : theme.textMuted }, text = { :dow } ],
+        textColor = { :current ? provided("theme").currentDayText : provided("theme").textMuted }, text = { :dow } ],
     Ev [ datapath = :events[], key = :id ],
 
     onClick() { app.pickDay(:key) }
@@ -126,20 +126,20 @@ The year view's twelve small months. The current month is drawn by the main
 class MiniDay extends View [ width = { app.miniCellW }, height = { app.miniRowH },
     x = { :col * app.miniCellW }, y = { :row * app.miniRowH },
     n: Text [ width = { parent.width }, textAlign = center, y = 1, fontSize = 9, wrap = false,
-        textColor = { :today ? theme.accent : :inMonth ? theme.miniDayText : theme.miniDayFaint },
+        textColor = { :today ? provided("theme").accent : :inMonth ? provided("theme").miniDayText : provided("theme").miniDayFaint },
         text = { :inMonth ? "" + :num : "" } ],
     dot: View [ x = { (parent.width - 3) / 2 }, y = { parent.height - 4 }, width = 3, height = 3,
-        cornerRadius = 2, fill = { theme.accent }, visible = { :has } ]
+        cornerRadius = 2, fill = { provided("theme").accent }, visible = { :has } ]
     ]
 
 
-class MiniMonth extends View [ cornerRadius = 12, clip = true, fill = { theme.miniBg },
+class MiniMonth extends View [ cornerRadius = 12, clip = true, fill = { provided("theme").miniBg },
     width = { app.miniW }, height = { app.miniH },
     x = { app.pad + :mcol * (app.miniW + app.gap) }, y = { app.pad + :mrow * (app.miniH + app.gap) },
     visible = { :m != app.month },      // the current month is the folding board, not a mini
 
     name: Text [ x = 14, y = 11, fontSize = 13, fontWeight = semibold,
-        textColor = { :m == app.month ? theme.todayText : theme.dayNumber }, text = { :name } ],
+        textColor = { :m == app.month ? provided("theme").todayText : provided("theme").dayNumber }, text = { :name } ],
     grid: View [ x = 10, y = 34, width = { parent.width - 20 }, height = { parent.height - 44 },
         MiniDay [ datapath = :cells[] ]
         ],
@@ -164,7 +164,7 @@ rest, text brightening on hover, and `controlSelected` under the chosen tab.
 // and the fill; each concrete button adds its content and its action
 
 class BarButton extends View [ height = 34, cornerRadius = 10,
-    fill = { classroot.pressed ? theme.controlSelected : theme.control }
+    fill = { classroot.pressed ? provided("theme").controlSelected : provided("theme").control }
     ]
 
 
@@ -179,7 +179,7 @@ class NavArrow extends BarButton [ width = 36,
         dir = { classroot.dir < 0 ? "left" : "right" },
         x = { (parent.width - this.width) / 2 },
         y = { (parent.height - this.height) / 2 },
-        ink = { classroot.pressed || classroot.hovered ? theme.text : theme.textMuted } ],
+        ink = { classroot.pressed || classroot.hovered ? provided("theme").text : provided("theme").textMuted } ],
     onClick()     { app.step(classroot.dir) }
     ]
 
@@ -187,7 +187,7 @@ class NavArrow extends BarButton [ width = 36,
 class TextButton extends BarButton [ width = 64,
     label: string = "",
     t: Text [ width = { parent.width }, textAlign = center, y = 9, fontSize = 13, wrap = false, fontWeight = medium,
-        textColor = { classroot.pressed || classroot.hovered ? theme.text : theme.textMuted }, text = { classroot.label } ],
+        textColor = { classroot.pressed || classroot.hovered ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
     onClick()     { app.today() }
     ]
 
@@ -203,7 +203,7 @@ time. Its input two-way binds to the event property named by `field`, so an edit
 writes straight to the record.
 */
 
-class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { theme.sectionBg },
+class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { provided("theme").sectionBg },
     idx: number = 0,
     label: string = "",
     field: string = "",
@@ -212,16 +212,16 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
 
     hdr: View [ width = { parent.width }, height = 46,
         lbl: Text [ x = 15, y = 16, fontSize = 12, fontWeight = bold, wrap = false, letterSpacing = 1,
-            textColor = { app.openSection == classroot.idx ? theme.text : theme.textMuted }, text = { classroot.label } ],
+            textColor = { app.openSection == classroot.idx ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
 
         // open/closed as minus/plus, drawn. `theme.chevron` was this app's own
         // near-duplicate of `textMuted` (register D4); with the marks shared, so
         // is the colour.
 
         chevM: MinusIcon [ x = { parent.width - 26 }, y = 15, iconSize = 15,
-            visible = { app.openSection == classroot.idx }, ink = { theme.textMuted } ],
+            visible = { app.openSection == classroot.idx }, ink = { provided("theme").textMuted } ],
         chevP: PlusIcon [ x = { parent.width - 26 }, y = 15, iconSize = 15,
-            visible = { app.openSection != classroot.idx }, ink = { theme.textMuted } ],
+            visible = { app.openSection != classroot.idx }, ink = { provided("theme").textMuted } ],
         onClick() { app.openSection = classroot.idx }
         ],
 
@@ -233,11 +233,11 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
     // this goes away and the house rendition takes over.)
 
     content: TextInput [ x = 13, y = 50, width = { parent.width - 26 }, height = { parent.height - 60 }, multiline = true, wrap = true,
-        fontSize = 13, textColor = { theme.bodyText }, placeholder = { "Add " + classroot.field },
-        fill = { theme.fieldBg },
-        stroke = { stroke(1, this.focused ? theme.accent : theme.fieldEdge) },
+        fontSize = 13, textColor = { provided("theme").bodyText }, placeholder = { "Add " + classroot.field },
+        fill = { provided("theme").fieldBg },
+        stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").fieldEdge) },
         text <-> { classroot.field } ],
-    open: State [ applied = { app.openSection == classroot.idx }, fill = { theme.sectionOpenBg } ]
+    open: State [ applied = { app.openSection == classroot.idx }, fill = { provided("theme").sectionOpenBg } ]
     ]
 
 
@@ -254,7 +254,7 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
 // legible columns, the same budget a phone-native month view spends.
 
 App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
-    fill = { theme.bg }, fontFamily = [Sans, "system-ui", "sans-serif"],
+    fill = { provided("theme").bg }, fontFamily = [Sans, "system-ui", "sans-serif"],
 
     /* Colors are two role-named palettes; `theme` swaps between them. `themeMode`
        is Light / Dark / Auto — Auto follows the ENVIRONMENT: the host's
@@ -268,7 +268,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        the exact palette it always had — the spread only ADDS the tokens the app
        never named. */
 
-    theme = { { ...Themes.sanFrancisco(app.isDark), ...(app.isDark ? app.darkTheme() : app.lightTheme()) } },
+    theme = { { ...(app.isDark ? SanFranciscoDark : SanFrancisco), ...(app.isDark ? app.darkTheme() : app.lightTheme()) } },
     themeMode: string = "auto",
 
     // Auto's environment, three tiers (the viewer's pattern): the host's
@@ -468,8 +468,8 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     // nullable Color return would refuse every mix(catFill(…), …) call site.
     // (Surfaced when compile-time path plans made datapath bodies typecheckable.)
 
-    catFill(c: string) -> number { const t = this.theme; return c == "holiday" ? t.holidayBg : c == "astro" ? t.astroBg : c == "milestone" ? t.milestoneBg : t.defaultBg },
-    catText(c: string) -> number { const t = this.theme; return c == "holiday" ? t.holidayText : c == "astro" ? t.astroText : c == "milestone" ? t.milestoneText : t.defaultText },
+    catFill(c: string) -> number { const t = provided("theme"); return c == "holiday" ? t.holidayBg : c == "astro" ? t.astroBg : c == "milestone" ? t.milestoneBg : t.defaultBg },
+    catText(c: string) -> number { const t = provided("theme"); return c == "holiday" ? t.holidayText : c == "astro" ? t.astroText : c == "milestone" ? t.milestoneText : t.defaultText },
 
     /* ── the two palettes — every color in the app, named by role ──
 
@@ -686,23 +686,23 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         // its centre, so it starts full-bleed and converges by a pure scale to the mini
 
         monthBg: View [ x = { app.slotX }, y = { app.slotY }, width = { app.miniW }, height = { app.miniH },
-            cornerRadius = 12, fill = { app.mix(theme.bg, theme.miniCurrentBg, app.yearZoom) },
+            cornerRadius = 12, fill = { app.mix(provided("theme").bg, provided("theme").miniCurrentBg, app.yearZoom) },
             scale = { app.yearScale }, pivotX = { app.miniW / 2 }, pivotY = { app.miniH / 2 } ],
         weekdays: View [ opacity = { (1 - app.blockness) * (1 - app.yearZoom) }, datapath = { app.cal.value },
             View [ datapath = :cols[], key = :col, x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
-                l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { theme.textMuted }, text = { :name } ]
+                l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { provided("theme").textMuted }, text = { :name } ]
                 ]
             ],
         hours: View [ opacity = { app.blockness }, datapath = { app.cal.value },
-            View [ datapath = :hours[], key = :h, y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { theme.gridLine },
-                lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { theme.hourLabel }, text = { :label } ]
+            View [ datapath = :hours[], key = :h, y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { provided("theme").gridLine },
+                lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { provided("theme").hourLabel }, text = { :label } ]
                 ]
             ],
         grid: View [ datapath = { app.cal.value },
             Cell [ datapath = :grid[], key = :key ]
             ],
         yearName: Text [ x = { app.slotX + 14 }, y = { app.slotY + 11 }, fontSize = 13, fontWeight = semibold, wrap = false,
-            textColor = { theme.todayText }, text = { app.monthName(app.month) },
+            textColor = { provided("theme").todayText }, text = { app.monthName(app.month) },
             opacity = { app.clamp((app.yearZoom - 0.5) / 0.5, 0, 1) } ]
         ],
 
@@ -721,9 +721,9 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        Points its datapath at the selected event, so every field two-way binds
        straight to the record and reseeds when a different event opens. */
 
-    panel: View [ width = { app.panelW }, height = { app.bodyH }, y = { app.barH }, fill = { theme.surface }, x = { app.width - app.panelInset },
+    panel: View [ width = { app.panelW }, height = { app.bodyH }, y = { app.barH }, fill = { provided("theme").surface }, x = { app.width - app.panelInset },
         datapath = { app.data.value != null ? app.data.value.events.find(e => e.id == app.selectedId) : null },
-        edge: View [ width = 1, height = { parent.height }, fill = { theme.line } ],
+        edge: View [ width = 1, height = { parent.height }, fill = { provided("theme").line } ],
         secs: View [ x = 22, y = 24, width = { parent.width - 44 },
             layout: SimpleLayout [ axis = y, spacing = 8 ],
 
@@ -732,22 +732,22 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
                carry their chevron, the category color as the card's left edge, and
                the read-only date · time under the editable title. */
 
-            ev: View [ width = { parent.width }, height = 112, cornerRadius = 10, clip = true, fill = { theme.sectionBg },
+            ev: View [ width = { parent.width }, height = 112, cornerRadius = 10, clip = true, fill = { provided("theme").sectionBg },
                 rail: View [ width = 4, height = { parent.height }, fill = { app.catText(:category) } ],
                 hdr: View [ width = { parent.width }, height = 40,
                     lbl: Text [ x = 15, y = 16, fontSize = 12, fontWeight = bold, wrap = false, letterSpacing = 1,
-                        textColor = { theme.textMuted }, text = "EVENT" ],
+                        textColor = { provided("theme").textMuted }, text = "EVENT" ],
                     close: CloseIcon [ x = { parent.width - 28 }, y = 12, iconSize = 15,
-                        ink = { theme.textMuted },
+                        ink = { provided("theme").textMuted },
                         onClick() { app.closeDetail() }
                         ]
                     ],
                 title: TextInput [ x = 13, y = 40, width = { parent.width - 26 }, height = 32, fontSize = 16, fontWeight = bold,
-                    textColor = { theme.text }, placeholder = "Untitled event",
-                    fill = { theme.fieldBg },
-                    stroke = { stroke(1, this.focused ? theme.accent : theme.fieldEdge) },
+                    textColor = { provided("theme").text }, placeholder = "Untitled event",
+                    fill = { provided("theme").fieldBg },
+                    stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").fieldEdge) },
                     text <-> :title ],
-                meta: Text [ x = 15, y = 84, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
+                meta: Text [ x = 15, y = 84, fontSize = 12.5, wrap = false, textColor = { provided("theme").textMuted },
                     text = { app.dayLabel(:y + "-" + :m + "-" + :d) + "  ·  " + app.shortTime(:start) + " – " + app.shortTime(:end) } ]
                 ],
 
@@ -772,8 +772,8 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        left, Today + the view tabs hug the right, and the date nav floats near the
        centre, clamped so it never rides into either side. */
 
-    bar: View [ width = { app.width }, height = { app.barH }, fill = { theme.bg },
-        rule: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
+    bar: View [ width = { app.width }, height = { app.barH }, fill = { provided("theme").bg },
+        rule: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").line } ],
 
         // Row-1 items center in the FIRST 60px band — fixed, not barH-derived,
         // so the narrow tier's second row doesn't drag them downward.
@@ -784,10 +784,10 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
             // the word "Declare" is the way home — navigate() resolves against the
             // DISTRO root, so this works on either host at any mount point
 
-            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", theme.accent, theme.accentSecondary) }, text = "Declare",
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
                 onClick() { app.navigate("apps/homepage/homepage.declare") }
                 ],
-            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { theme.text }, text = "Calendar",
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { provided("theme").text }, text = "Calendar",
                 visible = { !app.brandCompact } ]
             ],
 
@@ -823,7 +823,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
                             Math.max(app.showTheme ? 300 : 190, app.width - app.tabsW - app.navW - 120)) },
             prev:  NavArrow [ x = 0, dir = -1 ],
             title: Text [ x = 42, width = { app.dateW }, textAlign = center, y = 7, fontSize = 16, wrap = false,
-                fontWeight = semibold, textColor = { theme.text }, text = { app.periodLabel } ],
+                fontWeight = semibold, textColor = { provided("theme").text }, text = { app.periodLabel } ],
             next:  NavArrow [ x = { app.dateW + 48 }, dir = 1 ]
             ],
 

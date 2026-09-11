@@ -29,8 +29,8 @@ export function cssWeight(w: FontWeight): string {
 
 /** A text run's style — the render seam's text currency. Backends derive
  *  what their substrate needs (font string, CSS color, ascent) from this.
- *  Since the styling rung the values are the EFFECTIVE (prevailing) ones —
- *  Text's style derive resolves them before they cross the seam — and the
+ *  The values are the EFFECTIVE ones — Text's style derive resolves them
+ *  before they cross the seam — and the
  *  run's optional glyph shadow rides along (style is the cold path). */
 export interface TextStyle {
   readonly fontFamily: string;

@@ -3,8 +3,8 @@
 // tens of thousands of times — empty member arrays, `name: null`, `def: null`,
 // false flags — before embedding the JSON; this walk puts the structural
 // fields back so every consumer keeps reading `el.attrs` / `el.name !== null`
-// unconditionally. The boolean flags (`hex`, `many`, `prevailing`, `readOnly`,
-// `external`, `entry`) are NOT restored: every reader treats absence as false already.
+// unconditionally. The boolean flags (`hex`, `many`, `readOnly`, `external`,
+// `entry`) are NOT restored: every reader treats absence as false already.
 //
 // Deliberately its own tiny module (not parser.ts): the production entry is
 // the one importer, and it must pull nothing of the parser along.
@@ -27,12 +27,12 @@ function hydrateElement(el: Element): void {
  *  Idempotent; a never-compacted program passes through untouched. */
 export function hydrateProgram(program: Program): Program {
   const p = program as unknown as Record<string, unknown>;
-  for (const k of ["classes", "stylesheets", "styles", "fonts", "includes", "includeSpans", "uses"]) {
+  for (const k of ["classes", "themes", "styles", "fonts", "includes", "includeSpans", "uses"]) {
     p[k] ??= [];
   }
   hydrateElement(program.root);
   for (const c of program.classes) hydrateElement(c.body);
-  for (const s of program.stylesheets) hydrateElement(s.body);
+  for (const s of program.themes) hydrateElement(s.body);
   for (const s of program.styles) hydrateElement(s.body);
   for (const f of program.fonts) hydrateElement(f.body);
   return program;

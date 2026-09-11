@@ -52,33 +52,33 @@ tracking that scales with the size, eyebrows mono and wide-tracked, lead and
 body in the muted tone — so the page's whole typography reskins from here.
 */
 
-class Heading extends Text [ fontWeight = semibold, textColor = { theme.text },
+class Heading extends Text [ fontWeight = semibold, textColor = { provided("theme").text },
     letterSpacing = { -0.02 * fontSize }, selectable = true
     ]
 
 
 class Eyebrow extends Text [ fontFamily = [Mono, "monospace"], fontSize = 13,
-    fontWeight = semibold, letterSpacing = 1.6, textColor = { theme.muted }, selectable = true
+    fontWeight = semibold, letterSpacing = 1.6, textColor = { provided("theme").muted }, selectable = true
     ]
 
 
 // the accent section number
 
-class Marker extends Eyebrow [ textColor = { theme.accent } ]
+class Marker extends Eyebrow [ textColor = { provided("theme").accent } ]
 
 // footer text in the Declare typeface (App Sans), not the mono eyebrow
 
-class FootLabel extends Text [ fontSize = 13, fontWeight = semibold, textColor = { theme.muted }, selectable = true ]
+class FootLabel extends Text [ fontSize = 13, fontWeight = semibold, textColor = { provided("theme").muted }, selectable = true ]
 
-class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { theme.lead }, selectable = true ]
+class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { provided("theme").lead }, selectable = true ]
 
-class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { theme.muted }, selectable = true ]
+class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { provided("theme").muted }, selectable = true ]
 
 // an article paragraph (the "Why" view) — HTML flow, so its `"""` source wraps
 // at the writer’s margin and the line breaks collapse away in the rendering
 
 class Para extends HTMLText [ fontSize = 18, lineHeight = 1.2, width = { parent.width },
-    bodyColor = { theme.lead }, selectable = true
+    bodyColor = { provided("theme").lead }, selectable = true
     ]
 
 
@@ -117,10 +117,10 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
     // pressed deepens the pill + lights the label — the tap feedback a touch
     // device gets in place of hover (mouseDown/Up fire on a tap, hover does not).
 
-    fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
+    fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
     lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
         text = { classroot.label },
-        textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.muted } ],
+        textColor = { classroot.hovered || classroot.pressed ? provided("theme").text : provided("theme").muted } ],
     width = { this.lbl.width + 24 }
     ]
 
@@ -150,7 +150,7 @@ class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerR
 
     sub:     boolean = false,
 
-    fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
+    fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
 
     // the coexistence rule (location.md §0.4): the handler runs — closing the
     // sheet — then the follow. Navigation itself is the `link`.
@@ -160,7 +160,7 @@ class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerR
     lbl: Text [ x = { classroot.sub ? 30 : 14 }, y = center, fontFamily = [Sans, "system-ui", "sans-serif"],
         fontSize = 16, fontWeight = medium,
         text = { classroot.label },
-        textColor = { classroot.hovered || classroot.pressed ? theme.text : classroot.sub ? theme.muted : theme.lead } ]
+        textColor = { classroot.hovered || classroot.pressed ? provided("theme").text : classroot.sub ? provided("theme").muted : provided("theme").lead } ]
     ]
 
 
@@ -217,7 +217,7 @@ class Shot extends View [
 
     hot: boolean = false,
 
-    cornerRadius = 12, clip = true, fill = { theme.stage },
+    cornerRadius = 12, clip = true, fill = { provided("theme").stage },
     height = { this.width / 1.6 },
 
     // A GLOW, not a drop shadow. On a near-black ground a black shadow has
@@ -227,7 +227,7 @@ class Shot extends View [
     // announcing itself. The 1px stroke is still the crisp edge; this is the
     // separation behind it.
 
-    stroke = { stroke(1, hovered || hot ? theme.pointRule : theme.line) },
+    stroke = { stroke(1, hovered || hot ? provided("theme").pointRule : provided("theme").line) },
 
     // colours here are RRGGBBAA (the theme's own spelling — `scrim` is
     // 0x0B141BB3), so the alpha is the LOW byte: a cool off-white at 0x1C
@@ -259,7 +259,7 @@ selectable: it is a control, not copy.
 class SmallLink extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
     fontSize = 14, fontWeight = medium, wrap = false, selectable = false,
     url: string = "",
-    textColor = { pressed ? theme.linkPress : hovered ? theme.linkHover : theme.accent },
+    textColor = { pressed ? provided("theme").linkPress : hovered ? provided("theme").linkHover : provided("theme").accent },
     onClick() { app.navigate(classroot.url) }
     ]
 
@@ -278,7 +278,7 @@ class MiniMetric extends View [
     note:  string = "",
     width = { (parent.width - 40) / 3 },
     layout: SimpleLayout [ axis = y, spacing = 4 ],
-    Heading [ fontSize = 34, width = { parent.width }, textFill = { theme.brand },
+    Heading [ fontSize = 34, width = { parent.width }, textFill = { provided("theme").brand },
         text = { classroot.value } ],
     Body [ fontSize = 12, width = { parent.width }, text = { classroot.note } ]
     ]
@@ -323,9 +323,9 @@ class AppNum extends View [ width = 30,
     // center is the honest anchor.
 
     disc: View [ width = 30, height = 30, cornerRadius = 15,
-        fill = { classroot.hot || classroot.pressed ? theme.accent : theme.badge },
+        fill = { classroot.hot || classroot.pressed ? provided("theme").accent : provided("theme").badge },
         y = { (parent.height - this.height) / 2 } ],
-    num: Heading [ fontSize = 22, wrap = false, selectable = false, textColor = { theme.ink },
+    num: Heading [ fontSize = 22, wrap = false, selectable = false, textColor = { provided("theme").ink },
         x = { (parent.width - this.width) / 2 },
         text = { classroot.n } ]
     ]
@@ -367,12 +367,12 @@ class AppCard extends View [
 
         seq: AppNum [ n = { classroot.num }, hot = { classroot.hot }, url = { classroot.url } ],
         name: Heading [ fontSize = 22, wrap = false, selectable = false,
-            textColor = { classroot.hot ? theme.accent : theme.text },
+            textColor = { classroot.hot ? provided("theme").accent : provided("theme").text },
             text = { classroot.title },
             onClick() { app.navigate(classroot.url) }
             ],
         arrow: Text [ y = 3, fontSize = 16, fontWeight = semibold, wrap = false,
-            textColor = { classroot.hot ? theme.accent : theme.dim }, text = "→",
+            textColor = { classroot.hot ? provided("theme").accent : provided("theme").dim }, text = "→",
             onClick() { app.navigate(classroot.url) }
             ]
         ],
@@ -383,7 +383,7 @@ class AppCard extends View [
     copy: View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         say: Body [ fontSize = 15, width = { parent.width }, text = { classroot.blurb } ],
-        fig: Body [ fontSize = 13, width = { parent.width }, textColor = { theme.dim },
+        fig: Body [ fontSize = 13, width = { parent.width }, textColor = { provided("theme").dim },
             text = { classroot.figures } ],
         src: SmallLink [ text = "View & edit source →", url = { classroot.srcUrl } ]
         ]
@@ -394,7 +394,7 @@ class Point extends View [ width = { Math.min(357, parent.width) },
     ptitle: string = "",
     body:   string = "",
     layout: SimpleLayout [ axis = y, spacing = 16 ],
-    rule: View [ width = { parent.width }, height = 2, fill = { theme.pointRule } ],
+    rule: View [ width = { parent.width }, height = 2, fill = { provided("theme").pointRule } ],
     txt: View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         Heading [ fontSize = 17, text = { classroot.ptitle } ],
@@ -413,12 +413,12 @@ class Metric extends View [
     note:  string = "",
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     Heading [ fontSize = { parent.width < 420 ? 54 : 92 }, width = { parent.width }, textAlign = center,
-        textFill = { theme.brand }, text = { classroot.value } ],
+        textFill = { provided("theme").brand }, text = { classroot.value } ],
     Body [ fontSize = 14, width = { parent.width }, textAlign = center, text = { classroot.note } ]
     ]
 
 
-class Dot extends Body [ fontSize = 14, textColor = { theme.faint }, text = "·" ]
+class Dot extends Body [ fontSize = 14, textColor = { provided("theme").faint }, text = "·" ]
 
 /*
 ## Buttons
@@ -431,15 +431,15 @@ sees in place of hover — both are driven by the view’s own handlers.
 class Button extends View [ height = 46, cornerRadius = 9,
     label:   string = "",
     primary: boolean = true,
-    fill = { primary ? (pressed ? theme.accentPress : hovered ? theme.accentHover : theme.accent)
-                     : (pressed ? theme.press       : hovered ? theme.hover       : theme.surface) },
-    stroke = { primary ? stroke(0, theme.accent) : stroke(1, pressed ? theme.accentSecondary : theme.line) },
+    fill = { primary ? (pressed ? provided("theme").accentPress : hovered ? provided("theme").accentHover : provided("theme").accent)
+                     : (pressed ? provided("theme").press       : hovered ? provided("theme").hover       : provided("theme").surface) },
+    stroke = { primary ? stroke(0, provided("theme").accent) : stroke(1, pressed ? provided("theme").accentSecondary : provided("theme").line) },
 
     // label centered in the button box (textAlign over the full width)
 
     caption: Text [ y = 14, width = { parent.width }, textAlign = center, fontSize = 15, fontWeight = semibold,
         text = { classroot.label },
-        textColor = { classroot.primary ? theme.ink : theme.text } ]
+        textColor = { classroot.primary ? provided("theme").ink : provided("theme").text } ]
     ]
 
 
@@ -460,7 +460,7 @@ class FootLink extends FootLabel [
     // is for the static footer text and must not ride along here.
 
     selectable = false,
-    textColor = { pressed ? theme.accentSecondaryPress : hovered ? theme.accentSecondary : theme.muted },
+    textColor = { pressed ? provided("theme").accentSecondaryPress : hovered ? provided("theme").accentSecondary : provided("theme").muted },
     onClick()     { app.navigate(to) }
     ]
 
@@ -468,7 +468,7 @@ class FootLink extends FootLabel [
 // the footer separator: a faint dot that drops out once the row wraps, so no dot
 // is ever stranded at a line's end (the 620 line is where the row stops fitting)
 
-class FootSep extends FootLabel [ text = "·", textColor = { theme.faint }, visible = { parent.width >= 620 } ]
+class FootSep extends FootLabel [ text = "·", textColor = { provided("theme").faint }, visible = { parent.width >= 620 } ]
 
 class Footer extends View [ width = { parent.width },
     // its own bottom margin — the page has no trailing spacer, because the
@@ -489,8 +489,8 @@ class Footer extends View [ width = { parent.width },
         // "Built in Declare" is one text RUN (HTMLText carries the brand accent
         // inline), so it keeps a word space, not a gap
 
-        built: HTMLText [ width = 108, fontSize = 13, fontWeight = semibold, bodyColor = { theme.muted },
-            textStyles = { { g: { textFill: theme.brand } } },
+        built: HTMLText [ width = 108, fontSize = 13, fontWeight = semibold, bodyColor = { provided("theme").muted },
+            textStyles = { { g: { textFill: provided("theme").brand } } },
             html = "Built in <span class='g'>Declare</span>" ],
         FootSep [ ],
         FootLink [ to = "apps/homepage/homepage.declare?viewer", text = "View Source" ],
@@ -522,7 +522,7 @@ very editor only descends one level per user click.
 */
 
 class CodeField extends TextInput [ multiline = true, spellcheck = false,
-    fontFamily = [Mono, "monospace"], fontSize = 11, textColor = { theme.lead },
+    fontFamily = [Mono, "monospace"], fontSize = 11, textColor = { provided("theme").lead },
     editName: string = "",
     src: string = "",
     initial = { src },
@@ -539,7 +539,7 @@ class CodeField extends TextInput [ multiline = true, spellcheck = false,
 class SourcePanel extends View [
     editName: string = "",
     src: string = "",
-    fill = { theme.panel }, cornerRadius = 12, stroke = { stroke(1, theme.panelLine) },
+    fill = { provided("theme").panel }, cornerRadius = 12, stroke = { stroke(1, provided("theme").panelLine) },
 
     // the panel is its field, plus the chip row above it and a margin below —
     // and, while a broken edit has a report, that report's band: it lands
@@ -550,35 +550,35 @@ class SourcePanel extends View [
 
     // the affordance chip: this code runs, and you can type in it
 
-    live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = { theme.accent },
+    live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = { provided("theme").accent },
         width = { this.t.width + 14 },
         t: Text [ x = 7, y = 4, fontFamily = [Sans, "system-ui"], fontSize = 9, fontWeight = bold,
-            letterSpacing = 0.8, wrap = false, textColor = { theme.ink }, text = "LIVE · EDITABLE" ]
+            letterSpacing = 0.8, wrap = false, textColor = { provided("theme").ink }, text = "LIVE · EDITABLE" ]
         ],
-    revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, theme.revertLine) },
+    revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").revertLine) },
         x = { parent.width - this.width - 10 },
         width = { this.rlbl.width + 16 },
-        fill = { hovered ? theme.hover : null },
+        fill = { hovered ? provided("theme").hover : null },
         onClick() { classroot.field.text = classroot.src
                     app.liveCard = classroot.editName
                     app.liveSource = classroot.src },
         rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui"], fontSize = 11, fontWeight = semibold,
-            textColor = { parent.hovered ? theme.text : theme.lead }, text = "Revert" ]
+            textColor = { parent.hovered ? provided("theme").text : provided("theme").lead }, text = "Revert" ]
         ],
-    hairline: View [ y = 31, width = { parent.width }, height = 1, fill = { theme.panelLine } ],
+    hairline: View [ y = 31, width = { parent.width }, height = 1, fill = { provided("theme").panelLine } ],
     field: CodeField [ x = 12, y = 40, width = { parent.width - 24 },
         editName = { classroot.editName }, src = { classroot.src } ],
 
     // the compile report, at the panel — a broken edit shows its error right here
     // (the last good preview keeps running beside it); host feeds app.liveReport
 
-    err: View [ width = { parent.width }, fill = { theme.errBg },
+    err: View [ width = { parent.width }, fill = { provided("theme").errBg },
         visible = { app.liveCard == classroot.editName && app.liveReport != "" },
         y = { parent.height - this.height },
         height = { this.msg.height + 16 },
-        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
+        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").errBar } ],
         msg: Text [ x = 14, y = 8, width = { parent.width - 28 }, wrap = true,
-            fontFamily = [Mono, "monospace"], fontSize = 11, textColor = { theme.errText },
+            fontFamily = [Mono, "monospace"], fontSize = 11, textColor = { provided("theme").errText },
             text = { app.liveReport } ]
         ]
     ]
@@ -616,7 +616,7 @@ costs nothing visually — it is the same paper, drawn once.
 
 class GridBg extends View [
     draw(d: Draw) {
-        d.fillStyle = theme.grid
+        d.fillStyle = provided("theme").grid
         for (let gx = 0; gx <= width;  gx += 32) d.fillRect(gx, 0, 1, height)
         for (let gy = 0; gy <= height; gy += 32) d.fillRect(0, gy, width, 1)
         }
@@ -637,8 +637,8 @@ class SectionHead extends View [ width = { parent.width },
 /*
 ## The page
 
-The palette lives once as a prevailing `theme` token record — every semantic
-type class defaults its color to `{ theme.… }`, so the whole page reskins
+The palette lives once as a provided `theme` token record — every semantic
+type class defaults its color to `{ provided("theme").… }`, so the whole page reskins
 from this one place. The scroller fills the viewport and scrolls its taller
 content natively; the chrome further down (header, cursor) are its
 **siblings**, not its children, so they never move.
@@ -679,9 +679,9 @@ App [ tagline: string = "a UI language for you and your AI",
         // the error strip, the demo stage, and the overlay grounds
         errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6,
         stage: 0x151A22, scrim: 0x0B141BB3, shade: 0x00000066 } },
-    fill = { theme.ink },
+    fill = { provided("theme").ink },
     fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
-    textColor = { theme.text },
+    textColor = { provided("theme").text },
 
     // in-app location: "home" (the scrolling page), "why" (the mini-article),
     // "language" (the one-file core doc, rendered in-app), or "getstarted" (the
@@ -838,14 +838,14 @@ App [ tagline: string = "a UI language for you and your AI",
                         headline: View [ width = { parent.width },
                             layout: SimpleLayout [ axis = y, spacing = 2 ],
                             Heading [ fontSize = { app.heroFont },
-                                textFill = { theme.brand }, text = "Declare" ],
+                                textFill = { provided("theme").brand }, text = "Declare" ],
                             Heading [ fontSize = { app.heroFont }, width = { parent.width },
                                 text = { "is " + app.tagline + "." } ]
                             ]
                         ],
                     paras: View [ width = { parent.width },
                         layout: SimpleLayout [ axis = y, spacing = 12 ],
-                        HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { theme.lead }, selectable = true,
+                        HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { provided("theme").lead }, selectable = true,
                             html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window." ],
 
                         // The page's most arresting fact, and the only claim on it a
@@ -853,7 +853,7 @@ App [ tagline: string = "a UI language for you and your AI",
                         // so it reads as a statement, not a caption under the one above.
 
                         Lead [ width = { Math.min(680, parent.width) }, fontWeight = semibold,
-                            textColor = { theme.text },
+                            textColor = { provided("theme").text },
                             text = "This page is written in it. By an LLM." ]
                         ]
                     ],
@@ -863,11 +863,11 @@ App [ tagline: string = "a UI language for you and your AI",
                 learn: View [ width = { parent.width },
                     layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 16 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     why: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
+                        textColor = { this.pressed ? provided("theme").linkPress : this.hovered ? provided("theme").linkHover : provided("theme").accent }, text = "Why a new language, now? →",
                         link = "#why" ],
                     Dot [ y = 1, visible = { parent.width >= 600 } ],
                     onefile: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "The whole language, in one file →",
+                        textColor = { this.pressed ? provided("theme").linkPress : this.hovered ? provided("theme").linkHover : provided("theme").accent }, text = "The whole language, in one file →",
                         link = "#language" ]
                     ]
                 ],
@@ -920,7 +920,7 @@ App [ tagline: string = "a UI language for you and your AI",
                             seq: AppNum [ n = "1", url = "apps/calendar/calendar.declare",
                                 hot = { this.parent.parent.parent.hot } ],
                             name: Heading [ fontSize = 22, wrap = false, selectable = false,
-                                textColor = { this.parent.parent.parent.hot ? theme.accent : theme.text },
+                                textColor = { this.parent.parent.parent.hot ? provided("theme").accent : provided("theme").text },
                                 text = "Declare Calendar",
                                 onClick() { app.navigate("apps/calendar/calendar.declare") }
                                 ]
@@ -1180,12 +1180,12 @@ App [ tagline: string = "a UI language for you and your AI",
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
                     to = { app.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 30 ],
-                ruleTop: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { theme.accent } ],
+                ruleTop: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { provided("theme").accent } ],
                 Heading [ fontSize = { app.width < 700 ? 26 : 38 },
                     width = { Math.min(900, parent.width) }, x = { (parent.width - Math.min(900, parent.width)) / 2 },
                     textAlign = center,
                     text = "Small enough to know. Strict enough to trust." ],
-                ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { theme.accent } ]
+                ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { provided("theme").accent } ]
                 ],
 
             /* ### The closing call to action — the primary blue button that
@@ -1219,7 +1219,7 @@ App [ tagline: string = "a UI language for you and your AI",
        prose in `"""` blocks: HTML collapses the line breaks, so the source wraps
        and the page flows. */
 
-    whyView: View [ shows = "why", width = { app.width }, fill = { theme.ink },
+    whyView: View [ shows = "why", width = { app.width }, fill = { provided("theme").ink },
         grid: GridBg [ x = 0, width = { app.width },
             // Follows the scroll rather than spanning the document. `ignoreScroll`
             // would lift it out of paint order and composite it OVER the content;
@@ -1281,13 +1281,13 @@ App [ tagline: string = "a UI language for you and your AI",
                     """ ],
                 sources: View [ width = { parent.width },
                     layout: ResponsiveLayout [ plan = { [({ from: 560, flow: "row", gap: 20 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
-                    lbl: Text [ fontSize = 14, wrap = false, textColor = { theme.faint }, text = "The studies:" ],
+                    lbl: Text [ fontSize = 14, wrap = false, textColor = { provided("theme").faint }, text = "The studies:" ],
                     s1: Text [ fontSize = 14, wrap = false, selectable = false,
-                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "a zero-corpus DSL vs. Python →",
+                        textColor = { this.pressed ? provided("theme").linkPress : this.hovered ? provided("theme").linkHover : provided("theme").accent }, text = "a zero-corpus DSL vs. Python →",
                         onClick()     { app.navigate("https://arxiv.org/abs/2512.23214") }
                         ],
                     s2: Text [ fontSize = 14, wrap = false, selectable = false,
-                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "feedback quality vs. repair →",
+                        textColor = { this.pressed ? provided("theme").linkPress : this.hovered ? provided("theme").linkHover : provided("theme").accent }, text = "feedback quality vs. repair →",
                         onClick()     { app.navigate("https://arxiv.org/abs/2504.06939") }
                         ]
                     ],
@@ -1377,9 +1377,9 @@ App [ tagline: string = "a UI language for you and your AI",
                 // (the FAQ's cross-reference), the destination derived, the
                 // landing measured-reveal'd, the header cleared by revealInset
 
-                rule:   View [ anchor = "story", width = { parent.width }, height = 1, fill = { theme.line } ],
+                rule:   View [ anchor = "story", width = { parent.width }, height = 1, fill = { provided("theme").line } ],
                 Marker [ text = "WHERE THIS CAME FROM" ],
-                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
                     I co-founded Laszlo Systems and led the team behind OpenLaszlo — a
                     declarative UI language, first shipped in 2002, that pushed right to
                     the edge of what that era’s web browsers could handle.
@@ -1391,7 +1391,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 // `linkColor` puts it on the page's own accent instead of the rich
                 // flow's built-in blue.
 
-                Para [ fontSize = 16, bodyColor = { theme.muted }, linkColor = { theme.accent },
+                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, linkColor = { provided("theme").accent },
                     html = """
                     What brought me back to UI development was
                     <a href="https://davidtemkin.com/about-mesa/">Mesa</a>, a zoomable
@@ -1401,33 +1401,33 @@ App [ tagline: string = "a UI language for you and your AI",
                     fast today’s browsers have become — and how powerful and flexible
                     today’s web platform is.
                     """ ],
-                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
                     And yet the web as it actually stands is still, mostly, slow and
                     clunky. Even brand-new sites. How can that be?
                     """ ],
-                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
                     It turns out the browser isn’t what makes the web feel worse than a
                     good native app. It’s what we’ve built on top of it. A lot of
                     accumulated code — and a lot of accumulated habits — take their toll,
                     and the interfaces that do escape them are hand-crafted, one at a
                     time, by specialists.
                     """ ],
-                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
                     In June I handed the original OpenLaszlo compiler to an LLM and got
                     back a modern port that compiles any OpenLaszlo program perfectly,
                     byte-for-byte.
                     """ ],
-                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
                     Seeing those programs again through fresh eyes — and seeing how small
                     and how fast the sites built with them are — I decided the language
                     deserved to be modernized. Declare is what came out of that: a direct
                     descendant of OpenLaszlo, with the core ideas intact, built on an
                     entirely new foundation, and shaped to be written with an LLM.
                     """ ],
-                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
                     Enjoy!
                     """ ],
-                sig: Para [ fontSize = 16, bodyColor = { theme.dim }, html = """
+                sig: Para [ fontSize = 16, bodyColor = { provided("theme").dim }, html = """
                     <em>— David Temkin</em>
                     """ ],
 
@@ -1448,7 +1448,7 @@ App [ tagline: string = "a UI language for you and your AI",
        loading and failure are lifecycle states the view derives from, never
        a blank. */
 
-    languageView: View [ shows = "language", width = { app.width }, fill = { theme.ink },
+    languageView: View [ shows = "language", width = { app.width }, fill = { provided("theme").ink },
         // TEST: viewport-height backdrop instead of document-height
 
         grid: GridBg [ x = 0, width = { app.width },
@@ -1472,10 +1472,10 @@ App [ tagline: string = "a UI language for you and your AI",
             col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
                 Marker [ text = "THE LANGUAGE" ],
-                loading: Text [ visible = { app.lang.loading }, fontSize = 15, textColor = { theme.faint }, text = "Loading the language…" ],
-                failed:  Text [ visible = { app.lang.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
+                loading: Text [ visible = { app.lang.loading }, fontSize = 15, textColor = { provided("theme").faint }, text = "Loading the language…" ],
+                failed:  Text [ visible = { app.lang.failed }, fontSize = 15, textColor = { provided("theme").faint }, wrap = true, width = { parent.width },
                     text = { "The language file did not load — " + (app.lang.error || "") } ],
-                doc: Markdown [ visible = { app.lang.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
+                doc: Markdown [ visible = { app.lang.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { provided("theme").lead }, dark = true,
                     text = { app.lang.value || "" } ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
@@ -1493,7 +1493,7 @@ App [ tagline: string = "a UI language for you and your AI",
        the static document like any other reachable location. Loading and failure
        are lifecycle states the view derives from, never a blank. */
 
-    getStartedView: View [ shows = "getstarted", width = { app.width }, fill = { theme.ink },
+    getStartedView: View [ shows = "getstarted", width = { app.width }, fill = { provided("theme").ink },
         grid: GridBg [ x = 0, width = { app.width },
             // Follows the scroll rather than spanning the document. `ignoreScroll`
             // would lift it out of paint order and composite it OVER the content;
@@ -1515,10 +1515,10 @@ App [ tagline: string = "a UI language for you and your AI",
             col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
                 Marker [ text = "GETTING STARTED" ],
-                loading: Text [ visible = { app.guide.loading }, fontSize = 15, textColor = { theme.faint }, text = "Loading the guide…" ],
-                failed:  Text [ visible = { app.guide.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
+                loading: Text [ visible = { app.guide.loading }, fontSize = 15, textColor = { provided("theme").faint }, text = "Loading the guide…" ],
+                failed:  Text [ visible = { app.guide.failed }, fontSize = 15, textColor = { provided("theme").faint }, wrap = true, width = { parent.width },
                     text = { "The guide did not load — " + (app.guide.error || "") } ],
-                doc: Markdown [ visible = { app.guide.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
+                doc: Markdown [ visible = { app.guide.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { provided("theme").lead }, dark = true,
                     text = { app.guide.value || "" } ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
@@ -1529,7 +1529,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
     /* ## The FAQ view — the Get Started pattern at #faq */
 
-    faqView: View [ shows = "faq", width = { app.width }, fill = { theme.ink },
+    faqView: View [ shows = "faq", width = { app.width }, fill = { provided("theme").ink },
         grid: GridBg [ x = 0, width = { app.width },
             // Follows the scroll rather than spanning the document. `ignoreScroll`
             // would lift it out of paint order and composite it OVER the content;
@@ -1551,10 +1551,10 @@ App [ tagline: string = "a UI language for you and your AI",
             col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
                 Marker [ text = "FAQ" ],
-                loading: Text [ visible = { app.faq.loading }, fontSize = 15, textColor = { theme.faint }, text = "Loading…" ],
-                failed:  Text [ visible = { app.faq.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
+                loading: Text [ visible = { app.faq.loading }, fontSize = 15, textColor = { provided("theme").faint }, text = "Loading…" ],
+                failed:  Text [ visible = { app.faq.failed }, fontSize = 15, textColor = { provided("theme").faint }, wrap = true, width = { parent.width },
                     text = { "The FAQ did not load — " + (app.faq.error || "") } ],
-                doc: Markdown [ visible = { app.faq.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
+                doc: Markdown [ visible = { app.faq.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { provided("theme").lead }, dark = true,
                     text = { app.faq.value || "" } ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
@@ -1573,8 +1573,8 @@ App [ tagline: string = "a UI language for you and your AI",
     // reveal it on scroll retired 2026-07-17: a first-time visitor sees the
     // whole map)
 
-    header: View [ ignoreScroll = true, width = { app.width }, height = { 56 + app.safeTop }, y = 0, opacity = 1, fill = { theme.surface },
-        hairline: View [ y = { 55 + app.safeTop }, width = { app.width }, height = 1, fill = { theme.line } ],
+    header: View [ ignoreScroll = true, width = { app.width }, height = { 56 + app.safeTop }, y = 0, opacity = 1, fill = { provided("theme").surface },
+        hairline: View [ y = { 55 + app.safeTop }, width = { app.width }, height = 1, fill = { provided("theme").line } ],
 
         /* The header row, gutter to gutter. ONE ResponsiveLayout decides whether
            the pill row fits, and `share: 0` IS the hiding — so there is no width
@@ -1606,7 +1606,7 @@ App [ tagline: string = "a UI language for you and your AI",
             brand: View [ y = 18, height = 22,
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
                 link = "#home",
-                Heading [ fontSize = 15, textFill = { theme.brand }, text = "Declare" ]
+                Heading [ fontSize = 15, textFill = { provided("theme").brand }, text = "Declare" ]
                 ],
 
             Spacer [ ],
@@ -1625,11 +1625,11 @@ App [ tagline: string = "a UI language for you and your AI",
             // press feedback, toggling the sheet
 
             kebab: View [ y = 11, width = 34, height = 33, cornerRadius = 8,
-                fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
+                fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
                 onClick()     { app.menuOpen = !app.menuOpen },
-                d1: View [ x = center, y = 8,  width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ],
-                d2: View [ x = center, y = 15, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ],
-                d3: View [ x = center, y = 22, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ]
+                d1: View [ x = center, y = 8,  width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? provided("theme").text : provided("theme").muted } ],
+                d2: View [ x = center, y = 15, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? provided("theme").text : provided("theme").muted } ],
+                d3: View [ x = center, y = 22, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? provided("theme").text : provided("theme").muted } ]
                 ]
             ]
         ],
@@ -1638,8 +1638,8 @@ App [ tagline: string = "a UI language for you and your AI",
     // pointer (loose + low-mass = the slower, longer trail). Two position
     // Springs; the native cursor stays visible and leads, the dot follows.
 
-    pointerDot: View [ ignoreScroll = true, width = 10, height = 10, cornerRadius = 5, fill = { theme.accentSecondary }, opacity = 0.9,
-        shadow = { shadow(0, 0, 12, theme.accentSecondary) },
+    pointerDot: View [ ignoreScroll = true, width = 10, height = 10, cornerRadius = 5, fill = { provided("theme").accentSecondary }, opacity = 0.9,
+        shadow = { shadow(0, 0, 12, provided("theme").accentSecondary) },
 
         // Decoration, not a target: the dot settles exactly under a resting
         // cursor, and the hit chain is occlusion-correct — without this line
@@ -1668,11 +1668,11 @@ App [ tagline: string = "a UI language for you and your AI",
     // if the window is widened back past the breakpoint.
 
     navSheet: View [ ignoreScroll = true, visible = { app.menuOpen && app.header.bar.kebab.visible }, width = { app.width }, height = { app.height },
-        scrim: View [ y = { 56 + app.safeTop }, width = { parent.width }, height = { parent.height - 56 - app.safeTop }, fill = { theme.scrim },
+        scrim: View [ y = { 56 + app.safeTop }, width = { parent.width }, height = { parent.height - 56 - app.safeTop }, fill = { provided("theme").scrim },
             onClick() { app.menuOpen = false }
             ],
         panel: View [ x = { app.width - app.gutter - this.width }, y = { 62 + app.safeTop }, width = 236, cornerRadius = 12,
-            fill = { theme.surface }, shadow = { shadow(0, 12, 40, theme.shade) },
+            fill = { provided("theme").surface }, shadow = { shadow(0, 12, 40, provided("theme").shade) },
 
             // DERIVED from the list, not counted: rows and group children are
             // no longer one uniform height, so `navItems.length * 44` stated a
@@ -1698,7 +1698,7 @@ App [ tagline: string = "a UI language for you and your AI",
             onClick() { app.appsOpen = false }
             ],
         panel: View [ x = { app.appsX }, y = { app.appsY }, width = 190, cornerRadius = 12,
-            fill = { theme.surface }, shadow = { shadow(0, 12, 40, theme.shade) },
+            fill = { provided("theme").surface }, shadow = { shadow(0, 12, 40, provided("theme").shade) },
             height = { this.list.contentHeight + 12 },
             list: View [ x = 6, y = 6, width = { parent.width - 12 }, height = { this.contentHeight },
                 layout: SimpleLayout [ axis = y, spacing = 0 ],

@@ -1,4 +1,4 @@
-App [ width = 360, height = 200, fill = { theme.bg },
+App [ width = 360, height = 200, theme = { SanFrancisco }, fill = { provided("theme").bg },
     volume: number = 50,
     muted:  boolean = false,
 

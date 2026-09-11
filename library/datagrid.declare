@@ -198,6 +198,10 @@ pointer re-derives the spans mid-drag and flickers.
 
 ## isGridRow
 **Internal.** The marker identifying a generated grid row — not API.
+
+## theme
+The provided design-token record a `Column` styles its cells off — a **provided value**
+the app provides once (`App [ theme = { … } ]`) and the grid reads. See `Control.theme`.
 */
 
 include [ "table.declare", "menu.declare" ]
@@ -218,7 +222,7 @@ class Column extends View [
     // the app provides it once and this widget reads it, so `theme.x` reads below
     // are plain typed members. Default = the house look (no runtime floor).
 
-    theme: Theme = { provided("theme", Themes.sanFrancisco()) },
+    theme: Theme = { provided("theme", SanFrancisco) },
 
     isColumn: boolean = true,
 
