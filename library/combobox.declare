@@ -185,7 +185,7 @@ class Combobox extends Control [
     syncList() {
         this.ensureList()
         const m = this.list as any
-        m.width = this.width
+        m.minWidth = this.width        // at least the field's width; a long label may widen it
         m.items = (this.matches ?? []).map((o, i) => ({ id: "" + i, label: this.labelOf(o) }))
         },
 

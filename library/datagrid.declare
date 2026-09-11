@@ -399,7 +399,7 @@ class DataGrid extends Table [
             }
         if (selMenu == null) selMenu = app.createView("Menu", ({ }))
         const m = this.selMenu as any
-        m.width = 170
+        m.minWidth = 170
         m.items = (opts ?? []).map((o) => ({ id: "" + o, label: "" + o, checked: "" + (current ?? "") == "" + o }))
         m.picked = (id) => { (row as any).$setData([field], id) }
         m.openFor(cell)
