@@ -8,7 +8,7 @@
 // `family` is the CSS family the name resolves to (defaults to the declaration
 // name). Each `Face [ src, weight?, italic? ]` child is a face to load; a font
 // with no faces is a SYSTEM font (its faces are the OS's, resolved at the use
-// site). Unlike the stylesheet channel, a font is STATIC: `fontFamily = Name`
+// site). A font is STATIC: `fontFamily = Name`
 // resolves to a plain family string at instantiate (the render seam still
 // carries a string; the backends are untouched), no runtime reactivity. Web
 // faces are collected for the runtime to load before first paint (index.ts →
@@ -96,9 +96,9 @@ function buildFace(fontName: string, family: string, face: Element): FontFaceSpe
   return { family, src, weight, style };
 }
 
-/** Build the program's font declarations into resolved Fonts. Mirrors
- *  buildStylesheets: the checker (checkFontBody) reports every error, this
- *  throws on the first as the direct-instantiate safety net. */
+/** Build the program's font declarations into resolved Fonts: the checker
+ *  (checkFontBody) reports every error, this throws on the first as the
+ *  direct-instantiate safety net. */
 export function buildFonts(decls: readonly { name: string; body: Element; pos: Pos }[]): Map<string, Font> {
   const map = new Map<string, Font>();
   for (const decl of decls) {
@@ -129,7 +129,7 @@ export function collectFaces(fonts: ReadonlyMap<string, Font>): FontFaceSpec[] {
 }
 
 // The program's face list, keyed by tree root — index.ts reads it to load the
-// web faces before first paint (mirrors the stylesheet registry).
+// web faces before first paint.
 const FACES = new WeakMap<object, readonly FontFaceSpec[]>();
 
 export function registerFontFaces(root: object, faces: readonly FontFaceSpec[]): void {
@@ -139,3 +139,22 @@ export function registerFontFaces(root: object, faces: readonly FontFaceSpec[]):
 export function fontFacesOf(root: object): readonly FontFaceSpec[] {
   return FACES.get(root) ?? [];
 }
+
+// ── the faces the page has LOADED — for a second realm ──────────────────────
+// The raster worker (raster-worker.ts) rasterizes text off the main thread, so
+// it must see exactly the faces the page loaded: boot.ts loadFonts notes each
+// one here (absolute src, weight, style — the FontFace constructor's own
+// arguments) and the worker client replays them, at spawn and as more land.
+
+/** A face the page has loaded, as a second realm can load it identically. */
+export interface LoadedFace { family: string; src: string; weight: string; style: string }
+const LOADED_FACES: LoadedFace[] = [];
+const FONT_LISTENERS: ((faces: readonly LoadedFace[]) => void)[] = [];
+export function noteLoadedFaces(faces: readonly LoadedFace[]): void {
+  LOADED_FACES.push(...faces);
+  for (const fn of FONT_LISTENERS) fn(faces);
+}
+/** Every face loaded so far. */
+export function loadedFontFaces(): readonly LoadedFace[] { return LOADED_FACES; }
+/** Hear the faces that load LATER (an island's tenant, a late app). */
+export function onFontsLoaded(fn: (faces: readonly LoadedFace[]) => void): void { FONT_LISTENERS.push(fn); }

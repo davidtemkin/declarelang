@@ -43,6 +43,7 @@ const SUITE = [
   "test/themes.test.mjs",
   "test/html.test.mjs",
   "test/richtext.test.mjs",
+  "test/md-conformance.test.mjs",  // Declare's Markdown reader vs markdown-it (VS Code's) over the CommonMark+GFM surface
   "test/slim.test.mjs",
   "test/crawl.test.mjs",
   "test/serve-parity.test.mjs",
@@ -58,6 +59,7 @@ const SUITE = [
   "test/transform-layout.test.mjs",
   "test/safearea.test.mjs",
   "test/gesture.test.mjs",
+  "test/scroll-loop.test.mjs",     // the runtime scroll provider on canvas: wheel batching, glides, touch physics, arbitration
   "test/history.test.mjs",
   "test/embed.test.mjs",
   "test/dep-typed.test.mjs",

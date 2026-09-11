@@ -372,7 +372,17 @@ a real `NSWindow` — an upgrade, not a shim); and one language-level gap the
 host makes concrete: Declare has **no write-side storage primitive** yet
 (DataSource reads) — a capability to design, not improvise. Threading rule:
 JS runs off the main thread and posts each settle's command buffer to the
-main thread for its `CATransaction`.
+main thread for its `CATransaction` — BUILT 2026-09-10 (`Bridge.swift`,
+"THE RUNTIME THREAD": a dedicated thread with a run loop, the context created
+ON it so JSC's timers live there; the rule's refinements: main never waits
+on the runtime after init and never takes the JS lock, the runtime waits on
+main only for `richLayout`, and any Swift state both threads reach is
+locked. ONE bounded exception, WebKit's own: during a window resize main
+holds the frame up to 50 ms for the commit that carries the new layout —
+`Bridge.waitForCommit`, which RUNS the main run loop while it waits, so the
+runtime's hops still execute and a slow settle merely shows the frame
+early. Without it the window was one drag-step larger than the app for a
+frame at every step, and edge-anchored content stuttered against the frame).
 
 ### draw() on Quartz — ancestry, not translation
 

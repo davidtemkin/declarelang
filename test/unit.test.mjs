@@ -1681,10 +1681,16 @@ await test("canvas horizontal scroll: scrollToX shifts paint-space hits, clamps 
   assert.equal(root.hit(40, 50).key, b, "b's tail (150..300 → −100..50) still hittable");
   strip.scrollToX(-5);
   assert.equal(mirrored, 0, "clamped at 0");
-  // the wheel: a horizontal delta is this pane's; a vertical one is not (it passes to whatever scrolls y)
+  // the wheel: a horizontal delta is this pane's; a vertical one is not (it passes to whatever scrolls y).
+  // A delta is QUEUED on the scroll loop — applied and reported on the next
+  // frame (scrolling.md "The scroll process"), so step the loop by hand here.
+  const frame = () => { root.compositor.scrollLoop.step(performance.now()); root.compositor.scrollLoop.flushFacts(); };
   assert.equal(root.scrollBy(100, 50, 30, 0), true, "dx is consumed");
+  assert.equal(mirrored, 0, "…but not applied in the event: the loop applies it next frame");
+  frame();
   assert.equal(mirrored, 30);
   assert.equal(root.scrollBy(100, 50, 0, 40), false, "dy alone is not a horizontal pane's");
+  frame();
   assert.equal(mirrored, 30, "…and moves nothing");
   strip.setScrollX(false);
   assert.equal(root.hit(160, 50).key, b, "off: the offset resets, b back under x=160");
@@ -1940,7 +1946,7 @@ await test("declaration order is the author's business — decls after the App, 
     "a class after the App compiles");
   assert.deepEqual(errs("class A extends B [ g: number = 2 ]\nclass B extends View [ f: number = 1 ]\nApp [ width = 10, a: A [ ] ]"), [],
     "extends reaches a class declared below");
-  assert.deepEqual(errs("App [ width = 10 ]\nstylesheet S [ ]"), [], "a stylesheet after the App compiles");
+  assert.deepEqual(errs("App [ width = 10 ]\ntheme S [ accent = #333333 ]"), [], "a theme after the App compiles");
   assert.match(errs("class A extends B [ ]\nclass B extends A [ ]\nApp [ width = 10 ]").join("; "),
     /extend each other \(an inheritance cycle\).*break the loop/s);
   assert.equal(errs("class A extends B [ ]\nclass B extends A [ ]\nApp [ width = 10 ]").length, 1,
@@ -2002,7 +2008,7 @@ await test("check(): scope nouns cannot be declared, named, or shadowed by param
   assert.match(msgs[2], /a parameter may not be named 'classroot'/);
 });
 
-await test("compile(): 'classroot' is valid only inside a class body — App / stylesheet / bundle reject it", async () => {
+await test("compile(): 'classroot' is valid only inside a class body — App / style bundle reject it", async () => {
   // classroot names the root of the component you are defining — meaningful only
   // inside a class body. Every other { } context rejects it (DECLARE4003).
   const inApp = await compile(`App [ count: number = 0, Text [ text = { "" + classroot.count } ] ]`, {});
@@ -2011,12 +2017,8 @@ await test("compile(): 'classroot' is valid only inside a class body — App / s
   // a use-site classroot inside the App is equally rejected
   const useSite = await compile(`class Chip extends View [ n: number = 0 ]\nApp [ v: number = 1, Chip [ n = { classroot.v } ] ]`, {});
   assert.equal(useSite.source, null, "classroot at an App use-site must not compile");
-  // a stylesheet body is not a class definition either
-  const inSheet = await compile(`stylesheet Dark [ View: [ opacity = { classroot.foo } ] ]\nApp [ width = 10, height = 10, stylesheet = { this.lookupStylesheet("Dark") }, View [ ] ]`, {});
-  assert.equal(inSheet.source, null, "classroot in a stylesheet must not compile");
-  assert.match(inSheet.errors.find((e) => /classroot/.test(e.message)).message, /valid only inside a class body.*a stylesheet/);
-  // nor a style bundle
-  const inBundle = await compile(`style B [ opacity = { classroot.y } ]\nApp [ width = 10, height = 10, View [ styles = [B] ] ]`, {});
+  // a style bundle body (the prose run vehicle) is not a class definition either
+  const inBundle = await compile(`style B [ textColor = { classroot.y } ]\nApp [ width = 10, height = 10, HTMLText [ html = "<span class='B'>x</span>" ] ]`, {});
   assert.equal(inBundle.source, null, "classroot in a style bundle must not compile");
   // inside a class body it is fine, at any depth
   const inClass = await compile(`class Row extends View [ label: string = "", sel: boolean = false,\n  hdr: View [ onClick() { classroot.sel = true }, Text [ text = { classroot.label } ] ] ]\nApp [ Row [ label = "hi" ] ]`, {});
@@ -3817,146 +3819,18 @@ await test("Node.insertChild / removeChild keep links straight", () => {
 
 // ── Styling rung: prevailing attributes ─────────────────────────────────────
 
-await test("parse: the prevailing declaration modifier", () => {
-  const el = parse("View [ prevailing labelWidth: number = 80, plain: number = 1 ]");
-  assert.equal(el.decls[0].name, "labelWidth");
-  assert.equal(el.decls[0].prevailing, true);
-  assert.equal(el.decls[1].prevailing, false);
-  // Contextual: a member actually named `prevailing` still parses.
-  const el2 = parse("View [ prevailing = 5 ]");
-  assert.equal(el2.attrs[0].name, "prevailing");
-  // The modifier marks declarations only.
-  assert.throws(() => parse("View [ prevailing bg: View [ ] ]"), /attribute declaration/);
-});
-
-await test("prevailing follow: an unset slot reads the nearest providing ancestor, live", () => {
-  const app = build(`App [ fontSize = 9, fontFamily = "Tahoma",
-    box: View [ fontFamily = "Helvetica",
-      leaf: Text [ text = "t" ] ] ]`);
-  const leaf = app.box.leaf;
-  // Per-attribute independence: two providers, one view.
-  assert.equal(leaf.fontSize, 9, "follows App");
-  assert.equal(leaf.fontFamily, "Helvetica", "follows the nearer provider");
-  assert.equal(leaf.fontWeight, "normal", "no provider anywhere → the declaration default");
-  // Providing is live: the provider's write re-roots what descendants read.
-  app.fontSize = 11;
-  assert.equal(leaf.fontSize, 11);
-  // A local set wins and displaces the follow.
-  leaf.fontSize = 60;
-  assert.equal(leaf.fontSize, 60);
-  app.fontSize = 12;
-  assert.equal(leaf.fontSize, 60, "a local set no longer follows");
-});
-
-await test("prevailing: provider-vs-following is visible only to isSet-style introspection", async () => {
-  const { isSet } = await import("../runtime/dist/attributes.js");
-  const app = build(`App [ fontSize = 9, mid: View [ leaf: Text [ text = "t" ] ] ]`);
-  assert.equal(app.mid.fontSize, 9, "reading always yields the effective value");
-  assert.equal(isSet(app, "fontSize"), true, "the provider set it");
-  assert.equal(isSet(app.mid, "fontSize"), false, "the follower did not");
-});
-
-await test("prevailing: a mid-tree provide re-roots followers in one settle (tracked precisely)", () => {
-  globalThis.__evals = 0;
-  const counted = build(`App [ fontSize = 9,
-    mid: View [
-      leaf: View [ width = { globalThis.__evals++, this.fontSize * 2 } ] ] ]`);
-  assert.equal(counted.mid.leaf.width, 18, "the constraint read the followed value");
-  const evalsAfterBuild = globalThis.__evals;
-  // A mid-tree provision wakes exactly the reads below it.
-  counted.mid.fontSize = 20;
-  settle();
-  assert.equal(counted.mid.leaf.width, 40, "re-rooted to the new provider");
-  assert.equal(globalThis.__evals, evalsAfterBuild + 1, "exactly one re-evaluation");
-  // A write ABOVE the new provider no longer wakes the re-rooted reader.
-  counted.fontSize = 50;
-  settle();
-  assert.equal(globalThis.__evals, evalsAfterBuild + 1, "the outer provider is no longer tracked");
-  assert.equal(counted.mid.leaf.width, 40);
-  delete globalThis.__evals;
-});
-
-await test("prevailing: providing with a value equal to the stored default still re-roots", () => {
-  // fontSize's declaration default is 16; App provides 9; mid then provides
-  // 16 — equal to the DEFAULT, so the equality gate alone would go silent,
-  // but the slot's MEANING changed (following → providing).
-  const app = build(`App [ fontSize = 9,
-    mid: View [ leaf: View [ width = { this.fontSize } ] ] ]`);
-  assert.equal(app.mid.leaf.width, 9);
-  app.mid.fontSize = 16;
-  settle();
-  assert.equal(app.mid.leaf.width, 16, "the transition wake re-ran the follower");
-});
-
-await test("prevailing: a { } binding on a prevailing slot owns AND provides", () => {
-  const app = build(`App [ width = 100,
-    mid: View [ fontSize = { parent.width / 10 },
-      leaf: View [ height = { this.fontSize } ] ] ]`);
-  assert.equal(app.mid.leaf.height, 10, "followers read through the bound provider");
-  app.width = 200;
-  settle();
-  assert.equal(app.mid.leaf.height, 20, "the provider's binding is live for followers");
-  assert.throws(() => { app.mid.fontSize = 5; }, /bound by a constraint/);
-});
-
-await test("prevailing: same-named attributes on unrelated classes do NOT unify (the ruled lean)", () => {
-  const app = build(`
-    class Pane extends View [ prevailing labelWidth: number = 80 ]
-    class Row extends Pane [ w: View [ width = { classroot.labelWidth } ] ]
-    class Alien extends View [ prevailing labelWidth: number = 30 ]
-    App [
-      form: Pane [ labelWidth = 100,
-        row: Row [ ] ],
-      alien: Alien [ labelWidth = 55,
-        stray: Pane [
-          row: Row [ ] ] ] ]`);
-  // Shared base: Row's labelWidth IS Pane's slot — it follows the Pane above.
-  assert.equal(app.form.row.labelWidth, 100, "travels through the shared base");
-  assert.equal(app.form.row.w.width, 100);
-  // No shared base: Alien's same-spelled slot is a DIFFERENT attribute; the
-  // Pane inside it falls through to its own declaration default.
-  assert.equal(app.alien.stray.labelWidth, 80, "an unrelated provider is transparent");
-  assert.equal(app.alien.labelWidth, 55, "the Alien's own slot is its own");
-});
-
-await test("prevailing: theme is a token record — wholesale-swapped, followed like any slot", () => {
-  const app = build(`App [ theme = { { accent: 0xFF3B30, radius: 6 } },
-    panel: View [
-      chip: View [ width = { this.theme.radius * 2 } ] ] ]`);
-  assert.equal(app.panel.chip.width, 12, "tokens read through the prevailing chain");
-  // The default theme is the HOUSE record (docs/system-design/components-baseline.md
-  // Contract 2, ruled 2026-07-13): `theme.role` always resolves — no provider
-  // means the house look, so library components carry no fallback expressions.
-  assert.equal(build("App [ ]").theme.control, 0xE7EBF1, "the default theme is the HOUSE record — a role always resolves");
-  assert.equal(build("App [ ]").theme.depth, 1, "the treatment dial rides the theme like any token");
-  assert.throws(() => build("App [ theme = null ]"), /a Theme \(a token record/);
-});
-
-await test("prevailing: an unresolved :path on a prevailing slot lands the FOLLOWED value (ruled)", () => {
-  const app = build(`App [ fontSize = 9,
-    d: Dataset { { "row": { "size": 24 } } },
-    box: View [ datapath = { parent.d.value },
-      leaf: Text [ fontSize = :row.missing, text = "t" ] ] ]`);
-  assert.equal(app.box.leaf.fontSize, 9, "unresolved → the followed value, not the declaration default");
-  // And live: the provider is tracked while unresolved.
-  app.fontSize = 13;
-  settle();
-  assert.equal(app.box.leaf.fontSize, 13);
-  // The moment the path resolves, the data wins and the chain is let go.
-  app.d.set(["row", "missing"], 24);
-  settle();
-  assert.equal(app.box.leaf.fontSize, 24);
-});
-
-await test("Text renders through the effective style: the style derive follows providers", () => {
+await test("Text renders through the effective style: the style derive follows a provided value", () => {
   const log = [];
-  const app = build(`App [ fontSize = 9, textColor = #FFFFFF,
+  // A container PROVIDES fontSize; the Text reads it. A dynamic provided value is
+  // a { } over a real slot (a literal provision is static) — writing the slot
+  // re-provides, and every reading run re-styles in one settle.
+  const app = build(`App [ fs: number = 9, fontSize = { this.fs }, textColor = #FFFFFF,
     t: Text [ text = "hi", width = 10, height = 10 ] ]`);
   app.attach(mockBackend(log), null);
   const styles = () => log.filter(([m]) => m === "setTextStyle").map(([, v]) => v);
   assert.equal(styles().at(-1).fontSize, 9, "the initial push carries the effective value");
   assert.equal(styles().at(-1).color, 0xffffff);
-  app.fontSize = 14;
+  app.fs = 14;
   settle();
   assert.equal(styles().at(-1).fontSize, 14, "a provider write re-styles the run");
   assert.equal(log.filter(([m]) => m === "setText").length, 1, "the hot path did not re-send");
@@ -3965,7 +3839,7 @@ await test("Text renders through the effective style: the style derive follows p
 // ── Styling rung: decoration values ─────────────────────────────────────────
 
 await test("Color: the #RGBA / #RRGGBBAA and 0xRRGGBBAA alpha forms (one representation)", () => {
-  const c = (src) => checkAttr(SCHEMAS.View, attrOf(`View [ textColor=${src} ]`));
+  const c = (src) => checkAttr(SCHEMAS.Text, attrOf(`Text [ textColor=${src} ]`));
   assert.equal(colorToCss(c("#00000044").value), "#00000044", "alpha rides the value");
   assert.equal(colorToCss(c("#000000FF").value), "#000000", "…FF normalizes to opaque");
   assert.equal(colorToCss(c("#123A").value), "#112233aa", "short form doubles digits");
@@ -3975,7 +3849,7 @@ await test("Color: the #RGBA / #RRGGBBAA and 0xRRGGBBAA alpha forms (one represe
   assert.equal(c("0x00000044").value, c("#00000044").value, "0xRRGGBBAA === #RRGGBBAA");
   assert.equal(c("0x00000044").value, colorWithAlpha(0x000000, 0x44));
   assert.equal(colorToCss(c("0x000000FF").value), "#000000", "0x…FF normalizes to opaque");
-  const bad = checkAttr(SCHEMAS.View, attrOf("View [ textColor=#12345 ]"));
+  const bad = checkAttr(SCHEMAS.Text, attrOf("Text [ textColor=#12345 ]"));
   assert.match(bad.error.message, /3, 4, 6, or 8 hex digits/);
   // The misuse is an 8-hex 0x in a NUMERIC slot — a real error naming the fix.
   const num = checkAttr(SCHEMAS.View, attrOf("View [ width=0x00000044 ]"));
@@ -4059,71 +3933,49 @@ await test("flush pushes decoration pay-per-use; pushers carry post-attach chang
 
 // ── Styling: the external channel (stylesheets), bundles, binding defaults ──
 
-await test("parse: stylesheet / style top-level declarations, entries, and the list literal", () => {
-  const p = parseProgram(`stylesheet Dark [ theme: Theme [ a = 1 ], Button: [ fill = #333333 ] ]
+await test("parse: theme / style / font top-level declarations", () => {
+  const p = parseProgram(`theme Dark [ accent = #333333 ]
 style card [ cornerRadius = 6 ]
-App [ styles = [card] ]`);
-  assert.equal(p.stylesheets.length, 1);
-  assert.equal(p.stylesheets[0].name, "Dark");
-  const [theme, entry] = p.stylesheets[0].body.children;
-  assert.equal(theme.name, "theme");
-  assert.equal(entry.tag, "Button");
-  assert.equal(entry.entry, true, "a class-keyed entry is marked");
+App [ ]`);
+  assert.equal(p.themes.length, 1);
+  assert.equal(p.themes[0].name, "Dark");
+  assert.equal(p.themes[0].body.attrs[0].name, "accent");
   assert.equal(p.styles[0].name, "card");
-  assert.deepEqual(p.root.attrs[0].value.items.map((i) => i.name), ["card"]);
 });
 
-await test("check: stylesheet entries validate against the named class — loud, positioned", () => {
+await test("check: a theme is a token record; a class-keyed entry has no home", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
-  assert.match(errs(`stylesheet S [ Wat: [ fill = navy ] ] App [ ]`)[0],
-    /stylesheet S: unknown component 'Wat' — an entry is keyed by a class name/);
-  assert.match(errs(`stylesheet S [ Text: [ colr = navy ] ] App [ ]`)[0],
-    /stylesheet S: Text has no attribute 'colr'/);
-  assert.match(errs(`stylesheet S [ View: [ fill = "red" ] ] App [ ]`)[0],
-    /View\.fill expects a Fill/);
-  assert.match(errs(`stylesheet S [ View: [ layout = null ] ] App [ ]`)[0],
-    /a component slot \(layout\) is structure/);
-  assert.match(errs(`stylesheet S [ View: [ fill = navy ], View: [ fill = red ] ] App [ ]`)[0],
-    /'View' has two entries/);
-  assert.match(errs(`stylesheet S [ theme: Theme [ t = card(1) ] ] App [ ]`)[0],
-    /theme\.t: a token is a number, string, boolean, color, or a value constructor/);
-  assert.match(errs(`stylesheet S [ ] stylesheet S [ ] App [ ]`)[0],
-    /already a component, stylesheet, style, or font named 'S'/);
-  // An entry is a stylesheet member — nowhere else.
+  // A theme's tokens are literals or value constructors — nothing else.
+  assert.match(errs(`theme S [ t = card(1) ] App [ ]`)[0],
+    /theme S\.t: a token is a number, string, boolean, color, or a value constructor/);
+  // A name collides across the declaration namespaces.
+  assert.match(errs(`theme S [ ] theme S [ ] App [ ]`)[0],
+    /already a component, theme, style, or font named 'S'/);
+  // A `theme = Name` reference must name a declared theme (or a preset).
+  assert.match(errs(`App [ theme = Nope ]`)[0],
+    /no theme named 'Nope'/);
+  assert.equal(check(parseProgram(`theme Brand [ accent = #333333 ] App [ theme = Brand ]`)).length, 0,
+    "a declared theme resolves by name");
+  // A class-keyed entry belongs to no declaration.
   assert.match(errs(`App [ Button: [ fill = navy ] ]`)[0],
-    /'Button: \[ … \]' is a class-keyed entry — it belongs in a stylesheet/);
-});
-
-await test("check: the channel slots — unknown names, the static-list rule", () => {
-  const errs = (src) => check(parseProgram(src)).map((e) => e.message);
-  assert.match(errs(`App [ stylesheet = Dark ]`)[0],
-    /no stylesheet named 'Dark' — this program declares no stylesheets/);
-  assert.match(errs(`style card [ ] App [ styles = [cart] ]`)[0],
-    /no style named 'cart' — declared styles: card/);
-  assert.match(errs(`App [ styles = { hot ? [a] : [b] } ]`)[0],
-    /the bundle list is static \(ruled v1\)/);
-  // A bundle types against the class it lands on.
-  assert.match(errs(`style card [ text = "x" ] App [ styles = [card] ]`)[0],
-    /style card sets 'text', which App .* does not declare/);
-  assert.deepEqual(errs(`style card [ text = "x" ] App [ t: Text [ styles = [card] ] ]`), [],
-    "the same bundle is fine on a class that declares the attribute");
-  // A bundle is a look, not a component.
-  assert.match(errs(`style card [ inner: View [ ] ] App [ ]`)[0],
-    /style card: a bundle has no children — attribute sets only/);
+    /'Button: \[ … \]' is a class-keyed entry — no declaration admits one/);
 });
 
 await test("font: a declaration resolves fontFamily — system to its family, web font to its name, a list to a chain", () => {
   const app = build(`font Body [ family = "Helvetica, Arial, sans-serif" ]
 font Title [ Face [ src = "https://example.com/arimo-700.woff2", weight = bold ] ]
 App [ fontFamily = Body, t: Text [ text = "hi", fontFamily = Title ] ]`);
-  assert.equal(app.fontFamily, "Helvetica, Arial, sans-serif", "a system font (no faces) resolves to its family string");
+  // fontFamily set on the App is a PROVISION (off View, with the text face) — the
+  // resolved family lands in the provision store; the Text reads it. A web-font
+  // ref resolves to its registered name, a system font to its family string.
+  assert.equal(app.$provides.fontFamily, "Helvetica, Arial, sans-serif", "a system font (no faces) resolves to its family string");
   assert.equal(app.t.fontFamily, "Title", "a web font resolves to its declaration name (the registered family)");
   // A fallback list resolves to an ordered CSS chain: a name → its family, a string verbatim.
   assert.equal(build(`font UI [ family = "Helvetica Neue" ]
 font Brand [ Face [ src = "b.woff2", weight = bold ] ]
-App [ fontFamily = [Brand, UI, "sans-serif"] ]`).fontFamily, "Brand, Helvetica Neue, sans-serif");
+App [ fontFamily = [Brand, UI, "sans-serif"] ]`).$provides.fontFamily, "Brand, Helvetica Neue, sans-serif");
   // The raw family string still works (the literal form, no declaration).
-  assert.equal(build(`App [ fontFamily = "Tahoma, sans-serif" ]`).fontFamily, "Tahoma, sans-serif");
+  assert.equal(build(`App [ fontFamily = "Tahoma, sans-serif" ]`).$provides.fontFamily, "Tahoma, sans-serif");
 });
 
 await test("font: web faces are collected for the runtime to load, with url()/local() sources", () => {
@@ -4154,7 +4006,7 @@ await test("font: declarations are checked — unknown ref, non-Face child, bad 
   assert.match(errs(`font F [ family = "X", Weight [ src = "x.woff2" ] ] App [ ]`)[0], /font F: 'Weight' is not a Face/);
   assert.match(errs(`font F [ ] App [ ]`)[0], /font F: declare a family .* or at least one Face/);
   assert.match(errs(`font F [ Face [ src = 12 ] ] App [ ]`)[0], /a face source is a URL string/);
-  assert.match(errs(`font S [ family = "a" ] style S [ ] App [ ]`)[0], /already a component, stylesheet, style, or font named 'S'/);
+  assert.match(errs(`font S [ family = "a" ] style S [ ] App [ ]`)[0], /already a component, theme, style, or font named 'S'/);
 });
 
 await test("font: a fallback list validates each name — an undeclared item is a positioned error", () => {
@@ -4163,183 +4015,33 @@ App [ fontFamily = [Body, Ghost, "sans-serif"] ]`)).map((e) => e.message);
   assert.match(errs[0], /no font named 'Ghost' — declared fonts: Body/);
 });
 
-await test("letterSpacing: a prevailing text slot (px tracking), coerced as a number", () => {
+await test("letterSpacing: a provided text value (px tracking), coerced as a number", () => {
   const app = build(`App [ letterSpacing = 2, t: Text [ text = "hi" ] ]`);
-  assert.equal(app.letterSpacing, 2, "set on the container");
-  assert.equal(app.t.letterSpacing, 2, "prevails to the Text leaf");
+  assert.equal(app.$provides.letterSpacing, 2, "provided on the container");
+  assert.equal(app.t.letterSpacing, 2, "the Text leaf reads the provided value");
   assert.equal(build(`App [ t: Text [ text = "hi" ] ]`).t.letterSpacing, 0, "default 0 = natural advances");
-  assert.match(check(parseProgram(`App [ letterSpacing = "wide" ]`)).map((e) => e.message)[0], /letterSpacing/);
+  // The number type is enforced where letterSpacing is a declared slot (Text).
+  assert.match(check(parseProgram(`App [ t: Text [ letterSpacing = "wide" ] ]`)).map((e) => e.message)[0], /letterSpacing/);
 });
 
-await test("stylesheet: entries land per the ruled chain — default < entry < class-body set < bundle < instance", async () => {
-  const app = build(await resolved(`class Chip extends View [ fill = #111111 ]
-style ring [ stroke = stroke(2, #00FF00) ]
-stylesheet S [
-    Chip: [ fill = #999999, cornerRadius = 5, stroke = stroke(1, #FF0000) ],
-    View: [ opacity = 0.5 ],
-  ]
-App [ stylesheet = S,
-    a: Chip [ ],
-    b: Chip [ cornerRadius = 8, styles = [ring] ],
-    c: View [ ],
-  ]`));
-  assert.equal(app.a.fill, 0x111111, "a class-body set outranks the entry (the encapsulation ruling)");
-  assert.equal(app.a.cornerRadius, 5, "an unpinned slot is the skin's to color");
-  assert.deepEqual(app.a.stroke, { width: 1, color: 0xff0000 });
-  assert.equal(app.b.cornerRadius, 8, "an instance literal outranks the entry");
-  assert.deepEqual(app.b.stroke, { width: 2, color: 0x00ff00 }, "a bundle outranks the entry");
-  assert.equal(app.c.opacity, 0.5, "a base-class entry (blunt but legal) reaches plain views");
-  assert.equal(app.a.opacity, 0.5, "…and every subclass instance (field-wise chain-merge)");
-});
-
-await test("stylesheet: field-wise chain-merge — a subclass entry's fields win, the rest fall through", async () => {
-  const app = build(await resolved(`class Big extends Text [ ]
-stylesheet S [
-    Text: [ fontSize = 11, textColor = #333333 ],
-    Big:  [ fontSize = 20 ],
-  ]
-App [ stylesheet = S, t: Text [ text = "t" ], b: Big [ text = "b" ] ]`));
-  assert.equal(app.t.fontSize, 11);
-  assert.equal(app.b.fontSize, 20, "the nearer class's field wins");
-  assert.equal(app.b.textColor, 0x333333, "the unmentioned field falls through per field");
-});
-
-await test("stylesheet: the theme record travels with the stylesheet; a swap re-skins in one settle", async () => {
-  const app = build(await resolved(`stylesheet Dark [ theme: Theme [ accent = #4F8EF7, radius = 6 ] ]
-stylesheet Light [ theme: Theme [ accent = #B00020, radius = 2 ] ]
-App [ stylesheet = Dark,
-    box: View [ fill = { theme.accent }, cornerRadius = { theme.radius } ] ]`));
-  assert.equal(app.box.fill, 0x4f8ef7, "a follower reads the stylesheet's tokens through the ordinary theme chain");
-  assert.equal(app.box.cornerRadius, 6);
-  app.stylesheet = app.lookupStylesheet("Light");
-  settle();
-  assert.equal(app.box.fill, 0xb00020, "one write, one settle — the subtree reskins");
-  assert.equal(app.box.cornerRadius, 2);
-  assert.throws(() => app.lookupStylesheet("Nope"), /no stylesheet named 'Nope'/);
-});
-
-await test("stylesheet: bare name is DECLARATIVE sugar only — inside a { } body it is honest TS", async () => {
-  const cerrs = async (src) => (await compile(src)).errors.map((e) => e.message);
-  // Declarative attribute position: a bare stylesheet name resolves, and is
-  // compile-checked there (a typo is caught before the program runs).
-  assert.equal((await cerrs(`stylesheet Dark [ ] App [ stylesheet = Dark ]`)).length, 0);
-  assert.match((await cerrs(`stylesheet Dark [ ] App [ stylesheet = Drak ]`))[0], /no stylesheet named 'Drak'/);
-  // Inside a { } body you are in real TS: `Dark` is an ordinary identifier,
-  // NOT sugar for a stylesheet, so it is (correctly) unresolved. We never rewrite
-  // identifiers inside blocks — the honest spelling is a real method call.
-  assert.match(
-    (await cerrs(`stylesheet Dark [ ] stylesheet Light [ ]
-App [ night: boolean = false, stylesheet = { night ? Dark : Light } ]`))[0],
-    /cannot resolve 'Dark'/);
-  // That honest form compiles clean and re-skins reactively.
-  const app = build(await resolved(`stylesheet Dark  [ View: [ opacity = 0.5 ] ]
-stylesheet Light [ View: [ opacity = 1 ] ]
-App [ night: boolean = true,
-    stylesheet = { night ? this.lookupStylesheet("Dark") : this.lookupStylesheet("Light") },
-    v: View [ ] ]`));
-  assert.equal(app.v.opacity, 0.5, "the body's lookupStylesheet drives the prevailing stylesheet");
-  app.night = false;
-  settle();
-  assert.equal(app.v.opacity, 1, "flipping the flag re-skins in one settle");
-});
-
-await test("stylesheet: a swap withdraws fields the new stylesheet no longer offers", async () => {
-  const app = build(await resolved(`stylesheet A [ View: [ cornerRadius = 9, opacity = 0.5 ] ]
-stylesheet B [ View: [ opacity = 0.8 ] ]
-App [ stylesheet = A, v: View [ ] ]`));
-  assert.equal(app.v.cornerRadius, 9);
-  app.stylesheet = app.lookupStylesheet("B");
-  settle();
-  assert.equal(app.v.cornerRadius, 0, "the withdrawn field falls back to the declaration default");
-  assert.equal(app.v.opacity, 0.8);
-  app.stylesheet = null;
-  settle();
-  assert.equal(app.v.opacity, 1, "cancelling the stylesheet withdraws everything");
-});
-
-await test("stylesheet: `stylesheet` is prevailing — a mid-tree provision re-roots its subtree only", async () => {
-  const app = build(await resolved(`stylesheet Dark [ View: [ opacity = 0.5 ] ]
-stylesheet Red [ View: [ opacity = 0.25 ], theme: Theme [ hot = 1 ] ]
-App [ stylesheet = Dark,
-    zone: View [ stylesheet = Red, inner: View [ ] ],
-    other: View [ ] ]`));
-  assert.equal(app.other.opacity, 0.5, "follows the App's stylesheet");
-  assert.equal(app.zone.inner.opacity, 0.25, "the zone's stylesheet re-roots beneath it");
-  // A mid-tree theme provision still re-roots BENEATH the sheeted zone.
-  app.zone.inner.theme = { hot: 2 };
-  assert.equal(app.zone.inner.theme.hot, 2, "a local theme write wins over the stylesheet's record");
-});
-
-await test("stylesheet: a stylesheet provided AFTER attach walks appliers into the live subtree", async () => {
-  const app = build(await resolved(`stylesheet S [ View: [ cornerRadius = 7 ] ]
-App [ v: View [ ] ]`));
-  const log = [];
-  app.attach(mockBackend(log), null);
-  assert.equal(app.v.cornerRadius, 0, "no effective stylesheet, no applier, no offers");
-  app.stylesheet = app.lookupStylesheet("S");
-  settle();
-  assert.equal(app.v.cornerRadius, 7, "the pusher's walk armed the subtree");
-  assert.ok(log.some(([m, v]) => m === "setCornerRadius" && v === 7), "the offer crossed the seam");
-  app.stylesheet = null;
-  settle();
-  assert.equal(app.v.cornerRadius, 0);
-  assert.ok(log.some(([m, v]) => m === "setCornerRadius" && v === 0),
-    "the withdrawal re-pushed the effective value");
-});
-
-await test("bundles: written order — a later bundle wins; the slot holds the names", async () => {
-  const app = build(await resolved(`style card [ cornerRadius = 6, opacity = 0.9 ]
-style danger [ cornerRadius = 2 ]
-App [ v: View [ styles = [card, danger] ] ]`));
-  assert.equal(app.v.cornerRadius, 2, "later wins on conflicts");
-  assert.equal(app.v.opacity, 0.9, "non-conflicting fields merge");
-  assert.deepEqual([...app.v.styles], ["card", "danger"], "the slot is introspection");
-});
-
-await test("bundles: a { } field evaluates with `this` = the styled view (theme-aware)", async () => {
-  const app = build(await resolved(`style card [ cornerRadius = { theme.radius } ]
-App [ theme = { { radius: 4 } },
-    a: View [ styles = [card] ],
-    b: View [ theme = { { radius: 9 } }, styles = [card] ] ]`));
-  settle(); // b's theme binding installs after its bundle field first read it
-  assert.equal(app.a.cornerRadius, 4, "resolved through a's prevailing chain");
-  assert.equal(app.b.cornerRadius, 9, "resolved through b's own provision");
-});
-
-await test("bundles: a class-body styles list applies to every instance; the use site overrides", async () => {
-  const app = build(await resolved(`style card [ cornerRadius = 6 ]
-class Panel extends View [ styles = [card] ]
-App [ a: Panel [ ], b: Panel [ styles = null ] ]`));
-  assert.equal(app.a.cornerRadius, 6);
-  assert.equal(app.b.cornerRadius, 0, "styles = null cancels the inherited list");
-});
-
-await test("binding defaults: a declared attribute may default to { theme.token } — live, per instance", async () => {
+await test("binding defaults: a declared attribute may default to { provided(\"theme\").token } — live, per instance", async () => {
+  // The theme is a PROVIDED value: the App provides it (a { } over a slot, so a
+  // swap re-derives), a widget reads it. The default binding follows.
   const app = build(await resolved(`class Button extends View [
-    labelColor: Color = { theme.buttonText },
+    labelColor: Color = { provided("theme").buttonText },
   ]
-App [ a: Button [ ],
+App [ th: Theme = { { buttonText: 0xEEEEEE } }, theme = { th },
+    a: Button [ ],
     b: Button [ labelColor = #123456 ] ]`));
-  app.theme = { buttonText: 0xEEEEEE }; // provide via the ordinary author write
-  assert.equal(app.a.labelColor, 0xeeeeee, "the default binding reads the prevailing theme");
+  assert.equal(app.a.labelColor, 0xeeeeee, "the default binding reads the provided theme");
   assert.equal(app.b.labelColor, 0x123456, "an instance set displaces the default entirely");
-  app.theme = { buttonText: 0x111111 };
+  app.th = { buttonText: 0x111111 };   // swap the provided record
+  settle();
   assert.equal(app.a.labelColor, 0x111111, "the default is live — a theme swap re-reads it");
   assert.equal(app.b.labelColor, 0x123456);
   // A direct write is an ordinary author set (the default never owned the slot).
   app.a.labelColor = 0xabcdef;
   assert.equal(app.a.labelColor, 0xabcdef);
-});
-
-await test("binding defaults: a stylesheet entry outranks the default binding; a self-reading default errors", async () => {
-  const app = build(await resolved(`class Button extends View [
-    labelColor: Color = { theme.buttonText },
-  ]
-stylesheet S [ theme: Theme [ buttonText = #EEEEEE ], Button: [ labelColor = #00FF00 ] ]
-App [ stylesheet = S, a: Button [ ] ]`));
-  assert.equal(app.a.labelColor, 0x00ff00, "the entry provides; the default never installs");
-  const cyc = build(await resolved(`class W extends View [ k: number = { this.k + 1 } ] App [ w: W [ ] ]`));
-  assert.throws(() => cyc.w.k, /W\.k's default binding \(transitively\) reads itself/);
 });
 
 // ── Animation v1: the motion substrate — ease curves + the shared clock ─────

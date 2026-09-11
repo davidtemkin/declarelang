@@ -20,16 +20,10 @@ export interface ComponentSchema {
   readonly name: string;
   readonly base: ComponentSchema | null;
   readonly attrs: Readonly<Record<string, AttrType>>;
-  /** Which of this schema's OWN attrs are `prevailing` (styling rung): an
-   *  unset slot follows the nearest providing ancestor's value, live. Being
-   *  prevailing is declared once, with the slot — part of its identity, like
-   *  its type (a subclass can neither redeclare nor change it). Absent =
-   *  none of its own. */
-  readonly prevailing?: readonly string[];
   /** Which of this schema's OWN attrs are `readonly` — a computed/intrinsic
    *  value a constraint may READ but nothing may set (checkAttr refuses an
-   *  assignment; the runtime accessor's setter throws). Like prevailing, it is
-   *  part of the slot's identity. Absent = none of its own. */
+   *  assignment; the runtime accessor's setter throws). Part of the slot's
+   *  identity. Absent = none of its own. */
   readonly readOnly?: readonly string[];
   /** Events this component itself fires — a handler member `on<Event>` must
    *  answer one (language §8: a class *declares* the events it fires, and
@@ -197,13 +191,22 @@ const ViewSchema: ComponentSchema = {
     tip: { kind: "string" },
     scrollY: { kind: "number" },
     scrollX: { kind: "number" },
-    // The text face and rich-text structure slots that USED to live here
+    // A DECLARED STARTING OFFSET — applied once at first layout, then the
+    // facts own the position. (Replaces the old `scrollY = 120` assignment,
+    // which made a platform fact look like a slot the program controls.)
+    scrollStartY: { kind: "number" },
+    scrollStartX: { kind: "number" },
+    // A gesture or momentum is moving this scroller right now — the platform's
+    // own report (DOM scroll/scrollend, the native scroll view, the runtime
+    // provider's phase). Read-only, like the offsets: the arbitration fact.
+    scrolling: { kind: "boolean" },
+    // The text face and rich-text structure values
     // (textColor/fontSize/fontFamily/fontWeight/letterSpacing/iconSize/theme and
-    // the heading/link/code/richTextLayout family) moved OFF View with provided
-    // values (docs/system-design/style.md): a container draws no glyphs, so they
-    // now live with the text leaves (Text, RichText, TextInput, Icon) as
-    // `= provided("name", default)` reads. Setting one on a container still
-    // cascades — the container PROVIDES it, resolved by the reader's provided().
+    // the heading/link/code/richTextLayout family) are provided values, not View
+    // slots (docs/system-design/style.md): a container draws no glyphs, so they
+    // live with the text leaves (Text, RichText, TextInput, Icon) as
+    // `= provided("name", default)` reads. Setting one on a container cascades —
+    // the container PROVIDES it, resolved by the reader's provided().
     // The pointer cursor while over this view (a CSS cursor keyword; "" =
     // inherit) — resize affordances, drag handles. Meaningful on views that
     // take input (the sink is the hit target on both backends).
@@ -271,14 +274,16 @@ const ViewSchema: ComponentSchema = {
     virtualize: { kind: "boolean" },
     contentHeight: { kind: "length" },
   },
-  // `scrollX` is a platform fact: the backend mirrors the user's pan into it,
-  // and the program asks for a change with the `scrollToX(x)` verb (or drives
-  // it with a declared Animator — the sanctioned driver door). `scrollY` is
-  // the same shape and WANTS to be here too (platform-authorship.md), but the
-  // perceptual probe test/probe/ignorescroll.declare declares an at-rest
-  // initial offset (`scrollY = 120`), which a readOnly listing would refuse —
-  // it joins when the declared-initial form has a ruled replacement.
-  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed", "onScreen", "visibleRect", "apparentScale", "scrollX"],
+  // `scrollX`, `scrollY` and `scrolling` are PLATFORM FACTS (platform-
+  // authorship.md; ruled 2026-09-10): the scroll process — a native scroller,
+  // or the runtime provider — owns the offset and reports it; the program
+  // reads the fact and REQUESTS movement with the verbs (`scrollTo(y)`,
+  // `scrollToX(x)`, `scrollBy`, `reveal`, each with an optional glide). A
+  // declared starting offset is `scrollStartY`/`scrollStartX`, applied once.
+  // Nothing writes the facts — not an assignment, not an Animator (an animator
+  // drives a slot; a fact is not one — the checker refuses both, naming the
+  // verb). This is what makes "who scrolls" invisible to a program.
+  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed", "onScreen", "visibleRect", "apparentScale", "scrollX", "scrollY", "scrolling"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle
   // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its
@@ -514,11 +519,23 @@ const RICH_ATTRS: Readonly<Record<string, AttrType>> = {
   richTextLayout: { kind: "record", name: "RichTextLayout" },
 };
 
+/** The BUILT-IN provided values — the names a container may set BARE (no type)
+ *  to provide to its subtree, because the language already knows them: the text
+ *  face, the rich-text structure, selection, icon size, and the theme record. A
+ *  bare set of ANY OTHER undeclared name is a typo, not a provision (the near-miss
+ *  diagnostic stays). A NEW provided value is introduced with a type where it is
+ *  first provided (`density: number = 2`) — an ordinary instance-declared slot —
+ *  so it is never a bare unknown name. */
+export const BUILTIN_PROVIDED: ReadonlySet<string> = new Set([
+  ...Object.keys(FACE_ATTRS), ...Object.keys(RICH_ATTRS),
+  "selectable", "iconSize", "theme", "lineHeight", "bodyColor", "scale",
+]);
+
 // Text (R3): a text run sized by native browser metrics when width/height
 // aren't given. Its FACE (textColor/fontSize/fontFamily/fontWeight/letterSpacing)
 // comes from FACE_ATTRS above — each a provided read, so a bare run inherits its
-// region's style; `Text.color` is RETIRED into the one `textColor` slot.
-const TextSchema: ComponentSchema = {
+// region's style; the glyph color is the one `textColor` slot.
+export const TextSchema: ComponentSchema = {
   name: "Text",
   base: ViewSchema,
   attrs: {
@@ -1195,17 +1212,6 @@ export function attrType(schema: ComponentSchema, name: string): AttrType | null
 export function isReadOnly(schema: ComponentSchema, name: string): boolean {
   for (let s: ComponentSchema | null = schema; s !== null; s = s.base) {
     if (s.readOnly?.includes(name)) return true;
-  }
-  return false;
-}
-
-
-/** Is `name` a prevailing attribute on `schema` (or its chain)? Asked of the
- *  schema that DECLARES the name — being prevailing is part of the slot's
- *  identity, so the declaring schema's word is the whole answer. */
-export function isPrevailing(schema: ComponentSchema, name: string): boolean {
-  for (let s: ComponentSchema | null = schema; s !== null; s = s.base) {
-    if (Object.hasOwn(s.attrs, name)) return s.prevailing?.includes(name) ?? false;
   }
   return false;
 }

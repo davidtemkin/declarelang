@@ -227,13 +227,14 @@ final class DeclareView: NSView {
         // A trackpad reports BOTH axes; sending only dy meant the Files column
         // strip could never be dragged sideways even while its scroller showed.
         let dx = -e.scrollingDeltaX * k
-        // Through the CLAIM walk (`__declareWheel`), not straight to the
-        // scrollers: a declared `onWheel` view hears its stream first — the
-        // web's delegation, at last native. A ctrl+wheel is a PINCH, exactly
-        // as Chrome spells trackpad pinch, so `e.pinch` zoom math ports.
+        // The HOST's scroll process (LayerTree.wheel, scrolling.md): its walk
+        // hands a declared `onWheel` view its stream first — the web's
+        // delegation — and scrolls whatever no claim took, here, with the
+        // trackpad's own phases (momentum applied as delivered). A ctrl+wheel
+        // is a PINCH, exactly as Chrome spells trackpad pinch, so `e.pinch`
+        // zoom math ports.
         let pinch = e.modifierFlags.contains(.control)
-        bridge.call("__declareWheel", [Double(p.x), Double(p.y), Double(dx), Double(dy), pinch ? 1 : 0])
-        bridge.needsFrame()
+        bridge.tree?.wheel(atModel: p, dx: dx, dy: dy, pinch: pinch, phase: e.phase, momentum: e.momentumPhase)
     }
 
     /// The trackpad PINCH, as the web presents it (gestures.md): a wheel with
@@ -244,8 +245,7 @@ final class DeclareView: NSView {
     /// native host and in a browser with a trackpad.
     override func magnify(with e: NSEvent) {
         let p = pt(e)
-        bridge.call("__declareWheel", [Double(p.x), Double(p.y), 0, Double(-e.magnification * 100), 1])
-        bridge.needsFrame()
+        bridge.tree?.wheel(atModel: p, dx: 0, dy: -e.magnification * 100, pinch: true, phase: [], momentum: [])
     }
 
     // ── keyboard ────────────────────────────────────────────────────────────

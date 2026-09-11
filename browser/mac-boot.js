@@ -33,7 +33,7 @@
 
 import { build, mountApp, settle, observe, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor,
          Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant, setAppAssetBase } from "../runtime/dist/index.js";
-import { MacBackend, flushOps, provideHitPath, macScroll, macWheel, macRichHeight, macRichLink,
+import { MacBackend, flushOps, provideHitPath, macScrollFacts, macWheel, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
          publishChildName, islandViewById, macScrollTo, surfaceOrigin, createOverlaySurface, rootBox,
          countOps, peekOps, macTraceHit } from "../runtime/dist/mac-backend.js";
@@ -307,7 +307,37 @@ export async function macBoot(url) {
   H.setTitle(app.appName || programName(base));
   startPumps(app);
   wireMacHistory(app);
+  seedDemos(app, globalThis.__declareBase);
   return app;
+}
+
+/** The DEMO SEEDS (host-client's `app.demoSources`): a program that ships a
+ *  `demos.json` beside itself names the demos whose sources seed its inline
+ *  editors — `demos/<name>.declare`, keyed by name. The web boot reads the
+ *  same file (boot-uniform.js); without this the homepage's "LIVE · EDITABLE"
+ *  panels came up as one empty line on the native host — an empty field
+ *  sizes to nothing, and there was nothing to type over. Off the critical
+ *  path: the app is mounted and painting; the seeds land in a later settle.
+ *  A program with no demos.json simply gets a 404 and no seeds. */
+async function seedDemos(app, mainDir) {
+  let demos = [];
+  try {
+    const r = await fetch(new URL("demos.json", mainDir).href);
+    if (!r.ok) return;
+    const j = await r.json();
+    demos = Array.isArray(j) ? j : [];
+  } catch { return; }
+  if (demos.length === 0) return;
+  const seeds = {};
+  await Promise.all(demos.map(async (name) => {
+    try {
+      const r = await fetch(new URL("demos/" + name + ".declare", mainDir).href);
+      if (r.ok) seeds[name] = await r.text();
+    } catch { /* a missing demo seeds nothing */ }
+  }));
+  if (currentApp !== app) return;        // a later boot owns the window now
+  app.demoSources = seeds;
+  settle(); flushOps(); H.needFrame();
 }
 
 /** (app.location, app.waypoint) ⟷ the WINDOW's trail — the same pair mirror
@@ -706,7 +736,7 @@ function watchLive(app, scopeBox) {
   const card = typeof app.liveCard === "string" ? app.liveCard : "";
   if (card === "") return;                       // nothing published yet
   const body = typeof app.liveSource === "string" ? app.liveSource : "";
-  const sig = card + " " + body;
+  const sig = card + "\0" + body;
   if (liveSigs.get(app) === sig) return;
   const id = liveIsland(card, scopeBox, app.surface);
   // The island may not be mounted yet — the edit pane slots its island only in
@@ -880,17 +910,13 @@ globalThis.__declareBoot = (url) => macBoot(url).catch((e) => {
   H.log("error", "boot failed: " + ((e && e.message) || e) + (e && e.stack ? "\n  at " + e.stack : ""));
   H.bootFailed(String(e && e.message || e));
 });
-globalThis.__declareScroll = (x, y, dy, dx) => macScroll(x, y, dy, dx || 0);
-// The wheel with its CLAIM walk (gestures.md's desktop contract): the nearest
-// onWheel view under the point hears the stream — `pinch` true for a trackpad
-// magnify or ctrl+wheel — and only what no claim takes reaches the scrollers.
+// The wheel a CLAIMANT hears (gestures.md's desktop contract): the host's own
+// walk found an onWheel view nearest under the point and delivers the stream
+// here — `pinch` true for a trackpad magnify or ctrl+wheel. Scrolling itself
+// is the host's process now (scrolling.md): it moves the layers and reports
+// what it moved as FACTS, once per frame, after the frame that showed them.
 globalThis.__declareWheel = (x, y, dx, dy, pinch) => macWheel(x, y, dx || 0, dy || 0, !!pinch);
-// A scrollbar DRAG addresses one specific scroller by id, rather than routing a
-// delta through the geometric wheel walk.
-globalThis.__declareScrollTo = (id, y, x) => {
-  macScrollTo(id, y, x === undefined || x === null ? null : x);
-  settle(); flushOps();
-};
+globalThis.__declareScrollFacts = (batch) => { macScrollFacts(batch); settle(); flushOps(); };
 globalThis.__declareTraceHit = (x, y) => macTraceHit(x, y);
 globalThis.__declareRichHeight = (id, h) => { macRichHeight(id, h); settle(); flushOps(); };
 globalThis.__declareRichLink = (id, href) => { macRichLink(id, href); settle(); flushOps(); };

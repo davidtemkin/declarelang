@@ -9,7 +9,7 @@
 
 import { instantiate } from "./instantiate.js";
 import { App, View } from "./view.js";
-import { fontFacesOf } from "./font.js";
+import { fontFacesOf, noteLoadedFaces, type LoadedFace } from "./font.js";
 import { assetBaseFor, rebaseAsset, setAppAssetBase } from "./asset-base.js";
 import { setAppDataBase } from "./data.js";
 import type { RenderBackend } from "./backend.js";
@@ -66,23 +66,25 @@ function rebaseFontSrc(src: string, base: string | null): string {
 export async function loadFonts(fonts: readonly FontSpec[], base?: string | null): Promise<void> {
   if (typeof FontFace === "undefined" || typeof document === "undefined") return;
   const b = base === undefined ? assetBaseFor(null) : base;
+  const landed: LoadedFace[] = [];
   await Promise.all(
     fonts.map(async (f) => {
       // f.src is a full CSS src value — `url("…")`, `local("…")`, or a chain.
       const src = rebaseFontSrc(f.src, b);
+      const weight = String(f.weight ?? "normal");
+      const style = f.style ?? "normal";
       try {
-        const face = new FontFace(f.family, src, {
-          weight: String(f.weight ?? "normal"),
-          style: f.style ?? "normal",
-        });
+        const face = new FontFace(f.family, src, { weight, style });
         await face.load();
         // FontFaceSet is Set-like at runtime; the configured DOM lib omits `add`.
         (document.fonts as unknown as { add(f: FontFace): void }).add(face);
+        landed.push({ family: f.family, src, weight, style });
       } catch (e) {
         console.warn(`[Declare] font ${f.family}: ${src} did not load — falling back`, e);
       }
     }),
   );
+  if (landed.length > 0) noteLoadedFaces(landed);   // the raster worker loads the same faces
 }
 
 /** Is this mount host EMBEDDED inside another Declare app? A top-level app roots on
@@ -498,9 +500,12 @@ export function mountApp(app: App, host: HTMLElement, backend: RenderBackend, op
  *  Re-applying is idempotent, so the backends that need no layout to scroll
  *  (canvas and mac keep their own offset) are unaffected. */
 function applyDeclaredScroll(v: View): void {
+  // The declared START (`scrollStartY`/`scrollStartX` — `scrollY` itself is a
+  // read-only fact now), re-applied here after the first layout so a range
+  // that did not exist at attach can honor it.
   if (v.scrolls !== "none") {
-    if (v.scrollY !== 0) v.surface?.scrollToY?.(v.scrollY);
-    if (v.scrollX !== 0) v.surface?.scrollToX?.(v.scrollX);
+    if (v.scrollStartY !== 0) v.surface?.scrollToY?.(v.scrollStartY);
+    if (v.scrollStartX !== 0) v.surface?.scrollToX?.(v.scrollStartX);
   }
   for (const c of v.children) if (c instanceof View) applyDeclaredScroll(c);
 }

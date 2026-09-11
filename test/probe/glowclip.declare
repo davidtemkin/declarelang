@@ -1,0 +1,18 @@
+// A GLOW on a CLIPPING card — the homepage's Shot: clip = true, a corner
+// radius, and a zero-offset blurred shadow that must paint OUTSIDE the box.
+// The DOM's box-shadow escapes `overflow: clip` by definition; a CALayer that
+// masks to its bounds clips its own shadow, so the native host moves the clip
+// to a host layer when the node also carries a shadow (LayerTree restack).
+// One card with a still image, one with an overflowing child that the clip
+// must still cut — both glows must be there, both clips must hold.
+
+App [ width = 520, height = 300, fill = #0B141B,
+    still: View [ x = 40, y = 40, width = 200, height = 125, cornerRadius = 12, clip = true,
+        fill = #1B2833, shadow = { shadow(0, 0, 26, 0xBFD8EA8C) },
+        inner: View [ x = 20, y = 20, width = 240, height = 40, fill = #5DA9FF ]
+        ],
+    plain: View [ x = 280, y = 40, width = 200, height = 125, cornerRadius = 12, clip = true,
+        fill = #1B2833, shadow = { shadow(0, 0, 26, 0xBFD8EA8C) } ],
+    caption: Text [ x = 40, y = 200, fontSize = 13, textColor = #E0E4EA,
+        text = "clip + radius + glow: the glow must show, the blue bar must be cut at the edge" ]
+    ]

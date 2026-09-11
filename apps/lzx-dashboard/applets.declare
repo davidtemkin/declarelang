@@ -246,13 +246,13 @@ class ContactsPanel extends View [
     scrollPos: number = 0,
     contentH(): number { return Math.max(1, list.rows.height) },
     maxScroll(): number { return Math.max(0, contentH() - list.height) },
-    scrollBy(dy: number) { scrollPos = Math.max(0, Math.min(maxScroll(), scrollPos + dy)) },
+    scrollList(dy: number) { scrollPos = Math.max(0, Math.min(maxScroll(), scrollPos + dy)) },
 
     list: View [ y = { 25 + form.height }, width = { parent.width - 16 },
         height = { parent.height - 25 - form.height },
         fill = #88B29D, clip = true,
 
-        onWheel(e: WheelEvent) { classroot.scrollBy(e.deltaY) },
+        onWheel(e: WheelEvent) { classroot.scrollList(e.deltaY) },
 
         rows: View [ x = 0, y = { -classroot.scrollPos }, width = { parent.width },
             datapath = { app.contactsData.value },
@@ -273,7 +273,7 @@ class ContactsPanel extends View [
     the original's tall ridge texture is.
     */
 
-    pageBy(dir: number) { scrollBy(dir * list.height) },
+    pageBy(dir: number) { scrollList(dir * list.height) },
 
     sbar: View [ x = { parent.width - 16 }, y = { 25 + form.height }, width = 16,
         height = { parent.height - 25 - form.height },
@@ -303,11 +303,11 @@ class ContactsPanel extends View [
 
         upBtn: View [ x = 2, width = 14, height = 13,
             draw(d: Draw) { classroot.sbar.button(d, width, height, true) },
-            onClick() { classroot.scrollBy(-34) }
+            onClick() { classroot.scrollList(-34) }
             ],
         downBtn: View [ x = 2, y = { parent.height - 13 }, width = 14, height = 13,
             draw(d: Draw) { classroot.sbar.button(d, width, height, false) },
-            onClick() { classroot.scrollBy(34) }
+            onClick() { classroot.scrollList(34) }
             ],
 
         // the two track segments; pressing either pages a viewport

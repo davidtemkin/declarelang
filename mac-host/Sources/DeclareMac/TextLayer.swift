@@ -16,14 +16,18 @@ import AppKit
 import CoreText
 
 final class TextLayer: CALayer {
-    var attributed: NSAttributedString? { didSet { lines = nil; setNeedsDisplay() } }
-    var wrap = false { didSet { lines = nil; setNeedsDisplay() } }
-    var align: NSTextAlignment = .left { didSet { setNeedsDisplay() } }
+    /// The PICTURE's version — bumped by every property the drawing reads, so
+    /// a cache of this layer's rendition (the frost sampler's) can key on
+    /// identity + version instead of re-running Core Text per walk.
+    private(set) var version = 0
+    var attributed: NSAttributedString? { didSet { lines = nil; version &+= 1; setNeedsDisplay() } }
+    var wrap = false { didSet { lines = nil; version &+= 1; setNeedsDisplay() } }
+    var align: NSTextAlignment = .left { didSet { version &+= 1; setNeedsDisplay() } }
     /// Font ascent/descent for the run's style — the baseline contract.
-    var ascent: CGFloat = 0 { didSet { setNeedsDisplay() } }
-    var descent: CGFloat = 0 { didSet { setNeedsDisplay() } }
+    var ascent: CGFloat = 0 { didSet { version &+= 1; setNeedsDisplay() } }
+    var descent: CGFloat = 0 { didSet { version &+= 1; setNeedsDisplay() } }
     /// `textFill` — a ramp clipped to the glyphs, overriding the solid colour.
-    var fillGradient: TextGradient? = nil { didSet { setNeedsDisplay() } }
+    var fillGradient: TextGradient? = nil { didSet { version &+= 1; setNeedsDisplay() } }
 
     private var lines: [CTLine]?
 

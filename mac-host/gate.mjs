@@ -49,6 +49,7 @@ const CORPUS = [
   "test/probe/rotation.declare",
   "test/probe/richtext.declare",
   "test/probe/editable.declare",
+  "test/probe/glowclip.declare",   // a glow on a clipping card: the clip host keeps the shadow (2026-09-10)
   "apps/calendar/calendar.declare",
   "apps/lzx-weather/lzx-weather.declare",
   "apps/controls/controls.declare",
