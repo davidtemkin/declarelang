@@ -21,7 +21,7 @@
 // only — children are not clipped (the recorded lean). A plain solid box
 // stays the single-fillRect fast path.
 
-import { colorToCss, type Gradient, type Shadow, type Stroke } from "./value.js";
+import { colorToCss, radiusFit, radiusIsSquare, type Gradient, type Radius, type Shadow, type Stroke } from "./value.js";
 
 /** The box's retained paint state — the shape both surfaces keep. The solid
  *  fill is pre-resolved to a canvas fillStyle at set time (the R1 fast
@@ -31,7 +31,7 @@ export interface BoxState {
   height: number;
   fill: string | null;
   gradient: Gradient | null;
-  cornerRadius: number;
+  cornerRadius: Radius;
   stroke: Stroke | null;
   shadow: Shadow | null;
 }
@@ -52,7 +52,7 @@ export function paintBox(
   // NB: the drop shadow is NOT painted here — it is cast OUTSIDE the box and
   // must escape the view's own clip (as a CSS box-shadow escapes the element's
   // overflow:hidden), so the caller paints it BEFORE clipping (paintBoxShadow).
-  if (r <= 0 && st === null && b.gradient === null) {
+  if (radiusIsSquare(r) && st === null && b.gradient === null) {
     if (b.fill !== null) {
       ctx.fillStyle = b.fill;
       ctx.fillRect(0, 0, w, h);
@@ -83,13 +83,14 @@ export function paintBox(
   return box;
 }
 
-/** The box shape as a Path2D — a rounded rect (r > 0) or a plain rect. Shared
- *  by the fill/border paint and the drop-shadow paint so both trace the same
- *  outline. */
-export function boxShape(w: number, h: number, r: number): Path2D {
+/** The box shape as a Path2D — a rounded rect or a plain rect. Shared by the
+ *  fill/border paint and the drop-shadow paint so both trace the same outline.
+ *  The corners are fitted to the box first (radiusFit — CSS's overlap rule), so
+ *  a per-corner list and a uniform radius go through one path builder. */
+export function boxShape(w: number, h: number, r: Radius): Path2D {
   const p = new Path2D();
-  if (r > 0) p.roundRect(0, 0, w, h, r);
-  else p.rect(0, 0, w, h);
+  if (radiusIsSquare(r)) p.rect(0, 0, w, h);
+  else p.roundRect(0, 0, w, h, radiusFit(r, w, h));
   return p;
 }
 

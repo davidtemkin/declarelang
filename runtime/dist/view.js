@@ -10,7 +10,7 @@
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
 import { Node, onDiscard, runRetire, authoredName } from "./node.js";
-import { DeclareError } from "./errors.js";
+import { DeclareError, diag } from "./errors.js";
 import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName } from "./stylesheet.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef } from "./backend.js";
@@ -883,7 +883,7 @@ export class View extends Node {
      *  data context — replication's convention). The pair of `discard()`. */
     createView(tag, props) {
         if (viewCreator === null)
-            throw new Error("createView: the instantiation module is not loaded");
+            throw new Error(diag `createView: the instantiation module is not loaded`);
         return viewCreator(this.root, tag, this, props);
     }
     raise(below) {

@@ -1,6 +1,8 @@
-App [
-    dot: View [ width = 10, height = 10, cornerRadius = 5, fill = turquoise,
-        followX: Spring [ attribute = x, to = { app.pointerX - 5 },
+App [ fill = #F6F8FA, textColor = #6A7883, fontSize = 13,
+    track: View [ x = 20, y = 30, width = { app.width - 40 }, height = 4, cornerRadius = 2, fill = #DCE3E9 ],
+    dot: View [ y = 18, width = 28, height = 28, cornerRadius = 14, fill = #12A594,
+        followX: Spring [ attribute = x, to = { Math.max(20, Math.min(app.width - 48, app.pointerX - 14)) },
             stiffness = 120, damping = 14, mass = 0.6 ]
-        ]
+        ],
+    Text [ x = 20, y = 60, text = "move the pointer across — the dot springs after it" ]
     ]

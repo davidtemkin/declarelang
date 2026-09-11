@@ -28,6 +28,7 @@
 // never collide with a member.
 
 import { rewriteDatapaths } from "./datapath.js";
+import { diag } from "./errors.js";
 import { colorWithAlpha, frost, gradient, outline, shadow, stop, stroke } from "./value.js";
 
 // The ruled value constructors, in scope inside every `{ }` body — the "one
@@ -189,7 +190,7 @@ function refineBodyError(src: string, raw: string, expression: boolean): string 
   // (#f00, #ff0000) lexes as a private identifier — both are the same color mistake.
   const hash = src.match(/#([0-9a-fA-F]{3,8})(?![0-9a-fA-F])/);
   if (hash && /invalid character|private identifier/i.test(raw)) {
-    return `${head} — inside { } a color is written ${hashToOx(hash[1])}, not ${hash[0]} (the #… and named-color forms work only in bare slots)`;
+    return diag`${head} — inside { } a color is written ${hashToOx(hash[1])}, not ${hash[0]} (the #… and named-color forms work only in bare slots)`;
   }
   // A CSS percentage. `width = { 100% }` is the mistake the language map itself
   // highlights, and TS answers it with "Expression expected" — true, and useless.
@@ -201,7 +202,7 @@ function refineBodyError(src: string, raw: string, expression: boolean): string 
     // than the error. The example says `width` without claiming the slot IS
     // width — refineBodyError sees the body, never the attribute it belongs to.
     const frac = Number((Number(pct[1]) / 100).toFixed(6));
-    return `${head} — there are no percentages: read the parent and scale, so ${pct[1]}% is { parent.width * ${frac} }`;
+    return diag`${head} — there are no percentages: read the parent and scale, so ${pct[1]}% is { parent.width * ${frac} }`;
   }
   // A BARE OBJECT LITERAL (issue #24): `cfg: object = { a: 1, b: 2 }` hands this
   // body ` a: 1, b: 2 `, and TS guesses an arrow-function head ("'=>' expected")
@@ -213,11 +214,11 @@ function refineBodyError(src: string, raw: string, expression: boolean): string 
 })`;
     const clean = syntaxValidator !== null ? syntaxValidator(wrapped, true) === null : !("error" in compileExpr(wrapped));
     if (clean) {
-      return `${head} — this reads as an object literal, and the outer { } is the constraint's own delimiter; give the object its own parentheses: { ({ a: 1, b: 2 }) }`;
+      return diag`${head} — this reads as an object literal, and the outer { } is the constraint's own delimiter; give the object its own parentheses: { ({ a: 1, b: 2 }) }`;
     }
   }
   if (expression && looksLikeStatements(src, raw)) {
-    return `${head} — an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })`;
+    return diag`${head} — an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })`;
   }
   return raw;
 }

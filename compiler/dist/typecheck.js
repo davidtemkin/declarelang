@@ -670,8 +670,13 @@ class CaseEmitter {
         const blockStart = this.lines.length + 1;
         let bodyStart;
         if (expression) {
-            // `const _cN: T = (function(){ return (` … body lines … `); }).call(…);`
-            this.lines.push(`const ${id}: ${slotTs ?? "unknown"} = ${header} return (`);
+            // `const _cN: T = (function(): T { return (` … body lines … `); }).call(…);`
+            // The slot type is ALSO the function's return type, so the body is
+            // contextually typed: `[4, 0, 4, 0]` under a `?:` reads as a Radius tuple
+            // rather than widening to number[] and failing the const's assignment
+            // afterwards. Same for a literal-union slot's string branches.
+            const typedHeader = slotTs === null ? header : header.replace(/\) \{$/, `): ${slotTs} {`);
+            this.lines.push(`const ${id}: ${slotTs ?? "unknown"} = ${typedHeader} return (`);
             bodyStart = this.lines.length + 1;
             this.lines.push(...bodyLines);
             this.lines.push(`); ${footer}`);

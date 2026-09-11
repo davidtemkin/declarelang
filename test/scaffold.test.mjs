@@ -155,7 +155,8 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   // but READS the resolved pixel number (`parent.width - 8` is the idiom).
   assert.ok(view.includes("get x(): number;"), "length → read as the resolved number");
   assert.ok(view.includes("set x(v: Length);"), "length → written as Length");
-  assert.ok(view.includes("cornerRadius: number;"), "number → number");
+  assert.ok(view.includes("cornerRadius: Radius;"), "radius → Radius (a number, or four corners)");
+  assert.ok(view.includes("opacity: number;"), "number → number");
   assert.ok(view.includes("visible: boolean;"), "boolean → boolean");
   assert.ok(view.includes("fontFamily: string;"), "string → string");
   assert.ok(view.includes("textColor: Color;"), "color → Color");

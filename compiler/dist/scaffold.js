@@ -90,6 +90,7 @@ import { EVENT_PAYLOAD, handlerName } from "../../runtime/dist/schema.js";
  *  close the hole when the `schema` construct lands. */
 const PRELUDE = `type Percent = { percent: number };
 type Length = number | Percent;
+type Radius = number | readonly [number, number, number, number];
 type Color = number | null;
 type Shape = string | null;
 interface Gradient { angle: number; stops: readonly { offset: number | null; color: Color }[] }
@@ -263,6 +264,7 @@ export const PRELUDE_NAMES = new Set([...PRELUDE.matchAll(/^(?:declare\s+)?(?:in
 export function tsType(t) {
     switch (t.kind) {
         case "length": return "Length";
+        case "radius": return "Radius";
         case "number": return "number";
         case "boolean": return "boolean";
         case "string": return "string";
@@ -558,7 +560,7 @@ export const LANGUAGE_API = {
     // Implemented and advertised since the start; unreachable from source until
     // 2026-07-28 because this table simply lacked the entry.
     State: [`  apply(): void;`, `  remove(): void;`, `  toggle(): void;`],
-    Layout: [`  view: View;`, `  laid(): View[];`], // view: runtime `View | null`, non-null by the time any body runs
+    Layout: [`  view: View;`, `  laid(): View[];`, `  refuseBaseline(child: View): void;`, `  refuseStackBaseline(): void;`], // view: runtime `View | null`, non-null by the time any body runs
     TweenLayout: [`  laid(): View[];`, `  retarget(animate: boolean): void;`],
 };
 /** One attribute member. A length-typed slot is the read/write ASYMMETRY the

@@ -11,8 +11,8 @@
 // the full state once — literals cost no reactive machinery at all.
 
 import { Node, onDiscard, runRetire, authoredName } from "./node.js";
-import { DeclareError } from "./errors.js";
-import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
+import { DeclareError, diag } from "./errors.js";
+import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Color, type Fill, type Radius, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
@@ -167,7 +167,7 @@ export class View extends Node {
   declare fill: Fill;
   /** The painted box's corner radius (0 = square). Shapes the PAINT only —
    *  clipping stays the explicit `clip` attribute (the recorded lean). */
-  declare cornerRadius: number;
+  declare cornerRadius: Radius;
   /** A border drawn INSIDE the box (never layout); null = none. */
   declare stroke: Stroke | null;
   /** The box's drop shadow (cast by the border box, CSS semantics — never
@@ -1095,7 +1095,7 @@ export class View extends Node {
    *  `props` are post-init writes (`datapath: record` gives the instance a
    *  data context — replication's convention). The pair of `discard()`. */
   createView(tag: string, props?: Record<string, unknown>): View {
-    if (viewCreator === null) throw new Error("createView: the instantiation module is not loaded");
+    if (viewCreator === null) throw new Error(diag`createView: the instantiation module is not loaded`);
     return viewCreator(this.root as View, tag, this, props);
   }
 

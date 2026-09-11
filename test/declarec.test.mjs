@@ -141,6 +141,19 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // app can throw — `[Declare E42] <values>`, expanded by `declare-help E42` —
   // which took 1.5 KB back and returned the ceiling under where typed data put
   // it. Dev builds keep the sentences.
+  // 86 HOLDS (2026-09-09, the cross axis, then the diag constructor): measured
+  // 85.6 → 86.1 as layouts learned to claim the cross axis (`align = start |
+  // center | end | baseline`, the baseline the labelled controls and RichText
+  // DECLARE, two contained refusals) — then 84.2 once the strip could see the
+  // prose that had always escaped it. The two constructors it knew (a thrown
+  // DeclareError, a whole-literal [Declare] console report) never covered a
+  // sentence reaching its reader through a HELPER: a message builder's return,
+  // an err(…)/fail(…) argument, a production stub's own refusal, a hit-trace
+  // reason. `diag\`…\`` (errors.ts) is the author's declaration that such a
+  // sentence is a diagnostic, and the strip codes it like the other two; the
+  // stubs refuse through one notAboard() whose sentences live in errors.ts.
+  // What ships as prose now is app-renderable by intent (a DataSource's
+  // `.error`) or not a sentence at all (selectors, meta names).
   const gz = out.sizes.totalGzip;
   assert.ok(gz > 20 * 1024 && gz < 86 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });

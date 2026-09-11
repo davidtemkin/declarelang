@@ -34,6 +34,7 @@
 // view.ts can import this module without a cycle.
 
 import { Cell, Constraint } from "./reactive.js";
+import { diag } from "./errors.js";
 
 /** The geometry surface the chain walk reads — structurally, any View. */
 export interface InteractionView {
@@ -208,7 +209,7 @@ export function leafAt(v: InteractionView, lx: number, ly: number, pierce = fals
   // way, an untraced walk allocates nothing and the object literals below are
   // only ever built when a collector was actually passed.
   if (!v.visible) {
-    if (trace !== undefined) trace.push({ view: v, why: "skipped — visible = false", x: Math.round(lx), y: Math.round(ly) });
+    if (trace !== undefined) trace.push({ view: v, why: diag`skipped — visible = false`, x: Math.round(lx), y: Math.round(ly) });
     return null;
   }
   // `pointerEvents = "none"` makes THIS view pointer-transparent; it does not
@@ -238,7 +239,7 @@ export function leafAt(v: InteractionView, lx: number, ly: number, pierce = fals
   // out of view by definition, whatever the `clip` attribute says (the canvas
   // hit walk's exact rule, chrome included: its sticky frame lives in-frame).
   if (v.scrolls !== "none" && !inside) {
-    if (trace !== undefined) trace.push({ view: v, why: "skipped — outside a scroller's FRAME, so its whole subtree is out of view", x: Math.round(lx), y: Math.round(ly) });
+    if (trace !== undefined) trace.push({ view: v, why: diag`skipped — outside a scroller's FRAME, so its whole subtree is out of view`, x: Math.round(lx), y: Math.round(ly) });
     return null;
   }
   // A clipping view (box or shape — a shape clip approximates as its box here)
@@ -271,7 +272,7 @@ export function leafAt(v: InteractionView, lx: number, ly: number, pierce = fals
     if (hit !== null) return hit;
   }
   if (!inside) {
-    if (trace !== undefined) trace.push({ view: v, why: "missed — the point is outside this view's own box", x: Math.round(lx), y: Math.round(ly) });
+    if (trace !== undefined) trace.push({ view: v, why: diag`missed — the point is outside this view's own box`, x: Math.round(lx), y: Math.round(ly) });
     return null;
   }
   // The point is in this view's box — but a pointer-transparent view is not a
@@ -281,7 +282,7 @@ export function leafAt(v: InteractionView, lx: number, ly: number, pierce = fals
     if (trace !== undefined) trace.push({ view: v, why: 'skipped — pointerEvents = "none" (this view is transparent; its children decide for themselves)', x: Math.round(lx), y: Math.round(ly) });
     return null;
   }
-  if (trace !== undefined) trace.push({ view: v, why: "HIT — the deepest box containing the point", x: Math.round(lx), y: Math.round(ly) });
+  if (trace !== undefined) trace.push({ view: v, why: diag`HIT — the deepest box containing the point`, x: Math.round(lx), y: Math.round(ly) });
   return v;
 }
 

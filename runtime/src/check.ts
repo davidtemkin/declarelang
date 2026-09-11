@@ -28,7 +28,7 @@
 
 import type { Element, Attr, Method, Program, TopDecl, Literal } from "./parser.js";
 import { CSS_COLORS } from "./css-colors.js";
-import { DeclareError, type Pos } from "./errors.js";
+import { DeclareError, type Pos, noBaselineMessage, stackBaselineMessage } from "./errors.js";
 import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, type ComponentSchema, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD } from "./schema.js";
 import { Diag, nearestName } from "./diagnostics.js";
 import { cssAttributeHint, hintedForeignName } from "./teach.js";
@@ -739,6 +739,17 @@ function checkElement(
       // reaches its slot as a whole value, not through coerce(). Without this,
       // `rows: array = [1, 2]` was refused and the message sent the author to
       // `{ [1, 2] }`, which spells a static seed as a standing relationship.
+      // A bare `[tl, tr, br, bl]` on a radius slot: four numbers, clockwise from
+      // the top-left. Routed around coerce() like every list, and refused here
+      // by shape — a two-item list is not a shorthand, it is a mistake.
+      if (attrType(eff, attr.name)?.kind === "radius" && attr.value.kind === "list") {
+        if (attr.value.items.length !== 4 || attr.value.items.some((it) => it.kind !== "number")) {
+          errors.push(new DeclareError(
+            `${eff.name}.${attr.name}: a per-corner radius is four numbers — [topLeft, topRight, bottomRight, bottomLeft], clockwise from the top-left; one number rounds all four`,
+            attr.value.pos));
+        }
+        continue;
+      }
       if (attrType(eff, attr.name)?.kind === "array" && attr.value.kind === "list") {
         for (const it of attr.value.items) {
           const plain = it.kind === "number" || it.kind === "string" || it.kind === "hexColor" ||
@@ -775,6 +786,7 @@ function checkElement(
         // surface), not a tree child.
         consumed.add(child);
         errors.push(...checkComponentValue(schemas, schema.name, child.name, declared.of, child));
+        errors.push(...checkBaselineAlignment(schemas, child, el));
         continue;
       }
       // A named child is a member of THIS element (language §4: "reachable
@@ -1176,7 +1188,7 @@ function checkTargetSlot(
     ));
     return;
   }
-  if (t.kind !== "length" && t.kind !== "number") {
+  if (t.kind !== "length" && t.kind !== "number" && t.kind !== "radius") {
     errors.push(new DeclareError(
       `${animSchema.name}.attribute = ${slot}: only numeric slots animate — ${parentSchema.name}.${slot} is not a number`,
       pos
@@ -1233,6 +1245,54 @@ export function checkComponentValue(
     }
     const r = checkAttr(schema, a);
     if (!r.ok) errors.push(r.error);
+  }
+  return errors;
+}
+
+/** `align = baseline` on a layout member, checked against the tree it will
+ *  arrange — statically, wherever the checker can see it. A stack has no line
+ *  (a y-axis SimpleLayout), so baseline is refused there outright. On a row,
+ *  every laid sibling must DECLARE a baseline: a `Text` reports its own; a
+ *  composite says which part carries it (`baseline: number = { cap.y +
+ *  cap.baseline }`); or it leaves the arrangement with `ignoreLayout`. A
+ *  baseline is claimed, never discovered — the layout never reaches into a
+ *  child's composition to guess one. The runtime holds the same line for what
+ *  only exists at run time (a bound `align`, a created child), contained and
+ *  once-reported, so this is the door a mistake meets first. */
+function checkBaselineAlignment(
+  schemas: Readonly<Record<string, ComponentSchema>>,
+  layoutEl: Element,
+  owner: Element
+): DeclareError[] {
+  const lit = (el: Element, name: string): string | null => {
+    const a = el.attrs.find((x) => x.name === name);
+    return a !== undefined && a.value.kind === "ident" ? a.value.name : null;
+  };
+  if (lit(layoutEl, "align") !== "baseline") return [];
+  const errors: DeclareError[] = [];
+  const ls = Object.hasOwn(schemas, layoutEl.tag) ? schemas[layoutEl.tag] : null;
+  if (ls !== null && descendsFrom(ls, "SimpleLayout") && (lit(layoutEl, "axis") ?? "y") === "y") {
+    errors.push(new DeclareError(stackBaselineMessage(layoutEl.tag), layoutEl.pos));
+    return errors;
+  }
+  const ownerSchema = Object.hasOwn(schemas, owner.tag) ? schemas[owner.tag] : null;
+  for (const c of owner.children) {
+    if (c === layoutEl || !Object.hasOwn(schemas, c.tag)) continue;
+    // a named member that is itself an attribute value (`reveal: Spring [ ]`)
+    // is not a tree child; nor is any non-View — laid() arranges views only
+    if (c.name !== null && ownerSchema !== null) {
+      const t = attrType(ownerSchema, c.name);
+      if (t !== null && t.kind === "component") continue;
+    }
+    const cs = schemas[c.tag];
+    if (!descendsFrom(cs, "View")) continue;   // Text and RichText carry `baseline` in their schemas
+    // `ignoreLayout` takes the child out of the arrangement — literally, or by
+    // a binding the checker cannot decide (the runtime decides that one)
+    const ig = c.attrs.find((a) => a.name === "ignoreLayout");
+    if (ig !== undefined && !(ig.value.kind === "ident" && ig.value.name === "false")) continue;
+    const eff = withDecls(cs, c.decls, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n));
+    if (attrType(eff, "baseline") !== null) continue;
+    errors.push(new DeclareError(noBaselineMessage(c.tag, layoutEl.tag), c.pos));
   }
   return errors;
 }

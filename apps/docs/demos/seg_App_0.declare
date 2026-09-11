@@ -1,3 +1,9 @@
 App [ fill = white,
-    header: View [ width = { app.hostWidth }, opacity = { 1 - app.scrollY / 200 } ]
+    header: View [ width = { app.hostWidth }, height = 44, fill = #2E6FE0, ignoreScroll = true,
+        opacity = { 1 - app.scrollY / 200 },
+        Text [ x = 12, y = 13, textColor = white, text = { "scroll — the header fades (scrollY " + Math.round(app.scrollY) + ")" } ]
+        ],
+    body: View [ y = 44, width = { app.hostWidth }, height = 900,
+        Text [ x = 12, y = 20, textColor = slategray, text = "900px of page below the header" ]
+        ]
     ]

@@ -72,9 +72,9 @@
 // rAF, zero polling.
 
 import { Node } from "./node.js";
-import { Constraint } from "./reactive.js";
+import { Constraint, afterSettle } from "./reactive.js";
 import { defineAttributes, markPercent, own, ownerOf, release, setBound } from "./attributes.js";
-import { DeclareError, layoutConflictMessage } from "./errors.js";
+import { DeclareError, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
 import { isWindowedBlock, View, type LayoutStrategy } from "./view.js";
 import { Animator } from "./animator.js";
 import { motionToken } from "./animate.js";
@@ -257,6 +257,45 @@ export abstract class Layout extends Node implements LayoutStrategy {
     if (seen.has(slot)) return;
     seen.add(slot);
     console.error("[Declare] " + layoutConflictMessage(child.constructor.name, slot, arranger, null));
+  }
+
+  /** A strategy's own CONTAINED refusals — the same once-per-(child, key)
+   *  discipline as a conflict, callable from a `.declare` place(): the child is
+   *  placed at the line's start, the arrangement stands, the message says why.
+   *  The checker refuses the same shapes first wherever the tree is static;
+   *  these hold the line for what only exists at run time (a bound `align`, a
+   *  created child, a `baseline` binding that yields none). */
+  refuseBaseline(child: View): void {
+    // Judged at the CLOSE of the settle, not mid-flight: a flow (Markdown,
+    // HTMLText) claims its baseline when it renders, and the parent's first
+    // pass can run before that — a `null` seen here may be a claim still on
+    // its way. So the child is placed at the line's start now (the arrangement
+    // never waits), and the refusal is spoken only if, with the settle
+    // quiescent, it still declares none. One report per child, ever.
+    let seen = this.reported.get(child);
+    if (seen === undefined) this.reported.set(child, (seen = new Set()));
+    if (seen.has("baseline") || seen.has("baseline?")) return;
+    seen.add("baseline?");                 // a judgment is pending for this child
+    afterSettle(() => {
+      seen.delete("baseline?");
+      const c = child as unknown as { baseline?: unknown; surface: unknown };
+      if (typeof c.baseline === "number") return;   // it arrived
+      // Not yet attached: a flow claims its baseline when it RENDERS, and in a
+      // browser the model settles once before the tree is attached (build →
+      // settle → mount). Nothing to judge yet — the render that follows
+      // changes the child's height, which re-lays the row and asks again.
+      if (c.surface == null) return;
+      if (seen.has("baseline")) return;
+      seen.add("baseline");
+      console.error("[Declare] " + noBaselineMessage(child.constructor.name, this.constructor.name));
+    });
+  }
+
+  private stackReported = false;
+  refuseStackBaseline(): void {
+    if (this.stackReported) return;
+    this.stackReported = true;
+    console.error("[Declare] " + stackBaselineMessage(this.constructor.name));
   }
 
   protected claim(child: View, slot: string, k: Constraint): void {

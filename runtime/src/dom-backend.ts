@@ -19,7 +19,7 @@
 // (input.ts), so both backends decide clicks identically.
 
 import { allowedRef, notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type InputWants, type RenderBackend, type RichBlock, type Stretch, type Surface } from "./backend.js";
-import { colorToCss, isGradient, type Fill, type Shadow, type Stroke } from "./value.js";
+import { colorToCss, isGradient, radiusIsSquare, type Fill, type Radius, type Shadow, type Stroke } from "./value.js";
 import { type BoxState } from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight, type TextStyle } from "./measure.js";
 import { replay, rasterEntryCap, rasterLooksBlank, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA, type DisplayList } from "./draw.js";
@@ -935,7 +935,7 @@ class DomSurface implements Surface {
     }
   }
 
-  setCornerRadius(r: number): void {
+  setCornerRadius(r: Radius): void {
     // Rounds the painted box only — children are never clipped, matching
     // the recorded lean and the walk.
     this.box.cornerRadius = r;
@@ -971,7 +971,9 @@ class DomSurface implements Surface {
           .map((st) => colorToCss(st.color) + (st.offset === null ? "" : ` ${st.offset * 100}%`))
           .join(", ")})`
       : colorToCss(f);
-    s.borderRadius = this.box.cornerRadius > 0 ? this.box.cornerRadius + "px" : "";
+    // one value, or four (CSS's own order — top-left clockwise — is Radius's)
+    const cr = this.box.cornerRadius;
+    s.borderRadius = radiusIsSquare(cr) ? "" : typeof cr === "number" ? cr + "px" : cr.map((v) => Math.max(0, v) + "px").join(" ");
     const parts: string[] = [];
     const sh = this.box.shadow;
     if (sh !== null) parts.push(`${sh.dx}px ${sh.dy}px ${sh.blur}px ${colorToCss(sh.color)}`);

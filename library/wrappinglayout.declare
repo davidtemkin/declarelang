@@ -6,9 +6,11 @@ A horizontal flow that WRAPS: children run left to right
 drops to a new row (`lineSpacing` down; -1, the default, means "same as
 spacing"). With room for one row it is a plain row; as the view narrows it
 stacks — cards that reflow on a phone with no media query. It owns BOTH
-axes of each child (a flow is 2-D); sizes stay the children's own. `align`
-justifies each finished row: `start` (left, the default) or `center` (a row
-that does not fill the width sits centered).
+axes of each child (a flow is 2-D); sizes stay the children's own. `justify`
+sets each finished row along the flow — `start`, `center`, `end`, or `fill`,
+which spreads a row's slack into its gaps the way justified text does;
+`indent` and `hangingIndent` inset the first row and every row after it, the
+two shapes a paragraph takes.
 
 Division of labor: this is the tool for UNIFORM, replicated collections
 that reflow by fitting. Managing NAMED regions per width tier is
@@ -33,43 +35,111 @@ The horizontal gap between children in a row.
 The vertical gap between rows. **`-1` (the default) means "same as `spacing`"**, so a
 uniform grid needs one number rather than two kept in step.
 
+## justify
+How a finished row sits along the flow: `start` (the default, left), `center`, `end`
+(right), or `fill` — the row's slack is spread evenly into the gaps between its
+children, so every full row ends flush at the right edge, as justified text does. As
+in text, the LAST row is left at `start` under `fill` (a ragged last line), and a row
+of one child has no gap to widen and stays put. A bare literal. (Was `align` until
+2026-09-09; `align` now names the cross axis, as it does on every layout.)
+
+## indent
+The first row's inset from the left, in pixels — a paragraph's first-line indent. The
+first row's usable width shrinks by it; later rows are unaffected (see `hangingIndent`).
+
+## hangingIndent
+The inset of every row AFTER the first — a hanging indent, the shape of a bibliography
+entry or a wrapped signature whose continuation lines step in under the name. The two
+compose: `indent` sets where the first row starts, `hangingIndent` where the rest do.
+
 ## align
-How a finished row is justified: `start` (the default, left) or `center`, which centres
-a row that does not fill the width. A bare literal.
+Where each child sits **within its row**: `start` (the default — the row's top),
+`center`, `end`, or `baseline`, which sits every child in the row on one baseline — a
+`Text` reports its own, a composite **declares** which part carries it
+(`baseline: number = { cap.y + cap.baseline }`), and a child that declares none is
+refused by name and placed at the row's top. A row's height grows to hold the
+baseline-shifted children. A bare literal.
 
 ## place()
 Runs the flow, wrapping when the next child would overflow the view's width. **It owns
 both axes of each child** — a flow is 2-D — while sizes stay the children's own. A child
 never wraps when it is first in its row, so one over-wide child overflows rather than
-looping forever.
+looping forever. Each finished row starts at its indent, is justified along the flow, and
+has its children aligned across it, in one pass over the row.
 */
 
 class WrappingLayout extends Layout [
     spacing: number = 0,
     lineSpacing: number = -1,
-    align: WrapAlign = start,
+    justify: Justify = start,
+    align: CrossAlign = start,
+    indent: number = 0,
+    hangingIndent: number = 0,
 
     place() {
         const w = this.view == null ? 0 : this.view.width
         const sp = this.spacing
         const ls = this.lineSpacing < 0 ? sp : this.lineSpacing
-        const centered = this.align == "center"
+        const jf = this.justify
+        const al = this.align
+        const ind0 = Math.max(0, this.indent)
+        const indN = Math.max(0, this.hangingIndent)
         const kids = this.laid()
         const out = [] as any
-        let cx = 0
+        const heights = [] as any   // per child, for the cross pass over its row
+        const bases = [] as any     // per child: its DECLARED baseline, or null
+        let cx = ind0
         let cy = 0
         let rowH = 0
+        let rowBase = 0
         let firstInRow = true
         let rowStart = 0
-        // shift a finished row [rowStart, end) right by half its slack
-        const justify = (end, rowW) => {
-            if (!centered) return
-            const off = Math.max(0, (w - rowW) / 2)
-            if (off > 0) for (let j = rowStart; j < end; j++) out[j].x = out[j].x + off
+        // a finished row [rowStart, end): justify it along the flow, align its
+        // children across it, and answer the row's final height — which grows
+        // under baseline alignment, since children shift down to the line.
+        // `rowW` is where the row's content ends (its indent included); `last`
+        // says whether it is the flow's final row, which `fill` leaves ragged.
+        const finish = (end, rowW, last) => {
+            const slack = Math.max(0, w - rowW)
+            if (slack > 0 && (jf == "center" || jf == "end")) {
+                const off = jf == "center" ? slack / 2 : slack
+                for (let j = rowStart; j < end; j++) out[j].x = out[j].x + off
+            } else if (slack > 0 && jf == "fill" && !last) {
+                // spread the slack into the gaps: the k-th visible child after
+                // the row's first moves by k shares
+                let n = 0
+                for (let j = rowStart; j < end; j++) if (kids[j].visible) n = n + 1
+                if (n > 1) {
+                    const share = slack / (n - 1)
+                    let k = 0
+                    for (let j = rowStart; j < end; j++) { if (!kids[j].visible) continue; out[j].x = out[j].x + share * k; k = k + 1 }
+                }
+            }
+            let lineH = rowH
+            if (al == "baseline") {
+                lineH = 0
+                for (let j = rowStart; j < end; j++) {
+                    if (!kids[j].visible) continue
+                    const top = bases[j] == null ? 0 : rowBase - bases[j]
+                    lineH = Math.max(lineH, top + heights[j])
+                }
+            }
+            for (let j = rowStart; j < end; j++) {
+                if (!kids[j].visible) continue
+                let off = 0
+                if (al == "center") off = (lineH - heights[j]) / 2
+                else if (al == "end") off = lineH - heights[j]
+                else if (al == "baseline") {
+                    if (bases[j] != null) off = rowBase - bases[j]
+                    else this.refuseBaseline(kids[j])
+                }
+                out[j].y = out[j].y + off
+            }
+            return lineH
         }
         for (let i = 0; i < kids.length; i++) {
             const c = kids[i]
-            if (!c.visible) { out.push({ x: cx, y: cy }); continue }   // skipped: reclaim its slot
+            if (!c.visible) { out.push({ x: cx, y: cy }); heights.push(0); bases.push(null); continue }   // skipped: reclaim its slot
             // the child's FOOTPRINT (scale/rotation composed, position-free —
             // place() must not read the x/y it writes), and the transform's own
             // lead offset, compensated so the visible box lands on the flow
@@ -80,14 +150,18 @@ class WrappingLayout extends Layout [
             const leadY = f.y
             // wrap when this child (with its leading gap) would overflow — never
             // on a row's first child, so one over-wide child just overflows
-            if (!firstInRow && cx + sp + cw > w) { justify(i, cx); cx = 0; cy = cy + rowH + ls; rowH = 0; firstInRow = true; rowStart = i }
+            if (!firstInRow && cx + sp + cw > w) { const lh = finish(i, cx, false); cx = indN; cy = cy + lh + ls; rowH = 0; rowBase = 0; firstInRow = true; rowStart = i }
             if (!firstInRow) cx = cx + sp
             out.push({ x: cx - leadX, y: cy - leadY })
+            heights.push(ch)
+            const b = (c as any).baseline
+            bases.push(typeof b == "number" ? b : null)
+            if (al == "baseline" && typeof b == "number") rowBase = Math.max(rowBase, b)
             cx = cx + cw
             rowH = Math.max(rowH, ch)
             firstInRow = false
         }
-        justify(kids.length, cx)   // the last (or only) row
+        finish(kids.length, cx, true)   // the last (or only) row — ragged under fill
         return out
         }
     ]

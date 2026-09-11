@@ -309,7 +309,9 @@ await test("typed data: the producer's wall — `contents` on a schema'd derived
     App [ width=1, height=1,
       board: Dataset [ schema = [ cols[]: Col ], contents = { ({ cols: [ { nam: "x" } ] }) } ],
     ]`);
-  assert.match(bad.errors[0].message, /'contents' is typed \{ cols: Col\[\]/, "an inline mismatch dies at compile");
+  // contextually typed (typecheck.ts emits the slot type as the body's return type), so the
+  // literal's OWN bad field is named, at its position — not the body's whole type vs the slot's
+  assert.match(bad.errors[0].message, /'nam' does not exist in type 'Col'\. Did you mean to write 'name'/, "an inline mismatch dies at compile, naming the field");
   const good = await compile(`
     schema Col [ name: string ]
     schema Board [ cols[]: Col ]

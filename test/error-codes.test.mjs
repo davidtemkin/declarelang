@@ -72,6 +72,25 @@ await test("a [Declare] diagnostic IS coded (the contained-report path)", () => 
   assert.ok(!out.includes("replicated"), "prose gone");
 });
 
+await test("a diag-tagged sentence is coded — the helper-borne diagnostic — and stays a template", () => {
+  // the shape tsc emits: tag, a space, the literal
+  const ret = 'function why(a, b) { return diag `${a} declares no baseline — ${b} aligns children by the baseline each declares`; }';
+  const r1 = stripSource(ret);
+  assert.equal(r1.entries.length, 1, "a builder's return is coded");
+  assert.ok(/return diag `\[Declare E[0-9A-F]{6}\] \$\{a\}, \$\{b\}`/.test(r1.src), "tag kept, values kept, prose gone: " + r1.src);
+  // no holes at all: a tag must still be followed by a TEMPLATE, never a string
+  const bare = 'const COLOR = diag`a Color (a name like navy, #RGB, or null)`;';
+  const r2 = stripSource(bare);
+  assert.equal(r2.entries.length, 1);
+  assert.ok(/diag`\[Declare E[0-9A-F]{6}\]`/.test(r2.src), "a hole-less tagged site stays a template: " + r2.src);
+  // an argument to a helper — the err(…)/fail(…) shape
+  const arg = 'return fail(FILL, diag`a stop is stop(offset, color) — offset 0…1, color a Color`);';
+  assert.equal(stripSource(arg).entries.length, 1, "a helper argument is coded");
+  // the tag is the author's word: an untagged helper argument is still left alone
+  const untagged = 'return fail(FILL, `a stop is stop(offset, color)`);';
+  assert.equal(stripSource(untagged).entries.length, 0, "untagged prose through a helper is not guessed at");
+});
+
 await test("the catalog covers the runtime and answers by code", () => {
   const catalog = catalogFor(resolve(ROOT, "runtime/src"));
   const codes = Object.keys(catalog);

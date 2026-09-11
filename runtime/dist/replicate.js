@@ -36,6 +36,7 @@
 // One reconcile per settle wave, one frame per mutation burst: the
 // Replicator is an ordinary Constraint, so N data edits in a turn coalesce
 // into one reconcile, whose Surface work lands in the backends' single rAF.
+import { diag } from "./errors.js";
 import { Node } from "./node.js";
 import { View, inheritedCursor, onDiscard, markWindowedBlock, markEvicting, fireRetireTree, fireInitTree, nodeLabel } from "./view.js";
 import { Constraint, Cell } from "./reactive.js";
@@ -420,7 +421,7 @@ export class Replicator {
             return none;
         if (this.plan !== null && isSelective(this.plan)) {
             if (this.wantsVirtual())
-                this.fallback = "a selective path replicates its selection fully (windowing over selections is a later increment)";
+                this.fallback = diag `a selective path replicates its selection fully (windowing over selections is a later increment)`;
             const nodes = selectNodes(base.data, base.path, this.plan);
             return { data: base.data, nodes, items: nodes.map((n) => n.value), arrayPath: null, logical: nodes.length, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
         }
@@ -462,7 +463,7 @@ export class Replicator {
         // appearing re-decides.
         const scroller = this.findScroller();
         if (scroller === null) {
-            this.fallback = "no scrolling ancestor (scrolls = y) to window against";
+            this.fallback = diag `no scrolling ancestor (scrolls = y) to window against`;
             return full();
         }
         // A VERTICAL stacking layout COMPOSES (the layout-aware window's first
@@ -477,7 +478,7 @@ export class Replicator {
                 this.rowGap = gap;
             }
             else {
-                this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) — set virtualize = false or drop the layout";
+                this.fallback = diag `the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) — set virtualize = false or drop the layout`;
                 return full();
             }
         }

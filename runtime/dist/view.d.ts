@@ -1,5 +1,5 @@
 import { Node } from "./node.js";
-import { type Backdrop, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
+import { type Backdrop, type Color, type Fill, type Radius, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { type Stylesheet } from "./stylesheet.js";
 import { type RenderBackend, type Surface } from "./backend.js";
@@ -51,7 +51,7 @@ export declare class View extends Node {
     fill: Fill;
     /** The painted box's corner radius (0 = square). Shapes the PAINT only —
      *  clipping stays the explicit `clip` attribute (the recorded lean). */
-    cornerRadius: number;
+    cornerRadius: Radius;
     /** A border drawn INSIDE the box (never layout); null = none. */
     stroke: Stroke | null;
     /** The box's drop shadow (cast by the border box, CSS semantics — never

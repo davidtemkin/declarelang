@@ -18,7 +18,7 @@
 // is target → nearest sinked surface; the pairing/click rule is shared
 // (input.ts), so both backends decide clicks identically.
 import { allowedRef, notifyIslandSlot } from "./backend.js";
-import { colorToCss, isGradient } from "./value.js";
+import { colorToCss, isGradient, radiusIsSquare } from "./value.js";
 import {} from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight } from "./measure.js";
 import { replay, rasterEntryCap, rasterLooksBlank, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA } from "./draw.js";
@@ -939,7 +939,9 @@ class DomSurface {
                 .map((st) => colorToCss(st.color) + (st.offset === null ? "" : ` ${st.offset * 100}%`))
                 .join(", ")})`
             : colorToCss(f);
-        s.borderRadius = this.box.cornerRadius > 0 ? this.box.cornerRadius + "px" : "";
+        // one value, or four (CSS's own order — top-left clockwise — is Radius's)
+        const cr = this.box.cornerRadius;
+        s.borderRadius = radiusIsSquare(cr) ? "" : typeof cr === "number" ? cr + "px" : cr.map((v) => Math.max(0, v) + "px").join(" ");
         const parts = [];
         const sh = this.box.shadow;
         if (sh !== null)

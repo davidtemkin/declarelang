@@ -105,6 +105,21 @@ export interface Align {
 export declare function isAlign(v: unknown): v is Align;
 /** A Length: pixels (a bare number) or a parent-relative Percent. */
 export type Length = number | Percent;
+/** A box's corner rounding: ONE radius for all four corners, or FOUR — top-left,
+ *  top-right, bottom-right, bottom-left, clockwise from the top-left as CSS orders
+ *  them. `[0, 8, 0, 8]` rounds only the top-right and bottom-left; a corner given
+ *  `0` stays square. The number form is the whole language of before; the list
+ *  form is what a shape that continues past its own edge needs (a chip cut at a
+ *  line break, a tab joined to its pane, a segment in a bar). */
+export type Radius = number | readonly [number, number, number, number];
+export declare function radiusCorners(r: Radius): [number, number, number, number];
+export declare function radiusIsSquare(r: Radius): boolean;
+export declare function radiusMax(r: Radius): number;
+/** The four corners fitted to a w×h box the way CSS fits border-radius: when
+ *  two adjacent radii would overlap along an edge, EVERY radius shrinks by the
+ *  same factor, so the shape stays a scaled copy of the one asked for. A uniform
+ *  radius past half the box lands at half the box — a pill — exactly as before. */
+export declare function radiusFit(r: Radius, w: number, h: number): [number, number, number, number];
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
@@ -122,7 +137,7 @@ export declare function isPercent(v: AttrValue): v is Percent;
  *  written as the member `layout: SimpleLayout [ … ]` (the checker routes
  *  that member shape here; the only literal such a slot coerces is `null`). */
 export type AttrType = {
-    readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape";
+    readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius";
 } | {
     readonly kind: "dataschema";
 } | {

@@ -83,7 +83,49 @@ export class DeclareErrors extends DeclareError {
 export function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null): string {
   const size = slot === "width" || slot === "height";
   const owned = size ? "sizes" : "positions";
-  const escape = `let the layout ${size ? "size" : "place"} it (drop the child's own ${slot}), or set 'ignoreLayout = true' on the child to take it out of the arrangement`;
+  const escape = diag`let the layout ${size ? "size" : "place"} it (drop the child's own ${slot}), or set 'ignoreLayout = true' on the child to take it out of the arrangement`;
   const who = by !== null ? ` (set by ${by})` : "";
-  return `${childClass}.${slot}${who} — ${arranger} ${owned} its children, so this child cannot also own its ${slot}; ${escape}.`;
+  return diag`${childClass}.${slot}${who} — ${arranger} ${owned} its children, so this child cannot also own its ${slot}; ${escape}.`;
+}
+
+/** The diagnostic tag — an identity join, and the third constructor the
+ *  production error-prose strip (tools/internal/error-codes.mjs) recognizes.
+ *  A sentence that reaches its reader through a helper — a builder's return,
+ *  an `err(…)`/`fail(…)` argument, a stub's refusal — is `diag\`…\`` so the
+ *  strip can code it: dev builds keep the words, a shipped app carries
+ *  `[Declare E42] values`, and `declare-help E42` gives the sentence back.
+ *  The tag is the author saying "this is a diagnostic, never app copy" — the
+ *  strip never has to guess that from a string's shape. */
+export function diag(strings: TemplateStringsArray, ...values: unknown[]): string {
+  let out = strings[0];
+  for (let i = 0; i < values.length; i++) out += String(values[i]) + strings[i + 1];
+  return out;
+}
+
+/** A production stand-in's refusal: the module `which` was slimmed out of
+ *  this build (tools/declarec.mjs), `member` was called anyway, and the door
+ *  back is named. Every stub declarec emits throws one of these, so the
+ *  sentences live HERE — coded like every other diagnostic — instead of as
+ *  prose baked into each stub's source. */
+export function notAboard(member: string, which: "checker" | "inspector" | "bridge" | "selectors"): Error {
+  const why = which === "checker" ? diag`${member}: the checker is not aboard this production build — the program was checked at compile time (declarec --debug keeps the checker)`
+    : which === "inspector" ? diag`${member}: the inspector is not aboard this production build (declarec --debug keeps it)`
+    : which === "bridge" ? diag`${member}: the introspection bridge is not aboard this production build (declarec --debug keeps it)`
+    : diag`${member}: path selectors are not aboard this build (the program declared none at compile time — rebuild)`;
+  return new Error(why);
+}
+
+/** A laid child under `align = baseline` that declares no baseline. A baseline
+ *  is CLAIMED, never discovered: a `Text` reports its own, and a composite says
+ *  which part carries it (`baseline: number = { cap.y + cap.baseline }`) — the
+ *  layout never reaches into a child's composition to guess. The layout keeps
+ *  arranging (this child sits at the line's start) and says so once. */
+export function noBaselineMessage(childClass: string, arranger: string): string {
+  return diag`${childClass} declares no baseline — ${arranger} [ align = baseline ] aligns children by the baseline each declares; declare 'baseline: number = { <label>.y + <label>.baseline }' on ${childClass}, or align by start | center | end.`;
+}
+
+/** `align = baseline` on a STACK (a y-axis SimpleLayout): a stack has no line
+ *  to sit on — its cross axis is x, where a baseline means nothing. */
+export function stackBaselineMessage(arranger: string): string {
+  return diag`${arranger} [ axis = y, align = baseline ] — baseline aligns a ROW; a stack has no line, so its cross axis (x) takes start | center | end.`;
 }

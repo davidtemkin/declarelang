@@ -1,4 +1,4 @@
-import { type Gradient, type Shadow, type Stroke } from "./value.js";
+import { type Gradient, type Radius, type Shadow, type Stroke } from "./value.js";
 /** The box's retained paint state — the shape both surfaces keep. The solid
  *  fill is pre-resolved to a canvas fillStyle at set time (the R1 fast
  *  path); a gradient stays data (its geometry depends on the box). */
@@ -7,7 +7,7 @@ export interface BoxState {
     height: number;
     fill: string | null;
     gradient: Gradient | null;
-    cornerRadius: number;
+    cornerRadius: Radius;
     stroke: Stroke | null;
     shadow: Shadow | null;
 }
@@ -15,10 +15,11 @@ export interface BoxState {
  *  caller's cached Path2D for the box shape (invalidated on geometry/radius
  *  change); the possibly-rebuilt path is returned for re-caching. */
 export declare function paintBox(ctx: CanvasRenderingContext2D, b: BoxState, box: Path2D | null): Path2D | null;
-/** The box shape as a Path2D — a rounded rect (r > 0) or a plain rect. Shared
- *  by the fill/border paint and the drop-shadow paint so both trace the same
- *  outline. */
-export declare function boxShape(w: number, h: number, r: number): Path2D;
+/** The box shape as a Path2D — a rounded rect or a plain rect. Shared by the
+ *  fill/border paint and the drop-shadow paint so both trace the same outline.
+ *  The corners are fitted to the box first (radiusFit — CSS's overlap rule), so
+ *  a per-corner list and a uniform radius go through one path builder. */
+export declare function boxShape(w: number, h: number, r: Radius): Path2D;
 /** The drop shadow, CSS box-shadow semantics: cast by the border box, never
  *  painted inside it. Painted by the caller BEFORE the view's own clip, so it
  *  escapes overflow the way a CSS box-shadow does. Canvas shadow state is

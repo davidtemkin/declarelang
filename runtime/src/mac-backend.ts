@@ -26,7 +26,7 @@ import type {
 } from "./backend.js";
 import type { DisplayList } from "./draw.js";
 import type { TextStyle } from "./measure.js";
-import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Stroke } from "./value.js";
+import { colorToCss, isGradient, type Fill, type Gradient, type Radius, type Shadow, type Stroke } from "./value.js";
 import { routeInput, type HitTarget } from "./input.js";
 
 // ── the wire ────────────────────────────────────────────────────────────────
@@ -242,7 +242,11 @@ class MacSurface implements Surface {
       emit(OP.FILL, this.id, this.fillCss);
     }
   }
-  setCornerRadius(r: number): void { emit(OP.RADIUS, this.id, r); }
+  // one number, or the four corners as four args (LayerTree reads a(3) to tell)
+  setCornerRadius(r: Radius): void {
+    if (typeof r === "number") emit(OP.RADIUS, this.id, r);
+    else emit(OP.RADIUS, this.id, r[0], r[1], r[2], r[3]);
+  }
   setStroke(s: Stroke | null): void {
     emit(OP.STROKE, this.id, s === null ? null : s.width, s === null ? null : colorToCss(s.color));
   }

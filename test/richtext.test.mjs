@@ -199,6 +199,10 @@ Body with \`inline code\` here.
     const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
+      // The probe reads BLACK body ink, which is the LIGHT palette's bodyColor;
+      // headless Chrome inherits the machine's scheme (dark here, 2026-09-09 —
+      // the body painted 0xc7d0d6 and the black probe found nothing). Pin it.
+      await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
       const errs = []; page.on("pageerror", (e) => errs.push(e.message));
       await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
       await new Promise((r) => setTimeout(r, 450));

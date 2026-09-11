@@ -9,7 +9,7 @@
 // names a substrate (APPROACH §4) — the property that lets a later optimizing
 // runtime choose a backend per view / per hierarchy.
 
-import type { Backdrop, Color, Fill, Shadow, Stroke, Outline } from "./value.js";
+import type { Backdrop, Color, Fill, Radius, Shadow, Stroke, Outline } from "./value.js";
 import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
 
@@ -175,7 +175,7 @@ export interface Surface {
    *  CSS as paint primitive, never as styling model) — pinned identical by
    *  the cross-backend suite. */
   setFill(fill: Fill): void;
-  setCornerRadius(r: number): void;
+  setCornerRadius(r: Radius): void;
   setStroke(stroke: Stroke | null): void;
   setShadow(shadow: Shadow | null): void;
 

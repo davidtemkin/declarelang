@@ -20,7 +20,7 @@
 // paints INSIDE the box (never layout); the corner radius shapes the PAINT
 // only — children are not clipped (the recorded lean). A plain solid box
 // stays the single-fillRect fast path.
-import { colorToCss } from "./value.js";
+import { colorToCss, radiusFit, radiusIsSquare } from "./value.js";
 /** Paint `b` into `ctx` at the current transform's origin. `box` is the
  *  caller's cached Path2D for the box shape (invalidated on geometry/radius
  *  change); the possibly-rebuilt path is returned for re-caching. */
@@ -34,7 +34,7 @@ export function paintBox(ctx, b, box) {
     // NB: the drop shadow is NOT painted here — it is cast OUTSIDE the box and
     // must escape the view's own clip (as a CSS box-shadow escapes the element's
     // overflow:hidden), so the caller paints it BEFORE clipping (paintBoxShadow).
-    if (r <= 0 && st === null && b.gradient === null) {
+    if (radiusIsSquare(r) && st === null && b.gradient === null) {
         if (b.fill !== null) {
             ctx.fillStyle = b.fill;
             ctx.fillRect(0, 0, w, h);
@@ -65,15 +65,16 @@ export function paintBox(ctx, b, box) {
     }
     return box;
 }
-/** The box shape as a Path2D — a rounded rect (r > 0) or a plain rect. Shared
- *  by the fill/border paint and the drop-shadow paint so both trace the same
- *  outline. */
+/** The box shape as a Path2D — a rounded rect or a plain rect. Shared by the
+ *  fill/border paint and the drop-shadow paint so both trace the same outline.
+ *  The corners are fitted to the box first (radiusFit — CSS's overlap rule), so
+ *  a per-corner list and a uniform radius go through one path builder. */
 export function boxShape(w, h, r) {
     const p = new Path2D();
-    if (r > 0)
-        p.roundRect(0, 0, w, h, r);
-    else
+    if (radiusIsSquare(r))
         p.rect(0, 0, w, h);
+    else
+        p.roundRect(0, 0, w, h, radiusFit(r, w, h));
     return p;
 }
 /** The drop shadow, CSS box-shadow semantics: cast by the border box, never

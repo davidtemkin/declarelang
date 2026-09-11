@@ -1,4 +1,4 @@
-import type { Backdrop, Color, Fill, Shadow, Stroke, Outline } from "./value.js";
+import type { Backdrop, Color, Fill, Radius, Shadow, Stroke, Outline } from "./value.js";
 import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
 /** The reference schemes a link may carry (location.md §0.4): the app's own
@@ -167,7 +167,7 @@ export interface Surface {
      *  CSS as paint primitive, never as styling model) — pinned identical by
      *  the cross-backend suite. */
     setFill(fill: Fill): void;
-    setCornerRadius(r: number): void;
+    setCornerRadius(r: Radius): void;
     setStroke(stroke: Stroke | null): void;
     setShadow(shadow: Shadow | null): void;
     setVisible(visible: boolean): void;

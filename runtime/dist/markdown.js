@@ -17,7 +17,7 @@ import { View, onDiscard, fireEvent } from "./view.js";
 import { Text } from "./text.js";
 import { Layout } from "./layout.js";
 import { Constraint } from "./reactive.js";
-import { defineAttributes, prevailingProvided } from "./attributes.js";
+import { defineAttributes, prevailingProvided, setBound } from "./attributes.js";
 import { fontMetrics, fontString, textWidth, transformText } from "./measure.js";
 import { parse } from "./md.js";
 import { headingSlug } from "./slug.js";
@@ -455,6 +455,11 @@ function applyRunTreatments(t, r) {
 function flowRichCanvas(blocks, width, onLink) {
     const views = [];
     const anchors = new Map();
+    // The first block's first line's baseline, in flow coordinates — what a
+    // baseline-aligning layout sits this flow on. Decided by the same strut and
+    // growth the paint uses, so the DOM path (which measures with this function
+    // on the first block alone) and the canvas path agree by construction.
+    let firstBaseline = null;
     let y = 0;
     for (const b of blocks) {
         y += b.gapBefore;
@@ -515,6 +520,7 @@ function flowRichCanvas(blocks, width, onLink) {
                     px += w;
                 }
             }
+            firstBaseline ??= y + halfLead + bm.ascent; // a pre's line 0: the strut, nothing grows it
             y += (ln + 1) * adv;
             continue;
         }
@@ -705,6 +711,7 @@ function flowRichCanvas(blocks, width, onLink) {
             lineTop[k] = yy;
             yy += (lineAbove[k] ?? strutAbove) + (lineBelow[k] ?? strutBelow);
         }
+        firstBaseline ??= lineTop[0] + (lineAbove[0] ?? strutAbove); // line 0's baseline, grown or strut
         for (const bv of blockViews)
             bv.v.y = lineTop[bv.line] + (lineAbove[bv.line] ?? strutAbove) + bv.boff;
         if (b.align === "center" || b.align === "right") {
@@ -718,7 +725,7 @@ function flowRichCanvas(blocks, width, onLink) {
             views.push(v);
         y = yy;
     }
-    return { views, height: y, anchors };
+    return { views, height: y, anchors, firstBaseline };
 }
 /** TextFlow — the internal native-flow renderer (NOT a user component; see the
  *  RichText family below). A flowing block of styled text: `content` (resolved
@@ -779,6 +786,12 @@ class TextFlow extends View {
         app?.follow?.(href);
     };
     manual = [];
+    /** The first line's baseline inside this flow (the RichText's `baseline`
+     *  fact). On the native path the backend flowed the text, so it is measured
+     *  here by running the manual flow over the FIRST block alone — the same
+     *  arithmetic the canvas path paints by, the DOM↔canvas parity gate being
+     *  what makes that the DOM's number too. Null until rendered. */
+    firstBaseline = null;
     /** Canvas only: each heading anchor's y offset inside this flow, captured on
      *  the manual layout (the DOM path finds the tagged element instead). */
     anchorYs = new Map();
@@ -861,12 +874,14 @@ class TextFlow extends View {
         if (h >= 0) { // native path: the backend flowed + measured
             this.clearManual();
             this.height = h;
+            this.firstBaseline = this.content.length > 0 ? flowRichCanvas(this.content.slice(0, 1), this.flowWidth).firstBaseline : null;
             return;
         }
         // Canvas: lay the runs out as child views ourselves.
         this.clearManual();
-        const { views, height, anchors } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? this.followLink);
+        const { views, height, anchors, firstBaseline } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? this.followLink);
         this.anchorYs = anchors;
+        this.firstBaseline = firstBaseline;
         let at = 0;
         for (const v of views) {
             this.insertChild(v, at++);
@@ -1405,6 +1420,13 @@ export class RichText extends View {
             return;
         }
         this.childrenMutated();
+        this.claimBaseline();
+    }
+    /** Land the `baseline` fact: the first stacked block sits at y = 0, so when
+     *  it is a prose flow its first line's baseline IS this box's. */
+    claimBaseline() {
+        const first = this.laid[0]?.view;
+        setBound(this, "baseline", first instanceof TextFlow ? first.firstBaseline : null);
     }
     rebuild() {
         C = this.isDark() ? COLORS_DARK : COLORS_LIGHT; // pick the palette for this render
@@ -1457,6 +1479,7 @@ export class RichText extends View {
         // and auto-extent gives this box its height — so leave `height` unset.
         this.layout = yStack(PROSE.blockGap);
         this.childrenMutated();
+        this.claimBaseline();
     }
 }
 /** Rich content authored in Markdown (`text`). */
@@ -1480,7 +1503,7 @@ export class HTMLText extends RichText {
 }
 // Shared attributes live on the RichText base; Markdown/HTMLText inherit them
 // and add only their own source attribute(s).
-defineAttributes(RichText, { lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null } });
+defineAttributes(RichText, { lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null }, baseline: { def: null } });
 defineAttributes(Markdown, { text: { def: "" } });
 defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, textStyles: { def: {} } });
 //# sourceMappingURL=markdown.js.map

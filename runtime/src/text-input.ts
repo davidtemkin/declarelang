@@ -51,7 +51,12 @@ export class TextInput extends Editor {
     // attached before its `initial` constraint installed, so the seed never
     // bound and the field stayed empty); following the default "" until an
     // initial arrives is the same observable behavior, race-free.
-    if (!isSet(this, "text") && ownerOf(this, "text") === null) {
+    // …and never for a TWO-WAY field: `text <-> :title` seeds `text` from the
+    // record before attach (editor.ts's reseed), and the derive installed here
+    // displaced that seed with `initial`'s "" — the field opened empty while the
+    // record said "Untitled" (the docs' twoway demo, 2026-09-10). A bound field's
+    // seed is its record's.
+    if (!isSet(this, "text") && ownerOf(this, "text") === null && !isTwoWay(this, "text")) {
       bindDerived(this, "text", () => this.initial);
     }
     // The house FIELD rendition (library-charter §6: a bare TextInput must

@@ -1,7 +1,7 @@
 import type { Surface, RenderBackend, InputSink, EditableSpec, RichBlock, Stretch, InputWants } from "./backend.js";
 import type { DisplayList } from "./draw.js";
 import type { TextStyle } from "./measure.js";
-import { type Fill, type Shadow, type Stroke } from "./value.js";
+import { type Fill, type Radius, type Shadow, type Stroke } from "./value.js";
 import { type HitTarget } from "./input.js";
 export declare const OP: {
     readonly CREATE: 1;
@@ -128,7 +128,7 @@ declare class MacSurface implements Surface {
      *  gets no page echo there either. */
     fillCss: string | null;
     setFill(fill: Fill): void;
-    setCornerRadius(r: number): void;
+    setCornerRadius(r: Radius): void;
     setStroke(s: Stroke | null): void;
     setShadow(sh: Shadow | null): void;
     setVisible(v: boolean): void;

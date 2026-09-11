@@ -44,7 +44,7 @@
 // value, with its own pending list so replication works identically at
 // build time and at every later data arrival. `onInit` fires once per view
 // (INITED), however the view came to exist.
-import { DeclareError } from "./errors.js";
+import { DeclareError, diag } from "./errors.js";
 import { View, fireEvent } from "./view.js";
 import { Node } from "./node.js";
 import { Layout } from "./layout.js";
@@ -673,6 +673,12 @@ function construct(el, outer, ctx, parentSchema = null) {
                 Object.freeze(attr.value.items.flatMap((n) => (n.kind === "ident" ? [n.name] : [])));
             continue;
         }
+        // A bare `[tl, tr, br, bl]` on a radius slot — check.ts vetted the shape.
+        if (t0?.kind === "radius" && attr.value.kind === "list") {
+            view[attr.name] =
+                Object.freeze(attr.value.items.map((it) => (it.kind === "number" ? it.value : 0)));
+            continue;
+        }
         // A bare `[ … ]` on an array slot — the literal form check.ts validated.
         // Frozen like the styling lists: a bare literal is set once, so the value
         // the slot holds is not something a later push should appear to change.
@@ -706,8 +712,8 @@ function construct(el, outer, ctx, parentSchema = null) {
             const stylesheet = ctx.stylesheets.get(attr.value.name);
             if (stylesheet === undefined) {
                 throw new DeclareError(ctx.stylesheets.size > 0
-                    ? `no stylesheet named '${attr.value.name}' — declared stylesheets: ${[...ctx.stylesheets.keys()].join(", ")}`
-                    : `no stylesheet named '${attr.value.name}' — this program declares no stylesheets`, attr.value.pos);
+                    ? diag `no stylesheet named '${attr.value.name}' — declared stylesheets: ${[...ctx.stylesheets.keys()].join(", ")}`
+                    : diag `no stylesheet named '${attr.value.name}' — this program declares no stylesheets`, attr.value.pos);
             }
             view[attr.name] = stylesheet;
             continue;
@@ -721,8 +727,8 @@ function construct(el, outer, ctx, parentSchema = null) {
                 const font = ctx.fonts.get(name);
                 if (font === undefined) {
                     throw new DeclareError(ctx.fonts.size > 0
-                        ? `no font named '${name}' — declared fonts: ${[...ctx.fonts.keys()].join(", ")}`
-                        : `no font named '${name}' — this program declares no fonts`, pos);
+                        ? diag `no font named '${name}' — declared fonts: ${[...ctx.fonts.keys()].join(", ")}`
+                        : diag `no font named '${name}' — this program declares no fonts`, pos);
                 }
                 return font.family;
             };
@@ -1374,7 +1380,7 @@ export function createViewIn(root, tag, parent, props) {
         throw new DeclareError(`createView: this tree was not built from a program (no registry to resolve '${tag}' against)`);
     }
     if (!Object.hasOwn(ctx.tags, tag)) {
-        const hint = tag in TAGS ? "" : ` — declare the class, include its library, or keep it with 'use [ ${tag} ]'`;
+        const hint = tag in TAGS ? "" : diag ` — declare the class, include its library, or keep it with 'use [ ${tag} ]'`;
         throw new DeclareError(`createView: no component named '${tag}'${hint}`);
     }
     const el = { tag, name: null, attrs: [], decls: [], methods: [], children: [], pos: { line: 0, col: 0 } };

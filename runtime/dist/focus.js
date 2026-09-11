@@ -12,6 +12,7 @@
 // §mutation. Keyboard delivery to the focused view (Keys → onKeyDown/onKeyUp)
 // is wired by the runtime entry, not here, keeping this layer independent.
 import { View, fireEvent, setFocusDiscardHook } from "./view.js";
+import { radiusMax } from "./value.js";
 import { Cell, Constraint } from "./reactive.js";
 import { rootFrameBox } from "./interaction.js";
 export class FocusService {
@@ -144,7 +145,8 @@ export class FocusService {
             const fsFn = v.focusShape;
             const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
             const rect = fs !== null ? { x: fs.x, y: fs.y, w: fs.w, h: fs.h } : undefined;
-            const radLocal = fs ? fs.rad : (v.cornerRadius > 0 ? v.cornerRadius : 4);
+            const cr = radiusMax(v.cornerRadius); // the ring follows the largest corner
+            const radLocal = fs ? fs.rad : (cr > 0 ? cr : 4);
             // The composed root-frame BOX (interaction.ts) — origin + local w/h
             // boxed a scaled control at its unscaled size (the 2026-08-13 audit);
             // rad rides the composed scale so the ring's corners match the

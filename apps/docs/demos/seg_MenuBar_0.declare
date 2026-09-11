@@ -1,4 +1,4 @@
-App [ width = 380, height = 120,
+App [ width = 380, height = 190,
     chose: string = "",
     bar: MenuBar [ x = 12, y = 8,
         menus = { [ ({ id: "file", label: "File", items: [ ({ id: "new", label: "New", key: "⌘N" }),

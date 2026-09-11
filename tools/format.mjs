@@ -255,6 +255,15 @@ function analyze(tokens) {
       if (tok().kind === "query") p++;
       return null;
     }
+    // a STRING-LITERAL UNION — `status: "open" | "closed"` — is a type on an
+    // attribute or a parameter (the parser's literal union, 2026-09-05); read
+    // the alternatives, then the optional `?`
+    if (tok().kind === "string") {
+      p++;
+      while (tok().kind === "pipe" && tok(1).kind === "string") p += 2;
+      if (tok().kind === "query") p++;
+      return null;
+    }
     const t = expect("ident", what);
     // `Window[]` — array suffix, only when GLUED to the name (spaced `[ ]` is a
     // child body; adjacency separates the readings, as in the parser).

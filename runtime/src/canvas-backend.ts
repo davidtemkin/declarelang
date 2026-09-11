@@ -32,7 +32,7 @@ import { inAnimationFrame } from "./animate.js";
 const MICROTASK_PAINT = -1;
 import { notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type RenderBackend, type Stretch, type Surface, type InputWants } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
-import { colorToCss, isGradient, type Fill, type Gradient, type Outline, type Shadow, type Stroke } from "./value.js";
+import { colorToCss, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Outline, type Radius, type Shadow, type Stroke } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type TextStyle, type TextTransform } from "./measure.js";
 import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS, type DisplayList, type Bounds } from "./draw.js";
@@ -645,7 +645,7 @@ class CanvasSurface implements Surface {
    *  non-private so the surface passes itself to the one shared painter. */
   fill: string | null = null;
   gradient: Gradient | null = null;
-  cornerRadius = 0;
+  cornerRadius: Radius = 0;
   stroke: Stroke | null = null;
   shadow: Shadow | null = null;
   /** The rounded box path, rebuilt lazily when geometry/radius change. */
@@ -745,9 +745,8 @@ class CanvasSurface implements Surface {
     if (this.boxClip) {
       if (this.clipPath === null) {
         const p = new Path2D();
-        const r = Math.min(this.cornerRadius, this.width / 2, this.height / 2);
-        if (r > 0) p.roundRect(0, 0, this.width, this.height, r);
-        else p.rect(0, 0, this.width, this.height);
+        if (radiusIsSquare(this.cornerRadius)) p.rect(0, 0, this.width, this.height);
+        else p.roundRect(0, 0, this.width, this.height, radiusFit(this.cornerRadius, this.width, this.height));
         this.clipPath = p;
       }
       return this.clipPath;
@@ -882,7 +881,7 @@ class CanvasSurface implements Surface {
     this.compositor.invalidate();
   }
 
-  setCornerRadius(r: number): void {
+  setCornerRadius(r: Radius): void {
     this.cornerRadius = r;
     this.box = null;
     if (this.boxClip) this.clipPath = null;

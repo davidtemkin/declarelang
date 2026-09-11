@@ -31,7 +31,7 @@ import { inAnimationFrame } from "./animate.js";
 const MICROTASK_PAINT = -1;
 import { notifyIslandSlot } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
-import { colorToCss, isGradient } from "./value.js";
+import { colorToCss, isGradient, radiusFit, radiusIsSquare } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines } from "./measure.js";
 import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
@@ -747,11 +747,10 @@ class CanvasSurface {
         if (this.boxClip) {
             if (this.clipPath === null) {
                 const p = new Path2D();
-                const r = Math.min(this.cornerRadius, this.width / 2, this.height / 2);
-                if (r > 0)
-                    p.roundRect(0, 0, this.width, this.height, r);
-                else
+                if (radiusIsSquare(this.cornerRadius))
                     p.rect(0, 0, this.width, this.height);
+                else
+                    p.roundRect(0, 0, this.width, this.height, radiusFit(this.cornerRadius, this.width, this.height));
                 this.clipPath = p;
             }
             return this.clipPath;

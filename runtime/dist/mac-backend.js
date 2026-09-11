@@ -213,7 +213,13 @@ class MacSurface {
             emit(OP.FILL, this.id, this.fillCss);
         }
     }
-    setCornerRadius(r) { emit(OP.RADIUS, this.id, r); }
+    // one number, or the four corners as four args (LayerTree reads a(3) to tell)
+    setCornerRadius(r) {
+        if (typeof r === "number")
+            emit(OP.RADIUS, this.id, r);
+        else
+            emit(OP.RADIUS, this.id, r[0], r[1], r[2], r[3]);
+    }
     setStroke(s) {
         emit(OP.STROKE, this.id, s === null ? null : s.width, s === null ? null : colorToCss(s.color));
     }

@@ -1,4 +1,4 @@
-App [ width = 340, height = 140,
+App [ width = 520, height = 260,
     said: string = "",
     dlg: Dialog [ ],
     Button [ x = 20, y = 20, label = "Delete…",

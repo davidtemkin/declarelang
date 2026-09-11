@@ -14,7 +14,7 @@
 // shipping it costs nothing beyond its own lines.
 
 import type { Element, Attr, AttrDecl, ClassDecl, Literal } from "./parser.js";
-import { DeclareError, type Pos } from "./errors.js";
+import { DeclareError, diag, type Pos } from "./errors.js";
 import { SCHEMAS, attrType, isReadOnly, descendsFrom, type ComponentSchema } from "./schema.js";
 import { coerce, declaredType, describeLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
 
@@ -328,14 +328,14 @@ export function checkDecl(
 ): CheckedDecl {
   const err = (message: string, pos: Pos): CheckedDecl => ({ ok: false, error: new DeclareError(message, pos) });
   if (NOUNS.includes(d.name)) {
-    return err(`'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
+    return err(diag`'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
   }
   if (RESERVED.includes(d.name)) {
-    return err(`'${d.name}' is a value constructor (gradient/stroke/shadow/stop/frost) — it cannot be a member name`, d.pos);
+    return err(diag`'${d.name}' is a value constructor (gradient/stroke/shadow/stop/frost) — it cannot be a member name`, d.pos);
   }
   const structural = structuralReason(d.name);
   if (structural !== null) {
-    return err(`'${d.name}' is ${structural} — it cannot be declared; choose another name`, d.pos);
+    return err(diag`'${d.name}' is ${structural} — it cannot be declared; choose another name`, d.pos);
   }
   if (attrType(schema, d.name) !== null) {
     // A read-only intrinsic must not advise "write name = …" — setting it is
@@ -343,19 +343,19 @@ export function checkDecl(
     // wrong fix named twice). Choose-another-name is the only repair.
     if (isReadOnly(schema, d.name)) {
       return err(
-        `'${d.name}' is a built-in read-only intrinsic of ${schema.name} — it is computed for you; choose another name for your derived value`,
+        diag`'${d.name}' is a built-in read-only intrinsic of ${schema.name} — it is computed for you; choose another name for your derived value`,
         d.pos
       );
     }
     return err(
-      `${schema.name} already has an attribute '${d.name}' — a declaration introduces a new one; write '${d.name} = …' to set the existing one`,
+      diag`${schema.name} already has an attribute '${d.name}' — a declaration introduces a new one; write '${d.name} = …' to set the existing one`,
       d.pos
     );
   }
   const type = resolveWrittenType(d.type, isComponent, isShape);
   if (type === null) {
     return err(
-      `unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class, a declared schema, a literal union ('"open" | "closed"'), or a function type '(a: T) -> R'`,
+      diag`unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class, a declared schema, a literal union ('"open" | "closed"'), or a function type '(a: T) -> R'`,
       d.typePos
     );
   }
@@ -366,13 +366,13 @@ export function checkDecl(
     // boundary for it to cross.
     if (schema.name !== "App" && !descendsFrom(schema, "DOMIsland")) {
       return err(
-        `'external ${d.name}' — an external attribute is an island-boundary slot: declare it on an Island (the host's half of the bridge) or on an App (a tenant's export). ${schema.name} has no boundary to cross`,
+        diag`'external ${d.name}' — an external attribute is an island-boundary slot: declare it on an Island (the host's half of the bridge) or on an App (a tenant's export). ${schema.name} has no boundary to cross`,
         d.pos
       );
     }
     if (d.prevailing) {
       return err(
-        `'${d.name}' cannot be both prevailing and external — a followed slot takes its value from the ancestor chain, a boundary slot from the other side of the island; the two sources cannot share one slot`,
+        diag`'${d.name}' cannot be both prevailing and external — a followed slot takes its value from the ancestor chain, a boundary slot from the other side of the island; the two sources cannot share one slot`,
         d.pos
       );
     }
@@ -383,7 +383,7 @@ export function checkDecl(
     // values (plus the platform value kinds, which are data).
     if (type.kind === "component" || type.kind === "view" || type.kind === "fn") {
       return err(
-        `'external ${d.name}: ${d.type}' — an external attribute carries DATA across the island boundary (number, string, boolean, array, object, Color, Length, an enum); a ${type.kind === "fn" ? "function" : "component instance"} is an identity in this program's graph and cannot cross. For behavior, use the message channel (island.send / onMessage)`,
+        diag`'external ${d.name}: ${d.type}' — an external attribute carries DATA across the island boundary (number, string, boolean, array, object, Color, Length, an enum); a ${type.kind === "fn" ? "function" : "component instance"} is an identity in this program's graph and cannot cross. For behavior, use the message channel (island.send / onMessage)`,
         d.typePos
       );
     }
@@ -396,13 +396,13 @@ export function checkDecl(
     // { theme.buttonText }` is what lets components defer to tokens).
     const e = validateExpr(d.def.src);
     if (e !== null) {
-      return err(`${owner}.${d.name}'s default = { … } ${e}`, d.def.pos);
+      return err(diag`${owner}.${d.name}'s default = { … } ${e}`, d.def.pos);
     }
     return { ok: true, type, value: undefined, binding: { src: d.def.src, pos: d.def.pos } };
   }
   if (d.def.kind === "percent") {
     return err(
-      `${owner}.${d.name}: a percent default would resolve against each instance's parent — set it per instance until percent defaults are designed`,
+      diag`${owner}.${d.name}: a percent default would resolve against each instance's parent — set it per instance until percent defaults are designed`,
       d.def.pos
     );
   }
@@ -414,6 +414,14 @@ export function checkDecl(
   // `rows: array = [1, 2]` — the first thing anyone writes when seeding a list —
   // was refused, and the message sent the author to `{ [1, 2] }`, which spells a
   // static seed as a standing relationship.
+  // A bare `[tl, tr, br, bl]` default on a Radius slot — four numbers, top-left
+  // clockwise; the same list form the view path admits (check.ts).
+  if (type.kind === "radius" && d.def.kind === "list") {
+    if (d.def.items.length !== 4 || d.def.items.some((it) => it.kind !== "number")) {
+      return err(diag`${owner}.${d.name}: a per-corner radius is four numbers — [topLeft, topRight, bottomRight, bottomLeft], clockwise from the top-left; one number rounds all four`, d.def.pos);
+    }
+    return { ok: true, type, value: Object.freeze(d.def.items.map((it) => (it.kind === "number" ? it.value : 0))) as never };
+  }
   if (type.kind === "array" && d.def.kind === "list") {
     const items: unknown[] = [];
     for (const it of d.def.items) {
@@ -421,12 +429,12 @@ export function checkDecl(
       if (it.kind === "hexColor" || (it.kind === "ident" && it.name !== "null" && it.name !== "true" && it.name !== "false")) {
         const cc = coerce({ kind: "color" }, it);
         if (!cc.ok) {
-          return err(`${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`, it.pos);
+          return err(diag`${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`, it.pos);
         }
         items.push(cc.value); continue;
       }
       if (it.kind === "ident") { items.push(it.name === "null" ? null : it.name === "true"); continue; }
-      return err(`${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`, it.pos);
+      return err(diag`${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`, it.pos);
     }
     return { ok: true, type, value: Object.freeze(items) as never };
   }
@@ -435,10 +443,10 @@ export function checkDecl(
     // A raw :path default has one plausible intent — the { } binding form the
     // corpus itself uses (`rid: string = { :id }`): name it (Run-2 finding).
     const hint = d.def.kind === "path"
-      ? ` — to seed from data, write a { } default: ${d.name}: ${d.type} = { :${d.def.path} }`
+      ? diag` — to seed from data, write a { } default: ${d.name}: ${d.type} = { :${d.def.path} }`
       : "";
     return err(
-      `${owner}.${d.name}'s default expects ${c.expected}, got ${c.found ?? describeLiteral(d.def)}${hint}`,
+      diag`${owner}.${d.name}'s default expects ${c.expected}, got ${c.found ?? describeLiteral(d.def)}${hint}`,
       d.def.pos
     );
   }

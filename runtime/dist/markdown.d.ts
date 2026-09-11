@@ -26,6 +26,13 @@ export declare abstract class RichText extends View {
     scale: number;
     /** Color-scheme override (null = follow the App's OS `dark`). */
     dark: boolean | null;
+    /** The y of the first line's baseline in this box — what `align = baseline`
+     *  sits a Markdown/HTMLText on. A flow CLAIMS it (never discovered by the
+     *  layout): the first block's first line when the document opens with prose;
+     *  null when it opens with a table, list, code or rule, which is "declares
+     *  none" to a baseline row. Read-only, reactive — re-claimed on every rebuild
+     *  and re-width. */
+    baseline: number | null;
     private built;
     /** Parse the current source into the block tree. */
     protected abstract parseSource(): Block[];
@@ -86,6 +93,9 @@ export declare abstract class RichText extends View {
      *  Falls back to a full rebuild if any block has no re-width registered, so an
      *  unconverted block type stays correct. */
     private relayout;
+    /** Land the `baseline` fact: the first stacked block sits at y = 0, so when
+     *  it is a prose flow its first line's baseline IS this box's. */
+    private claimBaseline;
     private rebuild;
 }
 /** Rich content authored in Markdown (`text`). */

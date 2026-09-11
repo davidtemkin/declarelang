@@ -1,3 +1,6 @@
-App [
-    panel: View [ backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12 ]
+App [ fill = #F6F8FA,
+    art: View [ x = 10, y = 10, width = 220, height = 120, cornerRadius = 8, fill = { gradient("90deg", 0xC93B47, 0x2E6FE0) } ],
+    panel: View [ x = 70, y = 40, width = 240, height = 70, backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12,
+        Text [ x = 14, y = 24, text = "frosted over the art behind it" ]
+        ]
     ]

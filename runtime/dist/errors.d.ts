@@ -54,3 +54,27 @@ export declare class DeclareErrors extends DeclareError {
  *  when that helps (a direct write); null when the child obviously authored
  *  it. */
 export declare function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null): string;
+/** The diagnostic tag — an identity join, and the third constructor the
+ *  production error-prose strip (tools/internal/error-codes.mjs) recognizes.
+ *  A sentence that reaches its reader through a helper — a builder's return,
+ *  an `err(…)`/`fail(…)` argument, a stub's refusal — is `diag\`…\`` so the
+ *  strip can code it: dev builds keep the words, a shipped app carries
+ *  `[Declare E42] values`, and `declare-help E42` gives the sentence back.
+ *  The tag is the author saying "this is a diagnostic, never app copy" — the
+ *  strip never has to guess that from a string's shape. */
+export declare function diag(strings: TemplateStringsArray, ...values: unknown[]): string;
+/** A production stand-in's refusal: the module `which` was slimmed out of
+ *  this build (tools/declarec.mjs), `member` was called anyway, and the door
+ *  back is named. Every stub declarec emits throws one of these, so the
+ *  sentences live HERE — coded like every other diagnostic — instead of as
+ *  prose baked into each stub's source. */
+export declare function notAboard(member: string, which: "checker" | "inspector" | "bridge" | "selectors"): Error;
+/** A laid child under `align = baseline` that declares no baseline. A baseline
+ *  is CLAIMED, never discovered: a `Text` reports its own, and a composite says
+ *  which part carries it (`baseline: number = { cap.y + cap.baseline }`) — the
+ *  layout never reaches into a child's composition to guess. The layout keeps
+ *  arranging (this child sits at the line's start) and says so once. */
+export declare function noBaselineMessage(childClass: string, arranger: string): string;
+/** `align = baseline` on a STACK (a y-axis SimpleLayout): a stack has no line
+ *  to sit on — its cross axis is x, where a baseline means nothing. */
+export declare function stackBaselineMessage(arranger: string): string;

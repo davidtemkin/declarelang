@@ -217,13 +217,14 @@ export async function buildProduction(source, opts = {}) {
   // one. `explain()` (inspect.ts) stays either way — that promise is the running
   // app's, not the browser UI's. Roughly 9 KB gz back off every app's wire.
   const inspectStub = `
+import { notAboard } from "./errors.js";
 const ZERO = { x: 0, y: 0 };
 export function setInspectionTarget() {}
 export function inspectionOrigin() { return ZERO; }
 export function inspectionTarget() { return null; }
-export function evaluateIn() { return { ok: false, error: "the inspector is not aboard this production build (declarec --debug keeps it)" }; }
+export function evaluateIn() { return { ok: false, error: notAboard("evaluateIn", "inspector").message }; }
 export const Inspect = new Proxy({ ready: () => false }, {
-  get: (t, k) => (k in t ? t[k] : () => { throw new Error("Inspect." + String(k) + ": the inspector is not aboard this production build (declarec --debug keeps it)"); }),
+  get: (t, k) => (k in t ? t[k] : () => { throw notAboard("Inspect." + String(k), "inspector"); }),
 });
 `;
 
@@ -356,7 +357,8 @@ export const Inspect = new Proxy({ ready: () => false }, {
   // (found exactly that way — a bug report's "the artifact you ship is the
   // one you cannot question"). One field says what happened and names the
   // door; costs a string.
-  const bridgeStub = `export function bridgeFor() { return { stub: "production build - the introspection bridge ships with declarelang build --debug" }; }
+  const bridgeStub = `import { notAboard } from "./errors.js";
+export function bridgeFor() { return { stub: notAboard("bridgeFor", "bridge").message }; }
 export function pickAt() { return null; }
 export function dependentsOf() { return []; }
 export function expandValue() { return null; }
@@ -377,8 +379,9 @@ export const clock = {};
   const checkStub = ["check", "checkAttr", "checkMethod", "checkDecl", "checkComponentValue",
     "checkEntry", "checkThemeRecord", "checkStyleDecls", "programSchemas", "withDecls",
     "manyPathOf", "coerceToken", "cssAttributeHint"]
-    .map((n) => `export function ${n}() { throw new Error("${n}: the checker is not aboard this production build — the program was checked at compile time (declarec --debug keeps the checker)"); }`)
+    .map((n) => `export function ${n}() { throw notAboard("${n}", "checker"); }`)
     .join("\n") + "\n";
+  const checkStubSrc = `import { notAboard } from "./errors.js";\n` + checkStub;
   // The focus + keyboard services (focus.js, keys.js — ~5 KB minified together).
   // boot.ts wires them for EVERY app (Focus.setRoot, Keys.listen, deliverKeys),
   // which is why they shipped everywhere; an app with nothing focusable, no key
@@ -444,7 +447,8 @@ export function fillDatapaths(src) { return src; }
   // only when the program's plans actually contain a selector segment — the
   // §7 pay-for-what-you-write table. A name-only program ships today's walk.
   const selectStub = `
-const REFUSE = () => { throw new Error("path selectors are not aboard this build (the program declared none at compile time — rebuild)"); };
+import { notAboard } from "./errors.js";
+const REFUSE = () => { throw notAboard("select", "selectors"); };
 export const selectNodes = REFUSE, selectValue = REFUSE, evaluatePlan = REFUSE;
 `;
   // The data-shape validator (data-schema.js, B4) rides only when the
@@ -478,7 +482,7 @@ export function isArrayDoc() { return false; }
     },
   });
   const factPlugins = opts.debug ? [] : [
-    stubFor("slim-check", /[/\\]check\.js$/, checkStub),
+    stubFor("slim-check", /[/\\]check\.js$/, checkStubSrc),
     stubFor("slim-bridge", /[/\\]inspect\.js$/, bridgeStub),
     stubFor("slim-datapath", /[/\\]datapath\.js$/, datapathStub),
     ...(programFacts.usesThemes ? [] : [stubFor("slim-themes", /[/\\]themes\.js$/, themesStub)]),

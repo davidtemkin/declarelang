@@ -5,6 +5,7 @@
 // `50%` into a Percent is deliberately imperative and lives here, never in
 // Declare source. Each type's `coerce` case owns its "expects …" wording, so
 // a type and its diagnostics are one thing and cannot drift apart.
+import { diag } from "./errors.js";
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS } from "./animate.js";
@@ -41,7 +42,7 @@ export function gradient(...args) {
             return Object.freeze({ offset: null, color: a });
         if (typeof a === "object" && a !== null && "color" in a)
             return a;
-        throw new Error("a gradient stop is a color or stop(offset, color)");
+        throw new Error(diag `a gradient stop is a color or stop(offset, color)`);
     });
     return Object.freeze({ angle, stops: Object.freeze(stops) });
 }
@@ -81,6 +82,26 @@ export const DEFAULT_THEME = SanFrancisco;
 export function isAlign(v) {
     return typeof v === "object" && v !== null && "align" in v;
 }
+export function radiusCorners(r) {
+    return typeof r === "number" ? [r, r, r, r] : [r[0], r[1], r[2], r[3]];
+}
+export function radiusIsSquare(r) {
+    return typeof r === "number" ? r <= 0 : r[0] <= 0 && r[1] <= 0 && r[2] <= 0 && r[3] <= 0;
+}
+export function radiusMax(r) {
+    return typeof r === "number" ? r : Math.max(r[0], r[1], r[2], r[3]);
+}
+/** The four corners fitted to a w×h box the way CSS fits border-radius: when
+ *  two adjacent radii would overlap along an edge, EVERY radius shrinks by the
+ *  same factor, so the shape stays a scaled copy of the one asked for. A uniform
+ *  radius past half the box lands at half the box — a pill — exactly as before. */
+export function radiusFit(r, w, h) {
+    const c = radiusCorners(r).map((v) => Math.max(0, v));
+    const [tl, tr, br, bl] = c;
+    const over = (edge, sum) => (sum > 0 ? edge / sum : 1);
+    const f = Math.min(1, over(w, tl + tr), over(w, bl + br), over(h, tl + bl), over(h, tr + br));
+    return f >= 1 ? c : [tl * f, tr * f, br * f, bl * f];
+}
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
 export function isPercent(v) {
@@ -103,6 +124,7 @@ const DECLARED_TYPES = {
     boolean: { kind: "boolean" },
     Color: { kind: "color" },
     Length: { kind: "length" },
+    Radius: { kind: "radius" },
     Shape: { kind: "shape" },
     // The records door (planes.md §4 — components arrange records): a slot
     // holding an ARRAY of records (`items`), a plain OBJECT record, or a VIEW
@@ -117,7 +139,12 @@ const DECLARED_TYPES = {
     // as built-in as Color. (User-authored unions remain their own future
     // construct, per the note above.)
     Axis: enumType("Axis", "x", "y"),
-    WrapAlign: enumType("WrapAlign", "start", "center"),
+    // A flow's MAIN-axis justification (`justify = center` centres a short row)
+    // and a layout's CROSS-axis alignment — CSS's split of the two words. `none`
+    // is a cross axis the strategy leaves to the children (SimpleLayout's
+    // default); `baseline` aligns children by the baseline each DECLARES.
+    Justify: enumType("Justify", "start", "center", "end", "fill"),
+    CrossAlign: enumType("CrossAlign", "none", "start", "center", "end", "baseline"),
 };
 /** Resolve a written declaration type name (`count: number`), or null when
  *  the name is not in the declarable vocabulary. */
@@ -161,30 +188,36 @@ export function coerce(type, lit) {
         case "length":
             if (lit.kind === "number") {
                 if (lit.hex && lit.hexLen === 8)
-                    return fail("a Length", `${describeLiteral(lit)} (an 8-digit 0x is an alpha color, not a number — write a number in decimal)`);
+                    return fail(diag `a Length`, diag `${describeLiteral(lit)} (an 8-digit 0x is an alpha color, not a number — write a number in decimal)`);
                 return ok(lit.value);
             }
             if (lit.kind === "percent")
                 return ok({ percent: lit.value });
             if (lit.kind === "ident" && (lit.name === "center" || lit.name === "end"))
                 return ok({ align: lit.name });
-            return fail("a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y)");
+            return fail(diag `a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y)`);
         case "number":
             if (lit.kind === "number") {
                 if (lit.hex && lit.hexLen === 8)
-                    return fail("a number", `${describeLiteral(lit)} (an 8-digit 0x is an alpha color, not a number — write a number in decimal)`);
+                    return fail(diag `a number`, diag `${describeLiteral(lit)} (an 8-digit 0x is an alpha color, not a number — write a number in decimal)`);
                 return ok(lit.value);
             }
-            return fail("a number");
+            return fail(diag `a number`);
+        case "radius":
+            // the list form `[tl, tr, br, bl]` never reaches coerce — a bare list is
+            // routed around it (check.ts / instantiate.ts), as every list slot is
+            if (lit.kind === "number")
+                return ok(lit.value);
+            return fail(diag `a Radius (a number rounds all four corners; [topLeft, topRight, bottomRight, bottomLeft] rounds each)`);
         case "boolean":
             if (lit.kind === "ident" && (lit.name === "true" || lit.name === "false")) {
                 return ok(lit.name === "true");
             }
-            return fail("a boolean (true or false)");
+            return fail(diag `a boolean (true or false)`);
         case "string":
             if (lit.kind === "string")
                 return ok(lit.value);
-            return fail("a string");
+            return fail(diag `a string`);
         case "color":
             return coerceColor(lit);
         case "shape":
@@ -198,7 +231,7 @@ export function coerce(type, lit) {
                 return ok(lit.arrayRoot === true ? { arrayRoot: true, fields: lit.shape } : lit.shape);
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail("a schema shape ([ field: type, rows[]: [ … ] ]), or null for none");
+            return fail(diag `a schema shape ([ field: type, rows[]: [ … ] ]), or null for none`);
         case "enum":
             // SPELL A MEMBER THE WAY ITS DECLARATION SPELLS IT (DT's ruling,
             // 2026-09-05). A built-in vocabulary declares `y`, so `axis = y` and
@@ -212,53 +245,53 @@ export function coerce(type, lit) {
                 if (lit.kind === "string" && type.tokens.includes(lit.value))
                     return ok(lit.value);
                 if (lit.kind === "ident" && type.tokens.includes(lit.name)) {
-                    return fail(`one of ${members} — a literal union's member is written in quotes, in a slot as in { }: "${lit.name}"`);
+                    return fail(diag `one of ${members} — a literal union's member is written in quotes, in a slot as in { }: "${lit.name}"`);
                 }
-                return fail(`one of ${members}`);
+                return fail(diag `one of ${members}`);
             }
             if (lit.kind === "ident" && type.tokens.includes(lit.name))
                 return ok(lit.name);
             // Vowel-aware article: R7's Axis is the first enum that needs "an".
-            return fail(`${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")})`);
+            return fail(diag `${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")})`);
         case "fn":
             // Like a component slot: `null` is the one literal form ("no callback").
             // A real function arrives by assignment from a { } body, never as a
             // literal in the declarative layer.
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail(`a function ${type.written}, or null for none`);
+            return fail(diag `a function ${type.written}, or null for none`);
         case "component":
             // `null` is the one literal form ("no layout"); the instance form is
             // the member shape `layout: SimpleLayout [ … ]`, which never reaches
             // coercion (check.ts routes it to the component-value path).
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail(`a ${type.of} component (a member like 'layout: SimpleLayout [ … ]'), or null for none`);
+            return fail(diag `a ${type.of} component (a member like 'layout: SimpleLayout [ … ]'), or null for none`);
         case "cursor":
             // `null` is the one coercible form ("no cursor"); `:path` and `{ }`
             // are standing relationships check.ts routes before coercion.
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail("a datapath (':field.path', a { } expression yielding a place in a dataset, or null)");
+            return fail(diag `a datapath (':field.path', a { } expression yielding a place in a dataset, or null)`);
         case "array":
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail("an array — a { } binding (plain TS: items = { [ … ] }), or null");
+            return fail(diag `an array — a { } binding (plain TS: items = { [ … ] }), or null`);
         case "object":
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail("an object — a { } binding (plain TS), or null");
+            return fail(diag `an object — a { } binding (plain TS), or null`);
         case "view":
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail("a View reference — assigned at runtime (an opener, a target), or null");
+            return fail(diag `a View reference — assigned at runtime (an opener, a target), or null`);
         case "slotref":
             // The `attribute` token names a slot on the target; it stays a bare
             // string at runtime. That the named slot exists and is numeric is
             // checked against the TARGET's schema at the element walk (check.ts).
             if (lit.kind === "ident" && lit.name !== "null")
                 return ok(lit.name);
-            return fail("a slot name written as a bare token (like height or x)");
+            return fail(diag `a slot name written as a bare token (like height or x)`);
         case "record":
             // A DATA record (schema-typed, `sel: Task = null`): null is the one
             // literal form — the slot may be empty before anything feeds it,
@@ -269,9 +302,9 @@ export function coerce(type, lit) {
             if (type.data === true) {
                 if (lit.kind === "ident" && lit.name === "null")
                     return ok(null);
-                return fail(`a ${type.name} record (provide one with a { } binding), or null for none`);
+                return fail(diag `a ${type.name} record (provide one with a { } binding), or null for none`);
             }
-            return fail(`a ${type.name} (a token record — provide one with a { } binding or a stylesheet)`);
+            return fail(diag `a ${type.name} (a token record — provide one with a { } binding or a stylesheet)`);
         case "fill":
             return coerceFill(lit);
         case "stroke":
@@ -287,18 +320,18 @@ export function coerce(type, lit) {
         case "styles":
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail("a style list ([card, danger] — names of declared style bundles), or null");
+            return fail(diag `a style list ([card, danger] — names of declared style bundles), or null`);
         case "stylesheet":
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail("a stylesheet declared in this program (by name), or null");
+            return fail(diag `a stylesheet declared in this program (by name), or null`);
         case "font":
             // A raw family string is the literal form; a `font Name` reference (an
             // ident) resolves against program declarations — routed in
             // check.ts/instantiate.ts before coercion (like `stylesheet`).
             if (lit.kind === "string")
                 return ok(lit.value);
-            return fail("a declared font (by name), or a raw family string like \"Helvetica, sans-serif\"");
+            return fail(diag `a declared font (by name), or a raw family string like "Helvetica, sans-serif"`);
     }
 }
 // The literal forms for Color: navy / #354D5B / 0x354D5B / null (language
@@ -306,24 +339,24 @@ export function coerce(type, lit) {
 // opaque — the R2 ruling intact; see the Color doc). A decimal number is
 // rejected on purpose: the doc's forms are closed, and `fill = 6702939`
 // hides its channels.
-const COLOR = "a Color (a name like navy, #RGB, #RRGGBB, #RGBA, #RRGGBBAA, 0xRRGGBB, or null)";
+const COLOR = diag `a Color (a name like navy, #RGB, #RRGGBB, #RGBA, #RRGGBBAA, 0xRRGGBB, or null)`;
 function coerceColor(lit) {
     switch (lit.kind) {
         case "number":
             if (!lit.hex)
-                return fail(COLOR, `${describeLiteral(lit)} (write a color in hex: 0x… or #…)`);
+                return fail(COLOR, diag `${describeLiteral(lit)} (write a color in hex: 0x… or #…)`);
             // 0xRRGGBBAA — the 0x twin of #RRGGBBAA: 8 hex digits carry alpha,
             // riding the same translucent encoding (…FF normalizes to opaque rgb).
             if (lit.hexLen === 8)
                 return ok(colorWithAlpha((lit.value >>> 8) & 0xffffff, lit.value & 0xff));
             if (!Number.isInteger(lit.value) || lit.value < 0 || lit.value > 0xffffff) {
-                return fail(COLOR, `${describeLiteral(lit)} (outside 0x000000–0xFFFFFF)`);
+                return fail(COLOR, diag `${describeLiteral(lit)} (outside 0x000000–0xFFFFFF)`);
             }
             return ok(lit.value);
         case "hexColor": {
             const hex = lit.raw.slice(1);
             if (!/^[0-9a-fA-F]+$/.test(hex) || ![3, 4, 6, 8].includes(hex.length)) {
-                return fail(COLOR, `'${lit.raw}' (a hex color is 3, 4, 6, or 8 hex digits)`);
+                return fail(COLOR, diag `'${lit.raw}' (a hex color is 3, 4, 6, or 8 hex digits)`);
             }
             // Short forms double their digits (CSS); a trailing alpha pair rides
             // the translucent encoding (…FF normalizes to plain opaque rgb).
@@ -339,7 +372,7 @@ function coerceColor(lit) {
             const key = lit.name.toLowerCase();
             if (Object.hasOwn(CSS_COLORS, key))
                 return ok(CSS_COLORS[key]);
-            return fail(COLOR, `'${lit.name}' (not a CSS color name)`);
+            return fail(COLOR, diag `'${lit.name}' (not a CSS color name)`);
         }
         default:
             return fail(COLOR);
@@ -352,9 +385,9 @@ function coerceColor(lit) {
 // literals (colors in any Color form, numbers, nested `stop(…)`). The same
 // names are ordinary functions inside `{ }` bodies (expr.ts puts them in
 // scope), so one vocabulary serves both lexical homes.
-const FILL = `a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
-const STROKE = `a Stroke (stroke(width, color) — drawn inside the box — or null)`;
-const SHADOW = `a Shadow (shadow(dx, dy, blur, color), or null)`;
+const FILL = diag `a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
+const STROKE = diag `a Stroke (stroke(width, color) — drawn inside the box — or null)`;
+const SHADOW = diag `a Shadow (shadow(dx, dy, blur, color), or null)`;
 /** A constructor argument as a plain color number (no null). */
 function argColor(lit) {
     const c = coerceColor(lit);
@@ -366,7 +399,7 @@ function argNumber(lit) {
 function coerceFill(lit) {
     if (lit.kind === "call") {
         if (lit.name !== "gradient")
-            return fail(FILL, `'${lit.name}(…)' (not a fill constructor)`);
+            return fail(FILL, diag `'${lit.name}(…)' (not a fill constructor)`);
         const args = [...lit.args];
         // An optional leading DECIMAL number is the angle (degrees, CSS compass —
         // 0 up, clockwise; default 180 = top → bottom). Hex-written numbers are
@@ -394,18 +427,18 @@ function coerceFill(lit) {
                 const offset = a.args.length === 2 ? argNumber(a.args[0]) : null;
                 const color = a.args.length === 2 ? argColor(a.args[1]) : null;
                 if (offset === null || color === null) {
-                    return fail(FILL, `a stop is stop(offset, color) — offset 0…1, color a Color`);
+                    return fail(FILL, diag `a stop is stop(offset, color) — offset 0…1, color a Color`);
                 }
                 stops.push({ offset, color });
                 continue;
             }
             const color = argColor(a);
             if (color === null)
-                return fail(FILL, `${describeLiteral(a)} (a gradient stop is a Color or stop(offset, color))`);
+                return fail(FILL, diag `${describeLiteral(a)} (a gradient stop is a Color or stop(offset, color))`);
             stops.push({ offset: null, color });
         }
         if (stops.length < 2)
-            return fail(FILL, `a gradient needs at least two stops`);
+            return fail(FILL, diag `a gradient needs at least two stops`);
         return ok({ angle, stops });
     }
     const c = coerceColor(lit); // the solid case: any Color form coerces
@@ -426,11 +459,11 @@ function coerceOutline(lit) {
     if (lit.kind === "ident" && lit.name === "null")
         return ok(null);
     if (lit.kind !== "call" || lit.name !== "outline")
-        return fail("an outline (outline(width, color))");
+        return fail(diag `an outline (outline(width, color))`);
     const width = lit.args.length === 2 ? argNumber(lit.args[0]) : null;
     const color = lit.args.length === 2 ? argColor(lit.args[1]) : null;
     if (width === null || color === null || width < 0)
-        return fail("an outline (outline(width, color))");
+        return fail(diag `an outline (outline(width, color))`);
     return ok({ width, color });
 }
 function coerceShadow(lit) {
@@ -446,7 +479,7 @@ function coerceShadow(lit) {
         return fail(SHADOW);
     return ok({ dx, dy, blur, color });
 }
-const BACKDROP = `a Backdrop (frost(radius) or frost(radius, saturation) — blur what lies beneath, saturation ≥ 0 (default 1) — or null)`;
+const BACKDROP = diag `a Backdrop (frost(radius) or frost(radius, saturation) — blur what lies beneath, saturation ≥ 0 (default 1) — or null)`;
 function coerceBackdrop(lit) {
     if (lit.kind === "ident" && lit.name === "null")
         return ok(null);
@@ -472,52 +505,52 @@ const MOTION = `a Motion (a named curve like easeBoth, quartOut, expoIn, or lasz
 function coerceMotion(lit) {
     if (lit.kind === "ident") {
         const m = motionToken(lit.name);
-        return m ? ok(m) : fail(MOTION, `'${lit.name}' (not one of ${MOTION_TOKENS.join(" | ")})`);
+        return m ? ok(m) : fail(MOTION, diag `'${lit.name}' (not one of ${MOTION_TOKENS.join(" | ")})`);
     }
     if (lit.kind !== "call")
         return fail(MOTION);
     switch (lit.name) {
         case "cubicBezier": {
             if (lit.args.length !== 4)
-                return fail(MOTION, "cubicBezier(x1, y1, x2, y2) takes four numbers");
+                return fail(MOTION, diag `cubicBezier(x1, y1, x2, y2) takes four numbers`);
             const [x1, y1, x2, y2] = lit.args.map(argNumber);
             if (x1 === null || y1 === null || x2 === null || y2 === null)
-                return fail(MOTION, "cubicBezier(x1, y1, x2, y2) — four numbers");
+                return fail(MOTION, diag `cubicBezier(x1, y1, x2, y2) — four numbers`);
             if (x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1)
-                return fail(MOTION, "cubicBezier x-coordinates must be in [0, 1] (time is monotonic)");
+                return fail(MOTION, diag `cubicBezier x-coordinates must be in [0, 1] (time is monotonic)`);
             return ok({ k: "bezier", x1, y1, x2, y2 });
         }
         case "back": {
             const s = lit.args.length === 1 ? argNumber(lit.args[0]) : null;
             if (s === null)
-                return fail(MOTION, "back(overshoot) — one number (try back(1.7))");
+                return fail(MOTION, diag `back(overshoot) — one number (try back(1.7))`);
             return ok({ k: "back", dir: "both", overshoot: s });
         }
         case "steps": {
             if (lit.args.length < 1 || lit.args.length > 2)
-                return fail(MOTION, "steps(n[, jumpStart | jumpEnd])");
+                return fail(MOTION, diag `steps(n[, jumpStart | jumpEnd])`);
             const n = argNumber(lit.args[0]);
             if (n === null || !Number.isInteger(n) || n < 1)
-                return fail(MOTION, "steps(n, …) — n a positive integer");
+                return fail(MOTION, diag `steps(n, …) — n a positive integer`);
             let jump = "end";
             if (lit.args.length === 2) {
                 const j = lit.args[1];
                 if (j.kind !== "ident" || (j.name !== "jumpStart" && j.name !== "jumpEnd"))
-                    return fail(MOTION, "steps' second argument is jumpStart or jumpEnd");
+                    return fail(MOTION, diag `steps' second argument is jumpStart or jumpEnd`);
                 jump = j.name === "jumpStart" ? "start" : "end";
             }
             return ok({ k: "steps", n, jump });
         }
         case "laszlo": {
             if (lit.args.length !== 2)
-                return fail(MOTION, "laszlo(beginPole, endPole) — two numbers");
+                return fail(MOTION, diag `laszlo(beginPole, endPole) — two numbers`);
             const [bp, ep] = lit.args.map(argNumber);
             if (bp === null || ep === null || bp <= 0 || ep <= 0)
-                return fail(MOTION, "laszlo(beginPole, endPole) — two positive numbers");
+                return fail(MOTION, diag `laszlo(beginPole, endPole) — two positive numbers`);
             return ok({ k: "laszlo", beginPole: bp, endPole: ep });
         }
         default:
-            return fail(MOTION, `'${lit.name}(…)' (not a motion constructor)`);
+            return fail(MOTION, diag `'${lit.name}(…)' (not a motion constructor)`);
     }
 }
 // A Shape's literal is SVG path *data* carried in a string (the `d`
@@ -525,7 +558,7 @@ function coerceMotion(lit) {
 // shape". Path2D and clip-path both swallow malformed data silently, so the
 // validation here is where a bad path becomes a positioned message instead
 // of a mysteriously blank region.
-const SHAPE = `a Shape (SVG path data in a string, like "M0 0 L80 0 L40 60 Z", or null)`;
+const SHAPE = diag `a Shape (SVG path data in a string, like "M0 0 L80 0 L40 60 Z", or null)`;
 function coerceShape(lit) {
     if (lit.kind === "ident" && lit.name === "null")
         return ok(null);
@@ -541,7 +574,7 @@ function coerceShape(lit) {
         return fail(SHAPE);
     const problem = validatePathData(lit.value);
     if (problem !== null)
-        return fail(SHAPE, `${describeLiteral(lit)} (${problem})`);
+        return fail(SHAPE, diag `${describeLiteral(lit)} (${problem})`);
     return ok(lit.value);
 }
 /** A literal as a message names it — "got the string \"wide\"". Hex-written
@@ -602,8 +635,9 @@ function warnBadColor(c) {
         return;
     badColors.add(key);
     const hex = /^#([0-9a-fA-F]{6})$/.exec(key);
-    console.error(`[Declare] a color slot received ${JSON.stringify(key)} (a ${typeof c}) — inside { } a color is a NUMBER: ` +
-        (hex ? `write 0x${hex[1].toUpperCase()}` : `0xRRGGBB (named colors are bare-slot vocabulary only)`) +
-        `. Nothing was painted.`);
+    // one sentence, one code: the form the value should have taken is a hole,
+    // itself a diagnostic sentence, never a concatenation the strip would skip
+    const form = hex ? diag `write 0x${hex[1].toUpperCase()}` : diag `0xRRGGBB (named colors are bare-slot vocabulary only)`;
+    console.error(diag `[Declare] a color slot received ${JSON.stringify(key)} (a ${typeof c}) — inside { } a color is a NUMBER: ${form}. Nothing was painted.`);
 }
 //# sourceMappingURL=value.js.map

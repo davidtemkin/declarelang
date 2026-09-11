@@ -739,6 +739,11 @@ export function coerceData(type, v, def) {
         case "number":
         case "length":
             return typeof v === "number" ? v : def;
+        case "radius":
+            // a number, or the four corners as a data-borne list of four numbers
+            return typeof v === "number" ? v
+                : Array.isArray(v) && v.length === 4 && v.every((c) => typeof c === "number") ? v
+                    : def;
         case "boolean":
             return typeof v === "boolean" ? v : def;
         case "color":

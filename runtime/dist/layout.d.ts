@@ -108,6 +108,15 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  defects (a thrown handler, a wedged reconcile) — loud, attributed, and
      *  survivable, never a settle-aborting throw. */
     private reportConflict;
+    /** A strategy's own CONTAINED refusals — the same once-per-(child, key)
+     *  discipline as a conflict, callable from a `.declare` place(): the child is
+     *  placed at the line's start, the arrangement stands, the message says why.
+     *  The checker refuses the same shapes first wherever the tree is static;
+     *  these hold the line for what only exists at run time (a bound `align`, a
+     *  created child, a `baseline` binding that yields none). */
+    refuseBaseline(child: View): void;
+    private stackReported;
+    refuseStackBaseline(): void;
     protected claim(child: View, slot: string, k: Constraint): void;
     /** Release `k`'s claim of `slot` on `child`; during a rearm, restore the
      *  authored base (see `rearming` — a full detach keeps the last values).

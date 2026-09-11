@@ -1,5 +1,6 @@
 App [
-    View [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,
-        onClick() { fill = 0x4169E1 }
+    View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = gainsboro,
+        onClick() { fill = 0x4169E1 },
+        TextLabel [ x = 12, fontSize = 13, text = "click me" ]
         ]
     ]

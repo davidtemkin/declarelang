@@ -81,7 +81,7 @@ const ViewSchema: ComponentSchema = {
     width: { kind: "length" },
     height: { kind: "length" },
     fill: { kind: "fill" },
-    cornerRadius: { kind: "number" },
+    cornerRadius: { kind: "radius" },
     // pointer-interaction intrinsics (interaction.ts) — read-only (readOnly below):
     // on the live hit chain (hovered) / on the chain captured at pointer-down (pressed)
     hovered: { kind: "boolean" },
@@ -784,7 +784,15 @@ export const RichTextSchema: ComponentSchema = {
     // (null) follows the root App's OS `dark`; set it to an app's OWN effective
     // theme when a Light/Dark selector can differ from the OS: `dark = { app.isDark }`.
     dark: { kind: "boolean" },
+    // The y of the FIRST line's baseline in this box — the fact a baseline-
+    // aligning layout reads (`align = baseline` on SimpleLayout/WrappingLayout).
+    // A flow claims its first line, by the same strut-and-growth arithmetic the
+    // canvas flow paints by, on either backend. Null when the document does not
+    // open with prose (a table, list, code fence or rule first) — then it
+    // declares none, and a baseline row refuses it by name. Read-only, reactive.
+    baseline: { kind: "number" },
   },
+  readOnly: ["baseline"],
   // A link (`[text](url)` / `<a href>`) was clicked — `onLink(href)`. The runtime
   // supplies mechanism only (the click + href); the app dispatches policy (scroll,
   // route, or `app.navigate(href)`). Unhandled links fall back to `app.navigate(href)`.

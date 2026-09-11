@@ -1908,6 +1908,147 @@ await test("P1-2: set-then-fetch in one handler requests the NEW address (settle
   }
 });
 
+// ── the cross axis: `align` on SimpleLayout and WrappingLayout (2026-09-09) ──
+// A layout's cross axis was the children's own (`y = center` per child); now
+// a strategy may claim it — start | center | end within the LINE (the largest
+// laid extent, never the container's, which may derive from these children),
+// or `baseline`, which sits every child on the deepest DECLARED baseline. A
+// baseline is claimed, never discovered: Text reports its own, a composite
+// declares which part carries it, and a laid child with none is refused — by
+// the checker where the tree is static, by the runtime (contained, once) where
+// only a run can know. WrappingLayout's old `align` (row justification) is
+// `justify` now, so `align` means the cross axis on every layout.
+
+await test("align: center / end / baseline on a row; center on a stack — the geometry", async () => {
+  const r = await compile(`
+    class Chip extends View [ height = 24, width = 60,
+        baseline: number = { this.lbl.y + this.lbl.baseline },
+        lbl: Text [ x = 8, y = 5, fontSize = 13, text = "chip" ]
+        ]
+    App [ width = 600, height = 300,
+      row: View [ width = 500, layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        big: Text [ fontSize = 24, text = "height" ], sm: Text [ fontSize = 13, text = "from" ],
+        chip: Chip [ ], btn: Button [ label = "View.height" ] ],
+      c: View [ width = 500, layout: SimpleLayout [ axis = x, align = center ],
+        a: View [ width = 10, height = 40 ], b: View [ width = 10, height = 20 ] ],
+      e: View [ width = 500, layout: SimpleLayout [ axis = x, align = end ],
+        a: View [ width = 10, height = 40 ], b: View [ width = 10, height = 20 ] ],
+      s: View [ height = 300, layout: SimpleLayout [ axis = y, align = center ],
+        a: View [ width = 100, height = 10 ], b: View [ width = 40, height = 10 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });   // headless boot: real metrics, the library's theme
+  try {
+    const bl = (v) => +(v.y + v.baseline).toFixed(3);
+    const row = app.row;
+    assert.equal(new Set([bl(row.big), bl(row.sm), bl(row.chip), bl(row.btn)]).size, 1,
+      "a 24px Text, a 13px Text, a declaring composite, and a library Button share one baseline");
+    assert.ok(row.big.y < row.sm.y, "the bigger face sits higher, so its baseline meets the line");
+    assert.equal(app.c.b.y, 10, "center: the 20px child centres in the 40px line");
+    assert.equal(app.e.b.y, 20, "end: the 20px child ends with the 40px line");
+    assert.equal(app.s.b.x, 30, "a stack's cross axis is x: the 40-wide child centres in the 100 line");
+    assert.equal(app.s.a.x, 0);
+    const p = explain(app.row.chip, "y");
+    assert.equal(p.constraint?.writer, "SimpleLayout", "the cross slot is OWNED by the layout once align claims it");
+  } finally { app.discard(); }
+});
+
+await test("align: WrappingLayout rows align per row; justify is the renamed row justification", async () => {
+  const r = await compile(`App [ width = 600, height = 300,
+      w: View [ width = 200, layout: WrappingLayout [ spacing = 8, lineSpacing = 6, align = baseline, justify = start ],
+        a: Text [ fontSize = 24, text = "Big" ], b: Text [ fontSize = 12, text = "small" ],
+        c: Text [ fontSize = 12, text = "a-second-row-wraps-here" ], d: Text [ fontSize = 30, text = "Huge" ] ],
+      j: View [ width = 200, layout: WrappingLayout [ spacing = 0, justify = center ],
+        a: View [ width = 100, height = 10 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    const bl = (v) => +(v.y + v.baseline).toFixed(3);
+    assert.equal(bl(app.w.a), bl(app.w.b), "row one: the 24px and 12px runs share a baseline");
+    assert.ok(app.w.c.y > app.w.a.y + app.w.a.height - 1, "row two starts below row one's grown line");
+    assert.equal(app.j.a.x, 50, "justify = center centres a short row (the old `align`)");
+  } finally { app.discard(); }
+});
+
+await test("WrappingLayout: indent / hangingIndent inset the first row and the rest; justify end and fill", async () => {
+  const r = await compile(`App [ width = 600, height = 400,
+      p: View [ width = 200, layout: WrappingLayout [ spacing = 10, lineSpacing = 0, indent = 30, hangingIndent = 12 ],
+        a: View [ width = 80, height = 10 ], b: View [ width = 80, height = 10 ],
+        c: View [ width = 80, height = 10 ], d: View [ width = 80, height = 10 ], e: View [ width = 80, height = 10 ] ],
+      e: View [ width = 200, layout: WrappingLayout [ spacing = 0, justify = end ],
+        a: View [ width = 50, height = 10 ], b: View [ width = 50, height = 10 ] ],
+      f: View [ width = 200, layout: WrappingLayout [ spacing = 10, lineSpacing = 0, justify = fill ],
+        a: View [ width = 50, height = 10 ], b: View [ width = 50, height = 10 ], c: View [ width = 50, height = 10 ],
+        d: View [ width = 50, height = 10 ], e: View [ width = 50, height = 10 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    // indent 30: a at 30, b at 120; c would end at 210 > 200 → row two at the hanging indent 12
+    assert.deepEqual([app.p.a.x, app.p.b.x], [30, 120], "the first row starts at indent");
+    assert.deepEqual([app.p.c.x, app.p.d.x, app.p.c.y], [12, 102, 10], "later rows start at hangingIndent");
+    assert.deepEqual([app.p.e.x, app.p.e.y], [12, 20], "and every row after, too");
+    assert.deepEqual([app.e.a.x, app.e.b.x], [100, 150], "justify = end sits the row against the right edge");
+    // fill: row one holds a b c (50+10+50+10+50 = 170, slack 30 → 15 into each of two gaps); the
+    // LAST row (d e) is left ragged at start, as justified text leaves its last line
+    assert.deepEqual([app.f.a.x, app.f.b.x, app.f.c.x], [0, 75, 150], "justify = fill spreads a full row's slack into its gaps");
+    assert.deepEqual([app.f.d.x, app.f.e.x, app.f.d.y], [0, 60, 10], "the last row stays ragged");
+  } finally { app.discard(); }
+});
+
+await test("align = baseline: the checker refuses a stack, and a laid child that declares none — naming the rewrite", async () => {
+  const stack = await compile(`App [ width = 100, height = 100, s: View [ layout: SimpleLayout [ axis = y, align = baseline ], Text [ text = "a" ] ] ]`, {});
+  assert.match(stack.errors[0]?.message ?? "", /a stack has no line.*start \| center \| end/);
+  const bare = await compile(`App [ width = 100, height = 100, r: View [ layout: SimpleLayout [ axis = x, align = baseline ], Text [ text = "a" ], box: View [ width = 10, height = 10 ] ] ]`, {});
+  assert.match(bare.errors[0]?.message ?? "", /View declares no baseline.*declare 'baseline: number = \{ <label>\.y \+ <label>\.baseline \}' on View/);
+  // …and the two ways a child answers: a use-site declaration, or leaving the arrangement
+  const decl = await compile(`App [ width = 100, height = 100, r: View [ layout: SimpleLayout [ axis = x, align = baseline ], Text [ text = "a" ], box: View [ width = 10, height = 10, baseline: number = 8 ] ] ]`, {});
+  assert.equal(decl.errors.length, 0, decl.errors.map((e) => e.message).join("; "));
+  const out = await compile(`App [ width = 100, height = 100, r: View [ layout: SimpleLayout [ axis = x, align = baseline ], Text [ text = "a" ], box: View [ width = 10, height = 10, ignoreLayout = true ] ] ]`, {});
+  assert.equal(out.errors.length, 0, out.errors.map((e) => e.message).join("; "));
+});
+
+await test("align = baseline: a Markdown claims its FIRST line's baseline; a document opening with a list claims none", async () => {
+  const r = await compile(`App [ width = 600, height = 400,
+    row: View [ width = 560, layout: SimpleLayout [ axis = x, spacing = 12, align = baseline ],
+      t:  Text [ fontSize = 16, text = "label" ],
+      md: Markdown [ width = 300, text = "A first line of prose long enough to wrap onto a second line inside three hundred pixels of measure" ] ],
+    list: View [ width = 560, layout: SimpleLayout [ axis = x, spacing = 12, align = baseline ],
+      t:  Text [ text = "x" ],
+      md: Markdown [ width = 300, text = "- an item" ] ],
+  ]`, {});
+  assert.equal(r.errors.length, 0, "the checker accepts a Markdown under align = baseline (its schema claims one): " + r.errors.map((e) => e.message).join("; "));
+  const errs = []; const orig = console.error; console.error = (m) => errs.push(String(m));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    console.error = orig;
+    const bl = (v) => +(v.y + v.baseline).toFixed(3);
+    assert.equal(typeof app.row.md.baseline, "number", "a prose-first Markdown claims a baseline");
+    assert.ok(app.row.md.baseline > 0 && app.row.md.baseline < app.row.md.height, "…inside its own box, on its first line");
+    assert.equal(bl(app.row.t), bl(app.row.md), "the label and the Markdown's first line share the row's baseline");
+    assert.equal(app.list.md.baseline, null, "a list-first document declares none");
+    assert.equal(errs.filter((m) => /Markdown declares no baseline/.test(m)).length, 1, "…and the row refuses it once, by name: " + errs.join(" | "));
+    assert.equal(app.list.md.y, 0, "…placing it at the line's start");
+  } finally { console.error = orig; app.discard(); }
+});
+
+await test("align = baseline BOUND: the runtime refuses a baseline-less child once, contained, and keeps arranging", async () => {
+  const r = await compile(`App [ width = 100, height = 100, mode: string = "baseline",
+    r: View [ layout: SimpleLayout [ axis = x, align = { app.mode == "baseline" ? "baseline" : "start" } ],
+      t: Text [ text = "a" ], box: View [ width = 10, height = 10 ] ] ]`, {});
+  assert.equal(r.errors.length, 0, "a bound align is beyond the checker; it compiles");
+  const errs = []; const orig = console.error; console.error = (m) => errs.push(String(m));
+  const app = settleHeadless(r.source, { deps: r.deps });   // attached: a refusal is judged only on an attached child
+  try {
+    app.r.width = 90; settle(); app.r.width = 80; settle();   // re-lays twice more
+    console.error = orig;
+    assert.equal(errs.length, 1, "reported once, not per re-lay");
+    assert.match(errs[0], /View declares no baseline/);
+    assert.equal(app.r.box.y, 0, "the child sits at the line's start; the row still lays out");
+  } finally { console.error = orig; app.discard(); }
+});
+
 await test("P2-2: explain() names the layout that owns a child's geometry", async () => {
   const r22 = await compile(`App [ width = 200, height = 200,
     col: View [ width = 100,
@@ -1959,7 +2100,7 @@ await test("check() validates class declarations, every error positioned", () =>
   assert.match(errs("class A extends View [ x: number = 1 ]\nApp [ width=1 ]")[0],
     /View already has an attribute 'x' — a declaration introduces a new one/);
   assert.match(errs("class A extends View [ k: Widget ]\nApp [ width=1 ]")[0],
-    /unknown type 'Widget' — a declared attribute's type is one of number, string, boolean, Color, Length, Shape/);
+    /unknown type 'Widget' — a declared attribute's type is one of number, string, boolean, Color, Length, Radius, Shape/);
   assert.match(errs("class A extends View [ k: string = 5 ]\nApp [ width=1 ]")[0],
     /A\.k's default expects a string, got the number 5/);
   assert.match(errs("class A extends View [ k: Length = 50% ]\nApp [ width=1 ]")[0],
@@ -4055,6 +4196,50 @@ await test("flush pushes decoration pay-per-use; pushers carry post-attach chang
   assert.ok(log2.some(([m, v]) => m === "setCornerRadius" && v === 6));
   assert.ok(log2.some(([m, v]) => m === "setStroke" && v.width === 1));
   assert.ok(log2.some(([m, v]) => m === "setShadow" && v.blur === 2));
+});
+
+// ── cornerRadius: one number, or four corners ────────────────────────────────
+
+await test("cornerRadius = [tl, tr, br, bl]: the list crosses the seam whole, frozen", () => {
+  const log = [];
+  const app = build("App [ width=10, height=10, cornerRadius = [8, 8, 0, 0] ]");
+  app.attach(mockBackend(log), null);
+  assert.deepEqual(app.cornerRadius, [8, 8, 0, 0], "the slot holds the four corners");
+  assert.ok(Object.isFrozen(app.cornerRadius), "a bare literal is set once");
+  assert.ok(log.some(([m, v]) => m === "setCornerRadius" && Array.isArray(v) && v.join() === "8,8,0,0"),
+    "the backend receives the four corners, not a number");
+  app.cornerRadius = 6;
+  assert.deepEqual(log.at(-1), ["setCornerRadius", 6], "and the number form still pushes as before");
+});
+
+await test("cornerRadius: the checker refuses a list that is not four numbers", () => {
+  const e2 = check(parse("App [ width=10, height=10, cornerRadius = [8, 8] ]")).map((e) => e.message);
+  assert.equal(e2.length, 1);
+  assert.match(e2[0], /four numbers — \[topLeft, topRight, bottomRight, bottomLeft\]/);
+  const eStr = check(parse('App [ width=10, height=10, cornerRadius = [8, "a", 0, 0] ]')).map((e) => e.message);
+  assert.equal(eStr.length, 1, "a non-number corner is refused");
+  assert.equal(check(parse("App [ width=10, height=10, cornerRadius = [0, 8, 0, 8] ]")).length, 0, "four numbers pass");
+  assert.equal(check(parse("App [ width=10, height=10, cornerRadius = 8 ]")).length, 0, "the number form is unchanged");
+});
+
+await test("Radius is a declarable type; a { } body may produce either form; a Spring still animates the slot", async () => {
+  const r = await compile(`class Tab extends View [ r: Radius = [8, 8, 0, 0], cornerRadius = { r } ]
+App [ width=100, height=100, on: boolean = false,
+    t: Tab [ width=40, height=20 ],
+    b: View [ width=40, height=20, cornerRadius = { on ? [4, 0, 4, 0] : 2 },
+        Spring [ attribute = cornerRadius, to = 3 ] ] ]`);
+  assert.deepEqual(r.errors ?? [], [], "declares, typechecks, and animates");
+  const app = build(`class Tab extends View [ r: Radius = [8, 8, 0, 0], cornerRadius = { this.r } ]
+App [ width=100, height=100, t: Tab [ width=40, height=20 ] ]`);
+  assert.deepEqual([...app.t.cornerRadius], [8, 8, 0, 0], "the declared list reaches the painted slot");
+});
+
+await test("radiusFit: overlapping corners shrink together (CSS's rule); a pill is unchanged", async () => {
+  const { radiusFit } = await import("../runtime/dist/value.js");
+  assert.deepEqual(radiusFit(20, 20, 10), [5, 5, 5, 5], "a uniform radius past half the box lands at half — a pill");
+  assert.deepEqual(radiusFit([40, 0, 0, 0], 20, 20), [20, 0, 0, 0], "one corner may take a whole edge");
+  assert.deepEqual(radiusFit([30, 10, 0, 0], 20, 20), [15, 5, 0, 0], "adjacent corners scale by ONE factor (30+10 over 20)");
+  assert.deepEqual(radiusFit([4, 4, 4, 4], 100, 50), [4, 4, 4, 4], "nothing overlaps, nothing moves");
 });
 
 // ── Styling: the external channel (stylesheets), bundles, binding defaults ──
@@ -7911,10 +8096,12 @@ await test("wrapLines vs wrapEditable: break-word and indent are the field's rul
   assert.deepEqual(wrapEditable("hi supercalifragilistic", "10px mono", 8),
     ["hi", "supercal", "ifragili", "stic"], "…after taking the ordinary break first");
 
-  // the indent: measured by the field, dropped by the legacy breaker
+  // the indent: measured by BOTH since ee0da33d (the height fix re-blessed the
+  // box's baselines) — the pin that once held the legacy under-count now holds
+  // the agreement
   assert.deepEqual(wrapEditable("        v: number = 40,", "10px mono", 20), ["        v: number =", "40,"]);
-  assert.deepEqual(wrapLines("        v: number = 40,", "10px mono", 20), ["v: number = 40,"],
-    "the known under-count — pinned so re-blessing it is a deliberate act");
+  assert.deepEqual(wrapLines("        v: number = 40,", "10px mono", 20), ["        v: number =", "40,"],
+    "a line's own indent is measured by the box's breaker too");
 
   provideMeasurer(undefined);   // leave the seam as we found it
 });

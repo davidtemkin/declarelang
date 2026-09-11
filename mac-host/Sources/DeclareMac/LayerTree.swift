@@ -47,6 +47,15 @@ final class Node {
 
     var box = CGRect.zero
     var radius: CGFloat = 0
+    /// Per-corner rounding `[tl, tr, br, bl]` (top-left clockwise, the model's
+    /// order) when the four differ; nil = one `radius` on every corner. A set of
+    /// corners sharing one radius is a CALayer `maskedCorners`; four DISTINCT
+    /// radii are past what a layer can round and paint through `shapeBg`.
+    var radii: [CGFloat]?
+    var shapeBg: CAShapeLayer?
+    var fillColor: CGColor?
+    var strokeW: CGFloat = 0
+    var strokeColor: CGColor?
     var scrolls = false
     var scrollOffset: CGFloat = 0
     var scrollsX = false
@@ -452,6 +461,7 @@ final class LayerTree {
             // frame (measured: 151ms average commit, 457ms worst).
             if n.clipPath != nil || n.boxClip { applyClip(n) }
             if n.layer.shadowOpacity > 0 { applyShadowPath(n) }
+            if n.shapeBg != nil { syncShape(n) }
         case 32: // PAGEFILL — the page behind a TOP-LEVEL app wears the app's
             // own background (the DOM paints documentElement/body; the canvas
             // backend mirrors it). Natively "the page" is the hosting view and
@@ -466,26 +476,34 @@ final class LayerTree {
             // The fill rides the node's OWN layer even when frosted: the frost
             // is a sibling BELOW the node now, so this paints over the blur and
             // under the children, which is exactly the material contract.
+            n.fillColor = fill
             n.layer.backgroundColor = fill
+            if n.shapeBg != nil { syncShape(n) }
         case 7: // GRADIENT
             guard let n = nodes[id], let spec = a(0) as? [String: Any] else { return }
             applyGradient(n, spec)
-        case 8: // RADIUS
+            if n.shapeBg != nil { syncShape(n) }
+        case 8: // RADIUS — one number, or four: [tl, tr, br, bl], top-left clockwise
             guard let n = nodes[id] else { return }
-            n.radius = num(a(0))
-            n.layer.cornerRadius = n.radius
-            n.clipHost?.cornerRadius = n.radius
+            if a(3) != nil {
+                let r = (0..<4).map { CGFloat(num(a($0))) }
+                n.radii = r; n.radius = r.max() ?? 0
+            } else { n.radii = nil; n.radius = num(a(0)) }
+            applyRadius(n)
             if n.frostLayer != nil { syncFrost(n) }
             if n.boxClip { applyClip(n) }
             if n.layer.shadowOpacity > 0 { applyShadowPath(n) }
         case 9: // STROKE (inside the box, like the other renderers)
             guard let n = nodes[id] else { return }
             if a(0) == nil || a(0) is NSNull {
+                n.strokeW = 0; n.strokeColor = nil
                 n.layer.borderWidth = 0
             } else {
-                n.layer.borderWidth = num(a(0))
-                n.layer.borderColor = str(a(1)).flatMap { CSSColor.parse($0)?.cgColor }
+                n.strokeW = num(a(0)); n.strokeColor = str(a(1)).flatMap { CSSColor.parse($0)?.cgColor }
+                n.layer.borderWidth = n.strokeW
+                n.layer.borderColor = n.strokeColor
             }
+            if n.shapeBg != nil { syncShape(n) }
         case 10: // SHADOW
             guard let n = nodes[id] else { return }
             if a(0) == nil || a(0) is NSNull {
@@ -733,7 +751,8 @@ final class LayerTree {
         f.bounds = n.layer.bounds
         f.position = n.layer.position
         f.transform = n.layer.transform
-        f.cornerRadius = n.radius
+        f.cornerRadius = n.layer.cornerRadius
+        f.maskedCorners = n.layer.maskedCorners
         f.isHidden = n.layer.isHidden
         f.opacity = n.layer.opacity
     }
@@ -1249,9 +1268,105 @@ final class LayerTree {
     }
 
     private func applyShadowPath(_ n: Node) {
-        let r = min(n.radius, min(n.box.width, n.box.height) / 2)
-        n.layer.shadowPath = CGPath(roundedRect: CGRect(origin: .zero, size: n.box.size),
-                                    cornerWidth: r, cornerHeight: r, transform: nil)
+        n.layer.shadowPath = cornerPath(n)
+    }
+
+    // ── corners ─────────────────────────────────────────────────────────────
+
+    /// The corner mapping into this layer space, which is y-UP (see the SHADOW
+    /// note): the model's top-left is the layer's min-x / MAX-y corner.
+    private static let cornerMasks: [CACornerMask] = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner, .layerMaxXMinYCorner, .layerMinXMinYCorner]
+
+    /// The four corners fitted to the box as CSS fits them: when two adjacent
+    /// radii would overlap along an edge every radius shrinks by one factor
+    /// (the web backends' radiusFit, mirrored).
+    private func fittedCorners(_ n: Node) -> [CGFloat] {
+        let c = (n.radii ?? [n.radius, n.radius, n.radius, n.radius]).map { max(0, $0) }
+        let w = n.box.width, h = n.box.height
+        func over(_ edge: CGFloat, _ sum: CGFloat) -> CGFloat { sum > 0 ? edge / sum : 1 }
+        let f = min(1, over(w, c[0] + c[1]), over(w, c[3] + c[2]), over(h, c[0] + c[3]), over(h, c[1] + c[2]))
+        return f >= 1 ? c : c.map { $0 * f }
+    }
+
+    /// The box outline with its corners, in layer space (y-up: tl at max-y).
+    private func cornerPath(_ n: Node) -> CGPath {
+        let c = fittedCorners(n)
+        let w = n.box.width, h = n.box.height
+        let tl = c[0], tr = c[1], br = c[2], bl = c[3]
+        let p = CGMutablePath()
+        p.move(to: CGPoint(x: tl, y: h))
+        p.addLine(to: CGPoint(x: w - tr, y: h))
+        if tr > 0 { p.addArc(tangent1End: CGPoint(x: w, y: h), tangent2End: CGPoint(x: w, y: h - tr), radius: tr) }
+        p.addLine(to: CGPoint(x: w, y: br))
+        if br > 0 { p.addArc(tangent1End: CGPoint(x: w, y: 0), tangent2End: CGPoint(x: w - br, y: 0), radius: br) }
+        p.addLine(to: CGPoint(x: bl, y: 0))
+        if bl > 0 { p.addArc(tangent1End: CGPoint(x: 0, y: 0), tangent2End: CGPoint(x: 0, y: bl), radius: bl) }
+        p.addLine(to: CGPoint(x: 0, y: h - tl))
+        if tl > 0 { p.addArc(tangent1End: CGPoint(x: 0, y: h), tangent2End: CGPoint(x: tl, y: h), radius: tl) }
+        p.closeSubpath()
+        return p
+    }
+
+    /// Route the rounding. A layer rounds ONE radius on a chosen set of corners
+    /// (`maskedCorners`) — which is exactly "round these corners, not those",
+    /// and stays compositor-native, paint-only (children unclipped, as on the
+    /// web). Four DISTINCT radii are past a layer: then the fill and the inside
+    /// stroke paint as a shape sublayer tracing cornerPath, and the layer's own
+    /// background/border go quiet.
+    private func applyRadius(_ n: Node) {
+        let c = n.radii
+        let nonzero = (c ?? []).filter { $0 > 0 }
+        let uniform = c == nil || nonzero.isEmpty || nonzero.allSatisfy { $0 == nonzero[0] }
+        if uniform {
+            let r = c == nil ? n.radius : (nonzero.first ?? 0)
+            var mask: CACornerMask = []
+            if let c = c { for i in 0..<4 where c[i] > 0 { mask.insert(Self.cornerMasks[i]) } }
+            else { mask = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner, .layerMaxXMinYCorner, .layerMinXMinYCorner] }
+            n.layer.cornerRadius = r; n.layer.maskedCorners = mask
+            n.clipHost?.cornerRadius = r; n.clipHost?.maskedCorners = mask
+            if n.shapeBg != nil { dropShape(n) }
+        } else {
+            n.layer.cornerRadius = 0
+            n.clipHost?.cornerRadius = 0
+            syncShape(n)
+        }
+    }
+
+    private func syncShape(_ n: Node) {
+        let sh: CAShapeLayer
+        if let e = n.shapeBg { sh = e } else {
+            sh = CAShapeLayer(); sh.anchorPoint = .zero
+            sh.actions = ["path": NSNull(), "fillColor": NSNull(), "strokeColor": NSNull(), "lineWidth": NSNull(), "bounds": NSNull(), "position": NSNull()]
+            n.shapeBg = sh
+            n.layer.insertSublayer(sh, at: 0)
+        }
+        sh.bounds = CGRect(origin: .zero, size: n.box.size); sh.position = .zero
+        let path = cornerPath(n)
+        sh.path = path
+        sh.fillColor = n.fillColor
+        // an INSIDE stroke, as the other renderers paint it: stroke the outline
+        // at double width, masked to the outline — the inner half remains
+        if n.strokeW > 0, let sc = n.strokeColor {
+            sh.strokeColor = sc; sh.lineWidth = n.strokeW * 2
+            let m = CAShapeLayer(); m.anchorPoint = .zero
+            m.bounds = sh.bounds; m.position = .zero; m.path = path
+            sh.mask = m
+        } else { sh.strokeColor = nil; sh.lineWidth = 0; sh.mask = nil }
+        n.layer.backgroundColor = nil
+        n.layer.borderWidth = 0
+        if let g = n.gradient {
+            let m = CAShapeLayer(); m.anchorPoint = .zero
+            m.bounds = sh.bounds; m.position = .zero; m.path = path
+            g.mask = m
+        }
+    }
+
+    private func dropShape(_ n: Node) {
+        n.shapeBg?.removeFromSuperlayer(); n.shapeBg = nil
+        n.gradient?.mask = nil
+        n.layer.backgroundColor = n.gradient == nil ? n.fillColor : nil
+        n.layer.borderWidth = n.strokeW
+        n.layer.borderColor = n.strokeColor
     }
 
     // ── drawings ────────────────────────────────────────────────────────────

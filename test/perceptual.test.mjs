@@ -340,6 +340,7 @@ App [ width=240, height=160, fill=#20242C, stylesheet = Base,
     shadowBox: View [ x=132, y=76, width=56, height=32, fill=#FFFFFF, cornerRadius=8,
                       shadow = shadow(4, 4, 0, #00000044) ],
     veil: View [ x=200, y=124, width=32, height=24, fill=#FF000080 ],
+    corner: View [ x=200, y=76, width=32, height=32, fill=#FF00FF, cornerRadius=[0, 14, 0, 14] ],
     label: Text [ x=16, y=104, text="Styled", textShadow = shadow(1, 1, 0, #000000) ],
     sub: Text [ x=16, y=130, text="follows the app", fontSize=11, fontWeight=normal ],
   ]`;
@@ -2234,6 +2235,12 @@ try {
     { at: [58, 74], color: [0xd8, 0xd8, 0xd8], label: "chip2 gradient (the entry field fell through)" },
     { at: [13, 71], color: [0xff, 0x00, 0xff], label: "a child OVERFLOWS the rounded box — cornerRadius paints, never clips (the lean)" },
     { at: [160, 30], color: [0xe9, 0xc4, 0x6a], label: "panel = { theme.accent } (Base token)" },
+    // per-corner radius [0, 14, 0, 14]: two corners square, two rounded away — the
+    // same four pixels on both backends (each probe sits ~3.7px outside the arc)
+    { at: [201, 77], color: [0xff, 0x00, 0xff], label: "corner box: top-left is SQUARE (radius 0)" },
+    { at: [230, 77], color: R10_BG, label: "corner box: top-right is ROUNDED (bg shows)" },
+    { at: [230, 106], color: [0xff, 0x00, 0xff], label: "corner box: bottom-right is SQUARE" },
+    { at: [201, 106], color: R10_BG, label: "corner box: bottom-left is ROUNDED" },
     { at: [160, 92], color: [0xff, 0xff, 0xff], label: "shadow box interior" },
     { at: [190, 95], color: SHADOW_ON_BG, label: "the translucent drop shadow strip" },
     { at: [210, 130], color: VEIL_ON_BG, label: "the #RRGGBBAA translucent fill" },
@@ -2268,6 +2275,7 @@ try {
     { x: 13, y: 13, w: 90, h: 38, label: "chip1 rounded corners (CSS radius vs path AA)" },
     { x: 13, y: 55, w: 90, h: 38, label: "chip2 rounded corners" },
     { x: 129, y: 73, w: 62, h: 38, label: "shadowBox rounded corners" },
+    { x: 199, y: 75, w: 34, h: 34, label: "corner box: per-corner rounding (CSS radius vs path AA)" },
   ];
 
   const domR10 = await renderShot("/dom-r10", 1, "r10-dom.png");
