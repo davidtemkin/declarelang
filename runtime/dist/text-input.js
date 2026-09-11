@@ -46,7 +46,7 @@ export class TextInput extends Editor {
         // The house FIELD rendition (library-charter §6: a bare TextInput must
         // carry real visual articulation — today's edgeless default is a defect).
         // Same YIELDING-derive pattern as the seed above: reactive on the
-        // prevailing theme and on focus, displaced the moment the author assigns
+        // provided theme and on focus, displaced the moment the author assigns
         // the slot. Surface fill, a 1px line edge that turns accent when the
         // field holds keyboard focus, the theme's controlRadius geometry token.
         const tok = (name, fallback) => {
@@ -100,7 +100,7 @@ export class TextInput extends Editor {
     }
     flush(s) {
         super.flush(s);
-        // The style is the cold, prevailing path (like Text): a standing derive
+        // The style is the cold, provided path (like Text): a standing derive
         // over the four text slots so a provider re-rooting above re-styles the
         // field. It reads the slots under tracking; the apply re-syncs the element.
         const style = new Constraint("TextInput.editStyle", () => this.editStyle(), () => this.syncEditable(), 0);

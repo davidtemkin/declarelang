@@ -114,6 +114,9 @@ export declare class View extends Node {
     tip: string;
     scrollY: number;
     scrollX: number;
+    scrollStartY: number;
+    scrollStartX: number;
+    scrolling: boolean;
     /** Keyboard focus (docs/system-design/input.md, Layer 2). `focusable` = a tab stop;
      *  `focusTrap` = a self-contained focus group. Traversal order is the tree,
      *  overridable per view by defining a `tabOrder()` method. */
@@ -518,10 +521,23 @@ export declare class View extends Node {
      *  mirror alone, so the model never holds `Infinity`. The surface call is
      *  deliberately unconditional — an equality-gated model write must not
      *  swallow the request (the boot-time trap applyDeclaredScroll records). */
-    scrollTo(y: number): void;
+    scrollTo(y: number, glide?: {
+        duration?: number;
+        motion?: string;
+    }): void;
     /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
      *  for a `scrolls = x` (or `both`) view. */
-    scrollToX(x: number): void;
+    scrollToX(x: number, glide?: {
+        duration?: number;
+        motion?: string;
+    }): void;
+    /** A RELATIVE request — `scrollBy(dx, dy[, glide])`: the same contract as
+     *  `scrollTo`/`scrollToX`, measured from the current facts. The optional
+     *  glide is the provider's own motion (see ScrollGlide in backend.ts). */
+    scrollBy(dx: number, dy: number, glide?: {
+        duration?: number;
+        motion?: string;
+    }): void;
     /** Promotion (planes.md §1 — order is a slot): re-link this view among its
      *  siblings, tree and surface both. `raise()` moves it to the FRONT (last
      *  child — stacking is source order); `raise(below)` moves it to just BENEATH
@@ -685,7 +701,8 @@ export declare class App extends View {
     safeRight: number;
     /** The embedding environment's parameters (see schema.ts `env`): a record
      *  the host provides and keeps live; `{}` when top-level. Read reactively —
-     *  `theme = { Themes.x(app.env.dark == true) }` follows the host's flips. */
+     *  `theme = { app.env.dark ? SanFranciscoDark : SanFrancisco }` follows the
+     *  host's flips. */
     env: Record<string, unknown>;
     /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
      *  source line count — provided by the host/build (see index.ts note), 0

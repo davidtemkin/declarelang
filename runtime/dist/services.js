@@ -1,5 +1,5 @@
 // The runtime services usable INSIDE `{ }` bodies — `Focus.focus(this)` in a
-// click handler, `Keys.isDown("Shift")` in a constraint, `Themes.SanFrancisco`
+// click handler, `Keys.isDown("Shift")` in a constraint, `SanFrancisco`
 // in a style. Injecting them is a SIDE EFFECT, and this module exists to be
 // the smallest thing that carries it.
 //
@@ -23,12 +23,14 @@
 // live here now without a cycle.
 import { setBodyServices } from "./expr.js";
 import { setKeysFocusProbe, Keys } from "./keys.js";
-import { Themes } from "./themes.js";
+import { THEME_PRESETS, tint } from "./themes.js";
 import { Focus } from "./focus.js";
 import { Inspect } from "./inspect-service.js";
 import { afterSettle } from "./reactive.js";
-// afterSettle is a FUNCTION, not a service object — the one body-scope name
-// that is a verb: "finish after your change has taken effect" (language §7).
-setBodyServices({ Focus, Keys, Themes, Inspect, afterSettle });
+// The theme presets are in scope inside every `{ }` body by name (a bare
+// `SanFrancisco` / `CupertinoDark` is the record), alongside `tint`. afterSettle
+// is a FUNCTION, not a service object — the one body-scope name that is a verb:
+// "finish after your change has taken effect" (language §7).
+setBodyServices({ Focus, Keys, Inspect, afterSettle, tint, ...THEME_PRESETS });
 setKeysFocusProbe(() => Focus.getFocus() !== null);
 //# sourceMappingURL=services.js.map

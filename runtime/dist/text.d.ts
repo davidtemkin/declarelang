@@ -10,7 +10,7 @@ export declare class Text extends View {
     letterSpacing: number;
     selectable: boolean;
     text: string;
-    /** The glyphs' drop shadow (a decoration value, styling rung); null = none.
+    /** The glyphs' drop shadow (a decoration value); null = none.
      *  Replaces the two-stacked-runs idiom (weather's ShadowText). */
     textShadow: Shadow | null;
     /** A bounded-width run wraps (default) or stays a single line. */

@@ -76,7 +76,10 @@ extraSignatureTypes?: readonly string[],
 /** The program's `schema Name [ … ]` declarations (typed data) — each
  *  projects as an ambient `interface Name`, which is what makes the name
  *  real in every { } body, method signature, and script function. */
-shapes?: readonly SchemaDecl[]): string;
+shapes?: readonly SchemaDecl[], 
+/** The program's `theme Name [ … ]` declarations — each projects as an
+ *  ambient `declare const Name: Theme`, so a body can name it. */
+themeNames?: readonly string[]): string;
 /** A shape's TS object-type text — `{ id: string; n?: number; owner: Person;
  *  status: "open" | "closed"; steps: { a: string }[] }`. A named ref prints
  *  its NAME (the interface is emitted beside it); an inline nested shape

@@ -61,7 +61,7 @@ export function setBodyServices(services) {
 // keeps its scope and re-enters it there.
 let SCRIPT_SCOPE = {};
 const SCRIPT_STACK = [];
-/** Run `build` with `scope` as the prevailing script scope. */
+/** Run `build` with `scope` as the active script scope. */
 export function withScriptScope(scope, build) {
     SCRIPT_STACK.push(SCRIPT_SCOPE);
     SCRIPT_SCOPE = scope;

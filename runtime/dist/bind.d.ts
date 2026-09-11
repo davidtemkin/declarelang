@@ -27,11 +27,7 @@ deps?: readonly string[]): void;
 /** Bind `name = :path` (a value slot reading data, language §9): a standing
  *  computation over exactly that region of the inherited cursor's dataset.
  *  The raw value coerces to the slot's declared type at the boundary; an
- *  unresolved path lands the slot's fallback — the class default, or, on a
- *  PREVAILING slot, the followed value (ruled: the declaration default is
- *  just the chain's end). The fallback is read inside the tracked compute,
- *  so an unresolved prevailing slot keeps following live and lets go of the
- *  chain the moment the path resolves. */
+ *  unresolved path lands the slot's class default (the chain's end). */
 export declare function bindData(view: View, name: string, path: string, type: AttrType, plan?: readonly PathSeg[]): void;
 /** Bind `datapath = :rel.path`: this view's cursor is the INHERITED cursor
  *  (from the parent chain — never this view's own slot, which it defines)

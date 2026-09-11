@@ -126,8 +126,8 @@ export { DomBackend } from "./dom-backend.js";
 export { onIslandSlot } from "./backend.js";
 export { CanvasBackend } from "./canvas-backend.js";
 export { HeadlessBackend } from "./headless-backend.js";
-export { SCHEMAS, attrType, descendsFrom, isPrevailing } from "./schema.js";
-export { coerce, enumType, isPercent, colorToCss, colorWithAlpha, isGradient, gradient, stroke, outline, shadow, stop, DEFAULT_THEME } from "./value.js";
+export { SCHEMAS, attrType, descendsFrom } from "./schema.js";
+export { coerce, enumType, isPercent, colorToCss, colorWithAlpha, isGradient, gradient, stroke, outline, shadow, stop } from "./value.js";
 export { isSet, ownerOf } from "./attributes.js";
 export { CSS_COLORS } from "./css-colors.js";
 export { DeclareError, DeclareErrors } from "./errors.js";
@@ -141,5 +141,5 @@ export { Focus, FocusService, deliverKeys } from "./focus.js";
 // side-effect-free, and most of this runtime is not, so importing index.js for
 // these lines pinned modules a program could not reach (see services.ts).
 import "./services.js";
-export { Themes } from "./themes.js";
+export { THEME_PRESETS, THEME_PRESET_NAMES, tint } from "./themes.js";
 //# sourceMappingURL=index.js.map

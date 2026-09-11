@@ -112,10 +112,6 @@ export interface AttrDecl {
     type: string;
     typePos: Pos;
     def: Literal | null;
-    /** Declared `prevailing name: Type …` (the styling rung): an unset slot
-     *  follows the nearest providing ancestor's value, live. Part of the
-     *  slot's identity, like its type. */
-    prevailing: boolean;
     /** Declared `readonly name: Type = { … }`: a computed slot a constraint may
      *  read but nothing may set — the checker refuses an assignment and the
      *  runtime setter throws. Part of the slot's identity, like its type. */
@@ -159,9 +155,9 @@ export interface Element {
         src: string;
         pos: Pos;
     };
-    /** A class-keyed ENTRY (`Button: [ fill = … ]` — the styling rung's
-     *  stylesheet member): `tag` is the keyed class name. Only a stylesheet
-     *  admits one — the checker's question, like every other meaning. */
+    /** A class-keyed ENTRY (`Button: [ fill = … ]`): `tag` is the keyed class
+     *  name. The parser shapes it; the checker refuses it (no declaration admits
+     *  a class-keyed entry) — like every other meaning, the checker's question. */
     entry?: true;
     /** The navigable target of this element's activation handler, when the
      *  compiler's link extraction (compiler/src/links.ts) found a `navigate(to)`
@@ -180,10 +176,10 @@ export interface ClassDecl {
     body: Element;
     pos: Pos;
 }
-/** A top-level `stylesheet Name [ … ]` or `style name [ … ]` declaration
- *  (styling rung). The body is an Element tagged with the declaration's own
- *  name, so the member machinery is reused unchanged; the checker owns what
- *  each body may carry. */
+/** A top-level `theme Name [ … ]` (a named record value of type Theme),
+ *  `style name [ … ]` (a run-style bundle), or `font Name [ … ]` declaration.
+ *  The body is an Element tagged with the declaration's own name, so the member
+ *  machinery is reused unchanged; the checker owns what each body may carry. */
 export interface TopDecl {
     name: string;
     body: Element;
@@ -255,7 +251,7 @@ export interface ScriptBlock {
     span: Span;
 }
 /** A whole source: `include` directives, top-level declarations (classes,
- *  stylesheets, style bundles — any order), then the root instance. (The
+ *  themes, style bundles — any order), then the root instance. (The
  *  module/file model is an open language question — one file, declarations
  *  above the root, is the R6 shape; see HANDOFF §R6.) `includes` is the raw
  *  reference list; the resolve phase (include.ts) folds included libraries in
@@ -265,7 +261,9 @@ export interface Program {
     /** Top-level `schema Name [ … ]` declarations (typed data). Optional so
      *  hand-built Program literals stay valid. */
     shapes?: SchemaDecl[];
-    stylesheets: TopDecl[];
+    /** Top-level `theme Name [ … ]` declarations — named record values of type
+     *  Theme (design-token presets and app brand themes). */
+    themes: TopDecl[];
     styles: TopDecl[];
     fonts: TopDecl[];
     includes: IncludeRef[];
@@ -295,13 +293,13 @@ export interface Program {
     trusted?: boolean;
 }
 /** An included file (composition.md §1): a library of top-level declarations
- *  — classes, stylesheets, styles, and its own `include`s — with NO root. It
- *  is not a Program: it never declares an App, so it has no `root`. */
+ *  — classes, themes, styles, and its own `include`s — with NO root. It is
+ *  not a Program: it never declares an App, so it has no `root`. */
 export interface Library {
     classes: ClassDecl[];
     /** A library's own `schema Name [ … ]` declarations, merged like classes. */
     shapes?: SchemaDecl[];
-    stylesheets: TopDecl[];
+    themes: TopDecl[];
     styles: TopDecl[];
     fonts: TopDecl[];
     includes: IncludeRef[];
@@ -324,7 +322,7 @@ export interface Library {
  *  parseProgram (which build()/render() call). */
 export declare function parse(source: string): Element;
 /** Parse a whole Declare source: `include`s and top-level declarations
- *  (classes, stylesheets, style bundles), the root instance, and — ruled
+ *  (classes, themes, style bundles), the root instance, and — ruled
  *  2026-08-06 — declarations may FOLLOW the root too, in any order. The
  *  reading convention stays declarations-first (the guide says so; the
  *  formatter never reorders), but the parser accepts the natural writing
@@ -334,8 +332,7 @@ export declare function parse(source: string): Element;
  *  holdouts (C, F#, XAML's StaticResource) are the resented company. */
 export declare function parseProgram(source: string): Program;
 /** Parse an INCLUDED file (composition.md §1): the same top-level
- *  declarations as a program, then eof — a library declares classes,
- *  stylesheets, and styles, never a root. A stray root element is a
- *  positioned error: an included file is a library of definitions, not an
- *  App. */
+ *  declarations as a program, then eof — a library declares classes, themes,
+ *  and styles, never a root. A stray root element is a positioned error: an
+ *  included file is a library of definitions, not an App. */
 export declare function parseLibrary(source: string): Library;

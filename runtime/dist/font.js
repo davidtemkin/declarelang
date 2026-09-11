@@ -8,7 +8,7 @@
 // `family` is the CSS family the name resolves to (defaults to the declaration
 // name). Each `Face [ src, weight?, italic? ]` child is a face to load; a font
 // with no faces is a SYSTEM font (its faces are the OS's, resolved at the use
-// site). Unlike the stylesheet channel, a font is STATIC: `fontFamily = Name`
+// site). A font is STATIC: `fontFamily = Name`
 // resolves to a plain family string at instantiate (the render seam still
 // carries a string; the backends are untouched), no runtime reactivity. Web
 // faces are collected for the runtime to load before first paint (index.ts →
@@ -80,9 +80,9 @@ function buildFace(fontName, family, face) {
         throw new DeclareError(`font ${fontName}: a Face needs a src`, face.pos);
     return { family, src, weight, style };
 }
-/** Build the program's font declarations into resolved Fonts. Mirrors
- *  buildStylesheets: the checker (checkFontBody) reports every error, this
- *  throws on the first as the direct-instantiate safety net. */
+/** Build the program's font declarations into resolved Fonts: the checker
+ *  (checkFontBody) reports every error, this throws on the first as the
+ *  direct-instantiate safety net. */
 export function buildFonts(decls) {
     const map = new Map();
     for (const decl of decls) {
@@ -116,7 +116,7 @@ export function collectFaces(fonts) {
     return out;
 }
 // The program's face list, keyed by tree root — index.ts reads it to load the
-// web faces before first paint (mirrors the stylesheet registry).
+// web faces before first paint.
 const FACES = new WeakMap();
 export function registerFontFaces(root, faces) {
     FACES.set(root, faces);
@@ -124,4 +124,15 @@ export function registerFontFaces(root, faces) {
 export function fontFacesOf(root) {
     return FACES.get(root) ?? [];
 }
+const LOADED_FACES = [];
+const FONT_LISTENERS = [];
+export function noteLoadedFaces(faces) {
+    LOADED_FACES.push(...faces);
+    for (const fn of FONT_LISTENERS)
+        fn(faces);
+}
+/** Every face loaded so far. */
+export function loadedFontFaces() { return LOADED_FACES; }
+/** Hear the faces that load LATER (an island's tenant, a late app). */
+export function onFontsLoaded(fn) { FONT_LISTENERS.push(fn); }
 //# sourceMappingURL=font.js.map

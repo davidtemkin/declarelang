@@ -20,9 +20,9 @@ export interface Font {
 }
 /** A weight token → its numeric CSS weight, or null if not a formalized token. */
 export declare function faceWeight(token: string): string | null;
-/** Build the program's font declarations into resolved Fonts. Mirrors
- *  buildStylesheets: the checker (checkFontBody) reports every error, this
- *  throws on the first as the direct-instantiate safety net. */
+/** Build the program's font declarations into resolved Fonts: the checker
+ *  (checkFontBody) reports every error, this throws on the first as the
+ *  direct-instantiate safety net. */
 export declare function buildFonts(decls: readonly {
     name: string;
     body: Element;
@@ -33,3 +33,15 @@ export declare function buildFonts(decls: readonly {
 export declare function collectFaces(fonts: ReadonlyMap<string, Font>): FontFaceSpec[];
 export declare function registerFontFaces(root: object, faces: readonly FontFaceSpec[]): void;
 export declare function fontFacesOf(root: object): readonly FontFaceSpec[];
+/** A face the page has loaded, as a second realm can load it identically. */
+export interface LoadedFace {
+    family: string;
+    src: string;
+    weight: string;
+    style: string;
+}
+export declare function noteLoadedFaces(faces: readonly LoadedFace[]): void;
+/** Every face loaded so far. */
+export declare function loadedFontFaces(): readonly LoadedFace[];
+/** Hear the faces that load LATER (an island's tenant, a late app). */
+export declare function onFontsLoaded(fn: (faces: readonly LoadedFace[]) => void): void;

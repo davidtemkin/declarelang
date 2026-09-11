@@ -10,7 +10,7 @@
 //     included), and rasterizes THIS SAME code into a per-view canvas the
 //     moment `cornerRadius > 0`, where Chrome's border-radius corner AA
 //     measurably diverges from path AA (up to ~80/255 per channel at a
-//     corner pixel — the styling rung's measurement). That is the ruled
+//     corner pixel). That is the ruled
 //     fallback landing: CSS as a paint primitive only while it proves
 //     pixel-stable, per-view rasterization where it does not.
 //

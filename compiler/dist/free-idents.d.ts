@@ -7,7 +7,7 @@ export interface FreeIdent {
     end: number;
     shorthand: boolean;
     /** The occurrence is a call's callee (`stroke(…)`) — what lets the compile
-     *  layer keep the value CONSTRUCTORS (styling rung) out of member
+     *  layer keep the value CONSTRUCTORS out of member
      *  resolution: `stroke` alone is the slot, `stroke(…)` the constructor. */
     callee: boolean;
     /** The occurrence is WRITTEN: the target of `=` or a compound assignment,
