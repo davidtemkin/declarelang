@@ -7444,6 +7444,27 @@ await test("visibility facts: pay-per-use — an unbound view installs no comput
   } finally { app.discard(); }
 });
 
+await test("provided: a replicated instance's provisions land BEFORE it attaches — the Text's pushed face reads them", async () => {
+  // A fresh instance is made, linked, cursored, ATTACHED, then finished; attach
+  // first-runs the Text's face push. Its class-body provision (`textColor =
+  // { ink }`, a Button's whole ink decision) must be in place by then, or the
+  // label pushes the default ink and keeps it (desktop Files "Open", 2026-09-11).
+  // settleHeadless ATTACHES (a headless backend), which is the whole point:
+  // the face push happens at attach, and this test reads what it pushed.
+  const r = await compile(`class Row extends View [ ink: Color = #00ff00, textColor = { ink }, t: Text [ text = "a" ] ]
+App [ width = 100, height = 100,
+  ds: Dataset [ contents = { { items: [] } } ],
+  col: View [ datapath = { app.ds.value }, Row [ datapath = :items[] ] ]
+  ]`, {});
+  if (r.errors.length > 0) throw new DeclareErrors(r.errors);
+  const app = settleHeadless(r.source, { deps: r.deps });
+  app.ds.insert(["items"], 0, { id: 1 });      // an arrival after boot — the replicator's pipeline
+  settle();
+  const row = app.col.children[0];
+  assert.equal(row.t.textColor, 0x00ff00, "the model reads the provision");
+  assert.equal(row.t.surface.textStyle.color, 0x00ff00, "the face pushed at attach carried it too");
+});
+
 summarize("unit");
 
 // ── the device profile: three independent facts, none of them a guess ───────

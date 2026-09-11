@@ -105,6 +105,47 @@ all. **A menu with no icons has no gutter**, and the text edge moves accordingly
 The x every row's label starts at — one line for the whole menu, icons or not, and what
 a `kind` row must align its own content to.
 
+## width
+Follows the rows: the text edge, the widest label, then the key column or the trailing
+air — the metrics of a real macOS menu, measured (the longest label trails the edge by
+18; a key column sits 26 clear of the longest label and ends 16 from the edge; menu bar
+menus and popups measure the same). A use site's own `width` overrides; `minWidth`
+floors it.
+
+## minWidth
+The narrowest a menu gets, whatever its rows measure — a two-item menu of short words
+still reads as a menu.
+
+## widestLabel
+The widest row label, measured — the content the panel's width is built from.
+
+## widestKey
+The widest key equivalent, measured; zero when no row carries one, which is what
+decides whether the key column exists.
+
+## hasSubs
+Whether any row opens a submenu — a cascade arrow needs its own trailing room.
+
+## width
+Follows the rows: the text edge, the widest label, then the key column or the trailing
+air — the metrics of a real macOS menu, measured (a label trails the edge by 18; a key
+column sits 26 clear of the longest label and ends 16 from the edge). A use site's own
+`width` overrides; `minWidth` floors it.
+
+## minWidth
+The narrowest a menu gets, whatever its rows measure — a two-item menu of short words
+still reads as a menu.
+
+## widestLabel
+The widest row label, measured — the content the panel's width is built from.
+
+## widestKey
+The widest key equivalent, measured; zero when no row carries one, which is what
+decides whether the key column exists.
+
+## hasSubs
+Whether any row opens a submenu — a cascade arrow needs its own trailing room.
+
 ## expectedHeight()
 The panel's height *before it has been laid out*, measured when it exists and estimated
 from the record count when it does not. The flip-above decision cannot wait for a
@@ -201,8 +242,34 @@ class Menu extends View [
     // are plain typed members. Default = the house look (no runtime floor).
 
     theme: Theme = { provided("theme", SanFrancisco) },
-    visible = { shown }, width = 220,
+    visible = { shown },
     height = { this.panel.height },              // the panel; the backdrop deliberately overflows
+
+    // WIDTH FOLLOWS THE ROWS. Measured on real NSMenus (2026-09-11, a native
+    // probe popping menus over a white window, pixel-measured at 2x): with a
+    // check column the text leads the panel edge by 25.5pt (textEdge, below)
+    // and the longest label TRAILS it by 17.5pt; with key equivalents the
+    // longest label sits 26pt clear of the key column, which ends 16pt from the
+    // edge. A fixed width ran a long label into the edge (the desktop's
+    // "Embedding Declare in a project").
+    // The widest label and key are MEASURED by two hidden runs over the same
+    // records (a y-run's contentWidth is its widest child — content-sized text,
+    // so no cycle through the panel's width; the checker rightly refuses an
+    // aggregate over live children). A use site's own `width` overrides.
+
+    labelRun: View [ visible = false, datapath = { classroot.data.value },
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        TextLabel [ datapath = :rows[], fontSize = 13, wrap = false, text = { "" + (:label || "") } ]
+        ],
+    keyRun: View [ visible = false, datapath = { classroot.data.value },
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        TextLabel [ datapath = :rows[], fontSize = 12, wrap = false, text = { "" + (:key || "") } ]
+        ],
+    widestLabel: number = { this.labelRun.contentWidth },
+    widestKey:   number = { this.keyRun.contentWidth },
+    hasSubs:     boolean = { (this.items || []).some((r) => r.submenu != null) },
+    minWidth:    number = 120,
+    width = { Math.max(minWidth, textEdge + widestLabel + (widestKey > 0 ? 26 + widestKey + 16 : hasSubs ? 34 : 18)) },
 
     items: array = null,
     opener: View = null,
@@ -513,7 +580,7 @@ class Menu extends View [
                     text = { "" + (:label || "") } ],
 
                 key: TextLabel [ fontSize = 12,
-                    x = { parent.width - this.width - 12 },
+                    x = { parent.width - this.width - 16 },        // the key column ends 16pt from the edge (measured)
                     visible = { !parent.divider && !parent.sub && :key != null },
                     textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted },
                     text = { "" + (:key || "") } ],

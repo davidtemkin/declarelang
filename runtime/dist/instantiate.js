@@ -310,14 +310,28 @@ function buildTree(program, trusted) {
  *       provide a value and derive another provision from it, in any source
  *       order. */
 function installPending(pending, ctx) {
-    const provisions = [], readers = [];
+    const { provisions, rest } = partitionPending(pending);
+    installBatch(provisions, ctx);
+    installBatch(rest, ctx);
+}
+/** The batch in install order, split at the provision/reader boundary so a
+ *  caller can land the provisions EARLY — the materializer installs them
+ *  before the instance ATTACHES, because attach first-runs a Text's face push
+ *  (flush → the style constraint), and a face read that misses a provision the
+ *  instance is about to install keeps the default ink (the desktop Files "Open"
+ *  label read black a moment before its Button provided white, 2026-09-11).
+ *  The readers follow once linked, attached, and cursored, as before. */
+function partitionPending(pending) {
+    const provisions = [], rest = [];
     for (const p of pending) {
         if ("provideCode" in p)
             provisions.push(p);
         else
-            readers.push(p);
+            rest.push(p);
     }
-    const ordered = [...orderProvisions(provisions), ...readers];
+    return { provisions: orderProvisions(provisions), rest };
+}
+function installBatch(ordered, ctx) {
     for (const p of ordered) {
         if ("code" in p)
             bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
@@ -1474,6 +1488,7 @@ export function createViewIn(root, tag, parent, props) {
     const el = { tag, name: null, attrs: [], decls: [], methods: [], children: [], pos: { line: 0, col: 0 } };
     const made = materializer(ctx)(el, parent);
     parent.insertChild(made.view, parent.children.length);
+    made.provide(); // provisions before attach (partitionPending)
     const ps = parent.surface;
     if (ps !== null && parent.backend !== null)
         made.view.attach(parent.backend, ps, null);
@@ -1512,14 +1527,25 @@ function materializer(ctx) {
             if (!(node instanceof View)) {
                 throw new DeclareError(`a ${template.tag} cannot replicate — it is not a view`, template.pos);
             }
-            const pending = ctx.pending;
+            const { provisions, rest } = partitionPending(ctx.pending);
+            // provide lands the instance's PROVISIONS — called by the consumer before
+            // the instance attaches (see partitionPending); finish lands the rest and
+            // covers a consumer that never called provide. Both COMPILE (installBatch
+            // binds constraints, which capture the script scope at compile time) —
+            // they need the scope exactly as construct does.
+            let provided = false;
+            const provide = () => {
+                if (provided)
+                    return;
+                provided = true;
+                withScriptScope(CURRENT_SCRIPTS, () => installBatch(provisions, ctx));
+            };
             return {
                 view: node,
-                // finish COMPILES (installPending binds constraints, which capture
-                // the script scope at compile time) — it needs the scope exactly as
-                // construct does
+                provide,
                 finish: () => {
-                    withScriptScope(CURRENT_SCRIPTS, () => installPending(pending, ctx));
+                    provide();
+                    withScriptScope(CURRENT_SCRIPTS, () => installBatch(rest, ctx));
                     initTree(node);
                 },
                 // Membership-anchored init (the D5 ruling): the reconciler calls this
@@ -1552,6 +1578,7 @@ export function createElementIn(root, el, parent) {
     try {
         const made = materializer(ctx)(el, parent);
         parent.insertChild(made.view, parent.children.length);
+        made.provide(); // provisions before attach (partitionPending)
         const ps = parent.surface;
         if (ps !== null && parent.backend !== null)
             made.view.attach(parent.backend, ps, null);

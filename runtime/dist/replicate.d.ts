@@ -10,6 +10,7 @@ import { type PathSeg } from "./datapath.js";
 export interface Materialize {
     (template: Element, classroot: View): {
         view: View;
+        provide: () => void;
         finish: () => void;
         suppressInit: () => void;
     };

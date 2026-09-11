@@ -49,7 +49,10 @@ class HeadlessSurface implements Surface {
   setEmbed(_id: string): void {}
   setDrawing(_list: DisplayList | null): void {}
   setText(_text: string): void {}
-  setTextStyle(_style: TextStyle): void {}
+  /** The last pushed face — recorded so a test can see what a Text pushed
+   *  at attach (the pipeline's ordering is only observable here). */
+  textStyle: TextStyle | null = null;
+  setTextStyle(style: TextStyle): void { this.textStyle = style; }
   setImage(_image: HTMLImageElement | null): void {}
   setImageStretch(_stretch: Stretch): void {}
   setInput(_sink: InputSink | null): void {}

@@ -43,7 +43,10 @@ class HeadlessSurface {
     setEmbed(_id) { }
     setDrawing(_list) { }
     setText(_text) { }
-    setTextStyle(_style) { }
+    /** The last pushed face — recorded so a test can see what a Text pushed
+     *  at attach (the pipeline's ordering is only observable here). */
+    textStyle = null;
+    setTextStyle(style) { this.textStyle = style; }
     setImage(_image) { }
     setImageStretch(_stretch) { }
     setInput(_sink) { }

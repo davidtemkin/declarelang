@@ -381,9 +381,25 @@ function buildTree(program: Program, trusted: boolean): View {
  *       provide a value and derive another provision from it, in any source
  *       order. */
 function installPending(pending: readonly Pending[], ctx: Ctx): void {
-  const provisions: ProvisionPending[] = [], readers: Pending[] = [];
-  for (const p of pending) { if ("provideCode" in p) provisions.push(p); else readers.push(p); }
-  const ordered: Pending[] = [...orderProvisions(provisions), ...readers];
+  const { provisions, rest } = partitionPending(pending);
+  installBatch(provisions, ctx);
+  installBatch(rest, ctx);
+}
+
+/** The batch in install order, split at the provision/reader boundary so a
+ *  caller can land the provisions EARLY — the materializer installs them
+ *  before the instance ATTACHES, because attach first-runs a Text's face push
+ *  (flush → the style constraint), and a face read that misses a provision the
+ *  instance is about to install keeps the default ink (the desktop Files "Open"
+ *  label read black a moment before its Button provided white, 2026-09-11).
+ *  The readers follow once linked, attached, and cursored, as before. */
+function partitionPending(pending: readonly Pending[]): { provisions: Pending[]; rest: Pending[] } {
+  const provisions: ProvisionPending[] = [], rest: Pending[] = [];
+  for (const p of pending) { if ("provideCode" in p) provisions.push(p); else rest.push(p); }
+  return { provisions: orderProvisions(provisions), rest };
+}
+
+function installBatch(ordered: readonly Pending[], ctx: Ctx): void {
   for (const p of ordered) {
     if ("code" in p) bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
     else if ("twoWay" in p) bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
@@ -1511,6 +1527,7 @@ export function createViewIn(root: View, tag: string, parent: View, props?: Reco
   const el = { tag, name: null, attrs: [], decls: [], methods: [], children: [], pos: { line: 0, col: 0 } } as unknown as Element;
   const made = materializer(ctx)(el, parent);
   parent.insertChild(made.view, parent.children.length);
+  made.provide();                                   // provisions before attach (partitionPending)
   const ps = parent.surface;
   if (ps !== null && parent.backend !== null) made.view.attach(parent.backend, ps, null);
   // Props land BEFORE finish — the replicator's own order ("linked, attached,
@@ -1541,7 +1558,7 @@ export function createViewIn(root: View, tag: string, parent: View, props?: Reco
  *  init fires) via `finish`, once the replicator has linked, attached, and
  *  cursored it. Identical machinery at build time and at every arrival. */
 function materializer(ctx: Ctx) {
-  return (template: Element, classroot: View): { view: View; finish: () => void; suppressInit: () => void } => {
+  return (template: Element, classroot: View): { view: View; provide: () => void; finish: () => void; suppressInit: () => void } => {
     const saved = ctx.pending;
     ctx.pending = [];
     try {
@@ -1549,14 +1566,24 @@ function materializer(ctx: Ctx) {
       if (!(node instanceof View)) {
         throw new DeclareError(`a ${template.tag} cannot replicate — it is not a view`, template.pos);
       }
-      const pending = ctx.pending;
+      const { provisions, rest } = partitionPending(ctx.pending);
+      // provide lands the instance's PROVISIONS — called by the consumer before
+      // the instance attaches (see partitionPending); finish lands the rest and
+      // covers a consumer that never called provide. Both COMPILE (installBatch
+      // binds constraints, which capture the script scope at compile time) —
+      // they need the scope exactly as construct does.
+      let provided = false;
+      const provide = (): void => {
+        if (provided) return;
+        provided = true;
+        withScriptScope(CURRENT_SCRIPTS, () => installBatch(provisions, ctx));
+      };
       return {
         view: node,
-        // finish COMPILES (installPending binds constraints, which capture
-        // the script scope at compile time) — it needs the scope exactly as
-        // construct does
+        provide,
         finish: () => {
-          withScriptScope(CURRENT_SCRIPTS, () => installPending(pending, ctx));
+          provide();
+          withScriptScope(CURRENT_SCRIPTS, () => installBatch(rest, ctx));
           initTree(node);
         },
         // Membership-anchored init (the D5 ruling): the reconciler calls this
@@ -1589,6 +1616,7 @@ export function createElementIn(root: View, el: Element, parent: View): View {
   try {
     const made = materializer(ctx)(el, parent);
     parent.insertChild(made.view, parent.children.length);
+    made.provide();                                 // provisions before attach (partitionPending)
     const ps = parent.surface;
     if (ps !== null && parent.backend !== null) made.view.attach(parent.backend, ps, null);
     made.finish();

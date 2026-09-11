@@ -56,7 +56,7 @@ import type { Surface } from "./backend.js";
  *  fires init once linked and attached) and `suppressInit` (pre-marks the
  *  subtree inited — the membership-anchored lifecycle, D5). */
 export interface Materialize {
-  (template: Element, classroot: View): { view: View; finish: () => void; suppressInit: () => void };
+  (template: Element, classroot: View): { view: View; provide: () => void; finish: () => void; suppressInit: () => void };
 }
 
 /** The virtualization policy — `virtualize` on the replicated element. A
@@ -794,7 +794,7 @@ export class Replicator {
       return k === null ? undefined : take(byContent.get(k));
     };
     const next: View[] = [];
-    const fresh = new Map<View, () => void>();
+    const fresh = new Map<View, { provide: () => void; finish: () => void }>();
     const misses: { slot: number; id: unknown }[] = [];
     for (const node of nodes) {
       const id = this.idOf(node.value);
@@ -859,7 +859,7 @@ export class Replicator {
       // already fired gets a silent reconstruction — onInit is once per
       // record-membership, never per physical construct.
       if (this.inited.has(miss.id)) made.suppressInit();
-      fresh.set(made.view, made.finish);
+      fresh.set(made.view, made);
       next[miss.slot] = made.view;
     }
     // Cursors, uniformly — and BEFORE anything attaches (field report
@@ -873,6 +873,14 @@ export class Replicator {
     next.forEach((v, i) => {
       setBound(v, "datapath", data === null ? null : data.cursorAt(nodes[i].path));
     });
+    // Provisions land BEFORE attach (instantiate's partitionPending): attach
+    // first-runs a Text's face push, and a face read that missed a provision
+    // the instance was about to install kept the default ink. Cursored first,
+    // so a provision reading `:path` boots against its record. Contained per
+    // instance, like attach and finish.
+    for (const [v, made] of fresh) {
+      try { made.provide(); } catch (e) { reportInstanceThrow(v, "providing", e); }
+    }
     // Leftovers: instances whose record left the WINDOW. A clean instance
     // discards freely (reconstruction is unobservable — §2); a TOUCHED one
     // (the divergence bit, or one still holding cells the user typed into)
@@ -1058,8 +1066,8 @@ export class Replicator {
     // tracking arms (construct-phase writes never count as touch). Contained
     // per instance, like attach above: one instance's throwing member is that
     // instance's defect, reported with its path.
-    for (const [v, finish] of fresh) {
-      try { finish(); } catch (e) { reportInstanceThrow(v, "finishing", e); }
+    for (const [v, made] of fresh) {
+      try { made.finish(); } catch (e) { reportInstanceThrow(v, "finishing", e); }
     }
     // recycled instances presenting a NEW member fire that member's init on
     // the live subtree (cursored and placed by now), then re-arm divergence
