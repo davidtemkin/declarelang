@@ -16,6 +16,7 @@
 
 import { View, onDiscard, fireEvent } from "./view.js";
 import { Text } from "./text.js";
+import { Image } from "./image.js";
 import type { RenderBackend, RichBlock, RichRun, Surface } from "./backend.js";
 import { Layout, type Box } from "./layout.js";
 import { Constraint } from "./reactive.js";
@@ -24,12 +25,13 @@ import { fontMetrics, fontString, textWidth, transformText, type FontWeight, typ
 import { parse, type Block, type Inline } from "./md.js";
 import { headingSlug } from "./slug.js";
 import { parseHtml, type Unsupported } from "./html.js";
+import { resolveAsset } from "./asset-base.js";
 import { coerce, type Fill, type Shadow, type Outline, type Color } from "./value.js";
 import type { Literal } from "./parser.js";
 import { styleBundles } from "./style-bundles.js";
 import { compileExpr } from "./expr.js";
 
-// ── prose stylesheet ─────────────────────────────────────────────────────────
+// ── prose style map ──────────────────────────────────────────────────────────
 // The role → style map that makes rendered Markdown look good with zero author
 // effort, on the theme tokens. A design artifact, deliberately data (not code).
 const PROSE = {
@@ -158,26 +160,30 @@ function bundleToRunStyle(el: BundleEl): RunStyle {
   }
   return rs;
 }
-// The running-text style pulled from the prevailing text slots (fontSize/
+// The running-text style pulled from the provided text slots (fontSize/
 // fontWeight/letterSpacing), set per rebuild — so ALL prose body (paragraphs
 // AND list/quote/table text) obeys the ambient text style, like a `Text`.
 let BODY: { size: number; weight: FontWeight; tracking: number } = { size: 16, weight: "normal", tracking: 0 };
-// The rich-text STRUCTURE style, resolved per rebuild from the prevailing
+// The rich-text STRUCTURE style, resolved per rebuild from the provided
 // structural slots (headingColor/headingWeight/linkColor/codeColor) with the
 // theme-aware house token as the fallback — so headings/links/inline-code obey
 // an app-wide override but look right with zero config.
 let HEADINGW: FontWeight = "bold";
 let HEADINGC = 0, LINKC = 0, CODEC = 0;
 let LINKU = false;                               // underline links (schema `linkUnderline`)
-// Code face + size — resolved per rebuild from the prevailing codeSize/codeFamily
+// Code face + size — resolved per rebuild from the provided codeSize/codeFamily
 // slots, with the house code style (PROSE.codeSize / PROSE.mono) as the fallback.
 // One value drives every monospace region: inline code, fenced blocks, and the
 // `<pre>` HTMLText path — so the reader view and fenced code share one rendition.
 let CODESIZE = 0, CODEFAM = "";
-// Code-block box paint, resolved per rebuild from the prevailing codeBackground/
+// Code-block box paint, resolved per rebuild from the provided codeBackground/
 // codeRule slots (null = the house look). CODEBG null ⇒ fenced code keeps its
 // themed tint and a `<pre>` stays bare; CODERULE null ⇒ no left bar on either.
 let CODEBG: number | null = null, CODERULE: number | null = null;
+// Resolve an inline image's `src` against the document's asset base (the same
+// rebase an `Image [ source ]` gets), set per rebuild from the component's root.
+// Absolute/protocol-relative/root-relative/data: srcs pass through untouched.
+let RESOLVE_SRC: (src: string) => string = (s) => s;
 // Per-block-type layout geometry (the richTextLayout map), set per rebuild — an
 // empty map means every block flows full-width and left-aligned, exactly as before.
 type BlockGeo = { maxWidth?: number; margin?: readonly [number, number]; align?: "left" | "center" | "right" };
@@ -246,7 +252,7 @@ function base(size: number, weight: FontWeight, color: number, tracking = 0): St
   return { size: sz(size), weight, italic: false, mono: false, strike: false, color, tracking };
 }
 
-/** Apply a named `RunStyle` (Text's own attribute names) onto the prevailing
+/** Apply a named `RunStyle` (Text's own attribute names) onto the ambient
  *  style. Each field maps to its internal Style twin; a size is SCALE-multiplied
  *  like every prose size so the `scale` attr still governs. */
 function applyStyle(style: Style, rs: RunStyle): Style {
@@ -267,8 +273,8 @@ function applyStyle(style: Style, rs: RunStyle): Style {
   return s;
 }
 
-type Atom = { text: string; style: Style } | { br: true };
-/** Walk the inline tree, resolving each leaf's prevailing style. */
+type Atom = { text: string; style: Style } | { br: true } | { img: { src: string; alt: string; title?: string; href?: string } };
+/** Walk the inline tree, resolving each leaf's effective style. */
 function flatten(ns: Inline[], style: Style, out: Atom[]): void {
   for (const n of ns) {
     switch (n.t) {
@@ -279,6 +285,9 @@ function flatten(ns: Inline[], style: Style, out: Atom[]): void {
       case "em": flatten(n.inline, { ...style, italic: true }, out); break;
       case "strike": flatten(n.inline, { ...style, strike: true }, out); break;
       case "link": flatten(n.inline, { ...style, color: LINKC, link: n.href }, out); break;
+      // An inline image is an atomic box, not styled text; it carries the ambient
+      // link (an image that is a link's content) so the box is clickable.
+      case "image": out.push({ img: { src: RESOLVE_SRC(n.src), alt: n.alt, title: n.title, href: style.link } }); break;
       case "styled": { const rs = resolveStyle(n.name); flatten(n.inline, rs !== undefined ? applyStyle(style, rs) : style, out); break; }
     }
   }
@@ -328,6 +337,7 @@ function richRunsOf(inline: Inline[], style: Style, family: string): RichRun[] {
   flatten(inline, style, atoms);
   return atoms.map((a): RichRun => {
     if ("br" in a) return { br: true };
+    if ("img" in a) return { img: a.img };
     const s = a.style;
     const run: RichRun = {
       text: a.text, size: s.size, weight: s.weight, italic: s.italic,
@@ -361,10 +371,17 @@ function applyRunTreatments(t: Text, r: Extract<RichRun, { text: string }>): voi
   if (r.underline) t.underline = true;
 }
 
+/** What the canvas flow needs to size and place one inline image: the persistent
+ *  (cached, reactive) Image view plus its natural size and load/fail state. */
+type ImageInfo = { view: Image; nw: number; nh: number; loaded: boolean; failed: boolean };
+type ImageFor = (src: string) => ImageInfo;
+
 /** Canvas fallback: flow the resolved runs as child views (the same greedy
  *  word-wrap as `layoutInline`, but over already-resolved runs). Returns the
- *  views to parent and the total height. */
-function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: string) => void): { views: View[]; height: number; anchors: Map<string, number> } {
+ *  views to parent and the total height. Inline images are placed as atomic
+ *  replaced boxes via `imageFor` (a persistent Image view per src); an image
+ *  whose load has FAILED degrades to its `alt` text. */
+function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: string) => void, imageFor?: ImageFor): { views: View[]; height: number; anchors: Map<string, number> } {
   const views: View[] = [];
   const anchors = new Map<string, number>();
   let y = 0;
@@ -388,6 +405,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       let px = 0, ln = 0;
       for (const r of b.runs) {
         if ("br" in r) { ln++; px = 0; continue; }
+        if ("img" in r) continue;   // an image never occurs in a `pre` (code) block
         const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
         const segs = r.text.split("\n");
         for (let si = 0; si < segs.length; si++) {
@@ -411,20 +429,81 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     }
 
     type P = { text: string; run: Extract<RichRun, { text: string }>; w: number };
-    type Tok = { word: P[] } | { sp: true } | { br: true };
+    type Tok = { word: P[] } | { sp: true } | { br: true } | { img: Image; w: number; h: number; href?: string };
     const toks: Tok[] = [];
     let word: P[] = [];
     const flush = () => { if (word.length) { toks.push({ word }); word = []; } };
     for (const r of b.runs) {
       if ("br" in r) { flush(); toks.push({ br: true }); continue; }
+      // Inline image on the manual flow (Canvas/mac): a real replaced box — a
+      // persistent, cached Image view (from `imageFor`) sized to its natural
+      // aspect capped to the flow width, placed atomically in the line, bottom on
+      // the baseline. Before the bitmap loads it occupies nothing (it pops in on
+      // load, when the flow reflows); a FAILED load degrades to the `alt` text (a
+      // broken image's own fallback), in the block's lead style.
+      if ("img" in r) {
+        const info = imageFor?.(r.img.src);
+        if (info !== undefined && !info.failed) {
+          flush();
+          let iw = 0, ih = 0;
+          if (info.loaded && info.nw > 0) { iw = Math.min(info.nw, width); ih = Math.max(1, Math.round(info.nh * (iw / info.nw))); }
+          toks.push({ img: info.view, w: iw, h: ih, href: r.img.href });
+          continue;
+        }
+        // no image host, or the load failed → alt text fallback
+        const base: Extract<RichRun, { text: string }> = { text: "", size: lead?.size ?? b.fontSize, weight: lead?.weight ?? "normal", italic: false, family: lead?.family ?? FALLBACK_FAMILY, strike: false, color: lead?.color ?? 0, tracking: lead?.tracking ?? 0 };
+        if (r.img.href !== undefined) base.href = r.img.href;
+        const imf = fontString({ fontFamily: base.family, fontSize: base.size, fontWeight: base.weight });
+        for (const part of (r.img.alt || r.img.src).split(/(\s+)/)) {
+          if (part === "") continue;
+          if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last)) toks.push({ sp: true }); }
+          else word.push({ text: part, run: { ...base, text: part }, w: textWidth(part, imf, base.tracking) });
+        }
+        continue;
+      }
       const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
       for (const part of r.text.split(/(\s+)/)) {
         if (part === "") continue;
-        if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && "word" in last) toks.push({ sp: true }); }
+        if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last)) toks.push({ sp: true }); }
         else word.push({ text: part, run: r, w: textWidth(r.transform ? transformText(part, r.transform) : part, f, r.tracking) });
       }
     }
     flush();
+
+    // A single word (no internal whitespace) WIDER than the flow cannot wrap at a
+    // space, so — matching CSS `overflow-wrap: break-word` and the DOM backend
+    // (a long code span or slash-path in a narrow table cell) — it breaks at
+    // character boundaries into pieces that each fit. Only over-wide words are
+    // touched; a word that fits is passed through untouched, so this is a no-op
+    // for ordinary prose (and keeps the DOM↔canvas perceptual gate green there).
+    // The pieces carry no space between them, so they render contiguously but may
+    // wrap between any two characters, exactly as break-word does.
+    const breakWide = (w: P[]): P[][] => {
+      if (w.reduce((s, p) => s + p.w, 0) <= width) return [w];
+      const out: P[][] = [];
+      let cur: P[] = [], curW = 0;
+      for (const p of w) {
+        const pf = fontString({ fontFamily: p.run.family, fontSize: p.run.size, fontWeight: p.run.weight, italic: p.run.italic, smallCaps: p.run.smallCaps });
+        const meas = (s: string) => textWidth(p.run.transform ? transformText(s, p.run.transform) : s, pf, p.run.tracking);
+        let buf = "";
+        for (const ch of [...p.text]) {
+          const trialW = meas(buf + ch);
+          if (buf !== "" && curW + trialW > width) {          // committing buf keeps the piece ≤ width
+            cur.push({ text: buf, run: p.run, w: meas(buf) });
+            out.push(cur); cur = []; curW = 0; buf = "";
+          }
+          buf += ch;
+        }
+        if (buf !== "") { const bw = meas(buf); cur.push({ text: buf, run: p.run, w: bw }); curW += bw; }
+      }
+      if (cur.length) out.push(cur);
+      return out;
+    };
+    const broken: Tok[] = [];
+    for (const tok of toks) {
+      if ("word" in tok) for (const piece of breakWide(tok.word)) broken.push({ word: piece });
+      else broken.push(tok);
+    }
 
     // Collect this block's views WITH their line, tracking each line's right
     // edge, so a centred/right-aligned block (a table cell's column) can shift
@@ -442,7 +521,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     // grows a line; until then this pass changes no pixel. Baseline alignment (a
     // run sits ON the line baseline, not top-aligned) falls out of pass 2 for free
     // — it generalizes the old `ry` fix.
-    const blockViews: { v: View; line: number; boff: number }[] = [];
+    const blockViews: { v: View; line: number; boff: number; persistent?: boolean }[] = [];
     const lineRight = new Map<number, number>();
     let x = 0, line = 0, pending = false;
     // The block strut: `strutAbove` is the baseline's distance below the line top
@@ -477,9 +556,28 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       // A plain run is the lead face, so its top sits `bm.ascent` above the baseline.
       blockViews.push({ v: t, line: g.line, boff: -bm.ascent });
     };
-    for (const tok of toks) {
+    for (const tok of broken) {
       if ("br" in tok) { flushGroup(); line++; x = 0; pending = false; continue; }
       if ("sp" in tok) { pending = true; continue; }
+      // An inline image: an atomic replaced box. Wrap it like a word if it does
+      // not fit, grow the line to its height (bottom on the baseline), and place
+      // the persistent Image view. Zero-sized (not-yet-loaded) images just take
+      // their seat; the load reflows the whole flow.
+      if ("img" in tok) {
+        flushGroup();
+        const iw = tok.w, ih = tok.h;
+        const gap = pending && x > 0 ? spaceW : 0;
+        if (iw > 0 && x + gap + iw > width && x > 0) { line++; x = 0; } else x += gap;
+        pending = false;
+        const im = tok.img;
+        im.x = x; im.width = iw; im.height = ih;
+        if (tok.href !== undefined && onLink) { const href = tok.href; setClick(im, () => onLink(href)); }
+        if (ih > 0) lineAbove[line] = Math.max(lineAbove[line] ?? strutAbove, ih);   // fit the box above the baseline
+        blockViews.push({ v: im, line, boff: -ih, persistent: true });
+        x += iw;
+        lineRight.set(line, x);
+        continue;
+      }
       const ww = tok.word.reduce((s, p) => s + p.w, 0);
       const gap = pending && x > 0 ? spaceW : 0;
       if (x + gap + ww > width && x > 0) { flushGroup(); line++; x = 0; } else x += gap;
@@ -522,7 +620,12 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
           applyRunTreatments(t, r);
           if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
           blockViews.push({ v: t, line, boff: -fm.ascent });
-          if (r.strike) blockViews.push({ v: rectAt(x, 0, Math.ceil(p.w), 1, r.color), line, boff: -fm.ascent + Math.round(r.size * 0.55) });
+          // The strike rule, CENTER-anchored ~0.31·size ABOVE the baseline — the
+          // same font-metric position the Text component and the DOM backend use,
+          // so `~~struck~~` prose lines up across all three. (The old
+          // `-ascent + 0.55·size` sat ~0.1·size too low.) Thickness tracks size
+          // like the Text rule; at prose sizes that is the 1px hairline as before.
+          if (r.strike) { const sth = Math.max(1, Math.round(r.size / 16)); blockViews.push({ v: rectAt(x, 0, Math.ceil(p.w), sth, r.color), line, boff: -Math.round(r.size * 0.31) - Math.floor(sth / 2) }); }
           x += p.w;
         }
         lineRight.set(line, x);
@@ -542,7 +645,10 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         if (free > 0) v.x += b.align === "center" ? free / 2 : free;
       }
     }
-    for (const { v } of blockViews) views.push(v);
+    // Persistent (image) views are already children managed by the flow's image
+    // cache — position them (done above) but do NOT hand them back to be inserted
+    // and discarded with the per-pass text views.
+    for (const bv of blockViews) if (bv.persistent !== true) views.push(bv.v);
     y = yy;
   }
   return { views, height: y, anchors };
@@ -602,6 +708,40 @@ class TextFlow extends View {
     app?.follow?.(href);
   };
   private manual: View[] = [];
+  /** Inline images are PERSISTENT children keyed by (resolved) src — created once
+   *  and kept across reflows so a bitmap's async load survives, and pruned when
+   *  the content no longer references them. Each installs a constraint that
+   *  reflows this flow when its natural size (or failure) lands, so an image pops
+   *  into place the frame it loads — the Canvas/mac twin of the DOM `<img>`'s
+   *  native reflow. (Text/rect views live in `manual` and are rebuilt each pass;
+   *  images must not be, or every reflow would restart their load.) */
+  private imageViews = new Map<string, Image>();
+  private imageUsed = new Set<string>();
+  private imageSeq = new Map<string, number>();   // per-pass occurrence counter, by src
+  // Keyed by OCCURRENCE, not src: two images with the same URL are two boxes in
+  // the flow (as two `<img>` on DOM), so each needs its own view — sharing one
+  // would let only the last placement survive. The occurrence order is stable
+  // across reflows, so the key `src#n` is stable too.
+  private imageFor = (src: string): ImageInfo => {
+    const n = this.imageSeq.get(src) ?? 0;
+    this.imageSeq.set(src, n + 1);
+    const key = src + "#" + n;
+    let im = this.imageViews.get(key);
+    if (im === undefined) {
+      im = new Image();
+      im.stretches = "both";     // fill the aspect-correct box the flow sizes it to
+      im.source = src;
+      this.imageViews.set(key, im);
+      this.appendChild(im);
+      if (this.backend !== null && this.surface !== null) im.attach(this.backend, this.surface);
+      const view = im;
+      const c = new Constraint("TextFlow.img", () => `${view.loaded} ${view.naturalWidth} ${view.naturalHeight} ${view.failed}`, () => this.render(), 0);
+      c.run();
+      onDiscard(im, () => c.dispose());
+    }
+    this.imageUsed.add(key);
+    return { view: im, nw: im.naturalWidth, nh: im.naturalHeight, loaded: im.loaded, failed: im.failed };
+  };
   /** Canvas only: each heading anchor's y offset inside this flow, captured on
    *  the manual layout (the DOM path finds the tagged element instead). */
   private anchorYs: Map<string, number> = new Map();
@@ -636,13 +776,13 @@ class TextFlow extends View {
 
   /** The flow's EFFECTIVE `selectable` — the species default (ruled
    *  2026-07-30): a flowing document is selectable BY ITS NATURE, so when
-   *  nobody on the prevailing chain says otherwise, the answer is true — the
+   *  nobody on the ancestor chain says otherwise, the answer is true — the
    *  Jots shape (a Markdown note, no declaration anywhere) reads as the
    *  document it is. Any provision still wins over this default, in either
    *  direction: `selectable = false` on the instance, a container, or a
    *  Control ancestor vetoes it (the unusual non-selectable document, one
-   *  explicit line); the View-wide default stays false for everything that is
-   *  not a flow (a `Text` is a label). `prevailingProvided` is tracked, so a
+   *  explicit line); the ambient default stays false for everything that is
+   *  not a flow (a `Text` is a label). The provided read is tracked, so a
    *  provision appearing later re-flows. */
   private effSelectable(): boolean {
     // A flowing document is selectable by nature: DEFAULT true, so a bare
@@ -694,7 +834,11 @@ class TextFlow extends View {
     }
     // Canvas: lay the runs out as child views ourselves.
     this.clearManual();
-    const { views, height, anchors } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? this.followLink);
+    this.imageUsed.clear();
+    this.imageSeq.clear();
+    const { views, height, anchors } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? this.followLink, this.imageFor);
+    // Prune image children the content no longer references (a re-pointed `text`).
+    for (const [key, im] of this.imageViews) if (!this.imageUsed.has(key)) { this.removeChild(im); im.discard(); this.imageViews.delete(key); }
     this.anchorYs = anchors;
     let at = 0;
     for (const v of views) { this.insertChild(v, at++); this.manual.push(v); if (this.backend !== null) v.attach(this.backend, this.surface); }
@@ -762,6 +906,7 @@ function inlineText(inline: Inline[]): string {
   for (const n of inline) {
     if (n.t === "text" || n.t === "code") s += n.value;
     else if (n.t === "br") s += " ";
+    else if (n.t === "image") s += n.alt;
     else s += inlineText(n.inline);
   }
   return s;
@@ -896,7 +1041,7 @@ function buildPre(b: Extract<Block, { t: "pre" }>, width: number, bodyColor: num
   // the widest line, for the gutter decision below — the runs' own text, priced
   // with the code face (a pre never wraps, so this is the scroll-overflow test)
   const preFont = fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" });
-  const preMaxW = runs.map((r) => ("br" in r ? "\n" : r.text)).join("").split("\n").reduce((m, l) => Math.max(m, textWidth(l, preFont)), 0);
+  const preMaxW = runs.map((r) => ("br" in r ? "\n" : "img" in r ? "" : r.text)).join("").split("\n").reduce((m, l) => Math.max(m, textWidth(l, preFont)), 0);
   if (!boxed) return flow;                          // today's behaviour when no chrome is set
   // Chrome opted in: wrap the flow in the same tinted box (+ optional bar) a fenced
   // block gets, so a highlighted `<pre>` and a fenced ``` render coherently. The box
@@ -1009,7 +1154,10 @@ function buildList(b: Extract<Block, { t: "list" }>, width: number, bodyColor: n
     list.appendChild(row);
     rows.push({ row, body });
   }
-  list.layout = yStack(PROSE.itemGap);
+  // Tight vs loose (CommonMark): a tight list packs its items at `itemGap`; a
+  // loose one — items separated by a blank line — gets paragraph spacing between
+  // them (`blockGap`), the same air the reference gives a loose item's `<p>`.
+  list.layout = yStack(b.loose ? PROSE.blockGap : PROSE.itemGap);
   setRewidth(list, (w) => {
     list.width = w;
     for (const r of rows) { r.row.width = w; REWIDTH.get(r.body)?.(w - PROSE.indent); }
@@ -1240,9 +1388,9 @@ export abstract class RichText extends View {
     const family = this.fontFamily || FALLBACK_FAMILY;
     const lead = this.lineHeight || 1;
     const bodyColor = this.bodyColor ?? C.bodyColor;
-    // Running text obeys the ambient (prevailing) text style, exactly like a
-    // `Text` does — so rich text is no longer the one text in the language that
-    // ignores its inherited style. Size/weight/tracking follow fontSize/fontWeight/
+    // Running text obeys the ambient text style, exactly like a
+    // `Text` does — so rich text honors its inherited style like every other
+    // run. Size/weight/tracking follow fontSize/fontWeight/
     // letterSpacing; their View defaults (16/normal/0) match the house body, so
     // prose that sets nothing renders unchanged. Color stays on the theme-aware
     // `bodyColor` house default (textColor's default is opaque black, which would
@@ -1258,6 +1406,7 @@ export abstract class RichText extends View {
     CODEBG = this.codeBackground;
     CODERULE = this.codeRule;
     LAYOUT = this.richTextLayout ?? {};
+    RESOLVE_SRC = (src) => resolveAsset(src, this.root);
     const ctx: Ctx = { family, lead, onLink: (href) => this.dispatchLink(href) };
 
     // Render the block tree to a flat list of stacked sub-views: paragraphs and
@@ -1333,5 +1482,11 @@ defineAttributes(RichText, {
   richTextLayout: { def: null, defBinding: providedDefault("richTextLayout", null) },
   lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null },
 });
-defineAttributes(Markdown, { text: { def: "" } });
-defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, textStyles: { def: {} } });
+defineAttributes(Markdown, {
+  text: { def: "" },
+});
+defineAttributes(HTMLText, {
+  html: { def: "" },
+  unsupported: { def: "strip" },
+  textStyles: { def: {} },
+});

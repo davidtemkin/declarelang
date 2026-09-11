@@ -3,13 +3,15 @@ and `HTMLText`. You never write `RichText [ ]` directly (like `Layout`, it names
 you write one of its two concrete formats, which differ *only* in how they parse their
 source. Everything else — how it flows, wraps, stacks, and styles — lives here.
 
-**Styling follows the ordinary text properties.** A rich-text block's **body** obeys the same
-inherited slots a `Text` does — `fontSize`, `fontWeight`, `textColor`, `letterSpacing`,
-`lineHeight` — so prose is no longer a sealed world: set `fontWeight = semibold` on a
-container and the prose body below is semibold. Its **structure** (headings, code, links,
-list spacing) comes from a built-in house style that looks right with zero config and follows
-light/dark on its own; the parts you commonly re-theme are their own inherited slots —
-`headingColor`, `headingWeight`, `linkColor`, `codeColor` — each cascading like `fontSize`.
+**Styling follows the ordinary text properties.** A rich-text block's **body** reads the same
+face values a `Text` does — `fontSize`, `fontWeight`, `textColor`, `letterSpacing`,
+`lineHeight` — each a **provided value**, so prose is no longer a sealed world: set
+`fontWeight = semibold` on a container and the prose body below is semibold (the container
+provides it, the block reads it). Its **structure** (headings, code, links, list spacing)
+comes from a built-in house style that looks right with zero config and follows light/dark on
+its own; the parts you commonly re-theme are their own provided values —
+`headingColor`, `headingWeight`, `linkColor`, `codeColor` — each defaulting to the nearest
+provided value, exactly like `fontSize`.
 
 ## lineHeight
 Leading multiplier on the natural line height — `1` (the default) is tight, `1.5` airy.
