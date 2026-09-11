@@ -57,8 +57,9 @@ const CHECKS = [
   { page: "language/twoway", slot: "run:form-twoway", action: { click: "rename from the data side" }, expect: { text: "Set by a handler" } },
   { page: "language/include", slot: "run:form-include", action: { none: true }, expect: { text: "included" } },
   { page: "language/use", slot: "run:form-use", action: { click: "createView(\"Badge\")" }, expect: { text: "1 constructed" } },
-  { page: "language/style", slot: "run:form-style", action: { clickAt: [300, 20] }, expect: { pixels: true } },
-  { page: "language/stylesheet", slot: "run:form-stylesheet", action: { clickAt: [40, 28] }, expect: { text: "Night sheet" } },
+  { page: "language/style", slot: "run:form-style", action: { none: true }, expect: { text: "worn by name" } },
+  { page: "language/theme", slot: "run:form-theme", action: { clickAt: [300, 100] }, expect: { text: "Night — declared above" } },
+  { page: "language/provided", slot: "run:form-provided", action: { clickAt: [340, 20] }, expect: { pixels: true } },
   { page: "language/schema", slot: "run:form-schema", action: { clickAt: [30, 58] }, expect: { pixels: true } },
   { page: "language/scope", slot: "run:form-scope", action: { none: true }, expect: { text: "classroot: 260" } },
 ];

@@ -14,7 +14,103 @@
 /** Parse a Markdown document into its block tree. */
 export function parse(src) {
     const lines = src.replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n");
-    return parseBlocks(lines, 0, lines.length);
+    // Link reference definitions (`[label]: dest "title"`) are collected FIRST and
+    // their lines blanked, so a `[text][label]` / `[label]` anywhere — even before
+    // the definition — resolves. The map is document-scoped (module-level, set for
+    // the duration of this synchronous parse); a standalone parseInline call with
+    // no document context simply finds no definitions and leaves refs literal.
+    const prev = currentRefs;
+    currentRefs = collectDefs(lines);
+    try {
+        return parseBlocks(lines, 0, lines.length);
+    }
+    finally {
+        currentRefs = prev;
+    }
+}
+/** Link reference definitions in scope for the current document parse. */
+let currentRefs = null;
+/** Normalize a link label for lookup (CommonMark: trim, collapse internal
+ *  whitespace, case-fold). */
+function normLabel(s) { return s.trim().replace(/\s+/g, " ").toLowerCase(); }
+/** Collect `[label]: dest "title"` definitions, blanking their lines so the block
+ *  scan emits nothing for them. A definition sits at a block boundary (start of
+ *  doc, or after a blank / another definition) and never inside a fenced code
+ *  block or mid-paragraph — matching CommonMark, and so a `[id]:` line that is
+ *  really paragraph text is left alone. First definition of a label wins. */
+function collectDefs(lines) {
+    const refs = new Map();
+    let inFence = false, fenceCh = "";
+    let atBoundary = true; // true at doc start, after a blank line, or after a def
+    for (let i = 0; i < lines.length; i++) {
+        const l = lines[i];
+        const fm = /^\s{0,3}(```+|~~~+)/.exec(l);
+        if (fm) {
+            if (!inFence) {
+                inFence = true;
+                fenceCh = fm[1][0];
+            }
+            else if (l.trim().startsWith(fenceCh.repeat(3)))
+                inFence = false;
+            atBoundary = false;
+            continue;
+        }
+        if (inFence) {
+            atBoundary = false;
+            continue;
+        }
+        if (l.trim() === "") {
+            atBoundary = true;
+            continue;
+        }
+        const dm = atBoundary ? /^ {0,3}\[([^\]]+)\]:\s*(.+?)\s*$/.exec(l) : null;
+        if (dm) {
+            const parsed = parseDefValue(dm[2]);
+            if (parsed !== null) {
+                const key = normLabel(dm[1]);
+                if (!refs.has(key))
+                    refs.set(key, parsed);
+                lines[i] = "";
+                atBoundary = true;
+                continue;
+            }
+        }
+        atBoundary = false;
+    }
+    return refs;
+}
+/** The `dest "title"` tail of a definition line: a `<dest>` or bare-token
+ *  destination, then an optional quoted/parenthesized title. */
+function parseDefValue(val) {
+    let i = 0;
+    const skip = () => { while (i < val.length && /\s/.test(val[i]))
+        i++; };
+    skip();
+    let href = "";
+    if (val[i] === "<") {
+        const c = val.indexOf(">", i + 1);
+        if (c === -1)
+            return null;
+        href = val.slice(i + 1, c);
+        i = c + 1;
+    }
+    else {
+        const s = i;
+        while (i < val.length && !/\s/.test(val[i]))
+            i++;
+        href = val.slice(s, i);
+    }
+    if (href === "")
+        return null;
+    skip();
+    let title = "";
+    if (i < val.length && (val[i] === '"' || val[i] === "'" || val[i] === "(")) {
+        const cq = val[i] === "(" ? ")" : val[i];
+        const c = val.indexOf(cq, i + 1);
+        if (c !== -1)
+            title = val.slice(i + 1, c);
+    }
+    return { href: decodeEntities(href), title: decodeEntities(title) };
 }
 // ── block phase ──────────────────────────────────────────────────────────────
 // Line-oriented: consume the line window [lo, hi) top-down, each construct
@@ -27,6 +123,7 @@ const RE_BULLET = /^(\s*)([-*+])\s+(.*)$/;
 const RE_ORDERED = /^(\s*)(\d{1,9})[.)]\s+(.*)$/;
 const RE_QUOTE = /^\s*>\s?(.*)$/;
 const RE_TASK = /^\[([ xX])\]\s+(.*)$/;
+const RE_SETEXT = /^ {0,3}(=+|-+)\s*$/;
 function parseBlocks(lines, lo, hi) {
     const out = [];
     let i = lo;
@@ -143,18 +240,32 @@ function parseBlocks(lines, lo, hi) {
             i = next;
             continue;
         }
-        // Paragraph — accumulate until a blank line or a block-starting line.
+        // Paragraph — accumulate until a blank line, a block-starting line, or a
+        // setext underline (which turns the lines gathered so far into a heading).
         const para = [];
         let j = i;
+        let heading = null;
         for (; j < hi; j++) {
             const l = lines[j];
             if (l.trim() === "")
                 break;
+            // A `===`/`---` underline directly under paragraph text is a setext heading
+            // (CommonMark §4.3), checked BEFORE the thematic-break rule: a `---` under a
+            // paragraph is an h2, while a `---` after a blank (no paragraph gathered) was
+            // already claimed as a rule up top.
+            if (para.length > 0) {
+                const st = RE_SETEXT.exec(l);
+                if (st) {
+                    heading = { t: "heading", level: st[1][0] === "=" ? 1 : 2, inline: parseInline(para.join("\n")) };
+                    j++;
+                    break;
+                }
+            }
             if (RE_RULE.test(l) || RE_ATX.test(l) || RE_FENCE.test(l) || RE_QUOTE.test(l) || RE_BULLET.test(l) || RE_ORDERED.test(l))
                 break;
             para.push(l.trim());
         }
-        out.push({ t: "paragraph", inline: parseInline(para.join("\n")) });
+        out.push(heading ?? { t: "paragraph", inline: parseInline(para.join("\n")) });
         i = j;
     }
     return out;
@@ -168,6 +279,11 @@ function parseList(lines, start, hi) {
     const startNum = ordered ? parseInt(RE_ORDERED.exec(lines[start])[2], 10) : 1;
     const baseIndent = first[1].length;
     const items = [];
+    // Looseness (CommonMark): a blank line BETWEEN two items, or between two blocks
+    // WITHIN an item, makes the whole list loose (paragraph spacing); otherwise it
+    // is tight (compact). `prevTrailingBlank` carries a just-ended item's trailing
+    // blank forward, counting only when another sibling actually follows.
+    let loose = false, prevTrailingBlank = false;
     let i = start;
     while (i < hi) {
         const m = RE_BULLET.exec(lines[i]) ?? RE_ORDERED.exec(lines[i]);
@@ -178,6 +294,8 @@ function parseList(lines, start, hi) {
         // rendered with the wrong markers).
         if (!m || m[1].length !== baseIndent || (RE_BULLET.test(lines[i]) === ordered))
             break;
+        if (items.length > 0 && prevTrailingBlank)
+            loose = true; // a blank line separated the items
         // Collect this item: the marker line plus deeper-indented continuation.
         const owned = [m[3]];
         let j = i + 1;
@@ -201,8 +319,12 @@ function parseList(lines, start, hi) {
                 break; // blank then de-indented → item ends
             owned.push(lines[j].slice(Math.min(indent, contIndent)));
         }
+        const hadTrailingBlank = owned.length > 0 && owned[owned.length - 1] === "";
         while (owned.length && owned[owned.length - 1] === "")
             owned.pop();
+        if (owned.includes(""))
+            loose = true; // a blank line between two blocks inside the item
+        prevTrailingBlank = hadTrailingBlank;
         // Task marker on the item's first line.
         let task = null;
         const tk = RE_TASK.exec(owned[0] ?? "");
@@ -213,7 +335,7 @@ function parseList(lines, start, hi) {
         items.push({ task, blocks: parseBlocks(owned, 0, owned.length) });
         i = j;
     }
-    return [{ t: "list", ordered, start: startNum, items }, i];
+    return [{ t: "list", ordered, start: startNum, loose, items }, i];
 }
 function isTableDelim(line) {
     return /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/.test(line) && line.includes("-");
@@ -254,22 +376,35 @@ function splitRawRow(line) {
     return cells;
 }
 // ── inline phase ─────────────────────────────────────────────────────────────
-// A single left-to-right scan over one run of text. Code spans bind tightest,
-// then links, emphasis/strike (a marker finds its matching closer and recurses
-// on the inner run), autolinks, escapes, entities, and hard breaks. Raw `<…>`
-// that is not an autolink stays literal (the ruling).
+// A single left-to-right scan (tokenize) followed by CommonMark's delimiter-run
+// emphasis resolution (process-emphasis) — the spec algorithm, so `***x***`,
+// adjacent runs, `_`-intraword rules, and the rule-of-three all match a
+// conformant renderer (docs/system-design/text-and-markdown.md). Code spans bind
+// tightest, then links, then emphasis/strike; autolinks, escapes, entities, and
+// hard breaks are resolved in the tokenize pass. Raw `<…>` that is not an
+// autolink stays literal (the ruling).
 const PUNCT = new Set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~".split(""));
+const isWs = (ch) => ch === undefined || /\s/.test(ch);
+const isPunct = (ch) => ch !== undefined && PUNCT.has(ch);
 export function parseInline(src) {
-    const out = [];
+    const head = { inline: null, delim: null, prev: null, next: null }; // sentinel
+    let tail = head;
+    const delims = [];
     let buf = "";
+    const push = (inline, delim) => {
+        const n = { inline, delim, prev: tail, next: null };
+        tail.next = n;
+        tail = n;
+        return n;
+    };
     const flush = () => { if (buf !== "") {
-        out.push({ t: "text", value: decodeEntities(buf) });
+        push({ t: "text", value: decodeEntities(buf) }, null);
         buf = "";
     } };
     let i = 0;
     while (i < src.length) {
         const c = src[i];
-        // Backslash escape of an ASCII punctuation char.
+        // Backslash escape of an ASCII punctuation char (or a hard break at EOL).
         if (c === "\\") {
             if (i + 1 < src.length && PUNCT.has(src[i + 1])) {
                 buf += src[i + 1];
@@ -278,7 +413,7 @@ export function parseInline(src) {
             }
             if (src[i + 1] === "\n") {
                 flush();
-                out.push({ t: "br" });
+                push({ t: "br" }, null);
                 i += 2;
                 continue;
             }
@@ -292,29 +427,55 @@ export function parseInline(src) {
             const afterClose = close + n;
             if (close !== -1 && (src[afterClose] !== "`" || n === countBackticksAt(src, close))) {
                 flush();
-                out.push({ t: "code", value: src.slice(i + n, close).replace(/^ | $/g, "") });
+                push({ t: "code", value: src.slice(i + n, close).replace(/^ | $/g, "") }, null);
                 i = afterClose;
                 continue;
             }
         }
-        // Link: [inline](href)
-        if (c === "[") {
-            const close = matchBracket(src, i);
-            if (close !== -1 && src[close + 1] === "(") {
-                const end = src.indexOf(")", close + 2);
-                if (end !== -1) {
-                    flush();
-                    const href = src.slice(close + 2, end).trim();
-                    out.push({ t: "link", href, inline: parseInline(src.slice(i + 1, close)) });
-                    i = end + 1;
-                    continue;
+        // Link `[text](dest "title")` or image `![alt](dest "title")`, plus the
+        // reference forms `[text][label]`, `[text][]` (collapsed) and `[label]`
+        // (shortcut) resolved against the document's collected definitions.
+        if (c === "[" || (c === "!" && src[i + 1] === "[")) {
+            const image = c === "!";
+            const open = image ? i + 1 : i; // the `[`
+            const close = matchBracket(src, open);
+            if (close !== -1) {
+                // Inline form: a `(` right after `]` begins a destination.
+                if (src[close + 1] === "(") {
+                    const dest = parseLinkDest(src, close + 2);
+                    if (dest !== null) {
+                        flush();
+                        emitLinkOrImage(push, image, dest, src.slice(open + 1, close));
+                        i = dest.end;
+                        continue;
+                    }
+                }
+                // Reference form: [text][label] / [text][] / [label].
+                let label = null, refEnd = close + 1;
+                if (src[close + 1] === "[") {
+                    const rc = matchBracket(src, close + 1);
+                    if (rc !== -1) {
+                        const inside = src.slice(close + 2, rc);
+                        label = inside.trim() === "" ? src.slice(open + 1, close) : inside;
+                        refEnd = rc + 1;
+                    }
+                }
+                else {
+                    label = src.slice(open + 1, close); // shortcut: the text itself is the label
+                }
+                if (label !== null) {
+                    const def = currentRefs?.get(normLabel(label));
+                    if (def !== undefined && def !== null) {
+                        flush();
+                        emitLinkOrImage(push, image, { href: def.href, title: def.title, end: refEnd }, src.slice(open + 1, close));
+                        i = refEnd;
+                        continue;
+                    }
                 }
             }
         }
-        // Autolink <https://…>
+        // Autolink <https://…> (or a vanishing inline HTML comment).
         if (c === "<") {
-            // An inline HTML comment vanishes (annotation, never content — the
-            // block phase's rule, inside a run of text). Unclosed swallows the rest.
             if (src.startsWith("<!--", i)) {
                 const close = src.indexOf("-->", i + 4);
                 i = close === -1 ? src.length : close + 3;
@@ -326,38 +487,51 @@ export function parseInline(src) {
                 if (/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(url) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(url)) {
                     flush();
                     const href = url.includes("@") && !url.includes(":") ? "mailto:" + url : url;
-                    out.push({ t: "link", href, inline: [{ t: "text", value: url }] });
+                    push({ t: "link", href, inline: [{ t: "text", value: url }] }, null);
                     i = gt + 1;
                     continue;
                 }
             }
             // else: a literal '<' (raw HTML is not interpreted) — fall through.
         }
-        // Emphasis / strong / strike — longest marker first.
-        const delim = c === "~" ? "~~" : c === "*" || c === "_" ? (src[i + 1] === c ? c + c : c) : "";
-        if (delim && (c !== "~" || src[i + 1] === "~")) {
-            const kind = delim.length === 2 ? (c === "~" ? "strike" : "strong") : "em";
-            const close = findCloser(src, i + delim.length, delim);
-            if (close !== -1) {
-                flush();
-                const inner = parseInline(src.slice(i + delim.length, close));
-                out.push({ t: kind, inline: inner });
-                i = close + delim.length;
+        // A delimiter run: `*`/`_` (emphasis) or `~` (strike). Record its length and
+        // whether it can open/close per the CommonMark flanking rules; the run's own
+        // characters ride as this node's literal text, shrinking as delimiters pair.
+        if (c === "*" || c === "_" || c === "~") {
+            let n = 0;
+            while (src[i + n] === c)
+                n++;
+            if (c === "~" && n < 2) {
+                buf += "~".repeat(n);
+                i += n;
                 continue;
-            }
+            } // a lone `~` is literal
+            const before = i > 0 ? src[i - 1] : undefined;
+            const after = i + n < src.length ? src[i + n] : undefined;
+            const afterWs = isWs(after), afterPunct = isPunct(after);
+            const beforeWs = isWs(before), beforePunct = isPunct(before);
+            const leftFlank = !afterWs && (!afterPunct || beforeWs || beforePunct);
+            const rightFlank = !beforeWs && (!beforePunct || afterWs || afterPunct);
+            const canOpen = c === "_" ? leftFlank && (!rightFlank || beforePunct) : leftFlank;
+            const canClose = c === "_" ? rightFlank && (!leftFlank || afterPunct) : rightFlank;
+            flush();
+            const node = push({ t: "text", value: c.repeat(n) }, { ch: c, num: n, orig: n, canOpen, canClose });
+            delims.push(node);
+            i += n;
+            continue;
         }
-        // Hard break: two+ trailing spaces before a newline.
+        // Hard break: two+ trailing spaces before a newline; else a soft break.
         if (c === "\n") {
             if (buf.endsWith("  ")) {
                 buf = buf.replace(/ +$/, "");
                 flush();
-                out.push({ t: "br" });
+                push({ t: "br" }, null);
             }
             else {
                 flush();
                 buf = " ";
                 flush();
-            } // soft break → space
+            }
             i++;
             continue;
         }
@@ -365,7 +539,93 @@ export function parseInline(src) {
         i++;
     }
     flush();
+    processEmphasis(delims);
+    return serialize(head.next);
+}
+/** CommonMark process-emphasis: pair closer delimiters with the nearest earlier
+ *  opener of the same character, honoring the rule of three, and lift the nodes
+ *  between into an em/strong (`*`,`_`) or strike (`~~`) wrapper. Unpaired
+ *  delimiters keep their literal characters (a stray `*` renders as text). */
+function processEmphasis(delims) {
+    // openers_bottom[ch][origLen % 3] — the earliest opener a closer may reach.
+    const bottom = { "*": [-1, -1, -1], _: [-1, -1, -1], "~": [-1, -1, -1] };
+    for (let ci = 0; ci < delims.length; ci++) {
+        const closer = delims[ci].delim;
+        if (closer.num === 0 || !closer.canClose)
+            continue;
+        const ch = closer.ch;
+        let oi = ci - 1;
+        let openerIdx = -1;
+        for (; oi > bottom[ch][closer.orig % 3]; oi--) {
+            const opener = delims[oi].delim;
+            if (opener.num === 0 || opener.ch !== ch || !opener.canOpen)
+                continue;
+            // Rule of three: if either side can be both open and close, a pair whose
+            // combined ORIGINAL lengths is a multiple of 3 is disallowed unless BOTH
+            // lengths are themselves multiples of 3.
+            const oddMatch = (closer.canOpen || opener.canClose) &&
+                closer.orig % 3 !== 0 && (opener.orig + closer.orig) % 3 === 0;
+            if (!oddMatch) {
+                openerIdx = oi;
+                break;
+            }
+        }
+        if (openerIdx === -1) {
+            // No opener: this delimiter can start none below here for this length class.
+            bottom[ch][closer.orig % 3] = ci - 1;
+            continue;
+        }
+        const openerNode = delims[openerIdx], closerNode = delims[ci];
+        const opener = openerNode.delim;
+        const strong = ch !== "~" && closer.num >= 2 && opener.num >= 2;
+        const strike = ch === "~";
+        const used = strike ? 2 : strong ? 2 : 1;
+        // Consume `used` characters from each run's literal text.
+        opener.num -= used;
+        closer.num -= used;
+        openerNode.inline.value = ch.repeat(opener.num);
+        closerNode.inline.value = ch.repeat(closer.num);
+        // Lift the nodes strictly between opener and closer into the wrapper.
+        const inner = openerNode.next;
+        const wrapped = [];
+        for (let n = inner; n !== null && n !== closerNode; n = n.next)
+            if (n.inline !== null)
+                wrapped.push(n.inline);
+        const kind = strike ? "strike" : strong ? "strong" : "em";
+        const wrapper = { inline: { t: kind, inline: wrapped }, delim: null, prev: openerNode, next: closerNode };
+        openerNode.next = wrapper;
+        closerNode.prev = wrapper;
+        // Any delimiters that sat between opener and closer are now spent.
+        for (let k = openerIdx + 1; k < ci; k++)
+            delims[k].delim.num = 0;
+        // A fully-consumed opener/closer drops its (now empty) text node.
+        if (opener.num === 0)
+            unlink(openerNode);
+        if (closer.num === 0) {
+            unlink(closerNode);
+            continue;
+        }
+        ci--; // the closer still has delimiters left — retry it against earlier openers
+    }
+}
+/** Emit the finished inline list from the node chain (`head` = first node). A
+ *  delimiter node that still carries text contributes it as literal. */
+function serialize(head) {
+    const out = [];
+    for (let n = head; n !== null; n = n.next) {
+        if (n.inline === null)
+            continue;
+        if (n.inline.t === "text" && n.inline.value === "")
+            continue;
+        out.push(n.inline);
+    }
     return out;
+}
+function unlink(n) {
+    if (n.prev !== null)
+        n.prev.next = n.next;
+    if (n.next !== null)
+        n.next.prev = n.prev;
 }
 function countBackticksAt(s, at) { let n = 0; while (s[at + n] === "`")
     n++; return n; }
@@ -384,31 +644,83 @@ function matchBracket(s, open) {
     }
     return -1;
 }
-/** Index of the next occurrence of `delim` that isn't backslash-escaped and
- *  isn't part of a longer run (so `*` doesn't match inside `**`). */
-function findCloser(s, from, delim) {
-    const ch = delim[0];
-    for (let i = from; i < s.length; i++) {
-        if (s[i] === "\\") {
-            i++;
-            continue;
-        }
-        if (s[i] === "`") {
-            const c = s.indexOf("`", i + 1);
-            if (c !== -1) {
-                i = c;
+/** Emit the resolved link or image node (shared by the inline and reference
+ *  forms). An image's `alt` is the FLATTENED text of the bracket content — markup
+ *  stripped, per CommonMark; a link keeps its parsed inline children. */
+function emitLinkOrImage(push, image, dest, inner) {
+    const title = dest.title !== "" ? dest.title : undefined;
+    if (image)
+        push({ t: "image", src: dest.href, alt: inlineText(parseInline(inner)), title }, null);
+    else
+        push({ t: "link", href: dest.href, title, inline: parseInline(inner) }, null);
+}
+/** The plain-text content of an inline sequence (link/image alt flattening). */
+function inlineText(ns) {
+    let s = "";
+    for (const n of ns) {
+        if (n.t === "text" || n.t === "code")
+            s += n.value;
+        else if (n.t === "image")
+            s += n.alt;
+        else if ("inline" in n)
+            s += inlineText(n.inline);
+    }
+    return s;
+}
+/** Parse a link/image destination + optional title, starting just after the `(`
+ *  (CommonMark §6.6): a `<bracketed>` destination or a bare run with BALANCED
+ *  parens (so a URL may itself contain `)`), then an optional `"title"`/`'title'`
+ *  /`(title)`, then the closing `)`. Returns the href, title and the index past
+ *  the `)`, or null if it is not a well-formed destination — in which case the
+ *  caller leaves the `[` literal (and may still try a reference form). */
+function parseLinkDest(src, from) {
+    let i = from;
+    const skip = () => { while (i < src.length && /\s/.test(src[i]))
+        i++; };
+    skip();
+    let href = "";
+    if (src[i] === "<") {
+        const c = src.indexOf(">", i + 1);
+        if (c === -1 || src.slice(i + 1, c).includes("\n"))
+            return null;
+        href = src.slice(i + 1, c);
+        i = c + 1;
+    }
+    else {
+        let depth = 0;
+        const s = i;
+        for (; i < src.length; i++) {
+            const ch = src[i];
+            if (ch === "\\" && i + 1 < src.length) {
+                i++;
                 continue;
             }
+            if (/\s/.test(ch))
+                break;
+            if (ch === "(")
+                depth++;
+            else if (ch === ")") {
+                if (depth === 0)
+                    break;
+                depth--;
+            }
         }
-        if (s.startsWith(delim, i)) {
-            if (delim.length === 1 && (s[i + 1] === ch || s[i - 1] === ch))
-                continue; // run of 2 → not a single closer
-            if (i === from)
-                continue; // empty span
-            return i;
-        }
+        href = src.slice(s, i);
     }
-    return -1;
+    skip();
+    let title = "";
+    if (i < src.length && (src[i] === '"' || src[i] === "'" || src[i] === "(")) {
+        const cq = src[i] === "(" ? ")" : src[i];
+        const c = src.indexOf(cq, i + 1);
+        if (c === -1)
+            return null;
+        title = src.slice(i + 1, c);
+        i = c + 1;
+        skip();
+    }
+    if (src[i] !== ")")
+        return null;
+    return { href: decodeEntities(href), title: decodeEntities(title), end: i + 1 };
 }
 // ── entities ─────────────────────────────────────────────────────────────────
 // Numeric and a small set of named entities decode (they are characters, not

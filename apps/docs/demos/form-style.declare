@@ -1,24 +1,15 @@
-// A bundle worn by name
-// `card` is declared once; three views opt in with `styles = [card]`, and one adds a second
-// bundle. A bundle's field may be a `{ }` — the accent one reads the app's colour live.
+// A run of prose, styled by name
+// `style kw [ … ]` declares a named bundle of text attributes; a `<span class='kw'>` inside
+// HTMLText (or Markdown) wears it, so a look is declared once and applied by name to words
+// the tree has no node for.
 
-style card [ cornerRadius = 10, fill = #FFFFFF, stroke = stroke(1, #DCE3E9) ]
+style kw [ textColor = #C678DD, fontWeight = bold ]
 
-style accent [ stroke = { stroke(2, app.hue) } ]
+style ty [ textColor = #2E6FE0 ]
 
-App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 13,
-    hue: Color = 0x2E6FE0,
-    onClick() { hue = hue == 0x2E6FE0 ? 0xC93B47 : 0x2E6FE0 },
-    row: View [ x = 20, y = 20, height = 70, width = { this.contentWidth },
-        layout: SimpleLayout [ axis = x, spacing = 12 ],
-        View [ width = 120, height = 70, styles = [card],
-            TextLabel [ x = 10, text = "card" ]
-            ],
-        View [ width = 120, height = 70, styles = [card],
-            TextLabel [ x = 10, text = "card" ]
-            ],
-        View [ width = 120, height = 70, styles = [card, accent],
-            TextLabel [ x = 10, text = "card + accent (click)" ]
-            ]
-        ]
+style st [ textColor = #98C379 ]
+
+App [ fill = #FFFFFF, textColor = #172530, fontSize = 14,
+    HTMLText [ x = 20, y = 16, width = { parent.width - 40 },
+        html = "<pre><span class='kw'>class</span> <span class='ty'>Board</span> extends <span class='ty'>View</span> [\n    name = <span class='st'>\"demo\"</span>\n    ]</pre><p>Three bundles — <span class='kw'>kw</span>, <span class='ty'>ty</span>, <span class='st'>st</span> — worn by name.</p>" ]
     ]

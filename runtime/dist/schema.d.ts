@@ -3,16 +3,10 @@ export interface ComponentSchema {
     readonly name: string;
     readonly base: ComponentSchema | null;
     readonly attrs: Readonly<Record<string, AttrType>>;
-    /** Which of this schema's OWN attrs are `prevailing` (styling rung): an
-     *  unset slot follows the nearest providing ancestor's value, live. Being
-     *  prevailing is declared once, with the slot — part of its identity, like
-     *  its type (a subclass can neither redeclare nor change it). Absent =
-     *  none of its own. */
-    readonly prevailing?: readonly string[];
     /** Which of this schema's OWN attrs are `readonly` — a computed/intrinsic
      *  value a constraint may READ but nothing may set (checkAttr refuses an
-     *  assignment; the runtime accessor's setter throws). Like prevailing, it is
-     *  part of the slot's identity. Absent = none of its own. */
+     *  assignment; the runtime accessor's setter throws). Part of the slot's
+     *  identity. Absent = none of its own. */
     readonly readOnly?: readonly string[];
     /** Events this component itself fires — a handler member `on<Event>` must
      *  answer one (language §8: a class *declares* the events it fires, and
@@ -21,6 +15,15 @@ export interface ComponentSchema {
      *  `base` chain; absent = declares none of its own. */
     readonly events?: readonly string[];
 }
+/** The BUILT-IN provided values — the names a container may set BARE (no type)
+ *  to provide to its subtree, because the language already knows them: the text
+ *  face, the rich-text structure, selection, icon size, and the theme record. A
+ *  bare set of ANY OTHER undeclared name is a typo, not a provision (the near-miss
+ *  diagnostic stays). A NEW provided value is introduced with a type where it is
+ *  first provided (`density: number = 2`) — an ordinary instance-declared slot —
+ *  so it is never a bare unknown name. */
+export declare const BUILTIN_PROVIDED: ReadonlySet<string>;
+export declare const TextSchema: ComponentSchema;
 export declare const RichTextSchema: ComponentSchema;
 /** Tag → schema: the checker's component registry. Must stay in step with
  *  instantiate.ts's tag → class table (layout strategies with its layout
@@ -40,10 +43,6 @@ export declare function attrType(schema: ComponentSchema, name: string): AttrTyp
  *  computed/intrinsic slot a constraint may read but nothing may set? Walks the
  *  chain exactly like attrType (a subclass inherits its base's read-only slots). */
 export declare function isReadOnly(schema: ComponentSchema, name: string): boolean;
-/** Is `name` a prevailing attribute on `schema` (or its chain)? Asked of the
- *  schema that DECLARES the name — being prevailing is part of the slot's
- *  identity, so the declaring schema's word is the whole answer. */
-export declare function isPrevailing(schema: ComponentSchema, name: string): boolean;
 /** The handler member name for an event: click → onClick (language §8's
  *  `on` prefix — the one naming rule, shared by the checker and dispatch). */
 export declare const handlerName: (event: string) => string;

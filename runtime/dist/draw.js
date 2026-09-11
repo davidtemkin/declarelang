@@ -553,23 +553,17 @@ function listInfo(list) {
     infoCache.set(list, info);
     return info;
 }
-/** The recording's covered area — see ListInfo.area. Pure over the recording,
- *  so every backend prices the same quantity; each applies its own scale² and
- *  its own threshold. This REPLACES the op-counting classifier: measured under
- *  Chrome tracing (2026-08-24), two lists of identical op count differed 205x
- *  in paint cost by covered area alone, and the op count called both
- *  "expensive". Op count is still a term — a stroke has real per-op setup
- *  cost — but it is the backend's term to weigh, from `list.ops.length`. */
-/** Did a raster of `list` paint NOTHING where the recording says it painted?
- *  The platform's silent failure: past its canvas budget Safari draws
- *  transparent, Firefox blanks a DOM canvas at ~130 MB (measured 2026-08-25),
- *  and no timing sees either — a blank frame is a fast one. Sampled at a few
- *  op centres, which is a GPU sync, so a caller runs it once per fresh raster
- *  and only past a size worth the sync. A recording that truly paints
- *  transparent at every sampled centre reads as blank; the caller's recovery
- *  (vectors on canvas, a lower density on DOM) is slower, never wrong.
- *  `sx, sy` are the raster's density and `bx, by` its origin in recording
- *  units — the same numbers the raster was made with. */
+/** A scratch canvas wherever this module runs: the DOM's element on a page, an
+ *  OffscreenCanvas in a worker (raster-worker.ts) where there is no document. */
+export function makeCanvas(w, h) {
+    if (typeof document !== "undefined") {
+        const c = document.createElement("canvas");
+        c.width = w;
+        c.height = h;
+        return c;
+    }
+    return new OffscreenCanvas(Math.max(1, w), Math.max(1, h));
+}
 export function rasterLooksBlank(cv, list, sx, sy, bx, by) {
     // a test lever: the platform failure this detects cannot be provoked on
     // demand (it is the engine's own budget), so a pin forces the DETECTOR and
@@ -795,9 +789,7 @@ function replayDirect(ctx, list, cull) {
  *  target, where compositing the filtered result honours them for free. */
 function replayFiltered(ctx, list, cull) {
     const W = ctx.canvas.width, H = ctx.canvas.height;
-    const scratch = document.createElement("canvas");
-    scratch.width = W;
-    scratch.height = H;
+    const scratch = makeCanvas(W, H);
     const sx = scratch.getContext("2d");
     if (sx === null) {
         replayDirect(ctx, list, cull);
@@ -832,7 +824,7 @@ function replayFiltered(ctx, list, cull) {
         // (Frost is the opposite case and keeps its own scaling: a backdrop blur is
         // stated in VIEW units, and CSS backdrop-filter scales with the element's
         // transform, so paintFrost multiplies by the magnitude on purpose.)
-        const out = applyFilterFallback(scratch, spec);
+        const out = applyFilterFallback(scratch, spec); // an OffscreenCanvas in the worker: the same 2D surface
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.drawImage(out, 0, 0);

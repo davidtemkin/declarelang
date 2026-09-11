@@ -12,9 +12,7 @@
 
 import { Node, onDiscard, runRetire, authoredName } from "./node.js";
 import { DeclareError, diag } from "./errors.js";
-import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Color, type Fill, type Radius, type Shadow, type Stroke, type Theme } from "./value.js";
-import type { FontWeight } from "./measure.js";
-import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
+import { backdropEqual, fillEqual, shadowEqual, strokeEqual, type Backdrop, type Fill, type Radius, type Shadow, type Stroke } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
 import { Tip } from "./tip.js";
 
@@ -29,7 +27,7 @@ import { record, type Draw, type DisplayList } from "./draw.js";
 import { sharedClock } from "./animate.js";
 import { Constraint, Cell, afterSettle } from "./reactive.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, type InteractionView } from "./interaction.js";
-import { bindDerived, declarationsOf, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned, setBound, type DeclRecord } from "./attributes.js";
+import { bindDerived, declarationsOf, defineAttributes, disposeBindings, isSet, localProvision, ownerOf, percentOwned, setBound, type DeclRecord } from "./attributes.js";
 import { declaredType } from "./value.js";
 import { observe } from "./reactive.js";
 import { handlerName } from "./schema.js";
@@ -236,6 +234,9 @@ export class View extends Node {
   declare tip: string;
   declare scrollY: number;
   declare scrollX: number;
+  declare scrollStartY: number;
+  declare scrollStartX: number;
+  declare scrolling: boolean;
   /** Keyboard focus (docs/system-design/input.md, Layer 2). `focusable` = a tab stop;
    *  `focusTrap` = a self-contained focus group. Traversal order is the tree,
    *  overridable per view by defining a `tabOrder()` method. */
@@ -256,77 +257,11 @@ export class View extends Node {
    *  (tabslider-gaps.md gap 1); false/null = no clip. */
   declare clip: string | boolean | null;
 
-  /** The prevailing text-style slots (styling rung, ruled): declared on View
-   *  so any container can PROVIDE them — an unset slot follows the nearest
-   *  providing ancestor's value, live (the accessor's follow walk,
-   *  attributes.ts). Text renders with the effective values; on a plain View
-   *  they are pure context (no Surface push). `textColor` is the one
-   *  text-color slot everywhere — Text.color is retired (ruled, no alias). */
-  declare textColor: Color;
-  declare fontSize: number;
-  declare fontFamily: string;
-  declare fontWeight: FontWeight;
-  /** Letter tracking in px (canvas-native), 0 = natural advances. */
-  declare letterSpacing: number;
-  /** The size an Icon takes from its context (prevailing; schema.ts). */
-  declare iconSize: number;
-  /** Rich-text STRUCTURE style, prevailing: a `Markdown`/`HTMLText` renders its
-   *  headings/links/inline-code from these; a plain View just carries them for
-   *  its rich-text descendants. Colors are `null` = the theme-aware house token;
-   *  `headingWeight` defaults to the house `bold`. */
-  declare headingColor: Color;
-  declare headingWeight: FontWeight;
-  declare linkColor: Color;
-  declare codeColor: Color;
-  /** Code face + size, prevailing: the monospace regions of a `Markdown`/`HTMLText`
-   *  (inline code, fenced/`<pre>` blocks) render at these; `0`/`""` = the house
-   *  code style (PROSE.codeSize / PROSE.mono). */
-  declare codeSize: number;
-  declare codeFamily: string;
-  /** Code-block box paint, prevailing: `codeBackground` tints the box behind a
-   *  fenced/`<pre>` code block, `codeRule` draws a left accent bar on it. Both
-   *  `null` = the house look (fenced code keeps its themed tint; a `<pre>` stays
-   *  bare), so setting them is opt-in and changes nothing unset. */
-  declare codeBackground: Color;
-  declare codeRule: Color;
-  /** Per-block-type layout geometry for rendered rich text, prevailing: a plain
-   *  record keyed by block type (`paragraph`/`heading`/`code`/`pre`/`list`/
-   *  `table`/`blockquote`/`rule`, plus `default`), each entry `{ maxWidth, margin:
-   *  [l, r], align }`. Defaulted in the consumer like `theme` — an unset map or
-   *  field is today's full-width left-aligned flow; `pre` shares `code`. */
-  declare richTextLayout: Readonly<Record<string, { maxWidth?: number; margin?: readonly [number, number]; align?: "left" | "center" | "right" }>> | null;
-  /** Native text selection, prevailing: `selectable = true` on a container opts
-   *  its whole subtree back into browser selection/copy (Text acts on it; a
-   *  `Markdown` component's runs inherit it). Off by default — the app is a UI. */
-  declare selectable: boolean;
-  /** The prevailing design-token record (ruled, v1): a plain immutable
-   *  record, wholesale-swapped — components opt in by reading tokens
-   *  (`fill = { theme.buttonFill }`); re-skinning a subtree is one set. */
-  declare theme: Theme;
-  /** The applied style bundles' names (`styles = [card, danger]`) — a
-   *  STATIC list (ruled v1): the bundles' sets merge at construction, so
-   *  this slot is introspection, not a live channel. */
-  declare styles: readonly string[] | null;
-  /** The prevailing stylesheet (the external channel): provide one anywhere
-   *  and that subtree reskins — its class-keyed entries land as rank-2
-   *  offers through per-view appliers (stylesheet.ts); assigning another
-   *  stylesheet re-skins live, one settle. */
-  declare stylesheet: Stylesheet | null;
-
-  /** Resolve a declared stylesheet by name — the honest public call for
-   *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and
-   *  a bare `Dark` is (correctly) just an unresolved identifier, NOT sugar:
-   *  `stylesheet = { night ? this.lookupStylesheet("Dark")
-   *                        : this.lookupStylesheet("Light") }`.
-   *  The bare-name form `stylesheet = Dark` is the DECLARATIVE surface and is
-   *  compile-checked there; inside a body the name is a runtime string, so a
-   *  miss throws loud + positioned (stylesheetByName) rather than resolving to a
-   *  silent null. Resolved against the program registry at the tree root. */
-  lookupStylesheet(name: string): Stylesheet {
-    let root: Node = this;
-    while (root.parent !== null) root = root.parent;
-    return stylesheetByName(root, name);
-  }
+  // The text face, rich-text structure, iconSize, and theme are provided values,
+  // not View slots (docs/system-design/style.md): a container draws no glyphs.
+  // They live with the text leaves (Text, RichText, TextInput — face + rich),
+  // Icon (iconSize), and Control (theme) as provided reads. A container that
+  // sets one PROVIDES it to its subtree.
   /** How this view arranges its children (language §5: a reactive slot, not
    *  a child and not a container type); null = none — absolute x/y. Written
    *  as the member `layout: SimpleLayout [ … ]`; assigning swaps the live
@@ -718,7 +653,6 @@ export class View extends Node {
       INSTALLED.delete(this);
       undoLayout();
     }
-    disposeApplier(this);
     disposeBindings(this);
     // the visibility feed dies with the view — the backend watch, the generic
     // computer, and any at-rest flush still pending
@@ -743,9 +677,12 @@ export class View extends Node {
    *  exactly the paint order the Canvas walk uses: content, then children. */
   protected flush(s: Surface): void {
     // Pushers fire on CHANGE; the attach flush carries pre-attach state
-    // across (the Image.stretches discipline). Phase-2 selection: a
-    // container constructed `selectable = true` realizes its surface now.
-    if (this.selectable === true) s.setSelectableRegion?.(true);
+    // across (the Image.stretches discipline). Text selection is realized by
+    // the text leaves themselves (Text/TextInput's `selectable` push), which
+    // read the ambient `selectable` provided value. A container that PROVIDES
+    // `selectable = true` is additionally a selection SURFACE, so a press in the
+    // gap between its leaves anchors on it (backend.setSelectableRegion).
+    if (localProvision(this, "selectable") === true) s.setSelectableRegion?.(true);
     // an armed visibility feed follows the view onto its (re)attached surface
     if (this.visArmed) this.startVisibility();
     s.setX(this.x);
@@ -771,8 +708,15 @@ export class View extends Node {
     if (this.blend !== "normal") s.setBlend?.(this.blend);
     if (this.backdrop !== null) s.setBackdrop?.(this.backdrop);
     this.applyClip(this.clip);
-    if (this.scrolls === "y" || this.scrolls === "both") s.setScroll?.(true, (y) => { this.scrollY = y; });
-    if (this.scrolls === "x" || this.scrolls === "both") s.setScrollX?.(true, (x) => { this.scrollX = x; });
+    // The facts' read halves: the platform mirrors its offset and its
+    // in-motion state in; nothing here pushes out (a request is a verb call).
+    const scrolling = (a: boolean) => { this.scrolling = a; };
+    if (this.scrolls === "y" || this.scrolls === "both") s.setScroll?.(true, (y) => { this.scrollY = y; }, scrolling);
+    if (this.scrolls === "x" || this.scrolls === "both") s.setScrollX?.(true, (x) => { this.scrollX = x; }, scrolling);
+    // A DECLARED START, applied once as a request (a hidden pane holds it —
+    // dom-backend SCROLL_WANT; boot.ts re-applies after the first layout).
+    if (this.scrollStartY !== 0) this.surface?.scrollToY?.(this.scrollStartY);
+    if (this.scrollStartX !== 0) this.surface?.scrollToX?.(this.scrollStartX);
     const sink = this.inputSink();
     if (sink !== null) s.setInput(sink, this.inputWants());
     // a linked view wears the link affordance from first paint (rewireInput
@@ -1061,16 +1005,24 @@ export class View extends Node {
    *  mirror alone, so the model never holds `Infinity`. The surface call is
    *  deliberately unconditional — an equality-gated model write must not
    *  swallow the request (the boot-time trap applyDeclaredScroll records). */
-  scrollTo(y: number): void {
-    if (Number.isFinite(y)) this.scrollY = y;
-    this.surface?.scrollToY?.(y);
+  scrollTo(y: number, glide?: { duration?: number; motion?: string }): void {
+    if (Number.isFinite(y) && glide === undefined) this.scrollY = y;   // a glide arrives through the mirror as it moves
+    this.surface?.scrollToY?.(y, glide);
   }
 
   /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
    *  for a `scrolls = x` (or `both`) view. */
-  scrollToX(x: number): void {
-    if (Number.isFinite(x)) this.scrollX = x;
-    this.surface?.scrollToX?.(x);
+  scrollToX(x: number, glide?: { duration?: number; motion?: string }): void {
+    if (Number.isFinite(x) && glide === undefined) this.scrollX = x;
+    this.surface?.scrollToX?.(x, glide);
+  }
+
+  /** A RELATIVE request — `scrollBy(dx, dy[, glide])`: the same contract as
+   *  `scrollTo`/`scrollToX`, measured from the current facts. The optional
+   *  glide is the provider's own motion (see ScrollGlide in backend.ts). */
+  scrollBy(dx: number, dy: number, glide?: { duration?: number; motion?: string }): void {
+    if (dy !== 0) this.scrollTo(this.scrollY + dy, glide);
+    if (dx !== 0) this.scrollToX(this.scrollX + dx, glide);
   }
 
   /** Promotion (planes.md §1 — order is a slot): re-link this view among its
@@ -1252,8 +1204,9 @@ const pushTransform = (v: View): void => {
  *  regime as the browser's own scroll). */
 const pushScrolls = (v: View, ax: string): void => {
   // optional-called: a minimal host/mock surface may omit the scroll seam
-  v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; });
-  v.surface?.setScrollX?.(ax === "x" || ax === "both", (x) => { v.scrollX = x; });
+  const scrolling = (a: boolean) => { v.scrolling = a; };
+  v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; }, scrolling);
+  v.surface?.setScrollX?.(ax === "x" || ax === "both", (x) => { v.scrollX = x; }, scrolling);
 };
 
 /** visibleRect's rest state — one frozen instance, so an off-screen view's
@@ -1338,48 +1291,27 @@ defineAttributes(View, {
   // reads drive fades/reveals).
   scrolls: { def: "none", push: pushScrolls },
   tip: { def: "" },
-  // TWO-WAY: the backend mirrors user scrolling IN (setScroll's callback); a
-  // program write pushes OUT. The echo is inert — a mirrored value arrives
-  // already equal to the surface's, so the push's scrollTo is a no-op there.
-  // This is what lets an app drive its own scroller (the Files strip animates
-  // `scrollX` to reveal a fresh column) instead of asking a platform reveal to
-  // find one — scrollIntoView is axis-blind and walks ancestors, which is how
-  // a horizontal strip reveal once vertically scrolled the island hosting it.
+  // FACTS (schema readOnly): the backend mirrors the platform's offset IN
+  // (setScroll's callback); a program cannot write them — the checker refuses
+  // an assignment and an Animator alike, naming the verbs. The push survives
+  // for the RUNTIME's own writes (`scrollTo` lands a finite request in the
+  // model before the surface clamps it); on a mirrored value it is inert, the
+  // surface already holding that number. A scroller that wants to move itself
+  // calls its verb — `strip.scrollToX(x, { duration, motion })` — a request
+  // to THIS scroller only (scrollIntoView is axis-blind and walks ancestors,
+  // which is how a strip reveal once vertically scrolled its hosting island).
   scrollY: { def: 0, push: (v, y: number) => v.surface?.scrollToY?.(y) },
   claim: { def: "both" },
   scrollX: { def: 0, push: (v, x: number) => v.surface?.scrollToX?.(x) },
-  // The prevailing built-ins: model-side on View (no push — Text's style
-  // derive is the consumer that crosses the seam). Defaults are the
-  // browser-native text defaults Text carried through R3–R9.
-  textColor: { def: 0x000000, prevailing: true },
-  selectable: {
-    def: false,
-    prevailing: true,
-    // Phase-2 selection: an explicitly-selectable container realizes as a
-    // selection surface (optional-chained — DOM-only affordance).
-    push: (v, val) => v.surface?.setSelectableRegion?.(val === true),
-  },
-  fontSize: { def: 16, prevailing: true },
-  fontFamily: { def: "sans-serif", prevailing: true },
-  fontWeight: { def: "normal", prevailing: true },
-  letterSpacing: { def: 0, prevailing: true },
-  iconSize: { def: 16, prevailing: true },
-  // Rich-text structure overrides — consumed by Markdown/HTMLText (null color =
-  // the theme-aware house token; headingWeight = the house bold).
-  headingColor: { def: null, prevailing: true },
-  headingWeight: { def: "bold", prevailing: true },
-  linkColor: { def: null, prevailing: true },
-  codeColor: { def: null, prevailing: true },
-  codeSize: { def: 0, prevailing: true },
-  codeFamily: { def: "", prevailing: true },
-  codeBackground: { def: null, prevailing: true },
-  codeRule: { def: null, prevailing: true },
-  richTextLayout: { def: null, prevailing: true },
-  theme: { def: DEFAULT_THEME, prevailing: true },
-  styles: { def: null },
-  // The pusher installs appliers under a newly-providing view (existing
-  // appliers re-run through their own tracked follow of this slot).
-  stylesheet: { def: null, prevailing: true, push: (v) => stylesheetArrived(v) },
+  // the declared start (applied once at attach / after first layout) and the
+  // in-motion fact — read-only, fed by the platform
+  scrollStartY: { def: 0 },
+  scrollStartX: { def: 0 },
+  scrolling: { def: false },
+  // The text face / rich-text / iconSize / theme values are provided, not View
+  // slots — they live with the text leaves, Icon, and Control (attributes.ts
+  // providedDefault). A container that sets one PROVIDES it: an undeclared set
+  // becomes an instance-slot provision.
   layout: {
     def: null,
     // The install/uninstall side of the slot: detach the old arrangement
@@ -1637,7 +1569,8 @@ export class App extends View {
   declare safeRight: number;
   /** The embedding environment's parameters (see schema.ts `env`): a record
    *  the host provides and keeps live; `{}` when top-level. Read reactively —
-   *  `theme = { Themes.x(app.env.dark == true) }` follows the host's flips. */
+   *  `theme = { app.env.dark ? SanFranciscoDark : SanFrancisco }` follows the
+   *  host's flips. */
   declare env: Record<string, unknown>;
   /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
    *  source line count — provided by the host/build (see index.ts note), 0
@@ -2069,8 +2002,8 @@ export class App extends View {
 
 // One shared, frozen empty record for every top-level app's `env` — safe to
 // share because hosts REPLACE the record wholesale, never mutate it.
-// The interaction module's injected instance test (cycle-free, stylesheet.ts's
-// discipline): interaction.ts types views structurally; this is the one brand check.
+// The interaction module's injected instance test (cycle-free): interaction.ts
+// types views structurally; this is the one brand check.
 initInteraction((n): n is InteractionView => n instanceof View);
 
 const EMPTY_ENV: Record<string, unknown> = Object.freeze({});

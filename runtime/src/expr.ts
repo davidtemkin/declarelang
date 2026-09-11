@@ -68,7 +68,7 @@ export function setBodyServices(services: Record<string, unknown>): void {
 let SCRIPT_SCOPE: Record<string, unknown> = {};
 const SCRIPT_STACK: Record<string, unknown>[] = [];
 
-/** Run `build` with `scope` as the prevailing script scope. */
+/** Run `build` with `scope` as the active script scope. */
 export function withScriptScope<T>(scope: Record<string, unknown>, build: () => T): T {
   SCRIPT_STACK.push(SCRIPT_SCOPE);
   SCRIPT_SCOPE = scope;
@@ -214,7 +214,7 @@ function refineBodyError(src: string, raw: string, expression: boolean): string 
 })`;
     const clean = syntaxValidator !== null ? syntaxValidator(wrapped, true) === null : !("error" in compileExpr(wrapped));
     if (clean) {
-      return diag`${head} — this reads as an object literal, and the outer { } is the constraint's own delimiter; give the object its own parentheses: { ({ a: 1, b: 2 }) }`;
+      return diag`${head} — this reads as an object literal, and the outer { } is the constraint's own delimiter; give the object its own braces: { { a: 1, b: 2 } }`;
     }
   }
   if (expression && looksLikeStatements(src, raw)) {

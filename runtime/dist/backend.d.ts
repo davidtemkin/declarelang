@@ -28,6 +28,13 @@ export type RichRun = {
     transform?: "uppercase" | "lowercase" | "capitalize";
     smallCaps?: boolean;
 } | {
+    img: {
+        src: string;
+        alt: string;
+        title?: string;
+        href?: string;
+    };
+} | {
     br: true;
 };
 /** One block of a rich-text flow — a paragraph or heading (`tag` = "p" | "h1"…
@@ -45,6 +52,17 @@ export interface RichBlock {
     align?: "left" | "center" | "right";
     pre?: boolean;
     anchor?: string;
+}
+/** The optional GLIDE on a scroll request (`scrollTo(y, glide)` and kin): a
+ *  hint the scroll PROVIDER executes in its own loop — the browser's smooth
+ *  scroll, an NSAnimationContext, the runtime provider's tween. Explicitly
+ *  platform motion, not a Declare Animator: the provider's curve, no Animator
+ *  semantics, cancelled by a gesture in flight. `motion` names a Declare
+ *  motion curve where the provider can honor one (mac, runtime); the DOM
+ *  uses its own. Absent = an immediate request. */
+export interface ScrollGlide {
+    duration?: number;
+    motion?: string;
 }
 /** How an Image scales its bitmap into the view box — the language's
  *  `value Stretch = none | width | height | both` (§6). */
@@ -158,7 +176,7 @@ export interface Surface {
     setY(v: number): void;
     setWidth(v: number): void;
     setHeight(v: number): void;
-    /** The box paint (styling rung): a solid Color (null = nothing) or a
+    /** The box paint: a solid Color (null = nothing) or a
      *  Gradient, plus the box's decoration — corner rounding (paint-only, the
      *  ruled lean), an INSIDE border, and a drop shadow cast by the border box
      *  (CSS semantics: never painted under the box). Each backend realizes
@@ -241,7 +259,7 @@ export interface Surface {
      *  with the current offset whenever the user scrolls it (DOM: the native
      *  scroll event; canvas: the wheel/touch the compositor routes here), so the
      *  runtime can mirror it into the view's reactive `scrollY`. */
-    setScroll?(on: boolean, onScroll: (y: number) => void): void;
+    setScroll?(on: boolean, onScroll: (y: number) => void, onScrolling?: (active: boolean) => void): void;
     /** Windowing-aware AT (materialization.md §2, ruled): expose the LOGICAL
      *  extent and position of a windowed replication so assistive tech hears
      *  "row N of 100,000" without 100,000 nodes existing. `setRowCount` lands
@@ -255,7 +273,7 @@ export interface Surface {
      *  scrolls overflowing width, keeping over-wide content (a code block, a wide
      *  table) inside its box instead of spilling. Vertical overflow stays clipped.
      *  No reactive offset is mirrored (unlike `setScroll`) — it is presentation-only. */
-    setScrollX?(on: boolean, onScroll?: (x: number) => void): void;
+    setScrollX?(on: boolean, onScroll?: (x: number) => void, onScrolling?: (active: boolean) => void): void;
     /** Mark this surface as opted OUT of its nearest enclosing scroll regime
      *  (`ignoreScroll` — the third member of the opt-out family): it rides the
      *  scroll frame instead of the content, and contributes nothing to the
@@ -280,7 +298,7 @@ export interface Surface {
      *  find, a11y, and baselines are the platform's, and returns the measured
      *  content height. A backend that can't (Canvas, today) returns -1, and the
      *  RichText component falls back to laying the runs out as child views itself.
-     *  `selectable` mirrors the prevailing slot onto the native content; `width`
+     *  `selectable` mirrors the provided value onto the native content; `width`
      *  is the flow width (px) the runs wrap within — passed explicitly so the
      *  measure never depends on the surface's box width having been flushed.
      *  `onResize` is called with the flowed height whenever it later changes —
@@ -360,8 +378,8 @@ export interface Surface {
      *  backend to the contained content extent, exactly like a user scroll; a
      *  no-op on a surface that does not scroll that axis. Optional: a minimal
      *  host/mock omits them, so callers optional-call. */
-    scrollToY?(v: number): void;
-    scrollToX?(v: number): void;
+    scrollToY?(v: number, glide?: ScrollGlide): void;
+    scrollToX?(v: number, glide?: ScrollGlide): void;
     /** Place the caret / select a range in this surface's native editable — the
      *  write half of TextInput.select (#22). Both ends are already resolved and
      *  ordered by the caller; the backend clamps to its element's value. A no-op

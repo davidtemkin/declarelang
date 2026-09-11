@@ -38,7 +38,7 @@ names the running instance from any depth, so application-wide state belongs her
 
 Any instance may declare its own members, the App included — attributes, methods,
 handlers, children — with no class at all; the compiler synthesizes an anonymous subclass.
-The top-level forms (`class`, `include`, `use`, `script`, `font`, `style`, `stylesheet`,
+The top-level forms (`class`, `include`, `use`, `script`, `font`, `style`, `theme`,
 `schema`) may come before or after it, in any order.
 
 ### rules
@@ -213,6 +213,11 @@ and the spelling says which: a **bare literal** (a number, a percent, a color, a
 keyword — set once), a **`{ }` constraint** (TypeScript that stays true), or a **`:path`**
 read from bound data. A bare `[ … ]` list fills an array-typed slot.
 
+One family of names may be set on a component that does not declare them: the built-in
+**provided values** — the text face (`fontSize`, `fontFamily`, `fontWeight`, `textColor`,
+`letterSpacing`), `theme`, `iconSize`, and the rich-text slots. Setting one on a container
+*provides* it to every descendant that reads it (see `provided`).
+
 A set attribute with a `{ }` **owns a cell**: the runtime keeps it current, and a direct
 write to it is refused with a message naming the fix — derived state is never assigned;
 change its inputs. In a handler, `name = value` is the setter: the write lands when the
@@ -270,7 +275,7 @@ Compare `set`: a set attribute's `{ }` owns a cell and refuses assignment.
   > says: expected a type or component name, got '='
   > probe: App [ other: = 1 ]
 - The type must be one the language knows; the message lists them.
-  > says: unknown type 'Widget' — a declared attribute's type is one of number, string, boolean, Color, Length, Radius, Shape, array, object, View, Axis, Justify, CrossAlign, a component class, a declared schema, a literal union
+  > says: unknown type 'Widget' — a declared attribute's type is one of number, string, boolean, Color, Length, Radius, Shape, array, object, View, Theme
   > probe: App [ x2: Widget = null ]
 - An attribute the component already has is set, not declared again.
   > says: App already has an attribute 'width' — a declaration introduces a new one; write 'width = …' to set the existing one
@@ -475,8 +480,8 @@ replicated data is written.
   > says: an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })
   > probe: App [ width = { const w = 10; w } ]
 - A slot may not derive from itself — that is a cycle by construction; derive from a base.
-  > says: 'theme' reads itself — a { } cannot depend on the slot it defines; name the base it derives from instead
-  > probe: App [ theme = { { ...theme, accent: 1 } } ]
+  > says: 'width' reads itself — a { } cannot depend on the slot it defines; name the base it derives from instead
+  > probe: App [ width = { width + 1 } ]
 - A bare name must resolve: a member up the enclosing brackets, a parameter, or one of the few globals a body may use.
   > says: cannot resolve 'nothingHere' — not a member of t: Text → App, a parameter, or one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …)
   > probe: App [ t: Text [ text = { nothingHere } ] ]
@@ -531,7 +536,7 @@ compile time.
   > probe: App [ d: Dataset [ ] ]
 - A computed object is not a place: a cursor points into declared data. Wrap a computed list in a Dataset and read its `.value`.
   > says: this value belongs to no Dataset/DataSource — a cursor can only point into declared data
-  > probe: App [ v: View [ datapath = { ({ a: 1 }) }, Text [ text = :a ] ] ]
+  > probe: App [ v: View [ datapath = { { a: 1 } }, Text [ text = :a ] ] ]
 
 ### related
 
@@ -731,7 +736,7 @@ syntax:
 usage: form-include
 
 Merges another file's **top-level declarations** — its classes, scripts, fonts, styles,
-stylesheets, schemas — into this program, once, however many times it is named. It is not a
+themes, schemas — into this program, once, however many times it is named. It is not a
 module system: there are no exports, no namespacing, and no root instance comes across.
 Everything merges into one program, and a class in an included file may extend one declared
 here.
@@ -865,7 +870,7 @@ on the App reaches every Text below it until one overrides.
 
 ### related
 
-forms: style, stylesheet
+forms: style, theme
 classes: Text, View
 guide: 06-style · Style
 
@@ -875,77 +880,134 @@ name: style
 group: Top level
 family: declaration
 spec: §9 Style
-terms: style, style block, named style, reusable style, style bundle, styles
+terms: style, style block, named style, reusable style, style bundle, span class, styled run
 syntax:
-    style card [ cornerRadius = 10, fill = { theme.bg } ]
-    View [ styles = [card] ]                   // a view opts in, by list
+    style kw [ textColor = #C678DD, fontWeight = bold ]
+    HTMLText [ html = "<span class='kw'>class</span>" ]     // a run wears the bundle by name
 usage: form-style
 
-A named bundle of attribute values a view can wear, so a look is declared once and applied
-by name rather than copied. A view opts in with `styles = [ … ]`; the same bundle a
-`<span class>` names inside `HTMLText` or `Markdown`, so one definition skins a container
-and colours a run of prose alike. A bundle's fields may be `{ }` bodies that re-evaluate
-live.
+A named bundle of **text attributes** a run of prose wears: `<span class='kw'>` inside
+`HTMLText` or `Markdown` applies it, so a look is declared once and applied by name to
+words the tree has no node for. A bundle's field may be a `{ }` body.
 
-Distinct from `stylesheet`: a bundle is opted into by the view and static after
-construction; a stylesheet is the external channel, imposed on classes that never mention
-it. An author's own write always outranks either.
+For whole views there is no bundle: reuse a look by **subclassing** (`class Card extends
+View [ … ]`), and provide values downward with `theme` and the face attributes. A bundle is
+the one styling form that exists because a run of text is not a node you can set attributes
+on.
 
 ### rules
 
-- A name in `styles` must be a declared bundle.
-  > says: no style named 'nope' — this program declares no style bundles
-  > probe: App [ styles = [nope] ]
+- A bundle sets text attributes; a name `Text` does not declare is refused.
+  > says: style kw sets 'frob', which Text does not declare
+  > probe: style kw [ frob = 1 ]\nApp [ ]
+- A bundle holds attribute sets only — no children, methods, or declarations.
+  > says: style kw: a bundle has no children — attribute sets only
+  > probe: style kw [ View [ ] ]\nApp [ ]
+- Its name shares one namespace with classes, themes, and fonts.
+  > says: there is already a component, theme, style, or font named 'kw'
+  > probe: style kw [ textColor = #336699 ]\nclass kw extends View [ ]\nApp [ ]
 
 ### related
 
-forms: stylesheet, font, set
-classes: View, Markdown
+forms: theme, provided, font
+classes: HTMLText, Markdown
 guide: 06-style · Style
 
-## stylesheet
+## theme
 
-name: stylesheet
+name: theme
 group: Top level
 family: declaration
 spec: §9 Style
-terms: stylesheet, skin, theming, design tokens, tokens, theme record
+terms: theme, tokens, design tokens, theming, skin, reskin, dark mode, preset, token record
 syntax:
-    stylesheet Dark [
-        theme: Theme [ accent = #336699 ],     // the sheet's own theme
-        View:  [ opacity = 0.9 ]              // entries keyed by CLASS name
-        ]
-    App [ stylesheet = Dark ]                  // apply it — a prevailing slot, swappable live
-usage: form-stylesheet
+    theme Brand [ accent = #CC3333, surface = #FFF7F5 ]     // a named token record
+    App [ theme = Brand ]                                    // PROVIDE it — a plain set, no keyword
+    fill = { provided("theme").surface }                     // READ a token anywhere below
+    theme = { { ...provided("theme"), accent: 0xCC3333 } }   // a descendant provides a modified one
+usage: form-theme
 
-A swappable skin: a dictionary keyed by **class name** — no selectors, no structural
-matching, no specificity — resolved by a class-chain walk with field-wise merge, and checked
-against the classes at compile time, so a stale skin fails loudly where CSS rots silently. It
-may carry its own `theme: Theme [ … ]` record, which is what makes a skin theme-aware; inside
-a sheet the theme's colors are bare literals, since they sit in the `[ ]` layer.
+A theme is a **named record of tokens** — colours, sizes, decorations — declared at the top
+level like a class or a font. Token names are free; values are plain literals or value
+constructors. The library ships presets in scope by name (`SanFrancisco`, `Cupertino`,
+`MountainView`, `Redmond`, each with a `…Dark` companion), and `theme Brand [ … ]` declares
+your own.
 
-The top-level form declares; the view attribute of the same name applies. `stylesheet` is a
-prevailing slot like `theme`: set it high, assign a different sheet at runtime, and exactly
-the governed subtree restyles. Precedence is fixed: an author's own write or binding always
-outranks a stylesheet field.
+Providing and reading are the two halves of **provided values**. `theme = Brand` on the App
+provides the record to the whole tree — a plain set, no keyword. `provided("theme").accent`
+reads a token from the nearest provider; the standard library reads it *for* you (a `Button`
+styles off `provided("theme")` inside `Control`), so an app that only sets `theme` never
+writes the read. Because `theme` is an ordinary reactive value, dark mode is one expression
+— `theme = { app.dark ? BrandDark : Brand }` — and a subtree re-skins partially by providing
+a spread copy lower down. The library reads specific token names, so build a theme from a
+preset rather than an empty record.
 
 ### rules
 
-- An entry is keyed by a class name the program knows.
-  > says: stylesheet S: unknown component 'Widget' — an entry is keyed by a class name
-  > probe: stylesheet S [ Widget: [ fill = #000000 ] ]\nApp [ stylesheet = S ]
-- An entry's fields are that class's attributes.
-  > says: stylesheet S: View has no attribute 'frob'
-  > probe: stylesheet S [ View: [ frob = 1 ] ]\nApp [ stylesheet = S ]
-- The sheet a view applies must be declared.
-  > says: no stylesheet named 'Nope' — this program declares no stylesheets
-  > probe: App [ stylesheet = Nope ]
+- A theme named at a use site must be a preset or one the program declares.
+  > says: no theme named 'Nope' — declared themes:
+  > probe: App [ theme = Nope ]
+- A token record holds tokens only — no children, methods, or declarations.
+  > says: theme T: a token record has no children
+  > probe: theme T [ View [ ] ]\nApp [ ]
+- A token is a plain value or a value constructor, never a datapath.
+  > says: theme T.accent: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow/frost) — got the datapath :x
+  > probe: theme T [ accent = :x ]\nApp [ ]
+- Its name shares one namespace with classes, styles, and fonts.
+  > says: there is already a component, theme, style, or font named 'T'
+  > probe: theme T [ accent = #336699 ]\nclass T extends View [ ]\nApp [ ]
 
 ### related
 
-forms: style, font, set
-classes: View, App
+forms: provided, style, set
+classes: Control, App
 guide: 06-style · Style
+
+## provided
+
+name: provided("name")
+short: provided()
+group: Values
+family: read
+spec: §9 Style
+terms: provided, provided value, provided values, provide, provision, context, inherited value, ancestor value, cascade
+syntax:
+    provided("name")                           // the nearest ancestor's value under name
+    provided("name", default)                  // … or the default when no ancestor provides one
+    density: number = 2                        // PROVIDE: declare a typed value on an ancestor
+    fontSize = 13                              // a built-in provided name is set bare on any container
+usage: form-provided
+
+The one explicit **up-the-tree read**: `provided("name")` is the value the nearest ancestor
+makes available under that name — bare in `[ ]` like `gradient(…)`, or a call in `{ }`.
+*Providing* is just holding a value: declare a typed attribute on an ancestor
+(`density: number = 2`) and every descendant may read it; the built-in provided names —
+the text face, `theme`, `iconSize`, the rich-text slots — need no declaration at all, so
+`fontSize = 13` on a container provides it to every `Text` beneath. A value set locally
+always outranks a provided one.
+
+It is explicit on purpose: the read reaches past this node, and a non-local dependency is
+worth showing. You rarely write it — `Text` and the library widgets read the face and theme
+values for you; you write it where your own code wants a value from above. A read that
+finds no provider falls to its default, else fails at boot naming the value.
+
+### rules
+
+- A read with no provider and no default fails at boot, naming the value.
+  > says: provided("nothing"): no ancestor provides 'nothing', and this read declares no default
+  > probe: App [ Text [ text = { "" + provided("nothing") } ] ]
+- A provision is a value or a { }, never a datapath.
+  > says: App.fontSize = :x: a provided value is a plain value or a { }, not a datapath
+  > probe: App [ fontSize = :x ]
+- A provided value of your own is introduced with a type; a bare unknown name is a typo, not a provision.
+  > says: App has no attribute 'accent'
+  > probe: App [ accent = #CC3333 ]
+
+### related
+
+forms: theme, declare, set, scope
+classes: Text, Control, Icon
+guide: 06-style · Style, 04-tree · The tree
 
 ## schema
 

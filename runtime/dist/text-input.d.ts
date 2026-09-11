@@ -1,6 +1,14 @@
 import type { RenderBackend, Surface } from "./backend.js";
+import { type FontWeight } from "./measure.js";
 import { Editor } from "./editor.js";
+import { type Color } from "./value.js";
 export declare class TextInput extends Editor {
+    textColor: Color;
+    fontSize: number;
+    fontFamily: string;
+    fontWeight: FontWeight;
+    letterSpacing: number;
+    selectable: boolean;
     text: string;
     placeholder: string;
     multiline: boolean;

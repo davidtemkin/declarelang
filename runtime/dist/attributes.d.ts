@@ -1,19 +1,16 @@
 import { Constraint } from "./reactive.js";
 /** One attribute's class-level declaration: its default, the Surface push a
- *  change makes (absent for purely model-side attributes), whether it is
- *  `prevailing` (styling rung: an unset slot follows the nearest providing
- *  ancestor, live), and an optional value-equality predicate (decoration
- *  values gate on shallow structural equality, not identity). */
+ *  change makes (absent for purely model-side attributes), and an optional
+ *  value-equality predicate (decoration values gate on shallow structural
+ *  equality, not identity). */
 export interface AttrSpec<S, V> {
     def: V;
     push?: (self: S, v: V) => void;
-    prevailing?: boolean;
     equal?: (a: V, b: V) => boolean;
-    /** A declaration default that is a BINDING (styling rung — `labelColor:
-     *  Color = { theme.buttonText }`): evaluated live, per instance, with
-     *  `this` = the instance, whenever the slot is unprovided (and, on a
-     *  prevailing slot, unfollowed) — the chain's rank-1 end. Never installed,
-     *  so it can never contend with an offer. */
+    /** A declaration default that is a BINDING (`fontSize: number = provided(
+     *  "fontSize", 16)`): evaluated live, per instance, with `this` = the
+     *  instance, whenever the slot is unset — the chain's rank-1 end. Never
+     *  installed, so it can never contend with a direct write. */
     defBinding?: (this: unknown, parent: unknown, classroot: unknown) => unknown;
     /** The default binding's classroot: an inline (use-site) declaration binds
      *  outward, a class-body declaration binds the instance itself (R6's
@@ -45,6 +42,16 @@ export interface AttrSpec<S, V> {
      *  no carrier of this hook follows or defBinds. */
     tracked?: (self: S, v: V) => V;
 }
+/** Set a provision on a node — the value a descendant's `provided("name")`
+ *  reads when this node is the nearest provider. Equality-gated, and wakes the
+ *  readers below. Both a literal provision and a bound one (whose `{ }`
+ *  re-derives) land here. */
+/** The value a node PROVIDES locally under `name` (its own provision), or
+ *  undefined if it provides none. The DOM selection surface reads this: a
+ *  container that provides `selectable = true` becomes a selection region so a
+ *  gap press between its leaves anchors on it. */
+export declare function localProvision(self: object, name: string): unknown;
+export declare function provideWrite(self: object, name: string, value: unknown): void;
 /** Declare a class's reactive attributes: defaults + pushes, installed as
  *  prototype accessors. Call once per class, at module load, right under the
  *  class declaration (whose fields are `declare`d — the accessors here are
@@ -52,6 +59,32 @@ export interface AttrSpec<S, V> {
 export declare function defineAttributes<S extends object>(ctor: abstract new () => S, specs: {
     [K in keyof S & string]?: AttrSpec<S, S[K]>;
 }): void;
+/** The read behind `provided("name")` — a value an ancestor makes available
+ *  under `name`, read explicitly by a descendant. Resolved by NAME: the walk
+ *  climbs the parent chain, nearest first, and the first ancestor that either
+ *  carries a provision under `name` (a set of a name its class does not declare,
+ *  `App [ accent = #E05252 ]`) or whose class declares an attribute `name`
+ *  (`App [ density: number = 2 ]`, or an ordinary slot a descendant names)
+ *  answers with its effective value. Any named ancestor slot is reachable by a
+ *  descendant that names it — the read is the visible, deliberate one.
+ *
+ *  The walk starts at the PARENT (a reader never resolves against its own slot —
+ *  that is what makes `Text`'s `fontSize = provided("fontSize", 16)` default
+ *  terminate instead of reading itself). Every consulted level is a tracked
+ *  read, so a provision changing — or the tree restructuring — re-roots exactly
+ *  the readers below. `hasDefault` supplies the createContext-style terminal
+ *  (`provided("fontSize", 15)`): when nothing above provides the name, a
+ *  defaulted read returns the default and a bare (required) read throws, naming
+ *  the missing value. */
+/** A slot's default binding that reads the nearest provided value, falling to
+ *  `def`. This is how the text leaves (Text, RichText, TextInput) declare their
+ *  face slots — `fontSize: number = provided("fontSize", 16)` — so a bare run
+ *  inherits its region's style (a container provides it) yet a bare, unprovided
+ *  run still has a sensible default. The provided read is skipped once the slot
+ *  is set locally (the accessor evaluates a defBinding only on an unset slot),
+ *  so `Text [ fontSize = 70 ]` overrides without consulting the tree. */
+export declare function providedDefault(name: string, def: unknown): (this: unknown) => unknown;
+export declare function providedRead(self: object, name: string, hasDefault: boolean, dflt: unknown): unknown;
 /** A runtime-side write: a constraint's apply, auto-size, a load result.
  *  Same store/push/wake as the setter, but it neither marks the slot as
  *  author-set nor consults ownership (the caller *is* the owner). */
@@ -64,17 +97,6 @@ export declare function setBound(self: object, name: string, v: unknown): void;
  *  its own increment. A zero delta is a no-op (nothing to store, push, or wake —
  *  the same cascade-stopping the equality gate gives an absolute re-write). */
 export declare function addBound(self: object, name: string, delta: number): void;
-/** Install a stylesheet field's value on an unprovided slot. */
-export declare function stylesheetWrite(self: object, name: string, v: unknown): void;
-/** Withdraw a stylesheet field (the entry no longer offers it, or an author
- *  provision now outranks it). When the slot is otherwise unprovided the
- *  stored value is removed so reads fall back through the ordinary chain
- *  (follow → declaration default), dependents wake, and the slot's Surface
- *  state is re-pushed with the now-effective value. */
-export declare function stylesheetClear(self: object, name: string): void;
-/** The applier's bookkeeping: which slots this view's stylesheet currently
- *  colors. */
-export declare function stylesheetMarks(self: object): ReadonlySet<string> | undefined;
 /** Was this slot ever author-set (a literal, or a direct assignment)?
  *  The R4 replacement for R3's 0-as-unset: auto-size asks this, so an
  *  explicit `width=0` now means zero, not "measure me". */
@@ -82,25 +104,6 @@ export declare function isSet(self: object, name: string): boolean;
 /** The slot's class-level default — what a `:path` binding falls back to
  *  when the path is unresolved (the doc's rule, language §9). */
 export declare function defaultOf(self: object, name: string): unknown;
-/** What this slot would be worth if the view did NOT provide it: the
- *  prevailing follow (tracked, when read under tracking), else the class
- *  default. The ruled fallback for an unresolved `:path` on a prevailing
- *  slot — the declaration default is just the chain's end, so "unresolved →
- *  the followed value" is the consistent generalization (ruling item 15). */
-export declare function followedValue(self: object, name: string): unknown;
-/** Is this prevailing slot PROVIDED anywhere — on the view itself, or on any
- *  ancestor the follow walk would consult? Distinguishes "somebody declared a
- *  value" from "the chain ran out and the class default answered". A component
- *  SPECIES whose nature differs from the View-wide default asks this and
- *  supplies its own fallback at the read site (RichText: a document is
- *  selectable unless somebody says otherwise) — the only mechanism that gives
- *  a species default WITHOUT breaking the slot's semantics: a class-body
- *  provision would defeat ancestor vetoes (a provision always wins), and
- *  re-declaring the slot on the subclass would fork its identity and make
- *  every ancestor transparent to the follow walk. Tracked like any prevailing
- *  read: a provision appearing, changing, or clearing anywhere on the chain
- *  re-runs the asking constraint. */
-export declare function prevailingProvided(self: object, name: string): boolean;
 /** Retire every constraint that owns a slot on `self` — the teardown half a
  *  removed view needs (R8's replication is the first thing that removes):
  *  disposed constraints unlink from their Cells, so a later data or

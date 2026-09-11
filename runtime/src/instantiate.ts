@@ -45,8 +45,8 @@
 // build time and at every later data arrival. `onInit` fires once per view
 // (INITED), however the view came to exist.
 
-import type { Element, Attr, Method, Program } from "./parser.js";
-import { DeclareError, diag } from "./errors.js";
+import type { Element, Attr, Method, Program, TopDecl } from "./parser.js";
+import { DeclareError, diag, type Pos } from "./errors.js";
 import { View, fireEvent } from "./view.js";
 import { Node } from "./node.js";
 import { Layout } from "./layout.js";
@@ -54,22 +54,23 @@ import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
 import { State, type Override } from "./state.js";
 import { Constraint } from "./reactive.js";
-import { attrType, descendsFrom, type ComponentSchema } from "./schema.js";
+import { attrType, descendsFrom, BUILTIN_PROVIDED, RichTextSchema, TextSchema, type ComponentSchema } from "./schema.js";
 // The validators (check.js) and the schema half (program-schema.js) import
 // separately ON PURPOSE: a precompiled program was fully checked at build
 // time, so a production bundle substitutes check.js with a stub
 // (tools/declarec.mjs) and runs entirely on the trusted paths below — the
 // schema half is all it needs. The dev path takes the same code with
 // `trusted` false and validates every step, exactly as before.
-import { checkAttr, checkMethod, checkComponentValue, checkEntry, checkThemeRecord, type CheckedAttr } from "./check.js";
+import { checkAttr, checkMethod, checkComponentValue, type CheckedAttr } from "./check.js";
 import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken, type ClassInfo } from "./program-schema.js";
-import { buildStylesheet, ensureApplier, registerStylesheets, type Stylesheet, type StylesheetField } from "./stylesheet.js";
 import { buildFonts, collectFaces, registerFontFaces, type Font } from "./font.js";
 import { setStyleBundles } from "./style-bundles.js";
+import { THEME_PRESETS } from "./themes.js";
+import type { Theme } from "./value.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
-import { coerce, isPercent, isAlign, type AttrType, type Theme } from "./value.js";
-import { defineAttributes, recordDeclarations, setBound, type AttrSpec, type DeclRecord } from "./attributes.js";
-import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
+import { coerce, isPercent, isAlign, type AttrType, type AttrValue } from "./value.js";
+import { defineAttributes, recordDeclarations, setBound, provideWrite, type AttrSpec, type DeclRecord } from "./attributes.js";
+import { bindConstraint, provideBind, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator, type VirtualizePolicy } from "./replicate.js";
 import { staticSegs, type PathSeg } from "./datapath.js";
@@ -112,14 +113,13 @@ interface Ctx {
   layoutCtors: Record<string, abstract new () => Layout>;
   schemas: Record<string, ComponentSchema>;
   classes: Map<string, UserClass>;
-  /** The program's stylesheet declarations as runtime values (one interned
-   *  Stylesheet each — a swap is one equality-gated write) and its style bundles
-   *  (the bodies; their sets expand into the provision merge per view). */
-  stylesheets: Map<string, Stylesheet>;
   /** The program's `font` declarations, resolved: `fontFamily = Name` becomes
-   *  a family string (static, unlike the stylesheet channel). */
+   *  a family string. */
   fonts: Map<string, Font>;
   bundles: Map<string, Element>;
+  /** Theme records by name — the built-in presets plus any `theme Name [ … ]`
+   *  the program declares. `theme = Cupertino` resolves against this. */
+  themes: Map<string, Theme>;
   pending: Pending[];
   /** Classes whose bodies are being expanded — the runtime guard against a
    *  class containing itself (check flags it too; this keeps a direct
@@ -141,9 +141,16 @@ interface Ctx {
 function routeAttr(schema: ComponentSchema, attr: Attr, trusted: boolean): CheckedAttr {
   if (!trusted) return checkAttr(schema, attr);
   const v = attr.value;
-  if (v.kind === "code") return { ok: true, binding: { src: v.src, pos: v.pos } };
   if (v.kind === "path") return { ok: true, datapath: { path: v.path, many: v.many, pos: v.pos, plan: v.plan } };
   const type = attrType(schema, attr.name);
+  // A PROVISION: a bare set of a BUILT-IN provided value the class does not
+  // declare (a new provided value is a typed decl, not a bare attr). A `{ }`
+  // provision re-derives; a literal self-coerces by its written form.
+  if (type === null && BUILTIN_PROVIDED.has(attr.name)) {
+    if (v.kind === "code") return { ok: true, provision: { name: attr.name, binding: { src: v.src, pos: v.pos } } };
+    return { ok: true, provision: { name: attr.name } };
+  }
+  if (v.kind === "code") return { ok: true, binding: { src: v.src, pos: v.pos } };
   const c = type !== null ? coerce(type, v) : null;
   if (c === null || !c.ok) {
     // Unreachable off a genuinely checked program — reached only when an
@@ -156,10 +163,74 @@ function routeAttr(schema: ComponentSchema, attr: Attr, trusted: boolean): Check
   return { ok: true, value: c.value };
 }
 
+/** Apply a routed PROVISION (provided values): a `{ }` provision installs a
+ *  standing computation in pass two (provideBind), a literal lands now
+ *  (provideWrite). Returns whether `r` was a provision (so the caller's other
+ *  branches are skipped). One helper, called at every node-build site. */
+function applyProvision(
+  r: CheckedAttr,
+  view: Node,
+  attr: Attr,
+  ctx: Ctx,
+  classroot: View | null
+): r is { ok: true; provision: { name: string; value?: AttrValue; binding?: { src: string; pos: Pos } } } {
+  if (!("provision" in r)) return false;
+  if (r.provision.binding !== undefined) {
+    ctx.pending.push({ view: view as View, attr, provideCode: r.provision.binding.src, classroot });
+  } else {
+    provideWrite(view, attr.name, resolveProvisionLiteral(attr, ctx));
+  }
+  return true;
+}
+
+/** Coerce a LITERAL provision value. A provision has no declared slot on the
+ *  providing node, but its NAME may match a text FACE value (`fontFamily`,
+ *  `fontWeight`, `textColor`, …), and then it should coerce exactly as that slot
+ *  would — a `fontFamily = [Sans, "sans-serif"]` resolves the declared font to
+ *  its family string, a `fontWeight = normal` keeps the token — so the reader
+ *  (`Text`'s `provided("fontFamily")`) gets a well-formed value. A name no face
+ *  value claims (`accent`, `density`) coerces by its written form. */
+function resolveProvisionLiteral(attr: Attr, ctx: Ctx): unknown {
+  const v = attr.value;
+  // Coerce by the KNOWN face/rich type. Use the EXPORTED schemas directly, not
+  // ctx.schemas — a production runtime may not register the checker's schema
+  // registry, and `attrType(undefined, …)` would crash the whole render.
+  // The type matters where a token is ambiguous: `headingWeight = black` is the
+  // weight token, not the color 0x000000 the coerceToken fallback would misread.
+  // A `theme` provision naming a theme (`App [ theme = Cupertino ]`) → the
+  // record, so a descendant's `provided("theme")` reads a token record.
+  if (attr.name === "theme" && v.kind === "ident" && ctx.themes.has(v.name)) {
+    return ctx.themes.get(v.name)!;
+  }
+  const ptype = attrType(TextSchema, attr.name) ?? attrType(RichTextSchema, attr.name);
+  if (ptype?.kind === "font" && ((v.kind === "ident" && v.name !== "null") || v.kind === "list")) {
+    const familyOf = (name: string): string => {
+      const font = ctx.fonts.get(name);
+      return font !== undefined ? font.family : name;
+    };
+    return v.kind === "ident"
+      ? familyOf(v.name)
+      : v.items.map((i) => (i.kind === "ident" ? familyOf(i.name) : i.kind === "string" ? i.value : "")).join(", ");
+  }
+  if (ptype !== null) {
+    const c = coerce(ptype, v);
+    if (c.ok) return c.value;
+  }
+  // A bare enum-like token no face type claims still reads as its string; every
+  // other written form coerces by itself (colors, numbers, value constructors).
+  if (v.kind === "ident" && v.name !== "true" && v.name !== "false" && v.name !== "null") {
+    const c = coerce({ kind: "color" }, v);
+    if (c.ok) return c.value;
+    return v.name;
+  }
+  return coerceToken(v);
+}
+
 /** A pass-two work item: one relationship to install on a built node. The
  *  layout arm builds a strategy and assigns the component-typed slot; the
  *  replicate arm arms a Replicator — both in pass two because installing
  *  reads the linked tree (like a binding's first evaluation). */
+type ProvisionPending = { view: Node; attr: Attr; provideCode: string; classroot: View | null };
 type Pending =
   | { view: Node; attr: Attr; code: string; classroot: View | null }
   | { view: View; attr: Attr; percent: number }
@@ -169,6 +240,7 @@ type Pending =
   | { view: View; attr: Attr; twoWayCode: string; type: AttrType; classroot: View | null }
   | { view: View; attr: Attr; cursorPath: string | readonly string[] }
   | { view: View; attr: Attr; cursorCode: string; classroot: View | null }
+  | ProvisionPending
   | { view: View; layoutEl: Element; of: string }
   | { replicator: Replicator };
 
@@ -176,7 +248,7 @@ type Pending =
  *  rendering). */
 export function instantiate(input: Element | Program): View {
   const program: Program =
-    "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
+    "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
   // The compiler stamps `trusted` on a program it fully checked (declarec —
   // and only then), so instantiation runs on the fast paths; anything else
   // (a hand-built tree, a test fragment) validates step by step, as ever.
@@ -192,6 +264,10 @@ export function instantiate(input: Element | Program): View {
   // compiles eagerly), so the scope has to exist before the tree is built. The
   // blocks share one namespace, in source order, exactly as a module would.
   const scriptScope: Record<string, unknown> = {};
+  // A program's own `theme Name [ … ]` records are in `{ }`-body scope by name
+  // (the built-in presets are already there, process-wide), so a body can name
+  // one — `theme = { app.dark ? BrandDark : Brand }`.
+  for (const t of program.themes) scriptScope[t.name] = themeRecord(t);
   // The blocks share one namespace, in source order, exactly as a module
   // would — and that must be true for the BLOCKS THEMSELVES, not only for
   // the { } bodies reading the merged table: a block-2 function calling a
@@ -255,9 +331,9 @@ function buildTree(program: Program, trusted: boolean): View {
     layoutCtors,
     schemas,
     classes,
-    stylesheets: buildStylesheets(program, schemas, trusted),
     fonts: buildFonts(program.fonts),
     bundles: collectBundles(program),
+    themes: buildThemeMap(program.themes),
     pending: [],
     expanding: new Set(),
     trusted,
@@ -274,10 +350,6 @@ function buildTree(program: Program, trusted: boolean): View {
   // against this tree's own classes + built-ins. Weak by root, so a
   // discarded tree releases its context with it.
   CONTEXTS.set(root, ctx);
-  // The registry a body's `this.lookupStylesheet("Dark")` resolves against —
-  // keyed by the tree root, registered before pass two so a `stylesheet = { … }`
-  // binding's first evaluation can already look a stylesheet up.
-  registerStylesheets(root, ctx.stylesheets);
   // The web faces the runtime loads before first paint (index.ts → loadFonts).
   registerFontFaces(root, collectFaces(ctx.fonts));
   installPending(ctx.pending, ctx);
@@ -294,15 +366,32 @@ function buildTree(program: Program, trusted: boolean): View {
 
 /** Install pass-two relationships. Factored out of instantiate() because
  *  replication runs the same installation per materialized instance —
- *  at build time and at every later data arrival. */
+ *  at build time and at every later data arrival.
+ *
+ *  A `{ }` provision (`App [ theme = { … } ]`) applies its first value AT
+ *  INSTALL — a reader that installs first would read an unprovided name. Two
+ *  install-ordering rules keep every reader's first evaluation resolvable:
+ *    1. every PROVISION installs before every ordinary reader in the batch, so
+ *       a descendant reading `provided("theme")` finds the ancestor's provision
+ *       already landed (an ancestor's provisions precede a descendant's here,
+ *       because the tree is constructed — and pushed — parent-first);
+ *    2. a node's OWN provisions install in DEPENDENCY order — a provision whose
+ *       `{ }` reads a peer's provided value (`textColor = { provided("theme")… }`
+ *       beside `theme = { … }`) installs after that peer — so a node can both
+ *       provide a value and derive another provision from it, in any source
+ *       order. */
 function installPending(pending: readonly Pending[], ctx: Ctx): void {
-  for (const p of pending) {
+  const provisions: ProvisionPending[] = [], readers: Pending[] = [];
+  for (const p of pending) { if ("provideCode" in p) provisions.push(p); else readers.push(p); }
+  const ordered: Pending[] = [...orderProvisions(provisions), ...readers];
+  for (const p of ordered) {
     if ("code" in p) bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
     else if ("twoWay" in p) bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
     else if ("twoWayCode" in p) bindTwoWayDynamic(p.view, p.attr.name, p.twoWayCode, p.attr.value.pos, p.classroot, p.type);
     else if ("dataPath" in p) bindData(p.view, p.attr.name, p.dataPath, p.type, p.plan);
     else if ("cursorPath" in p) bindDatapath(p.view, p.cursorPath);
     else if ("cursorCode" in p) bindCursor(p.view, p.cursorCode, p.attr.value.pos, p.classroot);
+    else if ("provideCode" in p) provideBind(p.view, p.attr.name, p.provideCode, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
     else if ("layoutEl" in p) {
       if (!ctx.trusted) {
         const errs = checkComponentValue(ctx.schemas, p.view.constructor.name, p.layoutEl.name!, p.of, p.layoutEl);
@@ -315,6 +404,51 @@ function installPending(pending: readonly Pending[], ctx: Ctx): void {
     else if ("align" in p) bindAlign(p.view, p.attr.name as "x" | "y", p.align, p.attr.value.pos);
     else bindPercent(p.view, p.attr.name, p.percent, p.attr.value.pos);
   }
+}
+
+/** Order a batch's provisions so each installs after any it depends on. Groups
+ *  by owning node (insertion order preserved, so an ancestor's provisions still
+ *  precede a descendant's) and, within a node, emits each provision after the
+ *  peer provisions its `{ }` reads via `provided("name")` — a post-order DFS
+ *  over the same-node dependency edges the compiler already recorded. A cycle
+ *  (a provision transitively reading itself) falls back to encounter order. */
+function orderProvisions(provisions: readonly ProvisionPending[]): ProvisionPending[] {
+  if (provisions.length < 2) return [...provisions];
+  const groups = new Map<object, ProvisionPending[]>();
+  for (const p of provisions) {
+    const g = groups.get(p.view);
+    if (g !== undefined) g.push(p); else groups.set(p.view, [p]);
+  }
+  const out: ProvisionPending[] = [];
+  for (const items of groups.values()) {
+    if (items.length < 2) { out.push(...items); continue; }
+    const byName = new Map<string, ProvisionPending>();
+    for (const p of items) byName.set(p.attr.name, p);
+    const done = new Set<string>(), active = new Set<string>();
+    // The provided values this provision's `{ }` reads, from its SOURCE — so the
+    // ordering holds on the dev path too (the compiler's extracted `deps` ride
+    // only a compiled program; a verify/headless boot has none). The regex
+    // matches both the authored `provided("x")` and the compiled `this.$provided(
+    // "x")` — `\bprovided` sits on the `$`↔`p` boundary either way. A spurious
+    // match inside a string only adds a harmless edge; `byName` keeps it to this
+    // node's own provisions.
+    const readsOf = (p: ProvisionPending): string[] => {
+      const names: string[] = [];
+      for (const m of p.provideCode.matchAll(/\bprovided\(\s*"([^"]+)"/g)) {
+        if (m[1] !== p.attr.name && byName.has(m[1])) names.push(m[1]);
+      }
+      return names;
+    };
+    const visit = (p: ProvisionPending): void => {
+      const name = p.attr.name;
+      if (done.has(name) || active.has(name)) return; // emitted, or a cycle — leave it
+      active.add(name);
+      for (const dep of readsOf(p)) visit(byName.get(dep)!);
+      active.delete(name); done.add(name); out.push(p);
+    };
+    for (const p of items) visit(p);
+  }
+  return out;
 }
 
 /** Views that have fired `onInit` — init is once per lifetime, however the
@@ -350,13 +484,6 @@ function initNodeTree(node: Node): void {
 }
 
 function initTree(view: View): void {
-  // The stylesheet channel arms here — construction-complete, before init
-  // fires and before any paint, so onInit and the first frame both see the
-  // skinned values. Idempotent and pay-per-use (no effective stylesheet → no
-  // applier; stylesheet.ts); a stylesheet PROVIDED after this walks its subtree
-  // through the slot pusher instead (stylesheetArrived). Parent before children,
-  // so a provider's theme offer stands before its followers' fields read it.
-  ensureApplier(view);
   for (const child of view.children) {
     if (child instanceof View) initTree(child);
     // a FACELESS child (a plain Node — a controller, a clock, an animator, a
@@ -394,63 +521,6 @@ function initTree(view: View): void {
   }
 }
 
-/** Build the program's stylesheets as runtime Stylesheet values — validated
- *  through the same helpers check() uses (one message source; a direct
- *  instantiate of an unchecked tree dies with the same wording). A `{ }`
- *  entry field compiles once here; the per-view applier evaluates it with
- *  `this` = the styled view (the ruled bundle rule). */
-function buildStylesheets(program: Program, schemas: Record<string, ComponentSchema>, trusted: boolean): Map<string, Stylesheet> {
-  const stylesheets = new Map<string, Stylesheet>();
-  for (const decl of program.stylesheets) {
-    const where = `stylesheet ${decl.name}`;
-    let theme: Theme | null = null;
-    const entries = new Map<string, readonly StylesheetField[]>();
-    for (const child of decl.body.children) {
-      if (child.name === "theme" && child.tag === "Theme") {
-        if (!trusted) {
-          const errs = checkThemeRecord(where, child);
-          if (errs.length > 0) throw errs[0];
-        }
-        const rec: Record<string, unknown> = {};
-        for (const a of child.attrs) rec[a.name] = coerceToken(a.value);
-        theme = Object.freeze(rec);
-        continue;
-      }
-      const schema = Object.hasOwn(schemas, child.tag) ? schemas[child.tag] : null;
-      if (child.entry !== true || schema === null) {
-        throw new DeclareError(
-          `${where}: a stylesheet's members are 'theme: Theme [ … ]' and class-keyed entries ('${child.tag}: [ … ]')`,
-          child.pos
-        );
-      }
-      if (!trusted) {
-        const errs = checkEntry(where, child, schema);
-        if (errs.length > 0) throw errs[0];
-      }
-      entries.set(
-        child.tag,
-        child.attrs.map((a): StylesheetField => {
-          if (a.value.kind === "code") {
-            const c = compileExpr(a.value.src);
-            if ("error" in c) {
-              throw new DeclareError(`${where}.${child.tag}.${a.name} = { … } ${c.error}`, a.value.pos);
-            }
-            return { name: a.name, fn: c.fn };
-          }
-          const r = routeAttr(schema, a, trusted);
-          if (!r.ok) throw r.error;
-          if (!("value" in r) || isPercent(r.value) || isAlign(r.value)) {
-            throw new DeclareError(`${where}.${child.tag}.${a.name}: an entry field is a literal or a { }`, a.value.pos);
-          }
-          return { name: a.name, value: r.value };
-        })
-      );
-    }
-    stylesheets.set(decl.name, buildStylesheet(decl.name, theme, entries));
-  }
-  return stylesheets;
-}
-
 /** The program's style bundles, shape-guarded (a bundle is attribute sets
  *  only — check() reports the full list; this keeps a direct instantiate of
  *  an unchecked tree sound). */
@@ -464,6 +534,32 @@ function collectBundles(program: Program): Map<string, Element> {
     bundles.set(s.name, b);
   }
   return bundles;
+}
+
+/** Resolve a `theme = Name` reference to its record, or throw naming what is
+ *  declared. */
+function themeByName(ctx: Ctx, name: string, pos: Pos): Theme {
+  const rec = ctx.themes.get(name);
+  if (rec === undefined) {
+    throw new DeclareError(`no theme named '${name}' — declared themes: ${[...ctx.themes.keys()].join(", ")}`, pos);
+  }
+  return rec;
+}
+
+/** One `theme Name [ tokens ]` declaration → its frozen token record. */
+function themeRecord(decl: TopDecl): Theme {
+  const rec: Record<string, unknown> = {};
+  for (const a of decl.body.attrs) rec[a.name] = coerceToken(a.value);
+  return Object.freeze(rec);
+}
+
+/** The program's theme names → records for `theme = Name` resolution: the
+ *  built-in presets, plus any the program declares itself (which override a
+ *  preset of the same name). */
+function buildThemeMap(themes: readonly TopDecl[]): Map<string, Theme> {
+  const map = new Map<string, Theme>(Object.entries(THEME_PRESETS));
+  for (const t of themes) map.set(t.name, themeRecord(t));
+  return map;
 }
 
 /** Subclass `base` and install `decls` as reactive attributes (defaults from
@@ -530,11 +626,9 @@ function synthesize(
       const shapeSlot = isShapeType(d.type.endsWith("[]") ? d.type.slice(0, -2) : d.type);
       specs[d.name] = {
         def: Object.hasOwn(defs, d.name) ? defs[d.name] : undefined,
-        // The runtime half of the slot's identity: a prevailing declaration
-        // makes the accessor's unset branch the follow walk (attributes.ts);
-        // a readonly one makes its setter throw (its `{ }` default is the
-        // value, evaluated live and un-overridable).
-        prevailing: d.prevailing || undefined,
+        // The runtime half of the slot's identity: a `readonly` declaration
+        // makes the accessor's setter throw (its `{ }` default is the value,
+        // evaluated live and un-overridable).
         readOnly: d.readOnly || undefined,
         defBinding,
         defOuter: outer || undefined,
@@ -655,21 +749,12 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   }
   // Attribute channels land in the ruled precedence order, so "nearest
   // provider wins" is simply map-insertion order: class-body sets base→leaf
-  // (rank 4), then the bundles (rank 5 — the effective `styles` list, itself
-  // nearest-wins across chain → use site, expanded in WRITTEN order with a
-  // later bundle overwriting an earlier), then the use site (rank 6). Only
-  // the winner installs, so no two channels ever contend over ownership.
+  // (rank 4), then the use site (rank 5). Only the winner installs, so no two
+  // channels ever contend over ownership. (The retired `styles` bundle-on-a-view
+  // channel used to sit between them — provided values and subclassing replace it;
+  // `style` bundles survive only as the `<span class>` run vehicle in RichText.)
   for (const s of sources.slice(0, -1)) {
     for (const a of s.el.attrs) attrs.set(a.name, { attr: a, croot: s.croot });
-  }
-  for (const name of effectiveStyles(sources, eff)) {
-    const bundle = ctx.bundles.get(name);
-    if (bundle === undefined) {
-      throw new DeclareError(`no style named '${name}' — this program declares ${ctx.bundles.size > 0 ? [...ctx.bundles.keys()].join(", ") : "no style bundles"}`, el.pos);
-    }
-    // A bundle's { } fields evaluate with `this` = the styled view (the
-    // ruled bundle rule) — `classroot` binds the view itself.
-    for (const a of bundle.attrs) attrs.set(a.name, { attr: a, croot: view });
   }
   for (const a of el.attrs) attrs.set(a.name, { attr: a, croot });
 
@@ -720,17 +805,7 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
     (view as unknown as Record<string, unknown>)[m.name] = installed;
   }
   for (const { attr, croot: acroot } of attrs.values()) {
-    // The two styling-channel slots resolve against PROGRAM declarations
-    // (mirroring check.ts's routing — the runtime-free coercion cannot see
-    // them): the bundle list was consumed by the merge above and lands here
-    // as introspection; a stylesheet name becomes the interned Stylesheet, whose
-    // pusher (view.ts) walks appliers under a post-construction provide.
     const t0 = attrType(eff, attr.name);
-    if (t0?.kind === "styles" && attr.value.kind === "list") {
-      (view as unknown as Record<string, unknown>)[attr.name] =
-        Object.freeze(attr.value.items.flatMap((n) => (n.kind === "ident" ? [n.name] : [])));
-      continue;
-    }
     // A bare `[tl, tr, br, bl]` on a radius slot — check.ts vetted the shape.
     if (t0?.kind === "radius" && attr.value.kind === "list") {
       (view as unknown as Record<string, unknown>)[attr.name] =
@@ -756,23 +831,10 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
         }));
       continue;
     }
-    if (t0?.kind === "styles" && attr.value.kind === "code") {
-      throw new DeclareError(
-        `${eff.name}.styles = { … }: the bundle list is static (ruled v1) — conditional looks are constraints on the slots themselves`,
-        attr.value.pos
-      );
-    }
-    if (t0?.kind === "stylesheet" && attr.value.kind === "ident" && attr.value.name !== "null") {
-      const stylesheet = ctx.stylesheets.get(attr.value.name);
-      if (stylesheet === undefined) {
-        throw new DeclareError(
-          ctx.stylesheets.size > 0
-            ? diag`no stylesheet named '${attr.value.name}' — declared stylesheets: ${[...ctx.stylesheets.keys()].join(", ")}`
-            : diag`no stylesheet named '${attr.value.name}' — this program declares no stylesheets`,
-          attr.value.pos
-        );
-      }
-      (view as unknown as Record<string, unknown>)[attr.name] = stylesheet;
+    // `theme = Cupertino` → the named theme record (a declared Theme slot),
+    // resolved against the presets plus the program's own `theme` declarations.
+    if (t0?.kind === "record" && t0.name === "Theme" && attr.value.kind === "ident" && attr.value.name !== "null") {
+      (view as unknown as Record<string, unknown>)[attr.name] = themeByName(ctx, attr.value.name, attr.value.pos);
       continue;
     }
     // `fontFamily = Name` / `[Name, "Helvetica", "sans-serif"]` → a CSS family
@@ -804,6 +866,7 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
     }
     const r = routeAttr(eff, attr, ctx.trusted);
     if (!r.ok) throw r.error;
+    if (applyProvision(r, view, attr, ctx, acroot)) continue;
     if ("binding" in r) {
       if (attr.bind === "two") {
         // `name <-> { expr }` — a DYNAMIC two-way binding: the expr names the
@@ -885,20 +948,6 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
 /** The effective `styles` list across the member sources (class chain →
  *  use site, NEAREST wins — the slot resolves like any other; `styles =
  *  null` and an empty list both cancel an inherited one). */
-function effectiveStyles(
-  sources: readonly { el: Element }[],
-  eff: ComponentSchema
-): readonly string[] {
-  let names: readonly string[] = [];
-  for (const s of sources) {
-    for (const a of s.el.attrs) {
-      if (attrType(eff, a.name)?.kind !== "styles") continue;
-      names = a.value.kind === "list" ? a.value.items.flatMap((n) => (n.kind === "ident" ? [n.name] : [])) : [];
-    }
-  }
-  return names;
-}
-
 /** Construct a data node (R8): a Dataset adopts its embedded JSON, a
  *  DataSource waits for fetch; attributes land like a view's (literals now,
  *  `{ }` bindings in pass two). Mirrors checkDataNode for unchecked trees. */
@@ -920,6 +969,7 @@ function constructData(el: Element, schema: ComponentSchema, outer: View | null,
   for (const a of el.attrs) {
     const r = routeAttr(schema, a, ctx.trusted);
     if (!r.ok) throw r.error;
+    if (applyProvision(r, node, a, ctx, outer)) continue;
     if ("binding" in r) ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
     else if ("datapath" in r) {
       throw new DeclareError(
@@ -1013,6 +1063,7 @@ function constructAnimator(el: Element, schema: ComponentSchema, outer: View | n
   for (const a of el.attrs) {
     const r = routeAttr(schema, a, ctx.trusted);
     if (!r.ok) throw r.error;
+    if (applyProvision(r, node, a, ctx, outer)) continue;
     if ("binding" in r) ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
     else if ("datapath" in r) {
       throw new DeclareError(`${el.tag}.${a.name}: an animator attribute is a value or a { }, not a data read`, a.value.pos);
@@ -1075,6 +1126,7 @@ function constructSource(el: Element, schema: ComponentSchema, outer: View | nul
     }
     const r = routeAttr(schema, a, ctx.trusted);
     if (!r.ok) throw r.error;
+    if (applyProvision(r, node, a, ctx, outer)) continue;
     if ("binding" in r) ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
     else if ("datapath" in r) {
       throw new DeclareError(`${el.tag}.${a.name}: a ${el.tag} attribute is a value or a { }, not a data read`, a.value.pos);
@@ -1149,6 +1201,7 @@ function constructAnimatorGroup(
   for (const a of el.attrs) {
     const r = routeAttr(schema, a, ctx.trusted);
     if (!r.ok) throw r.error;
+    if (applyProvision(r, node, a, ctx, outer)) continue;
     if ("binding" in r) ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
     else if ("datapath" in r) {
       throw new DeclareError(`${el.tag}.${a.name}: an animator attribute is a value or a { }, not a data read`, a.value.pos);
@@ -1235,7 +1288,8 @@ function constructState(
     if (a.name === "applied") {
       const r = routeAttr(schema, a, ctx.trusted);
       if (!r.ok) throw r.error;
-      if ("binding" in r) ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
+      if (applyProvision(r, node, a, ctx, outer)) continue;
+    if ("binding" in r) ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
       else if ("value" in r) (node as unknown as Record<string, unknown>).applied = r.value;
       continue;
     }
@@ -1256,6 +1310,8 @@ function constructState(
       });
     } else if ("datapath" in r) {
       throw new DeclareError(`${el.tag}.${slot}: a state override is a value or a { }, not a data read`, a.value.pos);
+    } else if ("provision" in r) {
+      throw new DeclareError(`${el.tag}.${slot}: a state override sets a declared slot of the view, not a provided value`, a.value.pos);
     } else {
       const value = r.value;
       overrides.push({

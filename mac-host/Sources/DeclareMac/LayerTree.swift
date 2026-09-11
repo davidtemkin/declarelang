@@ -30,6 +30,16 @@ private let BLEND_FILTERS: [String: String] = [
     "luminosity": "CILuminosityBlendMode", "plusLighter": "CIAdditionCompositing",
 ]
 
+/// A glide in flight on one axis — a request's `{ duration, motion }`, run by
+/// the host on its display link (the scroll process's own motion).
+struct ScrollGlide {
+    let from: CGFloat
+    let to: CGFloat
+    let start: CFTimeInterval
+    let duration: CFTimeInterval
+    let bezier: (CGFloat, CGFloat, CGFloat, CGFloat)
+}
+
 final class Node {
     let id: Int
     let layer = CALayer()
@@ -64,6 +74,23 @@ final class Node {
     var scrollExtentX: CGFloat = 0
     var vbar: Scrollbar?
     var hbar: Scrollbar?
+    // ── the scroll process's state (scrolling.md "The scroll process") ──
+    /// This view claims the wheel (`onWheel`): the walk hands it the stream.
+    var wantsWheel = false
+    /// The `scrolling` fact: a stream, its momentum, a bar drag or a glide is
+    /// moving this scroller. Reported to the runtime once per frame.
+    var scrollingLive = false
+    /// A GESTURE owns the offset (trackpad stream through its momentum, a bar
+    /// drag): a request arriving meanwhile is dropped — arbitration rule 1.
+    /// A legacy mouse wheel is not a gesture, exactly as a wheel on canvas.
+    var gestureLive = false
+    /// The stream's end, when the platform names none: a lifted finger that
+    /// no momentum follows, or a mouse wheel that goes quiet.
+    var quietWork: DispatchWorkItem?
+    var glideY: ScrollGlide?
+    var glideX: ScrollGlide?
+    /// Facts to report at the next frame.
+    var factDirty = false
     /// Image tint (compositing.md §3.4): the bitmap re-derives as this color
     /// shaped by its own alpha — template-image rendering. nil = untouched.
     var tint: CGColor?
@@ -236,6 +263,8 @@ final class LayerTree {
     var frostPainted = 0
     /// Cached per-leaf renditions at canvas scale — see renderMaybeCached.
     var frostRendition: [ObjectIdentifier: (contents: AnyObject, w: Int, h: Int, img: CGImage)] = [:]
+    /// Text renditions, keyed by layer identity + TextLayer.version.
+    var frostTextRendition: [ObjectIdentifier: (version: Int, w: Int, h: Int, img: CGImage)] = [:]
     /// The scale the frost canvas is currently built at.
     var frostCanvasScale: CGFloat = 0.5
     var frostRenditionBytes = 0
@@ -250,9 +279,16 @@ final class LayerTree {
     static var frostDumpAfterNode: Int?
     var frostTotalN = 0
 
-    func apply(_ json: String) {
+    /// The op buffer's JSON → ops, callable from any thread (the runtime
+    /// thread decodes; main applies).
+    static func decode(_ json: String) -> [[Any]] {
         guard let data = json.data(using: .utf8),
-              let ops = (try? JSONSerialization.jsonObject(with: data)) as? [[Any]] else { return }
+              let ops = (try? JSONSerialization.jsonObject(with: data)) as? [[Any]] else { return [] }
+        return ops
+    }
+    func apply(_ json: String) { apply(ops: LayerTree.decode(json)) }
+    func apply(ops: [[Any]]) {
+        guard !ops.isEmpty else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)          // the runtime owns motion
         sawGeom = false
@@ -523,6 +559,9 @@ final class LayerTree {
                 n.layer.shadowOpacity = Float(color.alphaComponent)
                 applyShadowPath(n)
             }
+            // a shadow on a clipping node moves the clip to a host layer (and
+            // its removal moves it back) — see restack
+            if n.boxClip || n.clipPath != nil { restack(n); applyClip(n); placeClipHost(n) }
         case 11: // VISIBLE
             nodes[id]?.layer.isHidden = num(a(0)) == 0
             nodes[id].map { syncFrost($0) }
@@ -609,13 +648,25 @@ final class LayerTree {
             guard let n = nodes[id] else { return }
             let on = num(a(0)) != 0
             if on != n.scrolls { n.scrolls = on; ensureContentLayer(n); applyClip(n) }
-        case 22: // SCROLLPOS
+        case 22: // SCROLLPOS — a REQUEST (offset + range), or the range alone
+            // (offset null: the host keeps its own — a frame-old number from the
+            // runtime must never drag a live scroll back). A request while a
+            // gesture owns the offset is dropped (arbitration rule 1); a plain
+            // request cancels a glide in flight.
             guard let n = nodes[id] else { return }
-            n.scrollOffset = num(a(0))
             if let e = a(1) as? NSNumber { n.scrollExtent = CGFloat(e.doubleValue) }
+            let request = a(0) as? NSNumber
+            if let y = request, !n.gestureLive {
+                if LayerTree.scrollDebug { NSLog("[scroll] request #%d y=%.0f (glide live: %d)", n.id, y.doubleValue, n.glideY != nil ? 1 : 0) }
+                n.scrollOffset = CGFloat(y.doubleValue)
+                cancelGlide(n, vertical: true)
+            }
+            // the range may have shrunk under the offset: re-clamp, and say so
+            let clampedY = min(Swift.max(0, pageExtentY(n) - viewport(n).height), Swift.max(0, n.scrollOffset))
+            if clampedY != n.scrollOffset { n.scrollOffset = clampedY; markFact(n) }
             place(n)
             for c in n.children { place(c) }
-            updateBars(n, flash: true)
+            updateBars(n, flash: request != nil)
             view?.repositionOverlays()
         case 30: // SCROLLX — a horizontally scrolling surface
             guard let n = nodes[id] else { return }
@@ -627,14 +678,37 @@ final class LayerTree {
                 place(n)
                 for c in n.children { place(c) }
             }
-        case 31: // SCROLLXPOS
+        case 31: // SCROLLXPOS — SCROLLPOS's twin on x
             guard let n = nodes[id] else { return }
-            n.scrollXOffset = num(a(0))
             if let e = a(1) as? NSNumber { n.scrollExtentX = CGFloat(e.doubleValue) }
+            let requestX = a(0) as? NSNumber
+            if let x = requestX, !n.gestureLive {
+                n.scrollXOffset = CGFloat(x.doubleValue)
+                cancelGlide(n, vertical: false)
+            }
+            let clampedX = min(Swift.max(0, pageExtentX(n) - viewport(n).width), Swift.max(0, n.scrollXOffset))
+            if clampedX != n.scrollXOffset { n.scrollXOffset = clampedX; markFact(n) }
             place(n)
             for c in n.children { place(c) }
-            updateBars(n, flash: true)
+            updateBars(n, flash: requestX != nil)
             view?.repositionOverlays()
+        case 42: // WHEELCLAIM — an `onWheel` view: the walk hands it the stream
+            guard let n = nodes[id] else { return }
+            n.wantsWheel = num(a(0)) != 0
+        case 43: // SCROLLGLIDE axis, to, duration(ms), bezier x1 y1 x2 y2 — a
+            // request with a glide: the host's own tween on the program's curve
+            guard let n = nodes[id], !n.gestureLive else { return }
+            let vertical = num(a(0)) != 0
+            let lim = vertical ? Swift.max(0, pageExtentY(n) - viewport(n).height) : Swift.max(0, pageExtentX(n) - viewport(n).width)
+            let to = min(lim, Swift.max(0, num(a(1))))
+            let g = ScrollGlide(from: vertical ? n.scrollOffset : n.scrollXOffset, to: to,
+                                start: CACurrentMediaTime(), duration: Swift.max(0.001, Double(num(a(2))) / 1000),
+                                bezier: (num(a(3)), num(a(4)), num(a(5)), num(a(6))))
+            if vertical { n.glideY = g } else { n.glideX = g }
+            gliding.insert(n.id)
+            if LayerTree.scrollDebug { NSLog("[scroll] glide #%d %@ %.0f -> %.0f over %.0fms", n.id, vertical ? "y" : "x", g.from, g.to, g.duration * 1000) }
+            if !n.scrollingLive { n.scrollingLive = true; markFact(n) }
+            bridge.needsFrame()
         case 23: // CURSOR
             if id == 0 { view?.setCursor(str(a(0)) ?? "") }
         case 24: // EDIT
@@ -726,6 +800,10 @@ final class LayerTree {
                 }
                 syncFrost(n)
                 n.frostEpoch = -1                       // force a first capture
+                // (`applyFrostFilters` — the compositor's own backdrop chain —
+                // is deliberately NOT attached: on macOS 26 it renders nothing
+                // and doubles WindowServer CPU, see Frost.swift's header. The
+                // sampler below is the frost.)
             }
         case 35: // BLEND — the view-tier compositing operator (compositing.md
             // §4.1). A compositing filter rides the LAYER, not the order:
@@ -848,9 +926,14 @@ final class LayerTree {
         // beside it. The host takes the slot of the first clipped child, which
         // keeps paint order right for the shapes this arises in (a pill or a
         // halo drawn past the edge of the thing it belongs to).
+        // …and so does a SHADOW: a CALayer that masks to its bounds clips its
+        // own shadow, where a CSS box-shadow escapes `overflow` (the homepage's
+        // Shot cards — clip + radius + glow — lost their glow). The clip moves
+        // to the host layer; the outer layer keeps the shadow.
         let clips = n.boxClip || n.clipPath != nil
         let exempt = n.children.contains { $0.ignoresClip }
-        if clips && exempt {
+        let shadowed = n.layer.shadowOpacity > 0
+        if clips && (exempt || shadowed) {
             if n.clipHost == nil {
                 let h = CALayer()
                 h.anchorPoint = .zero
@@ -949,7 +1032,10 @@ final class LayerTree {
                 restack(n)
             }
             if let b = n.vbar {
-                let live = b.update(box: n.box.size, extent: n.scrollExtent, offset: n.scrollOffset)
+                let live = b.update(box: viewport(n), extent: pageExtentY(n), offset: n.scrollOffset)
+                // the page root's bar lives in the WINDOW's rectangle, which is
+                // the top of the (taller) root layer in its bottom-up space
+                if n.isRoot { b.layer.position.y += n.box.height - viewport(n).height }
                 if live, flash { b.flash() }
                 if !live { b.hide() }
             }
@@ -962,7 +1048,8 @@ final class LayerTree {
                 restack(n)
             }
             if let b = n.hbar {
-                let live = b.update(box: n.box.size, extent: n.scrollExtentX, offset: n.scrollXOffset)
+                let live = b.update(box: viewport(n), extent: pageExtentX(n), offset: n.scrollXOffset)
+                if n.isRoot { b.layer.position.y += n.box.height - viewport(n).height }
                 if live, flash { b.flash() }
                 if !live { b.hide() }
             }
@@ -1769,13 +1856,276 @@ final class LayerTree {
         return (b.0, b.1, b.2)
     }
 
-    /// Turn a thumb position into a content offset and push it to the model.
+    // ── the page root's viewport ────────────────────────────────────────────
+    //
+    // A scroller's viewport is its own box — EXCEPT the page root. Its box is
+    // the App's declared or realized size while the WINDOW is what it scrolls
+    // in (the DOM's document scroll: the root element is the page, the window
+    // is the viewport). Weather's phone dialect declares its App 2652 tall;
+    // clamped against its own box the page had a 40px range and "scrolling
+    // got super slow" (2026-09-10). The page's extent is likewise the larger
+    // of its box and its content.
+    func viewport(_ n: Node) -> CGSize { n.isRoot ? (view?.bounds.size ?? n.box.size) : n.box.size }
+    func pageExtentY(_ n: Node) -> CGFloat { n.isRoot ? Swift.max(n.scrollExtent, n.box.height) : n.scrollExtent }
+    func pageExtentX(_ n: Node) -> CGFloat { n.isRoot ? Swift.max(n.scrollExtentX, n.box.width) : n.scrollExtentX }
+
+    // ── THE SCROLL PROCESS (scrolling.md "The scroll process", ruled 2026-09-10) ──
+    //
+    // Scrolling on the native host is the HOST's process — the platform
+    // provider, over the layer tree. A wheel over a scroller never crosses to
+    // JS: the walk below (the runtime's own scrollBy descent, in Swift) finds
+    // the scroller, the delta lands on its offset, the FRAME commits the
+    // content-layer translate (one CATransaction per frame, deltas batched),
+    // and only then does the runtime hear the fact — `__declareScrollFacts`,
+    // once per frame, after the frame that showed it. A settle can never delay
+    // the motion. What does cross is a CLAIMANT's stream (`onWheel`), which is
+    // the program's to hear. The trackpad's own momentum arrives as deltas
+    // (momentumPhase), applied as delivered — no physics, no rubber band, the
+    // desktop rule. Glides (a request's `{ duration, motion }`) run here too.
+    //
+    // Why not an NSScrollView per scroller: every surface is a CALayer under
+    // one view, composed through its ancestors' clips, opacity, transforms and
+    // frosts. An NSScrollView is an AppKit SUBVIEW — it draws above the whole
+    // layer tree and escapes all of that (the overlays' `visibleRect` is the
+    // hand-made workaround for exactly this), and Responsive Scrolling's
+    // off-main-thread promise buys nothing while the runtime itself runs on
+    // the main thread. The process below keeps the composition and delivers
+    // the contract: offsets move on the host, facts follow.
+
+    /// Nodes with a glide in flight, and nodes whose offset moved since the
+    /// last frame (committed together at the frame).
+    private var gliding = Set<Int>()
+    private var pendingMoves = Set<Int>()
+    /// Nodes with facts to report at the next frame, in order.
+    private var dirtyScroll: [Int] = []
+    private func markFact(_ n: Node) {
+        if !n.factDirty { n.factDirty = true; dirtyScroll.append(n.id) }
+    }
+
+    /// A plain request or a gesture cancels the glide on its axis; when
+    /// nothing else keeps the scroller live, `scrolling` settles with it.
+    private func cancelGlide(_ n: Node, vertical: Bool) {
+        if vertical { n.glideY = nil } else { n.glideX = nil }
+        guard n.glideY == nil, n.glideX == nil else { return }
+        gliding.remove(n.id)
+        if n.quietWork == nil, !n.gestureLive, n.scrollingLive { n.scrollingLive = false; markFact(n) }
+    }
+
+    enum WheelTarget { case claim(Node), scroller(Node) }
+
+    /// The runtime's wheel descent (mac-backend wheelTo + scrollBy, verbatim
+    /// in Swift): reverse paint order, the innermost `onWheel` claimant or
+    /// scroller under the point — whichever is deeper. A subtree that contains
+    /// a scroller ends the sibling search whether or not that scroller can use
+    /// the delta (the desktop's overlapping windows: one gesture must never
+    /// scroll the window BEHIND); chrome with nothing to scroll passes through.
+    func wheelTarget(atModel p: CGPoint) -> WheelTarget? {
+        guard let v = view, let host = v.layer, let r = root else { return nil }
+        let hp = CGPoint(x: p.x, y: v.bounds.height - p.y)
+        guard let n = wheelWalk(r, hp, host) else { return nil }
+        return n.wantsWheel ? .claim(n) : .scroller(n)
+    }
+    private func wheelWalk(_ n: Node, _ hp: CGPoint, _ host: CALayer) -> Node? {
+        guard !n.layer.isHidden, n.layer.opacity > 0, n.layer.superlayer != nil else { return nil }
+        // the layer's own space carries the transforms and the scroll
+        // translations; model-local is its flip
+        let l = n.layer.convert(hp, from: host)
+        let ml = CGPoint(x: l.x, y: n.box.height - l.y)
+        let inBox = ml.x >= 0 && ml.y >= 0 && ml.x < n.box.width && ml.y < n.box.height
+        if n.boxClip && !inBox { return nil }
+        if let cp = n.clipPath, !cp.contains(ml) { return nil }
+        if (n.scrolls || n.scrollsX) && !inBox { return nil }
+        for c in n.children.reversed() { if let hit = wheelWalk(c, hp, host) { return hit } }
+        if n.wantsWheel && inBox { return n }
+        return (n.scrolls || n.scrollsX) && inBox ? n : nil
+    }
+
+    /// The scroller that takes a delta on one axis: the target itself or its
+    /// nearest ancestor that scrolls that way AND has somewhere to go — a
+    /// vertical wheel over an x-only strip scrolls the page it sits in.
+    func axisScrollerPublic(from n: Node, vertical: Bool) -> Node? { axisScroller(from: n, vertical: vertical) }
+    private func axisScroller(from n: Node, vertical: Bool) -> Node? {
+        var cur: Node? = n
+        while let m = cur {
+            if vertical, m.scrolls, pageExtentY(m) > viewport(m).height + 0.5 { return m }
+            // the page pans on x whenever it is wider than the window, declared
+            // or not — the browser's own behaviour for a floored app
+            if !vertical, m.scrollsX || (m.isRoot && m.scrolls), pageExtentX(m) > viewport(m).width + 0.5 { return m }
+            cur = m.parent
+        }
+        return nil
+    }
+
+    /// A wheel event, model coordinates — from the view (scrollWheel /
+    /// magnify) or the control channel. `phase`/`momentum` empty = a legacy
+    /// mouse wheel (no gesture, ends when quiet).
+    func wheel(atModel p: CGPoint, dx: CGFloat, dy: CGFloat, pinch: Bool,
+               phase: NSEvent.Phase, momentum: NSEvent.Phase) {
+        let target = wheelTarget(atModel: p)
+        if LayerTree.scrollDebug {
+            NSLog("[scroll] wheel at (%.0f,%.0f) d=(%.0f,%.0f) phase=%d momentum=%d -> %@", p.x, p.y, dx, dy,
+                  phase.rawValue, momentum.rawValue, target.map { t -> String in
+                      switch t { case .claim(let n): return "claim #\(n.id)"; case .scroller(let n): return "scroller #\(n.id) ext=\(Int(n.scrollExtent)) box=\(Int(n.box.height))" } } ?? "nothing")
+        }
+        guard let target else { return }
+        switch target {
+        case .claim:
+            bridge.call("__declareWheel", [Double(p.x), Double(p.y), Double(dx), Double(dy), pinch ? 1 : 0])
+            bridge.needsFrame()
+        case .scroller(let n):
+            if pinch { return }                          // a pinch is nobody's scroll
+            let legacy = phase.isEmpty && momentum.isEmpty
+            var owners: [Node] = []
+            if dy != 0, let ny = axisScroller(from: n, vertical: true) {
+                cancelGlide(ny, vertical: true)
+                let lim = Swift.max(0, pageExtentY(ny) - viewport(ny).height)
+                let next = min(lim, Swift.max(0, ny.scrollOffset + dy))
+                if next != ny.scrollOffset { ny.scrollOffset = next; pendingMoves.insert(ny.id) }
+                owners.append(ny)                        // CONTAIN: owned even at its limit
+            }
+            if dx != 0, let nx = axisScroller(from: n, vertical: false) {
+                cancelGlide(nx, vertical: false)
+                let lim = Swift.max(0, pageExtentX(nx) - viewport(nx).width)
+                let next = min(lim, Swift.max(0, nx.scrollXOffset + dx))
+                if next != nx.scrollXOffset { nx.scrollXOffset = next; pendingMoves.insert(nx.id) }
+                if !owners.contains(where: { $0 === nx }) { owners.append(nx) }
+            }
+            for m in owners { streamEvent(m, phase: phase, momentum: momentum, gesture: !legacy, legacy: legacy) }
+            if !owners.isEmpty { bridge.needsFrame() }
+        }
+    }
+
+    /// Stream bookkeeping for one scroller: `scrolling` rises with the first
+    /// delta and settles when the platform says the stream ended (momentum
+    /// .ended/.cancelled), or when it goes quiet — 80ms after a lifted finger
+    /// that no momentum followed, 120ms after the last legacy wheel tick.
+    private func streamEvent(_ n: Node, phase: NSEvent.Phase, momentum: NSEvent.Phase, gesture: Bool, legacy: Bool) {
+        n.quietWork?.cancel(); n.quietWork = nil
+        if !n.scrollingLive { n.scrollingLive = true; markFact(n) }
+        if n.gestureLive != gesture { n.gestureLive = gesture; markFact(n) }
+        if momentum.contains(.ended) || momentum.contains(.cancelled) { endStream(n); return }
+        let fingerUp = phase.contains(.ended) || phase.contains(.cancelled)
+        let delay: TimeInterval = legacy ? 0.12 : (fingerUp ? 0.08 : 0.5)
+        let w = DispatchWorkItem { [weak self, weak n] in
+            guard let self, let n else { return }
+            n.quietWork = nil
+            self.endStream(n)
+            self.bridge.needsFrame()
+        }
+        n.quietWork = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: w)
+    }
+    private func endStream(_ n: Node) {
+        if n.gestureLive { n.gestureLive = false; markFact(n) }
+        if n.scrollingLive, n.glideY == nil, n.glideX == nil { n.scrollingLive = false; markFact(n) }
+    }
+
+    /// The scroll process's frame step — FIRST in the frame (Bridge.onFrame):
+    /// glides advance, every offset that moved since the last frame commits
+    /// as one transaction. Returns whether another frame is wanted.
+    static let scrollDebug = ProcessInfo.processInfo.environment["DECLARE_DEBUG_SCROLL"] != nil
+    func tickScroll(now: CFTimeInterval) -> Bool {
+        var live = false
+        if LayerTree.scrollDebug, !gliding.isEmpty || !pendingMoves.isEmpty {
+            NSLog("[scroll] tick gliding=%d pending=%d", gliding.count, pendingMoves.count)
+        }
+        for id in Array(gliding) {
+            guard let n = nodes[id] else { gliding.remove(id); continue }
+            if let g = n.glideY {
+                let p = min(1, (now - g.start) / g.duration)
+                let v = g.from + (g.to - g.from) * Self.bezier(g.bezier, CGFloat(p))
+                if v != n.scrollOffset { n.scrollOffset = v; pendingMoves.insert(id) }
+                if p >= 1 { n.glideY = nil } else { live = true }
+            }
+            if let g = n.glideX {
+                let p = min(1, (now - g.start) / g.duration)
+                let v = g.from + (g.to - g.from) * Self.bezier(g.bezier, CGFloat(p))
+                if v != n.scrollXOffset { n.scrollXOffset = v; pendingMoves.insert(id) }
+                if p >= 1 { n.glideX = nil } else { live = true }
+            }
+            if n.glideY == nil && n.glideX == nil {
+                gliding.remove(id)
+                if LayerTree.scrollDebug { NSLog("[scroll] glide #%d done at y=%.0f", n.id, n.scrollOffset) }
+                if n.quietWork == nil, !n.gestureLive, n.scrollingLive { n.scrollingLive = false; markFact(n) }
+            }
+        }
+        commitMoves()
+        return live
+    }
+
+    /// One CATransaction for every scroller that moved: the content-layer
+    /// translate, the bars, the bands, the overlays — the SCROLLPOS body,
+    /// batched. Nothing here reads the runtime.
+    private func commitMoves() {
+        guard !pendingMoves.isEmpty else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for id in pendingMoves {
+            guard let n = nodes[id] else { continue }
+            place(n)
+            for c in n.children { place(c) }
+            updateBars(n, flash: true)
+            markFact(n)
+        }
+        pendingMoves.removeAll()
+        flushBands()
+        // content just moved under every frost: the sampler re-captures in
+        // this same transaction, exactly as an op commit does (apply)
+        frostEpoch &+= 1
+        let fr = refreshFrosts()
+        frostLastN = fr.n; frostLastMs = fr.ms
+        frostTotalN += fr.n; frostTotalMs += fr.ms
+        CATransaction.commit()
+        view?.repositionOverlays()
+    }
+
+    /// The facts, once per frame, after the frame that showed them:
+    /// [id, y | null, x | null, scrolling, gesture] per touched scroller.
+    func flushScrollFacts() {
+        guard !dirtyScroll.isEmpty else { return }
+        var rows: [[Any]] = []
+        for id in dirtyScroll {
+            guard let n = nodes[id] else { continue }
+            n.factDirty = false
+            rows.append([n.id, n.scrolls ? Double(n.scrollOffset) as Any : NSNull(),
+                         n.scrollsX ? Double(n.scrollXOffset) as Any : NSNull(),
+                         n.scrollingLive ? 1 : 0, n.gestureLive ? 1 : 0])
+        }
+        dirtyScroll.removeAll()
+        bridge.call("__declareScrollFacts", [rows])
+    }
+
+    /// A CSS cubic bezier (P0 = 0, P3 = 1), solved for t by Newton on x.
+    private static func bezier(_ b: (CGFloat, CGFloat, CGFloat, CGFloat), _ t: CGFloat) -> CGFloat {
+        if t <= 0 { return 0 }
+        if t >= 1 { return 1 }
+        let (x1, y1, x2, y2) = b
+        func curve(_ a: CGFloat, _ c: CGFloat, _ u: CGFloat) -> CGFloat { ((1 - 3 * c + 3 * a) * u + (3 * c - 6 * a)) * u * u + 3 * a * u }
+        func slope(_ a: CGFloat, _ c: CGFloat, _ u: CGFloat) -> CGFloat { 3 * (1 - 3 * c + 3 * a) * u * u + 2 * (3 * c - 6 * a) * u + 3 * a }
+        var u = t
+        for _ in 0..<8 {
+            let x = curve(x1, x2, u) - t
+            if abs(x) < 1e-5 { break }
+            let d = slope(x1, x2, u)
+            if abs(d) < 1e-6 { break }
+            u -= x / d
+        }
+        u = min(1, Swift.max(0, u))
+        return curve(y1, y2, u)
+    }
+
+    /// Turn a thumb position into a content offset — the host's own gesture,
+    /// applied here and reported as a fact like any other scroll.
     func dragScrollbar(_ n: Node, vertical: Bool, to thumbStart: CGFloat) {
         guard let bar = vertical ? n.vbar : n.hbar, bar.live, bar.travel > 0.5 else { return }
         let t = min(1, max(0, (thumbStart - Scrollbar.trackInset) / bar.travel))
         let offset = t * bar.maxOffset
         bar.hold()
-        bridge.call("__declareScrollTo", vertical ? [n.id, offset, NSNull()] : [n.id, NSNull(), offset])
+        cancelGlide(n, vertical: vertical)
+        if vertical {
+            if offset != n.scrollOffset { n.scrollOffset = offset; pendingMoves.insert(n.id) }
+        } else if offset != n.scrollXOffset { n.scrollXOffset = offset; pendingMoves.insert(n.id) }
+        streamEvent(n, phase: [], momentum: [], gesture: true, legacy: true)
         bridge.needsFrame()
     }
 

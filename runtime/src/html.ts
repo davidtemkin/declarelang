@@ -172,7 +172,7 @@ function blockOf(el: El): Block[] {
     const start = ordered ? parseInt(el.attrs.start ?? "1", 10) || 1 : 1;
     const items: ListItem[] = [];
     for (const c of el.kids) if (!("text" in c) && c.tag === "li") items.push({ task: null, blocks: blocksOf(c.kids) });
-    return [{ t: "list", ordered, start, items }];
+    return [{ t: "list", ordered, start, loose: items.some((it) => it.blocks.length > 1), items }];
   }
   return [];
 }

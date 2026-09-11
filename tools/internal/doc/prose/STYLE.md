@@ -24,7 +24,7 @@ prose.** Rank what's left by value:
    common pattern* is exactly where a model is confidently wrong and a human assumes
    instead of checking. A doc here is a **prior override**, not a gap-fill. The ones
    that actually saved a reader in this codebase: `0x` vs `#` colors, **no DOM in
-   `{ }`**, `DataSource.fetch()` is explicit (no auto-load), `prevailing` slots follow
+   `{ }`**, `DataSource.fetch()` is explicit (no auto-load), a `provided(…)` value follows
    an ancestor, `layout` is an *attribute not a child*, read-only intrinsics, the `app`
    noun. None are derivable; all counter a reasonable default. Write these first.
 2. **Invariants / contracts.** "must run after init", "never mutate", "idempotent",

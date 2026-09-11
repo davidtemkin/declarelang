@@ -85,12 +85,12 @@ canvas every frame, which is what dragged the dock's magnification from 60 to
 nothing after. Measured: 120 icons re-recording their *content* every frame runs
 frame-bound at 16.6ms, cheaper than the 120 text glyphs they replace.
 
-Colour is not a rule — `ink` follows the prevailing text colour, so an icon beside
+Colour is not a rule — `ink` follows the provided text colour, so an icon beside
 a muted label goes muted on its own, and a host that needs a different ink (a
 menu row's check inverting on the hot row) simply sets it.
 
 ## ink
-The mark's colour. Follows the **prevailing `textColor`**, so an icon beside a muted
+The mark's colour. Follows the provided `textColor`, so an icon beside a muted
 label goes muted on its own. **The trap: that slot falls back to black platform-wide**,
 so an icon in a context that never states a text colour renders black and vanishes on a
 dark surface. State `ink` unless you know the context sets one — `IconHost` does it for
@@ -110,10 +110,18 @@ it.** Every icon is one path at one size, scaled — there are no per-size varia
 it is — not API.
 
 ## width
-Sized by the prevailing `iconSize`, so a menu states 16 once and every icon in it answers; a use site may set its own.
+Sized by the provided `iconSize`, so a menu states 16 once and every icon in it answers; a use site may set its own.
 
 ## height
 Square, always — the height follows the width.
+
+## iconSize
+The mark's size, in px — a **provided value** (a host states it once, every icon beneath
+answers): defaults to the nearest provided `iconSize`, overridable at the use site.
+
+## textColor
+The effective text colour the mark's `ink` follows — a **provided value**, so an icon
+beside a muted label goes muted on its own; set `ink` to override.
 */
 
 /*
@@ -143,7 +151,7 @@ that is only ever computed needs `use [ Name ]` to survive the build.
 
 ## ink
 The colour handed to the icon this host builds. **`createView` cannot pass attributes,
-so a prevailing slot is the only channel that reaches it** — this publishes `textColor`
+so a PROVIDED value is the only channel that reaches it** — this provides `textColor`
 for exactly that. Defaults to `theme.text` rather than the platform's inherited black,
 which is what stops a host-built icon from rendering invisibly on a dark surface.
 
@@ -151,7 +159,7 @@ which is what stops a host-built icon from rendering invisibly on a dark surface
 Builds the named icon. Fires once.
 
 ## width
-Zero when there is no icon to host, so an empty slot reserves nothing and an icon-less button needs no special case; else the prevailing `iconSize`.
+Zero when there is no icon to host, so an empty slot reserves nothing and an icon-less button needs no special case; else the provided `iconSize`.
 
 ## height
 The icon's size whether or not one is hosted, so a row's height does not jump when an icon appears.
@@ -160,28 +168,36 @@ The icon's size whether or not one is hosted, so a row's height does not jump wh
 Present only when a kind is named.
 
 ## textColor
-Passes the host's `ink` down as the prevailing text colour, which is what the icon's drawing reads — so a control's ink decision reaches its icon.
+Passes the host's `ink` down as the provided text colour, which is what the icon's drawing reads — so a control's ink decision reaches its icon.
+
+## iconSize
+The size the built icon takes — a **provided value** (a menu row 16, a button 18);
+defaults to the nearest provided `iconSize`.
 */
 
 class IconHost extends View [
     kind: string = "",
+
+    // Size from the CONTEXT: `iconSize` defaults to the nearest provided value
+    // (a host states it once — a menu row 16, a button 18 — and every icon
+    // beneath answers), and a use site overrides just this one.
+
+    iconSize: number = { provided("iconSize", 16) },
     width  = { classroot.kind == "" ? 0 : iconSize },
     height = { iconSize },
     y = center,
     visible = { classroot.kind != "" },
 
     // THE INK CHANNEL. `createView` cannot pass attributes, so the only way to
-    // reach the icon it builds is a PREVAILING slot — and the one `Icon.ink`
-    // reads is `textColor`. Publishing it here is what lets a host state its
-    // ink at all.
+    // reach the icon it builds is a PROVIDED value — and the one `Icon.ink`
+    // reads is `textColor`, which the host PROVIDES here from its `ink`.
     //
-    // The default matters more than it looks: prevailing `textColor` falls back
-    // to 0x000000 platform-wide, so an icon that inherited it rendered BLACK —
-    // fine on a light surface by luck, invisible on a dark one. Every
-    // host-created icon in the corpus was doing that. `theme.text` is a floor
-    // that is never invisible in either palette.
+    // The default matters more than it looks: an icon that inherited a bare
+    // `textColor` would fall back to black — fine on a light surface by luck,
+    // invisible on a dark one. The provided theme's `text` token is a floor that
+    // is never invisible in either palette.
 
-    ink: Color = { theme.text },
+    ink: Color = { provided("theme").text },
     textColor = { classroot.ink },
 
     onInit() { if (this.kind != "") this.createView(this.kind, ({ })) }
@@ -194,18 +210,22 @@ class Icon extends View [
 
     isIcon: boolean = true,
 
-    // Size comes from the CONTEXT: `iconSize` is prevailing, so a menu states 16
-    // once and every icon in every row answers. A use site may override it.
+    // Size and ink come from the CONTEXT via provided values: `iconSize` defaults
+    // to the nearest provided value (a menu states 16 once and every icon answers),
+    // and `textColor` to the nearest provided text colour — each overridable at the
+    // use site. So `iconSize`/`textColor` on the icon win, a container's provision
+    // cascades, and a bare icon has a sensible floor.
+
+    iconSize:  number = { provided("iconSize", 16) },
+    textColor: Color  = { provided("textColor", 0x000000) },
 
     width  = { iconSize },
     height = { this.width },
     y = center,
 
-    // Follows the PREVAILING text colour, so an icon beside a muted label goes
-    // muted on its own. The trap: that slot falls back to 0x000000 platform-wide,
-    // so an icon in a context which never states a text colour renders BLACK and
-    // disappears on a dark surface. State `ink` unless you know the context sets
-    // one — `IconHost` does it for every icon built by name.
+    // Follows the effective text colour, so an icon beside a muted label goes
+    // muted on its own. State `ink` directly to override — `IconHost` does it for
+    // every icon built by name.
 
     ink: Color = { textColor },
     weight: number = 1.6,        // stroke width in FINAL pixels, not authored ones

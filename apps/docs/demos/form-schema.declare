@@ -6,7 +6,7 @@ schema Task [ id: number, title: string, done: boolean ]
 
 App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
     tasks: Dataset [ schema = [ items[]: Task ],
-        contents = { ({ items: [ ({ id: 1, title: "write the schema", done: true }), ({ id: 2, title: "type the paths", done: false }) ] }) } ],
+        contents = { { items: [ ({ id: 1, title: "write the schema", done: true }), ({ id: 2, title: "type the paths", done: false }) ] } } ],
     col: View [ x = 20, y = 16, width = 320, datapath = { tasks.value },
         layout: SimpleLayout [ axis = y, spacing = 6 ],
         View [ datapath = :items[], height = 26, width = 320,

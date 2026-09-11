@@ -63,7 +63,6 @@ function schemaSpine() {
     out[name] = {
       base: s.base?.name ?? null,
       attrs: Object.fromEntries(Object.entries(s.attrs).map(([k, t]) => [k, attrTypeTag(t)])),
-      prevailing: s.prevailing ?? [],
       readOnly: s.readOnly ?? [],
       events: s.events ?? [],
     };
@@ -114,7 +113,6 @@ function librarySchemaSpine() {
     out[c.name] = {
       base: s.base?.name ?? null,
       attrs: Object.fromEntries(Object.entries(s.attrs).map(([k, t]) => [k, attrTypeTag(t)])),
-      prevailing: s.prevailing ?? [],
       readOnly: s.readOnly ?? [],
       events: s.events ?? [],
     };
@@ -252,7 +250,7 @@ function themeTokenSpine() {
   }
   for (const t of bare) guarded.delete(t);            // read bare anywhere ⇒ required
   const presetSrc = readFileSync(join(ROOT, "library/themes/sanfrancisco.declare"), "utf8");
-  const body = presetSrc.split("stylesheet SanFrancisco [")[1]?.split("]")[0] ?? "";
+  const body = presetSrc.split("theme SanFrancisco [")[1]?.split("]")[0] ?? "";
   const stated = [...body.matchAll(/([a-zA-Z][\w]*)\s*=/g)].map((m) => m[1]);
   const row = (t) => ({ name: t, required: bare.has(t), read: [...(readers[t] ?? [])].sort(), stated: stated.includes(t) });
   return {
@@ -454,7 +452,7 @@ function elementDoc(id, ref) {
     if (attrs.length) {
       L.push(`${level} Attributes`, "", "| name | type | default | |", "|---|---|---|---|");
       for (const a of attrs) {
-        const badge = [a.prevailing ? "prevailing" : "", a.readOnly ? "read-only" : ""].filter(Boolean).join(" · ");
+        const badge = a.readOnly ? "read-only" : "";
         L.push(`| \`${a.name}\` | ${a.type ?? (a.returns ?? "")} | ${a.default != null ? "\`" + a.default + "\`" : ""} | ${badge} |`);
       }
       L.push("");
@@ -513,8 +511,8 @@ const VOCAB_NOTE = {
   Fill: "what paints a box: a `Color` or a `Gradient`",
   Stroke: "a width and a colour — build it with `stroke(w, c)`. A border *is* a stroke",
   Shadow: "offset, blur and colour — build it with `shadow(dx, dy, blur, c)`",
-  Theme: "the prevailing token record; see **Theme tokens** for the vocabulary components read",
-  Themes: "The shipped theme presets — each takes a dark flag and returns a complete token record. **This is what you build a theme from**; an empty record is not a theme. Available without an include.",
+  Theme: "a design-token record; see **Theme tokens** for the vocabulary components read",
+  tint: "`tint(color, dark)` — an active tone derived from an accent (22% over the surface), for a theme that overrides the accent.",
   Inspect: "The running program's introspection surface, behind the same door as `__declare.explain` — dev tooling, stubbed in a production build unless you pass `declarec --debug`.",
   Cursor: "a datapath's resolved position — `.data` and `.path`",
   MotionCurve: "an easing curve for an `Animator`",
@@ -650,16 +648,17 @@ const themeTokensDoc = (spine) => {
   const t = spine.themeTokens;
   const row = (r) => `| \`${r.name}\` | ${r.read.slice(0, 6).join(", ")}${r.read.length > 6 ? ", …" : ""} |`;
   return ["# Theme tokens", "",
-    "*The vocabulary the standard library reads off the prevailing `theme` record. Measured from",
+    "*The vocabulary the standard library reads off the `theme` provided value. Measured from",
     "the library sources, so it cannot drift from what the components actually consult.*", "",
-    "A `theme` is a plain record on a **prevailing** slot: set it high in the tree and every",
-    "descendant follows until one overrides it. Start from a preset and spread to change a token —",
-    "**an empty record is not a theme**, because the library reads specific names:", "",
+    "A `theme` is a plain record, a **provided value**: set it high in the tree and every",
+    "descendant reads it with `provided(\"theme\")` until one overrides it. Start from a preset and",
+    "spread to change a token — **an empty record is not a theme**, because the library reads",
+    "specific names:", "",
     "```declare-fragment",
-    "theme = { Themes.sanFrancisco(app.dark) },                 // on the App",
-    "theme = { { ...app.theme, accent: 0xCC3333 } }            // override one token below",
+    "theme = { app.dark ? SanFranciscoDark : SanFrancisco },     // on the App",
+    "theme = { { ...provided(\"theme\"), accent: 0xCC3333 } }       // override one token below",
     "```", "",
-    `Presets, each taking a dark flag: ${spine.themeTokens.presets.map((p) => "`" + p + "`").join(" · ")}.`, "",
+    `Presets, each with a light record and a \`…Dark\` companion: ${spine.themeTokens.presets.map((p) => "`" + p + "`").join(" · ")}.`, "",
     "## Required — the contract", "",
     `**${t.required.length} tokens are read bare**, with no fallback. A record missing one of these`,
     "breaks the components that read it, which is why a theme is built from a preset rather than",

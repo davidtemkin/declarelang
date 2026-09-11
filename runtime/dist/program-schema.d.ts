@@ -6,7 +6,7 @@ import { type AttrType, type AttrValue } from "./value.js";
  *  `app` is the running-App noun (compiles to `this.root`); reserving it here
  *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
 export declare const NOUNS: string[];
-/** The value-constructor names (styling rung) are reserved as member names:
+/** The value-constructor names are reserved as member names:
  *  in call position a body's `gradient(…)` is always the constructor, so a
  *  member wearing the name would be unreachable there. (`fill`/`stroke`/
  *  `shadow` are already View attributes — the ordinary collision rules cover
@@ -61,7 +61,7 @@ export declare function programSchemas(classes: readonly ClassDecl[], shapes?: R
  *  first of fill/stroke/shadow that admits it. */
 export declare function coerceToken(lit: Literal): unknown;
 /** One checked attribute declaration: its resolved type and coerced default
- *  — or, since the styling rung, a default BINDING (`labelColor: Color =
+ *  — or a default BINDING (`labelColor: Color =
  *  { theme.buttonText }`, the ruled R6 unlock: a live per-instance fallback
  *  below every provision) — or the (unthrown) error. Shared by class
  *  registration and by inline declarations on instances — one message

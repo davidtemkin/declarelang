@@ -4,10 +4,10 @@
 // own rasterizer: a real DOM text node there, fillText on the shared canvas
 // here — same glyph geometry, substrate-native inking.
 //
-// Style, since the styling rung, is the PREVAILING quartet declared on View
-// (textColor/fontSize/fontFamily/fontWeight — Text.color is retired into the
-// one textColor slot, ruled): a Text with no style of its own renders with
-// whatever the nearest providing container says, live. The seam push is
+// Style is the face quartet Text declares (textColor/fontSize/fontFamily/
+// fontWeight — one textColor slot carries the glyph color), each a `provided(
+// name, default)` read: a Text with no style of its own renders with whatever
+// the nearest providing container says, live. The seam push is
 // therefore a small *derive* over the effective values (the ruled shape —
 // exactly like the measure derives): it reads the four slots under tracking,
 // so a provider change anywhere up the chain re-styles exactly the runs that
@@ -24,18 +24,16 @@
 import { View, onDiscard } from "./view.js";
 import { shadowEqual, outlineEqual } from "./value.js";
 import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight } from "./measure.js";
-import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
+import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 export class Text extends View {
-    // `selectable` is a prevailing View slot now (inherited): the textStyle derive
-    // below reads `this.selectable` so a `selectable` container opts a whole subtree in.
     /** The per-line advance: the declared leading (a fontSize multiplier, the
      *  Markdown convention) or, at the 0 default, the font's natural line box. */
     lineAdvance(m) {
         return this.lineHeight > 0 ? Math.round(this.fontSize * this.lineHeight) : m.ascent + m.descent;
     }
     // ── Author-facing font metrics (compositing.md Part III) — read-only,
-    // REACTIVE intrinsics of the EFFECTIVE font (the prevailing slots): each
+    // REACTIVE intrinsics of the EFFECTIVE font (the face slots): each
     // getter measures through fontString(this), whose slot reads are tracked,
     // so a constraint reading `label.ascent` re-derives when the effective
     // font changes — a provider re-rooting above included. Measurement, not
@@ -114,8 +112,8 @@ export class Text extends View {
         super.flush(s);
         // Style before text: the style creates the run's rendering context, the
         // text is the hot path that changes alone under a constraint. The style
-        // push is a standing derive because the four slots are prevailing: the
-        // effective values can change with no write to THIS view (a provider
+        // push is a standing derive because the four slots read provided values:
+        // the effective values can change with no write to THIS view (a provider
         // re-roots above), and the tracked reads here are what follow it.
         const style = new Constraint(`${this.constructor.name}.textStyle`, () => ({
             fontFamily: this.fontFamily,
@@ -145,6 +143,19 @@ export class Text extends View {
     }
 }
 defineAttributes(Text, {
+    // The FACE slots, off View (docs/system-design/style.md): each defaults to the
+    // nearest provided value, so a bare Text inherits its region's style; setting
+    // one overrides just this run. `selectable` carries the DOM selection push.
+    textColor: { def: 0x000000, defBinding: providedDefault("textColor", 0x000000) },
+    fontSize: { def: 16, defBinding: providedDefault("fontSize", 16) },
+    fontFamily: { def: "sans-serif", defBinding: providedDefault("fontFamily", "sans-serif") },
+    fontWeight: { def: "normal", defBinding: providedDefault("fontWeight", "normal") },
+    letterSpacing: { def: 0, defBinding: providedDefault("letterSpacing", 0) },
+    selectable: {
+        def: false,
+        defBinding: providedDefault("selectable", false),
+        push: (v, val) => v.surface?.setSelectableRegion?.(val === true),
+    },
     text: { def: "", push: (t, v) => t.surface?.setText(v) },
     textShadow: { def: null, equal: shadowEqual },
     wrap: { def: true },

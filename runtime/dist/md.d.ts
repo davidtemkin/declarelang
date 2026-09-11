@@ -20,6 +20,7 @@ export type Block = {
     t: "list";
     ordered: boolean;
     start: number;
+    loose: boolean;
     items: ListItem[];
 } | {
     t: "table";
@@ -52,7 +53,13 @@ export type Inline = {
 } | {
     t: "link";
     href: string;
+    title?: string;
     inline: Inline[];
+} | {
+    t: "image";
+    src: string;
+    alt: string;
+    title?: string;
 } | {
     t: "br";
 } | {

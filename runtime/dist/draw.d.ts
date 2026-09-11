@@ -406,7 +406,17 @@ export declare function rasterTotalCap(viewportBytes: number): number;
  *  (vectors on canvas, a lower density on DOM) is slower, never wrong.
  *  `sx, sy` are the raster's density and `bx, by` its origin in recording
  *  units — the same numbers the raster was made with. */
-export declare function rasterLooksBlank(cv: HTMLCanvasElement, list: DisplayList, sx: number, sy: number, bx: number, by: number): boolean;
+/** A canvas-shaped surface this module can draw into: an HTMLCanvasElement on
+ *  the page, an OffscreenCanvas in the raster worker (the same 2D API). */
+export interface CanvasLike {
+    width: number;
+    height: number;
+    getContext(kind: "2d"): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+}
+/** A scratch canvas wherever this module runs: the DOM's element on a page, an
+ *  OffscreenCanvas in a worker (raster-worker.ts) where there is no document. */
+export declare function makeCanvas(w: number, h: number): CanvasLike;
+export declare function rasterLooksBlank(cv: CanvasLike, list: DisplayList, sx: number, sy: number, bx: number, by: number): boolean;
 export declare function replayArea(list: DisplayList): number;
 /** Replay a recording into a real 2D context. `clip`, when given, is the
  *  region (recording-local) the replay can be SEEN in: paint ops entirely

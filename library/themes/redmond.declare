@@ -12,45 +12,43 @@ fly: `focusRing = "rest"` — the indicator appears in place and stays.
 Segoe UI is the consuming app's `fontFamily`, not a theme token.
 */
 
-stylesheet Redmond [
-    theme: Theme [
-        bg = #F3F3F3, surface = #FFFFFF, line = #D1D1D1,
-        text = #1B1B1B, textMuted = #5D5D5D, textFaint = #9A9A9A,
-        accent = #0067C0, accentText = #FFFFFF,
-        control = #FBFBFB, controlHover = #EFEFEF, controlPressed = #E1E1E1, controlSelected = #C7DEF1,
-        depth = 0.5, focusRing = "rest",
-        controlRadius = 4, buttonRadius = 4, fieldRadius = 4, fieldPadding = 10,
-        buttonHeight = 32, switchWidth = 40, switchHeight = 20, switchThumbOff = 12,
-        focusRingWidth = 2, focusRingGap = 0, focusRingInnerWidth = 1,
-        focusColor = #000000, focusRingInnerColor = #FFFFFF,
-        sliderHandle = "dot",
-        checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36,
-        tooltipBg = #FBFBFB, tooltipText = #1B1B1B, tooltipLine = #D1D1D1,
-        tooltipPlacement = "above", tooltipDelay = 1000,
-        menuRadius = 8, menuShadow = shadow(0, 8, 16, #00000030), menuHl = #F0F0F0, menuHlText = #1B1B1B,
-        scrimColor = #000000, scrimOpacity = 0.3, errorColor = #C42B1C,
-        dialogWidth = 448, dialogButtons = "fill", dialogTitleSize = 20, dialogBodySize = 14,
-        buttonBorder = #D1D1D1 ]
+theme Redmond [
+    bg = #F3F3F3, surface = #FFFFFF, line = #D1D1D1,
+    text = #1B1B1B, textMuted = #5D5D5D, textFaint = #9A9A9A,
+    accent = #0067C0, accentText = #FFFFFF,
+    control = #FBFBFB, controlHover = #EFEFEF, controlPressed = #E1E1E1, controlSelected = #C7DEF1,
+    depth = 0.5, focusRing = "rest",
+    controlRadius = 4, buttonRadius = 4, fieldRadius = 4, fieldPadding = 10,
+    buttonHeight = 32, switchWidth = 40, switchHeight = 20, switchThumbOff = 12,
+    focusRingWidth = 2, focusRingGap = 0, focusRingInnerWidth = 1,
+    focusColor = #000000, focusRingInnerColor = #FFFFFF,
+    sliderHandle = "dot",
+    checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36,
+    tooltipBg = #FBFBFB, tooltipText = #1B1B1B, tooltipLine = #D1D1D1,
+    tooltipPlacement = "above", tooltipDelay = 1000,
+    menuRadius = 8, menuShadow = shadow(0, 8, 16, #00000030), menuHl = #F0F0F0, menuHlText = #1B1B1B,
+    scrimColor = #000000, scrimOpacity = 0.3, errorColor = #C42B1C,
+    dialogWidth = 448, dialogButtons = "fill", dialogTitleSize = 20, dialogBodySize = 14,
+    buttonBorder = #D1D1D1
     ]
 
 
-stylesheet RedmondDark [
-    theme: Theme [
-        bg = #202020, surface = #2B2B2B, line = #404040,
-        text = #FFFFFF, textMuted = #C5C5C5, textFaint = #8B8B8B,
-        accent = #4CC2FF, accentText = #000000,
-        control = #343434, controlHover = #3D3D3D, controlPressed = #484848, controlSelected = #2B4553,
-        depth = 0.5, focusRing = "rest",
-        controlRadius = 4, buttonRadius = 4, fieldRadius = 4, fieldPadding = 10,
-        buttonHeight = 32, switchWidth = 40, switchHeight = 20, switchThumbOff = 12,
-        focusRingWidth = 2, focusRingGap = 0, focusRingInnerWidth = 1,
-        focusColor = #FFFFFF, focusRingInnerColor = #000000,
-        sliderHandle = "dot",
-        checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36,
-        tooltipBg = #2C2C2C, tooltipText = #FFFFFF, tooltipLine = #404040,
-        tooltipPlacement = "above", tooltipDelay = 1000,
-        menuRadius = 8, menuShadow = shadow(0, 8, 16, #00000059), menuHl = #3D3D3D, menuHlText = #FFFFFF,
-        scrimColor = #000000, scrimOpacity = 0.5, errorColor = #FF99A4,
-        dialogWidth = 448, dialogButtons = "fill", dialogTitleSize = 20, dialogBodySize = 14,
-        buttonBorder = #505050 ]
+theme RedmondDark [
+    bg = #202020, surface = #2B2B2B, line = #404040,
+    text = #FFFFFF, textMuted = #C5C5C5, textFaint = #8B8B8B,
+    accent = #4CC2FF, accentText = #000000,
+    control = #343434, controlHover = #3D3D3D, controlPressed = #484848, controlSelected = #2B4553,
+    depth = 0.5, focusRing = "rest",
+    controlRadius = 4, buttonRadius = 4, fieldRadius = 4, fieldPadding = 10,
+    buttonHeight = 32, switchWidth = 40, switchHeight = 20, switchThumbOff = 12,
+    focusRingWidth = 2, focusRingGap = 0, focusRingInnerWidth = 1,
+    focusColor = #FFFFFF, focusRingInnerColor = #000000,
+    sliderHandle = "dot",
+    checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36,
+    tooltipBg = #2C2C2C, tooltipText = #FFFFFF, tooltipLine = #404040,
+    tooltipPlacement = "above", tooltipDelay = 1000,
+    menuRadius = 8, menuShadow = shadow(0, 8, 16, #00000059), menuHl = #3D3D3D, menuHlText = #FFFFFF,
+    scrimColor = #000000, scrimOpacity = 0.5, errorColor = #FF99A4,
+    dialogWidth = 448, dialogButtons = "fill", dialogTitleSize = 20, dialogBodySize = 14,
+    buttonBorder = #505050
     ]

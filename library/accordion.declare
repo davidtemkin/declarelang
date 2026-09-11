@@ -71,11 +71,23 @@ Applies `initial`. Fires once per pane.
 
 ## width
 A pane is as wide as its accordion; only its height is its own.
+
+## theme
+The provided design-token record this widget styles off — a **provided value**
+(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
+widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
+house look. See `Control.theme`.
 */
 
 include [ "control.declare", "icons/core.declare" ]
 
 class Accordion extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", SanFrancisco) },
+
     value: string = "",
 
     // one open pane at a time, stacked flush — the sliding heights ARE the

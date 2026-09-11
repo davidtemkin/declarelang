@@ -32,8 +32,30 @@ import { DeclareError, layoutConflictMessage } from "./errors.js";
 // gives the checker, expressed in the runtime's own currency.
 const DEFAULTS = new WeakMap();
 const PUSHERS = new WeakMap();
-const PREVAILING = new WeakMap();
 const EQUALS = new WeakMap();
+function provideCellFor(self, name) {
+    const cells = (self.$provideCells ??= Object.create(null));
+    return (cells[name] ??= new Cell());
+}
+/** Set a provision on a node — the value a descendant's `provided("name")`
+ *  reads when this node is the nearest provider. Equality-gated, and wakes the
+ *  readers below. Both a literal provision and a bound one (whose `{ }`
+ *  re-derives) land here. */
+/** The value a node PROVIDES locally under `name` (its own provision), or
+ *  undefined if it provides none. The DOM selection surface reads this: a
+ *  container that provides `selectable = true` becomes a selection region so a
+ *  gap press between its leaves anchors on it. */
+export function localProvision(self, name) {
+    return self.$provides?.[name];
+}
+export function provideWrite(self, name, value) {
+    const p = self;
+    const store = (p.$provides ??= Object.create(null));
+    if (name in store && store[name] === value)
+        return;
+    store[name] = value;
+    p.$provideCells?.[name]?.changed();
+}
 /** Walk the constructor chain to the nearest class with a table, memoizing
  *  the answer for classes that declare nothing of their own (App). Classes
  *  declare their attributes at module load, before any instance exists, so
@@ -59,15 +81,12 @@ export function defineAttributes(ctor, specs) {
     const parent = Object.getPrototypeOf(ctor);
     const defaults = Object.create(tableFor(DEFAULTS, parent));
     const pushers = Object.create(tableFor(PUSHERS, parent));
-    const prevailing = Object.create(tableFor(PREVAILING, parent));
     const equals = Object.create(tableFor(EQUALS, parent));
     for (const name of Object.keys(specs)) {
         const spec = specs[name];
         defaults[name] = spec.def;
         pushers[name] = spec.push;
-        prevailing[name] = spec.prevailing;
         equals[name] = spec.equal;
-        const follows = spec.prevailing === true;
         const defBinding = spec.defBinding;
         const defOuter = spec.defOuter === true;
         const readOnly = spec.readOnly === true;
@@ -88,22 +107,12 @@ export function defineAttributes(ctor, specs) {
                 else if (live !== undefined) {
                     return live(self);
                 }
-                if ((follows || defBinding !== undefined) && !provided(self, name)) {
-                    // A prevailing slot with no local provision FOLLOWS the nearest
-                    // providing ancestor (styling rung) — `defaults` is the DECLARING
-                    // class's own table, which is the slot's identity (two unrelated
-                    // classes declaring one spelling are two attributes; a shared base
-                    // is one — the ruled lean).
-                    if (follows) {
-                        const v = followRead(self, name, defaults);
-                        if (v !== NOTHING)
-                            return v;
-                    }
-                    // The chain's end: a declaration default that is a binding
-                    // evaluates live, per instance (unless a runtime write — an Image's
-                    // natural size — left instance storage; storage wins, as a literal
-                    // default would lose to it).
-                    if (defBinding !== undefined && (self.$attrs === undefined || !Object.hasOwn(self.$attrs, name))) {
+                if (defBinding !== undefined && !provided(self, name)) {
+                    // A declaration default that is a binding (`fontSize = provided(
+                    // "fontSize", 16)`) evaluates live, per instance (unless a runtime
+                    // write — an Image's natural size — left instance storage; storage
+                    // wins, as a literal default would lose to it).
+                    if (self.$attrs === undefined || !Object.hasOwn(self.$attrs, name)) {
                         return evalDefault(self, name, defBinding, defOuter);
                     }
                 }
@@ -122,10 +131,6 @@ export function defineAttributes(ctor, specs) {
                 // here), armed only for replicated-instance subtrees.
                 if (RUNTIME_WRITE === 0 && ARMED.has(self))
                     DIVERGED.add(self);
-                // A first write to a prevailing slot changes what it MEANS (following
-                // → providing) even when the written value equals the stored default,
-                // so the equality gate below cannot be the only wake.
-                const becameProvider = follows && !provided(self, name);
                 const owner = self.$owners?.[name];
                 if (owner !== undefined) {
                     if (!owner.yielding) {
@@ -138,26 +143,20 @@ export function defineAttributes(ctor, specs) {
                 }
                 (self.$set ??= new Set()).add(name);
                 write(this, name, v);
-                if (becameProvider)
-                    self.$cells?.[name]?.changed();
             },
         });
     }
     DEFAULTS.set(ctor, defaults);
     PUSHERS.set(ctor, pushers);
-    PREVAILING.set(ctor, prevailing);
     EQUALS.set(ctor, equals);
 }
-/** Does this slot have a LOCAL provision — an author set (literal or direct
- *  write), an owning binding, or a stylesheet entry's installed offer?
- *  Anything less is "unset", which on a prevailing slot means *following*. */
+/** Is this slot set LOCALLY — an author set (literal or direct write) or an
+ *  owning binding? A slot that is not overrides nothing, so its declaration
+ *  default (a `provided(…)` read, for a face slot) governs. */
 function provided(self, name) {
     return ((self.$set?.has(name) ?? false) ||
-        self.$owners?.[name] !== undefined ||
-        (self.$stylesheetMarks?.has(name) ?? false));
+        self.$owners?.[name] !== undefined);
 }
-/** followRead's "no provider anywhere" — distinct from a provided null. */
-const NOTHING = Symbol("no provider");
 // Default-binding evaluation, re-entrancy-guarded: a default reading its own
 // slot (directly or through a cycle of defaults) is a defect, named rather
 // than overflowed.
@@ -178,56 +177,76 @@ function evalDefault(self, name, fn, outer) {
         inFlight.delete(name);
     }
 }
-/** The declaring table for `name` within a chained table — the slot's
- *  identity. MEMOIZED per (table, name): tables are per-constructor chained
- *  objects, immutable after registration, and the prevailing follow walk
- *  asks this per ANCESTOR per READ — the scrub bench showed the naive
- *  prototype re-walk as the single hottest app-code frame cost. */
-const DECLARING = new WeakMap();
-function declaringOf(table, name) {
-    if (table === null)
-        return null;
-    let m = DECLARING.get(table);
-    if (m === undefined)
-        DECLARING.set(table, (m = new Map()));
-    const hit = m.get(name);
-    if (hit !== undefined)
-        return hit;
-    let found = null;
-    for (let t = table; t !== null; t = Object.getPrototypeOf(t)) {
-        if (Object.hasOwn(t, name)) {
-            found = t;
-            break;
-        }
-    }
-    m.set(name, found);
-    return found;
-}
-/** The prevailing follow walk (styling rung — the R8 cursor-inheritance
- *  pattern over ordinary attribute cells): walk the parent chain, nearest
- *  first; a level whose class lacks the slot — or declares a DIFFERENT slot
- *  under the same spelling — is transparent; every consulted level's cell is
- *  a tracked read, so a provision appearing, changing, or clearing anywhere
- *  on the chain wakes exactly the readers below it (a mid-tree provide
- *  re-roots in one settle). Returns the nearest provider's local value, or
- *  NOTHING when nothing above provides (the reader falls back to its own
- *  declaration default — the chain's end). */
-function followRead(self, name, declaring) {
-    for (let p = self.parent; typeof p === "object" && p !== null; p = p.parent) {
-        const pc = p;
-        const pd = tableFor(DEFAULTS, p.constructor);
-        if (pd === null || !(name in pd) || declaringOf(pd, name) !== declaring)
-            continue;
-        if (isTracking())
-            cellFor(pc, name).track();
-        if (provided(pc, name))
-            return (pc.$attrs ?? pd)[name];
-    }
-    return NOTHING;
-}
 function cellFor(self, name) {
     const cells = (self.$cells ??= Object.create(null));
     return (cells[name] ??= new Cell());
+}
+/** The read behind `provided("name")` — a value an ancestor makes available
+ *  under `name`, read explicitly by a descendant. Resolved by NAME: the walk
+ *  climbs the parent chain, nearest first, and the first ancestor that either
+ *  carries a provision under `name` (a set of a name its class does not declare,
+ *  `App [ accent = #E05252 ]`) or whose class declares an attribute `name`
+ *  (`App [ density: number = 2 ]`, or an ordinary slot a descendant names)
+ *  answers with its effective value. Any named ancestor slot is reachable by a
+ *  descendant that names it — the read is the visible, deliberate one.
+ *
+ *  The walk starts at the PARENT (a reader never resolves against its own slot —
+ *  that is what makes `Text`'s `fontSize = provided("fontSize", 16)` default
+ *  terminate instead of reading itself). Every consulted level is a tracked
+ *  read, so a provision changing — or the tree restructuring — re-roots exactly
+ *  the readers below. `hasDefault` supplies the createContext-style terminal
+ *  (`provided("fontSize", 15)`): when nothing above provides the name, a
+ *  defaulted read returns the default and a bare (required) read throws, naming
+ *  the missing value. */
+/** A slot's default binding that reads the nearest provided value, falling to
+ *  `def`. This is how the text leaves (Text, RichText, TextInput) declare their
+ *  face slots — `fontSize: number = provided("fontSize", 16)` — so a bare run
+ *  inherits its region's style (a container provides it) yet a bare, unprovided
+ *  run still has a sensible default. The provided read is skipped once the slot
+ *  is set locally (the accessor evaluates a defBinding only on an unset slot),
+ *  so `Text [ fontSize = 70 ]` overrides without consulting the tree. */
+export function providedDefault(name, def) {
+    return function () {
+        return providedRead(this, name, true, def);
+    };
+}
+export function providedRead(self, name, hasDefault, dflt) {
+    // A node that PROVIDES a value can also read it — `App [ theme = { … }, fill =
+    // { provided("theme").bg } ]`. Its own provision is checked first (a provision
+    // is not a declared slot, so this never shadows a face slot's own read, which
+    // resolves against ancestors). The walk below starts at the parent, so a
+    // declared slot whose default IS a provided read still terminates.
+    const s = self;
+    if (s.$provides !== undefined && name in s.$provides) {
+        if (isTracking())
+            provideCellFor(s, name).track();
+        return s.$provides[name];
+    }
+    for (let p = self.parent; typeof p === "object" && p !== null; p = p.parent) {
+        const pc = p;
+        // A named provision (an undeclared set — `App [ accent = #E05252 ]`).
+        if (pc.$provides !== undefined && name in pc.$provides) {
+            if (isTracking())
+                provideCellFor(pc, name).track();
+            return pc.$provides[name];
+        }
+        // A DECLARED slot of this ancestor's class (an instance-declared provision
+        // — `App [ density: number = 2 ]` — or an ordinary attribute a descendant
+        // names). Read its EFFECTIVE value through the accessor, not the stored
+        // table: a declarer whose slot is ITSELF a provided read (`Control [ theme:
+        // Theme = provided("theme", SanFrancisco) ]`) then forwards transparently up
+        // the chain — its defBinding runs and continues the walk — instead of
+        // shadowing the real provider with its own (unevaluated) default. The
+        // accessor tracks the slot's cell, so this stays reactive on the wired and
+        // tracking paths alike.
+        const pd = tableFor(DEFAULTS, p.constructor);
+        if (pd !== null && name in pd) {
+            return p[name];
+        }
+    }
+    if (hasDefault)
+        return dflt;
+    throw new DeclareError(`provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`);
 }
 /** The one write path (public setters and setBound both land here):
  *  equality-gate, store, push the slot's Surface call, wake dependents. */
@@ -266,44 +285,6 @@ export function addBound(self, name, delta) {
     const cur = self[name];
     write(self, name, (typeof cur === "number" ? cur : 0) + delta);
 }
-// ── The stylesheet channel's write side (styling rung) ─────────────────────
-//
-// A stylesheet entry's field is a rank-2 OFFER: it installs only where no
-// author provision stands (the applier checks), it provides for followers
-// (a $stylesheetMarks mark counts as provided), and it clears wholesale on swap. The
-// applier (stylesheet.ts) is the only caller.
-/** Install a stylesheet field's value on an unprovided slot. */
-export function stylesheetWrite(self, name, v) {
-    const carrier = self;
-    const becameProvider = tableFor(PREVAILING, self.constructor)?.[name] === true && !provided(carrier, name);
-    (carrier.$stylesheetMarks ??= new Set()).add(name);
-    write(self, name, v);
-    if (becameProvider)
-        carrier.$cells?.[name]?.changed();
-}
-/** Withdraw a stylesheet field (the entry no longer offers it, or an author
- *  provision now outranks it). When the slot is otherwise unprovided the
- *  stored value is removed so reads fall back through the ordinary chain
- *  (follow → declaration default), dependents wake, and the slot's Surface
- *  state is re-pushed with the now-effective value. */
-export function stylesheetClear(self, name) {
-    const carrier = self;
-    if (carrier.$stylesheetMarks === undefined || !carrier.$stylesheetMarks.delete(name))
-        return;
-    if (provided(carrier, name))
-        return; // an author provision holds the value now
-    if (carrier.$attrs !== undefined && Object.hasOwn(carrier.$attrs, name)) {
-        delete carrier.$attrs[name];
-    }
-    carrier.$cells?.[name]?.changed();
-    const v = self[name]; // the effective fallback
-    tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
-}
-/** The applier's bookkeeping: which slots this view's stylesheet currently
- *  colors. */
-export function stylesheetMarks(self) {
-    return self.$stylesheetMarks;
-}
 /** Was this slot ever author-set (a literal, or a direct assignment)?
  *  The R4 replacement for R3's 0-as-unset: auto-size asks this, so an
  *  explicit `width=0` now means zero, not "measure me". */
@@ -314,48 +295,6 @@ export function isSet(self, name) {
  *  when the path is unresolved (the doc's rule, language §9). */
 export function defaultOf(self, name) {
     return tableFor(DEFAULTS, self.constructor)?.[name];
-}
-/** What this slot would be worth if the view did NOT provide it: the
- *  prevailing follow (tracked, when read under tracking), else the class
- *  default. The ruled fallback for an unresolved `:path` on a prevailing
- *  slot — the declaration default is just the chain's end, so "unresolved →
- *  the followed value" is the consistent generalization (ruling item 15). */
-export function followedValue(self, name) {
-    const table = tableFor(DEFAULTS, self.constructor);
-    if (table === null)
-        return undefined;
-    if (tableFor(PREVAILING, self.constructor)?.[name] === true) {
-        const v = followRead(self, name, declaringOf(table, name));
-        if (v !== NOTHING)
-            return v;
-    }
-    return table[name];
-}
-/** Is this prevailing slot PROVIDED anywhere — on the view itself, or on any
- *  ancestor the follow walk would consult? Distinguishes "somebody declared a
- *  value" from "the chain ran out and the class default answered". A component
- *  SPECIES whose nature differs from the View-wide default asks this and
- *  supplies its own fallback at the read site (RichText: a document is
- *  selectable unless somebody says otherwise) — the only mechanism that gives
- *  a species default WITHOUT breaking the slot's semantics: a class-body
- *  provision would defeat ancestor vetoes (a provision always wins), and
- *  re-declaring the slot on the subclass would fork its identity and make
- *  every ancestor transparent to the follow walk. Tracked like any prevailing
- *  read: a provision appearing, changing, or clearing anywhere on the chain
- *  re-runs the asking constraint. */
-export function prevailingProvided(self, name) {
-    const c = self;
-    if (isTracking())
-        cellFor(c, name).track();
-    if (provided(c, name))
-        return true;
-    const table = tableFor(DEFAULTS, self.constructor);
-    if (table === null)
-        return false;
-    const declaring = declaringOf(table, name);
-    if (declaring === null)
-        return false;
-    return followRead(c, name, declaring) !== NOTHING;
 }
 /** Retire every constraint that owns a slot on `self` — the teardown half a
  *  removed view needs (R8's replication is the first thing that removes):
@@ -494,10 +433,6 @@ export function own(self, name, c) {
             : `${self.constructor.name}.${name} is already bound (by ${prior.label})`);
     }
     owners[name] = c;
-    // On a prevailing slot, gaining an owner is a provision-state change
-    // (following → providing) even before the binding's first value lands —
-    // followers must re-walk (the setter's becameProvider wake, mirrored here).
-    wakeIfPrevailing(self, name);
 }
 /** Release `c`'s ownership of `self.name` — the uninstall half of `own`,
  *  for owners that retire as a unit (a layout strategy detaching). Guarded on
@@ -506,12 +441,6 @@ export function release(self, name, c) {
     const owners = self.$owners;
     if (owners !== undefined && owners[name] === c) {
         delete owners[name];
-        wakeIfPrevailing(self, name); // providing → following, the reverse transition
-    }
-}
-function wakeIfPrevailing(self, name) {
-    if (tableFor(PREVAILING, self.constructor)?.[name] === true) {
-        self.$cells?.[name]?.changed();
     }
 }
 /** Install a runtime-supplied, *yielding* derive (Text auto-size, View

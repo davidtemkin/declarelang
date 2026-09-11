@@ -3,7 +3,7 @@ import type { RenderBackend, Surface } from "./backend.js";
 import { type FontWeight, type TextTransform } from "./measure.js";
 import { type Block } from "./md.js";
 import { type Unsupported } from "./html.js";
-import { type Fill, type Shadow, type Outline } from "./value.js";
+import { type Fill, type Shadow, type Outline, type Color } from "./value.js";
 export interface RunStyle {
     fontSize?: number;
     fontFamily?: string;
@@ -20,6 +20,24 @@ export interface RunStyle {
     strike?: boolean;
 }
 export declare abstract class RichText extends View {
+    textColor: Color;
+    fontSize: number;
+    fontFamily: string;
+    fontWeight: FontWeight;
+    letterSpacing: number;
+    headingColor: Color;
+    headingWeight: FontWeight;
+    linkColor: Color;
+    codeColor: Color;
+    codeSize: number;
+    codeFamily: string;
+    codeBackground: Color;
+    codeRule: Color;
+    richTextLayout: Readonly<Record<string, {
+        maxWidth?: number;
+        margin?: readonly [number, number];
+        align?: "left" | "center" | "right";
+    }>> | null;
     lineHeight: number;
     bodyColor: number | null;
     linkUnderline: boolean;

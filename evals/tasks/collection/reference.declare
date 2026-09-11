@@ -11,14 +11,14 @@ class Row extends View [ height = 34, width = { parent.width }, cornerRadius = 8
     id:    string  = "",
     label: string  = "",
     done:  boolean = false,
-    fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
     onClick() { app.toggle(this.id) },
     t: Text [ x = 12, y = 9, text = { label },
-        textColor = { done ? theme.textFaint : theme.text } ]
+        textColor = { done ? provided("theme").textFaint : provided("theme").text } ]
     ]
 
 
-App [ width = 440, height = 520, fill = { theme.bg },
+App [ theme = SanFrancisco, width = 440, height = 520, fill = { provided("theme").bg },
 
     tasks: Dataset {
         { "rows": [
@@ -45,12 +45,12 @@ App [ width = 440, height = 520, fill = { theme.bg },
         if (i >= 0) app.tasks.set(["rows", i, "done"], !rows[i].done);
         },
 
-    heading: Text [ x = 24, y = 20, fontSize = 20, fontWeight = semibold, textColor = { theme.text },
+    heading: Text [ x = 24, y = 20, fontSize = 20, fontWeight = semibold, textColor = { provided("theme").text },
         text = { `${app.remaining} remaining` } ],
 
     entry: View [ x = 24, y = 58, width = 392, height = 34,
-        field: TextInput [ x = 0, y = 0, width = 300, height = 34, fill = { theme.surface },
-            stroke = { stroke(1, theme.line) }, textColor = { theme.text }, padding = 8,
+        field: TextInput [ x = 0, y = 0, width = 300, height = 34, fill = { provided("theme").surface },
+            stroke = { stroke(1, provided("theme").line) }, textColor = { provided("theme").text }, padding = 8,
             placeholder = "Add a task…",
             onInput() { app.draft = text }
             ],

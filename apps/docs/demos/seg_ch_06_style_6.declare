@@ -1,9 +1,9 @@
-style kw   [ textColor = #C678DD ]
+class Hero extends Text [ fontSize = 40, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
 
-style hero [ fontSize = 40, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
+style kw  [ textColor = { provided("theme").accent } ]     // fields may read provided values
 
 App [ width = 380, height = 130, fill = white,
-    Text [ x = 20, y = 16, styles = [hero], text = "Big, gradient-filled" ],
+    Hero [ x = 20, y = 16, text = "Big, gradient-filled" ],
     HTMLText [ x = 20, y = 84, fontSize = 15, bodyColor = 0x33424E,
         html = "<span class='kw'>class</span> Board [ ]" ]
     ]

@@ -27,7 +27,7 @@
 // namespace.
 import { CSS_COLORS } from "./css-colors.js";
 import { DeclareError, noBaselineMessage, stackBaselineMessage } from "./errors.js";
-import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD } from "./schema.js";
+import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
 import { Diag, nearestName } from "./diagnostics.js";
 import { cssAttributeHint, hintedForeignName } from "./teach.js";
 import { autoIncludableNames } from "./include.js";
@@ -40,20 +40,19 @@ import { validateExpr, validateBody } from "./expr.js";
 import { isSelective, staticSegs } from "./datapath.js";
 import { faceWeight, FONT_WEIGHTS } from "./font.js";
 import { NOUNS, RESERVED, structuralReason, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
+import { THEME_PRESET_NAMES } from "./themes.js";
 // The schema half of the twin tables — class registration, effective schemas,
 // replication detection, token coercion — lives in program-schema.ts so a
 // production build ships it WITHOUT this validator (which declarec substitutes
 // with a stub, the registry-slimming lever). Re-exported here so every
 // existing importer keeps its one import site.
 export { programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
-const EMPTY_ENV = { bundles: new Map(), stylesheets: new Set(), fonts: new Set(), validated: new Set() };
-/** Attribute kinds a stylesheet entry or style bundle may never set —
- *  structural relationships, not values (recorded v1 refusals). */
+const EMPTY_ENV = { bundles: new Map(), themes: new Set(THEME_PRESET_NAMES), fonts: new Set(), validated: new Set() };
+/** Attribute kinds a style bundle may never set — structural relationships,
+ *  not values (recorded v1 refusals). */
 const UNSTYLABLE = {
     component: "a component slot (layout) is structure",
     cursor: "a data cursor is structure",
-    styles: "a bundle list cannot arrive through the styling channels",
-    stylesheet: "a stylesheet cannot set the stylesheet",
 };
 /** Typecheck a parsed tree — a whole Program (classes + root) or a bare
  *  Element fragment. Returns every error found, in source order — an empty
@@ -67,7 +66,7 @@ function tagCandidates(schemas) {
     return [...new Set([...Object.keys(schemas), ...autoIncludableNames()])];
 }
 export function check(input) {
-    const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
+    const program = "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
     // Schema resolution first (typed data): named `schema =` forms rewrite to
     // resolved shape literals, refs resolve, and collisions/unknown names
     // report here. CHECK_SHAPES then answers type-position lookups below.
@@ -121,12 +120,12 @@ export function check(input) {
     errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
     return errors;
 }
-// ── Styling declarations: stylesheets + style bundles ───────────────────────
-/** Validate a program's `stylesheet`/`style` declarations and produce the
+// ── Styling declarations: themes + style bundles ────────────────────────────
+/** Validate a program's `theme`/`style`/`font` declarations and produce the
  *  StyleEnv the element walk resolves against. One message source with
  *  instantiate: both consume the same helpers (checkAttr, coerceToken via
- *  checkThemeRecord/checkEntry), so a direct instantiate of an unchecked
- *  tree dies with the same wording. */
+ *  checkThemeRecord), so a direct instantiate of an unchecked tree dies with
+ *  the same wording. */
 /** Every method signature's written type names, recursively. A name resolves
  *  if it is in the declarable value vocabulary (`number`, `string`, `View`, an
  *  enum) or names a component in this program. */
@@ -202,39 +201,40 @@ function checkSignatureTypes(el, errors, schemas) {
 }
 export function checkStyleDecls(program, schemas, errors) {
     const bundles = new Map();
-    const stylesheets = new Set();
+    const themes = new Set(THEME_PRESET_NAMES);
     const fonts = new Set();
-    const taken = (name) => Object.hasOwn(schemas, name) || bundles.has(name) || stylesheets.has(name) || fonts.has(name);
+    const taken = (name) => Object.hasOwn(schemas, name) || bundles.has(name) || themes.has(name) || fonts.has(name);
     for (const s of program.styles) {
         if (taken(s.name)) {
-            errors.push(new DeclareError(`there is already a component, stylesheet, style, or font named '${s.name}'`, s.pos));
+            errors.push(new DeclareError(`there is already a component, theme, style, or font named '${s.name}'`, s.pos));
             continue;
         }
-        errors.push(...checkStyleBody(s));
+        errors.push(...checkStyleBody(s, schemas));
         bundles.set(s.name, s.body);
     }
-    for (const s of program.stylesheets) {
+    for (const s of program.themes) {
         if (taken(s.name)) {
-            errors.push(new DeclareError(`there is already a component, stylesheet, style, or font named '${s.name}'`, s.pos));
+            errors.push(new DeclareError(`there is already a component, theme, style, or font named '${s.name}'`, s.pos));
             continue;
         }
-        errors.push(...checkStylesheetBody(s, schemas));
-        stylesheets.add(s.name);
+        errors.push(...checkThemeRecord(`theme ${s.name}`, s.body));
+        themes.add(s.name);
     }
     for (const f of program.fonts) {
         if (taken(f.name)) {
-            errors.push(new DeclareError(`there is already a component, stylesheet, style, or font named '${f.name}'`, f.pos));
+            errors.push(new DeclareError(`there is already a component, theme, style, or font named '${f.name}'`, f.pos));
             continue;
         }
         errors.push(...checkFontBody(f));
         fonts.add(f.name);
     }
-    return { bundles, stylesheets, fonts, validated: new Set() };
+    return { bundles, themes, fonts, validated: new Set() };
 }
-/** A style bundle carries attribute sets only — a look, not a component.
- *  Its fields TYPE against each class it is applied to (checkBundleUse),
- *  so declaration-time checking is shape + the always-wrong names. */
-function checkStyleBody(decl) {
+/** A style bundle names the look of a `<span class="…">` run inside parsed
+ *  prose — a set of `Text` face attributes, a look, not a component. Its fields
+ *  TYPE against `Text` (a run is text), so a bundle setting something Text does
+ *  not carry fails at declaration. */
+function checkStyleBody(decl, schemas) {
     const errors = [];
     const b = decl.body;
     for (const d of b.decls)
@@ -245,6 +245,9 @@ function checkStyleBody(decl) {
         errors.push(new DeclareError(`style ${decl.name}: a bundle has no children — attribute sets only`, c.pos));
     if (b.raw !== undefined)
         errors.push(new DeclareError(`style ${decl.name}: a bundle takes [ ] members, not a { } body`, b.raw.pos));
+    const text = schemas["Text"];
+    if (text !== undefined)
+        errors.push(...checkBundleUse(decl.name, b, text, decl.pos));
     return errors;
 }
 /** A font names a FAMILY that owns its faces (docs/system-design/fonts.md): an optional
@@ -329,15 +332,15 @@ function checkSource(fontName, lit) {
     }
     return [new DeclareError(`font ${fontName}: a face source is a URL string, url("…"), local("…"), or a list of them`, lit.pos)];
 }
-/** Validate one bundle against one applied-to schema (memoized per pairing
- *  by the caller): every field must be an attribute of that class, of a
- *  stylable kind — the loud, positioned failure the ruled design promises. */
+/** Validate one bundle against `Text`: every field must be a `Text` attribute
+ *  of a stylable kind — the loud, positioned failure the design promises. */
 function checkBundleUse(bundle, body, schema, at) {
     const errors = [];
+    void at;
     for (const a of body.attrs) {
         const type = attrType(schema, a.name);
         if (type === null) {
-            errors.push(new DeclareError(`style ${bundle} sets '${a.name}', which ${schema.name} (styled at line ${at.line}, col ${at.col}) does not declare`, a.pos));
+            errors.push(new DeclareError(`style ${bundle} sets '${a.name}', which ${schema.name} does not declare`, a.pos));
             continue;
         }
         const bad = UNSTYLABLE[type.kind];
@@ -351,116 +354,30 @@ function checkBundleUse(bundle, body, schema, at) {
     }
     return errors;
 }
-/** A stylesheet body: an optional `theme: Theme [ tokens ]` record plus
- *  class-keyed entries (`Button: [ sets ]`), nothing else. Entries validate
- *  against the named class's schema — a stale skin fails loudly (ruled). */
-function checkStylesheetBody(decl, schemas) {
-    const errors = [];
-    const b = decl.body;
-    const where = `stylesheet ${decl.name}`;
-    for (const a of b.attrs) {
-        errors.push(new DeclareError(`${where}: a stylesheet carries a theme record and class-keyed entries — write 'theme: Theme [ … ]' or 'ClassName: [ … ]'`, a.pos));
-    }
-    for (const d of b.decls)
-        errors.push(new DeclareError(`${where}: a stylesheet declares no attributes`, d.pos));
-    for (const m of b.methods)
-        errors.push(new DeclareError(`${where}: a stylesheet has no methods`, m.pos));
-    if (b.raw !== undefined)
-        errors.push(new DeclareError(`${where}: a stylesheet takes [ ] members, not a { } body`, b.raw.pos));
-    const seen = new Map();
-    for (const child of b.children) {
-        if (child.name === "theme" && child.tag === "Theme") {
-            errors.push(...checkThemeRecord(where, child));
-            continue;
-        }
-        if (child.entry !== true) {
-            errors.push(new DeclareError(`${where}: a stylesheet's members are 'theme: Theme [ … ]' and class-keyed entries ('${child.tag}: [ … ]')`, child.pos));
-            continue;
-        }
-        const schema = Object.hasOwn(schemas, child.tag) ? schemas[child.tag] : null;
-        if (schema === null) {
-            errors.push(new DeclareError(`${where}: unknown component '${child.tag}' — an entry is keyed by a class name`, child.pos));
-            continue;
-        }
-        if (!descendsFrom(schema, "View")) {
-            errors.push(new DeclareError(`${where}: '${child.tag}' is not a View — only views are styled`, child.pos));
-            continue;
-        }
-        const first = seen.get(child.tag);
-        if (first !== undefined) {
-            errors.push(new DeclareError(`${where}: '${child.tag}' has two entries (first at line ${first.line}, col ${first.col}) — one entry per class`, child.pos));
-            continue;
-        }
-        seen.set(child.tag, child.pos);
-        errors.push(...checkEntry(where, child, schema));
-    }
-    return errors;
-}
-/** One class-keyed entry: attribute sets only, each an attribute the class
- *  declares (any public attribute — ruled uniformity), of a stylable kind,
- *  a literal or a `{ }` (evaluated with `this` = the styled view). */
-export function checkEntry(where, entry, schema) {
-    const errors = [];
-    for (const d of entry.decls)
-        errors.push(new DeclareError(`${where}.${entry.tag}: an entry declares nothing — attribute sets only`, d.pos));
-    for (const m of entry.methods)
-        errors.push(new DeclareError(`${where}.${entry.tag}: an entry has no methods`, m.pos));
-    for (const c of entry.children)
-        errors.push(new DeclareError(`${where}.${entry.tag}: an entry has no children — attribute sets only`, c.pos));
-    const seen = new Map();
-    for (const a of entry.attrs) {
-        const first = seen.get(a.name);
-        if (first !== undefined) {
-            errors.push(new DeclareError(`${where}.${entry.tag}.${a.name} is set twice (first set at line ${first.line}, col ${first.col})`, a.pos));
-            continue;
-        }
-        seen.set(a.name, a.pos);
-        const type = attrType(schema, a.name);
-        if (type === null) {
-            errors.push(new DeclareError(`${where}: ${entry.tag} has no attribute '${a.name}'${attributeMiss(schema, a.name)}`, a.pos));
-            continue;
-        }
-        const bad = UNSTYLABLE[type.kind];
-        if (bad !== undefined) {
-            errors.push(new DeclareError(`${where}.${entry.tag}.${a.name}: ${bad}`, a.pos));
-            continue;
-        }
-        if (a.value.kind === "percent") {
-            errors.push(new DeclareError(`${where}.${entry.tag}.${a.name}: a percent resolves against a parent — an entry carries values (use a { } reading parent.* if you mean it)`, a.value.pos));
-            continue;
-        }
-        if (a.value.kind === "path") {
-            errors.push(new DeclareError(`${where}.${entry.tag}.${a.name}: a :path reads a view's cursor — not stylesheet surface (v1)`, a.value.pos));
-            continue;
-        }
-        const r = checkAttr(schema, a);
-        if (!r.ok)
-            errors.push(r.error);
-    }
-    return errors;
-}
-/** The skin's token record: `theme: Theme [ accent = #4F8EF7, radius = 6 ]`
- *  — token names are free (a Theme is schema-less in v1), values are plain
- *  literals or decoration constructors. */
+/** A theme's token record: `theme Cupertino [ accent = #007AFF, radius = 6 ]`
+ *  — token names are free (a Theme is a schema-less record), values are plain
+ *  literals or decoration constructors. `rec` is the declaration's body. */
 export function checkThemeRecord(where, rec) {
     const errors = [];
     for (const d of rec.decls)
-        errors.push(new DeclareError(`${where}.theme: a token record declares nothing`, d.pos));
+        errors.push(new DeclareError(`${where}: a token record declares nothing`, d.pos));
     for (const m of rec.methods)
-        errors.push(new DeclareError(`${where}.theme: a token record has no methods`, m.pos));
+        errors.push(new DeclareError(`${where}: a token record has no methods`, m.pos));
     for (const c of rec.children)
-        errors.push(new DeclareError(`${where}.theme: a token record has no children`, c.pos));
+        errors.push(new DeclareError(`${where}: a token record has no children`, c.pos));
+    if (rec.raw !== undefined)
+        errors.push(new DeclareError(`${where}: a theme takes [ ] tokens, not a { } body`, rec.raw.pos));
     const seen = new Map();
     for (const a of rec.attrs) {
         const first = seen.get(a.name);
         if (first !== undefined) {
-            errors.push(new DeclareError(`${where}.theme.${a.name} is set twice (first set at line ${first.line}, col ${first.col})`, a.pos));
+            errors.push(new DeclareError(`${where}.${a.name} is set twice (first set at line ${first.line}, col ${first.col})`, a.pos));
             continue;
         }
         seen.set(a.name, a.pos);
         const t = coerceToken(a.value);
         if (t === undefined) {
-            errors.push(new DeclareError(`${where}.theme.${a.name}: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow/frost) — got ${describeLiteral(a.value)}`, a.value.pos));
+            errors.push(new DeclareError(`${where}.${a.name}: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow/frost) — got ${describeLiteral(a.value)}`, a.value.pos));
         }
     }
     return errors;
@@ -487,7 +404,7 @@ parentSchema = null,
  *  `class X extends TweenLayout [ … ]`. */
 classRoot = false) {
     if (el.entry === true) {
-        errors.push(new DeclareError(`'${el.tag}: [ … ]' is a class-keyed entry — it belongs in a stylesheet`, el.pos));
+        errors.push(new DeclareError(`'${el.tag}: [ … ]' is a class-keyed entry — no declaration admits one`, el.pos));
         return;
     }
     // Own-key lookup: a tag named `constructor` must not resolve through
@@ -601,48 +518,29 @@ classRoot = false) {
                 continue;
             }
             const t = attrType(eff, attr.name);
-            // The two styling-channel slots resolve against PROGRAM declarations,
-            // which the runtime-free coercion cannot see — routed here.
-            if (t?.kind === "styles" && attr.value.kind === "list") {
-                for (const n of attr.value.items) {
-                    if (n.kind !== "ident") {
-                        errors.push(new DeclareError(`a style list holds style names, not values`, n.pos));
-                        continue;
-                    }
-                    const bundle = env.bundles.get(n.name);
-                    if (bundle === undefined) {
-                        errors.push(new DeclareError(env.bundles.size > 0
-                            ? `no style named '${n.name}' — declared styles: ${[...env.bundles.keys()].join(", ")}`
-                            : `no style named '${n.name}' — this program declares no style bundles`, n.pos));
-                        continue;
-                    }
-                    // A bundle types against the class it lands on — once per pairing.
-                    const key = `${n.name}@${eff.name}`;
-                    if (!env.validated.has(key)) {
-                        env.validated.add(key);
-                        errors.push(...checkBundleUse(n.name, bundle, eff, n.pos));
-                    }
-                }
-                continue;
-            }
-            if (t?.kind === "styles" && attr.value.kind === "code") {
-                errors.push(new DeclareError(`${eff.name}.styles = { … }: the bundle list is static (ruled v1) — conditional looks are constraints on the slots themselves`, attr.value.pos));
-                continue;
-            }
-            if (t?.kind === "stylesheet" && attr.value.kind === "ident" && attr.value.name !== "null") {
-                if (!env.stylesheets.has(attr.value.name)) {
-                    errors.push(new DeclareError(env.stylesheets.size > 0
-                        ? `no stylesheet named '${attr.value.name}' — declared stylesheets: ${[...env.stylesheets].join(", ")}`
-                        : `no stylesheet named '${attr.value.name}' — this program declares no stylesheets`, attr.value.pos));
+            // `theme = Cupertino` — a bare name naming a theme, resolved against the
+            // program's `theme` declarations (the built-in presets plus any it
+            // declares itself). A Theme-typed slot or a bare `theme` provision takes
+            // one; the runtime-free coercion cannot see the declarations, so it is
+            // routed here. A `{ }` binding or an inline `Theme [ … ]` record needs no
+            // name resolution.
+            const themeTyped = (t?.kind === "record" && t.name === "Theme") || (t === null && attr.name === "theme");
+            if (themeTyped && attr.value.kind === "ident" && attr.value.name !== "null") {
+                if (!env.themes.has(attr.value.name)) {
+                    errors.push(new DeclareError(`no theme named '${attr.value.name}' — declared themes: ${[...env.themes].join(", ")}`, attr.value.pos));
                 }
                 continue;
             }
             // `fontFamily = Name` / `[Name, "Helvetica", "sans-serif"]` resolves
             // against the program's `font` declarations — a name must be declared, a
             // string passes as a raw family (a bare string family falls through to
-            // coercion). Routed here for the same reason as stylesheet — runtime-free
-            // coercion cannot see the declarations.
-            if (t?.kind === "font" && ((attr.value.kind === "ident" && attr.value.name !== "null") || attr.value.kind === "list")) {
+            // coercion). Routed here because the runtime-free coercion cannot see the
+            // declarations.
+            // The font-typed FACE values are also validated when PROVIDED (a container
+            // set — `App [ fontFamily = Body ]` — where the name is not a slot of the
+            // node but a provided value), so a mistyped font ref is still caught.
+            const fontTyped = t?.kind === "font" || (t === null && (attr.name === "fontFamily" || attr.name === "codeFamily"));
+            if (fontTyped && ((attr.value.kind === "ident" && attr.value.name !== "null") || attr.value.kind === "list")) {
                 const items = attr.value.kind === "ident" ? [attr.value] : attr.value.items;
                 for (const i of items) {
                     if (i.kind === "string")
@@ -892,6 +790,15 @@ attributeCascaded = false) {
             // compile time (animation.md §1). `{ }` and `:path` are refused here.
             if (a.value.kind === "ident" && a.value.name !== "null") {
                 checkTargetSlot(schema, a.value.name, parentSchema, a.value.pos, errors);
+                // A SLOT, not a fact: an animator writes its target every tick, and a
+                // read-only attribute — the scroll offsets above all — is the platform's
+                // report, not a slot Declare controls. The glide belongs to the verb.
+                if (parentSchema != null && isReadOnly(parentSchema, a.value.name)) {
+                    const scroll = a.value.name === "scrollX" || a.value.name === "scrollY";
+                    errors.push(new DeclareError(scroll
+                        ? `an animator drives a slot — ${parentSchema.name}.${a.value.name} is a platform fact, not a slot. Glide the scroller with ${a.value.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}, { duration, motion }) instead`
+                        : `an animator drives a slot — ${parentSchema.name}.${a.value.name} is read-only (computed), so it cannot be driven`, a.value.pos));
+                }
             }
             else {
                 errors.push(new DeclareError(`${schema.name}.attribute names the target slot to drive as a bare token (like 'height' or 'x') — not ${describeLiteral(a.value)}`, a.value.pos));
@@ -996,6 +903,15 @@ function checkAnimatorGroupNode(el, schema, schemas, parentSchema, errors, attri
             providesAttribute = true;
             if (a.value.kind === "ident" && a.value.name !== "null") {
                 checkTargetSlot(schema, a.value.name, parentSchema, a.value.pos, errors);
+                // A SLOT, not a fact: an animator writes its target every tick, and a
+                // read-only attribute — the scroll offsets above all — is the platform's
+                // report, not a slot Declare controls. The glide belongs to the verb.
+                if (parentSchema != null && isReadOnly(parentSchema, a.value.name)) {
+                    const scroll = a.value.name === "scrollX" || a.value.name === "scrollY";
+                    errors.push(new DeclareError(scroll
+                        ? `an animator drives a slot — ${parentSchema.name}.${a.value.name} is a platform fact, not a slot. Glide the scroller with ${a.value.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}, { duration, motion }) instead`
+                        : `an animator drives a slot — ${parentSchema.name}.${a.value.name} is read-only (computed), so it cannot be driven`, a.value.pos));
+                }
             }
             else {
                 errors.push(new DeclareError(`${schema.name}.attribute names the target slot to drive as a bare token (like 'height' or 'x') — not ${describeLiteral(a.value)}`, a.value.pos));
@@ -1206,11 +1122,49 @@ function attributeMiss(schema, name) {
  *  running paths cannot drift apart. */
 export function checkAttr(schema, attr) {
     const type = attrType(schema, attr.name);
+    if (type === null && BUILTIN_PROVIDED.has(attr.name)) {
+        // A PROVISION of a BUILT-IN provided value (the face/theme/rich/icon names):
+        // a set of a name the node's class does not declare provides it to the
+        // subtree, read by a descendant's `provided("name")`. The value is validated
+        // for its own well-formedness — a `{ }` compiles, a literal by its written
+        // form — but not against a slot type (provided() is `any`, typed where read).
+        // An undeclared name that is NOT a built-in provided value falls through to
+        // the near-miss error below: a new provided value is introduced with a type
+        // (`density: number = 2`), so a bare unknown name is a typo, not a provision.
+        if (attr.bind === "two") {
+            return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} <-> …: the two-way arrow edits an editor's value slot — '${attr.name}' is not a slot of ${schema.name}`, attr.pos) };
+        }
+        if (attr.value.kind === "code") {
+            const e = validateExpr(attr.value.src);
+            if (e !== null)
+                return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} = { … } ${e}`, attr.value.pos) };
+            return { ok: true, provision: { name: attr.name, binding: { src: attr.value.src, pos: attr.value.pos } } };
+        }
+        if (attr.value.kind === "path") {
+            return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} = :${attr.value.path}: a provided value is a plain value or a { }, not a datapath`, attr.value.pos) };
+        }
+        // Any literal form is a valid provision (a scalar, a color, a value
+        // constructor, a font list / enum token). It is coerced at instantiation,
+        // where the font registry and the reader's face type are in reach
+        // (resolveProvisionLiteral) — the checker only rules out the non-literal
+        // kinds above.
+        return { ok: true, provision: { name: attr.name } };
+    }
     if (type === null) {
+        // Not a declared slot and not a built-in provided value: a genuine unknown
+        // attribute — a typo (named with a near-miss), or a new provided value that
+        // must be introduced with a type (`density: number = 2`) rather than bare.
         return { ok: false, error: new DeclareError(`${schema.name} has no attribute '${attr.name}'${attributeMiss(schema, attr.name)}`, attr.pos) };
     }
     if (isReadOnly(schema, attr.name)) {
-        return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`, attr.pos) };
+        // The scroll facts get their own message: the natural mistake is to treat
+        // the offset as a slot Declare controls (everything else is), and the fix
+        // is a VERB (a request to the scroll process) or the declared start.
+        const scroll = attr.name === "scrollY" || attr.name === "scrollX" || attr.name === "scrolling";
+        const msg = scroll
+            ? `${schema.name}.${attr.name} is a fact the platform reports, not a slot — nothing may set it. To move the scroller, call ${attr.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}[, { duration, motion }]); for a declared starting offset use ${attr.name === "scrollX" ? "scrollStartX" : "scrollStartY"}`
+            : `${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`;
+        return { ok: false, error: new DeclareError(msg, attr.pos) };
     }
     // An App is clipped by definition (ruled 2026-07-29): a program owns its
     // rectangle. `clip = false` would promise an un-clipping no realization

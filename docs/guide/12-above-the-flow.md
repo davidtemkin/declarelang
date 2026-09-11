@@ -23,7 +23,7 @@ Here is the shape. The menu is a member of the app; the thing that opens it says
 and *for whom*:
 
 ```declare
-App [ width = 360, height = 150, chose: string = "",
+App [ width = 360, height = 150, theme = { SanFrancisco }, chose: string = "",
     edit: Menu [ items = { [ ({ id: "cut", label: "Cut", key: "⌘X" }),
                             ({ id: "copy", label: "Copy", key: "⌘C" }),
                             ({ divider: true }),
@@ -31,7 +31,7 @@ App [ width = 360, height = 150, chose: string = "",
         picked(id: string) { app.chose = id }
         ],
     Button [ x = 20, y = 20, label = "Edit", menu = { app.edit } ],
-    Text [ x = 20, y = 76, textColor = { theme.text },
+    Text [ x = 20, y = 76, textColor = { provided("theme").text },
         text = { app.chose == "" ? "nothing picked yet" : "picked: " + app.chose } ]
     ]
 ```
@@ -110,13 +110,13 @@ opposite and try to read the menu's state inside `picked`.
 A `Dialog` is the same shape — a member you open with a verb, not a view you toggle:
 
 ```declare
-App [ width = 360, height = 150, said: string = "",
+App [ width = 360, height = 150, theme = { SanFrancisco }, said: string = "",
     dlg: Dialog [ ],
     Button [ x = 20, y = 20, label = "Delete…",
         onClick() { app.dlg.ask("Delete this file?", "This cannot be undone.",
                                 (id) => { app.said = id }) }
         ],
-    Text [ x = 20, y = 84, textColor = { theme.text },
+    Text [ x = 20, y = 84, textColor = { provided("theme").text },
         text = { app.said == "" ? "—" : "you chose: " + app.said } ]
     ]
 ```
@@ -134,13 +134,13 @@ that is the bug to remember.
 and a dismissable list that owns a **choice**.
 
 ```declare
-App [ width = 340, height = 160, picked: string = "",
+App [ width = 340, height = 160, theme = { SanFrancisco }, picked: string = "",
     people: array = { ["Ada Lovelace", "Grace Hopper", "Alan Turing", "Barbara Liskov"] },
     Combobox [ x = 20, y = 20, width = 260, placeholder = "Assignee",
         items = { app.people },
         input(v: object) { app.picked = "" + v }
         ],
-    Text [ x = 20, y = 84, textColor = { theme.text },
+    Text [ x = 20, y = 84, textColor = { provided("theme").text },
         text = { app.picked == "" ? "—" : app.picked } ]
     ]
 ```

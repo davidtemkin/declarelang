@@ -20,16 +20,10 @@ export interface ComponentSchema {
   readonly name: string;
   readonly base: ComponentSchema | null;
   readonly attrs: Readonly<Record<string, AttrType>>;
-  /** Which of this schema's OWN attrs are `prevailing` (styling rung): an
-   *  unset slot follows the nearest providing ancestor's value, live. Being
-   *  prevailing is declared once, with the slot — part of its identity, like
-   *  its type (a subclass can neither redeclare nor change it). Absent =
-   *  none of its own. */
-  readonly prevailing?: readonly string[];
   /** Which of this schema's OWN attrs are `readonly` — a computed/intrinsic
    *  value a constraint may READ but nothing may set (checkAttr refuses an
-   *  assignment; the runtime accessor's setter throws). Like prevailing, it is
-   *  part of the slot's identity. Absent = none of its own. */
+   *  assignment; the runtime accessor's setter throws). Part of the slot's
+   *  identity. Absent = none of its own. */
   readonly readOnly?: readonly string[];
   /** Events this component itself fires — a handler member `on<Event>` must
    *  answer one (language §8: a class *declares* the events it fires, and
@@ -197,77 +191,22 @@ const ViewSchema: ComponentSchema = {
     tip: { kind: "string" },
     scrollY: { kind: "number" },
     scrollX: { kind: "number" },
-    // Styling: the ruled prevailing built-ins — the four text-style slots
-    // (declared on View so any container can provide them; Text renders with
-    // the effective values) and the theme token record. NOT prevailing, by
-    // ruling: backgroundColor/opacity/visible (their effect already composes
-    // through the render tree — a followed copy would apply it twice).
-    textColor: { kind: "color" },
-    fontSize: { kind: "number" },
-    fontFamily: { kind: "font" },
-    // fontString maps each weight token to its numeric CSS weight, which also
-    // PICKS the matching web face when a `font` provides several.
-    fontWeight: FONT_WEIGHT,
-    // Tracking (canvas-native: ctx.letterSpacing / CSS letter-spacing), in px;
-    // 0 = the browser's natural advances (the Flash auto-tracking stays shed).
-    letterSpacing: { kind: "number" },
-    // The size an Icon takes from its context — prevailing, so a HOST states
-    // it once (a menu row 16, a button 18) and every icon beneath answers.
-    // A use site may still override it; this is a default, not a rule.
-    iconSize: { kind: "number" },
-    // Rich-text STRUCTURE overrides (the prose-specific styling slots — the twin
-    // of the text-style slots above, for the parts a `Text` doesn't have). A
-    // `Markdown`/`HTMLText` renders its headings/links/inline-code from these;
-    // like the text slots they are prevailing (set once on a container → all
-    // prose below picks them up) and declared on View so any ancestor provides
-    // them. Colors default `null` = the theme-aware house token; `headingWeight`
-    // defaults to the house `bold`.
-    headingColor: { kind: "color" },
-    headingWeight: FONT_WEIGHT,
-    linkColor: { kind: "color" },
-    // Underline links (the conventional web rendering). Off by default — the
-    // house prose style colors links without underlining; a surface whose links
-    // sit inside colored code (the viewer's include links) turns it on.
-    linkUnderline: { kind: "boolean" },
-    codeColor: { kind: "color" },
-    // Code face + size — the twin of `codeColor` for monospace regions (inline
-    // code, fenced/`<pre>` blocks). Default `0`/`""` = the house code style
-    // (PROSE.codeSize / PROSE.mono). Prevailing, so one ancestor sets the code
-    // rendition for all prose below it.
-    codeSize: { kind: "number" },
-    codeFamily: { kind: "font" },
-    // The code-BLOCK box paint (fenced ``` and highlighted `<pre>`): a background
-    // tint and a left accent bar. Both `null` = the house look (fenced code keeps
-    // its themed tint, a `<pre>` stays bare) — so unset changes nothing. Setting
-    // `codeBackground` gives a `<pre>` the same tinted box a fenced block has;
-    // setting `codeRule` draws a left bar on BOTH (the `buildQuote` bar, reused).
-    // Prevailing, the twin of `codeColor`/`codeSize` for the block's chrome.
-    codeBackground: { kind: "color" },
-    codeRule: { kind: "color" },
-    // Per-block-type layout geometry for rendered rich text (Markdown/HTMLText):
-    // a plain record keyed by block type (`paragraph`/`heading`/`code`/`pre`/
-    // `list`/`table`/`blockquote`/`rule`, plus `default`), each entry giving a
-    // `maxWidth` (0 = unbounded), a `margin` ([left, right]), and an `align`
-    // (left|center|right). Defaulted IN the consumer (like `theme`): an unset map
-    // — or an unset key/field — is today's full-width, left-aligned flow. A `pre`
-    // block with no own entry shares the `code` entry. Set it to give prose a
-    // reading measure while code fills the column (code wider than prose). Set via
-    // a `{ }` object; prevailing, so one ancestor sets the flow geometry below it.
-    richTextLayout: { kind: "record", name: "RichTextLayout" },
-    // The `theme` slot's runtime default is the HOUSE theme — populated in
-    // value.ts (DEFAULT_THEME, the single source; view.ts wires it as the
-    // slot's def), so `theme.role` in library components always resolves.
-    theme: { kind: "record", name: "Theme" },
-    // Native text selection — a prevailing slot so a whole subtree opts in from
-    // one place: `selectable = true` on a container makes all its Text (including
-    // a `Markdown` component's rendered runs) selectable/copyable. Defaults by
-    // SPECIES (ruled 2026-07-30): off for Text and views (a label is chrome), ON
-    // for the RichText family (a flowing document is selectable by its nature —
-    // markdown.ts effSelectable); any declaration beats any default, in either
-    // direction, so a control inside prose vetoes with `selectable = false` and
-    // the unusual non-selectable document is one explicit line. Declared on View
-    // so any container provides it, like the text-style slots.
-    selectable: { kind: "boolean" },
+    // A DECLARED STARTING OFFSET — applied once at first layout, then the
+    // facts own the position. (Replaces the old `scrollY = 120` assignment,
+    // which made a platform fact look like a slot the program controls.)
+    scrollStartY: { kind: "number" },
+    scrollStartX: { kind: "number" },
+    // A gesture or momentum is moving this scroller right now — the platform's
+    // own report (DOM scroll/scrollend, the native scroll view, the runtime
+    // provider's phase). Read-only, like the offsets: the arbitration fact.
+    scrolling: { kind: "boolean" },
+    // The text face and rich-text structure values
+    // (textColor/fontSize/fontFamily/fontWeight/letterSpacing/iconSize/theme and
+    // the heading/link/code/richTextLayout family) are provided values, not View
+    // slots (docs/system-design/style.md): a container draws no glyphs, so they
+    // live with the text leaves (Text, RichText, TextInput, Icon) as
+    // `= provided("name", default)` reads. Setting one on a container cascades —
+    // the container PROVIDES it, resolved by the reader's provided().
     // The pointer cursor while over this view (a CSS cursor keyword; "" =
     // inherit) — resize affordances, drag handles. Meaningful on views that
     // take input (the sink is the hit target on both backends).
@@ -277,11 +216,6 @@ const ViewSchema: ComponentSchema = {
     // decoration over live content — a highlight rectangle, a full-viewport
     // chrome overlay — declares "none" so presses reach what is beneath it.
     pointerEvents: { kind: "string" },
-    // The other two styling channels: an ordered bundle list (static, ruled
-    // v1 — consumed at construction) and the prevailing stylesheet slot
-    // (provide it anywhere → that subtree reskins; swap = one settle).
-    styles: { kind: "styles" },
-    stylesheet: { kind: "stylesheet" },
     // R7: how the view arranges its children — a component-typed slot
     // (language §5: "a reactive Layout attribute you set on the view",
     // Appendix A: "Layout is an attribute, not a child"), written as the
@@ -340,15 +274,16 @@ const ViewSchema: ComponentSchema = {
     virtualize: { kind: "boolean" },
     contentHeight: { kind: "length" },
   },
-  prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable", "iconSize"],
-  // `scrollX` is a platform fact: the backend mirrors the user's pan into it,
-  // and the program asks for a change with the `scrollToX(x)` verb (or drives
-  // it with a declared Animator — the sanctioned driver door). `scrollY` is
-  // the same shape and WANTS to be here too (platform-authorship.md), but the
-  // perceptual probe test/probe/ignorescroll.declare declares an at-rest
-  // initial offset (`scrollY = 120`), which a readOnly listing would refuse —
-  // it joins when the declared-initial form has a ruled replacement.
-  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed", "onScreen", "visibleRect", "apparentScale", "scrollX"],
+  // `scrollX`, `scrollY` and `scrolling` are PLATFORM FACTS (platform-
+  // authorship.md; ruled 2026-09-10): the scroll process — a native scroller,
+  // or the runtime provider — owns the offset and reports it; the program
+  // reads the fact and REQUESTS movement with the verbs (`scrollTo(y)`,
+  // `scrollToX(x)`, `scrollBy`, `reveal`, each with an optional glide). A
+  // declared starting offset is `scrollStartY`/`scrollStartX`, applied once.
+  // Nothing writes the facts — not an assignment, not an Animator (an animator
+  // drives a slot; a fact is not one — the checker refuses both, naming the
+  // verb). This is what makes "who scrolls" invisible to a program.
+  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed", "onScreen", "visibleRect", "apparentScale", "scrollX", "scrollY", "scrolling"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle
   // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its
@@ -546,17 +481,66 @@ const AppSchema: ComponentSchema = {
   events: ["follow", "ready", "arrive", "post"],
 };
 
+// The text FACE attributes — the ones a text-rendering leaf needs and a
+// container does not. They came OFF View (de-warting the geometry base) and now
+// live with the leaves that draw glyphs. Each DEFAULTS to a provided value in
+// the runtime class (`fontFamily = provided("fontFamily", "sans-serif")`), so
+// setting one high on a container still cascades: the container provides it.
+// Shared by Text, RichText, and TextInput (each renders text).
+const FACE_ATTRS: Readonly<Record<string, AttrType>> = {
+  textColor: { kind: "color" },
+  fontSize: { kind: "number" },
+  fontFamily: { kind: "font" },
+  fontWeight: FONT_WEIGHT,
+  letterSpacing: { kind: "number" },
+};
+// `selectable` is a pure PROVIDED value, not a declared face slot on every text
+// leaf: `selectable = true` on a container opts a whole subtree in, and each
+// text leaf READS the nearest provided value. A true leaf (Text, TextInput)
+// declares it so `Text [ selectable = false ]` overrides just that run; RichText
+// does NOT declare it (a declared slot would shadow the container's provision
+// for the flow children beneath it) — it and its flow read provided("selectable").
+const SELECTABLE_ATTR: Readonly<Record<string, AttrType>> = { selectable: { kind: "boolean" } };
+
+// The rich-text STRUCTURE attributes — the parts a plain Text has no equivalent
+// for (headings, links, inline/fenced code, the per-block layout map). Off View,
+// onto RichText, each a provided read. Colors default null = the theme-aware
+// house token.
+const RICH_ATTRS: Readonly<Record<string, AttrType>> = {
+  headingColor: { kind: "color" },
+  headingWeight: FONT_WEIGHT,
+  linkColor: { kind: "color" },
+  linkUnderline: { kind: "boolean" },
+  codeColor: { kind: "color" },
+  codeSize: { kind: "number" },
+  codeFamily: { kind: "font" },
+  codeBackground: { kind: "color" },
+  codeRule: { kind: "color" },
+  richTextLayout: { kind: "record", name: "RichTextLayout" },
+};
+
+/** The BUILT-IN provided values — the names a container may set BARE (no type)
+ *  to provide to its subtree, because the language already knows them: the text
+ *  face, the rich-text structure, selection, icon size, and the theme record. A
+ *  bare set of ANY OTHER undeclared name is a typo, not a provision (the near-miss
+ *  diagnostic stays). A NEW provided value is introduced with a type where it is
+ *  first provided (`density: number = 2`) — an ordinary instance-declared slot —
+ *  so it is never a bare unknown name. */
+export const BUILTIN_PROVIDED: ReadonlySet<string> = new Set([
+  ...Object.keys(FACE_ATTRS), ...Object.keys(RICH_ATTRS),
+  "selectable", "iconSize", "theme", "lineHeight", "bodyColor", "scale",
+]);
+
 // Text (R3): a text run sized by native browser metrics when width/height
-// aren't given. Its style — textColor/fontSize/fontFamily/fontWeight — lives
-// on View since the styling rung (prevailing: any container provides, the
-// run renders with the effective values); `Text.color` is RETIRED into the
-// one `textColor` slot (ruled — no alias). FontWeight is deliberately the
-// two-token set the language doc uses; CSS's numeric weights can widen the
-// union later without breaking these.
-const TextSchema: ComponentSchema = {
+// aren't given. Its FACE (textColor/fontSize/fontFamily/fontWeight/letterSpacing)
+// comes from FACE_ATTRS above — each a provided read, so a bare run inherits its
+// region's style; the glyph color is the one `textColor` slot.
+export const TextSchema: ComponentSchema = {
   name: "Text",
   base: ViewSchema,
   attrs: {
+    ...FACE_ATTRS,
+    ...SELECTABLE_ATTR,
     text: { kind: "string" },
     // The glyphs' drop shadow — the same shadow(…) value as the box slot.
     textShadow: { kind: "shadow" },
@@ -741,6 +725,8 @@ const TextInputSchema: ComponentSchema = {
   name: "TextInput",
   base: EditorSchema,
   attrs: {
+    ...FACE_ATTRS,
+    ...SELECTABLE_ATTR,
     text: { kind: "string" },
     placeholder: { kind: "string" },
     multiline: { kind: "boolean" },
@@ -770,6 +756,8 @@ export const RichTextSchema: ComponentSchema = {
   name: "RichText",
   base: ViewSchema,
   attrs: {
+    ...FACE_ATTRS,
+    ...RICH_ATTRS,
     // Prose tuning: `lineHeight` is a leading multiplier on the natural line box
     // (1 = tight, the default; 1.5 = airy); `bodyColor` overrides the running-text
     // color (null = the theme-aware house body). Body size/weight/tracking follow
@@ -1232,17 +1220,6 @@ export function attrType(schema: ComponentSchema, name: string): AttrType | null
 export function isReadOnly(schema: ComponentSchema, name: string): boolean {
   for (let s: ComponentSchema | null = schema; s !== null; s = s.base) {
     if (s.readOnly?.includes(name)) return true;
-  }
-  return false;
-}
-
-
-/** Is `name` a prevailing attribute on `schema` (or its chain)? Asked of the
- *  schema that DECLARES the name — being prevailing is part of the slot's
- *  identity, so the declaring schema's word is the whole answer. */
-export function isPrevailing(schema: ComponentSchema, name: string): boolean {
-  for (let s: ComponentSchema | null = schema; s !== null; s = s.base) {
-    if (Object.hasOwn(s.attrs, name)) return s.prevailing?.includes(name) ?? false;
   }
   return false;
 }

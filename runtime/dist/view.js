@@ -11,8 +11,7 @@
 // the full state once — literals cost no reactive machinery at all.
 import { Node, onDiscard, runRetire, authoredName } from "./node.js";
 import { DeclareError, diag } from "./errors.js";
-import { backdropEqual, DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
-import { disposeApplier, stylesheetArrived, stylesheetByName } from "./stylesheet.js";
+import { backdropEqual, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef } from "./backend.js";
 import { Tip } from "./tip.js";
 let viewCreator = null;
@@ -23,7 +22,7 @@ import { record } from "./draw.js";
 import { sharedClock } from "./animate.js";
 import { Constraint, Cell, afterSettle } from "./reactive.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform } from "./interaction.js";
-import { bindDerived, declarationsOf, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned, setBound } from "./attributes.js";
+import { bindDerived, declarationsOf, defineAttributes, disposeBindings, isSet, localProvision, ownerOf, percentOwned, setBound } from "./attributes.js";
 import { declaredType } from "./value.js";
 import { observe } from "./reactive.js";
 import { handlerName } from "./schema.js";
@@ -135,21 +134,6 @@ export class View extends Node {
      *  element's `link`. Read only by the static extractor (static-html.ts) to wrap the
      *  subtree in `<a href>`; undefined for all but the handful of navigable views. */
     _navLink;
-    /** Resolve a declared stylesheet by name — the honest public call for
-     *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and
-     *  a bare `Dark` is (correctly) just an unresolved identifier, NOT sugar:
-     *  `stylesheet = { night ? this.lookupStylesheet("Dark")
-     *                        : this.lookupStylesheet("Light") }`.
-     *  The bare-name form `stylesheet = Dark` is the DECLARATIVE surface and is
-     *  compile-checked there; inside a body the name is a runtime string, so a
-     *  miss throws loud + positioned (stylesheetByName) rather than resolving to a
-     *  silent null. Resolved against the program registry at the tree root. */
-    lookupStylesheet(name) {
-        let root = this;
-        while (root.parent !== null)
-            root = root.parent;
-        return stylesheetByName(root, name);
-    }
     /** The enclosing class instance — the node this view was *written* inside
      *  (a named class's root, or the App root, whose whole tree is the
      *  anonymous App class, language §5/§11): a class-body child points at its
@@ -477,7 +461,6 @@ export class View extends Node {
             INSTALLED.delete(this);
             undoLayout();
         }
-        disposeApplier(this);
         disposeBindings(this);
         // the visibility feed dies with the view — the backend watch, the generic
         // computer, and any at-rest flush still pending
@@ -510,9 +493,12 @@ export class View extends Node {
      *  exactly the paint order the Canvas walk uses: content, then children. */
     flush(s) {
         // Pushers fire on CHANGE; the attach flush carries pre-attach state
-        // across (the Image.stretches discipline). Phase-2 selection: a
-        // container constructed `selectable = true` realizes its surface now.
-        if (this.selectable === true)
+        // across (the Image.stretches discipline). Text selection is realized by
+        // the text leaves themselves (Text/TextInput's `selectable` push), which
+        // read the ambient `selectable` provided value. A container that PROVIDES
+        // `selectable = true` is additionally a selection SURFACE, so a press in the
+        // gap between its leaves anchors on it (backend.setSelectableRegion).
+        if (localProvision(this, "selectable") === true)
             s.setSelectableRegion?.(true);
         // an armed visibility feed follows the view onto its (re)attached surface
         if (this.visArmed)
@@ -550,10 +536,19 @@ export class View extends Node {
         if (this.backdrop !== null)
             s.setBackdrop?.(this.backdrop);
         this.applyClip(this.clip);
+        // The facts' read halves: the platform mirrors its offset and its
+        // in-motion state in; nothing here pushes out (a request is a verb call).
+        const scrolling = (a) => { this.scrolling = a; };
         if (this.scrolls === "y" || this.scrolls === "both")
-            s.setScroll?.(true, (y) => { this.scrollY = y; });
+            s.setScroll?.(true, (y) => { this.scrollY = y; }, scrolling);
         if (this.scrolls === "x" || this.scrolls === "both")
-            s.setScrollX?.(true, (x) => { this.scrollX = x; });
+            s.setScrollX?.(true, (x) => { this.scrollX = x; }, scrolling);
+        // A DECLARED START, applied once as a request (a hidden pane holds it —
+        // dom-backend SCROLL_WANT; boot.ts re-applies after the first layout).
+        if (this.scrollStartY !== 0)
+            this.surface?.scrollToY?.(this.scrollStartY);
+        if (this.scrollStartX !== 0)
+            this.surface?.scrollToX?.(this.scrollStartX);
         const sink = this.inputSink();
         if (sink !== null)
             s.setInput(sink, this.inputWants());
@@ -848,17 +843,26 @@ export class View extends Node {
      *  mirror alone, so the model never holds `Infinity`. The surface call is
      *  deliberately unconditional — an equality-gated model write must not
      *  swallow the request (the boot-time trap applyDeclaredScroll records). */
-    scrollTo(y) {
-        if (Number.isFinite(y))
-            this.scrollY = y;
-        this.surface?.scrollToY?.(y);
+    scrollTo(y, glide) {
+        if (Number.isFinite(y) && glide === undefined)
+            this.scrollY = y; // a glide arrives through the mirror as it moves
+        this.surface?.scrollToY?.(y, glide);
     }
     /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
      *  for a `scrolls = x` (or `both`) view. */
-    scrollToX(x) {
-        if (Number.isFinite(x))
+    scrollToX(x, glide) {
+        if (Number.isFinite(x) && glide === undefined)
             this.scrollX = x;
-        this.surface?.scrollToX?.(x);
+        this.surface?.scrollToX?.(x, glide);
+    }
+    /** A RELATIVE request — `scrollBy(dx, dy[, glide])`: the same contract as
+     *  `scrollTo`/`scrollToX`, measured from the current facts. The optional
+     *  glide is the provider's own motion (see ScrollGlide in backend.ts). */
+    scrollBy(dx, dy, glide) {
+        if (dy !== 0)
+            this.scrollTo(this.scrollY + dy, glide);
+        if (dx !== 0)
+            this.scrollToX(this.scrollX + dx, glide);
     }
     /** Promotion (planes.md §1 — order is a slot): re-link this view among its
      *  siblings, tree and surface both. `raise()` moves it to the FRONT (last
@@ -1043,8 +1047,9 @@ const pushTransform = (v) => {
  *  regime as the browser's own scroll). */
 const pushScrolls = (v, ax) => {
     // optional-called: a minimal host/mock surface may omit the scroll seam
-    v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; });
-    v.surface?.setScrollX?.(ax === "x" || ax === "both", (x) => { v.scrollX = x; });
+    const scrolling = (a) => { v.scrolling = a; };
+    v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; }, scrolling);
+    v.surface?.setScrollX?.(ax === "x" || ax === "both", (x) => { v.scrollX = x; }, scrolling);
 };
 /** visibleRect's rest state — one frozen instance, so an off-screen view's
  *  slot never churns (rectEqual gates the writes besides). */
@@ -1128,48 +1133,27 @@ defineAttributes(View, {
     // reads drive fades/reveals).
     scrolls: { def: "none", push: pushScrolls },
     tip: { def: "" },
-    // TWO-WAY: the backend mirrors user scrolling IN (setScroll's callback); a
-    // program write pushes OUT. The echo is inert — a mirrored value arrives
-    // already equal to the surface's, so the push's scrollTo is a no-op there.
-    // This is what lets an app drive its own scroller (the Files strip animates
-    // `scrollX` to reveal a fresh column) instead of asking a platform reveal to
-    // find one — scrollIntoView is axis-blind and walks ancestors, which is how
-    // a horizontal strip reveal once vertically scrolled the island hosting it.
+    // FACTS (schema readOnly): the backend mirrors the platform's offset IN
+    // (setScroll's callback); a program cannot write them — the checker refuses
+    // an assignment and an Animator alike, naming the verbs. The push survives
+    // for the RUNTIME's own writes (`scrollTo` lands a finite request in the
+    // model before the surface clamps it); on a mirrored value it is inert, the
+    // surface already holding that number. A scroller that wants to move itself
+    // calls its verb — `strip.scrollToX(x, { duration, motion })` — a request
+    // to THIS scroller only (scrollIntoView is axis-blind and walks ancestors,
+    // which is how a strip reveal once vertically scrolled its hosting island).
     scrollY: { def: 0, push: (v, y) => v.surface?.scrollToY?.(y) },
     claim: { def: "both" },
     scrollX: { def: 0, push: (v, x) => v.surface?.scrollToX?.(x) },
-    // The prevailing built-ins: model-side on View (no push — Text's style
-    // derive is the consumer that crosses the seam). Defaults are the
-    // browser-native text defaults Text carried through R3–R9.
-    textColor: { def: 0x000000, prevailing: true },
-    selectable: {
-        def: false,
-        prevailing: true,
-        // Phase-2 selection: an explicitly-selectable container realizes as a
-        // selection surface (optional-chained — DOM-only affordance).
-        push: (v, val) => v.surface?.setSelectableRegion?.(val === true),
-    },
-    fontSize: { def: 16, prevailing: true },
-    fontFamily: { def: "sans-serif", prevailing: true },
-    fontWeight: { def: "normal", prevailing: true },
-    letterSpacing: { def: 0, prevailing: true },
-    iconSize: { def: 16, prevailing: true },
-    // Rich-text structure overrides — consumed by Markdown/HTMLText (null color =
-    // the theme-aware house token; headingWeight = the house bold).
-    headingColor: { def: null, prevailing: true },
-    headingWeight: { def: "bold", prevailing: true },
-    linkColor: { def: null, prevailing: true },
-    codeColor: { def: null, prevailing: true },
-    codeSize: { def: 0, prevailing: true },
-    codeFamily: { def: "", prevailing: true },
-    codeBackground: { def: null, prevailing: true },
-    codeRule: { def: null, prevailing: true },
-    richTextLayout: { def: null, prevailing: true },
-    theme: { def: DEFAULT_THEME, prevailing: true },
-    styles: { def: null },
-    // The pusher installs appliers under a newly-providing view (existing
-    // appliers re-run through their own tracked follow of this slot).
-    stylesheet: { def: null, prevailing: true, push: (v) => stylesheetArrived(v) },
+    // the declared start (applied once at attach / after first layout) and the
+    // in-motion fact — read-only, fed by the platform
+    scrollStartY: { def: 0 },
+    scrollStartX: { def: 0 },
+    scrolling: { def: false },
+    // The text face / rich-text / iconSize / theme values are provided, not View
+    // slots — they live with the text leaves, Icon, and Control (attributes.ts
+    // providedDefault). A container that sets one PROVIDES it: an undeclared set
+    // becomes an instance-slot provision.
     layout: {
         def: null,
         // The install/uninstall side of the slot: detach the old arrangement
@@ -1748,8 +1732,8 @@ export class App extends View {
 }
 // One shared, frozen empty record for every top-level app's `env` — safe to
 // share because hosts REPLACE the record wholesale, never mutate it.
-// The interaction module's injected instance test (cycle-free, stylesheet.ts's
-// discipline): interaction.ts types views structurally; this is the one brand check.
+// The interaction module's injected instance test (cycle-free): interaction.ts
+// types views structurally; this is the one brand check.
 initInteraction((n) => n instanceof View);
 const EMPTY_ENV = Object.freeze({});
 defineAttributes(App, {

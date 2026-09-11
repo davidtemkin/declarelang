@@ -272,7 +272,7 @@ test("an iterator-closure read stays LIVE (roster.map((a) => a.running) in a cla
     class L extends Node [
       ax: A [ id = "x" ], ay: A [ id = "y" ],
       roster: A[] = { [this.ax, this.ay] },
-      data: Dataset [ contents = { ({ apps: classroot.roster.map((a) => ({ id: a.id, running: a.running })) }) } ],
+      data: Dataset [ contents = { { apps: classroot.roster.map((a) => ({ id: a.id, running: a.running })) } } ],
       ]
     App [ width = 100, height = 100, l: L [ ],
       t: Text [ text = { (app.l.data.value.apps || []).map((r) => r.id + ":" + r.running).join(" ") } ] ]`);

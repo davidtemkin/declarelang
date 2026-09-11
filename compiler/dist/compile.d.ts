@@ -76,7 +76,7 @@ export interface CompileOptions {
  *  is declared above its subclass) ahead of the main file (its directives
  *  excised too), producing ONE merged source: parse → check → scope-resolve →
  *  emit all run over its identical offsets, so the output contains every
- *  included class/stylesheet/style, carries no `include` directive, and has
+ *  included class/theme/style, carries no `include` directive, and has
  *  every body — the main file's AND the included files' — bare-name-resolved.
  *
  *  Diagnostics trade-off (composition.md §1): the file-named collision /

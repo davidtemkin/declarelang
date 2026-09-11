@@ -72,7 +72,8 @@ function applyEditScheme(el: HTMLElement, fill: Fill): void {
 }
 
 // ── THE SELECTION REALIZATION (ruled 2026-07-30, superseding the COARSE
-// stance of 07-29). The language fact is `selectable` (prevailing, view.ts);
+// stance of 07-29). The language fact is `selectable` (a provided value the
+// text leaves read);
 // its realization is SUBTRACTIVE ONLY: `user-select: none` lands on exactly
 // the text leaves (Text runs, rich-flow hosts) whose effective `selectable`
 // is false, and NOTHING ever writes `user-select: text` on painted content —
@@ -1277,10 +1278,15 @@ class DomSurface implements Surface {
    *  breaks the mirror echo (scroll event → attribute → push → here). The
    *  offset is REMEMBERED whether or not the write lands, because a hidden
    *  element takes neither the write nor an honest read (setVisible). */
-  scrollToY(v: number): void {
+  // A GLIDE on the DOM is the browser's own smooth scroll: the compositor
+  // drives it (no JS on the path, cancelled by a user gesture) — native feel,
+  // the platform's curve and duration; `glide.duration`/`motion` are hints the
+  // DOM cannot honor exactly (documented: platform motion, not an Animator).
+  scrollToY(v: number, glide?: { duration?: number; motion?: string }): void {
     const el = this.element;
     want(el).y = v;
     const t = wantY(el, v);   // Infinity resolves against the range NOW (and again on show)
+    const behavior: ScrollBehavior = glide ? "smooth" : "auto";
     // THE PAGE REALIZATION has no scroll box of its own: a top-level App root
     // wears `overflow: clip` and is SIZED to its content, so the document
     // scrolls it (applyScrollStyle's root branch) and `scrollTop` on the
@@ -1289,21 +1295,22 @@ class DomSurface implements Surface {
     // and takes the ordinary path.)
     const page = this.pageScroller();
     if (page !== null) {
-      if (Math.abs(page.scrollY - t) > 0.5) page.scrollTo({ top: t, left: page.scrollX });
+      if (Math.abs(page.scrollY - t) > 0.5) page.scrollTo({ top: t, left: page.scrollX, behavior });
       return;
     }
-    if (Math.abs(el.scrollTop - t) > 0.5) el.scrollTop = t;
+    if (Math.abs(el.scrollTop - t) > 0.5) { if (glide) el.scrollTo({ top: t, behavior }); else el.scrollTop = t; }
   }
-  scrollToX(v: number): void {
+  scrollToX(v: number, glide?: { duration?: number; motion?: string }): void {
     const el = this.element;
     want(el).x = v;
     const t = wantX(el, v);
+    const behavior: ScrollBehavior = glide ? "smooth" : "auto";
     const page = this.pageScroller();
     if (page !== null) {
-      if (Math.abs(page.scrollX - t) > 0.5) page.scrollTo({ top: page.scrollY, left: t });
+      if (Math.abs(page.scrollX - t) > 0.5) page.scrollTo({ top: page.scrollY, left: t, behavior });
       return;
     }
-    if (Math.abs(el.scrollLeft - t) > 0.5) el.scrollLeft = t;
+    if (Math.abs(el.scrollLeft - t) > 0.5) { if (glide) el.scrollTo({ left: t, behavior }); else el.scrollLeft = t; }
   }
 
   /** The window a TOP-LEVEL app root scrolls through, or null for anything
@@ -1506,7 +1513,7 @@ class DomSurface implements Surface {
     else this.element.setAttribute("aria-rowindex", String(i));
   }
 
-  setScroll(on: boolean, onScroll: (y: number) => void): void {
+  setScroll(on: boolean, onScroll: (y: number) => void, onScrolling?: (active: boolean) => void): void {
     const el = this.element;
     this.scrollYOn = on;
     if (on) {
@@ -1518,19 +1525,40 @@ class DomSurface implements Surface {
         // makes Chrome zero it and announce that as a scroll, which would
         // overwrite the model with a number the user never scrolled to (the
         // reciprocal of the write a hidden pane refuses — see setVisible).
-        this.scrollListener = () => { if (el.clientHeight > 0) onScroll(el.scrollTop); };
+        // The `scrolling` fact — the arbitration fact: true on the first scroll
+        // event of a run, false at `scrollend` (or, where the browser lacks it,
+        // 160ms of quiet). The PLATFORM's report of its own process; the
+        // program reads it, never sets it.
+        const settle = () => { if (this.scrollIdleTimer !== undefined) { clearTimeout(this.scrollIdleTimer); this.scrollIdleTimer = undefined; } if (this.scrollActive) { this.scrollActive = false; onScrolling?.(false); } };
+        this.scrollListener = () => {
+          if (el.clientHeight > 0) onScroll(el.scrollTop);
+          if (!this.scrollActive) { this.scrollActive = true; onScrolling?.(true); }
+          if (this.scrollIdleTimer !== undefined) clearTimeout(this.scrollIdleTimer);
+          this.scrollIdleTimer = setTimeout(settle, 160);
+        };
+        this.scrollEndListener = settle;
         el.addEventListener("scroll", this.scrollListener, { passive: true });
+        el.addEventListener("scrollend", this.scrollEndListener, { passive: true });
       }
     } else if (this.scrollListener !== undefined) {
       el.removeEventListener("scroll", this.scrollListener);
+      if (this.scrollEndListener !== undefined) { el.removeEventListener("scrollend", this.scrollEndListener); this.scrollEndListener = undefined; }
+      if (this.scrollIdleTimer !== undefined) { clearTimeout(this.scrollIdleTimer); this.scrollIdleTimer = undefined; }
+      this.scrollActive = false;
       this.scrollListener = undefined;
     }
     this.applyScrollStyle();
   }
 
+  // The `scrolling` fact's plumbing (setScroll): the scrollend listener, the
+  // quiet-timer fallback, and whether a run is in progress.
+  private scrollEndListener: (() => void) | undefined;
+  private scrollIdleTimer: ReturnType<typeof setTimeout> | undefined;
+  private scrollActive = false;
+
   private wheelXListener: ((e: WheelEvent) => void) | undefined;
   private scrollXListener: (() => void) | undefined;
-  setScrollX(on: boolean, onScroll?: (x: number) => void): void {
+  setScrollX(on: boolean, onScroll?: (x: number) => void, _onScrolling?: (active: boolean) => void): void {
     const el = this.element;
     this.scrollXOn = on;
     if (on) {
@@ -1610,10 +1638,37 @@ class DomSurface implements Surface {
       bs.fontSize = b.fontSize + "px";
       bs.lineHeight = Math.round(b.fontSize * b.lineHeight) + "px";
       if (b.pre) { bs.whiteSpace = "pre"; bs.overflowX = "auto"; bs.overflowY = "hidden"; }
-      else bs.whiteSpace = "normal";
+      // A flowing block wraps at spaces, and a token WIDER than the flow (a long
+      // code span or slash-path in a narrow table cell) breaks rather than
+      // overflowing its box — otherwise it spills past the column and collides
+      // with the neighbour cell. A no-op for prose that fits (breaks only what
+      // cannot). `pre` blocks are exempt: code keeps its shape and scrolls.
+      else { bs.whiteSpace = "normal"; bs.overflowWrap = "break-word"; }
       if (b.align !== undefined && b.align !== "left") bs.textAlign = b.align;
       for (const r of b.runs) {
         if ("br" in r) { be.appendChild(doc.createElement("br")); continue; }
+        // An inline image (`![alt](src)`) is a real <img>, flowing as a replaced
+        // box the browser wraps and reflows natively; it caps to the flow width,
+        // shows its `alt` if it cannot load, and — when the image is a link's
+        // content — sits inside an <a> that routes its click through `onLink`.
+        if ("img" in r) {
+          const im = r.img;
+          const img = doc.createElement("img");
+          img.src = im.src; img.alt = im.alt;
+          if (im.title !== undefined) img.title = im.title;
+          const is = img.style;
+          // Cap to the flow width, keep aspect, and sit the image's bottom on the
+          // text baseline (CSS default `vertical-align: baseline`) — the same
+          // placement the Canvas flow uses, so the backends agree.
+          is.maxWidth = "100%"; is.height = "auto"; is.verticalAlign = "baseline";
+          if (im.href !== undefined) {
+            const a = doc.createElement("a");
+            a.href = im.href; a.style.pointerEvents = "auto";
+            a.addEventListener("click", (e) => { const m = e as MouseEvent; if (m.button === 0 && !m.metaKey && !m.ctrlKey && !m.shiftKey && !m.altKey) { e.preventDefault(); onLink(im.href!); } });
+            a.appendChild(img); be.appendChild(a);
+          } else be.appendChild(img);
+          continue;
+        }
         // A link run is a REAL <a href> — native hover URL, right/middle/⌘-click
         // open-in-tab — but a plain left click routes through `onLink` so the app,
         // not the browser, decides (scroll, in-app route, or app.navigate).

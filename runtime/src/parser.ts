@@ -13,13 +13,9 @@
 //   element  := IDENT ( '[' members ']' )?
 //   members  := ( member ( ',' member )* ','? )?
 //   member   := IDENT '=' value             -- set an attribute
-//             | 'prevailing'? IDENT ':' IDENT ( '=' literal )?
+//             | IDENT ':' IDENT ( '=' literal )?
 //                                            -- declare an attribute (typed,
-//                                               optionally defaulted; the
-//                                               styling rung's modifier marks
-//                                               it prevailing — followed from
-//                                               the nearest providing ancestor
-//                                               when unset)
+//                                               optionally defaulted)
 //             | IDENT ':' IDENT '[' … ']'    -- a named child instance
 //             | IDENT '(' params ')' ret? CODE  -- a method (language §4)
 //             | element                      -- an anonymous child instance
@@ -76,7 +72,7 @@ export type Literal =
   // (shape-resolve.ts), so the scaffold can project the name, not a structural
   // expansion.
   | { kind: "schema"; shape: ShapeField[]; pos: Pos; arrayRoot?: boolean; refName?: string }
-  // `name(args)` — a value CONSTRUCTOR (styling rung: gradient/stroke/shadow/
+  // `name(args)` — a value CONSTRUCTOR (gradient/stroke/shadow/
   // stop). Pure syntax: which names construct what is the value vocabulary's
   // question (value.ts), like every other literal meaning.
   | { kind: "call"; name: string; args: Literal[]; pos: Pos }
@@ -148,10 +144,6 @@ export interface AttrDecl {
   type: string;
   typePos: Pos;
   def: Literal | null;
-  /** Declared `prevailing name: Type …` (the styling rung): an unset slot
-   *  follows the nearest providing ancestor's value, live. Part of the
-   *  slot's identity, like its type. */
-  prevailing: boolean;
   /** Declared `readonly name: Type = { … }`: a computed slot a constraint may
    *  read but nothing may set — the checker refuses an assignment and the
    *  runtime setter throws. Part of the slot's identity, like its type. */
@@ -190,9 +182,9 @@ export interface Element {
    *  captured verbatim; whether the tag admits one (and what the text means)
    *  is the checker's question. Absent for `[ ]`-bodied elements. */
   raw?: { src: string; pos: Pos };
-  /** A class-keyed ENTRY (`Button: [ fill = … ]` — the styling rung's
-   *  stylesheet member): `tag` is the keyed class name. Only a stylesheet
-   *  admits one — the checker's question, like every other meaning. */
+  /** A class-keyed ENTRY (`Button: [ fill = … ]`): `tag` is the keyed class
+   *  name. The parser shapes it; the checker refuses it (no declaration admits
+   *  a class-keyed entry) — like every other meaning, the checker's question. */
   entry?: true;
   /** The navigable target of this element's activation handler, when the
    *  compiler's link extraction (compiler/src/links.ts) found a `navigate(to)`
@@ -213,10 +205,10 @@ export interface ClassDecl {
   pos: Pos;
 }
 
-/** A top-level `stylesheet Name [ … ]` or `style name [ … ]` declaration
- *  (styling rung). The body is an Element tagged with the declaration's own
- *  name, so the member machinery is reused unchanged; the checker owns what
- *  each body may carry. */
+/** A top-level `theme Name [ … ]` (a named record value of type Theme),
+ *  `style name [ … ]` (a run-style bundle), or `font Name [ … ]` declaration.
+ *  The body is an Element tagged with the declaration's own name, so the member
+ *  machinery is reused unchanged; the checker owns what each body may carry. */
 export interface TopDecl {
   name: string;
   body: Element;
@@ -294,7 +286,7 @@ export interface ScriptBlock {
 }
 
 /** A whole source: `include` directives, top-level declarations (classes,
- *  stylesheets, style bundles — any order), then the root instance. (The
+ *  themes, style bundles — any order), then the root instance. (The
  *  module/file model is an open language question — one file, declarations
  *  above the root, is the R6 shape; see HANDOFF §R6.) `includes` is the raw
  *  reference list; the resolve phase (include.ts) folds included libraries in
@@ -304,7 +296,9 @@ export interface Program {
   /** Top-level `schema Name [ … ]` declarations (typed data). Optional so
    *  hand-built Program literals stay valid. */
   shapes?: SchemaDecl[];
-  stylesheets: TopDecl[];
+  /** Top-level `theme Name [ … ]` declarations — named record values of type
+   *  Theme (design-token presets and app brand themes). */
+  themes: TopDecl[];
   styles: TopDecl[];
   fonts: TopDecl[];
   includes: IncludeRef[];
@@ -335,13 +329,13 @@ export interface Program {
 }
 
 /** An included file (composition.md §1): a library of top-level declarations
- *  — classes, stylesheets, styles, and its own `include`s — with NO root. It
- *  is not a Program: it never declares an App, so it has no `root`. */
+ *  — classes, themes, styles, and its own `include`s — with NO root. It is
+ *  not a Program: it never declares an App, so it has no `root`. */
 export interface Library {
   classes: ClassDecl[];
   /** A library's own `schema Name [ … ]` declarations, merged like classes. */
   shapes?: SchemaDecl[];
-  stylesheets: TopDecl[];
+  themes: TopDecl[];
   styles: TopDecl[];
   fonts: TopDecl[];
   includes: IncludeRef[];
@@ -771,22 +765,19 @@ class Parser {
   parseMembers(el: Element): void {
     while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
       let name = this.expect("ident", "a member name");
-      // The `prevailing` declaration modifier (styling rung) — contextual:
-      // only when what follows is itself a declaration head (`name :`), so a
-      // member actually named `prevailing` still parses everywhere else.
-      let prevailing = false;
+      // Contextual declaration modifiers (`readonly` / `external`) — recognized
+      // only when a declaration head follows, so a member actually named one of
+      // these still parses everywhere else.
       let readOnly = false;
       let external = false;
       const declPos = name.pos;
-      // Contextual declaration modifiers (`prevailing` / `readonly` /
-      // `external`): recognized ONLY when a declaration head follows — either
-      // directly (`name :`) or through one more modifier (`external readonly
-      // name :`) — so a member actually NAMED one of these still parses
-      // everywhere else. `external` combines with `readonly` (an island
-      // out-fact the host provably never writes); `prevailing` combines with
-      // neither (a followed slot is neither computed nor a boundary slot —
-      // the checker words the refusal).
-      const isMod = (t: string): boolean => t === "prevailing" || t === "readonly" || t === "external";
+      // Contextual declaration modifiers (`readonly` / `external`): recognized
+      // ONLY when a declaration head follows — either directly (`name :`) or
+      // through one more modifier (`external readonly name :`) — so a member
+      // actually NAMED one of these still parses everywhere else. `external`
+      // combines with `readonly` (an island out-fact the host provably never
+      // writes). A value that cascades to a subtree is a `provided(…)` read.
+      const isMod = (t: string): boolean => t === "readonly" || t === "external";
       while (isMod(name.text)) {
         const nxt = this.peek();
         const headNext = nxt.kind === "ident" && this.peekAt(1).kind === "colon";
@@ -794,7 +785,6 @@ class Parser {
           this.peekAt(1).kind === "ident" && this.peekAt(2).kind === "colon";
         if (!headNext && !modThenHead) break;
         if (name.text === "readonly") readOnly = true;
-        else if (name.text === "prevailing") prevailing = true;
         else external = true;
         name = this.next();
       }
@@ -842,8 +832,8 @@ class Parser {
         // `Type` names a component or a value type.
         this.next();
         if (this.peek().kind === "lbracket") {
-          // `Button: [ … ]` — a class-keyed ENTRY (a stylesheet's member;
-          // anywhere else the checker refuses it).
+          // `Button: [ … ]` — a class-keyed ENTRY; the checker refuses it
+          // (no declaration admits one).
           const child: Element = { tag: name.text, name: null, entry: true, attrs: [], decls: [], methods: [], children: [], pos: name.pos };
           this.next();
           this.parseMembers(child);
@@ -854,9 +844,9 @@ class Parser {
         }
         const type = this.parseTypeRef("a type or component name");
         if (this.peek().kind === "lbracket") {
-          if (prevailing || readOnly || external) {
+          if (readOnly || external) {
             throw new DeclareError(
-              `'${external ? "external" : readOnly ? "readonly" : "prevailing"}' marks an attribute declaration — a child instance cannot carry it`,
+              `${external ? "external" : "readonly"} marks an attribute declaration — a child instance cannot carry it`,
               declPos
             );
           }
@@ -876,9 +866,9 @@ class Parser {
           // `events: Dataset { …json… }` — a named child with an embedded raw
           // body (language §9). Pure syntax here; the checker owns whether
           // the tag admits one and whether the text is valid JSON.
-          if (prevailing || readOnly || external) {
+          if (readOnly || external) {
             throw new DeclareError(
-              `'${external ? "external" : readOnly ? "readonly" : "prevailing"}' marks an attribute declaration — a child instance cannot carry it`,
+              `'${external ? "external" : "readonly"}' marks an attribute declaration — a child instance cannot carry it`,
               declPos
             );
           }
@@ -890,7 +880,7 @@ class Parser {
         } else {
           let def: Literal | null = null;
           if (this.peek().kind === "eq") { this.next(); def = this.parseLiteral(); }
-          el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, prevailing, readOnly, external, pos: declPos });
+          el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, readOnly, external, pos: declPos });
         }
       } else if (this.peek().kind === "lparen") {
         // a method — `name(p: Type, …) -> Ret { statements }` (language §4:
@@ -1273,8 +1263,8 @@ class Parser {
     return { name: name.text, fields, pos: kw.pos };
   }
 
-  /** At a `stylesheet Name [ … ]` / `style name [ … ]` top-level declaration
-   *  (styling rung) — the same contextual-keyword rule as atClass. */
+  /** At a `theme Name [ … ]` / `style name [ … ]` / `font Name [ … ]`
+   *  top-level declaration — the same contextual-keyword rule as atClass. */
   atTop(keyword: string): boolean {
     const t = this.tokens[this.i];
     const u = this.tokens[this.i + 1];
@@ -1331,7 +1321,7 @@ class Parser {
 
   /** At an `include [ … ]` directive (composition.md §1) — contextual: the
    *  ident `include` followed by `[`. (`include` followed by anything else is
-   *  an ordinary component name, exactly as `class`/`stylesheet` are.) */
+   *  an ordinary component name, exactly as `class`/`theme` are.) */
   atInclude(): boolean {
     const t = this.tokens[this.i];
     const u = this.tokens[this.i + 1];
@@ -1342,7 +1332,7 @@ class Parser {
    *  contextual, the ident `use` followed by `[`. Names components the app may
    *  construct by a name static analysis can't see (create-by-string, §8), so the
    *  build keeps them. `use` followed by anything else is an ordinary component
-   *  name, exactly as `include`/`class`/`stylesheet` are. */
+   *  name, exactly as `include`/`class`/`theme` are. */
   atUse(): boolean {
     const t = this.tokens[this.i];
     const u = this.tokens[this.i + 1];
@@ -1394,9 +1384,9 @@ class Parser {
     return { refs, span: { start: kw.pos.offset, end: rb.pos.offset + rb.text.length } };
   }
 
-  /** `('stylesheet' | 'style') name '[' members ']'`. The body is an Element
-   *  tagged with the declaration's own name — pure syntax; what a stylesheet
-   *  or bundle body may carry is the checker's question. */
+  /** `('theme' | 'style' | 'font') name '[' members ']'`. The body is an
+   *  Element tagged with the declaration's own name — pure syntax; what a
+   *  theme, bundle, or font body may carry is the checker's question. */
   parseTopDecl(what: string): TopDecl {
     const kw = this.expect("ident", `'${what}'`);
     const name = this.expect("ident", `the ${what}'s name`);
@@ -1420,13 +1410,13 @@ export function parse(source: string): Element {
 }
 
 /** Parse the top-level declarations shared by a program and a library:
- *  `include` directives, class declarations, and `stylesheet`/`style`
- *  bundles, in any order. Stops at the first token that opens none of them
- *  (the root element in a program, or eof in a library). */
+ *  `include` directives, class declarations, and `theme`/`style`/`font`
+ *  declarations, in any order. Stops at the first token that opens none of
+ *  them (the root element in a program, or eof in a library). */
 function parseTopDecls(p: Parser): {
   classes: ClassDecl[];
   shapes: SchemaDecl[];
-  stylesheets: TopDecl[];
+  themes: TopDecl[];
   styles: TopDecl[];
   fonts: TopDecl[];
   includes: IncludeRef[];
@@ -1438,7 +1428,7 @@ function parseTopDecls(p: Parser): {
 } {
   const classes: ClassDecl[] = [];
   const shapes: SchemaDecl[] = [];
-  const stylesheets: TopDecl[] = [];
+  const themes: TopDecl[] = [];
   const styles: TopDecl[] = [];
   const fonts: TopDecl[] = [];
   const includes: IncludeRef[] = [];
@@ -1462,16 +1452,16 @@ function parseTopDecls(p: Parser): {
     else if (p.atScript()) scripts.push(p.parseScript());
     else if (p.atClass()) classes.push(p.parseClass());
     else if (p.atSchemaDecl()) shapes.push(p.parseSchemaDecl());
-    else if (p.atTop("stylesheet")) stylesheets.push(p.parseTopDecl("stylesheet"));
+    else if (p.atTop("theme")) themes.push(p.parseTopDecl("theme"));
     else if (p.atTop("style")) styles.push(p.parseTopDecl("style"));
     else if (p.atTop("font")) fonts.push(p.parseTopDecl("font"));
     else break;
   }
-  return { classes, shapes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans };
+  return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans };
 }
 
 /** Parse a whole Declare source: `include`s and top-level declarations
- *  (classes, stylesheets, style bundles), the root instance, and — ruled
+ *  (classes, themes, style bundles), the root instance, and — ruled
  *  2026-08-06 — declarations may FOLLOW the root too, in any order. The
  *  reading convention stays declarations-first (the guide says so; the
  *  formatter never reorders), but the parser accepts the natural writing
@@ -1485,7 +1475,7 @@ export function parseProgram(source: string): Program {
   const root = p.parseElement();
   const after = parseTopDecls(p);
   const classes = [...before.classes, ...after.classes];
-  const stylesheets = [...before.stylesheets, ...after.stylesheets];
+  const themes = [...before.themes, ...after.themes];
   const styles = [...before.styles, ...after.styles];
   const fonts = [...before.fonts, ...after.fonts];
   const includes = [...before.includes, ...after.includes];
@@ -1497,20 +1487,19 @@ export function parseProgram(source: string): Program {
   const shapes = [...before.shapes, ...after.shapes];
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
-  return { classes, shapes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans, root };
+  return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans, root };
 }
 
 /** Parse an INCLUDED file (composition.md §1): the same top-level
- *  declarations as a program, then eof — a library declares classes,
- *  stylesheets, and styles, never a root. A stray root element is a
- *  positioned error: an included file is a library of definitions, not an
- *  App. */
+ *  declarations as a program, then eof — a library declares classes, themes,
+ *  and styles, never a root. A stray root element is a positioned error: an
+ *  included file is a library of definitions, not an App. */
 export function parseLibrary(source: string): Library {
   const p = new Parser(tokenize(source));
   const decls = parseTopDecls(p);
   if (p.peek().kind !== "eof") {
     throw Diag.strayRoot(
-      "an included file is a library of definitions — it declares classes, stylesheets, and styles, not an App/root",
+      "an included file is a library of definitions — it declares classes, themes, and styles, not an App/root",
       p.peek().pos
     );
   }

@@ -133,7 +133,6 @@ function sayEntry(e) {
   if (e.type) bits.push(`type ${e.type}`);
   if (e.default !== undefined && e.default !== null && e.default !== "") bits.push(`default ${String(e.default)}`);
   if (e.readOnly) bits.push("read-only");
-  if (e.prevailing) bits.push("prevailing");
   if (e.inheritedFrom) bits.push(`inherited from ${e.inheritedFrom}`);
   say(`${e.id} — ${bits.join(" · ")}`);
   for (const line of (e.doc ?? "").split("\n")) say(`  ${line}`);

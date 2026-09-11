@@ -61,8 +61,8 @@ magnification swell as the icons, blended by `miniT` from a free window
 */
 
 class Window extends View [ width = 560, height = 400, clip = true,
-    fill = { theme.surface },
-    stroke = { stroke(1, theme.line) },
+    fill = { provided("theme").surface },
+    stroke = { stroke(1, provided("theme").line) },
 
     // The front window floats on a deeper, softer shadow; an inactive one sits
     // closer to the desktop on a lighter, tighter one.
@@ -427,7 +427,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
         fill = { classroot.active
                 ? (app.darkMode ? gradient(0x3B3B40, 0x2E2E32) : gradient(0xFAFAFC, 0xE6E6EA))
-                : theme.bg },
+                : provided("theme").bg },
         onPointerDown() { classroot.beginDrag() },
         onPointerMove() { classroot.dragTo() },
         onPointerUp(e: PointerUpEvent)   { classroot.endDrag(e.canceled) },
@@ -470,12 +470,12 @@ class Window extends View [ width = 560, height = 400, clip = true,
             ],
 
         cap: Text [ x = center, y = center, fontSize = 13, fontWeight = semibold,
-            textColor = { classroot.active ? theme.text : theme.textMuted },
+            textColor = { classroot.active ? provided("theme").text : provided("theme").textMuted },
             text = { classroot.title } ],
 
         // the separator under the title bar — present active or not
 
-        sep: View [ x = 0, y = { classroot.barH - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ]
+        sep: View [ x = 0, y = { classroot.barH - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").line } ]
         ],
 
     // THE RESIZE HALO — one ignoreClip child instead of eight strips: a ring
@@ -580,7 +580,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
         width = { classroot.corner }, height = { classroot.corner },
         draw(d: Draw) {
             if (!classroot.chrome) return            // custom chrome resizes here too, but unmarked
-            d.strokeStyle = theme.textFaint
+            d.strokeStyle = provided("theme").textFaint
             d.lineWidth = 1
             d.beginPath()
             d.moveTo(6, 14); d.lineTo(14, 6)
@@ -687,7 +687,7 @@ class BrandMark extends View [ width = 18, height = 18, cornerRadius = 9,
 Two icons that belong to THIS app rather than the library, by the closed-set
 rule (`library/icons/icon.declare`): one is Declare's identity, the other names
 a thing only this desktop offers. Both are `Icon` subclasses, so they take their
-size from the host and their ink from the prevailing text colour like every
+size from the host and their ink from the provided text colour like every
 other mark in the chrome — what changes is that they are drawn instead of typed.
 
 `BracketIcon` restores the `[ ]` the About row used to set as a text glyph. That
@@ -824,14 +824,14 @@ class HelpSearch extends View [ height = 40,
     //
     // The cost is reproducing the chrome TextInput derives for itself — surface
     // fill, and the 1px edge that turns accent while focused. Both are read off
-    // the same prevailing theme the field would have used, so a theme swap still
+    // the same provided theme the field would have used, so a theme swap still
     // carries. The capsule reaches 12px from the menu's edges, past the kind-row
     // host's standard 24px inset — hence the negative x.
 
     cap: View [ x = -12, y = 5, width = { parent.width + 10 }, height = 30,
         cornerRadius = { this.height / 2 },
-        fill = { theme.surface },
-        stroke = { stroke(1, this.sf.focused ? theme.accent : theme.line) },
+        fill = { provided("theme").surface },
+        stroke = { stroke(1, this.sf.focused ? provided("theme").accent : provided("theme").line) },
 
         // chrome off: the capsule draws it. The x IS the glyph's room.
 
@@ -842,7 +842,7 @@ class HelpSearch extends View [ height = 40,
         mag: View [ x = 10, y = { (parent.height - 14) / 2 },
             width = 14, height = 14, pointerEvents = "none",
             draw(d: Draw) {
-                d.strokeStyle = theme.textFaint
+                d.strokeStyle = provided("theme").textFaint
                 d.lineWidth = 1.5
                 d.lineCap = "round"
                 d.beginPath()
@@ -880,15 +880,15 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
 
             art: AppGlyph [ x = center, edge = 96, appId = { classroot.forApp != null ? classroot.forApp.id : "" } ],
 
-            nm: Text [ x = center, fontSize = 17, fontWeight = bold, textColor = { theme.text },
+            nm: Text [ x = center, fontSize = 17, fontWeight = bold, textColor = { provided("theme").text },
                 text = { classroot.aname } ],
-            ver: Text [ x = center, fontSize = 11, textColor = { theme.textMuted },
+            ver: Text [ x = center, fontSize = 11, textColor = { provided("theme").textMuted },
                 text = "Version pre-1.0" ],
             gap: View [ width = 4, height = 2 ],
             bl: Text [ fontSize = 11, wrap = true, width = { parent.width }, textAlign = center,
-                textColor = { theme.textMuted }, text = { classroot.forApp != null ? classroot.forApp.blurb : "" } ],
+                textColor = { provided("theme").textMuted }, text = { classroot.forApp != null ? classroot.forApp.blurb : "" } ],
             gap2: View [ width = 4, height = 8 ],
-            cp: Text [ x = center, fontSize = 10, textColor = { theme.textFaint },
+            cp: Text [ x = center, fontSize = 10, textColor = { provided("theme").textFaint },
                 text = "Built in Declare · MIT · © 2026 David Temkin" ]
             ]
         ]
@@ -1008,7 +1008,7 @@ class FilesWindow extends Window [
         }
         return cols
         },
-    cols: Dataset [ contents = { ({ list: classroot.columnData(classroot.selPath, app.docsModel.value, classroot.rootPath) }) } ],
+    cols: Dataset [ contents = { { list: classroot.columnData(classroot.selPath, app.docsModel.value, classroot.rootPath) } } ],
 
     // open a leaf — every leaf is a document. An authored file (`path`) opens its
     // source; a hydrated page (`doc`, assembled by the model) opens whole. Same
@@ -1059,7 +1059,7 @@ class FilesWindow extends Window [
         },
 
     body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
-        fill = { theme.bg },
+        fill = { provided("theme").bg },
 
         // the column STRIP: a horizontal row as wide as the open columns need,
         // inside a viewport that scrolls RIGHT (scrolls = x) as they accumulate — a
@@ -1070,14 +1070,17 @@ class FilesWindow extends Window [
             datapath = { classroot.cols.value },
 
             // the strip's own reveal: a column that finds itself occluded asks
-            // the STRIP to glide to a new left position (`reveal.to` then
-            // `start()`). The strip is the only thing that moves — this is
-            // deliberately NOT scrollIntoView, which reveals on every axis
+            // the STRIP to glide to a new left position — a scroll REQUEST with
+            // a glide, `strip.scrollToX(x, { duration, motion })`, addressed to
+            // this scroller only. The strip is the only thing that moves — this
+            // is deliberately NOT scrollIntoView, which reveals on every axis
             // through every ancestor scroller: hosted in a short viewport (the
             // Viewer's edit preview), that walk scrolled the EMBEDDING island
-            // vertically. The window's interior animating itself cannot.
+            // vertically. The window's interior animating itself cannot. (It
+            // was an Animator on `scrollX` once; the offset is a platform fact,
+            // not a slot, and the glide is the platform's own motion — ruled
+            // 2026-09-10.)
 
-            reveal: Animator [ attribute = scrollX, to = 0, duration = 260, motion = cubicOut ],
             row: View [ x = 0, y = 0, height = { parent.height },
                 width = { (classroot.cols.value.list || []).reduce((s, c) => s + (classroot.widths[c.depth] != null ? classroot.widths[c.depth] : classroot.colW), 0) },
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
@@ -1093,7 +1096,7 @@ class FilesWindow extends Window [
                 // Keyed, a selection updates columns in place: no churn, no pop, and
                 // only a genuinely NEW (deeper) column runs its reveal.
 
-                View [ datapath = :list[], key = :depth, height = { parent.height }, clip = true, fill = { theme.bg },
+                View [ datapath = :list[], key = :depth, height = { parent.height }, clip = true, fill = { provided("theme").bg },
                     width = { classroot.widths[:depth] != null ? classroot.widths[:depth] : classroot.colW },
 
                     // a freshly-opened column reveals itself — IF the window's
@@ -1119,8 +1122,7 @@ class FilesWindow extends Window [
                             // no clamp here: the scroll write is clamped by the
                             // platform to the strip's contained extent, exactly
                             // like a user scroll — the app states the intent
-                            strip.reveal.to = to
-                            strip.reveal.start()
+                            strip.scrollToX(to, { duration: 260, motion: "cubicOut" })
                         }
                     }, 440) },
 
@@ -1153,16 +1155,16 @@ class FilesWindow extends Window [
                                     }
                                     },
                                 hl: View [ x = 4, y = 2, width = { parent.width - 8 }, height = { classroot.rowH - 4 }, cornerRadius = 5,
-                                    visible = { parent.on }, fill = { theme.accent } ],
+                                    visible = { parent.on }, fill = { provided("theme").accent } ],
                                 fo: FolderIcon [ x = 11, y = center, visible = { :hasKids } ],
                                 fi: FileIcon [ x = 12, y = center, visible = { !:hasKids } ],
                                 nm: Text [ x = 34, y = center, fontSize = 13, wrap = false, width = { parent.width - 52 },
-                                    textColor = { parent.on ? theme.accentText : theme.text }, text = { "" + :name } ],
+                                    textColor = { parent.on ? provided("theme").accentText : provided("theme").text }, text = { "" + :name } ],
                                 chev: Text [ x = { parent.width - 15 }, y = center, fontSize = 12, visible = { :hasKids },
-                                    textColor = { parent.on ? theme.accentText : theme.textFaint }, text = "›" ]
+                                    textColor = { parent.on ? provided("theme").accentText : provided("theme").textFaint }, text = "›" ]
                                 ]
                             ],
-                        edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { theme.line } ]
+                        edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { provided("theme").line } ]
                         ],
 
                     // the LEAF DETAIL column — name, kind, a preview, and Open
@@ -1170,11 +1172,11 @@ class FilesWindow extends Window [
                     det: View [ visible = { :leaf != null }, x = 18, y = 20, width = { parent.width - 36 },
                         layout: SimpleLayout [ axis = y, spacing = 11 ],
                         dn: Text [ fontSize = 14, fontWeight = semibold, wrap = true, width = { parent.width },
-                            textColor = { theme.text }, text = { "" + :leaf.name } ],
-                        dk: Text [ fontSize = 11, wrap = false, textColor = { theme.textFaint },
+                            textColor = { provided("theme").text }, text = { "" + :leaf.name } ],
+                        dk: Text [ fontSize = 11, wrap = false, textColor = { provided("theme").textFaint },
                             text = { "" + :leaf.label } ],
                         dp: Text [ fontSize = 12, wrap = true, width = { parent.width },
-                            textColor = { theme.text }, text = { "" + :leaf.preview } ],
+                            textColor = { provided("theme").text }, text = { "" + :leaf.preview } ],
                         Button [ width = 92, label = "Open", primary = true, visible = { :leaf.path != "" || :leaf.doc != "" },
                             onClick() { classroot.openLeaf(:leaf, this) }
                             ]
@@ -1296,9 +1298,9 @@ class ViewerWindow extends Window [ width = 640, height = 460,
 
         pad: View [ x = 48, y = 40, width = { parent.width - 96 },
             height = { this.doc.height + 40 },
-            loading: Text [ fontSize = 13, textColor = { theme.textFaint },
+            loading: Text [ fontSize = 13, textColor = { provided("theme").textFaint },
                 visible = { classroot.inlineDoc == "" && classroot.src.loading }, text = "Loading…" ],
-            failed: Text [ fontSize = 13, textColor = { theme.textFaint }, wrap = true, width = { parent.width },
+            failed: Text [ fontSize = 13, textColor = { provided("theme").textFaint }, wrap = true, width = { parent.width },
                 visible = { classroot.inlineDoc == "" && classroot.src.failed },
                 text = { "Could not load — " + (classroot.src.error || "") } ],
             doc: Markdown [ width = { parent.width },
@@ -1649,7 +1651,7 @@ class DockIcon extends View [
 
     dot: View [ width = 4, height = 4, cornerRadius = 2,
         x = { (parent.width - 4) / 2 }, y = { parent.height + 6 + this.parent.hopY },
-        visible = { running }, fill = { theme.text } ],
+        visible = { running }, fill = { provided("theme").text } ],
 
     // The label pill — the dock's own tooltip: a frosted chip with a downward
     // pointer tick and no shadow. It floats just above the hovered icon's own
@@ -2023,7 +2025,7 @@ class WinManager extends Node [
     // the parked records as DECLARED DATA for the dock's tile replication,
     // stamped with their band index (which is also each window's dockSlot)
 
-    miniData: Dataset [ contents = { ({ minis: app.wm.minis().map((r, i) => ({ ...(r as object), ix: i })) }) } ],
+    miniData: Dataset [ contents = { { minis: app.wm.minis().map((r, i) => ({ ...(r as object), ix: i })) } } ],
 
     appOf(w: Window?) -> DesktopApp { return w != null && w.forApp != null ? w.forApp : app.launcher.files },
 
@@ -2284,7 +2286,7 @@ class Launcher extends Node [
     // can see but not name (`a.running`, through the map) put this constraint
     // on the runtime-tracking path, where every one of them wakes it.
 
-    data: Dataset [ contents = { ({ apps: classroot.roster.map((a, i) => ({ id: a.id, ix: i, running: a.running })) }) } ],
+    data: Dataset [ contents = { { apps: classroot.roster.map((a, i) => ({ id: a.id, ix: i, running: a.running })) } } ],
 
     // THE LAUNCH GATE, once for every application. A first open (not running,
     // not launching) is a launch: the dock icon bounces and the window
@@ -2525,7 +2527,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     clock: DesktopClock [ ],
     launcher: Launcher [ ],
     minWidth = 800, minHeight = 600,                 // the floors: in a smaller viewport the browser pans (and pinches) the held frame natively — frame-driven, not a scroll anyone declares
-    theme = { Themes.cupertino(app.darkMode) },
+    theme = { app.darkMode ? CupertinoDark : Cupertino },
     fontFamily = "system-ui, sans-serif",
 
     // a dark solid beneath the drawn wallpaper (the `wallpaper` view covers it;
@@ -3143,7 +3145,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
             x = center, y = { (parent.height - this.height) / 3 },
             cornerRadius = 20,
-            fill = { theme.menuMaterial != null ? theme.menuMaterial : theme.surface },
+            fill = { provided("theme").menuMaterial != null ? provided("theme").menuMaterial : provided("theme").surface },
             stroke = stroke(1, #FFFFFF80),
             shadow = shadow(0, 16, 50, #00000059),
 
@@ -3151,9 +3153,9 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             badge: CautionBadge [ x = 162, y = 70, edge = 30 ],
 
             title: Text [ x = center, y = 112, fontSize = 15, fontWeight = semibold,
-                textColor = { theme.text }, text = { app.alert.subject != null ? app.alert.subject.quip : "" } ],
+                textColor = { provided("theme").text }, text = { app.alert.subject != null ? app.alert.subject.quip : "" } ],
             msg: Text [ x = 20, y = 136, width = 260, wrap = true, textAlign = center,
-                fontSize = 12, textColor = { theme.textMuted },
+                fontSize = 12, textColor = { provided("theme").textMuted },
                 text = { "Declare Desktop doesn't include " + (app.alert.subject != null ? app.alert.subject.title : "") + "." } ],
 
             // The payoff — a rounded image with a thin hairline, so it reads as

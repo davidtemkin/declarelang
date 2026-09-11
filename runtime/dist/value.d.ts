@@ -75,18 +75,14 @@ export declare function outlineEqual(a: Outline | null, b: Outline | null): bool
 export declare function backdropEqual(a: Backdrop | null, b: Backdrop | null): boolean;
 export declare function fillEqual(a: Fill, b: Fill): boolean;
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
- *  wholesale-swapped, never mutated in place). The default is SAN FRANCISCO
- *  light (docs/system-design/components-baseline.md Contract 2) — this record
- *  IS Themes.sanFrancisco(false), by identity (themes.ts aliases it), so the
- *  zero-declaration tier and the named preset can never drift. `theme.role`
- *  in library components ALWAYS resolves — no provider means San Francisco,
- *  never a fallback expression in component source. `depth` (0 = flat …
- *  1 = dimensional) is the treatment dial components translate in their
- *  decoration constraints. Partial reskin is explicit-base spread:
- *  `theme = { { ...app.theme, accent: 0xE05252 } }`. (The dark-aware house —
- *  a binding default off `app.dark` — is the noted follow-up.) */
+ *  wholesale-swapped, never mutated in place). `theme.role` in library
+ *  components ALWAYS resolves: `Control` declares `theme: Theme = { provided(
+ *  "theme", SanFrancisco) }`, so no provider means San Francisco, never a
+ *  fallback expression in component source. `depth` (0 = flat … 1 =
+ *  dimensional) is the treatment dial components translate in their decoration
+ *  constraints. Partial reskin is explicit-base spread:
+ *  `theme = { { ...provided("theme"), accent: 0xE05252 } }`. */
 export type Theme = Readonly<Record<string, unknown>>;
-export declare const DEFAULT_THEME: Theme;
 /** A parent-relative percentage, as written (`{ percent: 50 }` for `50%`).
  *  It stays symbolic: resolving it against a parent measurement is constraint
  *  work that lands at R4 — until then instantiate refuses it loudly rather
@@ -175,10 +171,6 @@ export type AttrType = {
     readonly kind: "backdrop";
 } | {
     readonly kind: "motion";
-} | {
-    readonly kind: "styles";
-} | {
-    readonly kind: "stylesheet";
 } | {
     readonly kind: "font";
 };

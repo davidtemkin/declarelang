@@ -214,7 +214,7 @@ function blockOf(el) {
         for (const c of el.kids)
             if (!("text" in c) && c.tag === "li")
                 items.push({ task: null, blocks: blocksOf(c.kids) });
-        return [{ t: "list", ordered, start, items }];
+        return [{ t: "list", ordered, start, loose: items.some((it) => it.blocks.length > 1), items }];
     }
     return [];
 }

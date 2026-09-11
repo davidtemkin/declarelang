@@ -1,5 +1,5 @@
 App [ width = 460, height = 240, fill = white, textColor = black,
-    d: Dataset [ contents = { ({ rows: app.make(2000) }) } ],
+    d: Dataset [ contents = { { rows: app.make(2000) } } ],
     make(n: number) -> array {
         const out = []
         const st = ["open", "done", "held"]

@@ -9,7 +9,6 @@ import { diag } from "./errors.js";
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS } from "./animate.js";
-import { SanFrancisco } from "./themes-data.js";
 /** The base of the translucent encoding — see the Color doc above. */
 const ALPHA = 0x100000000;
 /** Encode rgb (0xRRGGBB) + alpha (0…255) as one Color number. */
@@ -74,11 +73,6 @@ export function fillEqual(a, b) {
     return a.angle === b.angle && a.stops.length === b.stops.length &&
         a.stops.every((s, i) => s.offset === b.stops[i].offset && s.color === b.stops[i].color);
 }
-// The record itself is AUTHORED IN THE LANGUAGE — library/themes/
-// sanfrancisco.declare — and projected here through themes-data.ts
-// (gen-themes.mjs, freshness-gated), so the no-typing tier serves the very
-// object the authored preset declares.
-export const DEFAULT_THEME = SanFrancisco;
 export function isAlign(v) {
     return typeof v === "object" && v !== null && "align" in v;
 }
@@ -134,6 +128,10 @@ const DECLARED_TYPES = {
     array: { kind: "array" },
     object: { kind: "object" },
     View: { kind: "view" },
+    // The design-token record widgets style off (`theme: Theme = provided("theme",
+    // …)` on Control). A named record type — declarable so the library reads
+    // `this.theme.accent` typed, not `any`.
+    Theme: { kind: "record", name: "Theme" },
     // Built-in VALUE ENUMS, declarable by name so a library-authored class keeps
     // the bare-token use-site surface (`axis = x`, `align = center`) — these are
     // as built-in as Color. (User-authored unions remain their own future
@@ -294,17 +292,16 @@ export function coerce(type, lit) {
             return fail(diag `a slot name written as a bare token (like height or x)`);
         case "record":
             // A DATA record (schema-typed, `sel: Task = null`): null is the one
-            // literal form — the slot may be empty before anything feeds it,
-            // exactly like a component slot. A house token record (Theme) keeps
-            // its no-literal rule: an "empty" theme is the default record, so
-            // readers' `theme.token` never explodes; values arrive from { }
-            // bindings or a stylesheet.
+            // literal form — the slot may be empty before anything feeds it, exactly
+            // like a component slot. A token record (Theme) arrives as a named theme
+            // (`theme = Cupertino` — an ident routed and resolved before coercion), a
+            // `{ }` binding, or an inline `Theme [ … ]` record.
             if (type.data === true) {
                 if (lit.kind === "ident" && lit.name === "null")
                     return ok(null);
                 return fail(diag `a ${type.name} record (provide one with a { } binding), or null for none`);
             }
-            return fail(diag `a ${type.name} (a token record — provide one with a { } binding or a stylesheet)`);
+            return fail(diag `a ${type.name} (a named theme, a { } binding, or a Theme [ … ] record)`);
         case "fill":
             return coerceFill(lit);
         case "stroke":
@@ -317,18 +314,10 @@ export function coerce(type, lit) {
             return coerceBackdrop(lit);
         case "motion":
             return coerceMotion(lit);
-        case "styles":
-            if (lit.kind === "ident" && lit.name === "null")
-                return ok(null);
-            return fail(diag `a style list ([card, danger] — names of declared style bundles), or null`);
-        case "stylesheet":
-            if (lit.kind === "ident" && lit.name === "null")
-                return ok(null);
-            return fail(diag `a stylesheet declared in this program (by name), or null`);
         case "font":
             // A raw family string is the literal form; a `font Name` reference (an
             // ident) resolves against program declarations — routed in
-            // check.ts/instantiate.ts before coercion (like `stylesheet`).
+            // check.ts/instantiate.ts before coercion.
             if (lit.kind === "string")
                 return ok(lit.value);
             return fail(diag `a declared font (by name), or a raw family string like "Helvetica, sans-serif"`);
@@ -378,7 +367,7 @@ function coerceColor(lit) {
             return fail(COLOR);
     }
 }
-// ── Decoration values (styling rung) ────────────────────────────────────────
+// ── Decoration values ───────────────────────────────────────────────────────
 //
 // The literal grammar is the ruled CONSTRUCTOR form — `name(args)`, parallel
 // to how `50%` and `#354D5B` are typed literal forms — with args themselves

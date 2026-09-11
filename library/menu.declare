@@ -185,11 +185,23 @@ Derived from `shown`, the menu's own open fact. Visibility is never set from out
 
 ## height
 As tall as its panel, which is as tall as its rows; a menu never scrolls its own list.
+
+## theme
+The provided design-token record this widget styles off — a **provided value**
+(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
+widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
+house look. See `Control.theme`.
 */
 
 include [ "control.declare" ]
 
-class Menu extends View [ visible = { shown }, width = 220,
+class Menu extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", SanFrancisco) },
+    visible = { shown }, width = 220,
     height = { this.panel.height },              // the panel; the backdrop deliberately overflows
 
     items: array = null,
@@ -389,7 +401,7 @@ class Menu extends View [ visible = { shown }, width = 220,
     // items → rows through an INTERNAL derived dataset (the author passes a
     // plain array — the no-dataset-requirement ruling; the wrap is ours)
 
-    data: Dataset [ contents = { ({ rows: classroot.items || [] }) } ],
+    data: Dataset [ contents = { { rows: classroot.items || [] } } ],
 
     // the backdrop: the light-dismiss stratum in embryonic form — a full-app
     // press-catcher UNDER the panel; outside presses close and are SWALLOWED
@@ -486,7 +498,7 @@ class Menu extends View [ visible = { shown }, width = 220,
                 // an authored icon-column cell (`icon`): the class renders
                 // the icon; the ROW stays standard — check, text edge, pick
 
-                // the row's ink reaches the created icon through the prevailing
+                // the row's ink reaches the created icon through the provided
                 // text colour — the same channel IconHost publishes
 
                 icoHost: View [ x = 25, y = center, width = 16, height = 16,

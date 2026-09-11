@@ -88,20 +88,26 @@ export function ctxFilterSupported(): boolean {
   // paths can be diffed against each other on one machine
   if ((globalThis as { __declareForceFilterFallback?: boolean }).__declareForceFilterFallback === true) return false;
   if (supported !== null) return supported;
-  // no DOM (a headless boot, a Node rung) — there is no canvas to test and
-  // nothing will paint, so claim support and take the direct path
-  if (typeof document === "undefined") return (supported = true);
+  // no DOM and no OffscreenCanvas (a Node rung) — there is no canvas to test
+  // and nothing will paint, so claim support and take the direct path. In the
+  // raster WORKER there is no document but there is an OffscreenCanvas, and
+  // the probe runs on it: an engine whose worker context lacks `filter`
+  // (Safari) must take the fallback there too, or a blur silently vanishes.
+  const noDoc = typeof document === "undefined";
+  if (noDoc && typeof OffscreenCanvas === "undefined") return (supported = true);
+  const make = (w: number, h: number): HTMLCanvasElement => {
+    if (!noDoc) { const el = document.createElement("canvas"); el.width = w; el.height = h; return el; }
+    return new OffscreenCanvas(w, h) as unknown as HTMLCanvasElement;
+  };
   try {
-    const c = document.createElement("canvas");
-    c.width = 60; c.height = 20;
+    const c = make(60, 20);
     const g = c.getContext("2d");
     if (g === null) return (supported = false);
     g.fillStyle = "#000";
     g.fillRect(0, 0, 30, 20);
     g.fillStyle = "#fff";
     g.fillRect(30, 0, 30, 20);
-    const snap = document.createElement("canvas");
-    snap.width = 60; snap.height = 20;
+    const snap = make(60, 20);
     snap.getContext("2d")!.drawImage(c, 0, 0);
     g.filter = "blur(6px)";
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -131,14 +137,19 @@ function reportUnsupported(fns: string[]): void {
   console.warn(`[declare] canvas filter ${fns.join(", ")} is not expressible on this engine and was not applied.`);
 }
 
-const scratch: HTMLCanvasElement[] = [];
-function take(w: number, h: number): HTMLCanvasElement {
-  const c = scratch.pop() ?? document.createElement("canvas");
+// a scratch is the page's canvas element, or an OffscreenCanvas in the raster
+// worker (no document there) — the same 2D API either way
+type Scratch = HTMLCanvasElement;
+const scratch: Scratch[] = [];
+function take(w: number, h: number): Scratch {
+  const c = scratch.pop() ?? (typeof document !== "undefined"
+    ? document.createElement("canvas")
+    : (new OffscreenCanvas(1, 1) as unknown as HTMLCanvasElement));
   c.width = Math.max(1, w);
   c.height = Math.max(1, h);
   return c;
 }
-function give(c: HTMLCanvasElement): void {
+function give(c: Scratch): void {
   if (scratch.length < 4) scratch.push(c);
 }
 

@@ -103,7 +103,7 @@ class Checkbox extends Control [
         // with mitered joins while the menu drew the same tick at 1.8 with
         // round ones — one shape, two hands. Sized from the BOX, which is a
         // theme fact (14 in Cupertino, 20 in Redmond), so `iconSize` is
-        // overridden here rather than inherited: the prevailing value is a
+        // overridden here rather than inherited: the provided value is a
         // default, not a rule.
 
         mark: CheckIcon [ visible = { checked },
@@ -116,7 +116,7 @@ class Checkbox extends Control [
     // box's size is a theme fact — 14 in Cupertino, 20 in Redmond), and both
     // center in the control's height, so they align automatically everywhere
 
-    // NO explicit textColor: the label follows the PREVAILING text style
+    // NO explicit textColor: the label follows the PROVIDED text style
     // (the App's default is theme.text, so nothing changes anywhere) — and a
     // use site restyles it with ordinary attributes, no subclass:
     //     Checkbox [ label = "Grouped", fontSize = 12.5, textColor = { theme.textMuted }, size = 16 ]

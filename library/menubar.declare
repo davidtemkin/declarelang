@@ -82,11 +82,23 @@ the bar.
 
 ## width
 Content-sized to its row of titles, so it sits in a chrome bar without a stated width.
+
+## theme
+The provided design-token record this widget styles off — a **provided value**
+(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
+widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
+house look. See `Control.theme`.
 */
 
 include [ "menu.declare" ]
 
-class MenuBar extends View [ height = 25,
+class MenuBar extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", SanFrancisco) },
+    height = 25,
 
     // menu records: { id, label, bold?, kind?, items } — `kind` names an
     // author class rendered AS the title (a brand mark in the leading
@@ -170,7 +182,7 @@ class MenuBar extends View [ height = 25,
         picked(id: string) { classroot.picked(id) }
         ],
 
-    data: Dataset [ contents = { ({ m: classroot.menus || [] }) } ],
+    data: Dataset [ contents = { { m: classroot.menus || [] } } ],
 
     row: View [ height = { parent.height },
         layout: SimpleLayout [ axis = x, spacing = 2 ],

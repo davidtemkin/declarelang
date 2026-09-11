@@ -670,7 +670,24 @@ function listInfo(list: DisplayList): ListInfo {
  *  (vectors on canvas, a lower density on DOM) is slower, never wrong.
  *  `sx, sy` are the raster's density and `bx, by` its origin in recording
  *  units — the same numbers the raster was made with. */
-export function rasterLooksBlank(cv: HTMLCanvasElement, list: DisplayList, sx: number, sy: number, bx: number, by: number): boolean {
+/** A canvas-shaped surface this module can draw into: an HTMLCanvasElement on
+ *  the page, an OffscreenCanvas in the raster worker (the same 2D API). */
+export interface CanvasLike {
+  width: number; height: number;
+  getContext(kind: "2d"): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+}
+/** A scratch canvas wherever this module runs: the DOM's element on a page, an
+ *  OffscreenCanvas in a worker (raster-worker.ts) where there is no document. */
+export function makeCanvas(w: number, h: number): CanvasLike {
+  if (typeof document !== "undefined") {
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    return c as CanvasLike;
+  }
+  return new OffscreenCanvas(Math.max(1, w), Math.max(1, h)) as unknown as CanvasLike;
+}
+
+export function rasterLooksBlank(cv: CanvasLike, list: DisplayList, sx: number, sy: number, bx: number, by: number): boolean {
   // a test lever: the platform failure this detects cannot be provoked on
   // demand (it is the engine's own budget), so a pin forces the DETECTOR and
   // checks the recovery — halve and retry on DOM, vectors on canvas
@@ -822,10 +839,8 @@ function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bo
  *  target, where compositing the filtered result honours them for free. */
 function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bounds | null): void {
   const W = ctx.canvas.width, H = ctx.canvas.height;
-  const scratch = document.createElement("canvas");
-  scratch.width = W;
-  scratch.height = H;
-  const sx = scratch.getContext("2d");
+  const scratch = makeCanvas(W, H);
+  const sx = scratch.getContext("2d") as CanvasRenderingContext2D | null;
   if (sx === null) { replayDirect(ctx, list, cull); return; }
   // ⚠ INHERIT THE AMBIENT TRANSFORM. replay() is handed a context the backend
   // has already positioned and scaled (the view's offset, times dpr); the
@@ -858,7 +873,7 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
     // (Frost is the opposite case and keeps its own scaling: a backdrop blur is
     // stated in VIEW units, and CSS backdrop-filter scales with the element's
     // transform, so paintFrost multiplies by the magnitude on purpose.)
-    const out = applyFilterFallback(scratch, spec!);
+    const out = applyFilterFallback(scratch as HTMLCanvasElement, spec!);   // an OffscreenCanvas in the worker: the same 2D surface
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(out, 0, 0);

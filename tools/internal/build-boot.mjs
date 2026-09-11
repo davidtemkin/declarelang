@@ -66,7 +66,24 @@ await build({
 // The worker rides ALONGSIDE the bundle (see header).
 copyFileSync(path.join(ROOT, "browser/compile-worker.js"), path.join(OUT_DIR, "compile-worker.js"));
 
+// The RASTER worker (runtime/src/raster-worker.ts) — the canvas backend's
+// off-main-thread rasterizer, spawned by raster-client.ts via
+// new URL("declare-raster-worker.js", import.meta.url) from the bundle's own
+// directory. Its own small bundle: draw.ts and what it imports, nothing else.
+const RASTER_OUT = path.join(OUT_DIR, "declare-raster-worker.js");
+await build({
+  entryPoints: [path.join(ROOT, "runtime/dist/raster-worker.js")],
+  bundle: true,
+  format: "esm",
+  platform: "browser",
+  target: "es2022",
+  minify: true,
+  keepNames: true,
+  legalComments: "none",
+  outfile: RASTER_OUT,
+});
+
 const raw = statSync(OUT).size;
 const gz = gzipSync(readFileSync(OUT)).length;
-console.log(`build-boot: wrote bundles/declare-boot.js (+ compile-worker.js)`);
+console.log(`build-boot: wrote bundles/declare-boot.js (+ compile-worker.js, declare-raster-worker.js ${(statSync(RASTER_OUT).size / 1024).toFixed(0)} KB)`);
 console.log(`  ${(raw / 1024).toFixed(0)} KB raw · ${(gz / 1024).toFixed(0)} KB gzipped`);

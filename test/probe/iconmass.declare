@@ -11,7 +11,7 @@
 font Sans [ family = "system-ui" ]
 
 App [ width = 560, height = 96, fill = #FFFFFF,
-    theme = { Themes.sanFrancisco(false) },
+    theme = { SanFrancisco },
 
     // 16px — the menu row's size
 

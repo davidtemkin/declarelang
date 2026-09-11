@@ -1,0 +1,26 @@
+// Media on every renderer, probed where the facts are visible: an Audio and a
+// Video from the dashboard's own assets, both playing from the start, with
+// every read-only fact of the family surfaced as text — so a rig (or a person)
+// can read `duration`, `position`, `loaded`, `buffering`, `failed`, `ended`
+// and the Video's natural size straight off the tree, on the DOM, on canvas,
+// and on the native host (Media.swift + mac-env.js DeclareMediaElement).
+
+App [ width = 640, height = 420, fill = #202830,
+    song: Audio [ source = "../../apps/lzx-dashboard/media/music/where_to_begin.mp3",
+        playing = true, volume = 0.2 ],
+    reel: Video [ x = 20, y = 20, width = 320, height = 180, stretches = both,
+        source = "../../apps/lzx-dashboard/media/video/astro.mp4",
+        playing = true, loop = true ],
+    facts: Text [ x = 20, y = 220, fontSize = 13, textColor = #E0E4EA,
+        text = { "audio  dur=" + Math.round(song.duration * 10) / 10
+              + " pos=" + Math.round(song.position * 10) / 10
+              + " playing=" + song.playing + " loaded=" + song.loaded
+              + " buffering=" + song.buffering + " failed=" + song.failed + " ended=" + song.ended } ],
+    vfacts: Text [ x = 20, y = 250, fontSize = 13, textColor = #E0E4EA,
+        text = { "video  dur=" + Math.round(reel.duration * 10) / 10
+              + " pos=" + Math.round(reel.position * 10) / 10
+              + " playing=" + reel.playing + " loaded=" + reel.loaded
+              + " failed=" + reel.failed } ],
+    bar: View [ x = 20, y = 290, height = 6, fill = #5DA9FF,
+        width = { 320 * (song.duration > 0 ? song.position / song.duration : 0) } ]
+    ]

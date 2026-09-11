@@ -64,7 +64,7 @@ final class CompileService {
 
     // ── the public call ─────────────────────────────────────────────────────
 
-    /// Compile `source`, off the main thread, answering on the main thread.
+    /// Compile `source`, off the main thread, answering on the compile queue.
     ///
     /// `url` identifies the program for caching (it is the cache's key, not an
     /// address — the source is passed in, already read). `originDir` is where
@@ -78,11 +78,11 @@ final class CompileService {
             if let hit = self.cacheLookup(url: url, source: source, distro: distro) {
                 let r = Result(ok: true, source: hit.source, depsJSON: hit.deps, report: "",
                                origin: "cache", ms: (CFAbsoluteTimeGetCurrent() - t0) * 1000)
-                DispatchQueue.main.async { completion(r) }
+                completion(r)                       // on this queue; the caller hops where it lives
                 return
             }
             let r = self.runCompile(url: url, source: source, originDir: originDir, distro: distro, since: t0)
-            DispatchQueue.main.async { completion(r) }
+            completion(r)
         }
     }
 

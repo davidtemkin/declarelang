@@ -163,8 +163,6 @@ function renderType(t) {
     case "stroke": return "Stroke";
     case "shadow": return "Shadow";
     case "motion": return "Motion";
-    case "styles": return "Style[]";
-    case "stylesheet": return "Stylesheet";
     case "font": return "Font";
     default: return t.kind;
   }
@@ -449,7 +447,6 @@ for (const name of TARGETS) {
       parent: clsId, seeAlso: [],
       type: renderType(schema.attrs[attr]),
       default: d?.default ?? null,
-      prevailing: (schema.prevailing ?? []).includes(attr),
       readOnly: (schema.readOnly ?? []).includes(attr),
       inheritedFrom: null,
     };
@@ -631,7 +628,7 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
       api: !prose.internal.has(d.name), internal: prose.internal.has(d.name),
       source: { file: rel, line: 0 }, parent: tag, seeAlso: [],
       type: d.type, default: renderDefault(d.def),
-      prevailing: !!d.prevailing, readOnly: !!d.readOnly, inheritedFrom: null };
+      readOnly: !!d.readOnly, inheritedFrom: null };
     attributes.push(id);
   }
   for (const m of cls.body.methods) {
@@ -771,7 +768,7 @@ for (const c of Object.values(nodes)) {
     const id = `${c.id}.${set.name}`;
     nodes[id] = { id, name: set.name, kind: "attribute", doc, docSegs: await segmentize(doc, id), api: true, internal: false,
       source: { file: "library/" + LIBRARY[c.id], line: set.value?.pos?.line ?? 0 }, parent: c.id, seeAlso: [],
-      type: anc?.type ?? "", default: text, prevailing: false, readOnly: false, inheritedFrom: null,
+      type: anc?.type ?? "", default: text, readOnly: false, inheritedFrom: null,
       overrides: { from, was: anc?.default ?? null } };
     c.attributes.push(id);
   }

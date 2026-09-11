@@ -1,17 +1,15 @@
-// Theme presets — authored in the language, projected into the runtime.
-// These pin the channel's two contracts: the PROJECTION is fresh (the
-// generated module matches library/themes/*.declare — the drift gate), and
-// the IDENTITY chain holds (the zero-declaration default IS the authored
-// SanFrancisco record, the object the named preset serves).
+// Theme presets — authored in the language (theme Name [ … ]), projected into
+// the runtime. These pin two contracts: the PROJECTION is fresh (the generated
+// module matches library/themes/*.declare — the drift gate), and the by-name
+// surface serves the authored records.
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, summarize } from "./harness.mjs";
-import { Themes } from "../runtime/dist/themes.js";
+import { THEME_PRESETS, THEME_PRESET_NAMES } from "../runtime/dist/themes.js";
 import { THEME_RECORDS } from "../runtime/dist/themes-data.js";
-import { DEFAULT_THEME } from "../runtime/dist/value.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -20,10 +18,11 @@ await test("themes: the generated projection is FRESH (gen-themes --check)", () 
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
-await test("themes: the zero-declaration default IS the authored SanFrancisco record, by identity", () => {
-  assert.equal(DEFAULT_THEME, THEME_RECORDS.SanFrancisco, "value.ts aliases, never copies");
-  assert.equal(Themes.sanFrancisco(false), DEFAULT_THEME, "the named preset serves the same object");
-  assert.equal(Themes.sanFrancisco(true), THEME_RECORDS.SanFranciscoDark);
+await test("themes: the presets are served by name (the { }-body / theme = Name surface)", () => {
+  assert.equal(THEME_PRESETS.SanFrancisco, THEME_RECORDS.SanFrancisco, "the by-name table serves the authored object");
+  assert.equal(THEME_PRESETS.SanFranciscoDark, THEME_RECORDS.SanFranciscoDark);
+  assert.ok(THEME_PRESET_NAMES.includes("Cupertino") && THEME_PRESET_NAMES.includes("RedmondDark"),
+    "every city/mode name is a preset");
 });
 
 await test("themes: every preset pair is complete — same token set light and dark", () => {

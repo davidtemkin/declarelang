@@ -12,6 +12,12 @@ import type { AttrType } from "./value.js";
  *  (a class-body member on the class root itself binds to that root).
  *  `view` is any Node since R8 — a DataSource's `url = { … }` binds the
  *  same way a View attribute does. */
+/** Bind a `{ }` PROVISION — `App [ theme = { … } ]` where `theme` is not a slot
+ *  of the node's class. Same standing computation as bindConstraint, but the
+ *  result lands in the node's provision store (provideWrite) rather than a slot,
+ *  so a descendant's `provided("theme")` re-derives when the { } does. No slot
+ *  owner (there is no slot); teardown rides onDiscard. */
+export declare function provideBind(view: Node, name: string, src: string, pos: Pos, classroot: View | null, deps?: readonly string[]): void;
 export declare function bindConstraint(view: Node, name: string, src: string, pos: Pos, classroot: View | null, 
 /** The compiler's extracted dependency read-paths (docs/system-design/constraints.md §5).
  *  When present, the constraint is wired on the static path — edges fixed once,
@@ -21,11 +27,7 @@ deps?: readonly string[]): void;
 /** Bind `name = :path` (a value slot reading data, language §9): a standing
  *  computation over exactly that region of the inherited cursor's dataset.
  *  The raw value coerces to the slot's declared type at the boundary; an
- *  unresolved path lands the slot's fallback — the class default, or, on a
- *  PREVAILING slot, the followed value (ruled: the declaration default is
- *  just the chain's end). The fallback is read inside the tracked compute,
- *  so an unresolved prevailing slot keeps following live and lets go of the
- *  chain the moment the path resolves. */
+ *  unresolved path lands the slot's class default (the chain's end). */
 export declare function bindData(view: View, name: string, path: string, type: AttrType, plan?: readonly PathSeg[]): void;
 /** Bind `datapath = :rel.path`: this view's cursor is the INHERITED cursor
  *  (from the parent chain — never this view's own slot, which it defines)

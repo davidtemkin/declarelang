@@ -137,6 +137,12 @@ export const Diag = {
     // 1xxx syntax — the parser throws one at a time; a single family code, the
     // grammar message carrying the specifics.
     syntax: (message, pos) => err(code4(1001), message, pos),
+    // A value body wrapped ENTIRELY in parentheses — the constraint's own { }
+    // already delimits the expression, so `{ (expr) }` and `{ ({ … }) }` add a
+    // layer that does nothing. Rejected so the one paren-free form (`{ expr }`,
+    // `{ { … } }`) is the only form — the paren idiom the object-literal
+    // diagnostic once taught is retired (DT ruling, 2026-09-08).
+    redundantParens: (inner, pos) => err(code4(1002), `redundant parentheses — the { } already delimits the expression, so the outer ( ) do nothing here; write { ${inner} }`, pos),
     // 2xxx structure. `unknownComponent` takes the known-component names and
     // appends a calibrated near-miss ("did you mean 'Text'?") — the fix, named
     // (diagnostics.md §4); the rule rides the hint.
@@ -203,7 +209,7 @@ export const Diag = {
     showsUnreachable: (name, initial, names, pos) => err(code4(4008), `shows = ${JSON.stringify(name)}, but this program's initial location is ${initial === "" ? "empty" : JSON.stringify(initial)} — a 'shows' name IS the visibility gate (it lowers to app.destinationOf(app.location) == the name), so nothing here is visible on a cold load. Set App's location to one of ${names.map((n) => JSON.stringify(n)).join(" | ")}, or give this view its own 'visible'`, pos), scriptWrite: (name, pos) => err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
     // `classroot` reaches the root of the component (class) you are defining, so it
     // is meaningful ONLY inside a class body. `where` names the non-class body the
-    // code is actually in ("the App", "a stylesheet", "a style bundle").
+    // code is actually in ("the App", "a style bundle").
     classrootOutsideClass: (where, pos) => err(code4(4003), `'classroot' is the root of a component you define — valid only inside a class body. This code is in ${where}, not a class. Reach values here by a bare name, 'this', or 'app'.`, pos),
     // A CSS color NAME resolved as a bare identifier inside { } — the name form is
     // a bare-slot literal, not an identifier the { } world knows, so name the 0x form.

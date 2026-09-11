@@ -81,6 +81,7 @@ import { MOTION_TOKENS } from "../../runtime/dist/animate.js";
 import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { EVENT_PAYLOAD, handlerName } from "../../runtime/dist/schema.js";
+import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
 
 /** The fixed value-type prelude — the closed vocabulary of value.ts as TS
  *  types, plus the value constructors in scope for every body. Mirrors
@@ -198,7 +199,7 @@ declare function cubicBezier(x1: number, y1: number, x2: number, y2: number): Mo
 declare function back(overshoot: number): MotionCurve;
 declare function steps(n: number, jump?: "jumpStart" | "jumpEnd"): MotionCurve;
 declare function laszlo(beginPole: number, endPole: number): MotionCurve;
-declare const Themes: { sanFrancisco(dark?: boolean): Record<string, unknown>; cupertino(dark?: boolean): Record<string, unknown>; mountainView(dark?: boolean): Record<string, unknown>; redmond(dark?: boolean): Record<string, unknown>; tint(c: number, dark?: boolean): number };
+declare function tint(c: number, dark?: boolean): number;
 declare const Inspect: {
   ready(): boolean;
   rows(open: Record<string, boolean>): { path: string; name: string; kind: string; depth: number; hasKids: boolean; visible: boolean; constrained: boolean; motion: boolean }[];
@@ -297,8 +298,6 @@ export function tsType(t: AttrType): string {
     case "shadow": return "Shadow | null";
     case "backdrop": return "Backdrop | null";
     case "motion": return "Motion"; // the token union + MotionCurve brand (prelude)
-    case "styles": return "string[]"; // a static bundle-name list
-    case "stylesheet": return "string | null"; // a declared stylesheet by name
     case "font": return "string"; // fontFamily reads as a family string in a { } body
     case "array": return t.of !== undefined ? `${t.of}[]` : "any[]";
     case "object": return "any";
@@ -470,12 +469,16 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  $data(path: string | readonly (string | { i: number } | { s: (number | null)[] } | { w: number })[]): any;`,
     `  $setData(path: string | readonly string[], v: any): void;`,
     `  scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;`,
-    // The scroll-offset REQUEST pair (platform-authorship.md): the platform
+    // The scroll-offset REQUEST verbs (platform-authorship.md): the platform
     // clamps to the real range (Infinity = the far end) and holds a request a
-    // hidden surface cannot take yet, applying it on show. The verbs, where
-    // `scrollY`/`scrollX` are the facts.
-    `  scrollTo(y: number): void;`,
-    `  scrollToX(x: number): void;`,
+    // hidden surface cannot take yet, applying it on show. `scrollY`/`scrollX`
+    // are the FACTS (read-only). The optional glide is the PLATFORM's own
+    // motion — the browser's smooth scroll, an NSAnimationContext, the runtime
+    // provider's tween — not a Declare Animator: the provider's curve, no
+    // Animator semantics, cancelled by a gesture in flight (ruled 2026-09-10).
+    `  scrollTo(y: number, glide?: { duration?: number; motion?: string }): void;`,
+    `  scrollToX(x: number, glide?: { duration?: number; motion?: string }): void;`,
+    `  scrollBy(dx: number, dy: number, glide?: { duration?: number; motion?: string }): void;`,
     // The view's origin in root space via THE one walk (scroll-aware) — the
     // anchor primitive overlays position by (menus, popovers).
     `  rootOrigin(): { x: number; y: number };`,
@@ -523,10 +526,6 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // override composes with (visible children, source order).
     `  tabOrder(): View[];`,
     `  tabDefault(): View[];`,
-    // Returns the runtime stylesheet handle the `stylesheet` slot accepts —
-    // `any` until the handle type is worth naming (the effects side of this
-    // same method lives in effects.ts: pure, deps only on its arguments).
-    `  lookupStylesheet(name: string): any;`,
   ],
   Dataset: [
     // The read + structural-mutation surface (runtime/src/data.ts) — D7's
@@ -655,6 +654,11 @@ function emitClass(
     // built-in App/stage surface.
     lines.push(`  root: ${rootType};`);
     lines.push(`  readonly children: View[];`);   // on the ROOT (Node) — every node has children
+    // The provided-value read (language §9). `provided("name"[, default])`
+    // compiles to `this.$provided(…)`; it returns `any` — a non-local read the
+    // checker provably can't type — so static typing comes from binding it into
+    // a typed slot (`t: Theme = provided("theme", …)`), never from the call.
+    lines.push(`  $provided(name: string, dflt?: any): any;`);
   }
   // One optional handler member per event this schema DECLARES. Emitting them
   // is what makes a user's handler an OVERRIDE: writing `onPointerUp(e: string)`
@@ -696,7 +700,10 @@ export function generateScaffold(
   /** The program's `schema Name [ … ]` declarations (typed data) — each
    *  projects as an ambient `interface Name`, which is what makes the name
    *  real in every { } body, method signature, and script function. */
-  shapes: readonly SchemaDecl[] = []
+  shapes: readonly SchemaDecl[] = [],
+  /** The program's `theme Name [ … ]` declarations — each projects as an
+   *  ambient `declare const Name: Theme`, so a body can name it. */
+  themeNames: readonly string[] = []
 ): string {
   // Every schema reachable — the registry entries PLUS abstract bases the
   // registry omits (the `Layout` base is deliberately not a name-table key,
@@ -776,7 +783,11 @@ export function generateScaffold(
   // of truth) plus the MotionCurve brand the constructors in the prelude return.
   const motionLine = `type Motion = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | MotionCurve;`;
 
-  return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), shapeLines.join("\n"), motionLine, tagLines.join("\n"), classes.join("\n\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
+  // The theme names in scope as `Theme` values: the built-in presets plus any
+  // the program declares — a body names one (`theme = { app.dark ? … : … }`).
+  const themeLine = [...new Set([...THEME_PRESET_NAMES, ...themeNames])].map((n) => `declare const ${n}: Theme;`).join("\n");
+
+  return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), shapeLines.join("\n"), motionLine, themeLine, tagLines.join("\n"), classes.join("\n\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
 }
 
 /** A shape's TS object-type text — `{ id: string; n?: number; owner: Person;

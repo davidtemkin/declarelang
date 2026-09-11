@@ -21,6 +21,12 @@ import { stripSource } from "./internal/error-codes.mjs";
 import * as esbuild from "esbuild";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
+import { THEME_PRESET_NAMES } from "../runtime/dist/themes.js";
+
+// A body USES the theme presets when it names one (`SanFrancisco`) or `tint` —
+// the trigger that keeps themes.js (the preset records) aboard a production
+// build; an app that names none tree-shakes it to the empty stub.
+const THEME_USE = new RegExp(`\\b(?:${[...THEME_PRESET_NAMES, "tint"].join("|")})\\b`);
 import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { compile as compileFull, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
@@ -84,7 +90,7 @@ async function minifyBodies(program) {
   };
   walk(program.root);
   for (const c of program.classes) walk(c.body);
-  for (const s of [...program.stylesheets, ...program.styles, ...program.fonts]) walk(s.body);
+  for (const s of [...program.themes, ...program.styles, ...program.fonts]) walk(s.body);
   await Promise.all(jobs);
 }
 
@@ -332,7 +338,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
     };
     for (const r of roots) {
       walkBodies(r, (src) => {
-        if (/\bThemes\b/.test(src)) themes = true;
+        if (THEME_USE.test(src)) themes = true;
         // `d.filter = …` in any body keeps the canvas `filter` fallback
         // (canvas-filter.js, ~1.8 KB gz): Safari accepts ctx.filter and paints
         // unfiltered, so a program that sets one needs the module to render
@@ -377,7 +383,7 @@ export const clock = {};
   // throwing stand-ins. Every name any bundled module imports must exist
   // (esbuild resolves named imports and re-exports even when unused).
   const checkStub = ["check", "checkAttr", "checkMethod", "checkDecl", "checkComponentValue",
-    "checkEntry", "checkThemeRecord", "checkStyleDecls", "programSchemas", "withDecls",
+    "checkThemeRecord", "checkStyleDecls", "programSchemas", "withDecls",
     "manyPathOf", "coerceToken", "cssAttributeHint"]
     .map((n) => `export function ${n}() { throw notAboard("${n}", "checker"); }`)
     .join("\n") + "\n";
@@ -466,7 +472,11 @@ export function resolveShapes() { return { table: EMPTY, errors: [] }; }
 export function shapeNames() { return new Set(); }
 export function isArrayDoc() { return false; }
 `;
-  const themesStub = `export const Themes = Object.freeze({});\n`;
+  // themes.js is imported unconditionally by services.js (body scope) and
+  // instantiate.js (theme resolution), so the stub keeps their named imports
+  // resolvable while dropping the preset records: an empty preset table and an
+  // identity tint. A program that names a preset or `tint` keeps the real one.
+  const themesStub = `export const THEME_PRESETS = Object.freeze({});\nexport const THEME_PRESET_NAMES = [];\nexport function tint(c) { return c; }\n`;
   const viewportStub = `export function lockFocusZoom() {}\n`;
   // canvas-filter.js: the Safari ctx.filter fallback. Stubbed to "the engine
   // supports it" so replay() takes the direct path — correct for a program that
@@ -474,7 +484,7 @@ export function isArrayDoc() { return false; }
   // a canvas-backend build: frost there filters a backdrop snapshot through this
   // module with no d.filter in the program at all.
   const filterStub = `export function parseFilter() { return { blur: 0, saturate: 1, brightness: 1, contrast: 1, grayscale: 0, invert: 0, unsupported: [] }; }\nexport function isIdentity() { return true; }\nexport function ctxFilterSupported() { return true; }\nexport function forceFilterFallback() {}\nexport function applyFilterFallback(src) { return src; }\n`;
-  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayArea() { return 0; }\nexport function rasterLooksBlank() { return false; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\n`;
+  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayArea() { return 0; }\nexport function rasterLooksBlank() { return false; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\nexport function makeCanvas() { return null; }\n`;
   const stubFor = (name, filterRe, contents) => ({
     name,
     setup(build) {

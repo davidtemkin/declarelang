@@ -75,3 +75,6 @@ mac-host/.rasterbench-traces/
 # output, not a test input or a distro artifact. The dir is recreated by the test.
 test/artifacts/
 
+
+# per-session git worktrees (Claude Code) — never part of the tree
+.claude/worktrees/

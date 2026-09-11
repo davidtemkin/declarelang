@@ -135,8 +135,8 @@ This falls out of what an App *is*, rather than being a feature. The App is the
 outermost view, and the outermost thing that can scroll it is the browser;
 identifying the App's scroll with the page's is naming a fact, not adding a
 mechanism. An app fills its window (the section above), and content taller than
-the window makes the page itself scroll, with `app.scrollY` live — the same slot
-every scroller has. Which also explains the app that *doesn't* scroll: the
+the window makes the page itself scroll, with `app.scrollY` live — the same fact
+every scroller reports (read it; to move a scroller, ask with `scrollTo`). Which also explains the app that *doesn't* scroll: the
 calendar fills its window and everything fits, so its scroller has nothing to do.
 A "fixed window" is not a mode you declare; it is scrolling, idle. And when a
 floored app meets a window below its minimum, the panning you get is this same

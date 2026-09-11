@@ -6,25 +6,22 @@ import { type PathSeg } from "./datapath.js";
 export { programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
 export type { ClassInfo, CheckedDecl } from "./program-schema.js";
 /** The styling declarations in scope while an element tree checks: the
- *  program's style bundles (fields validated per application site — a
- *  bundle types against the class it lands on) and its stylesheet names
- *  (`stylesheet = Dark` resolves against these). */
+ *  program's style bundles (fields validated per application site — a bundle
+ *  types against the class it lands on) and its theme names (the built-in
+ *  presets plus any `theme Name [ … ]` the program declares — what `theme =
+ *  Cupertino` resolves against). */
 export interface StyleEnv {
     readonly bundles: ReadonlyMap<string, Element>;
-    readonly stylesheets: ReadonlySet<string>;
+    readonly themes: ReadonlySet<string>;
     readonly fonts: ReadonlySet<string>;
     /** (bundle, schema) pairs already validated — one report per pairing. */
     readonly validated: Set<string>;
 }
 export declare function check(input: Element | Program): DeclareError[];
 export declare function checkStyleDecls(program: Program, schemas: Readonly<Record<string, ComponentSchema>>, errors: DeclareError[]): StyleEnv;
-/** One class-keyed entry: attribute sets only, each an attribute the class
- *  declares (any public attribute — ruled uniformity), of a stylable kind,
- *  a literal or a `{ }` (evaluated with `this` = the styled view). */
-export declare function checkEntry(where: string, entry: Element, schema: ComponentSchema): DeclareError[];
-/** The skin's token record: `theme: Theme [ accent = #4F8EF7, radius = 6 ]`
- *  — token names are free (a Theme is schema-less in v1), values are plain
- *  literals or decoration constructors. */
+/** A theme's token record: `theme Cupertino [ accent = #007AFF, radius = 6 ]`
+ *  — token names are free (a Theme is a schema-less record), values are plain
+ *  literals or decoration constructors. `rec` is the declaration's body. */
 export declare function checkThemeRecord(where: string, rec: Element): DeclareError[];
 /** Validate a component-typed attribute's element value (R7: the `layout:`
  *  member). The element must name a component descending from `of`, and carry no
@@ -53,6 +50,16 @@ export type CheckedAttr = {
         many: boolean;
         pos: Pos;
         plan?: readonly PathSeg[];
+    };
+} | {
+    ok: true;
+    provision: {
+        name: string;
+        value?: AttrValue;
+        binding?: {
+            src: string;
+            pos: Pos;
+        };
     };
 } | {
     ok: false;

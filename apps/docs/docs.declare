@@ -12,7 +12,7 @@ from an instance.
 
 `{ }` bodies are TypeScript → `0x…` colors and expressions; `[ ]` literal
 slots take `#…` / named colors. Every color reads `theme.<token>` — one
-prevailing record on the App (see it there), so the whole document reskins
+provided record on the App (see it there), so the whole document reskins
 from one place.
 */
 
@@ -25,19 +25,19 @@ font Code [ family = "ui-monospace, SFMono-Regular, monospace" ]   // matches th
 /*
 ## Type tokens
 
-Selection is a PREVAILING slot: these tokens don't opt in themselves — the
+Selection is a PROVIDED value: these tokens don't opt in themselves — the
 detail pane sets `selectable = true` on its container, so all right-pane text
 (including Markdown prose) is selectable, while the left rail stays
 unselectable chrome.
 */
 
 class Title extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
-    fontWeight = semibold, textColor = { theme.text }
+    fontWeight = semibold, textColor = { provided("theme").text }
     ]
 
 
 class Muted extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
-    textColor = { theme.textMuted }
+    textColor = { provided("theme").textMuted }
     ]
 
 
@@ -50,11 +50,11 @@ class Mono extends Text [ fontFamily = [Code, "ui-monospace", "monospace"] ]
 class ClassTab extends View [ width = { parent.width }, height = 30, cornerRadius = 6,
     cname:   string = "",
     lit: boolean = { app.mode == "reference" && app.selected == classroot.cname },
-    fill = { lit ? theme.sel : hovered ? theme.control : null },
+    fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
     onClick()     { app.refAt = classroot.cname; app.location = "reference/" + classroot.cname; app.showPage() },
     lbl: Mono [ x = 24, y = 7, fontSize = 14, wrap = false,
         text = { classroot.cname },
-        textColor = { classroot.lit ? theme.text : theme.tabIdle } ]
+        textColor = { classroot.lit ? provided("theme").text : provided("theme").tabIdle } ]
     ]
 
 
@@ -70,13 +70,13 @@ class FoldHead extends View [ width = { parent.width }, height = 28, cornerRadiu
     manual:   boolean = false,             // the reader's fold, …
     manualAt: string  = "",                // … keyed by the page it was made on
     open:     boolean = { classroot.manualAt == app.page ? classroot.manual : classroot.contains },
-    fill = { hovered ? theme.control : null },
+    fill = { hovered ? provided("theme").control : null },
     onClick() { manual = !open; manualAt = app.page },
-    mark: Mono [ x = 8, y = 8, fontSize = 10, wrap = false, textColor = { theme.textMuted },
+    mark: Mono [ x = 8, y = 8, fontSize = 10, wrap = false, textColor = { provided("theme").textMuted },
         text = { classroot.open ? "\u25BC" : "\u25B6" } ],
     lbl: Text [ x = 24, y = 6, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, fontWeight = semibold, wrap = false,
         text = { classroot.label },
-        textColor = { classroot.contains ? theme.text : theme.tabIdle } ]
+        textColor = { classroot.contains ? provided("theme").text : provided("theme").tabIdle } ]
     ]
 
 
@@ -105,7 +105,7 @@ composite in one CLAIMS its baseline.
 */
 
 class Eyebrow extends Mono [ fontSize = { 11 * app.fontScale }, letterSpacing = 1.2, wrap = false,
-    textColor = { theme.eyebrow }
+    textColor = { provided("theme").eyebrow }
     ]
 
 
@@ -115,7 +115,7 @@ class SectionHead extends View [ width = { parent.width },
     head: string = "",
     note: string = "",
     layout: SimpleLayout [ axis = y, spacing = 18 ],
-    rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+    rule: View [ width = { parent.width }, height = 1, fill = { provided("theme").line } ],
     title: View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 4 ],
         Title [ fontSize = { 20 * app.fontScale }, text = { classroot.head } ],
@@ -130,20 +130,20 @@ class Chip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
     kind:  "attribute" | "method" | "event" | "class" | "token" = "attribute",
     cls:   string = "",
     width = { this.lbl.width + 16 },
-    fill = { hovered && cls != "" ? theme.chipHov
-           : kind == "method" ? theme.mchipBg
-           : kind == "event"  ? theme.echipBg
-           : theme.chipBg },
+    fill = { hovered && cls != "" ? provided("theme").chipHov
+           : kind == "method" ? provided("theme").mchipBg
+           : kind == "event"  ? provided("theme").echipBg
+           : provided("theme").chipBg },
     cursor = { cls != "" ? "pointer" : "default" },
     link = { cls != "" ? "#reference/" + cls : "" },
     onClick() { if (cls != "") { app.refAt = cls; app.location = "reference/" + cls; app.showPage() } },
     lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
         text = { classroot.label },
-        textColor = { classroot.kind == "class"  ? theme.accent
-                    : classroot.kind == "method" ? theme.chipBlue
-                    : classroot.kind == "event"  ? theme.chipAmber
-                    : classroot.kind == "token"  ? theme.code
-                    : theme.chipTeal } ]
+        textColor = { classroot.kind == "class"  ? provided("theme").accent
+                    : classroot.kind == "method" ? provided("theme").chipBlue
+                    : classroot.kind == "event"  ? provided("theme").chipAmber
+                    : classroot.kind == "token"  ? provided("theme").code
+                    : provided("theme").chipTeal } ]
     ]
 
 
@@ -153,7 +153,7 @@ class Link extends View [
     baseline: number = { this.chip.y + this.chip.baseline },
     width = { this.contentWidth },
     layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
-    arrow: Mono [ fontSize = { 14 * app.fontScale }, visible = { :arrow }, textColor = { theme.sigDim }, text = "→" ],
+    arrow: Mono [ fontSize = { 14 * app.fontScale }, visible = { :arrow }, textColor = { provided("theme").sigDim }, text = "→" ],
     chip:  Chip [ kind = "class", cls = { "" + :name }, label = { "" + :name } ]
     ]
 
@@ -168,13 +168,13 @@ class JumpLink extends View [
     to: View = null,
     height = { 28 * app.fontScale }, cornerRadius = 7, cursor = "pointer",
     width = { this.row.width + 24 },
-    fill = { hovered ? theme.chipHov : theme.chipBg },
+    fill = { hovered ? provided("theme").chipHov : provided("theme").chipBg },
     onClick() { if (to != null) to.scrollIntoView() },
     row: View [ x = 12, y = { 5 * app.fontScale }, width = { this.contentWidth }, height = { 18 * app.fontScale },
         layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
         name: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = { 13 * app.fontScale }, fontWeight = semibold, wrap = false,
-            textColor = { theme.accent }, text = { classroot.label } ],
-        n: Mono [ fontSize = { 12 * app.fontScale }, wrap = false, textColor = { theme.sigDim }, text = { "" + classroot.count } ]
+            textColor = { provided("theme").accent }, text = { classroot.label } ],
+        n: Mono [ fontSize = { 12 * app.fontScale }, wrap = false, textColor = { provided("theme").sigDim }, text = { "" + classroot.count } ]
         ]
     ]
 
@@ -207,7 +207,7 @@ class WrapChip extends View [
     link = { "#reference/" + cls },
     onClick() { app.refAt = cls; app.location = "reference/" + cls; app.showPage() },
     probe: Mono [ visible = false, fontSize = { 13 * app.fontScale }, wrap = false, text = { classroot.label } ],
-    words: Dataset [ contents = { ({ items: app.wordsOf(classroot.label) }) } ],   // the words as DECLARED data — a cursor root
+    words: Dataset [ contents = { { items: app.wordsOf(classroot.label) } } ],   // the words as DECLARED data — a cursor root
 
     // the run's width never comes from the chip (whose width follows the run's
     // content — a cycle): the column when long, else unbounded, pointer-transparent
@@ -220,15 +220,15 @@ class WrapChip extends View [
             last:  boolean = { this.$data("i") == classroot.n - 1 },
             width = { this.t.width + (first ? 8 : 0) + (last ? 8 : 0) },
             cornerRadius = { [first ? 6 : 0, last ? 6 : 0, last ? 6 : 0, first ? 6 : 0] },
-            fill = { classroot.hovered ? theme.chipHov
-                   : classroot.kind == "method" ? theme.mchipBg
-                   : classroot.kind == "event"  ? theme.echipBg
-                   : theme.chipBg },
+            fill = { classroot.hovered ? provided("theme").chipHov
+                   : classroot.kind == "method" ? provided("theme").mchipBg
+                   : classroot.kind == "event"  ? provided("theme").echipBg
+                   : provided("theme").chipBg },
             t: Mono [ x = { parent.first ? 8 : 0 }, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
                 text = { "" + this.$data("w") },
-                textColor = { classroot.kind == "method" ? theme.chipBlue
-                            : classroot.kind == "event"  ? theme.chipAmber
-                            : theme.chipTeal } ]
+                textColor = { classroot.kind == "method" ? provided("theme").chipBlue
+                            : classroot.kind == "event"  ? provided("theme").chipAmber
+                            : provided("theme").chipTeal } ]
             ]
         ]
     ]
@@ -239,7 +239,7 @@ class WrapChip extends View [
 
 One row per documented member. `AttrRow` is an attribute: the signature line
 (name : type = default), a long or multi-line default on its own indented line,
-the prevailing / read-only badges, the OVERRIDE line when the class re-defaults
+the read-only badge, the OVERRIDE line when the class re-defaults
 an inherited slot (the ancestor's slot as a link, and what its default was
 there), then its prose — for an override, the INTENT. `MethodRow` and
 `EventRow` are the method and event forms.
@@ -252,7 +252,7 @@ class OverrideLine extends View [ width = { parent.width },
     layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
     Muted [ fontSize = { 13 * app.fontScale }, text = "overrides" ],
     Chip [ kind = "class", cls = { classroot.from }, label = { classroot.from + "." + classroot.slot } ],
-    Mono [ fontSize = { 13 * app.fontScale }, textColor = { theme.sigDim }, visible = { classroot.was != "" },
+    Mono [ fontSize = { 13 * app.fontScale }, textColor = { provided("theme").sigDim }, visible = { classroot.was != "" },
         text = { "was = " + classroot.was } ]
     ]
 
@@ -269,23 +269,23 @@ class AttrRow extends View [ width = { parent.width },
 
     sig: View [ width = { parent.width },
         layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
-        Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { :name } ],
-        Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.accentSecondary }, text = { ": " + :type } ],
-        Mono [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim }, visible = { !classroot.long },
+        Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").text }, text = { :name } ],
+        Mono [ fontSize = { 15 * app.fontScale }, textColor = { provided("theme").accentSecondary }, text = { ": " + :type } ],
+        Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, visible = { !classroot.long },
             text = { :default != null ? "= " + :default : "" } ]
         ],
-    longDefault: Mono [ x = 24, width = { parent.width - 24 }, fontSize = { 13 * app.fontScale }, lineHeight = 1.45, textColor = { theme.sigDim },
+    longDefault: Mono [ x = 24, width = { parent.width - 24 }, fontSize = { 13 * app.fontScale }, lineHeight = 1.45, textColor = { provided("theme").sigDim },
         visible = { classroot.long }, text = { "= " + ("" + :default).split("\n").join("\n  ") } ],
 
-    flags: Mono [ fontSize = { 12 * app.fontScale }, textColor = { theme.eyebrow },
-        visible = { :prevailing || :readOnly },
-        text = { [:prevailing ? "prevailing" : "", :readOnly ? "read-only" : ""].filter(Boolean).join("  ·  ") } ],
+    flags: Mono [ fontSize = { 12 * app.fontScale }, textColor = { provided("theme").eyebrow },
+        visible = { :readOnly },
+        text = { :readOnly ? "read-only" : "" } ],
 
     OverrideLine [ visible = { :overrides != null }, from = { "" + :overrides.from }, slot = { "" + :name },
         was = { :overrides.was != null ? "" + :overrides.was : "" } ],
 
     Block [ datapath = :docSegs[], width = { parent.width },
-        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
+        live = { classroot.live }, tone = { provided("theme").refDim }, lead = 1.6 ]
     ]
 
 
@@ -303,14 +303,14 @@ class MethodRow extends View [ width = { parent.width },
 
     sig: View [ width = { parent.width },
         layout: SimpleLayout [ axis = x, spacing = 0 ],
-        Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { classroot.aname } ],
-        Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.mtail }, text = { classroot.tailtext } ]
+        Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").text }, text = { classroot.aname } ],
+        Mono [ fontSize = { 15 * app.fontScale }, textColor = { provided("theme").mtail }, text = { classroot.tailtext } ]
         ],
 
     OverrideLine [ visible = { :overrides != null }, from = { "" + :overrides.from }, slot = { :name + "()" }, was = "" ],
 
     Block [ datapath = :docSegs[], width = { parent.width },
-        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
+        live = { classroot.live }, tone = { provided("theme").refDim }, lead = 1.6 ]
     ]
 
 
@@ -319,10 +319,10 @@ class EventRow extends View [ width = { parent.width },
     live:  boolean = false,
     layout: SimpleLayout [ axis = y, spacing = 6 ],
 
-    sig: Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { :signature } ],
+    sig: Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").text }, text = { :signature } ],
 
     Block [ datapath = :docSegs[], width = { parent.width },
-        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
+        live = { classroot.live }, tone = { provided("theme").refDim }, lead = 1.6 ]
     ]
 
 
@@ -339,17 +339,17 @@ ancestor that reads something).
 class ReadStrip extends View [ width = { parent.width }, cornerRadius = 10, visible = { :n > 0 },
     open:  boolean = false,
     cname: string = { "" + :name },
-    fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
     layout: SimpleLayout [ axis = y, spacing = 0 ],
     head: View [ width = { parent.width }, height = 40, cursor = "pointer", cornerRadius = 10,
-        fill = { hovered ? theme.chipBg : null },
+        fill = { hovered ? provided("theme").chipBg : null },
         onClick() { classroot.open = !classroot.open },
         title: View [ x = 16, y = 10, width = { parent.width - 32 },
             layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
-            Mono [ fontSize = { 15 * app.fontScale }, wrap = false, textColor = { theme.accent }, text = { classroot.open ? "▼" : "▶" } ],
+            Mono [ fontSize = { 15 * app.fontScale }, wrap = false, textColor = { provided("theme").accent }, text = { classroot.open ? "▼" : "▶" } ],
             Muted [ fontSize = { 13 * app.fontScale }, wrap = false, text = "from" ],
             Chip [ kind = "class", cls = { classroot.cname }, label = { classroot.cname } ],
-            Mono [ fontSize = { 13 * app.fontScale }, wrap = false, textColor = { theme.sigDim },
+            Mono [ fontSize = { 13 * app.fontScale }, wrap = false, textColor = { provided("theme").sigDim },
                 text = { :n + (:n == 1 ? " value" : " values") } ]
             ]
         ],
@@ -373,19 +373,19 @@ class ReadStrip extends View [ width = { parent.width }, cornerRadius = 10, visi
 class Strip extends View [ width = { parent.width }, cornerRadius = 10,
     open:  boolean = false,                    // a declaration default: yields to the click
     cname: string = { "" + :name },
-    fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
     layout: SimpleLayout [ axis = y, spacing = 0 ],
 
     head: View [ width = { parent.width }, cursor = "pointer",
         height = { this.lead.y + this.lead.height + 14 },
-        fill = { hovered ? theme.chipBg : null }, cornerRadius = 10,
+        fill = { hovered ? provided("theme").chipBg : null }, cornerRadius = 10,
         onClick() { classroot.open = !classroot.open },
         title: View [ x = 16, y = 12, width = { parent.width - 32 },
             layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
-            Mono [ fontSize = { 15 * app.fontScale }, wrap = false, textColor = { theme.accent }, text = { classroot.open ? "▼" : "▶" } ],
+            Mono [ fontSize = { 15 * app.fontScale }, wrap = false, textColor = { provided("theme").accent }, text = { classroot.open ? "▼" : "▶" } ],
             Muted [ fontSize = { 13 * app.fontScale }, wrap = false, text = "from" ],
             Chip [ kind = "class", cls = { classroot.cname }, label = { classroot.cname } ],
-            Mono [ fontSize = { 13 * app.fontScale }, wrap = false, textColor = { theme.sigDim },
+            Mono [ fontSize = { 13 * app.fontScale }, wrap = false, textColor = { provided("theme").sigDim },
                 text = { :attributes.length + " attributes · " + :methods.length + " methods · " + :events.length + " events" } ]
             ],
         lead: Muted [ x = 42, y = { parent.title.y + parent.title.height + 6 }, fontSize = { 13 * app.fontScale }, width = { parent.width - 58 },
@@ -426,7 +426,7 @@ wires.
 */
 
 class DocField extends TextInput [ multiline = true, spellcheck = false, wrap = false,
-    fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 13 * app.fontScale }, textColor = { theme.code },   // 13 = the house code size (PROSE.codeSize)
+    fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 13 * app.fontScale }, textColor = { provided("theme").code },   // 13 = the house code size (PROSE.codeSize)
     editName: string = "",
     src: string = "",
 
@@ -462,7 +462,7 @@ class Example extends View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 6 ],
         Title [ fontSize = { 16 * app.fontScale }, text = { "" + :title } ],
         lead: Markdown [ width = { parent.width }, visible = { ("" + :lead) != "" }, lineHeight = 1.55,
-            bodyColor = { theme.refDim }, scale = { app.fontScale }, dark = { app.darkUI }, text = { "" + :lead } ],
+            bodyColor = { provided("theme").refDim }, scale = { app.fontScale }, dark = { app.darkUI }, text = { "" + :lead } ],
         gap: View [ height = 6 ]
         ],
 
@@ -470,10 +470,10 @@ class Example extends View [ width = { parent.width },
     // `chipBg` tint, 8px radius, 13px code face) but is marked LIVE/EDITABLE by an
     // AMBER left bar + label, where a read-only block carries the teal `codeRule`.
 
-    panel: View [ width = { parent.width }, fill = { theme.chipBg },
+    panel: View [ width = { parent.width }, fill = { provided("theme").chipBg },
         height = { Math.min(classroot.elines * 15 * app.fontScale + 105, 900) },   // 15px/line measured; field pad + 60/8 chrome
-        bar:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { classroot.broken ? theme.errBar : 0xE6B450 } ],
-        fname: Mono [ x = 18, y = 10, fontSize = { 11 * app.fontScale }, fontWeight = semibold, textColor = { theme.strong },
+        bar:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { classroot.broken ? provided("theme").errBar : 0xE6B450 } ],
+        fname: Mono [ x = 18, y = 10, fontSize = { 11 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").strong },
             text = { classroot.cname + ".declare" } ],
 
         // the marker is an INVERTED chip — the amber accent as fill, black letters —
@@ -487,40 +487,40 @@ class Example extends View [ width = { parent.width },
 
         // Revert — restore the pristine source and republish (see RunIsland)
 
-        rev: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, theme.line) },
+        rev: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").line) },
             x = { parent.tag.x - this.width - 10 },
             width = { this.rlbl.width + 16 },
-            fill = { hovered ? theme.control : null },
+            fill = { hovered ? provided("theme").control : null },
             onClick() { classroot.panel.field.text = classroot.esrc
                         app.liveCard = classroot.cname
                         app.liveSource = classroot.esrc },
             rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
-                textColor = { parent.hovered ? theme.text : theme.textMuted }, text = "Revert" ]
+                textColor = { parent.hovered ? provided("theme").text : provided("theme").textMuted }, text = "Revert" ]
             ],
 
         // a line of breathing room below the label before the code starts
 
-        hair:  View [ x = 18, y = 51, width = { parent.width - 30 }, height = 1, fill = { theme.line } ],
+        hair:  View [ x = 18, y = 51, width = { parent.width - 30 }, height = 1, fill = { provided("theme").line } ],
         field: DocField [ x = 18, y = 60, width = { parent.width - 30 }, height = { parent.height - 68 },
             editName = { classroot.cname }, src = { classroot.esrc } ]
         ],
 
     // the compile report at the island (see RunIsland — same teaching surface)
 
-    err: View [ width = { parent.width }, fill = { theme.errBg },
+    err: View [ width = { parent.width }, fill = { provided("theme").errBg },
         visible = { classroot.broken },
         height = { this.msg.height + 20 },
-        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
+        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").errBar } ],
         msg: Text [ x = 18, y = 10, width = { parent.width - 36 }, wrap = true,
             fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
-            textColor = { theme.errText }, text = { app.liveReport } ]
+            textColor = { provided("theme").errText }, text = { app.liveReport } ]
         ],
 
     // the live preview island — the host mounts the compiled child app here. The slot
     // is live ONLY while the parent says so (`live`), so exactly one preview (the one
     // on the visible page) compiles at a time, even though every page is constructed.
 
-    stage: View [ width = { parent.width }, height = { classroot.estage }, fill = { theme.chipBg },
+    stage: View [ width = { parent.width }, height = { classroot.estage }, fill = { provided("theme").chipBg },
         run:     AppIsland [ width = { parent.width }, height = { parent.height },
             program = { classroot.live ? classroot.cname : "" } ],
 
@@ -528,7 +528,7 @@ class Example extends View [ width = { parent.width },
         // running app below; the gold spine (drawn OVER both) continues the code's gold left bar
         // down the preview, same x/width
 
-        divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
+        divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { provided("theme").rule } ],
         spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ]
         ]
     ]
@@ -566,9 +566,9 @@ class RunIsland extends View [ width = { parent.width },
     // padding and the 46+8 header/footer chrome — so the code fits without an
     // inner scrollbar up to the cap
 
-    editor: View [ width = { parent.width }, fill = { theme.chipBg },
+    editor: View [ width = { parent.width }, fill = { provided("theme").chipBg },
         height = { Math.min(classroot.rlines * 15 * app.fontScale + 93, 900) },
-        bar:  View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { classroot.broken ? theme.errBar : 0xE6B450 } ],
+        bar:  View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { classroot.broken ? provided("theme").errBar : 0xE6B450 } ],
         tag:  View [ x = 18, y = 7, height = 17, cornerRadius = 3, fill = 0xE6B450,
             lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
                 text = "LIVE · EDITABLE", wrap = false ],
@@ -578,15 +578,15 @@ class RunIsland extends View [ width = { parent.width },
         // Revert restores the pristine source and republishes it — the way back the
         // guide owes a reader it just told to break something
 
-        rev: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, theme.line) },
+        rev: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").line) },
             x = { parent.width - this.width - 10 },
             width = { this.rlbl.width + 16 },
-            fill = { hovered ? theme.control : null },
+            fill = { hovered ? provided("theme").control : null },
             onClick() { classroot.editor.field.text = classroot.rsrc
                         app.liveCard = classroot.rid
                         app.liveSource = classroot.rsrc },
             rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
-                textColor = { parent.hovered ? theme.text : theme.textMuted }, text = "Revert" ]
+                textColor = { parent.hovered ? provided("theme").text : provided("theme").textMuted }, text = "Revert" ]
             ],
         hint: Muted [ y = 9, fontSize = { 11 * app.fontScale }, italic = true, text = "runs live below ↓",
             x = { parent.rev.x - this.width - 12 } ],
@@ -600,19 +600,19 @@ class RunIsland extends View [ width = { parent.width },
     // the compile report, at the island — the diagnostic is a teaching surface, so a
     // broken edit shows its error right here (the last good render stays below it)
 
-    err: View [ width = { parent.width }, fill = { theme.errBg },
+    err: View [ width = { parent.width }, fill = { provided("theme").errBg },
         visible = { classroot.broken },
         height = { this.msg.height + 20 },
-        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
+        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").errBar } ],
         msg: Text [ x = 18, y = 10, width = { parent.width - 36 }, wrap = true,
             fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
-            textColor = { theme.errText }, text = { app.liveReport } ]
+            textColor = { provided("theme").errText }, text = { app.liveReport } ]
         ],
 
-    stage: View [ width = { parent.width }, height = { classroot.rstage }, fill = { theme.chipBg },
+    stage: View [ width = { parent.width }, height = { classroot.rstage }, fill = { provided("theme").chipBg },
         run:     AppIsland [ width = { parent.width }, height = { parent.height },
             program = { classroot.live ? classroot.rid : "" } ],
-        divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
+        divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { provided("theme").rule } ],
         spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ]
         ]
     ]
@@ -624,7 +624,7 @@ class RunIsland extends View [ width = { parent.width },
 
 class Block extends View [ width = { parent.width },
     live: boolean = false,
-    tone: Color   = { theme.body },
+    tone: Color   = { provided("theme").body },
     lead: number  = 1.6,
     layout: SimpleLayout [ axis = y, spacing = 14 ],
     md: Markdown [ width = { parent.width }, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, scale = { app.fontScale }, dark = { app.darkUI },
@@ -658,8 +658,8 @@ class ClassDetail extends View [ width = { parent.width },
     // the ancestor projections as DECLARED data (the value-root idiom), so the
     // chain row and the strips can replicate over them
 
-    ancestry:  Dataset [ contents = { ({ items: app.ancestryOf(classroot.cname) }) } ],
-    ancestors: Dataset [ contents = { ({ items: app.ancestorsOf(classroot.cname) }) } ],
+    ancestry:  Dataset [ contents = { { items: app.ancestryOf(classroot.cname) } } ],
+    ancestors: Dataset [ contents = { { items: app.ancestorsOf(classroot.cname) } } ],
 
     /* ### Header — the class, where it sits, and its opener */
 
@@ -675,10 +675,10 @@ class ClassDetail extends View [ width = { parent.width },
         chain: View [ width = { parent.width }, visible = { classroot.hasBase },
             datapath = { classroot.ancestry.value },
             layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = baseline ],
-            Mono [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim }, text = { "class " + classroot.cname + " extends" } ],
+            Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, text = { "class " + classroot.cname + " extends" } ],
             Link [ datapath = :items[] ]
             ],
-        base: Mono [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim }, visible = { :extends == null },
+        base: Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, visible = { :extends == null },
             text = { "class " + classroot.cname + "  (base)" } ],
         subs: View [ width = { parent.width }, visible = { :subclasses.length > 0 },
             layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
@@ -694,7 +694,7 @@ class ClassDetail extends View [ width = { parent.width },
         // the class prose — dimmed, with any inline runnable examples woven in
 
         Block [ datapath = :docSegs[], width = { parent.width },
-            live = { classroot.pageLive }, tone = { theme.refDim }, lead = 1.6 ]
+            live = { classroot.pageLive }, tone = { provided("theme").refDim }, lead = 1.6 ]
         ],
 
     // the page's sections, one line: for the reader who came for a fact
@@ -794,12 +794,12 @@ shows the index: every form, grouped, one line each.
 class FormTab extends View [ width = { parent.width }, height = 28, cornerRadius = 6,
     slug: string = "",
     lit: boolean = { app.mode == "language" && app.form == classroot.slug },
-    fill = { lit ? theme.sel : hovered ? theme.control : null },
+    fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
     link = { "#language/" + slug },
     onClick()     { app.formAt = classroot.slug; app.location = "language/" + classroot.slug; app.showPage() },
     lbl: Mono [ x = 24, y = 6, fontSize = 13, wrap = false,
         text = { "" + (:short ?? :name) },
-        textColor = { classroot.lit ? theme.text : theme.tabIdle } ]
+        textColor = { classroot.lit ? provided("theme").text : provided("theme").tabIdle } ]
     ]
 
 
@@ -817,11 +817,11 @@ class FormGroup extends View [ width = { parent.width },
 
 // a syntax box: the form's grammar lines, as written, in the code tint
 
-class SyntaxBox extends View [ width = { parent.width }, fill = { theme.chipBg }, cornerRadius = 8,
+class SyntaxBox extends View [ width = { parent.width }, fill = { provided("theme").chipBg }, cornerRadius = 8,
     lines: string = "",
     height = { this.t.height + 28 },
-    bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.accentSecondary } ],
-    t: Mono [ x = 18, y = 14, width = { parent.width - 36 }, fontSize = { 14 * app.fontScale }, lineHeight = 1.6, textColor = { theme.code },
+    bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").accentSecondary } ],
+    t: Mono [ x = 18, y = 14, width = { parent.width - 36 }, fontSize = { 14 * app.fontScale }, lineHeight = 1.6, textColor = { provided("theme").code },
         text = { classroot.lines } ]
     ]
 
@@ -831,13 +831,13 @@ class SyntaxBox extends View [ width = { parent.width }, fill = { theme.chipBg }
 
 class RuleRow extends View [ width = { parent.width },
     layout: SimpleLayout [ axis = y, spacing = 6 ],
-    md: Markdown [ width = { parent.width }, lineHeight = 1.55, bodyColor = { theme.refDim }, scale = { app.fontScale }, dark = { app.darkUI },
+    md: Markdown [ width = { parent.width }, lineHeight = 1.55, bodyColor = { provided("theme").refDim }, scale = { app.fontScale }, dark = { app.darkUI },
         text = { "" + :rule } ],
     says: View [ width = { parent.width }, height = { this.t.height + 16 },
-        rule: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { theme.line } ],
+        rule: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { provided("theme").line } ],
         lbl: Muted [ x = 14, y = 8, fontSize = { 12 * app.fontScale }, italic = true, wrap = false, text = "the checker says" ],
         t: Mono [ x = { parent.lbl.x + parent.lbl.width + 10 }, y = 8, width = { parent.width - parent.lbl.width - 24 },
-            fontSize = { 12.5 * app.fontScale }, lineHeight = 1.5, textColor = { theme.sigDim }, text = { "" + :says } ]
+            fontSize = { 12.5 * app.fontScale }, lineHeight = 1.5, textColor = { provided("theme").sigDim }, text = { "" + :says } ]
         ]
     ]
 
@@ -849,11 +849,11 @@ class FormChip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
     slug: string = "",
     label: string = "",
     width = { this.lbl.width + 16 },
-    fill = { hovered ? theme.chipHov : theme.chipBg },
+    fill = { hovered ? provided("theme").chipHov : provided("theme").chipBg },
     link = { "#language/" + slug },
     onClick() { app.formAt = slug; app.location = "language/" + slug; app.showPage() },
     lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
-        textColor = { theme.accent }, text = { classroot.label } ]
+        textColor = { provided("theme").accent }, text = { classroot.label } ]
     ]
 
 
@@ -865,8 +865,8 @@ class FormRow extends View [ width = { parent.width },
     link = { "#language/" + this.$data("slug") },
     onClick() { app.formAt = "" + this.$data("slug"); app.location = "language/" + this.$data("slug"); app.showPage() },
     syn: Mono [ x = 0, y = 0, width = 260, fontSize = { 14 * app.fontScale }, fontWeight = semibold, lineHeight = 1.5,
-        textColor = { classroot.hovered ? theme.accent : theme.chipBlue }, text = { "" + :name } ],
-    gist: Markdown [ x = 276, width = { parent.width - 276 }, lineHeight = 1.55, bodyColor = { theme.refDim }, scale = { app.fontScale }, dark = { app.darkUI },
+        textColor = { classroot.hovered ? provided("theme").accent : provided("theme").chipBlue }, text = { "" + :name } ],
+    gist: Markdown [ x = 276, width = { parent.width - 276 }, lineHeight = 1.55, bodyColor = { provided("theme").refDim }, scale = { app.fontScale }, dark = { app.darkUI },
         text = { "" + :gist } ]
     ]
 
@@ -878,7 +878,7 @@ class FormIndex extends View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         Eyebrow [ text = "LANGUAGE · docs/declare.md" ],
         Title [ fontSize = { 32 * app.fontScale }, text = "The language" ],
-        Block [ datapath = :docSegs[], width = { parent.width }, tone = { theme.refDim }, lead = 1.6 ]
+        Block [ datapath = :docSegs[], width = { parent.width }, tone = { provided("theme").refDim }, lead = 1.6 ]
         ],
     groups: View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 36 ],
@@ -902,9 +902,9 @@ class FormDetail extends View [ width = { parent.width },
     header: View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         Eyebrow [ text = { "LANGUAGE · " + ("" + :family).toUpperCase() + " · declare.md " + :spec } ],
-        Mono [ fontSize = { 32 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { "" + :name } ],
+        Mono [ fontSize = { 32 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").text }, text = { "" + :name } ],
         SyntaxBox [ lines = { "" + :syntaxText } ],   // the lines as written (a line may hold a comma)
-        Block [ datapath = :docSegs[], width = { parent.width }, live = { classroot.pageLive }, tone = { theme.refDim }, lead = 1.6 ]
+        Block [ datapath = :docSegs[], width = { parent.width }, live = { classroot.pageLive }, tone = { provided("theme").refDim }, lead = 1.6 ]
         ],
 
     jump: View [ width = { parent.width },
@@ -946,10 +946,10 @@ class FormDetail extends View [ width = { parent.width },
             Muted [ fontSize = { 13 * app.fontScale }, text = "guide" ],
             View [ datapath = :related.guide[], height = { 24 * app.fontScale }, cornerRadius = 6, cursor = "pointer",
                 baseline: number = { this.lbl.y + this.lbl.baseline },
-                width = { this.lbl.width + 16 }, fill = { hovered ? theme.chipHov : theme.chipBg },
+                width = { this.lbl.width + 16 }, fill = { hovered ? provided("theme").chipHov : provided("theme").chipBg },
                 link = { "#guide/" + :chapter },
                 onClick() { app.guideAt = "" + this.$data("chapter"); app.location = "guide/" + this.$data("chapter"); app.showPage() },
-                lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false, textColor = { theme.accent },
+                lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false, textColor = { provided("theme").accent },
                     text = { :chapter + " · " + :title } ]
                 ]
             ]
@@ -981,14 +981,14 @@ class ChapterTab extends View [ width = { parent.width }, height = 32, cornerRad
     cid: string = { :id },
     cnum: number = { :num },
     ctitle: string = { :short },
-    fill = { app.chapter == classroot.cid ? theme.sel : hovered ? theme.control : null },
+    fill = { app.chapter == classroot.cid ? provided("theme").sel : hovered ? provided("theme").control : null },
     onClick()     { app.guideAt = classroot.cid; app.location = "guide/" + classroot.cid; app.showPage() },
 
     // numbered, because the chapters cite each other by number ("chapter 3")
 
     lbl: Text [ x = 24, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, wrap = false,
         text = { classroot.cnum + ". " + classroot.ctitle },
-        textColor = { app.chapter == classroot.cid ? theme.text : theme.tabIdle } ]
+        textColor = { app.chapter == classroot.cid ? provided("theme").text : provided("theme").tabIdle } ]
     ]
 
 
@@ -1030,8 +1030,8 @@ class ChapterDetail extends View [ width = { parent.width },
     src: DataSource [ auto = true,
         url = { classroot.wanted ? "chapters/" + classroot.cid + ".json" : "" } ],
 
-    loading: Text [ visible = { classroot.src.loading }, fontSize = { 14 * app.fontScale }, textColor = { theme.textMuted }, text = "Loading the chapter…" ],
-    failed:  Text [ visible = { classroot.src.failed }, fontSize = { 14 * app.fontScale }, textColor = { theme.textMuted }, wrap = true, width = { parent.width },
+    loading: Text [ visible = { classroot.src.loading }, fontSize = { 14 * app.fontScale }, textColor = { provided("theme").textMuted }, text = "Loading the chapter…" ],
+    failed:  Text [ visible = { classroot.src.failed }, fontSize = { 14 * app.fontScale }, textColor = { provided("theme").textMuted }, wrap = true, width = { parent.width },
         text = { "The chapter did not load — " + (classroot.src.error || "") } ],
 
     // the guide is the primary reading surface: brighter body, looser leading (Block defaults)
@@ -1065,11 +1065,11 @@ zooms the whole document.
 class SizeBtn extends View [ width = 32, height = 30, cornerRadius = 6,
     glyph: number = 14,
     delta: number = 0,          // delta 0 = reset to the default
-    fill = { hovered ? theme.control : null },
+    fill = { hovered ? provided("theme").control : null },
     onClick() { app.fontScale = classroot.delta == 0 ? 1.0
                     : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
     lbl: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontWeight = semibold,
-        fontSize = { classroot.glyph }, textColor = { theme.textMuted }, text = "A",
+        fontSize = { classroot.glyph }, textColor = { provided("theme").textMuted }, text = "A",
         x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ]
     ]
 
@@ -1100,7 +1100,7 @@ class SearchHit extends View [ width = { parent.width }, cornerRadius = 8,
     loc: string = { :loc },
     idx: number = { :i },
     focusable = true,
-    fill = { app.searchSel == idx ? theme.sel : hovered ? theme.control : null },
+    fill = { app.searchSel == idx ? provided("theme").sel : hovered ? provided("theme").control : null },
     onClick() { app.openResult(classroot.loc) },
     onFocus() { app.searchSel = idx },
     onKeyDown(e: KeyEvent) {
@@ -1117,10 +1117,10 @@ class SearchHit extends View [ width = { parent.width }, cornerRadius = 8,
         row: View [ width = { parent.width }, height = 18,
             layout: SimpleLayout [ axis = x, spacing = 10 ],
             Title [ fontSize = 14, wrap = false, text = { :title } ],
-            Mono [ y = 3, fontSize = 10, letterSpacing = 0.6, textColor = { theme.eyebrow }, wrap = false, text = { :crumb } ]
+            Mono [ y = 3, fontSize = 10, letterSpacing = 0.6, textColor = { provided("theme").eyebrow }, wrap = false, text = { :crumb } ]
             ],
         snip: Markdown [ width = { parent.width }, scale = 0.92, lineHeight = 1.45,
-            bodyColor = { theme.refDim }, dark = { app.darkUI },
+            bodyColor = { provided("theme").refDim }, dark = { app.darkUI },
             visible = { :snip != "" }, text = { :snip } ],
         g: View [ height = 6 ]   // bottom padding (the row's auto-extent reads the column)
         ]
@@ -1134,7 +1134,7 @@ A top chrome bar (the house header — brand · search · type-size + theme), a
 left rail below it, and a scrolling detail pane, over the model.
 */
 
-App [ fill = { theme.bg }, appName = "Declare Docs",
+App [ fill = { provided("theme").bg }, appName = "Declare Docs",
 
     /* Navigation is ONE string — `location`, the URL fragment (docs/system-design/location.md).
        The grammar is this app's own: `<mode>/<cursor>[@heading]` (`guide/04-tree`,
@@ -1191,7 +1191,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     searchIdx: DataSource [ auto = true,
         url = { app.searchQ != "" || this.loaded ? "search-index.json" : "" } ],
     searchHits: array = { app.findDocs(app.searchQ, app.searchIdx.value) },
-    hits: Dataset [ contents = { ({ items: app.searchHits }) } ],   // the same list as DECLARED DATA — the results page's cursor root (the navSource idiom)
+    hits: Dataset [ contents = { { items: app.searchHits } } ],   // the same list as DECLARED DATA — the results page's cursor root (the navSource idiom)
 
     // Match + rank + snippet, in one pass per query. Terms AND — every term
     // must appear in title or text. Rank: title prefix > title > body count.
@@ -1325,7 +1325,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
 
     // (app.liveReport — BUILT-IN — carries the host's rendered compile report; islands display it)
 
-    /* The whole palette in one prevailing record, switched by the OS color
+    /* The whole palette in one provided record, switched by the OS color
        scheme (`app.dark`, fed live by the runtime) — every color below reads
        `theme.<token>`, so the docs render dark or light and follow the system
        theme as it flips. The dark set is the original tuned palette; the
@@ -1337,7 +1337,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     // modeOn, errBar …) alongside. A standard control dropped in here finds every
     // token it consults; the docs palette is untouched.
 
-    theme = { ({ ...Themes.sanFrancisco(darkUI), ...app.docsTokens(darkUI) }) },
+    theme = { { ...(darkUI ? SanFranciscoDark : SanFrancisco), ...app.docsTokens(darkUI) } },
 
     docsTokens(dark: boolean) -> object { return dark
         ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, control: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, modeOn: 0x1F3B54, chipHov: 0x1C3243, mchipHov: 0x213649, echipHov: 0x332B18, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accentSecondary: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, textMuted: 0x8A9BA6, modeOff: 0x7C93A2, sigDim: 0x6E8494, eyebrow: 0x55707F, tag: 0x4F6472, errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6 })
@@ -1346,12 +1346,12 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     /* Code-vs-prose coherence, matching the source-viewer reader: prose (and
        every non-code block) wraps to a reading measure while code fills the
        column — so code renders WIDER than prose — and every code block gets a
-       tinted box with a teal left bar. All prevailing, so every
+       tinted box with a teal left bar. All provided, so every
        Markdown/HTMLText below inherits it. */
 
     richTextLayout = { { default: { maxWidth: 560 * app.fontScale }, code: { maxWidth: 0 } } },
-    codeBackground = { theme.chipBg },
-    codeRule = { theme.accentSecondary },
+    codeBackground = { provided("theme").chipBg },
+    codeRule = { provided("theme").accentSecondary },
 
     docs: DataSource [ url = "../../docs/declare-model.json" ],
     datapath = { docs.value },                 // root every :path below into the model
@@ -1404,8 +1404,8 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
        type-size stepper + theme switch on the right (both moved up out of the
        rail, where Viewer keeps them too). */
 
-    bar: View [ x = 0, y = 0, width = { app.hostWidth }, height = { app.barH }, fill = { theme.rail },
-        hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { theme.edge } ],
+    bar: View [ x = 0, y = 0, width = { app.hostWidth }, height = { app.barH }, fill = { provided("theme").rail },
+        hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").edge } ],
 
         brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
@@ -1415,12 +1415,12 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
 
             Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
                 fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textFill = { gradient("90deg", theme.accent, theme.accentSecondary) }, text = "Declare",
+                textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
                 onClick() { app.navigate("apps/homepage/homepage.declare") }
                 ],
             Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
                 fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textColor = { theme.text }, text = "Docs" ]
+                textColor = { provided("theme").text }, text = "Docs" ]
             ],
 
         // the pill: search-as-you-type over the whole corpus; Enter opens the
@@ -1450,11 +1450,11 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
             hi: number = { (app.compact ? parent.themeSwitch.x : parent.size.x) - 16 },
             x = { Math.max(this.lo, Math.min((app.hostWidth - this.width) / 2, this.hi - this.width)) },
             width = { Math.max(120, Math.min(440, this.hi - this.lo)) },
-            fill = { theme.surface },
-            stroke = { stroke(1, this.field.focused ? theme.accent : theme.line) },
+            fill = { provided("theme").surface },
+            stroke = { stroke(1, this.field.focused ? provided("theme").accent : provided("theme").line) },
             field: TextInput [ x = 16, y = 1, width = { parent.width - 32 }, height = { parent.height - 2 },   // 1px in from the wrapper's stroke, or the field's fill paints over it
-                fill = { theme.surface }, stroke = null, cornerRadius = 0, padding = 0,
-                fontSize = 14, textColor = { theme.text },
+                fill = { provided("theme").surface }, stroke = null, cornerRadius = 0, padding = 0,
+                fontSize = 14, textColor = { provided("theme").text },
                 placeholder = "Search the docs…   ⌘K",
                 onInput(t: string) { app.searchQ = "" + t; app.searchSel = -1 },
                 onEnter() { if (app.searchHits.length > 0) app.openResult(app.searchHits[0].loc) },
@@ -1468,12 +1468,12 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
         size: View [ y = { (app.barH - 30) / 2 }, x = { parent.themeSwitch.x - this.width - 20 }, height = 30,
             visible = { !app.compact },
             width = { this.contentWidth },
-            cornerRadius = 8, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+            cornerRadius = 8, fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
             layout: SimpleLayout [ axis = x, spacing = 0 ],
             SizeBtn [ glyph = 11, delta = -0.1 ],
-            d1: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
+            d1: View [ width = 1, height = 18, y = 6, fill = { provided("theme").line } ],
             SizeBtn [ glyph = 15, delta = 0 ],
-            d2: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
+            d2: View [ width = 1, height = 18, y = 6, fill = { provided("theme").line } ],
             SizeBtn [ glyph = 19, delta = 0.1 ]
             ],
 
@@ -1491,8 +1491,8 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
        Below the bar: the Guide/Reference switch, then the nav for the live
        mode. (Brand and the display controls live in the bar now.) */
 
-    rail: View [ x = 0, y = { app.barH }, width = { app.railW }, height = { app.hostHeight - app.barH }, scrolls = y, fill = { theme.rail },
-        edge: View [ x = { app.railW - 1 }, y = 0, width = 1, height = { parent.height }, fill = { theme.edge } ],
+    rail: View [ x = 0, y = { app.barH }, width = { app.railW }, height = { app.hostHeight - app.barH }, scrolls = y, fill = { provided("theme").rail },
+        edge: View [ x = { app.railW - 1 }, y = 0, width = 1, height = { parent.height }, fill = { provided("theme").edge } ],
         col: View [ x = 16, y = 16, width = { app.railW - 32 },
             layout: SimpleLayout [ axis = y, spacing = 4 ],
 
@@ -1537,18 +1537,18 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
             refNav: View [ width = { parent.width }, visible = { app.mode == "reference" || app.mode == "language" },
                 layout: SimpleLayout [ axis = y, spacing = 2 ],
                 g1:    View [ height = 14 ],
-                langEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.textMuted }, text = "LANGUAGE" ],
+                langEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "LANGUAGE" ],
                 g2:    View [ height = 4 ],
                 idx: View [ width = { parent.width }, height = 28, cornerRadius = 6,
                     lit: boolean = { app.mode == "language" && app.form == "" },
-                    fill = { lit ? theme.sel : hovered ? theme.control : null },
+                    fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
                     link = "#language/",
                     onClick() { app.formAt = ""; app.location = "language/"; app.showPage() },
-                    Text [ x = 24, y = 6, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, wrap = false, text = "All forms", textColor = { parent.lit ? theme.text : theme.tabIdle } ]
+                    Text [ x = 24, y = 6, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, wrap = false, text = "All forms", textColor = { parent.lit ? provided("theme").text : provided("theme").tabIdle } ]
                     ],
                 FormGroup [ datapath = :forms.groups[] ],
                 g3:    View [ height = 18 ],
-                classEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.textMuted }, text = "CLASSES" ],
+                classEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "CLASSES" ],
                 g4:    View [ height = 4 ],
                 ClassGroup [ datapath = :classGroups[] ]
                 ]
@@ -1560,7 +1560,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
        builds its content only once visibility asks — ChapterDetail); the
        reference is ONE page, re-rooted to the selection (refCol). So the
        scroller only ever measures what is actually being read.
-       `selectable` (prevailing) opts the whole right pane into ordinary
+       `selectable` (a provided value) opts the whole right pane into ordinary
        browser text selection — prose, signatures, Markdown runs — while the
        rail stays chrome.
 

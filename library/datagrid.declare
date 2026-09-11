@@ -198,6 +198,10 @@ pointer re-derives the spans mid-drag and flickers.
 
 ## isGridRow
 **Internal.** The marker identifying a generated grid row — not API.
+
+## theme
+The provided design-token record a `Column` styles its cells off — a **provided value**
+the app provides once (`App [ theme = { … } ]`) and the grid reads. See `Control.theme`.
 */
 
 include [ "table.declare", "menu.declare" ]
@@ -214,6 +218,12 @@ use [ Menu ]
 // `options` feeds "select" (records or strings, shown by String()).
 
 class Column extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", SanFrancisco) },
+
     isColumn: boolean = true,
 
     visible = false,
@@ -289,7 +299,7 @@ class DataGrid extends Table [
 
     currentOrder() -> array { return this.colData.value.cols.map((r) => r.id) },
 
-    colData: Dataset [ contents = { ({ cols: classroot.columnRecords(classroot.colVersion, classroot.order, classroot.widths) }) } ],
+    colData: Dataset [ contents = { { cols: classroot.columnRecords(classroot.colVersion, classroot.order, classroot.widths) } } ],
 
     // reorder-by-drag: the dragged header's CENTER against each column's
     // span — crossing a neighbor's midpoint swaps live (the arrangement

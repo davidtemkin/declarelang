@@ -68,5 +68,10 @@
   "lzx-dashboard": {
     "differing": 1,
     "structural": 0.3
+  },
+  "glowclip": {
+    "differing": 0.25,
+    "structural": 0.2,
+    "theme": "light"
   }
 }

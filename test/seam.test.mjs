@@ -144,14 +144,15 @@ const TABLE = {
     mac: "the host's selection story rides its native TextEngine; a region surface awaits that design (native-host.md)",
     headless: NOT_APPLICABLE,
   },
+  // mac: built 2026-09-10 with the scroll arc — re-homing in the model tree
+  // (an INSERT under the scroller's content layer), so the host's own
+  // translate carries the traveler; the scroll process is the host's there.
   travelWith: {
-    dom: true, canvas: true,
-    mac: "GAP (not yet built) — surface re-homing: chrome that must ride a scroller's content (the focus ring) or escape one (the DataGrid's header). The callers all check the RETURN value and keep a reactive root-space fallback, so the native host degrades to correct-but-lagging geometry rather than breaking — which is exactly why this absence could go unnoticed without this table",
+    dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
   isTraveling: {
-    dom: true, canvas: true,
-    mac: "GAP (not yet built) — the read half of travelWith, and absent for the same reason: no re-homing there means nothing is ever away from home, so the optional-call default (undefined, read as false) is the right answer on that backend rather than a silent wrong one",
+    dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
   setRichWidth: {

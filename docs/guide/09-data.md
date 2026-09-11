@@ -105,16 +105,16 @@ fetch-then-setState choreography from your current stack, deleted rather than
 abstracted.
 
 A real API usually wants a header — an API key, a bearer token — and that is an
-ordinary attribute: `headers = { ({ "x-api-key": app.key }) }`. It is a record,
+ordinary attribute: `headers = { { "x-api-key": app.key } }`. It is a record,
 merged over the `Content-Type` a JSON `body` sets for itself, and **reactive like
 any other slot**, which is what makes the authenticated case declarative rather
 than imperative:
 
 ```declare-fragment
 api: DataSource [ url = "/graphql", method = "POST", auto = true,
-    headers = { ({ "x-api-key": app.key,
-                   Authorization: app.token != "" ? "Bearer " + app.token : "" }) },
-    body = { ({ query: app.query }) } ]
+    headers = { { "x-api-key": app.key,
+                   Authorization: app.token != "" ? "Bearer " + app.token : "" } },
+    body = { { query: app.query } } ]
 ```
 
 A header whose value is empty is not sent, so the ternary above *is* the whole
@@ -277,7 +277,7 @@ schema Card [ id: string, title: string, status: "open" | "doing" | "closed", ow
 array of records — validated on arrival and typed through `.value`. (One
 caveat rides that form: a `:path` cannot yet *begin* at an array, so to
 replicate over a bare-array response, derive a wrapper first —
-`rows: Dataset [ contents = { ({ rows: src.value ?? [] }) } ]` — and replicate
+`rows: Dataset [ contents = { { rows: src.value ?? [] } } ]` — and replicate
 `:rows[]`.) A schema also does not have to be named: the document's shape
 can be written inline at the dataset — `schema = [ city: string, rows[]: [ id:
 string ] ]` — the anonymous form, right for a one-off remote shape nothing else

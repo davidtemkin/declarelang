@@ -240,8 +240,8 @@ because the compiler synthesizes an anonymous subclass, and the instance remains
 its base. Promote a one-off to a named `class` when you instantiate it twice, or when you need
 to name its type.
 
-Besides `class`, the top level holds `script`, `include`, `use`, `font`, `style`, and
-`stylesheet` — that is the complete set, **in any order**, before or after the root instance;
+Besides `class`, the top level holds `script`, `include`, `use`, `font`, and `style` — that is
+the complete set, **in any order**, before or after the root instance;
 `extends` may name a class declared later in the file. **`script { … }`** holds free TypeScript — helpers,
 models, whole libraries — and may **`import`** ES modules (a file, or an npm package by bare
 specifier; bundled at compile). **`script [ "file.ts" ]`** is the same block loaded from a
@@ -255,7 +255,7 @@ Imports resolve at the build toolchain's bundler; the in-browser compile refuses
 [ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
 a component the build would otherwise drop, for when your code constructs it by name at runtime
 (`createView`, §7). **`font Name [ … ]`** declares a font family (a use site picks with
-`fontFamily = [Name, "system-ui"]`), and `style` and `stylesheet` are style constructs (§9).
+`fontFamily = [Name, "system-ui"]`), and `style` is the prose-styling construct (§9).
 
 ### `classroot`
 
@@ -394,9 +394,11 @@ them:
   data, not the views: count the Dataset (§7).
 - **Indexing a slot by a runtime value** — `this[k]`. Name the slot, or move the lookup into a
   method the compiler reads through.
-- **A slot deriving from itself** — `theme = { { ...theme, accent: red } }` reads like a harmless
-  override and is a cycle by construction. Derive from a base: the app's `theme`, or the
-  parent's.
+- **A slot deriving from itself** — `total = { total + tax }` reads like a harmless adjustment
+  and is a cycle by construction. Derive from a base slot, not the slot you are setting. (A
+  provided value avoids this: `theme = { { ...provided("theme"), accent: red } }` reads the
+  *ancestor's* theme — `provided(…)` walks up, never to itself — so a subtree can extend the
+  theme above it without a cycle.)
 
 **`script { }` is foreign code — wholly outside the reactive system.** It may hold arbitrary
 TypeScript: stateful helpers, caches, classes, whole libraries. The compiler never reads a
@@ -572,7 +574,7 @@ response's shape: it validates the payload on receipt — so malformed data yiel
 than `undefined` three bindings deep — and lets every `:path` be checked against the shape at
 compile time. Without one, paths are dynamic: an unresolved `:path` yields null and the bound
 attribute falls back to its default. A request carries `method`, `body`, `credentials` and
-`headers` — the last a reactive record (`headers = { ({ Authorization: "Bearer " + app.token }) }`),
+`headers` — the last a reactive record (`headers = { { Authorization: "Bearer " + app.token } }`),
 so an API-keyed or token-authenticated endpoint stays declarative; an empty header value is not
 sent, which is the whole "only when signed in" conditional.
 
@@ -701,62 +703,53 @@ shadows read the same. The names do not. A border is a **stroke**, rounding is *
 (one number, or `[topLeft, topRight, bottomRight, bottomLeft]` to round only some corners),
 and `borderWidth`, `boxShadow`, and `outline` do not exist.
 
-What replaces the cascade is **prevailing slots**: set one high in the tree and every descendant
-follows it until one overrides. The text quartet — `fontFamily`, `fontSize`, `fontWeight`,
-`textColor` — works this way, and so does **`theme`**, a token record every color in an app should
-name once.
+What replaces the cascade is **provided values**: `provided("name")` reads the value the nearest
+ancestor makes available under that name, and *providing* is just setting a value on a node — no
+keyword. The text face — `fontFamily`, `fontSize`, `fontWeight`, `textColor`, `letterSpacing` —
+works this way (each lives on `Text`, defaulting to `provided(…)`, so setting one on a container
+provides it to the runs below), and so does **`theme`**, a token record every color in an app
+should name once.
 
 ```declare-fragment
-theme = { Themes.sanFrancisco(app.dark) },                   // on the App: a preset, light or dark
-fill  = { theme.surface },                                   // read it anywhere below
+theme = { app.dark ? SanFranciscoDark : SanFrancisco },      // on the App: PROVIDE a preset, light or dark
+fill  = { provided("theme").surface },                       // READ it anywhere below
 
-panel: View [                                                // on a DESCENDANT, override one token
-    theme = { { ...app.theme, accent: 0xCC3333 } }          //   (on the App this reads itself — §5)
+panel: View [                                                // on a DESCENDANT, provide a modified one
+    theme = { { ...provided("theme"), accent: 0xCC3333 } }   //   every provided("theme") below reads this
     ]
 ```
 
-Start from a library preset — `Themes.sanFrancisco` / `.cupertino` / `.mountainView` /
-`.redmond`, each taking a dark flag, available without an include — and spread to change a token.
-The standard library reads specific token names, so build from a preset rather than an empty
-record; `library/themes/sanfrancisco.declare` names them all.
+`provided(…)` is the one new construct — an explicit up-the-tree read, bare in `[ ]` (like
+`gradient(…)`) or a call in `{ }`. It is explicit on purpose: it reaches past this node, and a
+non-local read is worth showing. You rarely write it — `Text` and the library widgets read the face
+and theme values *for* you, so app code that only *sets* those values never says `provided(…)` at
+all; you write it where your own code reads a value from up the tree. A read that finds no provider
+falls to an optional default (`provided("theme", SanFrancisco)`), else throws, naming the
+value.
+
+Start from a library preset — `SanFrancisco` / `Cupertino` / `MountainView` / `Redmond`, each a
+light record with a `…Dark` companion, in scope by name — and spread to change a token. The
+standard library reads specific token names, so build from a preset rather than an empty record.
+You can declare your own with `theme Brand [ … ]`, a top-level named record like `font Name [ … ]`.
 
 The `{ { … } }` is not special syntax: the outer braces open the constraint, the inner ones are a
-TypeScript object literal. With no theme declared an app renders the default, and that
-zero-declaration look never varies by system dark mode — following the system is the one-line
-opt-in above.
+TypeScript object literal. With no theme provided an app renders the house default (`SanFrancisco`,
+set on `Control.theme`), and that zero-declaration look never varies by system dark mode —
+following the system is the one-line opt-in above.
 
-Two top-level forms sit above per-view attributes, both checked at compile time, so a stale skin
-fails loudly where CSS rots silently. A **`style` bundle** is a reusable set of attribute values a
-view opts into with `styles = [ … ]` — the same bundle a `<span class>` names inside
-`HTMLText`/`Markdown`, so one definition skins a container and colours a run of prose alike, and
-its fields may be `{ }` bodies that re-evaluate live. A **`stylesheet`** is an app-wide swappable skin whose
-entries are a dictionary lookup on the class name — no selectors, no structural matching, no
-specificity — matching a class and its subclasses, with fields merging down the chain.
+A **`style` bundle** is the one top-level styling form: a named set of attribute values a
+`<span class>` inside `HTMLText`/`Markdown` applies to a run of prose — the vehicle for styling a
+run, which is not a node you can set attributes on. Its fields may be `{ }` bodies (reading
+`provided("theme")`, so a highlighted keyword follows the theme), and it re-evaluates live. To
+reuse a look across whole views you **subclass** instead (`class Card extends View [ … ]`).
 
 ```declare-fragment
-style card [ cornerRadius = 10, fill = { theme.bg } ]
-
-stylesheet Dark [
-    theme: Theme [ accent = #336699 ],       // the sheet's own theme
-    View:   [ opacity = 0.9 ]               // entries keyed by CLASS name
-    ]
-
-
-App [ stylesheet = Dark,                     // apply it — a prevailing slot, so swap it live
-    View [ styles = [card] ]                //   a bundle is opted into per view, by list
-    ]
+style kw [ textColor = { provided("theme").accent } ]   // a <span class='kw'> in prose wears it
 ```
 
-`stylesheet` is a prevailing slot like `theme`: set it high, assign a different sheet at runtime,
-and exactly the governed subtree restyles.
-
-A theme appears in two places, and they are not the same thing. On a *view*, `theme` is a prevailing
-attribute holding a plain TypeScript record. Inside a *stylesheet*, `theme: Theme [ … ]` declares
-the sheet's own record in the `[ ]` layer, which is why its colors are bare literals rather than
-the `0x` form braces require.
-
-Precedence is fixed: **an author's own write or binding always outranks a stylesheet field.** A
-skin can never fight your code.
+Precedence is fixed: a value **set locally always outranks a provided one** — a `Text` that sets
+its own `fontSize` ignores the region's, and a provided value is a default a node overrides, never
+a rule that fights your code.
 
 ## 10. States and motion
 
@@ -825,7 +818,7 @@ a few geometry scalars and every constraint derived from them moves in lock-step
 
 Declare ships a standard component library in `library/`, written in Declare itself with no
 privileged API underneath. It **auto-includes by bare tag** — no import, no module ceremony —
-components follow the prevailing `theme`, and focus behavior (Tab traversal, activation, a
+components read the provided `theme`, and focus behavior (Tab traversal, activation, a
 traveling focus indicator) is provided undeclared. Check there before building a control by hand.
 
 Two contracts are worth learning because your own components should obey them too.

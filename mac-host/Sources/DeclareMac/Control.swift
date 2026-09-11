@@ -65,14 +65,22 @@ final class ControlChannel {
         guard let raw = try? String(contentsOfFile: takePath, encoding: .utf8),
               !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         var out: [String] = []
+        var deferred = false
         for line in raw.split(separator: "\n") {
             let cmd = line.trimmingCharacters(in: .whitespaces)
-            if !cmd.isEmpty { out.append(run(cmd)) }
+            guard !cmd.isEmpty else { continue }
+            if let r = run(cmd) { out.append(r) } else { deferred = true }   // nil: the verb replies itself, later
         }
-        try? (out.joined(separator: "\n") + "\n").write(toFile: outPath, atomically: true, encoding: .utf8)
+        if !deferred { reply(out) }
     }
 
-    private func run(_ cmd: String) -> String {
+    /// Write the reply file — from any thread (a verb answered on the runtime
+    /// thread writes it from there).
+    private func reply(_ lines: [String]) {
+        try? (lines.joined(separator: "\n") + "\n").write(toFile: outPath, atomically: true, encoding: .utf8)
+    }
+
+    private func run(_ cmd: String) -> String? {
         let a = cmd.split(separator: " ").map(String.init)
         guard let verb = a.first else { return "empty" }
         // Almost every verb below reaches through `bridge`/`view` into a window.
@@ -131,8 +139,10 @@ final class ControlChannel {
             // stands in for a user wheel, so it must behave like one
             // (an `onWheel` view hears it before any scroller). Optional
             // fifth arg: pinch (the ctrl+wheel / magnify flag).
-            bridge.call("__declareWheel", [num(1), num(2), num(4), num(3), num(5)])
-            bridge.needsFrame()
+            // The same entry the view's scrollWheel takes (LayerTree.wheel): a
+            // legacy wheel — no phases, so the stream ends when it goes quiet.
+            bridge.tree?.wheel(atModel: CGPoint(x: num(1), y: num(2)), dx: CGFloat(num(4)), dy: CGFloat(num(3)),
+                               pinch: num(5) != 0, phase: [], momentum: [])
             return "ok"
         case "key":
             let name = a.count > 1 ? a[1] : ""
@@ -365,11 +375,14 @@ final class ControlChannel {
             // inspect bridge), any surface, any attribute — with no rebuild and
             // without losing the app's state, which is what makes probing the
             // native host as cheap as puppeteer's page.evaluate.
+            // The runtime lives on its own thread (Bridge, THE RUNTIME THREAD):
+            // the script runs there and the reply is written from there. The
+            // main thread never waits on the runtime — this verb is the reason
+            // the channel can answer asynchronously.
             let src = a.dropFirst().joined(separator: " ")
             guard !src.isEmpty else { return "usage: eval <javascript>" }
-            guard let v = bridge.ctx.evaluateScript(src) else { return "(no value)" }
-            if let ex = bridge.ctx.exception { bridge.ctx.exception = nil; return "EXCEPTION: \(ex)" }
-            return v.isUndefined ? "undefined" : (v.toString() ?? "(unprintable)")
+            bridge.evaluate(src) { [weak self] r in self?.reply([r]) }
+            return nil
         case "frost":
             // Is the frost actually ON? Four things have to line up and any one
             // of them fails silently, invisibly, and looks like "the blur is
@@ -458,6 +471,11 @@ final class ControlChannel {
                           best(renderMs), med(renderMs), best(blurMs), med(blurMs),
                           best(renderMs) + best(blurMs), img == nil ? "FAILED" : "ok")
         case "froststats":
+            let bl = String(format: "  blur batches=%d jobs=%d  setup(CPU)=%.0fms gpu(wait)=%.0fms readback=%.0fms  per job: setup %.2f gpu %.2f read %.2f ms\n",
+                            LayerTree.blurBatches, LayerTree.blurJobsN, LayerTree.blurSetupMs, LayerTree.blurGpuMs, LayerTree.blurReadMs,
+                            LayerTree.blurJobsN > 0 ? LayerTree.blurSetupMs / Double(LayerTree.blurJobsN) : 0,
+                            LayerTree.blurJobsN > 0 ? LayerTree.blurGpuMs / Double(LayerTree.blurJobsN) : 0,
+                            LayerTree.blurJobsN > 0 ? LayerTree.blurReadMs / Double(LayerTree.blurJobsN) : 0)
             guard let t = bridge.tree else { return "no tree" }
             var total = 0
             t.forEachNode { if $0.backdrop != nil { total += 1 } }
@@ -466,9 +484,10 @@ final class ControlChannel {
                           total, t.frostLastN, t.frostLastMs,
                           t.frostTotalN, t.frostTotalMs,
                           t.frostTotalN > 0 ? t.frostTotalMs / Double(t.frostTotalN) : 0)
-                 + String(format: "\n  of which: paint=%.0fms  makeImage=%.0fms  blur=%.0fms   nodesPainted=%d",
+                 + String(format: "\n  of which: paint=%.0fms  makeImage=%.0fms  blur=%.0fms   nodesPainted=%d\n",
                           t.frostPaintMs, t.frostImageMs, t.frostBlurMs, t.frostPainted)
-                 + "\n  costliest nodes: " + t.frostNodeMs.sorted { $0.value > $1.value }.prefix(6).map {
+                 + bl
+                 + "  costliest nodes: " + t.frostNodeMs.sorted { $0.value > $1.value }.prefix(6).map {
                        let nd = t.node($0.key)
                        return String(format: "#%d=%.0fms[%dx%d%@]", $0.key, $0.value,
                                      Int(nd?.box.width ?? 0), Int(nd?.box.height ?? 0),
@@ -549,6 +568,86 @@ final class ControlChannel {
                 }
             }
             return out.isEmpty ? "no node with height \(Int(want))" : out.joined(separator: "\n")
+        case "wheelat":
+            // wheelat X Y — what the host's wheel walk finds under a model
+            // point (LayerTree.wheelTarget), and the scroller each axis would
+            // land on: the scroll process's own `who`.
+            guard let t = bridge.tree else { return "no tree" }
+            let p = CGPoint(x: num(1), y: num(2))
+            guard let hit = t.wheelTarget(atModel: p) else { return "nothing under (\(Int(p.x)),\(Int(p.y))) — no scroller, no claimant" }
+            switch hit {
+            case .claim(let n): return "claimant id=\(n.id)"
+            case .scroller(let n):
+                let y = t.axisScrollerPublic(from: n, vertical: true), x = t.axisScrollerPublic(from: n, vertical: false)
+                return "scroller id=\(n.id) box=\(NSStringFromRect(n.box)) extY=\(Int(n.scrollExtent)) offY=\(Int(n.scrollOffset))"
+                     + " takesY=\(y.map { String($0.id) } ?? "none") takesX=\(x.map { String($0.id) } ?? "none")"
+                     + " scrolling=\(n.scrollingLive) gesture=\(n.gestureLive) glide=\(n.glideY != nil || n.glideX != nil)"
+            }
+        case "command":
+            // command <selector> — send a responder command to the window's
+            // FIRST RESPONDER (`insertTab:`, `insertBacktab:`, `insertNewline:`):
+            // the path a real keystroke takes inside a native field, which the
+            // `key` verb bypasses. Answers with the responder before and after.
+            guard let w = view?.window, a.count > 1 else { return "usage: command <selector>" }
+            let before = w.firstResponder.map { String(describing: type(of: $0)) } ?? "nil"
+            w.firstResponder?.doCommand(by: NSSelectorFromString(a[1]))
+            let after = w.firstResponder.map { String(describing: type(of: $0)) } ?? "nil"
+            return "sent \(a[1]) responder \(before) -> \(after)"
+        case "editfocus":
+            // editfocus <nodeId> — make a native field first responder through
+            // the host's own EDITFOCUS path (the runtime hears __declareEditFocus),
+            // so a following `command insertTab:` exercises the field's delegate.
+            guard let t = bridge.tree, let n = t.node(Int(num(1))), let e = n.editable else { return "no editable node \(Int(num(1)))" }
+            e.setFocus(true)
+            return "focused \(n.id) responder \(view?.window?.firstResponder.map { String(describing: type(of: $0)) } ?? "nil")"
+        case "resize":
+            // resize W H — set the window's CONTENT size now (one jump).
+            guard let w = view?.window else { return "no window" }
+            w.setContentSize(NSSize(width: num(1), height: num(2)))
+            return "content \(Int(w.contentView?.frame.width ?? 0))x\(Int(w.contentView?.frame.height ?? 0))"
+        case "liveresize":
+            // liveresize W1 H1 N HZ — step the content size from where it is to
+            // W1×H1 in N steps at HZ, returning to the run loop between steps —
+            // a person dragging the corner, as far as a frame change is one.
+            guard let w = view?.window, let cv = w.contentView else { return "no window" }
+            let w0 = cv.frame.width, h0 = cv.frame.height, w1 = num(1), h1 = num(2)
+            let n = max(2, Int(num(3))), hz = max(1.0, num(4))
+            var i = 1
+            let t = Timer.scheduledTimer(withTimeInterval: 1.0 / hz, repeats: true) { [weak w] timer in
+                guard let w else { timer.invalidate(); return }
+                let f = CGFloat(i) / CGFloat(n)
+                w.setContentSize(NSSize(width: w0 + (w1 - w0) * f, height: h0 + (h1 - h0) * f))
+                i += 1
+                if i > n { timer.invalidate() }
+            }
+            RunLoop.main.add(t, forMode: .common)
+            return "resizing \(Int(w0))x\(Int(h0)) → \(Int(w1))x\(Int(h1)) in \(n) steps at \(Int(hz))Hz"
+        case "frame":
+            // frame — the window's frame in SCREEN coordinates (AppKit, origin
+            // bottom-left) plus the screen height, so a rig can aim a real
+            // CGEvent drag at a corner (CG coordinates are top-left).
+            guard let w = view?.window else { return "no window" }
+            let f = w.frame, sh = w.screen?.frame.height ?? NSScreen.main?.frame.height ?? 0
+            return "x=\(Int(f.origin.x)) y=\(Int(f.origin.y)) w=\(Int(f.width)) h=\(Int(f.height)) screenH=\(Int(sh)) live=\(w.inLiveResize)"
+        case "wheelsweep":
+            // wheelsweep N HZ DY [X Y] — N wheel ticks of DY at HZ through the
+            // host's scroll process (LayerTree.wheel), returning to the run
+            // loop between ticks so frames commit as under a real wheel.
+            guard let t = bridge.tree else { return "no tree" }
+            let n = max(1, Int(num(1))), hz = max(1.0, num(2)), dy = num(3)
+            let px = a.count > 4 ? num(4) : 640, py = a.count > 5 ? num(5) : 400
+            var i = 0
+            let timer = Timer.scheduledTimer(withTimeInterval: 1.0 / hz, repeats: true) { [weak t] timer in
+                guard let t else { timer.invalidate(); return }
+                t.wheel(atModel: CGPoint(x: px, y: py), dx: 0, dy: CGFloat(dy), pinch: false, phase: [], momentum: [])
+                i += 1
+                if i >= n { timer.invalidate() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            return "sweeping \(n) ticks of \(Int(dy)) at \(Int(hz))Hz"
+        case "responder":
+            guard let w = view?.window else { return "no window" }
+            return w.firstResponder.map { String(describing: type(of: $0)) } ?? "nil"
         case "bar":
             // Is there a grabbable scrollbar thumb here, and whose?
             guard let t = bridge.tree else { return "no tree" }

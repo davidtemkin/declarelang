@@ -28,7 +28,8 @@
 // so the hit walk tells the truth about a turned or scaled surface).
 
 import { DeclareError } from "./errors.js";
-import { inAnimationFrame } from "./animate.js";
+import { inAnimationFrame, sample, motionToken, DEFAULT_MOTION, type Motion } from "./animate.js";
+import { ScrollPhysics, type ScrollState } from "./scroll-physics.js";
 const MICROTASK_PAINT = -1;
 import { notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type RenderBackend, type Stretch, type Surface, type InputWants } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
@@ -37,6 +38,7 @@ import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.
 import { cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type TextStyle, type TextTransform } from "./measure.js";
 import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS, type DisplayList, type Bounds } from "./draw.js";
 import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-filter.js";
+import { rasterWorkerAvailable, rasterInWorker } from "./raster-client.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive, type HitTarget } from "./input.js";
 
@@ -116,7 +118,9 @@ interface RasterEntry {
   list: DisplayList;
   sx: number;
   sy: number;
-  canvas: HTMLCanvasElement;
+  /** the pixels: a canvas made on the main thread, or an ImageBitmap the
+   *  raster worker sent back (raster-client.ts) — drawImage takes either */
+  canvas: HTMLCanvasElement | ImageBitmap;
   bytes: number;
   bx: number;                  // the bounds origin the raster is anchored at
   by: number;
@@ -163,8 +167,12 @@ const BLANK_CHECK_BYTES = 8 << 20;
 // a diag window into the pool (the __declareDiag family): entries and bytes,
 // so a session growing rasters is visible rather than mysterious
 (globalThis as { __declareRasterStats?: () => { entries: number; bytes: number } }).__declareRasterStats =
-  () => ({ entries: memoHolders.size, bytes: memoBytes, paints: memoPaints, attempts: memoAttempts,
-           generation: memoGeneration, budgetScale });
+  () => {
+    let workerEntries = 0;
+    if (typeof ImageBitmap !== "undefined") for (const h of memoHolders) if (h.rasterEntry?.canvas instanceof ImageBitmap) workerEntries++;
+    return { entries: memoHolders.size, bytes: memoBytes, paints: memoPaints, attempts: memoAttempts,
+             generation: memoGeneration, budgetScale, workerEntries };
+  };
 
 function viewportBytes(c: HTMLCanvasElement | null): number {
   return c === null ? 8 << 20 : c.width * c.height * 4;
@@ -175,6 +183,9 @@ function releaseRaster(s: CanvasSurface): void {
   memoBytes -= e.bytes;
   s.rasterEntry = null;
   memoHolders.delete(s);
+  // a worker bitmap holds GPU/shared memory until closed — release it now,
+  // not whenever the collector gets to it
+  if (typeof ImageBitmap !== "undefined" && e.canvas instanceof ImageBitmap) e.canvas.close();
 }
 /** Eviction by RELEVANCE, then by value — not by recency. An entry not painted
  *  last frame is off-screen and worthless however recently it was made, and
@@ -198,6 +209,174 @@ function evictLeastValuable(except: CanvasSurface): boolean {
   return true;
 }
 
+// ── THE SCROLL LOOP — the runtime provider's own loop (scrolling.md, "The
+// scroll process", ruled 2026-09-10) ──────────────────────────────────────
+//
+// Scrolling on canvas is an EXTERNAL PROCESS the program only observes: the
+// offset is a fact, a program's write is a request. This loop IS that process.
+// It runs FIRST in every animation frame, before paint and before any settle:
+//   • DESKTOP — wheel deltas are batched here per surface and applied once per
+//     frame. The platform's wheel stream already carries trackpad momentum, so
+//     they apply as delivered — no physics, no overscroll (ruled).
+//   • TOUCH — a finger over an unclaimed scrollable pane opens a physics
+//     session (Mesa's engine, scroll-physics.ts: drag, momentum, rubber-band
+//     spring) that steps here each frame. Its rubber band is PRESENTATION —
+//     the visual offset — while the fact stays clamped to the range.
+//   • GLIDES — a request with `{ duration, motion }` tweens here on a Declare
+//     motion curve; a gesture on the same surface cancels it (arbitration).
+// Offsets land on the surfaces, the frame PAINTS (a translate of cached
+// rasters), and only then are the FACTS written — once per frame — so the
+// settle that follows can never delay the motion (its own paint lands a frame
+// later: the documented ≤1-frame lag). `scrolling` is true while any of the
+// three is live, plus a short quiet tail after a wheel stream.
+type Glide = { duration?: number; motion?: string };
+interface Tween { axis: "x" | "y"; from: number; to: number; start: number; duration: number; curve: Motion }
+interface TouchSession { s: CanvasSurface; physics: ScrollPhysics; started: boolean; x0: number; y0: number; last: number }
+
+class ScrollLoop {
+  private readonly pending = new Map<CanvasSurface, { dx: number; dy: number }>();
+  private readonly tweens = new Map<CanvasSurface, Tween[]>();
+  touch: TouchSession | null = null;
+  private readonly moved = new Set<CanvasSurface>();
+  private readonly active = new Set<CanvasSurface>();
+  private readonly quiet = new Map<CanvasSurface, ReturnType<typeof setTimeout>>();
+  constructor(private readonly comp: Compositor) {}
+
+  private begin(s: CanvasSurface): void {
+    const q = this.quiet.get(s);
+    if (q !== undefined) { clearTimeout(q); this.quiet.delete(s); }
+    if (!this.active.has(s)) { this.active.add(s); s.reportScrolling(true); }
+  }
+  private settle(s: CanvasSurface): void {
+    if (this.active.has(s)) { this.active.delete(s); s.reportScrolling(false); }
+  }
+  private idle(s: CanvasSurface): boolean {
+    return !this.pending.has(s) && !this.tweens.has(s) && this.touch?.s !== s && !this.quiet.has(s);
+  }
+
+  /** Desktop: a wheel delta, applied next frame. */
+  enqueue(s: CanvasSurface, dx: number, dy: number): void {
+    const p = this.pending.get(s);
+    if (p !== undefined) { p.dx += dx; p.dy += dy; } else this.pending.set(s, { dx, dy });
+    this.tweens.delete(s);                      // a gesture cancels a glide
+    this.begin(s);
+    this.comp.invalidate();
+  }
+
+  /** A request with a glide: a tween on the provider's own loop. */
+  glide(s: CanvasSurface, axis: "x" | "y", to: number, g: Glide): void {
+    const curve = motionToken(g.motion ?? "cubicOut") ?? DEFAULT_MOTION;
+    const from = axis === "y" ? s.scrollOffset : s.scrollXOffset;
+    const list = (this.tweens.get(s) ?? []).filter((t) => t.axis !== axis);
+    list.push({ axis, from, to, start: performance.now(), duration: Math.max(1, g.duration ?? 260), curve });
+    this.tweens.set(s, list);
+    this.begin(s);
+    this.comp.invalidate();
+  }
+  cancelGlides(s: CanvasSurface): void {
+    if (!this.tweens.delete(s)) return;
+    if (this.idle(s)) this.settle(s);
+  }
+
+  /** Touch: a session opens over an unclaimed scrollable pane; it OWNS the
+   *  finger only once it moves past the tap slop, so a tap still lands. */
+  touchDown(s: CanvasSurface, x: number, y: number, t: number): void {
+    this.tweens.delete(s);
+    const physics = new ScrollPhysics({ contentWidth: s.contentExtentX(), contentHeight: s.contentExtent(), viewportWidth: s.width, viewportHeight: s.height });
+    physics.setContentOffset(s.scrollXOffset, s.scrollOffset);
+    this.touch = { s, physics, started: false, x0: x, y0: y, last: t };
+    physics.handleFingerEvent({ type: "down", x, y, time: t });
+  }
+  /** True = the session owns this move (the browser must not pan the page). */
+  touchMove(x: number, y: number, t: number): boolean {
+    const ts = this.touch;
+    if (ts === null) return false;
+    if (!ts.started) {
+      if (Math.abs(x - ts.x0) + Math.abs(y - ts.y0) < 4) return false;
+      ts.started = true;
+      this.begin(ts.s);
+    }
+    ts.last = t;
+    this.apply(ts.s, ts.physics.handleFingerEvent({ type: "move", x, y, time: t }));
+    this.comp.invalidate();
+    return true;
+  }
+  touchUp(x: number, y: number, t: number, cancel = false): void {
+    const ts = this.touch;
+    if (ts === null) return;
+    if (!ts.started) { this.touch = null; return; }          // a tap — nothing scrolled
+    this.apply(ts.s, ts.physics.handleFingerEvent({ type: cancel ? "cancel" : "up", x, y, time: t }));
+    this.comp.invalidate();                                   // momentum / spring from here
+  }
+  private apply(s: CanvasSurface, st: ScrollState): void {
+    // the FACT stays clamped; the rubber band lives in the visual offset only
+    // (Mesa's overscroll is positive when pulled PAST THE TOP/LEFT — i.e. the
+    // content sits below its origin — so it subtracts from the offset)
+    const maxY = Math.max(0, s.contentExtent() - s.height), maxX = Math.max(0, s.contentExtentX() - s.width);
+    if (s.scrolls) {
+      s.scrollVisualY = st.contentOffsetY - st.overscrollY;
+      const y = Math.min(maxY, Math.max(0, st.contentOffsetY));
+      if (y !== s.scrollOffset) { s.scrollOffset = y; this.moved.add(s); }
+    }
+    if (s.scrollsX) {
+      s.scrollVisualX = st.contentOffsetX - st.overscrollX;
+      const x = Math.min(maxX, Math.max(0, st.contentOffsetX));
+      if (x !== s.scrollXOffset) { s.scrollXOffset = x; this.moved.add(s); }
+    }
+  }
+
+  /** Runs FIRST in the frame; answers whether another frame is wanted. */
+  step(now: number): boolean {
+    let live = false;
+    for (const [s, p] of this.pending) {
+      if (s.scrollsX && p.dx !== 0) {
+        const nx = Math.min(Math.max(0, s.contentExtentX() - s.width), Math.max(0, s.scrollXOffset + p.dx));
+        if (nx !== s.scrollXOffset) { s.scrollXOffset = nx; this.moved.add(s); }
+      }
+      if (s.scrolls && p.dy !== 0) {
+        const ny = Math.min(Math.max(0, s.contentExtent() - s.height), Math.max(0, s.scrollOffset + p.dy));
+        if (ny !== s.scrollOffset) { s.scrollOffset = ny; this.moved.add(s); }
+      }
+      // a wheel stream ends when it goes quiet
+      const q = this.quiet.get(s);
+      if (q !== undefined) clearTimeout(q);
+      this.quiet.set(s, setTimeout(() => { this.quiet.delete(s); if (this.idle(s)) this.settle(s); }, 120));
+    }
+    this.pending.clear();
+    for (const [s, list] of this.tweens) {
+      const keep: Tween[] = [];
+      for (const t of list) {
+        const p = Math.min(1, (now - t.start) / t.duration);
+        const v = t.from + (t.to - t.from) * sample(t.curve, p);
+        if (t.axis === "y") { if (v !== s.scrollOffset) { s.scrollOffset = v; this.moved.add(s); } }
+        else if (v !== s.scrollXOffset) { s.scrollXOffset = v; this.moved.add(s); }
+        if (p < 1) keep.push(t);
+      }
+      if (keep.length > 0) { this.tweens.set(s, keep); live = true; }
+      else { this.tweens.delete(s); if (this.idle(s)) this.settle(s); }
+    }
+    const ts = this.touch;
+    if (ts !== null && ts.started) {
+      const st = ts.physics.isAnimating() ? ts.physics.step(Math.max(1, now - ts.last)) : ts.physics.getState();
+      ts.last = now;
+      this.apply(ts.s, st);
+      if (ts.physics.isAnimating() || st.phase === "dragging") live = true;
+      else {
+        ts.s.scrollVisualY = null; ts.s.scrollVisualX = null; this.moved.add(ts.s);
+        this.touch = null;
+        if (this.idle(ts.s)) this.settle(ts.s);
+      }
+    }
+    return live;
+  }
+
+  /** After paint: the facts, once per frame. */
+  flushFacts(): void {
+    for (const s of this.moved) s.reportOffsets();
+    this.moved.clear();
+  }
+}
+
 class Compositor {
   private canvas: HTMLCanvasElement | null = null;
   /** the sealed surface's element — the raster memo denominates its caps in
@@ -215,6 +394,8 @@ class Compositor {
   private readonly editables = new Set<CanvasSurface>();
   /** Pending requestAnimationFrame handle; 0 = no paint scheduled. */
   private frame = 0;
+  /** The runtime scroll provider's loop — runs FIRST in every frame. */
+  readonly scrollLoop = new ScrollLoop(this);
   /** The page-scroll STRUT (pageRoot realization): an inert 1px-wide element
    *  in the host whose height is the root's content extent — the document's
    *  scroll range, without the canvas itself ever growing. */
@@ -370,10 +551,24 @@ class Compositor {
       // the PINCH claim engages at the SECOND finger — one finger stays the
       // enclosing regime's pan, exactly the DOM's `pan-x pan-y`
       else if (claim.pinch && e.touches.length >= 2) e.preventDefault();
+      // An UNCLAIMED finger over an interior scrolling pane opens the runtime
+      // provider's touch session (Mesa physics — drag, momentum, rubber band).
+      // The page root is never its target: the page's scroll is the browser's.
+      else if (claim.drag === false && e.touches.length === 1) {
+        const r = this.canvas.getBoundingClientRect();
+        const t0 = e.touches[0];
+        const pane = this.root.scrollerAt(t0.clientX - r.left, t0.clientY - r.top);
+        if (pane !== null) this.scrollLoop.touchDown(pane, t0.clientX, t0.clientY, e.timeStamp);
+      }
     }, { passive: false });
     canvas.addEventListener("touchmove", (e) => {
       // a live hold-capture owns the finger regardless of the touchdown claim
       if (holdCaptureActive()) { e.preventDefault(); return; }
+      // a touch scroll session owns the finger once it moves past the tap slop
+      if (this.scrollLoop.touch !== null && e.touches.length === 1) {
+        const t0 = e.touches[0];
+        if (this.scrollLoop.touchMove(t0.clientX, t0.clientY, e.timeStamp)) { e.preventDefault(); return; }
+      }
       if (claim === null) return;
       if (claim.touch) { e.preventDefault(); return; }
       if (claim.pinch && e.touches.length >= 2) { e.preventDefault(); return; }
@@ -392,6 +587,10 @@ class Compositor {
       if (axisVerdict === "ours") e.preventDefault();
     }, { passive: false });
     const gestureEnd = (e: TouchEvent): void => {
+      if (this.scrollLoop.touch !== null) {
+        const t0 = e.changedTouches[0];
+        if (t0 !== undefined) this.scrollLoop.touchUp(t0.clientX, t0.clientY, e.timeStamp, e.type === "touchcancel");
+      }
       if (e.touches.length === 0) { claim = null; claimStart = null; axisVerdict = null; }
     };
     canvas.addEventListener("touchend", gestureEnd);
@@ -412,10 +611,8 @@ class Compositor {
       }
       const dx = e.shiftKey ? (e.deltaX || e.deltaY) : e.deltaX;
       const dy = e.shiftKey ? 0 : e.deltaY;
-      if (this.root.scrollBy(x, y, dx, dy)) {
-        e.preventDefault();
-        this.invalidate();
-      }
+      // the delta lands on the scroll loop (applied, painted, reported next frame)
+      if (this.root.scrollBy(x, y, dx, dy)) e.preventDefault();
     }, { passive: false });
     // ── the OVERLAY SCROLLBAR's interaction (one design, both pointer
     // kinds): a fine pointer near the bar WIDENS it and can grab the thumb
@@ -551,12 +748,23 @@ class Compositor {
       queueMicrotask(() => {
         if (this.frame !== MICROTASK_PAINT) return;
         this.frame = 0;
-        this.paint();
+        this.frameTick();
       });
       return;
     }
-    this.frame = requestAnimationFrame(this.paint);
+    this.frame = requestAnimationFrame(this.frameTick);
   }
+
+  /** The frame: scroll loop → paint → facts. The offsets move and the frame
+   *  paints them BEFORE any program hears the fact, so the settle the fact
+   *  triggers can never delay the motion; while the loop is live (momentum,
+   *  a glide, a rubber-band spring) it books the next frame itself. */
+  private readonly frameTick = (): void => {
+    const live = this.scrollLoop.step(performance.now());
+    this.paint();
+    this.scrollLoop.flushFacts();
+    if (live && this.frame === 0 && this.ctx !== null) this.frame = requestAnimationFrame(this.frameTick);
+  };
 
   /** A destroyed root takes the canvas (and any pending frame) with it;
    *  destroying any other surface just repaints the scene without it. */
@@ -711,6 +919,17 @@ class CanvasSurface implements Surface {
   }
   private onScrollCb: ((y: number) => void) | null = null;
   private onScrollXCb: ((x: number) => void) | null = null;
+  private onScrollingCb: ((active: boolean) => void) | null = null;
+  /** The VISUAL offset while a touch session rubber-bands past the range —
+   *  presentation only; null = paint at the (clamped) fact. */
+  scrollVisualY: number | null = null;
+  scrollVisualX: number | null = null;
+  /** The facts, written by the scroll loop after the frame painted. */
+  reportOffsets(): void {
+    if (this.scrolls) this.onScrollCb?.(this.scrollOffset);
+    if (this.scrollsX) this.onScrollXCb?.(this.scrollXOffset);
+  }
+  reportScrolling(active: boolean): void { this.onScrollingCb?.(active); }
   parent: CanvasSurface | null = null;
   readonly children: CanvasSurface[] = [];
 
@@ -790,7 +1009,7 @@ class CanvasSurface implements Surface {
   private editEl: HTMLInputElement | HTMLTextAreaElement | null = null;
   private edit: EditableSpec | null = null;
 
-  constructor(private readonly compositor: Compositor) {}
+  constructor(readonly compositor: Compositor) {}
 
   setX(v: number): void { this.x = v; this.compositor.invalidate(); }
   setY(v: number): void { this.y = v; this.compositor.invalidate(); }
@@ -913,6 +1132,7 @@ class CanvasSurface implements Surface {
   setDrawing(list: DisplayList | null): void {
     this.drawing = list;
     releaseRaster(this);                     // a new recording invalidates the memo by identity
+    this.rasterPending = null;               // …and orphans a raster in flight (dropped on arrival)
     this.rasterSeen = null;
     this.rasterScalePending = null;
     if (this.rasterRestTimer !== 0) { clearTimeout(this.rasterRestTimer); this.rasterRestTimer = 0; }
@@ -921,6 +1141,9 @@ class CanvasSurface implements Surface {
 
   /** @internal the raster memo's per-surface state (module functions manage the pool) */
   rasterEntry: RasterEntry | null = null;
+  /** A raster the worker is making for this surface (raster-client.ts); the
+   *  arrival installs it only if this is still the request it answers. */
+  private rasterPending: { list: DisplayList; sx: number; sy: number; bx: number; by: number; w: number; h: number; bytes: number } | null = null;
   private rasterSeen: { list: DisplayList; sx: number; sy: number } | null = null;
   private rasterScalePending: { sx: number; sy: number; since: number } | null = null;
   private rasterRestTimer: ReturnType<typeof setTimeout> | 0 = 0;
@@ -1014,10 +1237,57 @@ class CanvasSurface implements Surface {
     const h = Math.ceil((b.h + 2 * pad) * sy);
     const bytes = w * h * 4;
     if (w < 1 || h < 1 || w > RASTER_MAX_DIM || h > RASTER_MAX_DIM || w * h > RASTER_MAX_AREA || bytes > rasterEntryCap(viewportBytes(root))) { replay(ctx, list, clip); return; }
-    releaseRaster(this);
     while (memoBytes + bytes > rasterTotalCap(viewportBytes(root)) * budgetScale) {
       if (!evictLeastValuable(this)) { replay(ctx, list, clip); return; }
     }
+    // THE WORKER RASTER (adaptive-draw-cache.md §3.1, built 2026-09-10): where
+    // the engine can, the pixels are made OFF the main thread and arrive a
+    // frame or two later as a transferable bitmap. Until then this frame
+    // paints what it has — the prior raster of the same list, scaled (the
+    // stretch grace's own move), or vectors — so a settle that re-records a
+    // drawing never stalls the frame on its raster, and a flick stays a
+    // translate of bitmaps that already exist. Deniable: no worker, and the
+    // synchronous path below is exactly what it was.
+    if (rasterWorkerAvailable()) {
+      const pend = this.rasterPending;
+      if (pend === null || pend.list !== list || pend.sx !== sx || pend.sy !== sy) {
+        const req = { list, sx, sy, bx, by, w, h, bytes };
+        this.rasterPending = req;
+        memoAttempts++;
+        void rasterInWorker({ list, sx, sy, bx, by, w, h, blankCheck: bytes > BLANK_CHECK_BYTES }).then((r) => {
+          if (this.rasterPending !== req) { r?.bitmap.close(); return; }   // superseded: a newer recording or scale
+          this.rasterPending = null;
+          if (r === null) { this.compositor.invalidate(); return; }          // the worker could not: the next paint rasters in place
+          if (r.blank) {
+            r.bitmap.close();
+            budgetScale = Math.max(0.125, budgetScale * 0.5);               // a DISCOVERED ceiling
+            (globalThis as { __declareRasterErr?: string }).__declareRasterErr = "raster came back blank";
+            return;
+          }
+          const rootNow = this.compositor.rootCanvas;
+          releaseRaster(this);
+          while (memoBytes + bytes > rasterTotalCap(viewportBytes(rootNow)) * budgetScale) {
+            if (!evictLeastValuable(this)) { r.bitmap.close(); return; }
+          }
+          this.rasterEntry = { list, sx, sy, canvas: r.bitmap, bytes, bx, by, stamp: ++memoStamp, seen: memoGeneration, rasterMs: r.rasterMs, hits: 0 };
+          memoBytes += bytes;
+          memoHolders.add(this);
+          this.compositor.invalidate();                                     // the frame that shows the bitmap
+        });
+      }
+      if (e !== null && e.list === list) {
+        // the prior raster of this list, scaled, until the exact one lands
+        e.stamp = ++memoStamp;
+        e.seen = memoGeneration;
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(e.canvas, m.e + m.a * e.bx, m.f + m.d * e.by,
+          e.canvas.width * (sx / e.sx), e.canvas.height * (sy / e.sy));
+        ctx.restore();
+      } else replay(ctx, list, clip);
+      return;
+    }
+    releaseRaster(this);
     let cv: HTMLCanvasElement;
     let rasterMs = 0;
     try {
@@ -1539,10 +1809,11 @@ class CanvasSurface implements Surface {
     return undefined;
   }
 
-  setScroll(on: boolean, onScroll: (y: number) => void): void {
+  setScroll(on: boolean, onScroll: (y: number) => void, onScrolling?: (active: boolean) => void): void {
     this.scrolls = on;
     this.onScrollCb = on ? onScroll : null;
-    if (!on) this.scrollOffset = 0;
+    this.onScrollingCb = on ? (onScrolling ?? null) : null;
+    if (!on) { this.scrollOffset = 0; this.scrollVisualY = null; }
   }
 
   setVirtualExtent(h: number | null): void {
@@ -1553,7 +1824,7 @@ class CanvasSurface implements Surface {
   }
 
   /** Content extent along y — the real children floor'd by the virtual one. */
-  private contentExtent(): number {
+  contentExtent(): number {
     let extent = this.virtualExtent;
     for (const c of this.children) if (c.visible && !c.ignoresScroll) extent = Math.max(extent, c.y + c.height);
     return extent;
@@ -1566,26 +1837,35 @@ class CanvasSurface implements Surface {
    *  attribute push optional-called a scrollToX that did not exist, so a fresh
    *  column never slid into view on this renderer alone — while the hit walk,
    *  which the View side already shifts by scrollX, disagreed with the paint. */
-  setScrollX(on: boolean, onScroll?: (x: number) => void): void {
+  setScrollX(on: boolean, onScroll?: (x: number) => void, onScrolling?: (active: boolean) => void): void {
     this.scrollsX = on;
     this.onScrollXCb = on ? (onScroll ?? null) : null;
-    if (!on) this.scrollXOffset = 0;
+    if (on && onScrolling !== undefined) this.onScrollingCb = onScrolling;
+    if (!on) { this.scrollXOffset = 0; this.scrollVisualX = null; }
     this.compositor.invalidate();
   }
 
   /** Content extent along x — the widest a child reaches (contentExtent's twin;
    *  no virtual floor: windowing is vertical). */
-  private contentExtentX(): number {
+  contentExtentX(): number {
     let extent = 0;
     for (const c of this.children) if (c.visible && !c.ignoresScroll) extent = Math.max(extent, c.x + c.width);
     return extent;
   }
 
-  /** The write half of `scrollX` — clamped exactly as a wheel would be. */
-  scrollToX(v: number): void {
+  /** A request on x (`scrollToX`) — clamped exactly as a wheel would be; with a
+   *  glide it tweens on the scroll loop, and a gesture in flight owns the offset
+   *  (the request is dropped — arbitration rule 1). */
+  scrollToX(v: number, glide?: Glide): void {
     if (!this.scrollsX) return;
+    const loop = this.compositor.scrollLoop;
+    if (loop.touch?.s === this) return;
     const next = Math.min(Math.max(0, this.contentExtentX() - this.width), Math.max(0, v));
+    if (glide !== undefined) { loop.glide(this, "x", next, glide); return; }
+    // equal = inert: the fact's own echo through the attribute push (view.ts
+    // scrollX) must never cancel a glide or a session in progress
     if (next === this.scrollXOffset) return;
+    loop.cancelGlides(this);
     this.scrollXOffset = next;
     this.onScrollXCb?.(next);
     this.compositor.invalidate();
@@ -1610,11 +1890,15 @@ class CanvasSurface implements Surface {
 
   /** The write half of `scrollY` — same clamp as scrollBy, so a program write
    *  lands exactly where a user scroll would. */
-  scrollToY(v: number): void {
+  scrollToY(v: number, glide?: Glide): void {
     if (!this.scrolls) return;
+    const loop = this.compositor.scrollLoop;
+    if (loop.touch?.s === this) return;
     const extent = this.contentExtent();
     const next = Math.min(Math.max(0, extent - this.height), Math.max(0, v));
-    if (next === this.scrollOffset) return;
+    if (glide !== undefined) { loop.glide(this, "y", next, glide); return; }
+    if (next === this.scrollOffset) return;   // the fact's echo (see scrollToX)
+    loop.cancelGlides(this);
     this.scrollOffset = next;
     this.onScrollCb?.(next);
     this.compositor.invalidate();
@@ -1754,26 +2038,42 @@ class CanvasSurface implements Surface {
     // the page root's own scroll is the browser's — never consumed here
     if (this.pageRoot || !inBox) return false;
     // a horizontal pane takes the horizontal delta and lets a vertical one pass
-    // to whatever scrolls vertically here or above (the DOM backend's rule)
+    // to whatever scrolls vertically here or above (the DOM backend's rule).
+    // The delta is QUEUED on the scroll loop — applied next frame, painted,
+    // then reported — and the pane CONTAINS: consumed even at its limit
+    // (arbitration rule 2 — no chaining to the page).
+    const loop = this.compositor.scrollLoop;
     if (this.scrollsX && dx !== 0) {
-      const maxX = Math.max(0, this.contentExtentX() - this.width);
-      const nextX = Math.min(maxX, Math.max(0, this.scrollXOffset + dx));
-      if (nextX !== this.scrollXOffset) {
-        this.scrollXOffset = nextX;
-        this.onScrollXCb?.(nextX);
-      }
+      loop.enqueue(this, dx, 0);
       if (!this.scrolls) return true;
     }
     if (this.scrolls) {
-      const max = Math.max(0, this.contentExtent() - this.height);
-      const next = Math.min(max, Math.max(0, this.scrollOffset + dy));
-      if (next !== this.scrollOffset) {
-        this.scrollOffset = next;
-        this.onScrollCb?.(next);
-      }
+      if (dy !== 0) loop.enqueue(this, 0, dy);
       return true;
     }
     return false;
+  }
+
+  /** The innermost scrolling pane under (px,py) in PARENT-local space — a
+   *  touch session's target (scrollBy's walk, without a delta). Never the page
+   *  root: its scroll is the browser's. */
+  scrollerAt(px: number, py: number): CanvasSurface | null {
+    if (!this.visible) return null;
+    const lx = px - this.x;
+    const ly = py - this.y;
+    const cp = this.clipPathObj();
+    if (cp !== null && !hitCtx().isPointInPath(cp, lx, ly)) return null;
+    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
+    if ((this.scrolls || this.scrollsX) && !inBox) return null;
+    const cy = this.scrolls ? ly + this.scrollOffset : ly;
+    const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
+    for (let i = this.children.length - 1; i >= 0; i--) {
+      const c = this.children[i];
+      const hit = c.scrollerAt(this.scrollsX && c.ignoresScroll ? lx : cx, this.scrolls && c.ignoresScroll ? ly : cy);
+      if (hit !== null) return hit;
+    }
+    if (this.pageRoot || !inBox) return null;
+    return this.scrolls || this.scrollsX ? this : null;
   }
 
   /** Where this surface lived before travelWith moved it (null = at home). */
@@ -1820,6 +2120,7 @@ class CanvasSurface implements Surface {
 
   destroy(): void {
     releaseRaster(this);                       // the memo pool must not outlive the surface
+    this.rasterPending = null;
     if (this.rasterRestTimer !== 0) { clearTimeout(this.rasterRestTimer); this.rasterRestTimer = 0; }
     this.editEl?.remove();
     this.editEl = null;
@@ -2079,10 +2380,19 @@ class CanvasSurface implements Surface {
         if (this.textUnderline || this.textStrike) {
           const lw = textWidth(line, this.font, this.letterSpacing);
           const th = Math.max(1, Math.round(this.fontSizePx / 16));
+          // The rule is CENTER-anchored on the decoration axis (`fillRect` takes a
+          // top, so subtract half the thickness): the browser paints line-through
+          // and underline at a font-metric position, and matching that CENTER —
+          // not the band's top — is what keeps the Canvas and DOM backends in step.
+          // Ratios are measured off the reference (system-ui, several sizes): a
+          // strike centered ~0.31·fs ABOVE the baseline (through the letter bodies),
+          // an underline ~0.11·fs below it. The old top-anchored 0.28/0.12 sank both
+          // by half a thickness — the strike visibly (~0.05·fs low), the underline
+          // slightly.
           ctx.save();
           ctx.fillStyle = this.textFill;
-          if (this.textUnderline) ctx.fillRect(x, y + Math.round(this.fontSizePx * 0.12), lw, th);
-          if (this.textStrike) ctx.fillRect(x, y - Math.round(this.fontSizePx * 0.28), lw, th);
+          if (this.textUnderline) ctx.fillRect(x, Math.round(y + this.fontSizePx * 0.11 - th / 2), lw, th);
+          if (this.textStrike) ctx.fillRect(x, Math.round(y - this.fontSizePx * 0.31 - th / 2), lw, th);
           ctx.restore();
         }
       };
@@ -2130,7 +2440,9 @@ class CanvasSurface implements Surface {
       ctx.beginPath();
       ctx.rect(0, 0, this.width, this.height);
       ctx.clip();
-      ctx.translate(this.scrollsX ? -this.scrollXOffset : 0, this.scrolls ? -this.scrollOffset : 0);
+      // (the VISUAL offset carries a touch session's rubber band; the fact
+      // underneath stays clamped)
+      ctx.translate(this.scrollsX ? -(this.scrollVisualX ?? this.scrollXOffset) : 0, this.scrolls ? -(this.scrollVisualY ?? this.scrollOffset) : 0);
       for (const child of this.children) { if ((skipExempt && child.ignoresClip) || child.ignoresScroll) continue; child.paint(ctx); }
       ctx.restore();
       // frame chrome (ignoreScroll): rides the frame — painted unshifted,

@@ -1,0 +1,21 @@
+// A value of your own, provided high and read below
+// Declare a typed attribute on an ancestor — `density: number = 2` — and any descendant reads
+// it with `provided("density")`. The built-in face values work the same way with no declaration:
+// `fontSize = 13` on the App provides it to every Text beneath. Click anywhere to flip the density.
+
+class Row extends View [ width = { parent.width }, height = { 16 + 12 * provided("density") }, cornerRadius = 6, fill = #FFFFFF,
+    label: string = "",
+    Text [ x = 12, y = center, text = { classroot.label } ]
+    ]
+
+
+App [ fill = #F0F3F6, fontSize = 13, textColor = #172530,
+    density: number = 2,
+    onClick() { density = density == 2 ? 1 : 2 },
+    list: View [ x = 20, y = 20, width = 300,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Row [ label = "each row reads provided(\"density\")" ],
+        Row [ label = "the App declares it — click to flip" ],
+        Row [ label = "fontSize 13 is provided the same way" ]
+        ]
+    ]

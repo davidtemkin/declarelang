@@ -63,16 +63,21 @@ export function stripEditsFor(src: string, expression: boolean): StripEdit[] {
     } else if (ts.isTypeAssertionExpression(n)) {
       // `<T>x` — remove the angle-bracket prefix, keep the expression
       edits.push({ start: n.getStart(sf) + delta, end: n.expression.getStart(sf) + delta });
-    } else if ((ts.isCallExpression(n) || ts.isNewExpression(n)) && n.typeArguments !== undefined && n.typeArguments.length > 0) {
-      // `f<T>(…)` / `new C<T>(…)` — an explicit CALL-SITE type argument list.
+    } else if ((ts.isCallExpression(n) || ts.isNewExpression(n) || ts.isTaggedTemplateExpression(n) || ts.isExpressionWithTypeArguments(n))
+        && n.typeArguments !== undefined && n.typeArguments.length > 0) {
+      // An explicit TYPE ARGUMENT LIST on an expression — `f<T>(…)`,
+      // `new C<T>(…)`, `` tag<T>`…` ``, and the bare instantiation `f<T>`.
       // Type-level syntax like any other, and the one shape that reached the
       // runtime intact: `<` then parses as less-than and the type's names
       // evaluate as variables (`gqlRequest<{ items: Track[] }>("q")` threw
       // "Track is not defined" in a real browser, or failed the body parse
       // outright, while every static rung passed — a field report's most
-      // expensive finding, 2026-09-04). Delete from the `<` to the `>`: the
-      // list's own span, bounded by the expression before it and the argument
-      // list after.
+      // expensive finding, 2026-09-04). The tagged-template and instantiation
+      // forms are the same hole (audited against the vendored TS 5.9.3,
+      // 2026-09-09): the template form even PARSES as JS — a comparison chain
+      // — so nothing downstream could have caught it. Delete from the `<` to
+      // the `>`: the list's own span, bounded by the expression before it and
+      // whatever follows.
       // `typeArguments.pos` sits just past the `<`; `.end` just past the last
       // type, before the `>`. Take the whole `<…>` by walking out to each.
       const lt = text.lastIndexOf("<", n.typeArguments.pos);

@@ -137,13 +137,25 @@ A dialog is the whole app: its box is the backdrop and the panel is its child, s
 
 ## height
 The whole app's height, for the same reason as `width`.
+
+## theme
+The provided design-token record this widget styles off — a **provided value**
+(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
+widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
+house look. See `Control.theme`.
 */
 
 include [ "control.declare" ]
 
 include [ "button.declare" ]
 
-class Dialog extends View [ visible = { shown },
+class Dialog extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", SanFrancisco) },
+    visible = { shown },
     x = 0,
     y = 0,
     width = { app.width },
@@ -249,9 +261,9 @@ class Dialog extends View [ visible = { shown },
     arrangement: string = { typeof theme.dialogButtons == "string" ? theme.dialogButtons : "end" },
     centered: boolean = { theme.dialogAlign == "center" },
 
-    data: Dataset [ contents = { ({ b: classroot.arrangement == "stack"
+    data: Dataset [ contents = { { b: classroot.arrangement == "stack"
         ? [...(classroot.buttons || [])].sort((p, q) => (q.default ? 1 : q.cancel ? -1 : 0) - (p.default ? 1 : p.cancel ? -1 : 0))
-        : classroot.buttons || [] }) } ],
+        : classroot.buttons || [] } } ],
 
     // the scrim: MODAL input blocking — every press lands here and stops
 

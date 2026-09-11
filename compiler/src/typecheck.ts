@@ -126,7 +126,7 @@ export function typecheckBodies(resolved: string, program: Program): { errors: D
   for (const cls of rprog.classes) emitter.classHasChildren.set(cls.name, cls.body.children.length > 0);
   for (const cls of rprog.classes) emitter.assignTypes(cls.body, true);
   const rootType = emitter.assignTypes(rprog.root, false);
-  let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras, emitter.signatureTypeNames, rprog.shapes ?? []);
+  let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras, emitter.signatureTypeNames, rprog.shapes ?? [], (rprog.themes ?? []).map((t) => t.name));
   // A program's `script { … }` blocks are ambient TypeScript for every body:
   // their declarations are real signatures, so appending the source to the
   // scaffold is what makes `dbl(app.v)` typecheck against the actual function

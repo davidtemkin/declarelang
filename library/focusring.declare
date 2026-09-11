@@ -112,9 +112,21 @@ sights" reading; `theme.focusRingInnerWidth` adds the Fluent two-tone band.
 
 ## visible
 Visible while its faded opacity still shows anything, and never while an overlay is up — a ring behind a dialog would point at something you cannot reach.
+
+## theme
+The provided design-token record this widget styles off — a **provided value**
+(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
+widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
+house look. See `Control.theme`.
 */
 
-class FocusRing extends View [ opacity = 0,
+class FocusRing extends View [
+    // The design-token record, a PROVIDED value (docs/system-design/style.md):
+    // the app provides it once and this widget reads it, so `theme.x` reads below
+    // are plain typed members. Default = the house look (no runtime floor).
+
+    theme: Theme = { provided("theme", SanFrancisco) },
+    opacity = 0,
 
     // an OVERLAY owns the keys (an open menu — Keys.navClaim): the ring
     // stands down while it's up — the menu's rover is the focus story, and

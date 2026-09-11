@@ -101,7 +101,7 @@ necessarily — on a flatter field, secondary text must go darker to hold the sa
 hierarchy.
 
 Counter-evidence considered: **tracker uses house directly**
-(`Themes.sanFrancisco(darkUI)`, no bespoke palette) and it is the densest app in
+(`(darkUI ? SanFranciscoDark : SanFrancisco)`, no bespoke palette) and it is the densest app in
 the corpus. But tracker is a *list* — rows divided by rules — not a 2D tiling, so
 it has no corduroy to avoid. Calendar is the only 2D-tiled surface here.
 

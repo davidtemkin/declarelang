@@ -20,8 +20,14 @@ enum TextEngine {
         var italic: Bool
     }
 
+    // Both caches are reached from TWO threads since the runtime moved off
+    // main (Bridge, THE RUNTIME THREAD): the runtime's `H.measure` and the
+    // layer tree's applyText. A Swift dictionary mutated from two threads
+    // crashes (measured: SIGSEGV in Dictionary.subscript.getter loading the
+    // homepage, 2026-09-10) — so one lock guards every access.
     private static var fontCache: [Font: NSFont] = [:]
     private static var measureCache: [String: [Double]] = [:]
+    private static let cacheLock = NSLock()
 
     /// "italic 600 13px SF Pro Text, system-ui" → a resolved NSFont.
     static func parse(_ css: String) -> Font {
@@ -49,10 +55,14 @@ enum TextEngine {
     }
 
     static func nsFont(_ f: Font) -> NSFont {
-        if let c = fontCache[f] { return c }
+        cacheLock.lock()
+        if let c = fontCache[f] { cacheLock.unlock(); return c }
+        cacheLock.unlock()
         let resolved = resolve(f)
+        cacheLock.lock()
         if fontCache.count > 512 { fontCache.removeAll() }
         fontCache[f] = resolved
+        cacheLock.unlock()
         return resolved
     }
 
@@ -142,7 +152,9 @@ enum TextEngine {
     /// metrics — fontMetrics() depends on exactly that.
     static func measure(text: String, font: String, letterSpacing: Double, scale: CGFloat) -> [Double] {
         let key = "\(font)\u{1}\(letterSpacing)\u{1}\(text)"
-        if let c = measureCache[key] { return c }
+        cacheLock.lock()
+        if let c = measureCache[key] { cacheLock.unlock(); return c }
+        cacheLock.unlock()
         let f = nsFont(parse(font))
         // ROUNDED to integers, because that is what the browsers report and the
         // runtime derives layout from these numbers: line box = ascent+descent,
@@ -174,8 +186,10 @@ enum TextEngine {
             actualDescent = Double(-bounds.minY)
         }
         let out = [width, ascent, descent, actualAscent, actualDescent]
+        cacheLock.lock()
         if measureCache.count > 4096 { measureCache.removeAll() }
         measureCache[key] = out
+        cacheLock.unlock()
         return out
     }
 

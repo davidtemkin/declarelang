@@ -27,8 +27,9 @@ of Text's own style attributes** — `fontSize`, `fontFamily`, `fontWeight`, `te
 `textFill`, `letterSpacing`, and the treatments (`italic`, `textShadow`, `outline`,
 `smallCaps`, `textTransform`, `underline`, `strike`) — that a `<span class="name">` references.
 The field names are exactly the ones you set on a `Text`, so there is nothing new to learn.
-A `<span class>` **also** resolves a top-level `style` bundle (the same one a view wears via
-`styles`), so a palette shared across the app lives in one place; use this local map for a
+A `<span class>` **also** resolves a top-level `style` bundle — the run vehicle for prose,
+whose fields may themselves read `provided(…)` (so a highlighted keyword follows the theme) —
+so a palette shared across the app lives in one place; use this local map for a
 one-off. The content only *names* a style the app defines; it never carries CSS itself, so this stays safe for
 loaded HTML (an unknown class renders as plain text). One flowing string can carry a bigger,
 differently-faced, gradient word, correctly baseline-aligned with the prose around it:

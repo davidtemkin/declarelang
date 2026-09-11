@@ -45,6 +45,15 @@ export declare const OP: {
     readonly MEDIA: 39;
     readonly RASTERSCALE: 40;
     readonly EDITSEL: 41;
+    /** The host's scroll process (scrolling.md "The scroll process"): a view
+     *  that claims the wheel (`onWheel`) so the host's walk hands it the stream
+     *  instead of scrolling; and a glide request — (axis, to, duration, bezier). */
+    readonly WHEELCLAIM: 42;
+    readonly SCROLLGLIDE: 43;
+};
+type Glide = {
+    duration?: number;
+    motion?: string;
 };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
@@ -83,6 +92,16 @@ declare class MacSurface implements Surface {
     scrolls: boolean;
     scrollOffset: number;
     private onScrollCb;
+    private onScrollXCb;
+    private onScrollingCb;
+    /** The host's `scrolling` fact as last reported, and whether a GESTURE
+     *  (a trackpad stream, its momentum, a bar drag) owns the offset right now —
+     *  a request during it is dropped (arbitration rule 1). Both arrive per
+     *  frame through macScrollFacts; the model never infers them. */
+    scrollingLive: boolean;
+    gestureLive: boolean;
+    /** Where this surface lived before travelWith moved it (null = at home). */
+    private travelHome;
     parent: MacSurface | null;
     readonly children: MacSurface[];
     ignoresClip: boolean;
@@ -201,9 +220,21 @@ declare class MacSurface implements Surface {
      *  and a later re-push updates these through the guard. */
     wantsScrollY: boolean;
     wantsScrollX: boolean;
-    setScroll(on: boolean, onScroll: (y: number) => void): void;
-    /** Horizontal scroll is not yet realized natively (code blocks clip). */
-    setScrollX(on: boolean): void;
+    setScroll(on: boolean, onScroll: (y: number) => void, onScrolling?: (active: boolean) => void): void;
+    /** The horizontal regime — the host translates the content layer on x
+     *  exactly as on y, and its facts (`scrollX`) arrive through the same
+     *  per-frame report. (The Files browser's column strip is the corpus case:
+     *  its reveal needs the axis, and `scrollIntoView` reveals on both.) */
+    setScrollX(on: boolean, onScroll?: (x: number) => void, onScrolling?: (active: boolean) => void): void;
+    notifyScrollX(x: number): void;
+    /** The host's per-frame report lands here (macScrollFacts): the offsets it
+     *  moved, and the `scrolling`/gesture state of its process. */
+    hostFacts(y: number | null, x: number | null, scrolling: boolean, gesture: boolean): void;
+    /** Travel with a scroller (the FocusRing's ride): re-home in the model
+     *  tree — the INSERT op re-parents the layer onto the scroller's content
+     *  layer, so the host's own translate carries it, last = above the rows. */
+    travelWith(host: Surface | null): void;
+    isTraveling(): boolean;
     /** The widest a child reaches — the horizontal twin of contentExtent().
      *
      *  RECURSES, because this stands in for the DOM's `scrollWidth`, which
@@ -216,6 +247,16 @@ declare class MacSurface implements Surface {
     contentExtentXPublic(): number;
     /** Set the vertical offset and notify, for the smooth-reveal animation. */
     setScrollOffset(v: number): void;
+    /** The scroll VIEWPORT — this box, except for the PAGE ROOT, whose box is
+     *  the App's own size while the WINDOW is what it scrolls in (the DOM's
+     *  document scroll). The window size is what `__declareResize` last handed
+     *  the shim (innerWidth/innerHeight). Weather's phone dialect declares its
+     *  App 2652 tall: clamped against its own box the page had a 40px range. */
+    get viewportH(): number;
+    get viewportW(): number;
+    /** The page's scrollable extent: the larger of the box and its content. */
+    pageExtentY(): number;
+    pageExtentX(): number;
     private contentExtentX;
     /** Reveal this surface within its nearest HORIZONTALLY scrolling ancestor. */
     private revealX;
@@ -240,10 +281,15 @@ declare class MacSurface implements Surface {
     setRichWidth(width: number): void;
     /** Called from the host when a rich flow's laid-out height is known. */
     applyRichHeight(h: number): void;
-    /** The write half of scrollY/scrollX — clamped like every other write, and
-     *  emitted so the layer tree moves this frame. */
-    scrollToY(v: number): void;
-    scrollToX(v: number): void;
+    /** A REQUEST on y/x (scrollTo/scrollToX) — clamped like every other write.
+     *  Plain: the offset lands in the model and crosses as SCROLLPOS, the host
+     *  moving the layer this frame. With a glide: the HOST animates it
+     *  (SCROLLGLIDE — its own display-link tween on the program's curve) and the
+     *  facts arrive per frame as it moves. A gesture in flight owns the offset:
+     *  the request is dropped (arbitration rule 1). Equal = inert — the fact's
+     *  own echo through the attribute push must never cancel a live glide. */
+    scrollToY(v: number, glide?: Glide): void;
+    scrollToX(v: number, glide?: Glide): void;
     scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;
     revealRichAnchor(_slug: string, _within: number): boolean;
     /** An embed marker (DOMIsland's `slot`, and so AppIsland's `run:…` key).
@@ -319,14 +365,6 @@ declare class MacSurface implements Surface {
      *  scroller hears the stream, trackpad pinch included). The transform
      *  inverse keeps a rotated subtree honest. Null = neither wants it. */
     wheelTo(px: number, py: number, deltaX: number, deltaY: number, pinch: boolean): "claimed" | "scroller" | null;
-    /** Route a HORIZONTAL wheel delta to the innermost surface that scrolls on
-     *  that axis. A trackpad reports both deltas and the DOM routes each to
-     *  whichever ancestor scrolls that way; only the vertical half existed here,
-     *  so the Files strip could be revealed programmatically but never dragged. */
-    scrollByX(px: number, py: number, dx: number): boolean;
-    /** Route a wheel delta to the innermost scrolling surface under the point
-     *  (the canvas backend's scrollBy, verbatim + the op emit). */
-    scrollBy(px: number, py: number, dy: number): boolean;
 }
 /** A surface's absolute origin in the ROOT app's coordinate space.
  *
@@ -409,15 +447,19 @@ export declare class MacBackend implements RenderBackend {
 export declare function macScrollTo(id: number, y: number, x?: number | null): void;
 /** Narrate the hit walk at a point — a diagnostic for "nothing is hittable here". */
 export declare function macTraceHit(x: number, y: number): void;
-export declare function macScroll(x: number, y: number, dy: number, dx?: number): void;
-/** The wheel ENTRY (App.swift scrollWheel and magnify → `__declareWheel`):
- *  the claim walk first — the nearest `onWheel` view under the point hears
- *  the stream, `pinch` true for a trackpad magnify or a ctrl+wheel (the
- *  web's own spelling of desktop pinch, so `e.pinch` zoom math written for
- *  Chrome runs unchanged here) — then the scroller walk for whatever no
- *  claim took. This is the native host's half of gestures.md's desktop
- *  contract; before it, every wheel bypassed `onWheel` entirely. */
+/** The wheel CLAIMANT delivery (App.swift → LayerTree.wheel → `__declareWheel`):
+ *  the host's own walk found an `onWheel` view nearest under the point and
+ *  hands it the stream here — `pinch` true for a trackpad magnify or a
+ *  ctrl+wheel (the web's spelling of desktop pinch, so `e.pinch` zoom math
+ *  written for Chrome runs unchanged). Scrolling never comes through here any
+ *  more: a wheel over a scroller is the HOST's process, and what it moved
+ *  arrives as facts (macScrollFacts). */
 export declare function macWheel(x: number, y: number, dx: number, dy: number, pinch: boolean): void;
+/** The host's per-frame scroll report (`__declareScrollFacts`): rows of
+ *  [id, y|null, x|null, scrolling, gesture] for every surface its process
+ *  moved or whose state changed this frame — written AFTER the frame that
+ *  showed them (scrolling.md: the settle never delays the motion). */
+export declare function macScrollFacts(batch: unknown): void;
 export declare function macRichHeight(id: number, h: number): void;
 export declare function macRichLink(id: number, href: string): void;
 export declare function macEditInput(id: number, value: string): void;

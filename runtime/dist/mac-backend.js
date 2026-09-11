@@ -35,7 +35,30 @@ export const OP = {
     ROTATE: 38, MEDIA: 39,
     RASTERSCALE: 40,
     EDITSEL: 41,
+    /** The host's scroll process (scrolling.md "The scroll process"): a view
+     *  that claims the wheel (`onWheel`) so the host's walk hands it the stream
+     *  instead of scrolling; and a glide request — (axis, to, duration, bezier). */
+    WHEELCLAIM: 42, SCROLLGLIDE: 43,
 };
+/** A Declare motion token as the cubic bezier the host animates with — the
+ *  platform's motion honoring the program's curve (scrolling.md: "where a
+ *  provider can honor a Declare motion curve it does"). Penner's families as
+ *  their standard CSS approximations; unknown → cubicOut, the scroll default. */
+const GLIDE_BEZIERS = {
+    linear: [0, 0, 1, 1], ease: [0.25, 0.1, 0.25, 1],
+    easeIn: [0.11, 0, 0.5, 0], easeOut: [0.5, 1, 0.89, 1], easeBoth: [0.45, 0, 0.55, 1],
+    sineIn: [0.12, 0, 0.39, 0], sineOut: [0.61, 1, 0.88, 1], sineBoth: [0.37, 0, 0.63, 1],
+    quadIn: [0.11, 0, 0.5, 0], quadOut: [0.5, 1, 0.89, 1], quadBoth: [0.45, 0, 0.55, 1],
+    cubicIn: [0.32, 0, 0.67, 0], cubicOut: [0.33, 1, 0.68, 1], cubicBoth: [0.65, 0, 0.35, 1],
+    quartIn: [0.5, 0, 0.75, 0], quartOut: [0.25, 1, 0.5, 1], quartBoth: [0.76, 0, 0.24, 1],
+    quintIn: [0.64, 0, 0.78, 0], quintOut: [0.22, 1, 0.36, 1], quintBoth: [0.83, 0, 0.17, 1],
+    expoIn: [0.7, 0, 0.84, 0], expoOut: [0.16, 1, 0.3, 1], expoBoth: [0.87, 0, 0.13, 1],
+    circIn: [0.55, 0, 1, 0.45], circOut: [0, 0.55, 0.45, 1], circBoth: [0.85, 0, 0.15, 1],
+    backIn: [0.36, 0, 0.66, -0.56], backOut: [0.34, 1.56, 0.64, 1], backBoth: [0.68, -0.6, 0.32, 1.6],
+};
+function glideBezier(motion) {
+    return GLIDE_BEZIERS[motion ?? "cubicOut"] ?? GLIDE_BEZIERS.cubicOut;
+}
 function host() {
     const h = globalThis.__declareMacHost;
     if (h === undefined)
@@ -106,22 +129,33 @@ const scrollers = new Set();
 function reclampScrollers() {
     for (const sc of scrollers) {
         if (sc.scrolls) {
-            const ext = sc.contentExtent();
-            const next = Math.min(Math.max(0, ext - sc.height), Math.max(0, sc.scrollOffset));
+            const ext = sc.pageExtentY();
+            const next = Math.min(Math.max(0, ext - sc.viewportH), Math.max(0, sc.scrollOffset));
             if (next !== sc.scrollOffset || ext !== sc.publishedExtent) {
                 sc.publishedExtent = ext;
-                if (next !== sc.scrollOffset)
+                // An extent-only change publishes the RANGE and leaves the offset to
+                // the host (null): the host owns the offset between fact reports, and
+                // re-stating a frame-old number would drag a live scroll back.
+                if (next !== sc.scrollOffset) {
                     sc.setScrollOffset(next);
-                emit(OP.SCROLLPOS, sc.id, next, ext);
+                    emit(OP.SCROLLPOS, sc.id, next, ext);
+                }
+                else
+                    emit(OP.SCROLLPOS, sc.id, null, ext);
             }
         }
         if (sc.scrollsX) {
-            const extX = sc.contentExtentXPublic();
-            const nextX = Math.min(Math.max(0, extX - sc.width), Math.max(0, sc.scrollXOffset));
+            const extX = sc.pageExtentX();
+            const nextX = Math.min(Math.max(0, extX - sc.viewportW), Math.max(0, sc.scrollXOffset));
             if (nextX !== sc.scrollXOffset || extX !== sc.publishedExtentX) {
                 sc.publishedExtentX = extX;
-                sc.scrollXOffset = nextX;
-                emit(OP.SCROLLXPOS, sc.id, nextX, extX);
+                if (nextX !== sc.scrollXOffset) {
+                    sc.scrollXOffset = nextX;
+                    sc.notifyScrollX(nextX);
+                    emit(OP.SCROLLXPOS, sc.id, nextX, extX);
+                }
+                else
+                    emit(OP.SCROLLXPOS, sc.id, null, extX);
             }
         }
     }
@@ -147,6 +181,16 @@ class MacSurface {
     scrolls = false;
     scrollOffset = 0;
     onScrollCb = null;
+    onScrollXCb = null;
+    onScrollingCb = null;
+    /** The host's `scrolling` fact as last reported, and whether a GESTURE
+     *  (a trackpad stream, its momentum, a bar drag) owns the offset right now —
+     *  a request during it is dropped (arbitration rule 1). Both arrive per
+     *  frame through macScrollFacts; the model never infers them. */
+    scrollingLive = false;
+    gestureLive = false;
+    /** Where this surface lived before travelWith moved it (null = at home). */
+    travelHome = null;
     parent = null;
     children = [];
     ignoresClip = false;
@@ -344,12 +388,13 @@ class MacSurface {
      *  and a later re-push updates these through the guard. */
     wantsScrollY = false;
     wantsScrollX = false;
-    setScroll(on, onScroll) {
+    setScroll(on, onScroll, onScrolling) {
         this.wantsScrollY = on;
         if (this.appRoot && on)
             return; // a root never self-scrolls
         this.scrolls = on;
         this.onScrollCb = on ? onScroll : null;
+        this.onScrollingCb = on ? (onScrolling ?? null) : null;
         if (!on)
             this.scrollOffset = 0;
         if (on || this.scrollsX)
@@ -358,22 +403,60 @@ class MacSurface {
             scrollers.delete(this);
         emit(OP.SCROLL, this.id, on ? 1 : 0);
     }
-    /** Horizontal scroll is not yet realized natively (code blocks clip). */
-    setScrollX(on) {
+    /** The horizontal regime — the host translates the content layer on x
+     *  exactly as on y, and its facts (`scrollX`) arrive through the same
+     *  per-frame report. (The Files browser's column strip is the corpus case:
+     *  its reveal needs the axis, and `scrollIntoView` reveals on both.) */
+    setScrollX(on, onScroll, onScrolling) {
         this.wantsScrollX = on;
         if (this.appRoot && on)
             return; // a root never self-scrolls
-        // NOT deferred any more. The Files browser's column strip scrolls
-        // HORIZONTALLY, and `scrollIntoView` on the DOM backend hands off to the
-        // element's native one, which reveals on both axes. With this unimplemented
-        // a newly opened column simply never slid into view.
         this.scrollsX = on;
+        this.onScrollXCb = on ? (onScroll ?? null) : null;
+        if (on && onScrolling !== undefined)
+            this.onScrollingCb = onScrolling;
         if (on || this.scrolls)
             scrollers.add(this);
         else
             scrollers.delete(this);
         emit(OP.SCROLLX, this.id, on ? 1 : 0);
     }
+    notifyScrollX(x) { this.onScrollXCb?.(x); }
+    /** The host's per-frame report lands here (macScrollFacts): the offsets it
+     *  moved, and the `scrolling`/gesture state of its process. */
+    hostFacts(y, x, scrolling, gesture) {
+        this.gestureLive = gesture;
+        if (y !== null && this.scrolls && y !== this.scrollOffset)
+            this.setScrollOffset(y);
+        if (x !== null && this.scrollsX && x !== this.scrollXOffset) {
+            this.scrollXOffset = x;
+            this.onScrollXCb?.(x);
+        }
+        if (scrolling !== this.scrollingLive) {
+            this.scrollingLive = scrolling;
+            this.onScrollingCb?.(scrolling);
+        }
+    }
+    /** Travel with a scroller (the FocusRing's ride): re-home in the model
+     *  tree — the INSERT op re-parents the layer onto the scroller's content
+     *  layer, so the host's own translate carries it, last = above the rows. */
+    travelWith(host) {
+        if (host === null) {
+            if (this.travelHome !== null) {
+                const h = this.travelHome;
+                this.travelHome = null;
+                h.insertChild(this, null);
+            }
+            return;
+        }
+        const h = host;
+        if (this.parent === h)
+            return;
+        if (this.travelHome === null)
+            this.travelHome = this.parent;
+        h.insertChild(this, null);
+    }
+    isTraveling() { return this.travelHome !== null; }
     /** The widest a child reaches — the horizontal twin of contentExtent().
      *
      *  RECURSES, because this stands in for the DOM's `scrollWidth`, which
@@ -386,6 +469,26 @@ class MacSurface {
     contentExtentXPublic() { return this.contentExtentX(); }
     /** Set the vertical offset and notify, for the smooth-reveal animation. */
     setScrollOffset(v) { this.scrollOffset = v; this.onScrollCb?.(v); }
+    /** The scroll VIEWPORT — this box, except for the PAGE ROOT, whose box is
+     *  the App's own size while the WINDOW is what it scrolls in (the DOM's
+     *  document scroll). The window size is what `__declareResize` last handed
+     *  the shim (innerWidth/innerHeight). Weather's phone dialect declares its
+     *  App 2652 tall: clamped against its own box the page had a 40px range. */
+    get viewportH() {
+        if (this !== macRoot)
+            return this.height;
+        const h = globalThis.innerHeight;
+        return typeof h === "number" && h > 0 ? h : this.height;
+    }
+    get viewportW() {
+        if (this !== macRoot)
+            return this.width;
+        const w = globalThis.innerWidth;
+        return typeof w === "number" && w > 0 ? w : this.width;
+    }
+    /** The page's scrollable extent: the larger of the box and its content. */
+    pageExtentY() { const e = this.contentExtent(); return this === macRoot ? Math.max(e, this.height) : e; }
+    pageExtentX() { const e = this.contentExtentX(); return this === macRoot ? Math.max(e, this.width) : e; }
     contentExtentX() {
         let w = 0;
         for (const c of this.children) {
@@ -410,7 +513,7 @@ class MacSurface {
             return;
         const right = left + this.width;
         const viewLeft = sc.scrollXOffset;
-        const viewRight = viewLeft + sc.width;
+        const viewRight = viewLeft + sc.viewportW;
         let next = sc.scrollXOffset;
         // `nearest` is CSSOM's minimal-scroll rule, which Chrome realizes: nothing
         // when the target is visible; nothing when it already COVERS the viewport;
@@ -420,10 +523,10 @@ class MacSurface {
             next = left;
         else if (left < viewLeft && right > viewRight) { /* covers the viewport */ }
         else if (left < viewLeft)
-            next = this.width > sc.width ? right - sc.width : left;
+            next = this.width > sc.viewportW ? right - sc.viewportW : left;
         else if (right > viewRight)
-            next = this.width > sc.width ? left : right - sc.width;
-        const max = Math.max(0, sc.contentExtentX() - sc.width);
+            next = this.width > sc.viewportW ? left : right - sc.viewportW;
+        const max = Math.max(0, sc.pageExtentX() - sc.viewportW);
         next = Math.min(max, Math.max(0, next));
         if (next !== sc.scrollXOffset) {
             if (smooth)
@@ -490,6 +593,10 @@ class MacSurface {
      *  selection is the platform's own. */
     setRichContent(blocks, selectable, width, onResize, onLink) {
         richCallbacks.set(this.id, { onResize, onLink });
+        // Inline image runs cross the bridge as they are: the native flow draws them
+        // as NSTextAttachments (Overlays.swift RichImages) and, for a bitmap that
+        // lands late, pushes the re-laid height back through `__declareRichHeight`
+        // → onResize — the same parity the DOM and Canvas flows have.
         // SYNCHRONOUS, like the DOM backend: the flow's height is a fact this
         // settle needs (the view sizes to it). AppKit's text system lays the
         // blocks out and answers now; an async answer would leave every flow at
@@ -512,25 +619,41 @@ class MacSurface {
         this.richHeight = h;
         richCallbacks.get(this.id)?.onResize(h);
     }
-    /** The write half of scrollY/scrollX — clamped like every other write, and
-     *  emitted so the layer tree moves this frame. */
-    scrollToY(v) {
-        if (!this.scrolls)
+    /** A REQUEST on y/x (scrollTo/scrollToX) — clamped like every other write.
+     *  Plain: the offset lands in the model and crosses as SCROLLPOS, the host
+     *  moving the layer this frame. With a glide: the HOST animates it
+     *  (SCROLLGLIDE — its own display-link tween on the program's curve) and the
+     *  facts arrive per frame as it moves. A gesture in flight owns the offset:
+     *  the request is dropped (arbitration rule 1). Equal = inert — the fact's
+     *  own echo through the attribute push must never cancel a live glide. */
+    scrollToY(v, glide) {
+        if (!this.scrolls || this.gestureLive)
             return;
-        const next = Math.min(Math.max(0, this.contentExtent() - this.height), Math.max(0, v));
+        const ext = this.pageExtentY();
+        const next = Math.min(Math.max(0, ext - this.viewportH), Math.max(0, v));
+        if (glide !== undefined) {
+            emit(OP.SCROLLGLIDE, this.id, 1, next, glide.duration ?? 260, ...glideBezier(glide.motion));
+            return;
+        }
         if (next === this.scrollOffset)
             return;
         this.setScrollOffset(next);
-        emit(OP.SCROLLPOS, this.id, next, this.contentExtent());
+        emit(OP.SCROLLPOS, this.id, next, ext);
     }
-    scrollToX(v) {
-        if (!this.scrollsX)
+    scrollToX(v, glide) {
+        if (!this.scrollsX || this.gestureLive)
             return;
-        const next = Math.min(Math.max(0, this.contentExtentX() - this.width), Math.max(0, v));
+        const ext = this.pageExtentX();
+        const next = Math.min(Math.max(0, ext - this.viewportW), Math.max(0, v));
+        if (glide !== undefined) {
+            emit(OP.SCROLLGLIDE, this.id, 0, next, glide.duration ?? 260, ...glideBezier(glide.motion));
+            return;
+        }
         if (next === this.scrollXOffset)
             return;
         this.scrollXOffset = next;
-        emit(OP.SCROLLXPOS, this.id, next, this.contentExtentX());
+        this.onScrollXCb?.(next);
+        emit(OP.SCROLLXPOS, this.id, next, ext);
     }
     scrollIntoView(align = "nearest", smooth = false) {
         this.revealX(align, smooth);
@@ -546,7 +669,7 @@ class MacSurface {
             return;
         const bottom = top + this.height;
         const viewTop = sc.scrollOffset;
-        const viewBottom = viewTop + sc.height;
+        const viewBottom = viewTop + sc.viewportH;
         let next = sc.scrollOffset;
         // Same `nearest` rule as revealX — measured against Chrome on the embedded
         // desktop's Files-column reveal: a column TALLER than the island viewport,
@@ -556,10 +679,10 @@ class MacSurface {
             next = top;
         else if (top < viewTop && bottom > viewBottom) { /* covers the viewport */ }
         else if (top < viewTop)
-            next = this.height > sc.height ? bottom - sc.height : top;
+            next = this.height > sc.viewportH ? bottom - sc.viewportH : top;
         else if (bottom > viewBottom)
-            next = this.height > sc.height ? top : bottom - sc.height;
-        const max = Math.max(0, sc.contentExtent() - sc.height);
+            next = this.height > sc.viewportH ? top : bottom - sc.viewportH;
+        const max = Math.max(0, sc.pageExtentY() - sc.viewportH);
         next = Math.min(max, Math.max(0, next));
         if (next !== sc.scrollOffset) {
             if (smooth)
@@ -601,8 +724,13 @@ class MacSurface {
      *  and spreads it onto every hit target, so this mirrors it exactly.
      *  `wantsTouch` is recorded for symmetry; a Mac mouse never reports fingers. */
     setInput(sink, wants) {
+        const claimedWheel = this.wants?.wantsWheel === true;
         this.sink = sink;
         this.wants = sink !== null ? wants : undefined;
+        // the host's wheel walk needs to know a claimant when it sees one
+        const claimsWheel = this.wants?.wantsWheel === true;
+        if (claimsWheel !== claimedWheel)
+            emit(OP.WHEELCLAIM, this.id, claimsWheel ? 1 : 0);
     }
     setEditable(spec) {
         if (spec === null) {
@@ -856,11 +984,6 @@ class MacSurface {
             return pointInPath(this.clipData, lx, ly);
         return lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
     }
-    // (`ownsPoint` lived here: scrollByX's "the topmost child containing the
-    // point owns the gesture" rule. It had the right instinct about the leak and
-    // the wrong test — a Declare window's chrome sits ABOVE its content, so
-    // "contains the point" stops at a press catcher. Replaced by `scrollClaimed`,
-    // which asks about scrollers instead, and now used by BOTH axes.)
     /** The wheel CLAIM walk (canvas-backend wheelTo, mirrored): descend to the
      *  view under the point and answer with the nearest `onWheel` CLAIMANT or
      *  the nearest scroller — whichever is deeper wins, the DOM's delegation
@@ -891,79 +1014,6 @@ class MacSurface {
             return "claimed";
         }
         return (this.scrolls || this.scrollsX) && inBox ? "scroller" : null;
-    }
-    /** Route a HORIZONTAL wheel delta to the innermost surface that scrolls on
-     *  that axis. A trackpad reports both deltas and the DOM routes each to
-     *  whichever ancestor scrolls that way; only the vertical half existed here,
-     *  so the Files strip could be revealed programmatically but never dragged. */
-    scrollByX(px, py, dx) {
-        if (!this.visible || this.opacity <= 0)
-            return false;
-        let lx = px - this.x;
-        let ly = py - this.y;
-        [lx, ly] = this.invertTransform(lx, ly);
-        const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-        if ((this.scrolls || this.scrollsX) && !inBox)
-            return false;
-        const cy = this.scrolls ? ly + this.scrollOffset : ly;
-        const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
-        for (let i = this.children.length - 1; i >= 0; i--) {
-            if (this.children[i].scrollByX(cx, cy, dx))
-                return true;
-            if (scrollClaimed)
-                break; // see `scrollClaimed`
-        }
-        if ((this.scrolls || this.scrollsX) && inBox)
-            scrollClaimed = true;
-        if (this.scrollsX && inBox) {
-            const max = Math.max(0, this.contentExtentX() - this.width);
-            const next = Math.min(max, Math.max(0, this.scrollXOffset + dx));
-            if (next !== this.scrollXOffset) {
-                this.scrollXOffset = next;
-                emit(OP.SCROLLXPOS, this.id, next, this.contentExtentX());
-                return true;
-            }
-            return max > 0;
-        }
-        return false;
-    }
-    /** Route a wheel delta to the innermost scrolling surface under the point
-     *  (the canvas backend's scrollBy, verbatim + the op emit). */
-    scrollBy(px, py, dy) {
-        if (!this.visible || this.opacity <= 0)
-            return false;
-        let lx = px - this.x;
-        let ly = py - this.y;
-        [lx, ly] = this.invertTransform(lx, ly);
-        const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-        if ((this.scrolls || this.scrollsX) && !inBox)
-            return false;
-        const cy = this.scrolls ? ly + this.scrollOffset : ly;
-        const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
-        for (let i = this.children.length - 1; i >= 0; i--) {
-            if (this.children[i].scrollBy(cx, cy, dy))
-                return true;
-            // A SCROLLER UNDER THE POINT ENDS THE SIBLING SEARCH, whether or not it
-            // could use this delta. See `scrollClaimed`.
-            if (scrollClaimed)
-                break;
-        }
-        if (this.scrolls || this.scrollsX) {
-            if (inBox)
-                scrollClaimed = true; // this gesture is ours, siblings behind
-        }
-        if (this.scrolls && inBox) {
-            const max = Math.max(0, this.contentExtent() - this.height);
-            const next = Math.min(max, Math.max(0, this.scrollOffset + dy));
-            if (next !== this.scrollOffset) {
-                this.scrollOffset = next;
-                this.onScrollCb?.(next);
-                emit(OP.SCROLLPOS, this.id, next, this.contentExtent());
-                return true;
-            }
-            return max > 0; // a scroller at its edge still owns the gesture
-        }
-        return false;
     }
 }
 // ── registries the host talks back through ──────────────────────────────────
@@ -1177,40 +1227,19 @@ let macRoot = null;
 let lastCursor = "";
 // ── smooth reveal ───────────────────────────────────────────────────────────
 //
-// `scrollIntoView(..., true)` asks for the DOM's `behavior: "smooth"`, which
-// the browser animates for us. Nothing animates it here, so a newly revealed
-// Files column POPPED into place instead of sliding. Same easing the platform
-// uses for a short programmatic scroll: ease-in-out over ~320ms.
+// `scrollIntoView(..., true)` asks for the DOM's `behavior: "smooth"`. The HOST
+// animates it (SCROLLGLIDE — its display-link tween), the same ease-in-out
+// over ~320ms the platform uses for a short programmatic scroll.
 const GLIDE_MS = 320;
-const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-function glide(from, to, step) {
-    const t0 = Date.now();
-    let ticks = 0;
-    const tick = () => {
-        const t = Math.min(1, (Date.now() - t0) / GLIDE_MS);
-        ticks++;
-        step(from + (to - from) * ease(t));
-        if (t < 1)
-            requestAnimationFrame(tick);
-        else if (globalThis.__declareHitDebug === true) {
-            console.log(`[glide] ${from.toFixed(0)} -> ${to.toFixed(0)} in ${ticks} frames`);
-        }
-    };
-    requestAnimationFrame(tick);
-}
 function glideX(sc, to) {
-    glide(sc.scrollXOffset, to, (v) => {
-        sc.scrollXOffset = v;
-        emit(OP.SCROLLXPOS, sc.id, v, sc.contentExtentXPublic());
-        flushOps();
-    });
+    if (sc.gestureLive)
+        return;
+    emit(OP.SCROLLGLIDE, sc.id, 0, to, GLIDE_MS, ...glideBezier("cubicBoth"));
 }
 function glideY(sc, to) {
-    glide(sc.scrollOffset, to, (v) => {
-        sc.setScrollOffset(v);
-        emit(OP.SCROLLPOS, sc.id, v, sc.contentExtent());
-        flushOps();
-    });
+    if (sc.gestureLive)
+        return;
+    emit(OP.SCROLLGLIDE, sc.id, 1, to, GLIDE_MS, ...glideBezier("cubicBoth"));
 }
 // ── the host→JS entry points (called from Swift) ────────────────────────────
 /** Set a NAMED surface's scroll offset — the scrollbar drag.
@@ -1226,7 +1255,7 @@ export function macScrollTo(id, y, x = null) {
         return;
     let moved = false;
     if (s.scrolls) {
-        const max = Math.max(0, s.contentExtent() - s.height);
+        const max = Math.max(0, s.pageExtentY() - s.viewportH);
         const next = Math.min(max, Math.max(0, y));
         if (next !== s.scrollOffset) {
             s.setScrollOffset(next); // sets the field AND notifies
@@ -1235,7 +1264,7 @@ export function macScrollTo(id, y, x = null) {
         }
     }
     if (x !== null && s.scrollsX) {
-        const maxX = Math.max(0, s.contentExtentXPublic() - s.width);
+        const maxX = Math.max(0, s.pageExtentX() - s.viewportW);
         const nextX = Math.min(maxX, Math.max(0, x));
         if (nextX !== s.scrollXOffset) {
             s.scrollXOffset = nextX;
@@ -1254,67 +1283,32 @@ export function macTraceHit(x, y) {
         + ` (cursorAt="${macRoot?.cursorAt(x, y) ?? ""}") ===`);
     macRoot?.trace(x, y);
 }
-/** Did the walk pass a scroller that CONTAINS the point — whether or not it
- *  could use this delta?
- *
- *  The scroll walks answer one boolean, "did anything move", and that conflated
- *  two different facts. A subtree that declines a delta is not the same as a
- *  subtree the gesture was never over, and the sibling loop needs the second:
- *
- *    THE LEAK. In the desktop, windows overlap, so one point is inside two of
- *    them. A horizontal two-finger gesture over the Files column strip scrolled
- *    the strip sideways — and its small vertical component walked straight past
- *    the front window (whose only scroller there is horizontal, so it moved
- *    nothing for a dy) into the window BEHIND, and scrolled that. One gesture,
- *    two windows. Both scrollers are `inBox`, so the inBox guards cannot catch
- *    it: the front window is simply visited first and declines.
- *
- *    THE FIRST FIX WAS WORSE. Stopping at the topmost child that CONTAINS the
- *    point looks like the DOM's rule and breaks ordinary scrolling: a Declare
- *    window carries decorative siblings ABOVE its content — measured in the
- *    Markdown window as #319 (a full-bleed press catcher over the scroller) and
- *    #309 (the frame) — so the search stopped at a chrome layer and the pane
- *    behind it never scrolled at all.
- *
- *  So the rule is narrower, and it is about SCROLLERS rather than about
- *  ownership: the first scroller under the point claims the gesture against
- *  everything behind it. Chrome with nothing to scroll is passed straight
- *  through. And because this only ends the SIBLING loop, the delta still chains
- *  UP through ancestors — which is what keeps a vertical wheel over an X-only
- *  code block scrolling the page it sits in, exactly as a browser does.
- *
- *  Module-level rather than a return value: the walks are synchronous, single
- *  threaded, and re-entered per gesture, and the two public entries below own
- *  the reset. */
-let scrollClaimed = false;
-export function macScroll(x, y, dy, dx = 0) {
-    scrollClaimed = false;
-    if (dy !== 0)
-        macRoot?.scrollBy(x, y, dy);
-    scrollClaimed = false;
-    if (dx !== 0)
-        macRoot?.scrollByX(x, y, dx);
+/** The wheel CLAIMANT delivery (App.swift → LayerTree.wheel → `__declareWheel`):
+ *  the host's own walk found an `onWheel` view nearest under the point and
+ *  hands it the stream here — `pinch` true for a trackpad magnify or a
+ *  ctrl+wheel (the web's spelling of desktop pinch, so `e.pinch` zoom math
+ *  written for Chrome runs unchanged). Scrolling never comes through here any
+ *  more: a wheel over a scroller is the HOST's process, and what it moved
+ *  arrives as facts (macScrollFacts). */
+export function macWheel(x, y, dx, dy, pinch) {
+    macRoot?.wheelTo(x, y, dx, dy, pinch);
     flushOps();
 }
-/** The wheel ENTRY (App.swift scrollWheel and magnify → `__declareWheel`):
- *  the claim walk first — the nearest `onWheel` view under the point hears
- *  the stream, `pinch` true for a trackpad magnify or a ctrl+wheel (the
- *  web's own spelling of desktop pinch, so `e.pinch` zoom math written for
- *  Chrome runs unchanged here) — then the scroller walk for whatever no
- *  claim took. This is the native host's half of gestures.md's desktop
- *  contract; before it, every wheel bypassed `onWheel` entirely. */
-export function macWheel(x, y, dx, dy, pinch) {
-    if (macRoot?.wheelTo(x, y, dx, dy, pinch) !== "claimed") {
-        // Reset per AXIS: each is a separate walk, and a claim made while routing
-        // the vertical half must not cut the horizontal one short.
-        scrollClaimed = false;
-        if (dy !== 0)
-            macRoot?.scrollBy(x, y, dy);
-        scrollClaimed = false;
-        if (dx !== 0)
-            macRoot?.scrollByX(x, y, dx);
+/** The host's per-frame scroll report (`__declareScrollFacts`): rows of
+ *  [id, y|null, x|null, scrolling, gesture] for every surface its process
+ *  moved or whose state changed this frame — written AFTER the frame that
+ *  showed them (scrolling.md: the settle never delays the motion). */
+export function macScrollFacts(batch) {
+    if (!Array.isArray(batch))
+        return;
+    for (const row of batch) {
+        const s = surfaces.get(row[0]);
+        if (s === undefined)
+            continue;
+        const y = typeof row[1] === "number" ? row[1] : null;
+        const x = typeof row[2] === "number" ? row[2] : null;
+        s.hostFacts(y, x, Boolean(row[3]), Boolean(row[4]));
     }
-    flushOps();
 }
 export function macRichHeight(id, h) {
     surfaces.get(id)?.applyRichHeight(h);

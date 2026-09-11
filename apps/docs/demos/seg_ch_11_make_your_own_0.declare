@@ -12,13 +12,13 @@ class Stepper extends Control [ width = 96, height = 28, cornerRadius = 7,
     ]
 
 
-App [ width = 320, height = 130,
+App [ width = 320, height = 130, theme = { SanFrancisco },
     n: number = 0,
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         Stepper [ value = { app.n },
             input(v: number) { app.n = v }
             ],
-        Text [ textColor = { theme.text }, text = { `count: ${app.n}` } ]
+        Text [ textColor = { provided("theme").text }, text = { `count: ${app.n}` } ]
         ]
     ]

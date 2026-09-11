@@ -122,6 +122,40 @@ extension LayerTree {
     /// or a `draw()` already rasterized to a bitmap.
     private func renderMaybeCached(_ l: CALayer, at p: CGPoint, into ctx: CGContext, scale: CGFloat) {
         let size = l.bounds.size
+        // TEXT draws itself (no `contents` to key on) and was re-run through
+        // Core Text on every walk — measured on weather's scroll as ~250 text
+        // paints a frame, the walk's whole cost once the blur was batched. Its
+        // picture is keyed by identity + TextLayer.version instead.
+        if let t = l as? TextLayer, size.width >= 1, size.height >= 1 {
+            let w = Int((size.width * scale).rounded()), h = Int((size.height * scale).rounded())
+            let key = ObjectIdentifier(t)
+            var img: CGImage?
+            if let hit = frostTextRendition[key], hit.version == t.version, hit.w == w, hit.h == h {
+                img = hit.img
+            } else if w >= 1, h >= 1, let cs = CGColorSpace(name: CGColorSpace.sRGB),
+                      let scratch = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                              space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) {
+                scratch.scaleBy(x: CGFloat(w) / size.width, y: CGFloat(h) / size.height)
+                t.render(in: scratch)
+                img = scratch.makeImage()
+                if let made = img {
+                    frostRenditionBytes += w * h * 4
+                    if frostRenditionBytes > 48 * 1_048_576 {
+                        frostRendition.removeAll(); frostTextRendition.removeAll()
+                        frostRenditionBytes = w * h * 4
+                    }
+                    frostTextRendition[key] = (t.version, w, h, made)
+                }
+            }
+            if let out = img {
+                ctx.saveGState()
+                ctx.translateBy(x: p.x, y: p.y + size.height)
+                ctx.scaleBy(x: 1, y: -1)
+                ctx.draw(out, in: CGRect(origin: .zero, size: size))
+                ctx.restoreGState()
+                return
+            }
+        }
         guard (l.sublayers?.isEmpty ?? true), let contents = l.contents as AnyObject?,
               size.width >= 1, size.height >= 1 else {
             render(l, at: p, into: ctx); return
@@ -244,6 +278,10 @@ extension LayerTree {
     /// Scratch render target per size — never shown, never shared, so one is
     /// enough and its reuse needs no lifetime reasoning.
     private static var blurScratch: [String: MTLTexture] = [:]
+    /// Where a batch's time goes — CI graph setup + encode (CPU) vs the wait
+    /// for the GPU — and how many jobs per submission. `ctl froststats`.
+    static var blurSetupMs = 0.0, blurGpuMs = 0.0, blurReadMs = 0.0
+    static var blurJobsN = 0, blurBatches = 0
 
     /// `DECLARE_FROST_CPU=1` forces the CPU chain — the A/B lever for verifying
     /// the GPU path against the reference on a LIVE scene (weather's sky
@@ -280,31 +318,44 @@ extension LayerTree {
     /// CPU chain.
     static func blurManyOnGPU(_ img: CGImage,
                               specs: [(radius: CGFloat, saturate: CGFloat)]) -> [CGImage]? {
-        guard !forceCPUBlur, !specs.isEmpty, let device = mtlDevice, let ci = ciMetal,
+        blurJobsOnGPU(specs.map { (img: img, radius: $0.radius, saturate: $0.saturate) })
+    }
+
+    /// The general batch: EVERY job its own input image and radius, ONE
+    /// command buffer, ONE wait — what lets a whole frame's frosts (each on its
+    /// own snapshot crop) cost one round trip instead of one each.
+    static func blurJobsOnGPU(_ jobs: [(img: CGImage, radius: CGFloat, saturate: CGFloat)]) -> [CGImage]? {
+        guard !forceCPUBlur, !jobs.isEmpty, let device = mtlDevice, let ci = ciMetal,
               let queue = mtlQueue, let cmd = queue.makeCommandBuffer() else { return nil }
-        let w = img.width, h = img.height
-        let input = CIImage(cgImage: img)
-        let extent = input.extent
+        // SCRATCH TEXTURES BY SLOT, NOT BY SIZE. A frost's crop changes size
+        // on every scroll frame (its capture rect meets the screen edge
+        // differently each step), and a texture keyed by size was re-created
+        // per job per frame — measured as the whole batch costing what the
+        // serial submissions had. Slot `i` keeps one texture at least as large
+        // as anything it has been asked for; a job renders into its own
+        // top-left region and reads that region back.
         var targets: [MTLTexture] = []
-        for i in specs.indices {
-            let key = "\(w)x\(h)/\(i)"
-            if let hit = blurScratch[key] {
+        for (i, job) in jobs.enumerated() {
+            let w = job.img.width, h = job.img.height
+            let key = "slot/\(i)"
+            if let hit = blurScratch[key], hit.width >= w, hit.height >= h {
                 targets.append(hit)
             } else {
+                let tw = max(w, blurScratch[key]?.width ?? 0), th = max(h, blurScratch[key]?.height ?? 0)
                 let desc = MTLTextureDescriptor.texture2DDescriptor(
-                    pixelFormat: .bgra8Unorm, width: w, height: h, mipmapped: false)
+                    pixelFormat: .bgra8Unorm, width: tw, height: th, mipmapped: false)
                 desc.usage = [.shaderWrite, .shaderRead]
                 desc.storageMode = .shared
                 guard let made = device.makeTexture(descriptor: desc) else { return nil }
-                // Sizes churn with window resizes; drop stale sizes rather
-                // than accumulate one scratch set per size ever seen.
-                if blurScratch.count >= 12 { blurScratch.removeAll() }
                 blurScratch[key] = made
                 targets.append(made)
             }
         }
-        for (i, spec) in specs.enumerated() {
-            guard var image = blurChain(input, radius: spec.radius, saturate: spec.saturate)
+        let tSetup = CFAbsoluteTimeGetCurrent()
+        for (i, job) in jobs.enumerated() {
+            let input = CIImage(cgImage: job.img)
+            let extent = input.extent
+            guard var image = blurChain(input, radius: job.radius, saturate: job.saturate)
             else { return nil }
             // Core Image renders y-up; flip so the copied-out rows read
             // top-down, making the result a normal CGImage — same orientation,
@@ -313,16 +364,25 @@ extension LayerTree {
             // The colorSpace argument is ignored by an unmanaged context
             // (measured; sRGB/linear/device all byte-identical) — raw bytes.
             ci.render(image, to: targets[i], commandBuffer: cmd, bounds: extent,
-                      colorSpace: img.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!)
+                      colorSpace: job.img.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!)
         }
+        let tCommit = CFAbsoluteTimeGetCurrent()
         cmd.commit()
         cmd.waitUntilCompleted()
+        let tDone = CFAbsoluteTimeGetCurrent()
+        blurSetupMs += (tCommit - tSetup) * 1000
+        blurGpuMs += (tDone - tCommit) * 1000
+        blurJobsN += jobs.count
+        blurBatches += 1
 
-        // One copy out per radius; each CGImage owns its bytes from here.
+        // One copy out per job; each CGImage owns its bytes from here.
+        let tRead = CFAbsoluteTimeGetCurrent()
+        defer { blurReadMs += (CFAbsoluteTimeGetCurrent() - tRead) * 1000 }
         var out: [CGImage] = []
-        let bpr = w * 4
         guard let cs = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
-        for tex in targets {
+        for (i, tex) in targets.enumerated() {
+            let w = jobs[i].img.width, h = jobs[i].img.height
+            let bpr = w * 4
             var data = Data(count: bpr * h)
             data.withUnsafeMutableBytes { p in
                 tex.getBytes(p.baseAddress!, bytesPerRow: bpr,
@@ -398,6 +458,13 @@ extension LayerTree {
         var remaining: [CGRect] = []
         var reachIndex = 0
         var reach: CGRect { reachIndex < remaining.count ? remaining[reachIndex] : .null }
+        /// DEFERRED frosts (see landFrost): each carries its own snapshot crop
+        /// and lands after the walk, all blurred in ONE GPU submission.
+        struct Job { let node: Node; let spec: (blur: CGFloat, saturate: CGFloat); let crop: CGImage; let cropRect: CGRect; let box: CGRect }
+        var jobs: [Job] = []
+        /// The boxes of every frost landed or deferred so far in this walk —
+        /// a later frost whose capture reaches one of them STACKS on it.
+        var landedBoxes: [CGRect] = []
         init(ctx: CGContext, scale: CGFloat, rect: CGRect) {
             self.ctx = ctx; self.scale = scale; self.rect = rect
         }
@@ -496,7 +563,50 @@ extension LayerTree {
             c.ctx.restoreGState()
         }
         walk(floor)
+        flushDeferredFrosts(c)
         return (n, (CFAbsoluteTimeGetCurrent() - t0) * 1000)
+    }
+
+    /// Land every deferred frost: ONE GPU submission for all their crops, then
+    /// each frost windows into its own blurred crop. Draws each result back
+    /// into the canvas where a later frost could still reach it (the same
+    /// draw-back the synchronous path does), so a stacked frost that flushed
+    /// this list samples them correctly.
+    private func flushDeferredFrosts(_ c: Canvas) {
+        guard !c.jobs.isEmpty else { return }
+        let jobs = c.jobs
+        c.jobs.removeAll()
+        let tb = CFAbsoluteTimeGetCurrent()
+        var results = Self.blurJobsOnGPU(jobs.map { (img: $0.crop, radius: $0.spec.blur * c.scale, saturate: $0.spec.saturate) })
+        if results == nil {
+            results = jobs.map { Self.blur($0.crop, radius: $0.spec.blur * c.scale, saturate: $0.spec.saturate) ?? $0.crop }
+        }
+        frostBlurMs += (CFAbsoluteTimeGetCurrent() - tb) * 1000
+        guard let imgs = results else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (job, img) in zip(jobs, imgs) {
+            guard let fl = job.node.frostLayer else { continue }
+            fl.contents = img
+            fl.contentsScale = 1
+            fl.contentsGravity = .resize
+            let cr = job.cropRect, box = job.box
+            fl.contentsRect = CGRect(x: (box.minX - cr.minX) / cr.width,
+                                     y: (cr.maxY - box.maxY) / cr.height,
+                                     width: box.width / cr.width,
+                                     height: box.height / cr.height)
+            fl.backgroundFilters = []
+            job.node.frostEpoch = frostEpoch
+            if c.reach.intersects(box) {
+                c.ctx.saveGState()
+                c.ctx.addPath(CGPath(roundedRect: box, cornerWidth: job.node.radius, cornerHeight: job.node.radius, transform: nil))
+                c.ctx.clip()
+                c.ctx.draw(img, in: cr)
+                c.ctx.restoreGState()
+                c.dirty = c.dirty.union(box)
+            }
+        }
+        CATransaction.commit()
     }
 
     private func subtreeHasFrost(_ n: Node, _ frosts: Set<ObjectIdentifier>) -> Bool {
@@ -506,12 +616,59 @@ extension LayerTree {
     }
 
     /// Take (or reuse) the canvas as of this point, blur it, and land it.
+    ///
+    /// DEFERRED BY DEFAULT (2026-09-10): the blur's cost was never the blur —
+    /// it was the GPU ROUND TRIP, once per snapshot. Weather's cards sit closer
+    /// together than the blur's padding, so each card's own paint dirties the
+    /// next frost's capture and every frost took a fresh snapshot and its own
+    /// submission: 13 waits a frame, ~1.1ms each, the whole 8.3ms budget gone
+    /// (measured: 22ms per scroll commit, the link at 67Hz). A snapshot is
+    /// cheap (~0.03ms); so each frost keeps ITS snapshot — cropped to its own
+    /// capture rect, which also shrinks the blur's work — and the blurs run
+    /// together after the walk, one submission, one wait. Exactness is kept
+    /// by construction: each frost samples the canvas exactly as it stood at
+    /// its own point in paint order. The ONE case that cannot defer is a frost
+    /// STACKED on an earlier frost, whose input must contain that frost's
+    /// blurred pixels: it flushes what is pending and lands synchronously with
+    /// the draw-back, exactly as before.
     private func landFrost(_ node: Node, spec: (blur: CGFloat, saturate: CGFloat), from c: Canvas) {
         guard let fl = node.frostLayer else { return }
         let pad = max(1, spec.blur * 2)
         let o = absOrigin(node)
         let box = CGRect(origin: o, size: node.box.size)
         let cap = box.insetBy(dx: -pad, dy: -pad)
+
+        // STACKED = an earlier frost's box overlaps THIS box. Not its padded
+        // capture: an earlier frost lying only inside the padding contributes
+        // pixels this kernel is about to blur again, and blurred-then-blurred
+        // is indistinguishable from painted-then-blurred there — while testing
+        // against the padding made every neighbouring card "stack" (measured:
+        // 1471 submissions for 1645 jobs, i.e. no batching at all).
+        let stacked = c.landedBoxes.contains { $0.intersects(box) }
+        c.landedBoxes.append(box)
+        if !stacked {
+            if c.snapshot == nil || c.dirty.intersects(cap) {
+                let ti = CFAbsoluteTimeGetCurrent()
+                c.snapshot = c.ctx.makeImage()
+                c.gen += 1
+                frostImageMs += (CFAbsoluteTimeGetCurrent() - ti) * 1000
+                c.dirty = .null
+            }
+            guard let snap = c.snapshot else { return }
+            // the crop, on whole canvas pixels; its model rect is derived from
+            // the rounded pixels so the window math below stays exact
+            let visible = cap.intersection(c.rect)
+            guard !visible.isNull, !visible.isEmpty else { return }
+            let px = CGRect(x: floor((visible.minX - c.rect.minX) * c.scale), y: floor((visible.minY - c.rect.minY) * c.scale),
+                            width: ceil(visible.width * c.scale) + 1, height: ceil(visible.height * c.scale) + 1)
+                .intersection(CGRect(x: 0, y: 0, width: snap.width, height: snap.height))
+            guard let crop = snap.cropping(to: px) else { return }
+            let cropRect = CGRect(x: c.rect.minX + px.minX / c.scale, y: c.rect.minY + px.minY / c.scale,
+                                  width: px.width / c.scale, height: px.height / c.scale)
+            c.jobs.append(Canvas.Job(node: node, spec: spec, crop: crop, cropRect: cropRect, box: box))
+            return
+        }
+        flushDeferredFrosts(c)                  // a stacked frost needs the ones beneath it landed
 
         // REUSE unless something drawn since the last snapshot can reach here.
         // This is what turns thirteen composites into one, without giving up the
@@ -592,17 +749,22 @@ extension LayerTree {
         }
     }
 
-    /// ⚠ DORMANT BY DEFAULT — `DECLARE_FROST=1` turns it on.
-    ///
-    /// The composite is CORRECT now — the no-sky bug was the veil's group
-    /// opacity painted at full alpha, fixed in the walk — and the GPU-blurred
-    /// glass is pixel-identical to the CPU reference (A/B: 0.000% differing).
-    /// What keeps the flag is FRAME RATE: weather's continuous scroll re-frosts
-    /// every commit and holds ~55–60Hz against 120Hz with the frost off. The
-    /// walk's CG paint (~7ms) and the blur submission latency are the two
-    /// remaining terms; until they fit the 8.3ms budget, on-by-default would
-    /// trade correct glass for dropped frames. Flip the flag to continue.
-    static let frostEnabled = ProcessInfo.processInfo.environment["DECLARE_FROST"] != nil
+    /// ON BY DEFAULT since 2026-09-10 (DT: the native host must not be
+    /// deficient — a browser frosts). It sat behind `DECLARE_FROST` for frame
+    /// rate — weather's scroll held ~55–60Hz against 120Hz — until the
+    /// sampler's cost was cut where it actually was: not the blur (~1ms) but
+    /// ONE GPU SUBMISSION PER FROST (landFrost's deferral fixed that) and
+    /// scratch textures re-created per frame (slot-keyed now). Measured after,
+    /// weather scrolling with 13 frosts on screen: the link at ~90Hz, ~13ms a
+    /// commit for the whole pass. The composite is exact (the no-sky bug was
+    /// the veil's group opacity, fixed in the walk) and the GPU-blurred glass
+    /// is pixel-identical to the CPU reference (A/B: 0.000% differing).
+    /// `DECLARE_NO_FROST=1` opts out for a measurement. The scroll process
+    /// re-samples per frame (LayerTree.commitMoves), so the cost is paid where
+    /// the web pays it. Next levers, unbuilt: an atlas (one CI graph per
+    /// radius instead of per frost) and a cached static-floor canvas (the sky
+    /// and veil blits are identical on every scroll frame).
+    static let frostEnabled = ProcessInfo.processInfo.environment["DECLARE_NO_FROST"] == nil
 
     func refreshFrosts() -> (n: Int, ms: Double) {
         guard LayerTree.frostEnabled else { return (0, 0) }

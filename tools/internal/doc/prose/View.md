@@ -19,6 +19,14 @@ Every attribute below can be asked about in a **running** program:
 (the owning constraint, its source, its reads); `__declare.help()` lists the calls.
 See `docs/operational/introspection.md`.
 
+**Text styling is not here.** The font, color, weight, and `theme` a region of text
+renders with are **provided values**, not `View` slots — they live on the text leaves
+(`Text`, `RichText`, `TextInput`) and `Control`, each declared `= provided("name", default)`.
+A `View` draws no glyphs, so it carries none of them; writing `fontFamily`, `textColor`, or
+`theme` on a container **provides** the value, and the nearest descendant leaf **reads** it
+(nearest-wins, live). See `Text`/`RichText` for the slots and `provided(…)` for the
+mechanism. The geometry and paint slots below are the ones a `View` actually owns.
+
 ## width
 The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no
 width set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).
@@ -62,26 +70,10 @@ CSS's `border` precisely so a bordered view and an unbordered one occupy the sam
 A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape
 minus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.
 
-## styles
-The top-level `style` **bundles** this view wears — a list of names (`styles = [ card, hero ]`),
-each a reusable set of attribute values declared once with `style name [ … ]`. A bundle's
-values apply to this view; its `prevailing` text slots (`textColor`, `fontSize`, `fontFamily`,
-…) then cascade to descendant `Text` exactly as if written here. Applied at a fixed rank
-**below** the view's own attributes, so a local write always outranks a bundle — and later
-names in the list win over earlier ones. The very same `style` a `<span class>` names inside
-`HTMLText`/`Markdown`, so one definition skins a container and its rich text alike. A bundle
-field may be a `{ }` body (`style hot [ textColor = { theme.accent } ]`), and it re-evaluates
-reactively like any other. A bundle on a view may set **only attributes that view declares** —
-a per-run treatment like `textFill` belongs on a `Text` or a `<span>`, not a plain `View`.
-```declare
-style panel [ cornerRadius = 12, fill = { theme.surface }, textColor = { theme.text } ]
-View [ styles = [panel], Text [ text = "wears the panel's colour" ] ]
-```
-
 ## opacity
 Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a
-group, so a fading panel fades its contents with it. Not `prevailing`: its effect
-already composes down the render tree, so a followed copy would apply it twice.
+group, so a fading panel fades its contents with it. It is not inherited by descendants —
+its effect already composes down the render tree, so a per-descendant copy would apply it twice.
 
 ## ignoreLayout
 Opt this child out of its parent's `layout` — the arrangement skips it and it owns
@@ -139,13 +131,29 @@ chains to the page, and sibling panes overscroll independently. On canvas the ru
 manages the offset (clip+translate+wheel), as a single element must.
 
 ## scrollY
-The current vertical scroll offset in pixels of a `scrolls` view — the **platform writes
-it** as the user scrolls; **read it** for scroll-driven effects (a fading header, reveals,
-parallax): `opacity = { 1 - app.scrollY / 200 }`. To move the pane, **call `scrollTo(y)`**
-rather than assigning: the verb is a request the platform clamps to the real range and
-holds for a pane that cannot take it yet, where an assignment can be silently swallowed
-(an equal-looking value, a hidden pane's lying offset). To reveal a particular view,
-`scrollIntoView()` on the target already does the walk.
+**A fact, not a slot.** The current vertical scroll offset in pixels of a `scrolls` view —
+the **platform writes it** as the user scrolls (and as a glide moves); **read it** for
+scroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.
+Nothing may set it: an assignment and an `Animator [ attribute = scrollY ]` are both
+compile errors, each naming the verb. To move the pane, **call `scrollTo(y)`** — a
+request the platform clamps to the real range and holds for a pane that cannot take it
+yet; add a glide (`scrollTo(y, { duration, motion })`) for the platform's own motion. A
+starting offset is declared with `scrollStartY`. The offset is sampled once per settle,
+like the pointer: your view of it may trail the pixels by a frame, and the pixels never
+wait on you. To reveal a particular view, `scrollIntoView()` on the target already does
+the walk.
+
+## scrollStartY
+The vertical offset a `scrolls` view **starts at** — applied once, at first layout, the
+declared twin of a `scrollTo(y)` on arrival (`scrollStartX` for the other axis). The
+`scrollY` fact then reports where the platform actually put it. A test fixture that must
+be shot mid-scroll declares this rather than gesturing.
+
+## scrolling
+**A fact, not a slot.** True while this scroller is in motion — a wheel or trackpad
+stream, its momentum, a scrollbar drag, or a glide — and false once it settles. Read it
+to hold work off until the user is done (`onChange(scrolling)`), or to keep a heavy
+effect cheap mid-gesture. Written by the platform's scroll process; never assigned.
 
 ## layout
 How this view arranges its children — a reactive `Layout` attribute, not a child and
@@ -231,27 +239,6 @@ list: View [ datapath = { app.d.value },                  // ← ask THIS one
 It is **tracked**, so a constraint reading it follows a block engaging or disengaging —
 which can happen mid-run, since the policy accepts a `{ }`. And it is what makes
 `childViews` legible on a virtualized block: the list is a subset, and this is how you know.
-
-## textColor
-The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`
-so **any** container can provide it and the whole subtree inherits, live. Unset, it
-follows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to
-retint all text beneath without touching each `Text`.
-
-## fontSize
-Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly
-like `textColor`. Set once on a container to size a whole region's text.
-
-## iconSize
-Prevailing icon size in pixels (default `16`), inherited exactly like `fontSize` and
-`textColor`. A drawn icon takes its box from this, so setting it once on a container
-sizes every mark in a region — a menu row asks for 16, a button for 18 — without each
-icon carrying a number of its own.
-
-It sizes the BOX, not the stroke: an icon's `weight` is in final pixels, so the same
-mark at a larger `iconSize` reads proportionally lighter rather than simply scaling up.
-That is deliberate — a hairline should stay a hairline — but it means a set drawn for
-16 will not hold its density at 32 without redrawing.
 
 ## contentWidth
 **Read-only** intrinsic: the width of this view's visible children's bounding box —
@@ -360,47 +347,6 @@ one with the other.
 The vertical offset within the parent — the twin of `x`, and likewise overwritten by a
 parent `layout`.
 
-## fontFamily
-The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, "system-ui", "sans-serif"]`.
-A bare name resolves to a declared `font`; the first entry that resolves wins, so end
-with a generic. Prevailing, so setting it on a container refaces the whole region.
-
-## fontWeight
-The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).
-The token also **picks the matching face** when a `font` declares several, so weight and
-face never drift apart.
-
-## letterSpacing
-Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,
-so a heading container can loosen all its text at once.
-
-## theme
-A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,
-etc. Provide it on a container and the subtree styles off it — the escape from hard-coded
-colors when you don't want a full `stylesheet`.
-
-## styles
-An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike
-`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes
-live, use `stylesheet` instead.
-
-## stylesheet
-Which declared sheet governs this subtree — **the attribute, not the top-level form of the
-same name**. `stylesheet Dark [ … ]` DECLARES a skin; `stylesheet = Dark` APPLIES one. The
-syntax tells them apart (a form is followed by a name, the attribute by `=`), and the shared
-word is deliberate: it says what kind of thing `Dark` is.
-
-Prevailing, so provide one anywhere and that whole subtree reskins; swap it and the subtree
-re-styles in a single settle. A sheet is a dictionary keyed by CLASS name — no selectors, no
-structural matching, no specificity — resolved by a class-chain walk with field-wise merge,
-and its fields land as offers that sit BELOW any value the view sets itself. It carries a
-`theme` record too, which is why a skin can be theme-aware.
-
-The three styling channels differ by who decides: `styles` is opted into BY THE VIEW and is
-static after construction; `theme` is a token record an ancestor provides and bindings READ;
-a stylesheet is IMPOSED from outside on views that never mention it — style without source
-edits.
-
 ## focusable
 Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no
 numeric tabindex; override `tabOrder()` to reorder within a container.
@@ -502,10 +448,22 @@ can finally take it. The `scrollY` fact follows the platform's answer. Call it o
 `scrolls` view itself; to reveal a particular *view*, `scrollIntoView()` on the target
 finds the scroller for you. A no-op before the view is attached.
 
+**With a glide** — `scrollTo(y, { duration, motion })` — the request moves the pane over
+`duration` milliseconds on the platform's own motion: the browser's smooth scroll, the
+native host's tween, the canvas runtime's loop. `motion` names a Declare curve
+(`"cubicOut"`, the default; any family token) where the provider can honor one. This is
+not an Animator: no Animator semantics, no slot — the scroller glides, `scrollY` reports
+as it goes, and a **gesture cancels it** (the user always wins). A request that arrives
+while a gesture or its momentum owns the pane is dropped.
+
 ## scrollToX()
 The horizontal twin of `scrollTo()` — the same clamped, held request against `scrollX`,
-for a `scrolls = x` (or `both`) view. On the canvas backend horizontal scroll is not yet
-realized, so there it is a no-op (as `scrollX` itself is).
+for a `scrolls = x` (or `both`) view, with the same optional glide.
+
+## scrollBy()
+A **relative** request — `scrollBy(dx, dy)`, or `scrollBy(dx, dy, { duration, motion })`
+— measured from the current facts: `scrollBy(0, -pane.height)` pages up. The same
+clamp, hold and glide contract as `scrollTo()`/`scrollToX()`, on both axes at once.
 
 ## rootOrigin()
 This view's origin in **root space** (the root's content coordinates — the same space
@@ -576,49 +534,13 @@ input — hit-testing and focus are unchanged. A token string in a `{ }` body, l
 `scrolls` — so a blend can be state: `blend = { active ? "multiply" : "normal" }`.
 
 ## scrollX
-**Read-only.** The live horizontal offset of a `scrolls = x` (or `both`) view, mirrored
-from the native scroll — `scrollY`'s twin, with the enforcement `scrollY` still lacks:
-the platform owns it, and assigning it is a compile error. **`scrollToX(x)` is the verb**
-— a clamped, held request. A declared `Animator [ attribute = scrollX ]` may still drive
-it (the sanctioned driver door — the desktop's Files strip animates a fresh column into
-view). Read it for a paging strip's position or scroll-driven effects.
-
-## selectable
-**Prevailing.** `selectable = true` on a container makes all its `Text` — including a
-`Markdown`'s rendered runs — selectable and copyable; **off by default**, so UI chrome never
-becomes accidentally selectable. Set it once high over a region of prose.
-
-## headingColor
-**Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading
-runs only; absent, headings follow `textColor`.
-
-## headingWeight
-**Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to
-`fontWeight`.
-
-## linkColor
-**Prevailing.** The color of links in rich text; absent, links use the theme's accent.
-
-## codeColor
-**Prevailing.** The text color of inline and fenced code in rich text.
-
-## codeSize
-**Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,
-and `<pre>` alike, so a document's monospace stays uniform.
-
-## codeFamily
-**Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.
-
-## codeBackground
-**Prevailing.** The fill behind fenced code blocks; absent, code carries no box.
-
-## codeRule
-**Prevailing.** The color of a fenced code block's left accent rule.
-
-## richTextLayout
-**Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled
-measure and spacing per block kind (prose narrower than code, say), so one base renders both
-tight code and wide prose.
+**A fact, not a slot.** The live horizontal offset of a `scrolls = x` (or `both`) view,
+mirrored from the platform's scroll — `scrollY`'s twin, with the same enforcement: the
+platform owns it, and an assignment or an Animator aimed at it is a compile error.
+**`scrollToX(x)` is the verb** — a clamped, held request, with an optional glide
+(`scrollToX(x, { duration: 260, motion: "cubicOut" })` is how the desktop's Files strip
+slides a fresh column into view). `scrollStartX` declares a starting offset. Read it for
+a paging strip's position or scroll-driven effects.
 
 ## anchor
 Names this view as a **reveal target** for a location's `@name` suffix
@@ -626,11 +548,6 @@ Names this view as a **reveal target** for a location's `@name` suffix
 lineage, reborn reactive: the anchor namespace is named views (this attribute) plus
 heading slugs inside rendered rich text — a heading needs nothing from you. Resolution
 prefers views over slugs, preorder-first.
-
-## selectable
-Opt this run back into native text selection / copy (default `false`). Off by default
-so an app doesn't feel like a document; turn it on for content a user should be able to
-select and copy.
 
 ## claim
 The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps
@@ -647,14 +564,14 @@ dematerialization is NOT a departure and never fires it.
 ## hovered
 True while the pointer is over this view — read-only, maintained by the same hit walk that
 routes presses, so it agrees with what a click would reach. Read it in a constraint rather
-than tracking enter/leave by hand: `fill = { hovered ? theme.control : null }`. On a touch
+than tracking enter/leave by hand: `fill = { hovered ? provided("theme").control : null }`. On a touch
 device there is no hovering, so gate mouse-only affordances on `app.touchDevice`.
 
 ## pressed
 True while the pointer is down *and* this view was on the chain captured at pointer-down —
 read-only. It stays true if the finger slides off and comes back, which is what makes a
 button feel like a button; `hovered` alone flickers. The pair is the whole of press
-styling: `fill = { pressed ? theme.line : hovered ? theme.control : null }`.
+styling: `fill = { pressed ? provided("theme").line : hovered ? provided("theme").control : null }`.
 
 ## cursor
 The pointer cursor shown over this view, as a CSS cursor keyword (`"col-resize"`,
@@ -806,7 +723,3 @@ tabOrder() { return open ? this.tabDefault() : [] }
 ## tabDefault()
 The default traversal list — visible children in source order. **The thing a `tabOrder()`
 override calls** when it wants the ordinary answer under a condition of its own.
-
-## lookupStylesheet()
-Resolves a stylesheet by name to the handle the `stylesheet` slot accepts — for choosing a
-skin whose name is computed at runtime. A `stylesheet = Dark` literal needs none of this.

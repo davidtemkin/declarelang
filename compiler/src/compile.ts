@@ -48,6 +48,7 @@ import { parseProgram, type Element, type Program } from "../../runtime/dist/par
 import { DeclareError, DeclareErrors, type Pos } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { SCHEMAS, descendsFrom, attrType } from "../../runtime/dist/schema.js";
+import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
 import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks, type SerializedLink } from "../../runtime/dist/links.js";
@@ -214,6 +215,24 @@ import { Diag, toDiagnostic, renderReport, type Diagnostic, type DiagPhase } fro
  *  like the constructors — bare `colorWithAlpha` is still a member name. */
 const CALLEE_GLOBALS = new Set([...CONSTRUCTOR_NAMES, "colorWithAlpha"]);
 
+/** A value body wrapped ENTIRELY in one pair of parentheses — `(expr)`, and the
+ *  once-idiomatic `({ … })` object form. The runtime wraps every expression body
+ *  in `return (…)` already (expr.ts), so the author's outer parens are always
+ *  redundant. Returns the inner expression's text and offset within `src` when
+ *  the whole body is exactly one ParenthesizedExpression, else null — so a
+ *  partial paren (`(a + b) * c`, an arrow `(a) => a`) is left alone. Runs on the
+ *  datapath-neutralized text so an island body still parses. */
+function wholeBodyParen(src: string): { inner: string; start: number } | null {
+  const text = fillDatapaths(src);
+  const sf = ts.createSourceFile("paren.ts", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  if (sf.statements.length !== 1) return null;
+  const st = sf.statements[0];
+  if (!ts.isExpressionStatement(st) || !ts.isParenthesizedExpression(st.expression)) return null;
+  const inner = st.expression.expression;
+  const start = inner.getStart(sf);
+  return { inner: src.slice(start, inner.getEnd()).trim(), start };
+}
+
 /** A compile result. `source` is the resolved program (null when there are
  *  errors); `deps` is the extracted `{ }`-constraint dependency list (walk-order
  *  read-paths, docs/system-design/constraints.md §5), present exactly when `source` is — so
@@ -270,7 +289,7 @@ function diagnose(
  *  source, and the compiler names it here: a WARNING, never blocking. Only
  *  written knowledge speaks — a field whose effective size comes from a
  *  literal number below 16 (its own `fontSize`, or the nearest enclosing
- *  literal; prevailing inheritance follows containment). A `{ }`-computed
+ *  literal; the provided value follows containment). A `{ }`-computed
  *  size is unknowable at compile time and stays silent. Two exemptions: an
  *  app with full gesture control (its App declares the raw touch family) —
  *  the runtime suspends the auto-zoom for it (viewport-lock.ts) — and
@@ -319,7 +338,7 @@ const BOUND = ["parent", "arguments"];
 
 /** Which kind of `{ }` body is being resolved. `classroot` is valid ONLY in a
  *  `class` body (the component you define); every other kind rejects it. */
-type ScopeKind = "class" | "app" | "stylesheet" | "bundle";
+type ScopeKind = "class" | "app" | "bundle";
 
 // What a bare name in a { } body may resolve to beyond the tree — ONE list,
 // the same on every host, and the checker's prelude is the law:
@@ -347,9 +366,10 @@ const ES_GLOBALS = new Set([
 ]);
 
 // The runtime services in body scope (expr.ts setBodyServices): bare `Focus`
-// in a handler is the service, never a member to resolve. `afterSettle` is the
-// one function-shaped entry — "finish after your change has taken effect".
-const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Themes", "Inspect", "afterSettle"]);
+// in a handler is the service, never a member to resolve. `afterSettle` and
+// `tint` are the function-shaped entries; the built-in theme presets are in
+// scope by name (`SanFrancisco`, `CupertinoDark`, …), so a body names one.
+const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Inspect", "afterSettle", "tint", ...THEME_PRESET_NAMES]);
 
 const isKnownGlobal = (name: string): boolean => ES_GLOBALS.has(name) || PRELUDE_NAMES.has(name) || RUNTIME_SERVICES.has(name);
 
@@ -402,7 +422,7 @@ export interface CompileOptions {
  *  is declared above its subclass) ahead of the main file (its directives
  *  excised too), producing ONE merged source: parse → check → scope-resolve →
  *  emit all run over its identical offsets, so the output contains every
- *  included class/stylesheet/style, carries no `include` directive, and has
+ *  included class/theme/style, carries no `include` directive, and has
  *  every body — the main file's AND the included files' — bare-name-resolved.
  *
  *  Diagnostics trade-off (composition.md §1): the file-named collision /
@@ -707,13 +727,12 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   const errors = rbAll(check(program));
   if (errors.length > 0) return { source: null, errors, warnings: [], ...diagnose(errors, [], "structure") };
 
-  // Resolve EVERY body — the main tree's and every included class/stylesheet/
+  // Resolve EVERY body — the main tree's and every included class/theme/
   // style's — so no unresolved bare name reaches the self-contained output.
   const r = new Resolver(merged, program);
   r.canBundleScripts = opts.bundleScripts !== undefined;
   r.checkScripts(program);
   for (const cls of program.classes) r.resolveElement(cls.body, [], null);
-  for (const s of program.stylesheets) r.resolveStylesheet(s.body);
   for (const s of program.styles) r.resolveBundle(s.body);
   r.resolveElement(program.root, [], program.root);
   r.warnings.push(...smallFieldWarnings(program, preludeLen));
@@ -1068,12 +1087,16 @@ class Resolver {
   /** The `let`/`var` subset of scriptNames — readable from a body (a copy),
    *  never writable (see topLevelMutableBindings). */
   private readonly scriptMutable: Set<string>;
+  /** Names the program's `theme Name [ … ]` declarations bind — in body scope
+   *  by name, like a preset (`theme = { app.dark ? BrandDark : Brand }`). */
+  private readonly themeNames: Set<string>;
 
   /** Whether this compile can bundle script imports (CompileOptions.bundleScripts). */
   canBundleScripts = false;
 
   constructor(source: string, program: Program) {
     this.schemas = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name))).schemas; // check-clean: no errors
+    this.themeNames = new Set((program.themes ?? []).map((t) => t.name));
     this.scriptNames = new Set(program.scripts.flatMap((b) => topLevelBindings(b.src)));
     this.scriptMutable = new Set(program.scripts.flatMap((b) => topLevelMutableBindings(b.src)));
     for (let i = 0; i < source.length; i++) {
@@ -1248,8 +1271,8 @@ class Resolver {
         this.warnAmbient(a.value.src, a.value.pos);
       }
     }
-    // A declaration default that is a binding (the styling rung's ruled R6
-    // unlock — `labelColor: Color = { theme.buttonText }`) resolves at the
+    // A declaration default that is a binding (the ruled R6 unlock —
+    // `labelColor: Color = { theme.buttonText }`) resolves at the
     // same levels an attribute body here does: the runtime evaluates it with
     // `this` = the instance (attributes.ts evalDefault), so `theme` means
     // `this.theme` exactly as it would in a set.
@@ -1275,28 +1298,12 @@ class Resolver {
     for (const child of el.children) this.resolveElement(child, levels, mainRoot);
   }
 
-  /** A stylesheet body (styling rung): each class-keyed entry's `{ }` fields
-   *  resolve at ONE level — the keyed class itself (the applier evaluates a
-   *  field with `this` = the styled view, the ruled bundle rule), so `theme`
-   *  becomes `this.theme` and resolves through that view's prevailing chain.
-   *  The theme record is literal-only (checked) — nothing to resolve. */
-  resolveStylesheet(body: Element): void {
-    for (const child of body.children) {
-      if (child.entry !== true) continue;
-      for (const a of child.attrs) {
-        if (a.value.kind === "code") this.resolveBody(a.value.src, a.value.pos, true, [], [child], null, "stylesheet");
-      }
-    }
-  }
-
-  /** A style bundle's `{ }` fields apply to arbitrary views, so bare names
-   *  resolve against the one surface every application is guaranteed to have
-   *  — View's (`theme`, the decoration slots, the prevailing quartet all
-   *  rewrite to `this.…`); a class-specific member must be written
-   *  `this.member` (the conservative reading — recorded in HANDOFF). */
+  /** A style bundle's `{ }` fields style a `<span class>` run — a run is text,
+   *  so bare names resolve against `Text` (`fontSize`, `textColor` and the rest
+   *  rewrite to `this.…`); a value from up the tree is `provided("…")`. */
   resolveBundle(body: Element): void {
     for (const a of body.attrs) {
-      if (a.value.kind === "code") this.resolveBody(a.value.src, a.value.pos, true, [], [VIEW_LEVEL], null, "bundle");
+      if (a.value.kind === "code") this.resolveBody(a.value.src, a.value.pos, true, [], [TEXT_LEVEL], null, "bundle");
     }
   }
 
@@ -1311,6 +1318,13 @@ class Resolver {
     slot?: string
   ): void {
     const bodyStart = brace.offset + 1; // the body begins just after `{`
+    // Redundant whole-body parentheses (`{ (expr) }`, `{ ({ … }) }`) — the { }
+    // already delimits the expression, so the outer ( ) do nothing. Rejected on
+    // value bodies (the paren idiom lived there); statement bodies are left be.
+    if (expression) {
+      const rp = wholeBodyParen(src);
+      if (rp !== null) this.errors.push(Diag.redundantParens(rp.inner, this.posAt(bodyStart + rp.start)));
+    }
     // Datapath islands (R8) resolve HERE, at compile time (data-paths.md §5's
     // emitted plans): each island becomes its explicit runtime form over
     // pre-parsed segments — `:location.city` → `this.$data(["location","city"])`
@@ -1350,14 +1364,30 @@ class Resolver {
         });
         continue;
       }
+      if (id.name === "provided" && id.callee) {
+        // `provided("name"[, default])` (language §9, provided values) — read a
+        // value the nearest providing ancestor makes available. A body-scope
+        // operator, not a member: rewritten to the base-node method so `this` is
+        // the reading node, exactly as `app` becomes `this.root`. The runtime
+        // `Node.$provided` walks the parent chain (attributes.ts providedRead).
+        // Intercepted before the surface search so a same-named slot cannot
+        // shadow it, and left as a plain call so the argument (a string, or a
+        // `{ }`-computed name) resolves normally.
+        this.edits.push({
+          start: bodyStart + id.start,
+          end: bodyStart + id.end,
+          text: "this.$provided",
+        });
+        continue;
+      }
       if (id.name === "classroot") {
         // `classroot` reaches the root of the component (class) the code is
         // written in — meaningful ONLY inside a class body, where it passes
         // through untouched and the runtime binds it (expr.ts). Anywhere else
-        // (the App block, a stylesheet or style-bundle body) there is no
-        // component to root, so it is an error naming where the code actually is.
+        // (the App block, a style-bundle body) there is no component to root,
+        // so it is an error naming where the code actually is.
         if (scope !== "class") {
-          const where = scope === "app" ? "the App" : scope === "stylesheet" ? "a stylesheet" : "a style bundle";
+          const where = scope === "app" ? "the App" : "a style bundle";
           this.errors.push(Diag.classrootOutsideClass(where, this.posAt(bodyStart + id.start)));
         }
         continue;
@@ -1378,7 +1408,7 @@ class Resolver {
         selfName = true;
       }
       if (k === -1) {
-        if (!isKnownGlobal(id.name) && !this.scriptNames.has(id.name)) {
+        if (!isKnownGlobal(id.name) && !this.scriptNames.has(id.name) && !this.themeNames.has(id.name)) {
           const hostHint = hostGlobalHint(id.name);
           // A bare enum token inside { } — `fontWeight = { bold ? semibold : regular }`
           // — is the slot's OWN vocabulary spoken without quotes. The bare form is
@@ -1488,9 +1518,10 @@ class Resolver {
 
 const describe = (el: Element): string => (el.name !== null ? `${el.name}: ${el.tag}` : el.tag);
 
-/** The synthetic single level a bundle body resolves at (resolveBundle):
- *  View's member surface, `this`-pathed. */
-const VIEW_LEVEL: Element = {
-  tag: "View", name: null, attrs: [], decls: [], methods: [], children: [],
+/** The synthetic single level a bundle body resolves at (resolveBundle): a
+ *  `<span class>` run is text, so bare names resolve against `Text`'s member
+ *  surface, `this`-pathed. */
+const TEXT_LEVEL: Element = {
+  tag: "Text", name: null, attrs: [], decls: [], methods: [], children: [],
   pos: { line: 0, col: 0, offset: 0 },
 };

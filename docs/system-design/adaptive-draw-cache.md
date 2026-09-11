@@ -71,6 +71,28 @@ memo makes the expensive ones cheap:
   advance the generation, so idling evicts nothing.
 - **Discovered ceilings**: a null context, a throw, or a raster past 8 MB that
   samples blank halves the session budget — and never raises it.
+- **The worker raster** (built 2026-09-10; `raster-client.ts` +
+  `raster-worker.ts`): where the engine has `Worker` + `OffscreenCanvas`, a
+  promoted recording's pixels are made OFF the main thread — the mac bridge
+  pattern in-process. The recording is plain data by construction (draw.ts),
+  so it crosses as-is; the pixels come back as a transferable `ImageBitmap`
+  and become the memo entry (`drawImage` takes either). Rasterization is
+  thereby ASYNCHRONOUS on canvas: the frame that promotes paints what it has —
+  the prior raster of the same list scaled, or vectors — and the bitmap's
+  arrival books the frame that shows it. Nothing else changes: admission,
+  stability, eviction (a worker bitmap is `close()`d on release), the blank
+  check (run in the worker before transfer) and the discovered-ceiling rule
+  are the same code paths. Fonts: the worker loads exactly the faces the page
+  loaded (`font.ts noteLoadedFaces` → the `fonts` message), so text rasters
+  identically; the filter probe and the fallback's scratch canvases are
+  OffscreenCanvas there. DENIABLE: no worker (a Node rung, an old Safari, a
+  worker that fails to construct) and the synchronous path below is exactly
+  what it was; `__declareNoRasterWorker` is the A/B lever. The worker file
+  rides beside the runtime — `runtime/dist/raster-worker.js` unbundled,
+  `bundles/declare-raster-worker.js` from build-boot.mjs — resolved with
+  `new URL(…, import.meta.url)` like the compile worker. MEASURED
+  (test/raster-memo.test.mjs): the worker's bitmap is bit-identical to the
+  main thread's raster.
 - **Frost** (`backdrop`): samples what is beneath the view at paint time and
   redraws it through the filter. In motion — a paint within a beat of the last —
   the filter runs the approximate, readback-free path and books the exact frame
@@ -110,6 +132,21 @@ Filters run through Core Image with the radius carried across unscaled; shadow
 offsets are negated into CA's y-up space; conic gradients are swept without
 antialiasing between tiling wedges. Per-op conformance against Chrome is 30 of
 30 cells within budget (§7).
+
+- **Frost** (`backdrop`, `Frost.swift`): SAMPLED, on by default since
+  2026-09-10 — the compositor's own `backgroundFilters` renders nothing on
+  macOS 26 while doubling WindowServer CPU (the file's header records the
+  probe), so the host paints the floor beneath every on-screen frost into one
+  canvas per frame, in paint order, and blurs on Metal. Each frost keeps its
+  own snapshot crop and every crop of a frame goes up in ONE GPU submission;
+  only a frost whose box overlaps an earlier frost's box takes the sequential
+  path with the draw-back. Renditions of images, drawings and text are cached
+  at canvas scale; the host's scroll process re-samples in the same
+  transaction as its moves. Measured on weather scrolling with 13 frosts on
+  screen: ~13 ms a frame for the pass, the link at ~90 Hz (from 67 with one
+  submission per frost, and ~55–60 before). Unbuilt levers: one Core Image
+  graph per radius via an atlas, and a cached static-floor canvas.
+  `DECLARE_NO_FROST=1` opts out; `ctl froststats` splits the cost.
 
 ### 3.4 What each renderer does, side by side
 
@@ -226,6 +263,15 @@ both engines cull; Chrome under contention timing out a byte-identical capture.
 
 ## 8. Open
 
+- **The blur residual.** The memo's "same pixels as the vectors" holds for an
+  un-filtered recording; under a `blur()` filter the raster (its own padded
+  canvas) and a direct replay (on the composite) sample different
+  neighbourhoods at the raster's edges. MEASURED 2026-09-10 on the raster-memo
+  probe (Chrome, dpr 1): 35 514 differing channels, max 52 — identical on the
+  sync and worker paths, so it is the memo's. Pinned at that size in
+  `test/raster-memo.test.mjs` so it cannot grow unnoticed; the fix is to
+  raster the filtered recording with the composite's own margin, or to keep
+  filtered recordings on the vector path.
 - The canvas backend repaints the whole viewport per scroll frame (Safari p95
   26 against DOM's 17). Stacked canvases, letting the compositor blend strata,
   is the lever, reached for only if that ever misses budget.

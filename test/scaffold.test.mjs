@@ -158,17 +158,19 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   assert.ok(view.includes("cornerRadius: Radius;"), "radius → Radius (a number, or four corners)");
   assert.ok(view.includes("opacity: number;"), "number → number");
   assert.ok(view.includes("visible: boolean;"), "boolean → boolean");
-  assert.ok(view.includes("fontFamily: string;"), "string → string");
-  assert.ok(view.includes("textColor: Color;"), "color → Color");
   assert.ok(view.includes("clip: Shape;"), "shape → Shape");
-  assert.ok(view.includes("fontWeight: FontWeight;"), "enum → named union");
   assert.ok(view.includes("fill: Fill;"), "fill → Fill");
   assert.ok(view.includes("stroke: Stroke | null;"), "stroke → Stroke | null");
   assert.ok(view.includes("shadow: Shadow | null;"), "shadow → Shadow | null");
-  assert.ok(view.includes("theme: Theme;"), "record → Theme");
-  assert.ok(view.includes("styles: string[];"), "styles → string[]");
-  assert.ok(view.includes("stylesheet: string | null;"), "stylesheet → string | null");
   assert.ok(view.includes("layout: Layout | null;"), "component → <of> | null");
+  // The text FACE kinds moved OFF View onto the text leaves (provided values):
+  // string / color / enum are demonstrated on Text, the record kind on RichText.
+  const text = classBlock(s, "Text");
+  assert.ok(text.includes("fontFamily: string;"), "string → string");
+  assert.ok(text.includes("textColor: Color;"), "color → Color");
+  assert.ok(text.includes("fontWeight: FontWeight;"), "enum → named union");
+  const rich = classBlock(s, "RichText");
+  assert.ok(rich.includes("richTextLayout: RichTextLayout;"), "record → its named type");
   // The cursor slot's read/write ASYMMETRY (typed data): reads see the place;
   // writes also accept a place-bearing VALUE (`datapath = { d.value.rec }` —
   // toCursor turns the container back into a place), which a typed dataset

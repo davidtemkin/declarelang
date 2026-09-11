@@ -27,7 +27,7 @@ export const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
   background: "the paint slot is 'fill' (a color or gradient(…))",
   backgroundColor: "the paint slot is 'fill'",
   borderRadius: "rounding is 'cornerRadius'",
-  color: "text color is 'textColor' (prevailing — set it on a container)",
+  color: "text color is 'textColor' (a provided value — set it on a container to cascade)",
   zIndex: "stacking is source order — later siblings draw above; there is no z-index",
   overflow: "clipping is 'clip = true'; scrolling is 'scrolls = y' (the axis enum)",
   display: "arrangement is the 'layout' attribute — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",

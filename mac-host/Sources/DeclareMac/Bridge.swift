@@ -11,15 +11,114 @@ import JavaScriptCore
 import CoreText
 
 final class Bridge {
-    let ctx = JSContext()!
+    /// Created ON the runtime thread (see THE RUNTIME THREAD) — its JSC timers
+    /// bind to that thread's run loop, and the main thread never takes the
+    /// JS lock.
+    private(set) var ctx: JSContext!
     private(set) var tree: LayerTree!
     lazy var media = MediaEngine(bridge: self)
     private weak var view: DeclareView?
     private var timers: [Int: Timer] = [:]
-    private var frameRequested = false
+    /// The frame request, readable at the tick from ANY thread: the runtime
+    /// asks for its next animation frame from its own thread, and a request
+    /// that only landed on main by an async hop could miss the very next
+    /// tick (measured: 5% of frames doubled to 16 ms in a tight rAF loop).
+    /// The flag is set under a lock at once; the hop below only un-pauses.
+    private var _frameRequested = false
+    private let frameLock = NSLock()
+    private var frameRequested: Bool {
+        get { frameLock.lock(); defer { frameLock.unlock() }; return _frameRequested }
+        set { frameLock.lock(); _frameRequested = newValue; frameLock.unlock() }
+    }
     private var caLink: CADisplayLink?
     private var images: [Int: CGImage] = [:]
+    private let imagesLock = NSLock()
     private var pathCache: [String: CGPath] = [:]
+    private let pathLock = NSLock()
+
+    // ── THE RUNTIME THREAD (2026-09-10) ─────────────────────────────────────
+    //
+    // The runtime's JSContext lives on its own thread; the main thread owns
+    // AppKit, the layer tree and the scroll process — the split a browser
+    // makes between its page thread and its compositor. Every Swift → JS call
+    // is an ASYNC post (`call`), so the main thread never waits on the
+    // runtime: a 30 ms settle no longer stalls a wheel, a glide, a bar drag, a
+    // pointer's tracking. Every JS → Swift primitive is one of three shapes —
+    // thread-safe (CoreText, CGPath, disk), an async hop to main (UI, media,
+    // the frame request), or a SYNC hop to main only where the runtime needs
+    // the answer (`richLayout`: TextKit is main-only) — which is deadlock-free
+    // exactly because the main thread never blocks on this thread. THE RULE:
+    // nothing on main ever waits for the runtime after init; a value from JS
+    // (eval, bench) comes back by a callback.
+    //
+    // WHY A REAL THREAD WITH A RUN LOOP, not a dispatch queue: JavaScriptCore
+    // binds its own timers (GC activity, the incremental sweeper) to the run
+    // loop of the thread that CREATED the VM, and those timers take the JS
+    // lock when they fire. A context created on main deadlocked — measured on
+    // the homepage: main in JSRunLoopTimer waiting for the lock, the runtime
+    // holding it inside a callback and waiting on main for richLayout. So the
+    // context is created HERE, and this thread runs a real CFRunLoop for JSC's
+    // timers and ours; a GCD queue could not host that (its threads are
+    // recycled, and a run loop nobody runs never fires).
+    private final class RuntimeThread: Thread {
+        let ready = DispatchSemaphore(value: 0)
+        private(set) var loop: CFRunLoop!
+        override func main() {
+            loop = CFRunLoopGetCurrent()
+            // a port keeps the loop alive with nothing else scheduled
+            RunLoop.current.add(Port(), forMode: .common)
+            ready.signal()
+            while !isCancelled { RunLoop.current.run(mode: .default, before: .distantFuture) }
+        }
+    }
+    private let runtimeThread: RuntimeThread = {
+        let t = RuntimeThread()
+        t.name = "com.davidtemkin.declare.runtime"
+        t.qualityOfService = .userInteractive
+        t.start()
+        t.ready.wait()
+        return t
+    }()
+    var onRuntimeThread: Bool { Thread.current === runtimeThread }
+    /// Run on the runtime thread — now if already there, else posted in order.
+    ///
+    /// Posted through `perform(_:on:with:)`, a mach-port run-loop source:
+    /// `CFRunLoopPerformBlock` + `CFRunLoopWakeUp` can DROP a wake that lands
+    /// while the loop is between two `run` calls, and the block then waits for
+    /// whatever next wakes the loop — measured on weather's city expand as
+    /// 75–90 ms commit gaps with both threads idle.
+    func onRuntime(_ f: @escaping () -> Void) {
+        if onRuntimeThread { f(); return }
+        Bridge.poster.perform(#selector(RuntimePoster.run(_:)), on: runtimeThread, with: PostedBlock(f), waitUntilDone: false)
+    }
+    private final class PostedBlock: NSObject { let f: () -> Void; init(_ f: @escaping () -> Void) { self.f = f } }
+    private final class RuntimePoster: NSObject { @objc func run(_ b: PostedBlock) { b.f() } }
+    private static let poster = RuntimePoster()
+    /// LIVE RESIZE: the one BOUNDED wait main makes for the runtime after init
+    /// (WebKit's own move — the UI process waits briefly for the web process
+    /// after a resize so the frame and its content land together). Returns
+    /// once a commit newer than `serial` has been applied, or after `timeout`.
+    /// Deadlock-free: the wait RUNS the main run loop, so the runtime's
+    /// main.sync hop (richLayout) and the commit's own main.async hop both
+    /// execute inside it; a slow settle simply lets the frame show early.
+    func waitForCommit(after serial: Int, timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while commitCount <= serial, Date() < deadline {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.002))
+        }
+    }
+
+    /// INIT ONLY: the one place main waits for the runtime — creating the
+    /// context and evaluating the platform scripts, before anything else runs.
+    private func runtimeSyncAtInit(_ f: @escaping () -> Void) {
+        let done = DispatchSemaphore(value: 0)
+        onRuntime { f(); done.signal() }
+        done.wait()
+    }
+    /// AppKit facts the runtime asks for synchronously, cached on main so the
+    /// runtime thread never touches a window: the backing scale and the theme.
+    var cachedScale: CGFloat = 2
+    var cachedAppearance = "light"
     // commit-pipeline instrumentation (benchmarks)
     var commitCount = 0
     var commitMsTotal = 0.0
@@ -64,7 +163,9 @@ final class Bridge {
     func travel(loc: String, step: String, scroll: Double) {
         guard let data = try? JSONSerialization.data(withJSONObject: [loc, step, scroll]),
               let args = String(data: data, encoding: .utf8) else { return }
-        ctx.evaluateScript("globalThis.__declareTravel && __declareTravel.apply(null, \(args))")
+        onRuntime { [weak self] in
+            self?.ctx.evaluateScript("globalThis.__declareTravel && __declareTravel.apply(null, \(args))")
+        }
     }
     /// Fired ONCE per `boot()`, when the program first puts something on screen
     /// or gives up trying. "The window is no longer starting" — which is what
@@ -120,13 +221,17 @@ final class Bridge {
     init(view: DeclareView) {
         self.view = view
         self.tree = LayerTree(bridge: self, view: view)
-        ctx.exceptionHandler = { _, e in
-            NSLog("[Declare] JS exception: %@", e?.toString() ?? "?")
-            if let stack = e?.objectForKeyedSubscript("stack")?.toString() { NSLog("[Declare]   %@", stack) }
+        cachedAppearance = Bridge.appearance()
+        runtimeSyncAtInit { [self] in
+            ctx = JSContext()
+            ctx.exceptionHandler = { _, e in
+                NSLog("[Declare] JS exception: %@", e?.toString() ?? "?")
+                if let stack = e?.objectForKeyedSubscript("stack")?.toString() { NSLog("[Declare]   %@", stack) }
+            }
+            mark("ctx created")
+            install()
+            loadScripts()
         }
-        mark("ctx created")
-        install()
-        loadScripts()
         mark("runtime scripts evaluated")
         startDisplayLink()
     }
@@ -151,14 +256,21 @@ final class Bridge {
 
         host.setObject({ [weak self] (json: String) in
             guard let self else { return }
+            // the JSON is decoded HERE, on the runtime thread; the layer tree
+            // applies the decoded ops on main, in order, one hop later
+            let ops = LayerTree.decode(json)
+            let bytes = json.utf8.count
+            let head = self.statsTracing ? String(json.prefix(180)) : ""
+            DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
             let t0 = CFAbsoluteTimeGetCurrent()
-            if self.statsTracing, self.firstCommits.count < 4 { self.firstCommits.append(String(json.prefix(180))) }
-            self.tree.apply(json)
+            if self.statsTracing, self.firstCommits.count < 4 { self.firstCommits.append(head) }
+            self.tree.apply(ops: ops)
             let dt = (CFAbsoluteTimeGetCurrent() - t0) * 1000
             self.commitCount += 1
             self.commitMsTotal += dt
             self.commitMsMax = max(self.commitMsMax, dt)
-            self.commitBytes += json.utf8.count
+            self.commitBytes += bytes
             // Only record once boot has settled: boot flushes directly (mounting
             // islands, rich-text heights) and would otherwise dominate the
             // percentiles for a gesture that happens seconds later.
@@ -181,25 +293,30 @@ final class Bridge {
             self.lastCommitAt = CFAbsoluteTimeGetCurrent()
             if self.firstCommitAt == 0 { self.firstCommitAt = CFAbsoluteTimeGetCurrent(); self.mark("FIRST COMMIT") }
             self.settleBoot()                      // something is on screen now
+            }
         } as @convention(block) (String) -> Void, forKeyedSubscript: "commit")
 
         host.setObject({ [weak self] (text: String, font: String, ls: Double) -> [Double] in
-            TextEngine.measure(text: text, font: font, letterSpacing: ls, scale: self?.view?.window?.backingScaleFactor ?? 2)
+            TextEngine.measure(text: text, font: font, letterSpacing: ls, scale: self?.cachedScale ?? 2)
         } as @convention(block) (String, String, Double) -> [Double], forKeyedSubscript: "measure")
 
         host.setObject({ [weak self] (handle: Int) -> [Double] in
-            guard let img = self?.images[handle] else { return [0, 0] }
+            guard let img = self?.image(handle) else { return [0, 0] }
             return [Double(img.width), Double(img.height)]
         } as @convention(block) (Int) -> [Double], forKeyedSubscript: "imageSize")
 
-        // Timers — Foundation run-loop timers, fired back into JS by id.
+        // Timers — run-loop timers on the RUNTIME thread's loop (this block
+        // runs there), so a fire lands in JS with no hop.
         host.setObject({ [weak self] (id: Int, ms: Int, repeats: Int) in
             guard let self else { return }
-            let t = Timer.scheduledTimer(withTimeInterval: Double(ms) / 1000.0, repeats: repeats == 1) { [weak self] _ in
-                self?.call("__declareTimerFire", [id])
-                self?.needsFrame()
+            let t = Timer(timeInterval: Double(ms) / 1000.0, repeats: repeats == 1) { [weak self] _ in
+                guard let self else { return }
+                if repeats != 1 { self.timers.removeValue(forKey: id) }
+                self.call("__declareTimerFire", [id])
+                self.needsFrame()
             }
-            RunLoop.main.add(t, forMode: .common)
+            RunLoop.current.add(t, forMode: .common)
+            self.timers[id]?.invalidate()
             self.timers[id] = t
         } as @convention(block) (Int, Int, Int) -> Void, forKeyedSubscript: "timer")
 
@@ -211,11 +328,11 @@ final class Bridge {
                        forKeyedSubscript: "needFrame")
 
         host.setObject({ [weak self] () -> Double in
-            Double(self?.view?.window?.backingScaleFactor ?? 2)
+            Double(self?.cachedScale ?? 2)
         } as @convention(block) () -> Double, forKeyedSubscript: "scale")
 
-        host.setObject({ () -> String in
-            Bridge.appearance()
+        host.setObject({ [weak self] () -> String in
+            self?.cachedAppearance ?? "light"
         } as @convention(block) () -> String, forKeyedSubscript: "appearance")
 
         // NAVIGATION, from the program to the window (mac-boot navTick). The
@@ -223,21 +340,21 @@ final class Bridge {
         // whole point of the channel, and why `newWindow` is the host's word and
         // not the program's.
         host.setObject({ [weak self] (url: String, newWindow: Bool) in
-            self?.onNavigate?(url, newWindow)
+            DispatchQueue.main.async { self?.onNavigate?(url, newWindow) }
         } as @convention(block) (String, Bool) -> Void, forKeyedSubscript: "navigate")
 
         host.setObject({ [weak self] (title: String) in
-            self?.onTitle?(title)
+            DispatchQueue.main.async { self?.onTitle?(title) }
         } as @convention(block) (String) -> Void, forKeyedSubscript: "setTitle")
 
         // HISTORY, from the program to the window — the pair mirror's two
         // outward verbs (see onHistoryEntry / onHistorySquare).
         host.setObject({ [weak self] (loc: String, step: String, verb: String, scroll: Double) in
-            self?.onHistoryEntry?(loc, step, verb, scroll)
+            DispatchQueue.main.async { self?.onHistoryEntry?(loc, step, verb, scroll) }
         } as @convention(block) (String, String, String, Double) -> Void, forKeyedSubscript: "historyEntry")
 
         host.setObject({ [weak self] (loc: String, step: String) in
-            self?.onHistorySquare?(loc, step)
+            DispatchQueue.main.async { self?.onHistorySquare?(loc, step) }
         } as @convention(block) (String, String) -> Void, forKeyedSubscript: "historySquare")
 
         // The Inspector opened or closed. PUSHED from JS rather than polled:
@@ -246,21 +363,23 @@ final class Bridge {
         // polling every frame would mean a Swift→JS call per frame to serve a
         // button that changes twice a session.
         host.setObject({ [weak self] (open: Bool) in
-            self?.onInspector?(open)
+            DispatchQueue.main.async { self?.onInspector?(open) }
         } as @convention(block) (Bool) -> Void, forKeyedSubscript: "inspectorState")
 
         host.setObject({ [weak self] (msg: String) in
-            self?.lastError = msg
-            // settleBoot FIRST: it is what puts the window on screen, and
-            // `onBootFailed` runs a modal for a person — which would otherwise
-            // sit over an invisible window and block the run loop before it
-            // could appear.
-            self?.settleBoot()          // gave up — still no longer "starting"
-            self?.onBootFailed?(msg)
+            DispatchQueue.main.async {
+                self?.lastError = msg
+                // settleBoot FIRST: it is what puts the window on screen, and
+                // `onBootFailed` runs a modal for a person — which would otherwise
+                // sit over an invisible window and block the run loop before it
+                // could appear.
+                self?.settleBoot()          // gave up — still no longer "starting"
+                self?.onBootFailed?(msg)
+            }
         } as @convention(block) (String) -> Void, forKeyedSubscript: "bootFailed")
 
         host.setObject({ (u: String) in
-            if let url = URL(string: u) { NSWorkspace.shared.open(url) }
+            if let url = URL(string: u) { DispatchQueue.main.async { NSWorkspace.shared.open(url) } }
         } as @convention(block) (String) -> Void, forKeyedSubscript: "openExternal")
 
         // Networking: URLSession is the whole stack (TLS, cookies, cache).
@@ -275,17 +394,18 @@ final class Bridge {
         // Media (Media.swift): the env's media-element shim by handle. Audio is
         // a bare AVPlayer; a Video node additionally binds an AVPlayerLayer via
         // op MEDIA, so frames never cross the bridge.
-        host.setObject({ [weak self] (id: Int, _: String) in self?.media.create(id) }
+        // (AVFoundation + its KVO belong to main; the verbs hop, in order.)
+        host.setObject({ [weak self] (id: Int, _: String) in DispatchQueue.main.async { self?.media.create(id) } }
             as @convention(block) (Int, String) -> Void, forKeyedSubscript: "mediaCreate")
-        host.setObject({ [weak self] (id: Int, url: String) in self?.media.load(id, url) }
+        host.setObject({ [weak self] (id: Int, url: String) in DispatchQueue.main.async { self?.media.load(id, url) } }
             as @convention(block) (Int, String) -> Void, forKeyedSubscript: "mediaLoad")
-        host.setObject({ [weak self] (id: Int) in self?.media.play(id) }
+        host.setObject({ [weak self] (id: Int) in DispatchQueue.main.async { self?.media.play(id) } }
             as @convention(block) (Int) -> Void, forKeyedSubscript: "mediaPlay")
-        host.setObject({ [weak self] (id: Int) in self?.media.pause(id) }
+        host.setObject({ [weak self] (id: Int) in DispatchQueue.main.async { self?.media.pause(id) } }
             as @convention(block) (Int) -> Void, forKeyedSubscript: "mediaPause")
-        host.setObject({ [weak self] (id: Int, t: Double) in self?.media.seek(id, t) }
+        host.setObject({ [weak self] (id: Int, t: Double) in DispatchQueue.main.async { self?.media.seek(id, t) } }
             as @convention(block) (Int, Double) -> Void, forKeyedSubscript: "mediaSeek")
-        host.setObject({ [weak self] (id: Int, key: String, v: Double) in self?.media.set(id, key, v) }
+        host.setObject({ [weak self] (id: Int, key: String, v: Double) in DispatchQueue.main.async { self?.media.set(id, key, v) } }
             as @convention(block) (Int, String, Double) -> Void, forKeyedSubscript: "mediaSet")
 
         // Shape-clip hit testing: Core Graphics owns the path, so it answers.
@@ -309,8 +429,13 @@ final class Bridge {
 
         // Rich text: laid out by AppKit NOW (the flow's height is a fact the
         // settle needs), returning the height the runtime sizes the view to.
+        // TextKit is main-only, and the settle needs the height NOW: the one
+        // synchronous hop to main — safe because main never waits on the
+        // runtime (see THE RUNTIME THREAD above).
         host.setObject({ [weak self] (id: Int, blocksJson: String, selectable: Bool, width: Double) -> Double in
-            self?.tree.richLayout(id: id, blocksJson: blocksJson, selectable: selectable, width: CGFloat(width)) ?? 0
+            guard let self else { return 0 }
+            let work = { self.tree.richLayout(id: id, blocksJson: blocksJson, selectable: selectable, width: CGFloat(width)) }
+            return Thread.isMainThread ? work() : DispatchQueue.main.sync(execute: work)
         } as @convention(block) (Int, String, Bool, Double) -> Double, forKeyedSubscript: "richLayout")
 
         // COMPILE, off this thread (CompileService). The runtime hands over a
@@ -320,11 +445,13 @@ final class Bridge {
         host.setObject({ [weak self] (id: Int, url: String, source: String, originDir: String, distro: String) in
             guard let self else { return }
             CompileService.shared.compile(url: url, source: source, originDir: originDir, distro: distro) { [weak self] r in
-                guard let self else { return }
-                self.mark("compile \(r.origin)", String(format: "%.0fms  %@", r.ms, (url as NSString).lastPathComponent))
-                self.call("__declareCompileDone",
-                          [id, r.ok, r.source, r.depsJSON, r.report, r.origin, r.ms])
-                self.needsFrame()
+                self?.onRuntime {
+                    guard let self else { return }
+                    self.mark("compile \(r.origin)", String(format: "%.0fms  %@", r.ms, (url as NSString).lastPathComponent))
+                    self.call("__declareCompileDone",
+                              [id, r.ok, r.source, r.depsJSON, r.report, r.origin, r.ms])
+                    self.needsFrame()
+                }
             }
         } as @convention(block) (Int, String, String, String, String) -> Void, forKeyedSubscript: "compile")
 
@@ -507,7 +634,26 @@ final class Bridge {
         // gets this right by construction (rAF's argument is the frame time),
         // and we were passing the wall clock.
         frameTime = link.targetTimestamp * 1000
+        // The host's scroll process runs FIRST in the frame — glides advance,
+        // batched wheel deltas commit — then reports its facts to the runtime,
+        // and only then does the runtime's own frame run (scrolling.md).
+        var scrollLive = false
+        if let t = tree {
+            scrollLive = t.tickScroll(now: link.targetTimestamp)
+            t.flushScrollFacts()
+        }
         pump()
+        // a glide in flight books the next frame itself — AFTER pump(), which
+        // consumes the request flag for the frame it just served
+        if scrollLive { frameRequested = true }
+        // PAUSE ONLY AFTER A FEW IDLE TICKS. The runtime asks for its next
+        // animation frame from ITS thread, one async hop after this tick has
+        // posted `__declareFrame`; pausing the moment nothing is requested
+        // would lose that race on every frame of an animation. Three quiet
+        // ticks (~25 ms) then pause keeps the idle-zero contract below.
+        if frameRequested { idleTicks = 0 } else { idleTicks += 1 }
+        if idleTicks < 3 { return }
+        idleTicks = 0
         // Nobody asked for the next frame: stop the clock. A link left running
         // wakes the process at every refresh forever — measured at idle as the
         // ONLY thing the host does, ~250 context switches a second of QuartzCore
@@ -518,13 +664,15 @@ final class Bridge {
         if !frameRequested { link.isPaused = true }
     }
     private var frameTime: Double = 0
+    private var idleTicks = 0
 
     /// Ask for a frame without forcing one now — the display link will pick it
     /// up on the next refresh, which is what keeps motion vsync-aligned.
     /// Main thread only (AppKit events, run-loop timers, and the completion
     /// hops in fetch/loadImage all arrive there) — isPaused is not guarded.
     func needsFrame() {
-        frameRequested = true
+        frameRequested = true                   // visible to the next tick, whichever thread asks
+        guard Thread.isMainThread else { DispatchQueue.main.async { [weak self] in self?.caLink?.isPaused = false }; return }
         caLink?.isPaused = false
     }
 
@@ -658,10 +806,24 @@ final class Bridge {
         call("__declareFrame", [frameTime > 0 ? frameTime : CACurrentMediaTime() * 1000])
     }
 
-    @discardableResult
-    func call(_ name: String, _ args: [Any]) -> JSValue? {
-        guard let fn = ctx.objectForKeyedSubscript(name), !fn.isUndefined else { return nil }
-        return fn.call(withArguments: args)
+    /// Call into the runtime — an ASYNC post to its thread, in order (see THE
+    /// RUNTIME THREAD). Nothing comes back; a value wants `evaluate(_:then:)`.
+    func call(_ name: String, _ args: [Any]) {
+        onRuntime { [weak self] in
+            guard let self, let fn = self.ctx.objectForKeyedSubscript(name), !fn.isUndefined else { return }
+            fn.call(withArguments: args)
+        }
+    }
+
+    /// Evaluate a script on the runtime thread and hand the result back — the
+    /// control channel's `eval`. The callback runs on the runtime thread.
+    func evaluate(_ src: String, then: @escaping (String) -> Void) {
+        onRuntime { [weak self] in
+            guard let self else { then("(no bridge)"); return }
+            guard let v = self.ctx.evaluateScript(src) else { then("(no value)"); return }
+            if let ex = self.ctx.exception { self.ctx.exception = nil; then("EXCEPTION: \(ex)"); return }
+            then(v.isUndefined ? "undefined" : (v.toString() ?? "(unprintable)"))
+        }
     }
 
     func boot(url: String) { bootPending = true; call("__declareBoot", [url]); pump() }
@@ -669,6 +831,11 @@ final class Bridge {
     /// Run the shared engine bench plus our own pipeline measurements and write
     /// a JSON report. Nothing here touches the renderer's hot path in normal use.
     func runBenchmarks(to path: String) {
+        // the JS parts must run on the runtime thread; the stats it reads are
+        // main's and a diagnostic may read them racily
+        onRuntime { [weak self] in self?.runBenchmarksNow(to: path) }
+    }
+    private func runBenchmarksNow(to path: String) {
         var report: [String: Any] = [:]
         report["engine"] = "JavaScriptCore"
         // 1. the shared engine bench (identical source in every host)
@@ -681,7 +848,7 @@ final class Bridge {
         // 2. does this process actually JIT? (an entitlement + platform answer)
         report["jitEnabled"] = Self.jitAvailable()
         // 3. our pipeline
-        if let s = call("__declareBench", [])?.toString(),
+        if let s = ctx.objectForKeyedSubscript("__declareBench")?.call(withArguments: [])?.toString(),
            let d = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any] {
             report["pipeline"] = d
         }
@@ -871,7 +1038,7 @@ final class Bridge {
             let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
             let ok = !text.isEmpty || FileManager.default.fileExists(atPath: url.path)
             let readMs = (CFAbsoluteTimeGetCurrent() - r0) * 1000
-            DispatchQueue.main.async { [weak self] in
+            onRuntime { [weak self] in
                 self?.mark("file \(ok ? 200 : 404)", String(format: "%4d KB read %.0fms  %@",
                                                             text.utf8.count / 1024, readMs,
                                                             (urlStr as NSString).lastPathComponent))
@@ -902,7 +1069,7 @@ final class Bridge {
             let text = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
             let ctype = http?.value(forHTTPHeaderField: "content-type") ?? ""
             let ms = (CFAbsoluteTimeGetCurrent() - fetchT0) * 1000
-            DispatchQueue.main.async {
+            self?.onRuntime {
                 self?.mark("fetch \(status)", String(format: "%4d KB in %.0fms  %@",
                                                      text.utf8.count / 1024, ms, urlStr))
                 let c0 = CFAbsoluteTimeGetCurrent()
@@ -917,12 +1084,13 @@ final class Bridge {
     private func loadImage(handle: Int, urlStr: String) {
         NSLog("[image] load %d <- %@", handle, urlStr)
         let finish: (CGImage?) -> Void = { [weak self] img in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if let img { self.images[handle] = img; self.tree.imageLoaded(handle: handle, image: img) }
-                self.call("__declareImageDone", [handle, img?.width ?? 0, img?.height ?? 0, img != nil])
-                self.needsFrame()
+            guard let self else { return }
+            if let img {
+                self.imagesLock.lock(); self.images[handle] = img; self.imagesLock.unlock()
+                DispatchQueue.main.async { [weak self] in self?.tree.imageLoaded(handle: handle, image: img) }
             }
+            self.call("__declareImageDone", [handle, img?.width ?? 0, img?.height ?? 0, img != nil])
+            self.needsFrame()
         }
         guard let url = URL(string: urlStr), url.scheme != nil else {
             NSLog("[image] unresolvable src: %@", urlStr)
@@ -939,11 +1107,12 @@ final class Bridge {
         return CGImageSourceCreateImageAtIndex(src, 0, nil)
     }
 
-    func image(_ handle: Int) -> CGImage? { images[handle] }
+    func image(_ handle: Int) -> CGImage? { imagesLock.lock(); defer { imagesLock.unlock() }; return images[handle] }
 
     // ── SVG path data → CGPath (clips, and draw()'s Path2D ops) ─────────────
 
     func path(for d: String) -> CGPath? {
+        pathLock.lock(); defer { pathLock.unlock() }
         if let c = pathCache[d] { return c }
         guard let p = SVGPath.parse(d) else { return nil }
         if pathCache.count > 256 { pathCache.removeAll() }

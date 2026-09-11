@@ -73,7 +73,7 @@ await test("INFERRED identity drives reconciliation — no key=, no schema, no d
   const src = await compile(`App [ width=1, height=1,
     raw: Dataset { { "rows": [ { "id": "a", "label": "one" }, { "id": "b", "label": "two" } ] } },
     derived: Dataset [
-      contents = { ({ rows: (app.raw.read(["rows"]) ?? []).map(r => ({ id: r.id, label: r.label.toUpperCase() })) }) } ],
+      contents = { { rows: (app.raw.read(["rows"]) ?? []).map(r => ({ id: r.id, label: r.label.toUpperCase() })) } } ],
     list: View [ datapath = { derived.value },
       View [ datapath = :rows[], height = 10, t: Text [ text = :label ] ],
     ],
@@ -103,7 +103,7 @@ await test("the ! marker refuses with the convention named; key= overrides an un
   const src = await compile(`App [ width=1, height=1,
     raw: Dataset { { "rows": [ { "uuid": "u1", "id": "decoy-a", "label": "one" }, { "uuid": "u2", "id": "decoy-b", "label": "two" } ] } },
     derived: Dataset [
-      contents = { ({ rows: (app.raw.read(["rows"]) ?? []).map(r => ({ uuid: r.uuid, id: "FRESH-" + r.label, label: r.label.toUpperCase() })) }) } ],
+      contents = { { rows: (app.raw.read(["rows"]) ?? []).map(r => ({ uuid: r.uuid, id: "FRESH-" + r.label, label: r.label.toUpperCase() })) } } ],
     list: View [ datapath = { derived.value },
       View [ datapath = :rows[], key = :uuid, height = 10, t: Text [ text = :label ] ],
     ],
@@ -307,7 +307,7 @@ await test("typed data: the producer's wall — `contents` on a schema'd derived
   const bad = await compile(`
     schema Col [ name: string ]
     App [ width=1, height=1,
-      board: Dataset [ schema = [ cols[]: Col ], contents = { ({ cols: [ { nam: "x" } ] }) } ],
+      board: Dataset [ schema = [ cols[]: Col ], contents = { { cols: [ { nam: "x" } ] } } ],
     ]`);
   // contextually typed (typecheck.ts emits the slot type as the body's return type), so the
   // literal's OWN bad field is named, at its position — not the body's whole type vs the slot's
@@ -386,8 +386,8 @@ await test("DataSource carries headers — the API-keyed / Bearer-token endpoint
   const src = await compile(`App [ width=1, height=1,
     token: string = "",
     gql: DataSource [ url = "/graphql", method = "POST",
-      headers = { ({ "x-api-key": "KEY", Authorization: app.token != "" ? "Bearer " + app.token : "" }) },
-      body = { ({ query: "{ q }" }) } ],
+      headers = { { "x-api-key": "KEY", Authorization: app.token != "" ? "Bearer " + app.token : "" } },
+      body = { { query: "{ q }" } } ],
   ]`);
   assert.deepEqual(src.errors.map((e) => e.message), []);
   const app = build(src.source);

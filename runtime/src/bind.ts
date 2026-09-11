@@ -11,10 +11,10 @@
 
 import { DeclareError, type Pos } from "./errors.js";
 import { Constraint } from "./reactive.js";
-import { followedValue, markPercent, own, setBound } from "./attributes.js";
+import { defaultOf, markPercent, own, setBound, provideWrite } from "./attributes.js";
 import { compileExpr, type ExprFn } from "./expr.js";
 import { View, inheritedCursor, withCursorDefining } from "./view.js";
-import { authoredName, type Node } from "./node.js";
+import { authoredName, onDiscard, type Node } from "./node.js";
 import { coerceData, toCursor } from "./data.js";
 import { splitPath, type PathSeg } from "./datapath.js";
 import type { AttrType } from "./value.js";
@@ -28,6 +28,45 @@ import type { AttrType } from "./value.js";
  *  (a class-body member on the class root itself binds to that root).
  *  `view` is any Node since R8 — a DataSource's `url = { … }` binds the
  *  same way a View attribute does. */
+/** Bind a `{ }` PROVISION — `App [ theme = { … } ]` where `theme` is not a slot
+ *  of the node's class. Same standing computation as bindConstraint, but the
+ *  result lands in the node's provision store (provideWrite) rather than a slot,
+ *  so a descendant's `provided("theme")` re-derives when the { } does. No slot
+ *  owner (there is no slot); teardown rides onDiscard. */
+export function provideBind(
+  view: Node,
+  name: string,
+  src: string,
+  pos: Pos,
+  classroot: View | null,
+  deps?: readonly string[]
+): void {
+  const c = compileExpr(src);
+  if ("error" in c) throw new DeclareError(`${view.constructor.name} provides ${name} = { … } ${c.error}`, pos);
+  const fn = c.fn;
+  const k = new Constraint(
+    `${view.constructor.name} provides ${name}`,
+    () => fn.call(view, view.parent, classroot),
+    (v) => provideWrite(view, name, v)
+  );
+  k.source = src;
+  if (pos != null && typeof (pos as { line?: number }).line === "number") {
+    k.sourcePos = { line: (pos as { line: number }).line, col: (pos as { col?: number }).col ?? 0 };
+  }
+  onDiscard(view, () => k.dispose());
+  const regionReactive = deps !== undefined && deps.some((rp) => rp.startsWith(":") || rp.includes(".read(") || rp.includes(".value."));
+  if (deps !== undefined && deps.length > 0 && !regionReactive) {
+    const probes = deps.map((rp) => compileExpr(rp)).filter((r): r is { fn: ExprFn } => "fn" in r).map((r) => r.fn);
+    k.wire(() => {
+      for (const p of probes) {
+        try { p.call(view, view.parent, classroot); } catch { /* a null-value projection — its tracked prefix is already wired */ }
+      }
+    }, deps);
+  } else {
+    k.run();
+  }
+}
+
 export function bindConstraint(
   view: Node,
   name: string,
@@ -85,11 +124,7 @@ export function bindConstraint(
 /** Bind `name = :path` (a value slot reading data, language §9): a standing
  *  computation over exactly that region of the inherited cursor's dataset.
  *  The raw value coerces to the slot's declared type at the boundary; an
- *  unresolved path lands the slot's fallback — the class default, or, on a
- *  PREVAILING slot, the followed value (ruled: the declaration default is
- *  just the chain's end). The fallback is read inside the tracked compute,
- *  so an unresolved prevailing slot keeps following live and lets go of the
- *  chain the moment the path resolves. */
+ *  unresolved path lands the slot's class default (the chain's end). */
 export function bindData(view: View, name: string, path: string, type: AttrType, plan?: readonly PathSeg[]): void {
   const UNRESOLVED = {}; // sentinel: coerceData returns the def verbatim
   const read = plan ?? path; // a selector-bearing path arrives pre-parsed (B3)
@@ -97,7 +132,7 @@ export function bindData(view: View, name: string, path: string, type: AttrType,
     `${view.constructor.name}.${name} = :${path}`,
     () => {
       const v = coerceData(type, view.$data(read), UNRESOLVED);
-      return v === UNRESOLVED ? followedValue(view, name) : v;
+      return v === UNRESOLVED ? defaultOf(view, name) : v;
     },
     (v) => setBound(view, name, v)
   );
