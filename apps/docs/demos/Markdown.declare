@@ -1,4 +1,5 @@
-// Markdown.declare — author prose in Markdown; it renders as real, wrapped views
+// Prose, authored in Markdown
+// It renders as real wrapped views — headings, emphasis, links, code — in the app's own type.
 
 App [
     Markdown [ x = 30, y = 20, width = 400, text = """

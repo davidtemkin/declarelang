@@ -1,0 +1,28 @@
+// Live through a method, opaque through script
+// The first total calls a method: the compiler reads through it, so the total follows
+// `rate` too. The second calls a script function with the same inputs: it depends only on
+// what it is passed. Change the rate and watch which one moves.
+
+script {
+  function scriptTotal(qty: number, rate: number): number { return qty * rate }
+    }
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    qty: number = 3,
+    rate: number = 10,
+    methodTotal(n: number) -> number { return n * rate },          // reads `rate` inside — wired
+    col: View [ x = 20, y = 16, width = 360,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        row: View [ height = 32, width = { this.contentWidth },
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            Button [ label = "rate + 1", height = 32,
+                onClick() { app.rate = app.rate + 1 }
+                ],
+            Button [ label = "qty + 1", height = 32,
+                onClick() { app.qty = app.qty + 1 }
+                ]
+            ],
+        Text [ text = { "method: " + app.methodTotal(app.qty) + "   (follows rate and qty)" } ],
+        Text [ text = { "script, passed both: " + scriptTotal(app.qty, app.rate) + "   (follows what it is passed)" } ]
+        ]
+    ]

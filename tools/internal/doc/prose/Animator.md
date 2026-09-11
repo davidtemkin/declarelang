@@ -5,8 +5,11 @@ target (one that keeps moving), reach for `Spring` instead — an Animator runs 
 `from`→`to` and stops.
 
 ```declare
-box: View [ opacity = 0,
-    fadeIn: Animator [ attribute = opacity, to = 1, duration = 300, started = true ]
+App [
+    box: View [ x = 20, y = 20, width = 140, height = 60, cornerRadius = 8, fill = #2E6FE0, opacity = 0,
+        fadeIn: Animator [ attribute = opacity, to = 1, duration = 900, started = true ],
+        Text [ x = 12, y = 20, textColor = white, text = "fading in" ]
+        ]
     ]
 ```
 

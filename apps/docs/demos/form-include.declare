@@ -1,0 +1,14 @@
+// Another file's declarations, merged
+// `form-include-chip.declare` declares a `Tag` class and no root; including it makes `Tag`
+// this program's, as if declared here. No export, no import name — one program.
+
+include [ "form-include-chip.declare" ]
+
+App [ fill = 0xF6F8FA, textColor = 0x172530,
+    row: View [ x = 20, y = 20, height = 26, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Tag [ label = "included" ],
+        Tag [ label = "once" ],
+        Tag [ label = "however many times it is named" ]
+        ]
+    ]

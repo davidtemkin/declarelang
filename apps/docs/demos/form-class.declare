@@ -1,0 +1,21 @@
+// Declare once, instantiate by name
+// A `Chip` with a declared attribute, a derived width, a handler, and a child. Three instances; the third re-sets `fill` at its use site, which any instance may do with any attribute.
+
+class Chip extends View [ height = 30, cornerRadius = 10, fill = { hovered ? 0x4682B4 : 0x2F4F4F },
+    label: string = "",
+    picks: number = 0,
+    width = { this.t.width + 20 },
+    onClick() { picks = picks + 1 },
+    t: Text [ x = 10, y = 7, fontSize = 13, textColor = white,
+        text = { picks == 0 ? label : label + " ×" + picks } ]
+    ]
+
+
+App [
+    row: View [ x = 20, y = 20, height = 30, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Chip [ label = "one" ],
+        Chip [ label = "two" ],
+        Chip [ label = "three", fill = firebrick ]     // a use site re-sets an attribute
+        ]
+    ]

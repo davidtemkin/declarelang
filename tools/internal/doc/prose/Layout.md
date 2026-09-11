@@ -41,7 +41,8 @@ The boxes' shape declares ownership: carry exactly the slots the strategy
 manages, uniformly across children — a `{ x }` box owns each child's
 horizontal position and nothing else, so sizes, fills, and the cross axis
 stay the children's own (a child centers itself across a row with the
-ordinary `y = center`). Invisible children keep their slot in the array (skip
+ordinary `y = center`) — until the strategy's `align` claims the cross axis,
+when its boxes carry that slot too and own it the same way. Invisible children keep their slot in the array (skip
 them inside `place()`), so a re-shown child needs no special case. Read the
 view's extent through `this.view` — a strategy that answers its own view's
 size (as `ResponsiveLayout` does) participates in the same reactive pass.
@@ -88,6 +89,23 @@ place() {
         })
     }
 ```
+
+## refuseBaseline()
+For a strategy that aligns by `baseline`: the laid child `refuseBaseline(child)` names
+declares none. The arrangement never waits on it — place the child at the line's start
+and call this — and the kernel speaks the refusal **once per child, at the close of the
+settle, and only if the child is attached and still declares none then**: a flow
+(`Markdown`, `HTMLText`) claims its baseline when it renders, which can be a moment after
+a parent's first pass, and a `null` seen mid-flight may be a claim still on its way. The
+checker refuses the same shapes before anything runs wherever the tree is static; this
+holds the line for a bound `align` and for children created at run time. The message
+names the child's class and the rewrite (declare `baseline: number = { … }`, or align by
+`start | center | end`).
+
+## refuseStackBaseline()
+`align = baseline` on a **stack** — a y-axis `SimpleLayout`, whose cross axis is x — has no
+line to sit on. A strategy calls this once from `place()` and falls back to `start`; the
+kernel reports it once per layout. The checker refuses the literal form outright.
 
 ## attachTo()
 Binds this strategy to a view. Setting a `layout:` member does it for you; a strategy

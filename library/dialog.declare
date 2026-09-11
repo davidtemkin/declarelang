@@ -36,7 +36,7 @@ content — it is a standing member you open with a verb, so the same instance s
 every prompt in the program.
 
 ```declare
-App [ width = 340, height = 140, said: string = "",
+App [ width = 520, height = 260, said: string = "",
     dlg: Dialog [ ],
     Button [ x = 20, y = 20, label = "Delete…",
         onClick() { app.dlg.ask("Delete this file?", "This cannot be undone.",
@@ -128,6 +128,15 @@ when no record is marked default.
 
 ## kidsOf()
 **Internal.** The rendered button views of an arrangement, for `focusDefault`.
+
+## visible
+Derived from `shown`; open and close by the fact, never by assigning visibility.
+
+## width
+A dialog is the whole app: its box is the backdrop and the panel is its child, so a press anywhere outside the panel lands on the dialog.
+
+## height
+The whole app's height, for the same reason as `width`.
 */
 
 include [ "control.declare" ]

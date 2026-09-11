@@ -1,4 +1,5 @@
-// SimpleLayout.declare — children stacked down the y axis, evenly spaced
+// Children stacked down the y axis
+// Evenly spaced by `spacing`; sizes stay the children's own, and the layout owns their positions.
 
 App [ fill = white, textColor = black,
     View [ x = 30, y = 20,

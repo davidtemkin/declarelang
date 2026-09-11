@@ -1,0 +1,18 @@
+// Kept by name
+// `Badge` is constructed by a string at runtime, so no tag mentions it and a production
+// build would drop it. `use [ Badge ]` keeps it. Click to construct one.
+
+use [ Badge ]
+
+class Badge extends View [ width = 24, height = 24, cornerRadius = 12, fill = 0xC93B47 ]
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    made: number = 0,
+    Button [ x = 20, y = 16, label = "createView(\"Badge\")",
+        onClick() { app.row.createView("Badge", ({ })); app.made = app.made + 1 }
+        ],
+    row: View [ x = 20, y = 60, height = 24, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 6 ]
+        ],
+    Text [ x = 20, y = 96, fontSize = 12, textColor = 0x6A7883, text = { app.made + " constructed by name" } ]
+    ]

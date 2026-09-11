@@ -1,0 +1,12 @@
+// A label centres on its line, a paragraph does not
+// The same words as a `Text` and as a `TextLabel` in a 40px-tall row: the label's ink
+// sits centred in its parent's height, which is what a caption beside a control wants.
+
+App [ textColor = 0x172530, fontSize = 15,
+    a: View [ x = 20, y = 20, width = 260, height = 40, fill = 0xE9EFF4, cornerRadius = 6,
+        Text [ x = 12, text = "Text — sits at the top" ]
+        ],
+    b: View [ x = 20, y = 72, width = 260, height = 40, fill = 0xE9EFF4, cornerRadius = 6,
+        TextLabel [ x = 12, text = "TextLabel — centred in 40px" ]
+        ]
+    ]

@@ -15,7 +15,7 @@ identical on the dev server and a static host — and renders the child.
 `childName` (inherited from `DOMIsland`) is the reverse channel: the running child's
 `appName` reflected back up, so a host can title itself by what it shows.
 
-## The bridge
+### The bridge
 
 An AppIsland carries the ISLAND BRIDGE (guide ch. 18): declare `external`
 attributes on the instance and they pair, by name and with a type handshake,
@@ -41,6 +41,9 @@ The embedding environment in query form (`"dark=1&base=../x/"`), delivered to th
 child's reactive `app.env` at mount **and on every change**. Empty sends none, so the
 child keeps its own defaults — leave it alone unless the host genuinely overrides
 something, or you will pin the child's appearance against the system's.
+
+## slot
+The host's slot marker, derived from `program` and `env` — `run:<program>|<env>` — which is what the island host wires. Nothing to set by hand.
 */
 
 class AppIsland extends DOMIsland [

@@ -68,6 +68,9 @@ Runs `press()` when enabled.
 
 ## onInit
 Applies `initial`. Fires once per pane.
+
+## width
+A pane is as wide as its accordion; only its height is its own.
 */
 
 include [ "control.declare", "icons/core.declare" ]

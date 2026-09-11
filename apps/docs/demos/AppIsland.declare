@@ -1,0 +1,11 @@
+// An app inside an app
+// `program` names a Declare program; the island mounts it as its own child app — its own
+// reactive graph, its own input, in this box. Here it hosts the Button page's own demo.
+
+App [ textColor = 0x172530, fontSize = 13,
+    Text [ x = 20, y = 12, textColor = 0x6A7883, text = "the island below runs Button.1-pair, a separate program" ],
+    frame: View [ x = 20, y = 36, width = { parent.width - 40 }, height = 130, cornerRadius = 8, fill = 0xFFFFFF,
+        stroke = stroke(1, 0xDCE3E9), clip = true,
+        AppIsland [ width = { parent.width }, height = { parent.height }, program = "Button.1-pair" ]
+        ]
+    ]

@@ -697,7 +697,8 @@ describes. Like `contentWidth`, they are computed for you.
 
 There is no CSS, no stylesheet file, no selector, no cascade, and no specificity — which is also
 what makes a non-DOM renderer possible. Your CSS *knowledge* transfers: colors, font stacks, and
-shadows read the same. The names do not. A border is a **stroke**, rounding is **`cornerRadius`**,
+shadows read the same. The names do not. A border is a **stroke**, rounding is **`cornerRadius`**
+(one number, or `[topLeft, topRight, bottomRight, bottomLeft]` to round only some corners),
 and `borderWidth`, `boxShadow`, and `outline` do not exist.
 
 What replaces the cascade is **prevailing slots**: set one high in the tree and every descendant

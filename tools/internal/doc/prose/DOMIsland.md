@@ -5,7 +5,7 @@ kept behind a named view so `{ }` bodies stay DOM-free. The DOM backend reflects
 `data-declare-slot` attribute; the host finds that box and mounts content into it, with Declare's
 width/height driving the tenant's size and no coordinate sync to maintain.
 
-```declare
+```declare-fragment
 preview: DOMIsland [ width = { parent.width }, height = 300, slot = "run:demo" ]
 ```
 

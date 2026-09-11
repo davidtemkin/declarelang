@@ -109,6 +109,9 @@ sights" reading; `theme.focusRingInnerWidth` adds the Fluent two-tone band.
 
 ## gen
 **Internal.** The idle-fade generation counter, so a retarget cancels the pending fade.
+
+## visible
+Visible while its faded opacity still shows anything, and never while an overlay is up — a ring behind a dialog would point at something you cannot reach.
 */
 
 class FocusRing extends View [ opacity = 0,

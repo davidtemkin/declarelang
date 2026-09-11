@@ -317,7 +317,9 @@ function answer() {
     if (s && Object.hasOwn(s.attrs, query)) owners.push(`${cls} (${s.attrs[query]})`);
   }
   if (owners.length > 0) {
-    say(`${query} — an attribute on: ${owners.slice(0, ALL ? Infinity : 8).join(", ")}${owners.length > 8 && !ALL ? `, …and ${owners.length - 8} more (--all)` : ""}`);
+    const asForm = (CONCEPTS.forms ?? []).find((f) => f.terms.some((t) => t.toLowerCase() === query.toLowerCase().trim()));
+    if (asForm) { for (const line of asForm.answer.split("\n")) say(line); say(""); }
+    say(`${query} — ${asForm ? "also " : ""}an attribute on: ${owners.slice(0, ALL ? Infinity : 8).join(", ")}${owners.length > 8 && !ALL ? `, …and ${owners.length - 8} more (--all)` : ""}`);
     say(`  scoped entry: declare-help <Class>.${query}`);
     // a word that is ALSO a curated concept gets both readings — `arrangement`
     // is a Dialog attribute by coincidence and the layout concept by intent
@@ -374,8 +376,13 @@ function answer() {
       return true;
     }
   }
+  // A negative term matches on WORD boundaries, never by substring: `key` (the
+  // React key prop) must not answer `onKeyDown`, nor `grid` answer `DataGrid` —
+  // a substring match sent real names to "there is no such thing" (the 2026-09
+  // reference audit).
+  const hasPhrase = (hay, needle) => needle.length > 0 && (" " + hay + " ").includes(" " + needle + " ");
   for (const neg of CONCEPTS.negative) {
-    if (neg.terms.some((t) => norm === normTerm(t) || norm.includes(normTerm(t)))) {
+    if (neg.terms.some((t) => norm === normTerm(t) || hasPhrase(norm, normTerm(t)))) {
       for (const line of neg.answer.split("\n")) say(line);
       json = { kind: "negative", terms: neg.terms, answer: neg.answer };
       return true;
@@ -394,6 +401,13 @@ function answer() {
         sayEntry(REF[hit]); json = { kind: "entry", concept: phrase, entry: REF[hit] }; return true;
       }
     }
+  }
+  // a named color — bare-slot vocabulary, with the number a { } body writes instead
+  const colorHex = (SPINE.colors ?? {})[query.toLowerCase().trim()];
+  if (colorHex) {
+    say(`${query.toLowerCase().trim()} — a named color, ${colorHex}. The name works in a BARE slot (fill = ${query.toLowerCase().trim()}); inside a { } body write the number: 0x${colorHex.slice(1)}. Vocabulary → Named colors lists the set.`);
+    json = { kind: "color", name: query.toLowerCase().trim(), hex: colorHex };
+    return true;
   }
   // a host global (document, localStorage, process …) — the compiler's own
   // answer, verbatim, so the tool and the diagnostic cannot disagree

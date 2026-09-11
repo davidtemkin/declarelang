@@ -1,0 +1,15 @@
+// In a row of text
+// A button claims its baseline, so a layout with `align = baseline` sits the label on its neighbours' line. A taller or shorter button still lines up — the row aligns by the text, not the box.
+
+App [
+    // a mixed row: the button's label sits on the same line as the words around it,
+    // because Button CLAIMS its baseline and the layout aligns by it
+
+    row: View [ x = 20, y = 20, width = { this.contentWidth }, height = { this.contentHeight },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ fontSize = 18, text = "Ready?" ],
+        Button [ label = "Save", primary = true ],
+        Text [ fontSize = 13, textColor = slategray, text = "or" ],
+        Button [ label = "Discard", height = 32 ]
+        ]
+    ]

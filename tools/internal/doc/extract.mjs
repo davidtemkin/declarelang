@@ -74,6 +74,9 @@ const DEMOS = path.join(ROOT, "apps/docs/demos");         // generated islands l
 // `app.demoSources[<id>]` exactly like the homepage demos, and the model records the
 // prose as an ordered segment list the app renders (Markdown text, or an island).
 const genFiles = {};                                          // id → source, written to DEMOS at the end
+const PROSE = {};                                             // class → its parsed prose (members/methods), for the post-pass
+const LIB_SRC = {};                                           // library class → its source slice (reads are scanned here)
+const LIB_SETS = {};                                          // library class → its bare `name = value` sets (overrides)
 async function compilesOK(src) { try { return !(await compile(src, {})).errors?.length; } catch { return false; } }
 async function runnableForm(block) {
   // A program needs an `App` root. If the block already has a top-level `App [` (a whole
@@ -143,6 +146,7 @@ async function segmentize(md, idBase) {
 function renderType(t) {
   switch (t.kind) {
     case "length": return "Length";
+    case "radius": return "Radius";
     case "number": return "number";
     case "boolean": return "boolean";
     case "string": return "string";
@@ -374,27 +378,50 @@ for (const [cls, lines] of Object.entries(LANGUAGE_STATICS)) {
   }
 }
 
+// `draw(d: Draw)` is a member with a RESERVED name a view may define (declare.md
+// §3: "a first-class member, not an escape hatch") — author-declared, so tsc's
+// surface never lists it on View. It enters through the callable door, so the
+// View page carries it (`## draw()` prose, View.md) and `declare-help View.draw`
+// answers. The Draw interface itself is on the Types page.
+(CALLABLE.View ??= new Map()).set("draw", { signature: "draw(d: Draw): void", isStatic: false });
+
 const RUNTIME_NAME = {};                                // doc id → runtime class name (no mismatches since the DOMIsland rename)
 
-// editable examples — a class has one when apps/docs/demos/<Class>.declare exists.
-// A 0-or-1 array, so the app conditionally CONSTRUCTS the island by datapath
-// replication. It carries the demo SOURCE (so the editor seeds straight off the
-// model datapath, which is guaranteed present once the model has loaded) and the
-// line count (to size the source panel). The LIVE PREVIEW is mounted separately by
-// the host from `app.demoSources[<Class>]`, which the server fills from this same
-// demos dir (server/index.mjs reads apps/<page>/demos/*).
+// USAGE examples — the class page's Usage section. A class has one per file
+// `apps/docs/demos/<Class>.declare` or `<Class>.<slug>.declare` (sorted: the bare
+// name first, then the slugs alphabetically). Each carries the demo SOURCE (so the
+// editor seeds straight off the model datapath), the line count (to size the
+// panel), a measured stage height, and a TITLE + LEAD read from the file's opening
+// comment: the first `//` line is the title, the `//` lines after it (to the first
+// blank or code line) are the lead — Markdown, one or two sentences on what the
+// example shows. A demo without the comment titles itself "Example". The LIVE
+// PREVIEW is mounted by the host from the demos dir by the same name (dots
+// included — `Button.pair` → demos/Button.pair.declare).
 async function readExample(name) {
-  const rel = `apps/docs/demos/${name}.declare`;
-  const abs = path.join(ROOT, rel);
-  if (!existsSync(abs)) return [];
-  const source = readFileSync(abs, "utf8").replace(/\n$/, "");
-  return [{ name, lines: source.split("\n").length, source, stageH: await measureStage(source, 250) }];
+  const dir = path.join(ROOT, "apps/docs/demos");
+  if (!existsSync(dir)) return [];
+  const files = readdirSync(dir).filter((f) => f === `${name}.declare` || (f.startsWith(`${name}.`) && f.endsWith(".declare") && !f.slice(name.length + 1, -8).includes(".")));
+  files.sort((a, b) => (a === `${name}.declare` ? -1 : b === `${name}.declare` ? 1 : a.localeCompare(b)));
+  const out = [];
+  for (const f of files) {
+    const id = f.replace(/\.declare$/, "");
+    const raw = readFileSync(path.join(dir, f), "utf8").replace(/\n$/, "");
+    const lines = raw.split("\n");
+    let title = "Example", lead = "";
+    const head = [];
+    while (lines.length && /^\/\//.test(lines[0])) head.push(lines.shift().replace(/^\/\/ ?/, ""));
+    if (head.length) { title = head[0].trim(); lead = head.slice(1).join(" ").trim(); while (lines.length && lines[0].trim() === "") lines.shift(); }
+    const source = lines.join("\n");
+    out.push({ name: id, title, lead, lines: source.split("\n").length, source, stageH: await measureStage(source, 110) });
+  }
+  return out;
 }
 
 for (const name of TARGETS) {
   const schema = DOC_SCHEMAS[name];
   if (!schema) throw new Error(`extract: no schema for ${name}`);
   const prose = readProse(name);
+  PROSE[name] = prose;
   const decor = DECOR[name] ?? {};
   const clsMethods = METHODS[RUNTIME_NAME[name] ?? name] ?? {};
   auditProse(name, prose, schema, clsMethods);
@@ -409,7 +436,11 @@ for (const name of TARGETS) {
 
   for (const attr of Object.keys(schema.attrs)) {
     const id = `${clsId}.${attr}`;
-    const doc = prose.members[attr] ?? null;
+    // The prose convention opens a read-only slot's section with "**Read-only.**";
+    // the entry carries the same fact as a flag (`readOnly`, the page's badge), so
+    // the sentence-opener is dropped here rather than said twice.
+    const raw = prose.members[attr] ?? null;
+    const doc = raw === null ? null : raw.replace(/^\*\*Read-only\.?\*\*\s*[—–-]?\s*/, "");
     const d = decor[attr];
     nodes[id] = {
       id, name: attr, kind: "attribute",
@@ -560,6 +591,7 @@ const headerProse = (src, cls) => {
   const blocks = blocksOf(src);
   if (!blocks.length) return { class: null, members: {}, methods: {}, internal: new Set() };
   const own = cls ? blocks.find((b) => headingNames(b).includes(cls)) : null;
+  const blockIndex = own ? blocks.indexOf(own) : 0;
   const text = (own ?? blocks[0]).replace(/^\s*#\s*\S[^\n]*\n/, "");   // drop the leading "# Name" line
   const parts = text.split(/^## +(.+)$/m);
   const members = {}, methods = {}, internal = new Set();
@@ -570,7 +602,7 @@ const headerProse = (src, cls) => {
     if (/^\*\*Internal\.\*\*/.test(body)) internal.add(name);
     (asMethod ? methods : members)[name] = body;
   }
-  return { class: parts[0].trim() || null, members, methods, internal };
+  return { class: parts[0].trim() || null, members, methods, internal, blockIndex };
 };
 const LIBRARY = JSON.parse(readFileSync(path.join(ROOT, "library/autoincludes.json"), "utf8"));
 for (const [tag, file] of Object.entries(LIBRARY)) {
@@ -583,6 +615,14 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   try { cls = parseProgram(src + "\nApp [ ]\n").classes.find((c) => c.name === tag); } catch { cls = null; }
   if (!cls) continue;
   const prose = headerProse(src, tag);
+  PROSE[tag] = prose;
+  // the class's SET attributes (`name = value` — a re-default of an inherited slot,
+  // an override) and its source slice, for the post-pass below
+  {
+    const all = parseProgram(src + "\nApp [ ]\n").classes.map((c) => c.pos?.offset ?? 0).filter((o) => o > (cls.pos?.offset ?? 0)).sort((a, b) => a - b);
+    LIB_SRC[tag] = src.slice(cls.pos?.offset ?? 0, all[0] ?? src.length);
+    LIB_SETS[tag] = cls.body.attrs.map((a) => ({ name: a.name, value: a.value, col: (a.value?.pos?.col ?? 1) - 1 }));
+  }
   const attributes = [], methods = [], events = [];
   for (const d of cls.body.decls) {
     const id = `${tag}.${d.name}`;
@@ -619,13 +659,47 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
     doc: prose.class, docSegs: await segmentize(prose.class, tag), api: true,
     source: { file: rel, line: 0 }, parent: null, seeAlso: [],
     extends: baseName, subclasses: [], origin: "library",
-    attributes, methods, events, example: [] };
+    attributes, methods, events, example: await readExample(tag) };
   roots.push(tag);
 }
 
 // reverse edge: subclasses (only among documented classes carry a live link)
 for (const [base, subs] of Object.entries(subclassIndex)) {
   if (nodes[base]) nodes[base].subclasses = subs;
+}
+
+// the audit for LIBRARY classes: a `## heading` in a .declare header block that
+// binds to no own attribute, own method, event handler, or OVERRIDDEN inherited
+// attribute (below) is prose the page silently drops. Runtime classes have had
+// this gate since the 2026-08-07 audit; the library had none.
+// Classes that read the SAME block (a "DataGrid / Column / GridRow" heading, or
+// a class with no block of its own falling back to the file's first) are one
+// documentation unit: a heading is bound if any class in the unit owns it.
+{
+  const units = new Map();                                // file#block → [tags]
+  for (const tag of Object.keys(LIB_SRC)) {
+    const key = LIBRARY[tag] + "#" + (PROSE[tag].blockIndex ?? 0);
+    (units.get(key) ?? units.set(key, []).get(key)).push(tag);
+  }
+  for (const [key, tags] of units) {
+    const own = new Set(), sets = new Set(), handlers = new Set(), meths = new Set();
+    for (const tag of tags) {
+      for (const id of nodes[tag].attributes) own.add(nodes[id].name);
+      for (const x of LIB_SETS[tag]) sets.add(x.name);
+      for (const id of nodes[tag].events) handlers.add("on" + nodes[id].name[0].toUpperCase() + nodes[id].name.slice(1));
+      for (const id of nodes[tag].methods) meths.add(nodes[id].name);
+    }
+    const prose = PROSE[tags[0]];
+    const file = key.split("#")[0];
+    for (const head of Object.keys(prose.members)) {
+      if (own.has(head) || sets.has(head) || handlers.has(head)) continue;
+      unboundProse.push(`library/${file}: '## ${head}' binds to no attribute, override, or event of ${tags.join("/")}`);
+    }
+    for (const head of Object.keys(prose.methods)) {
+      if (meths.has(head)) continue;
+      unboundProse.push(`library/${file}: '## ${head}()' binds to no method of ${tags.join("/")}`);
+    }
+  }
 }
 
 // ANCESTRY, precomputed: `chain` is the class's own name followed by every base
@@ -641,6 +715,68 @@ for (const n of Object.values(nodes)) {
   n.chain = chain;
 }
 
+// ── the class page's other three facts, computed once the chain exists ──
+//
+// SIBLINGS: the base's other subclasses — a leaf has no subclasses, and "what
+// else is a Control" is the next question its page gets asked.
+//
+// READS: what the class's own body reads from ABOVE — `theme.<token>` and
+// `provided("…")` — its contract with whatever contains it. A library class
+// is scanned at the source; a runtime class reads no named token in its own
+// code (its slots default to null, the house look resolved at paint).
+//
+// OVERRIDES: an inherited attribute the class re-defaults. A library class
+// does it with a bare `name = value` in its body; a runtime class by
+// re-declaring the slot in its own schema (App.scrollY). Each becomes an
+// attribute node of its own on the overriding class — `overrides: { from, was }`
+// naming the ancestor that declares the slot and its default there, `default`
+// the new one AS WRITTEN (a multi-line `{ }` keeps its lines, dedented to the
+// column its value starts on), and `doc` the class's own `## name` section: the
+// INTENT of the override, one to three sentences. The ancestor's page keeps the
+// attribute's meaning; the override line links there.
+const ownerOf = (cls, attr) => cls.chain.slice(1).find((a) => nodes[a]?.attributes.some((id) => nodes[id].name === attr)) ?? null;
+for (const c of Object.values(nodes)) {
+  if (c.kind !== "class") continue;
+  const base = c.extends ? nodes[c.extends] : null;
+  c.siblings = base ? base.subclasses.filter((s) => s !== c.id) : [];
+  const src = LIB_SRC[c.id] ?? "";
+  c.reads = {
+    theme: [...new Set([...src.matchAll(/theme\.([a-zA-Z][a-zA-Z0-9]*)/g)].map((m) => m[1]))].sort(),
+    provided: [...new Set([...src.matchAll(/provided\("([^"]+)"/g)].map((m) => m[1]))].sort(),
+  };
+  const prose = PROSE[c.id] ?? { members: {} };
+  // a method an ancestor also has — an override (Button.press over Control.press)
+  for (const id of c.methods) {
+    const m = nodes[id];
+    const from = c.chain.slice(1).find((a) => nodes[a]?.methods.some((x) => nodes[x].name === m.name)) ?? null;
+    if (from) m.overrides = { from, was: null };
+  }
+  // a runtime class's own attribute that an ancestor also declares
+  for (const id of c.attributes) {
+    const a = nodes[id];
+    const from = ownerOf(c, a.name);
+    if (from) a.overrides = { from, was: nodes[`${from}.${a.name}`]?.default ?? null };
+  }
+  // a library class's bare sets on inherited slots
+  for (const set of LIB_SETS[c.id] ?? []) {
+    const from = ownerOf(c, set.name);
+    if (!from) continue;                                  // a provision (textColor on a Button) — no ancestor declares it
+    const anc = nodes[`${from}.${set.name}`];
+    let text;
+    if (set.value?.kind === "code") {
+      const lines = set.value.src.replace(/^ /, "").replace(/ $/, "").split("\n");
+      text = "{ " + lines.map((l, i) => (i === 0 ? l : l.replace(new RegExp("^ {0," + set.col + "}"), ""))).join("\n") + " }";
+    } else text = renderDefault(set.value);
+    const doc = prose.members[set.name] ?? null;
+    const id = `${c.id}.${set.name}`;
+    nodes[id] = { id, name: set.name, kind: "attribute", doc, docSegs: await segmentize(doc, id), api: true, internal: false,
+      source: { file: "library/" + LIBRARY[c.id], line: set.value?.pos?.line ?? 0 }, parent: c.id, seeAlso: [],
+      type: anc?.type ?? "", default: text, prevailing: false, readOnly: false, inheritedFrom: null,
+      overrides: { from, was: anc?.default ?? null } };
+    c.attributes.push(id);
+  }
+}
+
 // (No buildId here, deliberately. The extractor once baked the id from
 // bundles/version.json into its output — a genuine CYCLE, since stamp-version
 // writes that file after hashing bundles/cache, which prewarm derives from this
@@ -652,6 +788,37 @@ for (const n of Object.values(nodes)) {
 // objects, inlined as arrays so datapath replication can walk them. The reference
 // shows only the DOCUMENTED (@api) surface (doc-system.md: "absence = internal,
 // excluded"); the full `nodes` map keeps everything for the object browser.
+// ── the CLASS GROUPS — the reference rail's order, chosen rather than inherited.
+// Without this the rail is the extractor's traversal (schema registration order,
+// then the autoinclude manifest): topical by accident, seamless. Each group is a
+// topic; inside one the base class leads and the rest follow by reach, not by
+// alphabet (which would put Radio before RadioGroup). The gate below files EVERY
+// documented class exactly once — a new class fails extract until it is placed.
+const CLASS_GROUPS = [
+  ["Core",          ["View", "App", "Node"]],
+  ["Text",          ["Text", "TextLabel", "RichText", "Markdown", "HTMLText"]],
+  ["Media",         ["Image", "Media", "Video", "Audio"]],
+  ["Layout",        ["Layout", "SimpleLayout", "WrappingLayout", "ResponsiveLayout", "TweenLayout", "Spacer"]],
+  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "Editor", "TextInput", "Combobox", "Segmented", "SegmentedItem", "ProgressBar", "FocusRing"]],
+  ["Chrome",        ["Bar", "MenuBar", "Menu", "ContextMenu", "Dialog", "Tooltip", "Accordion", "Pane"]],
+  ["Data",          ["Dataset", "DataSource", "Stream", "EventStream", "Socket", "Table", "TableRow", "DataGrid", "Column", "GridRow"]],
+  ["Motion and state", ["Animator", "AnimatorGroup", "Spring", "State", "Time"]],
+  ["Services",      ["Keys", "Focus", "Tip"]],
+  ["Embedding",     ["DOMIsland", "AppIsland"]],
+  ["Icons",         ["Icon", "IconHost", "ArrowIcon", "ChevronIcon", "CheckIcon", "CloseIcon", "PlusIcon", "MinusIcon", "LightbulbIcon", "SunIcon", "MoonIcon", "AutoIcon"]],
+];
+const groupProblems = [];
+{
+  const filed = new Map();
+  for (const [g, names] of CLASS_GROUPS) for (const n of names) {
+    if (filed.has(n)) groupProblems.push(`class ${n} is filed twice (${filed.get(n)}, ${g})`);
+    filed.set(n, g);
+    if (!roots.includes(n)) groupProblems.push(`group '${g}' files ${n}, which is not a documented class`);
+  }
+  for (const id of roots) if (!filed.has(id)) groupProblems.push(`class ${id} is in no group — file it in CLASS_GROUPS (extract.mjs)`);
+}
+const classGroups = CLASS_GROUPS.map(([name, names]) => ({ name, classes: names.filter((n) => roots.includes(n)).map((n) => ({ name: n })) }));
+
 const tree = roots.map((id) => {
   const c = nodes[id];
   return {
@@ -661,6 +828,8 @@ const tree = roots.map((id) => {
     events: c.events.map((e) => nodes[e]).filter((n) => n.api),
     methods: c.methods.map((m) => nodes[m]).filter((n) => n.api),
     example: c.example,
+    siblings: c.siblings, reads: c.reads,
+    source: c.source?.file ?? null,
   };
 });
 
@@ -765,6 +934,68 @@ for (const ch of guide) {
 }
 const spine = guide.map(({ id, num, title, short, part }) => ({ id, num, title, short, part }));
 
+// ── the language forms (tools/internal/doc/forms.md) ──
+// The registry of every form the grammar accepts — keyword, delimiter, operator,
+// member shape — one `## slug` section each, in the anatomy the file's own preamble
+// states. Parsed here into `forms`: the grouped INDEX (slug, display name, gist)
+// and one PAGE per form (syntax, lead, usage demos by the same readExample the
+// class pages use, RULES each quoting the checker verbatim with the probe that
+// provokes it, related). The gate: every form has a page, a usage demo, and at
+// least one rule; and every probe COMPILES TO ITS SENTENCE — a page can never
+// quote a diagnostic the compiler no longer says.
+const FORMS_MD = path.join(ROOT, "tools/internal/doc/forms.md");
+const formsProblems = [];
+async function readForms() {
+  if (!existsSync(FORMS_MD)) return { groups: [], pages: {} };
+  const md = readFileSync(FORMS_MD, "utf8");
+  const secs = md.split(/^## (?=\S)/m).slice(1).map((t) => { const [head, ...rest] = t.split("\n"); return { slug: head.trim(), body: rest.join("\n") }; });
+  const pages = {}; const groups = []; const order = [];
+  for (const sec of secs) {
+    const b = sec.body;
+    const field = (k) => (b.match(new RegExp("^" + k + ":\\s*(.*)$", "m")) ?? [])[1]?.trim() ?? "";
+    const syntax = (b.match(/^syntax:\n((?:    .*\n)+)/m) ?? [])[1]?.split("\n").filter(Boolean).map((l) => l.replace(/^    /, "")) ?? [];
+    const lead = b.split(/^### rules/m)[0].replace(/^(name|short|group|family|spec|terms|syntax|usage):.*$/gm, "").replace(/^    .*$/gm, "").trim();
+    const rulesText = (b.split(/^### rules/m)[1] ?? "").split(/^### related/m)[0];
+    const rules = [...rulesText.matchAll(/^- ([\s\S]*?)\n\s*> says: (.*)\n(?:\s*> probe: (.*)\n)?/gm)]
+      .map((m) => ({ rule: m[1].replace(/\n\s+/g, " ").trim(), says: m[2].trim(), probe: (m[3] ?? "").replace(/\\n/g, "\n") }));
+    const rel = (b.split(/^### related/m)[1] ?? "");
+    const list = (k) => ((rel.match(new RegExp("^" + k + ":\\s*(.*)$", "m")) ?? [])[1] ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+    // guide entries are `NN-slug · Title` — a title may carry commas, so the list
+    // splits only before a chapter id
+    const guide = (((rel.match(/^guide:\s*(.*)$/m) ?? [])[1] ?? "").split(/,\s*(?=\d\d-)/).map((x) => x.trim()).filter(Boolean))
+      .map((g) => { const [chapter, title] = g.split("·").map((x) => x.trim()); return { chapter, title: title ?? chapter }; });
+    const usage = [];
+    for (const id of field("usage").split(",").map((x) => x.trim()).filter(Boolean)) usage.push(...(await readExample(id)));
+    const gist = lead.split(/(?<=\.)\s/)[0].replace(/\n/g, " ");
+    const page = { slug: sec.slug, name: field("name") || sec.slug, group: field("group") || "Other", family: field("family"), spec: field("spec"),
+      terms: field("terms").split(",").map((x) => x.trim()).filter(Boolean),
+      syntax, syntaxText: syntax.join("\n"), lead, docSegs: await segmentize(lead, "form_" + sec.slug), gist, rules, related: { forms: list("forms"), classes: list("classes"), guide }, example: usage };
+    pages[sec.slug] = page; order.push(sec.slug);
+    let g = groups.find((x) => x.name === page.group);
+    if (!g) { g = { name: page.group, forms: [] }; groups.push(g); }
+    g.forms.push({ slug: sec.slug, name: page.name, short: field("short") || page.name, gist });
+    // the gate
+    if (!usage.length) formsProblems.push(`forms.md '## ${sec.slug}': no usage demo (apps/docs/demos/${field("usage") || "form-" + sec.slug}.declare)`);
+    if (!rules.length) formsProblems.push(`forms.md '## ${sec.slug}': no rules`);
+    for (const r of rules) {
+      if (!r.probe) { formsProblems.push(`forms.md '## ${sec.slug}': rule "${r.rule.slice(0, 40)}…" has no probe`); continue; }
+      let msgs = [];
+      try {
+        const out = await compile(r.probe, {});
+        msgs = (out.errors ?? []).map((e) => e.message.replace(/\s+/g, " "));
+        if (!msgs.length && out.source) {
+          try { const app = settleHeadless(out.source, { deps: out.deps }); app.discard(); }
+          catch (e) { msgs = [String(e?.message ?? e).replace(/\s+/g, " ")]; }
+        }
+      } catch (e) { msgs = [String(e?.message ?? e).replace(/\s+/g, " ")]; }
+      if (!msgs.some((m) => m.includes(r.says))) formsProblems.push(`forms.md '## ${sec.slug}': the checker no longer says "${r.says.slice(0, 60)}…" for its probe (it says: ${(msgs[0] ?? "nothing").slice(0, 120)})`);
+    }
+  }
+  const intro = `Every form the grammar accepts — ${order.length} of them, in ${groups.length} groups. Each is a page: its syntax, what it is, live usage, the rules the compiler enforces in the checker's own words, and what it relates to. \`declare.md\` is the same language in one file, in order; these are its forms one at a time, for the reader who arrived with a keyword.`;
+  return { groups, pages, order, docSegs: await segmentize(intro, "forms_intro") };
+}
+const forms = await readForms();
+
 // ── the search index (apps/docs/search-index.json) ──
 // One flat PLAIN-TEXT projection of everything the docs app can navigate to —
 // guide chapters and the documented reference surface — for the header search
@@ -806,6 +1037,10 @@ for (const c of tree) {
     }
   }
 }
+for (const slug of forms.order ?? []) {
+  const f = forms.pages[slug];
+  searchEntries.push({ loc: "language/" + slug, title: f.name, crumb: "Language · " + f.group, text: [f.terms.join(" "), plainText(f.lead), f.syntax.join(" "), f.rules.map((r) => r.rule).join(" ")].join(" ").replace(/\s+/g, " ").trim() });
+}
 if (!CHECK) {
   writeFileSync(path.join(ROOT, "apps/docs/search-index.json"), JSON.stringify({ v: 1, entries: searchEntries }) + "\n");
 }
@@ -814,7 +1049,7 @@ if (!CHECK) {
 // (see OUT above), so there is nothing of assemble's to preserve and no way for
 // a bare extract to corrupt the committed artifact any more — the carry-forward
 // hack that used to live here is dead by construction.
-const model = { version: 1, reference: nodes, roots, tree, guide: spine, guideParts, tenets };
+const model = { version: 1, reference: nodes, roots, tree, classGroups, guide: spine, guideParts, tenets, forms };
 if (!CHECK) {
   mkdirSync(path.dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify(model, null, 2) + "\n");
@@ -834,6 +1069,50 @@ console.log(`  @api:    ${documented} documented / ${Object.keys(nodes).length -
 
 // The prose-binding gate: a `## heading` nobody claimed is prose the reference
 // silently drops. Always reported; fatal under `--check` (the ops gate).
+// ── the coverage gates: every documented, non-abstract class has a usage example;
+//    every expression override carries its intent ──
+const coverage = [];
+for (const c of tree) {
+  const has = (c.example && c.example.length) || (c.docSegs || []).some((sg) => (sg.code || []).length);
+  if (!c.abstract && !has) coverage.push(`${c.id}: no usage example (apps/docs/demos/${c.id}.declare, or a compiling \`\`\`declare fence in its prose)`);
+  for (const a of c.attributes) if (a.overrides && !a.doc && /^\{/.test("" + a.default)) coverage.push(`${c.id}.${a.name}: an expression override with no intent — add '## ${a.name}' to the class's prose`);
+}
+// A fence that compiles becomes a LIVE island — and an island that settles to
+// nothing visible (no fill, no text, no image, no drawing anywhere) is an empty
+// frame under a code box: the reader gets "runs live below" and sees nothing.
+// Such a fence is either made to render, or marked ```declare-fragment (static).
+const blankIslands = [];
+for (const [id, src] of Object.entries(genFiles)) {
+  try {
+    const out = await compile(src, {});
+    if (out.errors?.length) continue;
+    const app = settleHeadless(out.source, { deps: out.deps, env: { hostWidth: 640, hostHeight: 240 } });
+    let seen = 0;
+    const walk = (v) => {
+      if (v !== app && v.visible !== false && ((v.fill != null && v.width > 0 && v.height > 0) || (typeof v.text === "string" && v.text !== "") || v.source || typeof v.draw === "function")) seen++;
+      for (const c of v.children ?? []) walk(c);
+    };
+    walk(app);
+    app.discard();
+    if (seen === 0) blankIslands.push(`${id}: the fence compiles but paints nothing — give it something to show, or mark it \`\`\`declare-fragment`);
+  } catch { /* a fence that needs a browser to settle is not judged here */ }
+}
+for (const b of blankIslands) coverage.push(b);
+if (coverage.length > 0) {
+  console.log(`  COVERAGE: ${coverage.length} gap(s)`);
+  for (const u of coverage) console.log(`    ${u}`);
+  if (CHECK) process.exitCode = 1;
+}
+if (groupProblems.length > 0) {
+  console.log(`  CLASS GROUPS: ${groupProblems.length} problem(s)`);
+  for (const u of groupProblems) console.log(`    ${u}`);
+  if (CHECK) process.exitCode = 1;
+}
+if (formsProblems.length > 0) {
+  console.log(`  LANGUAGE FORMS: ${formsProblems.length} problem(s)`);
+  for (const u of formsProblems) console.log(`    ${u}`);
+  if (CHECK) process.exitCode = 1;
+}
 if (unboundProse.length > 0) {
   console.log(`  UNBOUND prose headings: ${unboundProse.length}`);
   for (const u of unboundProse) console.log(`    ${u}`);

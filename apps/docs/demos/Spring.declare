@@ -1,3 +1,6 @@
+// A sprung position
+// Click anywhere: `on` flips, the Spring's `to` re-derives, and the ball glides there with stiffness and damping — a target, not a tween.
+
 App [ on: boolean = false,
     onClick() { on = !on },
     View [ x = 30, y = 30,

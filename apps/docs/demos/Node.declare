@@ -1,0 +1,27 @@
+// A model with no box
+// A `Node` subclass holds state and logic for views to share — a counter here, with a
+// method two buttons call and a fact two texts read. It lives in the tree as a named
+// member, fires `onInit`, and paints nothing.
+
+class Counter extends Node [
+    n: number = 0,
+    step: number = 1,
+    bump(by: number) { n = n + by * step },
+    onInit() { n = 10 }
+    ]
+
+
+App [ textColor = 0x172530, fontSize = 14,
+    count: Counter [ step = 5 ],
+    row: View [ x = 20, y = 20, height = 40, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Button [ label = "−",
+            onClick() { app.count.bump(-1) }
+            ],
+        Text [ fontSize = 24, fontWeight = semibold, text = { "" + app.count.n } ],
+        Button [ label = "+",
+            onClick() { app.count.bump(1) }
+            ],
+        Text [ fontSize = 13, textColor = 0x6A7883, text = { "steps of " + app.count.step + ", started at 10 by onInit" } ]
+        ]
+    ]

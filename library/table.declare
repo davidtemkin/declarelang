@@ -154,6 +154,15 @@ rather than crashing into a missing protocol — not API.
 
 ## isTableRow
 **Internal.** The marker the table's walks key on — not API.
+
+## width
+As wide as its table; a row never sizes itself.
+
+## fill
+Selected takes the selected tint, hovered the hover tint, otherwise none — a row is transparent so the table's own ground shows through.
+
+## stroke
+The active row shows an accent ring only while the table's focus is visible (keyboard, not pointer) — the rule every control's focus ring follows.
 */
 
 include [ "control.declare" ]

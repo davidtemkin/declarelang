@@ -1,0 +1,18 @@
+// A subclass re-states what it changes
+// `PillButton` extends the library's Button: it overrides two defaults, keeps everything
+// else — the label, the states, the keyboard — and the use site may still set any attribute.
+
+class PillButton extends Button [
+    cornerRadius = { height / 2 },
+    padH = 22
+    ]
+
+
+App [ fill = 0xF6F8FA, textColor = 0x172530,
+    row: View [ x = 20, y = 20, height = 40, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Button [ label = "Button" ],
+        PillButton [ label = "PillButton" ],
+        PillButton [ label = "primary too", primary = true ]
+        ]
+    ]

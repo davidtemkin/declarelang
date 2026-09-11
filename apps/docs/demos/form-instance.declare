@@ -1,0 +1,15 @@
+// Brackets are the tree
+// Each `[ ]` is an instance; nesting them nests views. A named child is reachable by its
+// name; an anonymous one is placed and painted. The instance in the middle declares a member
+// of its own with no class in sight.
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    card: View [ x = 20, y = 20, width = 300, height = 110, cornerRadius = 10, fill = 0xFFFFFF,
+        stroke = stroke(1, 0xDCE3E9),
+        taps: number = 0,                      // declared on the instance, no class
+        onClick() { taps = taps + 1 },
+        title: Text [ x = 16, y = 14, fontWeight = semibold, text = "A card" ],
+        Text [ x = 16, y = 40, textColor = 0x6A7883, text = { "anonymous child, reading the card: " + parent.taps } ],
+        Text [ x = 16, y = 66, textColor = 0x6A7883, text = { "the title is " + parent.title.text.length + " characters" } ]
+        ]
+    ]

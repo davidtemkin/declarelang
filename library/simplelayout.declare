@@ -30,17 +30,29 @@ Which way children stack: `y` (the default) or `x`. **A bare literal, not a stri
 The gap between adjacent children. **Negative overlaps them**, which is how a stack of
 cards or avatars is built.
 
+## align
+The **cross axis** — `y` on a row, `x` on a stack. `none` (the default) leaves it to the
+children, who place themselves with the ordinary `y = center`. `start | center | end`
+aligns every child within the **line**: the tallest (widest) laid child's extent, so a
+short chip centres against a tall one and a container that derives its own height from
+these children never enters a cycle. `baseline` — a row only — sits every child on one
+baseline: a `Text` reports its own, and a composite **declares** which part carries it
+(`baseline: number = { cap.y + cap.baseline }`); a laid child that declares none is
+refused by name, at the child, and the checker says so before anything runs. A bare
+literal.
+
 ## place()
 The whole strategy: one box per laid child, positioned along the axis in child order.
-**The cross axis and every size stay the children's own** — a child centres itself
-across a row with the ordinary `y = center`. Override it in a subclass for custom
-geometry; a `Layout`'s `place()` **may** aggregate over children, which is the one place
-that is allowed.
+**Every size stays the children's own, and so does the cross axis unless `align` says
+otherwise** — then the boxes carry that slot too, and own it. Override it in a subclass
+for custom geometry; a `Layout`'s `place()` **may** aggregate over children, which is the
+one place that is allowed.
 */
 
 class SimpleLayout extends Layout [
     axis: Axis = y,
     spacing: number = 0,
+    align: CrossAlign = none,
 
     place() {
         const axis = this.axis
@@ -69,6 +81,25 @@ class SimpleLayout extends Layout [
             each = Math.max(0, (extent - content - this.spacing * Math.max(0, visN - 1)) / flexN)
         }
 
+        // the cross axis, when `align` claims it: children align within the
+        // LINE — the largest laid cross extent — never this.view's extent,
+        // which may derive from these very children (the cycle the one-pass
+        // discipline forbids). A baseline line is the deepest DECLARED one.
+        const al = this.align
+        const cross = axis == "x" ? "y" : "x"
+        const crossSize = axis == "x" ? "height" : "width"
+        let line = 0
+        let lineBase = 0
+        if (al != "none") {
+            if (al == "baseline" && axis != "x") this.refuseStackBaseline()
+            for (const c of kids) {
+                if (!c.visible) continue
+                line = Math.max(line, (c as any).footprint()[crossSize])
+                const b = (c as any).baseline
+                if (al == "baseline" && typeof b == "number") lineBase = Math.max(lineBase, b)
+            }
+        }
+
         let pos = 0
         return kids.map((c) => {
             const flex = c.visible && flexing(c)
@@ -79,6 +110,23 @@ class SimpleLayout extends Layout [
             const lead = f == null ? 0 : (axis == "x" ? f.x : f.y)
             const box = (axis == "x" ? ({ x: pos - lead }) : ({ y: pos - lead })) as any
             if (flex) box[axis == "x" ? "w" : "h"] = each
+            if (al != "none") {
+                // start = the line's origin; center/end offset the child's
+                // footprint within the line; baseline sits the child's declared
+                // baseline on the line's — a child with none is refused, once,
+                // and placed at start (the arrangement never breaks)
+                const fc = f == null ? (c as any).footprint() : f
+                const leadC = axis == "x" ? fc.y : fc.x
+                let off = 0
+                if (al == "center") off = (line - fc[crossSize]) / 2
+                else if (al == "end") off = line - fc[crossSize]
+                else if (al == "baseline" && axis == "x") {
+                    const b = (c as any).baseline
+                    if (typeof b == "number") off = lineBase - b
+                    else if (c.visible) this.refuseBaseline(c)
+                }
+                box[cross] = off - (al == "baseline" ? 0 : leadC)
+            }
             if (c.visible) pos = pos + (flex ? each : (f as any)[size]) + this.spacing
             return box
             })

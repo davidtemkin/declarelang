@@ -438,13 +438,20 @@ export default async function boot(cfg) {
   // The library default (ensureLibrary) makes a bare-tag preview (`Bar [ ]`)
   // compile with no per-call ceremony — the old "MUST feed the library or
   // previews render blank" obligation is gone by construction.
-  const liveCompile = async (src) => {
+  // A NAMED island (a demo under demos/) compiles as ITS OWN file — the origin its
+  // relative paths mean: an `include [ "…" ]` beside it resolves beside it, exactly
+  // as `verify` reads the same file on disk. Before this every island compiled as
+  // the page's program, so a demo's include looked in the page's directory and
+  // the island stayed silently blank (the include form's page, 2026-09-10). The
+  // "__"-named live-edit channels have no file and keep the page as their origin.
+  const liveCompile = async (src, name) => {
     try {
+      const origin = name && !name.startsWith("__") ? new URL(name + ".declare", demoBase) : mainUrl;
       // Under the dev server, live edits compile on the server too (no compiler in
       // the browser at all); on a static host, in the in-browser worker.
       const out = window.__declareServer
-        ? await serverCompile(mainUrl, src)
-        : await loadCompiler().then(ensureLibrary).then((c) => c.compile(src));  // idempotent; covers the fast path, where the slow-path registration never ran
+        ? await serverCompile(origin, src)
+        : await loadCompiler().then(ensureLibrary).then((c) => c.compile(src, { mainId: origin.href }));  // idempotent; covers the fast path, where the slow-path registration never ran
       // Success is source + static deps; a compile FAILURE hands back { report } so an
       // editing surface can show the diagnostic (the contract host-client documents and
       // the codeviewer host already honors). null stays "compiler not warm — no change".

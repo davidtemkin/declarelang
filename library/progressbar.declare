@@ -15,6 +15,9 @@ The value that reads as empty. Defaults to 0.
 ## max
 The value that reads as full. Defaults to 100 — set it to your own total and pass
 raw counts as `value` rather than converting to a percentage yourself.
+
+## fill
+The track wears the quiet control tint; the filled part is the bar's own child in the accent, so a theme restyles both at once.
 */
 
 class ProgressBar extends View [ width = 220, height = 8, cornerRadius = 4,

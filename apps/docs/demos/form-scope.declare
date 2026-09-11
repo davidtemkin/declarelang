@@ -1,0 +1,15 @@
+// Four nouns, one tree
+// The same `width` read four ways from a leaf inside a class: bare (this node's own),
+// `parent`, `classroot` (the Card instance), and `app`. Resize the window to see them move.
+
+class Card extends View [ width = 260, height = 100, cornerRadius = 8, fill = 0xE9EFF4,
+    inner: View [ x = 12, y = 12, width = 200, height = 76, cornerRadius = 6, fill = 0xFFFFFF,
+        leaf: Text [ x = 8, y = 8, fontSize = 12, width = 184, wrap = true,
+            text = { "width: " + width + " (this)\nparent: " + parent.width + "\nclassroot: " + classroot.width + "\napp: " + app.width } ]
+        ]
+    ]
+
+
+App [ fill = 0xF6F8FA, textColor = 0x172530,
+    Card [ x = 20, y = 16 ]
+    ]

@@ -12,7 +12,7 @@ node tools/declarec.mjs apps/calendar/calendar.declare -o dist
 
 The output is a directory with an `index.html`, a content-hashed `app.<hash>.js`, and your
 data assets copied alongside — deployable to any static host. On the flagship calendar it lands
-around **<!--stat:calendar.wireKB-->86<!--/stat--> KB gzipped**. Four things keep it small:
+around **<!--stat:calendar.wireKB-->84<!--/stat--> KB gzipped**. Four things keep it small:
 
 - **Precompile.** Parse, resolve, and typecheck happen once, now; the program ships as a JSON
   string parsed at boot, with source positions stripped.
@@ -47,6 +47,16 @@ A code is derived from the message itself, so it is stable across releases that 
 it, and a reworded message gets a new code. `declarec --debug` keeps the full sentences — as
 do the dev server, the live-compile pages, and every test run, which is where you meet these
 errors in the first place. Text an *app* renders (a `DataSource`'s `.error`) is never coded.
+
+The same treatment covers every developer diagnostic, not only the thrown ones: a contained
+`[Declare] …` report (a layout refusing a child, a handler removed from the clock), the
+checker's type expectations, a production stub's own refusal when a slimmed-out module is
+called, the reasons a hit trace or a virtualizer records. In the runtime source these reach
+their reader through a helper rather than a `throw`, so they carry the `diag` tag
+(`runtime/src/errors.ts`) — an identity join in dev, and the author's declaration to the strip
+that the sentence is a diagnostic. The strip codes what a constructor names, never what a
+string looks like, which is what keeps app copy safe. In a shipped calendar the diagnostic
+prose that remains is one sentence — the `.error` an app may show.
 
 ## Flags
 

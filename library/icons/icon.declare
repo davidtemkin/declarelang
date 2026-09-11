@@ -108,6 +108,12 @@ it.** Every icon is one path at one size, scaled — there are no per-size varia
 ## isIcon
 **Internal.** The marker a layout keys on to place an icon without knowing which shape
 it is — not API.
+
+## width
+Sized by the prevailing `iconSize`, so a menu states 16 once and every icon in it answers; a use site may set its own.
+
+## height
+Square, always — the height follows the width.
 */
 
 /*
@@ -143,6 +149,18 @@ which is what stops a host-built icon from rendering invisibly on a dark surface
 
 ## onInit
 Builds the named icon. Fires once.
+
+## width
+Zero when there is no icon to host, so an empty slot reserves nothing and an icon-less button needs no special case; else the prevailing `iconSize`.
+
+## height
+The icon's size whether or not one is hosted, so a row's height does not jump when an icon appears.
+
+## visible
+Present only when a kind is named.
+
+## textColor
+Passes the host's `ink` down as the prevailing text colour, which is what the icon's drawing reads — so a control's ink decision reaches its icon.
 */
 
 class IconHost extends View [

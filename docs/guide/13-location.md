@@ -75,7 +75,7 @@ URL never shows**. The browser carries the value inside the entry itself; Back a
 Forward write it back and your constraints re-derive — the same loop, minus the
 address bar.
 
-```declare
+```declare-fragment
 App [ location = "", waypoint = "",
 
     query: string = { app.waypoint },

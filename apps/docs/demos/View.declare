@@ -1,4 +1,5 @@
-// View.declare — a View is a box: size + decoration + children + interaction
+// A View is a box
+// Size, decoration, children, and interaction, on one class. Click the box: `hot` flips, and the fill that reads it follows.
 
 App [
     View [ x = 30, y = 30, width = 240, height = 150, cornerRadius = 16,

@@ -82,8 +82,8 @@ you can read in `library/`:
 
 | layout | attributes | what it does |
 |---|---|---|
-| `SimpleLayout` | `axis`, `spacing` | stacks children along `x` or `y` |
-| `WrappingLayout` | `spacing`, `lineSpacing`, `align` | flows onto new lines when the row runs out |
+| `SimpleLayout` | `axis`, `spacing`, `align` | stacks children along `x` or `y`; `align` places them across it — `center`, `end`, or a shared `baseline` |
+| `WrappingLayout` | `spacing`, `lineSpacing`, `justify`, `align`, `indent`, `hangingIndent` | flows onto new lines when the row runs out; `justify` sets a row along the flow (`start`, `center`, `end`, or `fill`), `align` places children within it, the indents inset the first row and the rest |
 | `ResponsiveLayout` | `plan`, `gap` | switches arrangement by available width |
 | `Spacer` | `flexes` | not a layout — a child that absorbs a run's slack |
 

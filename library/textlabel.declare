@@ -25,6 +25,9 @@ The centre is the CAP band because that is what the platform control themes
 (Cupertino, Mountain View, Redmond) are matched against. If a theme ever wants a
 different band — the x-height for lowercase-heavy labels — this one expression
 gains a `theme`-driven branch and every control follows, live; no other change.
+
+## y
+Centres the ink on the parent's height by its cap band — baseline and cap height — rather than by the line box, which is what a label beside a control wants and a paragraph does not.
 */
 
 class TextLabel extends Text [

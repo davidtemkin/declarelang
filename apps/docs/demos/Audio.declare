@@ -1,0 +1,18 @@
+// Sound as state
+// `playing` is a fact you set; `position` and `ended` are facts the clip keeps. A button
+// flips the one, a caption reads the others — no play() call, no event.
+
+App [ textColor = 0x172530,
+    blip: Audio [ source = "../resources/blip.wav" ],
+    row: View [ x = 20, y = 20, height = 40, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Button [ label = { app.blip.playing ? "Playing…" : "Play" }, primary = true,
+            onClick() { app.blip.position = 0; app.blip.playing = true }
+            ],
+        Text [ fontSize = 13, textColor = 0x6A7883,
+            text = { app.blip.failed ? "the clip failed to load"
+                   : app.blip.ended ? "ended — position " + app.blip.position.toFixed(2) + "s"
+                   : app.blip.playing ? "position " + app.blip.position.toFixed(2) + "s"
+                   : "a 0.35 s tone" } ]
+        ]
+    ]

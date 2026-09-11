@@ -179,6 +179,12 @@ Enters the roved row's submenu and puts the rover on its first row — ArrowRigh
 
 ## offY
 **Internal.** The parent chain's y offset, snapshotted at open.
+
+## visible
+Derived from `shown`, the menu's own open fact. Visibility is never set from outside — `openAt` and `openFor` set the fact, and dismissal clears it.
+
+## height
+As tall as its panel, which is as tall as its rows; a menu never scrolls its own list.
 */
 
 include [ "control.declare" ]

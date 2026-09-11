@@ -1,0 +1,13 @@
+// CheckIcon, at chrome sizes
+// One path — the mark a checkbox and a picked menu row share — at 16, 24, and 32, then tinted: `iconSize` scales the 16-box,
+// `ink` colours it, and the stroke keeps a constant weight in device pixels at every size.
+
+App [ textColor = 0x172530,
+    row: View [ x = 20, y = 20, height = 40, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 24 ],   // an Icon centres itself on y
+        CheckIcon [ iconSize = 16 ],
+        CheckIcon [ iconSize = 24 ],
+        CheckIcon [ iconSize = 32 ],
+        CheckIcon [ iconSize = 32, ink = 0x2E6FE0 ]
+        ]
+    ]

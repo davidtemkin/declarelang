@@ -5,7 +5,7 @@ or computed: `text = { article.body }` re-parses and re-renders reactively, so i
 streamed or live-edited Markdown. A `RichText`, so it carries all the shared prose styling
 (`lineHeight`, `bodyColor`, `onLink`, and the ambient text properties).
 
-```declare
+```declare-fragment
 Markdown [ width = { parent.width }, text = { :body } ]
 ```
 

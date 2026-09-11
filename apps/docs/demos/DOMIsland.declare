@@ -1,0 +1,12 @@
+// A box the host fills
+// A DOMIsland is a leaf View whose interior is the host's: the element carries `slot` as
+// `data-declare-slot`, and the host mounts whatever that names into it. The docs host mounts
+// a Declare program by `run:<name>` — here the Button page's own demo — sized by this box.
+
+App [ fill = 0xF6F8FA, textColor = 0x6A7883, fontSize = 13,
+    Text [ x = 20, y = 12, text = "the island below is host-managed DOM in a Declare-sized box" ],
+    frame: View [ x = 20, y = 36, width = { parent.width - 40 }, height = 130, cornerRadius = 8, fill = 0xFFFFFF,
+        stroke = stroke(1, 0xDCE3E9), clip = true,
+        DOMIsland [ width = { parent.width }, height = { parent.height }, slot = "run:Button.1-pair" ]
+        ]
+    ]

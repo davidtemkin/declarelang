@@ -1,0 +1,20 @@
+// A shape the compiler and the runtime both hold
+// `Task` is a type: the dataset declares its document with it, so `:done` and `:title` are
+// checked at compile time, and a write that breaks the shape is refused at the write.
+
+schema Task [ id: number, title: string, done: boolean ]
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    tasks: Dataset [ schema = [ items[]: Task ],
+        contents = { ({ items: [ ({ id: 1, title: "write the schema", done: true }), ({ id: 2, title: "type the paths", done: false }) ] }) } ],
+    col: View [ x = 20, y = 16, width = 320, datapath = { tasks.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ datapath = :items[], height = 26, width = 320,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Checkbox [ checked = :done,
+                input(v: boolean) { this.$setData("done", v) }
+                ],
+            Text [ text = :title, textColor = { :done ? 0x6A7883 : 0x172530 } ]
+            ]
+        ]
+    ]

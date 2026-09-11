@@ -1,0 +1,18 @@
+// A bounded number, displayed
+// The read-only sibling of Slider: `value` between `min` and `max`, no interaction. Here
+// the value is driven by a Slider beside it, so the two share one fact.
+
+App [ textColor = 0x172530, fontSize = 14,
+    done: number = 35,
+    col: View [ x = 20, y = 20, width = { parent.width - 40 },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        ProgressBar [ value = { app.done }, min = 0, max = 100 ],
+        row: View [ height = 28, width = { this.contentWidth },
+            layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+            Slider [ width = 220, min = 0, max = 100, value = { app.done },
+                input(v: number) { app.done = v }
+                ],
+            Text [ text = { Math.round(app.done) + "% done" } ]
+            ]
+        ]
+    ]

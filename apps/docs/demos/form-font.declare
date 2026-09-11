@@ -1,0 +1,16 @@
+// A family, declared once, picked by list
+// Two declared families; a use site names one in a fallback list. `fontFamily` prevails,
+// so the App's choice reaches every Text below until one overrides it.
+
+font Serif [ family = "Georgia, 'Times New Roman', serif" ]
+
+font Mono [ family = "ui-monospace, Menlo, monospace" ]
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 16, fontFamily = [Serif, "serif"],
+    col: View [ x = 20, y = 16, width = 400,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ text = "This line inherits the App's serif family." ],
+        Text [ fontFamily = [Mono, "monospace"], text = "This one picks the mono family itself." ],
+        Text [ fontFamily = "system-ui", text = "And a raw family string is allowed too." ]
+        ]
+    ]

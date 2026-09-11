@@ -7,8 +7,8 @@ keyboard activation (Space/Enter drives the same `onClick`). `primary = true` fi
 with the accent; the default is the quiet control look.
 
 ```declare-fragment
-Button [ label = "Save" ]
-Button [ label = "Delete", iconLeft = "TrashIcon" ]
+Button [ label = "Save", primary = true ]
+Button [ label = "Add", iconLeft = "PlusIcon" ]
 Button [ label = "Options", menu = { app.optionsMenu } ]      // chevron implied
 Button [ iconLeft = "CloseIcon" ]                             // icon only
 ```
@@ -32,6 +32,11 @@ Marks this as the affirmative action: it fills with the accent and takes
 `theme.accentText` for its ink. One per group of choices — a dialog's Save, not
 its Cancel. Purely a style decision; it changes nothing about behaviour.
 
+```declare-fragment
+Button [ label = "Cancel" ],
+Button [ label = "Save", primary = true ]
+```
+
 ## gap
 Space between the icon and the label, when both are present.
 
@@ -39,11 +44,64 @@ Space between the icon and the label, when both are present.
 Horizontal padding inside the button, each side. The button sizes to its content
 plus twice this, so widening it is how you make a short label less cramped.
 
+```declare-fragment
+Button [ label = "OK", padH = 28 ]                  // a short word, given room
+Button [ label = "Add", iconLeft = "PlusIcon", gap = 12 ]
+```
+
 ## inkColor
 The one ink decision, so a button's icon and its label always agree: the accent
 text colour when `primary`, the ordinary text colour otherwise. `textColor`
 follows it. Override this rather than `textColor` alone, or the icon and the
 words drift apart.
+
+```declare-fragment
+class DangerButton extends Button [ inkColor = { primary ? white : crimson } ]
+```
+
+## baseline
+The baseline a row aligns this control by — its label's, in the control's own
+coordinates. A `SimpleLayout` or `WrappingLayout` with `align = baseline` sits the
+button's text on the same line as a neighbouring `Text` or `Markdown`; without this
+declaration the layout would refuse the button by name (a baseline is claimed, never
+guessed from a box). Declared here so every button carries it; an icon-only button still
+answers its (invisible) label's line.
+
+```declare-fragment
+row: View [ layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+    Text [ fontSize = 18, text = "Ready?" ],
+    Button [ label = "Save", primary = true ]      // its label sits on the text's line
+    ]
+```
+
+## height
+The theme decides, when it has an opinion: `theme.buttonHeight` sets it (a platform
+theme's native control height); a theme that leaves it unset gets 40. A `height` at
+the use site overrides both.
+
+## cornerRadius
+A theme that rounds buttons by a fixed radius sets `theme.buttonRadius`; it is capped
+at half the height, so a short button goes fully pill without a squared corner.
+Otherwise the shared `controlRadius` every control uses.
+
+## width
+Content-sized: the run — icon, label, icon — plus `padH` each side. Give it a `width`
+and the run centres inside it, so a dialog's equal-width row keeps every label centred.
+
+## opacity
+Disabled dims the whole control, icon and label alike, rather than recolouring it.
+
+## fill
+The state ladder, one rung per interaction fact, first match wins: a primary button
+is the accent whatever its state; an open menu holds the selected tint, so the
+button stays lit while its menu is up; pressed beats hovered; at rest, the quiet
+`control`. Every rung is a theme token, so a theme restyles every button's states
+at once.
+
+## stroke
+A hairline only where the theme wants one: themes that border their secondary
+buttons set `theme.buttonBorder`; flat themes leave it null and get no stroke. A
+primary button is never bordered — the accent fill is its edge.
 
 ## press()
 The activation path, called by a click and by Space/Enter. It flashes the press
@@ -53,11 +111,17 @@ tint, opens an attached `menu` if there is one, then calls `onClick`. Override
 ## onClick
 Your handler. Fires after the press is delivered, so the affordance has already
 run — put the work here, not in `press()`.
+
+## textColor
+Follows `inkColor`, the button's one ink decision, so the label and the icon can never disagree. Override `inkColor`, not this.
 */
 
 include [ "control.declare", "icons/icon.declare" ]
 
 class Button extends Control [
+    // the baseline a row aligns this control by: its label's (declared, never discovered)
+
+    baseline: number = { this.run.y + this.run.cap.y + this.run.cap.baseline },
     height = { typeof theme.buttonHeight == "number" ? theme.buttonHeight : 40 },
     cornerRadius = { typeof theme.buttonRadius == "number" ? Math.min(theme.buttonRadius, height / 2) : theme.controlRadius },
     label:   string = "",

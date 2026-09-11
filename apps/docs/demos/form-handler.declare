@@ -1,0 +1,16 @@
+// Handlers only assign
+// `onPointerMove` gets a typed payload; the handler writes two facts, and the texts that
+// read them follow. Nothing bubbles: the pad's handler sees only the pad's moves.
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    px: number = 0,
+    py: number = 0,
+    inside: boolean = false,
+    pad: View [ x = 20, y = 20, width = 220, height = 120, cornerRadius = 8, fill = 0xE9EFF4,
+        onPointerMove(e: PointerEvent) { app.px = e.x; app.py = e.y },
+        onPointerOver() { app.inside = true },
+        onPointerOut() { app.inside = false }
+        ],
+    Text [ x = 256, y = 24, text = { app.inside ? "pointer at " + Math.round(app.px) + ", " + Math.round(app.py) : "move over the pad" } ],
+    Text [ x = 256, y = 50, fontSize = 12, textColor = 0x6A7883, text = "the App declares no pointer handler, and hears none" ]
+    ]

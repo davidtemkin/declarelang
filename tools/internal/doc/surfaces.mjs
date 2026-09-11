@@ -86,6 +86,11 @@ export const SURFACES = [
       for (const [id, e] of Object.entries(model.reference)) {
         if (e.kind !== "attribute" || e.api === false || e.internal === true) continue;
         if (typeof e.doc === "string" && e.doc.trim() !== "") continue;
+        // an OVERRIDE re-defaulting an inherited slot to a LITERAL (`iconSize = 18`)
+        // is documented by the ancestor's entry and the number itself; only an
+        // expression override owes an intent sentence, and extract's coverage gate
+        // holds that one (the 2026-09-10 reference pass)
+        if (e.overrides && !/^\{/.test("" + (e.default ?? ""))) continue;
         const cls = id.split(".")[0], name = id.split(".").pop();
         holes.push(SCHEMAS[cls] !== undefined
           ? `${id} — add '## ${name}' to tools/internal/doc/prose/${cls}.md`
@@ -192,6 +197,11 @@ export const SURFACES = [
     id: "enums", label: "enum token vocabularies", source: "schema enum types",
     docsLive: "Vocabulary → Enums", spineKeys: ["enums"], gated: false,
     why: "token lists, not prose — the tokens ARE the documentation, and the schema is their only source",
+  },
+  {
+    id: "colors", label: "named colors", source: "CSS_COLORS (runtime/src/css-colors.ts)",
+    docsLive: "Vocabulary → Named colors · declare-help <name>", spineKeys: ["colors"], gated: false,
+    why: "a name → hex table, not prose — the table IS the documentation, projected whole; the checker names the 0x rewrite at every misuse",
   },
   {
     id: "flags", label: "compiler flags", source: "FLAG_SPECS",

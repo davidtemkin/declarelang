@@ -1,0 +1,14 @@
+// A boolean with a thumb
+// Same value contract as Checkbox: `checked` derives from the app's fact, `input` delivers
+// the change back up — the control never owns the truth. The label reads the same fact.
+
+App [ textColor = 0x172530, fontSize = 14,
+    night: boolean = false,
+    row: View [ x = 20, y = 20, height = 28, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Switch [ checked = { app.night },
+            input(v: boolean) { app.night = v }
+            ],
+        Text [ text = { app.night ? "Dark mode on" : "Dark mode off" } ]
+        ]
+    ]

@@ -127,7 +127,7 @@ an island whose page hasn't mounted anything.)
 the tenant is a **whole Declare program**, named by URL, with its own
 reactive graph, input router, and stage — sized to the box like any view.
 
-```declare
+```declare-fragment
 App [ fill = #F4F5F7,
     embed: AppIsland [ x = 20, y = 20,
         width = { parent.width - 40 }, height = { parent.height - 40 },
@@ -173,7 +173,7 @@ scrubber: View [ x = { app.player.pos * trackWidth } ]  // full machinery over t
 The tenant's side is plain Declare — it declares the same names and uses them
 as ordinary attributes:
 
-```declare
+```declare-fragment
 App [ external volume: number = 0,     // arrives from the host, constraints re-derive
     external pos: number = 3,          // this app writes it; the host reads it
     onPost(m: IslandPost) { app.pos = app.pos + 1; app.post("ack", m.topic) },

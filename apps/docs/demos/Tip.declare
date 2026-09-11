@@ -1,0 +1,17 @@
+// A tooltip is one attribute
+// `tip = "…"` makes a view hover-interactive and the auto-provided Tooltip shows the text
+// after the theme's delay. The Tip service, as a child, sees the same requests — here it
+// mirrors them into a status line. Hover the boxes.
+
+App [ textColor = 0x172530, fontSize = 14,
+    last: string = "hover a box",
+    Tip [ onTip(e: TipEvent) { app.last = e == null ? "hover a box" : "tip requested: " + e.text }
+        ],
+    row: View [ x = 20, y = 20, height = 40, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        View [ width = 40, height = 40, cornerRadius = 8, fill = 0x2E6FE0, tip = "Save the document" ],
+        View [ width = 40, height = 40, cornerRadius = 8, fill = 0x12A594, tip = "Share with the team" ],
+        View [ width = 40, height = 40, cornerRadius = 8, fill = 0xC93B47, tip = "Delete — cannot be undone" ],
+        Text [ fontSize = 13, textColor = 0x6A7883, text = { app.last } ]
+        ]
+    ]

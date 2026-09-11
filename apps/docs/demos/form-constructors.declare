@@ -1,0 +1,24 @@
+// The four decoration values
+// A gradient fill, an inside stroke, a cast shadow, and a frosted backdrop — each built by
+// its constructor, bare in a slot or as a function inside braces.
+
+App [ fill = 0xF6F8FA, textColor = 0xFFFFFF, fontSize = 13,
+    row: View [ x = 20, y = 20, height = 80, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 16 ],
+        View [ width = 110, height = 80, cornerRadius = 10, fill = gradient(#2E6FE0, #12A594),
+            Text [ x = 8, y = 8, text = "gradient" ]
+            ],
+        View [ width = 110, height = 80, cornerRadius = 10, fill = #FFFFFF, stroke = stroke(3, #2E6FE0),
+            Text [ x = 8, y = 8, textColor = 0x172530, text = "stroke" ]
+            ],
+        View [ width = 110, height = 80, cornerRadius = 10, fill = #FFFFFF, shadow = shadow(0, 6, 14, #00000033),
+            Text [ x = 8, y = 8, textColor = 0x172530, text = "shadow" ]
+            ],
+        View [ width = 110, height = 80,
+            View [ x = -20, y = 10, width = 70, height = 60, fill = { gradient("90deg", 0xC93B47, 0x8F6F28) } ],
+            View [ x = 10, y = 0, width = 100, height = 80, cornerRadius = 10, fill = 0xFFFFFF88, backdrop = frost(10, 1.2),
+                Text [ x = 8, y = 8, textColor = 0x172530, text = "frost" ]
+                ]
+            ]
+        ]
+    ]

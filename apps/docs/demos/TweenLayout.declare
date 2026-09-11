@@ -1,0 +1,33 @@
+// A row that becomes a stack, and glides there
+// Extend it with a pure `place()` — the layout's own state to one box per child. The tween
+// is the interpolation between two evaluations of it: change the state, call
+// `retarget(true)`, and the children slide from where they are to where place() now says.
+
+class RowOrStack extends TweenLayout [
+    stacked: boolean = false,
+    place() {
+        const W = this.view.width, kids = this.laid(), n = kids.length
+        const cw = Math.floor((W - 8 * (n - 1)) / n)
+        return kids.map((c, i) => this.stacked
+            ? ({ x: 0, y: i * 48, w: W, h: 40, vis: true })
+            : ({ x: i * (cw + 8), y: 0, w: cw, h: 40, vis: true }))
+        }
+    ]
+
+
+App [ textColor = 0xFFFFFF, fontSize = 14,
+    onClick() { box.layout.stacked = !box.layout.stacked; box.layout.retarget(true) },
+    Text [ x = 20, y = 12, fontSize = 12, textColor = 0x6A7883, text = "click anywhere to flip between the row and the stack" ],
+    box: View [ x = 20, y = 36, width = 460, height = 150,
+        layout: RowOrStack [ duration = 450 ],
+        View [ fill = 0x2E6FE0, cornerRadius = 8,
+            TextLabel [ x = 10, text = "one" ]
+            ],
+        View [ fill = 0x12A594, cornerRadius = 8,
+            TextLabel [ x = 10, text = "two" ]
+            ],
+        View [ fill = 0x8F6F28, cornerRadius = 8,
+            TextLabel [ x = 10, text = "three" ]
+            ]
+        ]
+    ]

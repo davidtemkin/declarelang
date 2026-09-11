@@ -1,0 +1,21 @@
+// A bitmap, and how it fits its box
+// The same picture under three `stretches` rules. `loaded` and `failed` are facts the
+// image keeps, so a caption can wait for the pixels without an event.
+
+App [ textColor = 0x51606C, fontSize = 12,
+    row: View [ x = 20, y = 20, height = 120, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 20 ],
+        View [ width = 120, height = 120, fill = 0xE9EFF4,
+            Image [ width = 120, height = 120, source = "../resources/logo.png", stretches = contain ],
+            Text [ x = 4, y = 102, text = "contain" ]
+            ],
+        View [ width = 120, height = 120, fill = 0xE9EFF4,
+            Image [ width = 120, height = 120, source = "../resources/logo.png", stretches = cover ],
+            Text [ x = 4, y = 102, text = "cover" ]
+            ],
+        View [ width = 120, height = 120, fill = 0xE9EFF4,
+            pic: Image [ width = 120, height = 120, source = "../resources/logo.png", stretches = none ],
+            Text [ x = 4, y = 102, text = { parent.pic.loaded ? "none · " + parent.pic.naturalWidth + "×" + parent.pic.naturalHeight : "loading…" } ]
+            ]
+        ]
+    ]

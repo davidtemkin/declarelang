@@ -144,6 +144,9 @@ menus open on **press**, not release, as the platform does. **An override must k
 
 ## onKeyDown
 Space and Enter run `press()`; ArrowDown opens `menu`. Ignores auto-repeat.
+
+## focusable
+A control takes focus unless it is disabled — one rule, so a disabled control drops out of the Tab order without saying so twice.
 */
 
 class Control extends View [

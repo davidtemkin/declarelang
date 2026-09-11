@@ -164,7 +164,7 @@ Whether the header surface has left the grid's scrolling box for its parent. **T
 grid's box is the rows' scroll region exactly** — the scrollbar spans rows only, and no
 row ever slides under the header. Backends without the ride keep an in-box header.
 
-## escaped — how it settles
+### How it settles
 The request is made at init and applied by the runtime at attach; one deferred read
 records the answer. A `false` that survives means the backend has no ride at all.
 

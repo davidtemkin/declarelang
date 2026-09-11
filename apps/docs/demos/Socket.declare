@@ -1,0 +1,26 @@
+// Two-way, over a socket
+// The `Stream` surface plus `send(text)`: `send` is a call you make, `onMessage` is the
+// socket calling you. The url is illustrative — no socket serves the docs — so the send
+// button waits on `open`.
+
+App [ textColor = 0x172530, fontSize = 14,
+    log: string = "",
+    chat: Socket [ url = "wss://example.invalid/chat", active = false,
+        onMessage(e: StreamMessage) { app.log = app.log + "← " + e.data + "\n" }
+        ],
+    col: View [ x = 20, y = 16, width = { parent.width - 40 },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        row: View [ height = 32, width = { this.contentWidth },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Switch [ checked = { app.chat.active },
+                input(v: boolean) { app.chat.active = v }
+                ],
+            Button [ label = "send hello", height = 32, disabled = { !app.chat.open },
+                onClick() { app.chat.send("hello"); app.log = app.log + "→ hello\n" }
+                ],
+            Text [ text = { "status: " + app.chat.status } ]
+            ],
+        Text [ fontSize = 13, textColor = 0x6A7883, wrap = true, width = { parent.width },
+            text = { app.log == "" ? "nothing sent or received" : app.log } ]
+        ]
+    ]

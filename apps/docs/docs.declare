@@ -47,13 +47,190 @@ class Mono extends Text [ fontFamily = [Code, "ui-monospace", "monospace"] ]
 // (`app.selected`, the class name); a tab lights when it matches and sets it
 // on click, so the whole navigator is one string
 
-class ClassTab extends View [ width = { parent.width }, height = 32, cornerRadius = 6,
+class ClassTab extends View [ width = { parent.width }, height = 30, cornerRadius = 6,
     cname:   string = "",
-    fill = { app.selected == classroot.cname ? theme.sel : hovered ? theme.control : null },
+    lit: boolean = { app.mode == "reference" && app.selected == classroot.cname },
+    fill = { lit ? theme.sel : hovered ? theme.control : null },
     onClick()     { app.refAt = classroot.cname; app.location = "reference/" + classroot.cname; app.showPage() },
-    lbl: Mono [ x = 12, y = 8, fontSize = 14, wrap = false,
+    lbl: Mono [ x = 24, y = 7, fontSize = 14, wrap = false,
         text = { classroot.cname },
-        textColor = { app.selected == classroot.cname ? theme.text : theme.tabIdle } ]
+        textColor = { classroot.lit ? theme.text : theme.tabIdle } ]
+    ]
+
+
+/* A rail group's head — the line that folds it. A group is OPEN when it holds the
+   current page, closed otherwise; a click overrides that, and the override holds
+   until the next navigation (its key is the page it was made on), so folding a
+   group never fights the rail when you land somewhere new. One class serves the
+   guide's parts, the language's form groups, and the class groups alike. */
+
+class FoldHead extends View [ width = { parent.width }, height = 28, cornerRadius = 6, cursor = "pointer",
+    label:    string  = "",
+    contains: boolean = false,             // does this group hold the current page?
+    manual:   boolean = false,             // the reader's fold, …
+    manualAt: string  = "",                // … keyed by the page it was made on
+    open:     boolean = { classroot.manualAt == app.page ? classroot.manual : classroot.contains },
+    fill = { hovered ? theme.control : null },
+    onClick() { manual = !open; manualAt = app.page },
+    mark: Mono [ x = 8, y = 8, fontSize = 10, wrap = false, textColor = { theme.textMuted },
+        text = { classroot.open ? "\u25BC" : "\u25B6" } ],
+    lbl: Text [ x = 24, y = 6, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, fontWeight = semibold, wrap = false,
+        text = { classroot.label },
+        textColor = { classroot.contains ? theme.text : theme.tabIdle } ]
+    ]
+
+
+// one topic of classes in the reference rail (model.classGroups — extract's CLASS_GROUPS)
+
+class ClassGroup extends View [ width = { parent.width },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    head: FoldHead [ label = { "" + :name },
+        contains = { app.mode == "reference" && (:classes as any[]).some(c => c.name == app.selected) } ],
+    body: View [ width = { parent.width }, visible = { classroot.head.open },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        ClassTab [ datapath = :classes[], cname = :name ],
+        g: View [ height = 6 ]
+        ]
+    ]
+
+
+/*
+## The reference kit
+
+The chips, links, rows, and strips a class page is built from. A chip is a
+member name in a tinted pill — attribute teal, method blue, event amber, class
+accent — and a class chip is a LINK: a location write, exactly as a rail tab.
+Every row of mixed type is a baseline row (`align = baseline`), and every
+composite in one CLAIMS its baseline.
+*/
+
+class Eyebrow extends Mono [ fontSize = { 11 * app.fontScale }, letterSpacing = 1.2, wrap = false,
+    textColor = { theme.eyebrow }
+    ]
+
+
+// a section: a rule above, the heading, one line on what the section holds
+
+class SectionHead extends View [ width = { parent.width },
+    head: string = "",
+    note: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+    rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+    title: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Title [ fontSize = { 20 * app.fontScale }, text = { classroot.head } ],
+        Muted [ fontSize = { 14 * app.fontScale }, width = { parent.width }, text = { classroot.note } ]
+        ]
+    ]
+
+
+class Chip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
+    baseline: number = { this.lbl.y + this.lbl.baseline },
+    label: string = "",
+    kind:  "attribute" | "method" | "event" | "class" | "token" = "attribute",
+    cls:   string = "",
+    width = { this.lbl.width + 16 },
+    fill = { hovered && cls != "" ? theme.chipHov
+           : kind == "method" ? theme.mchipBg
+           : kind == "event"  ? theme.echipBg
+           : theme.chipBg },
+    cursor = { cls != "" ? "pointer" : "default" },
+    link = { cls != "" ? "#reference/" + cls : "" },
+    onClick() { if (cls != "") { app.refAt = cls; app.location = "reference/" + cls; app.showPage() } },
+    lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
+        text = { classroot.label },
+        textColor = { classroot.kind == "class"  ? theme.accent
+                    : classroot.kind == "method" ? theme.chipBlue
+                    : classroot.kind == "event"  ? theme.chipAmber
+                    : classroot.kind == "token"  ? theme.code
+                    : theme.chipTeal } ]
+    ]
+
+
+// one step of the ancestry: `→` before every ancestor but the first, then its chip
+
+class Link extends View [
+    baseline: number = { this.chip.y + this.chip.baseline },
+    width = { this.contentWidth },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+    arrow: Mono [ fontSize = { 14 * app.fontScale }, visible = { :arrow }, textColor = { theme.sigDim }, text = "→" ],
+    chip:  Chip [ kind = "class", cls = { "" + :name }, label = { "" + :name } ]
+    ]
+
+
+// a section link in the row under the opener: the section's name, its count, and
+// the scroll — for the reader who came for a fact and will not scroll to reach it
+
+class JumpLink extends View [
+    baseline: number = { this.row.y + this.row.name.y + this.row.name.baseline },
+    label: string = "",
+    count: number = 0,
+    to: View = null,
+    height = { 28 * app.fontScale }, cornerRadius = 7, cursor = "pointer",
+    width = { this.row.width + 24 },
+    fill = { hovered ? theme.chipHov : theme.chipBg },
+    onClick() { if (to != null) to.scrollIntoView() },
+    row: View [ x = 12, y = { 5 * app.fontScale }, width = { this.contentWidth }, height = { 18 * app.fontScale },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
+        name: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = { 13 * app.fontScale }, fontWeight = semibold, wrap = false,
+            textColor = { theme.accent }, text = { classroot.label } ],
+        n: Mono [ fontSize = { 12 * app.fontScale }, wrap = false, textColor = { theme.sigDim }, text = { "" + classroot.count } ]
+        ]
+    ]
+
+
+/*
+## The wrapping chip
+
+A chip in an inherited strip is a RUN OF WORDS, each word its own tinted box,
+abutting — invisibly one chip while it fits. When the label is wider than the
+column the chip takes the whole width and its words wrap inside it, the
+continuation rows stepped in by the run's `hangingIndent`. Rounding is the
+run's: its first word rounds on the left, its last on the right, every other
+edge — a row's cut included — runs square, as an inline code span breaks
+across lines. (A single word wider than the column still overflows; breaking
+inside a word is the text engine's, not a flow's.)
+*/
+
+class WrapChip extends View [
+    kind:  "attribute" | "method" | "event" = "attribute",
+    cls:   string = "",
+    label: string = "",
+    n:     number = { app.wordsOf(label).length },
+
+    // wider than the column? then the chip is the column, and its words wrap
+
+    long:  boolean = { this.probe.width + 16 > parent.width },
+    width  = { long ? parent.width : this.run.contentWidth },
+    height = { this.run.contentHeight },
+    cursor = "pointer",
+    link = { "#reference/" + cls },
+    onClick() { app.refAt = cls; app.location = "reference/" + cls; app.showPage() },
+    probe: Mono [ visible = false, fontSize = { 13 * app.fontScale }, wrap = false, text = { classroot.label } ],
+    words: Dataset [ contents = { ({ items: app.wordsOf(classroot.label) }) } ],   // the words as DECLARED data — a cursor root
+
+    // the run's width never comes from the chip (whose width follows the run's
+    // content — a cycle): the column when long, else unbounded, pointer-transparent
+
+    run: View [ width = { classroot.long ? classroot.parent.width : 100000 }, pointerEvents = "none",
+        datapath = { classroot.words.value },
+        layout: WrappingLayout [ spacing = 0, lineSpacing = 4, hangingIndent = 24 ],
+        View [ datapath = :items[], height = { 24 * app.fontScale },
+            first: boolean = { this.$data("i") == 0 },
+            last:  boolean = { this.$data("i") == classroot.n - 1 },
+            width = { this.t.width + (first ? 8 : 0) + (last ? 8 : 0) },
+            cornerRadius = { [first ? 6 : 0, last ? 6 : 0, last ? 6 : 0, first ? 6 : 0] },
+            fill = { classroot.hovered ? theme.chipHov
+                   : classroot.kind == "method" ? theme.mchipBg
+                   : classroot.kind == "event"  ? theme.echipBg
+                   : theme.chipBg },
+            t: Mono [ x = { parent.first ? 8 : 0 }, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
+                text = { "" + this.$data("w") },
+                textColor = { classroot.kind == "method" ? theme.chipBlue
+                            : classroot.kind == "event"  ? theme.chipAmber
+                            : theme.chipTeal } ]
+            ]
+        ]
     ]
 
 
@@ -61,34 +238,51 @@ class ClassTab extends View [ width = { parent.width }, height = 32, cornerRadiu
 ## Reference rows
 
 One row per documented member. `AttrRow` is an attribute: the signature line
-(name : type = default), the prevailing / read-only badges, then its prose.
-`MethodRow` and `EventRow` are the method and event forms — the full
-signature with the name emphasized (a method), or the handler signature
-(`onClick()`, an event), then the prose.
+(name : type = default), a long or multi-line default on its own indented line,
+the prevailing / read-only badges, the OVERRIDE line when the class re-defaults
+an inherited slot (the ancestor's slot as a link, and what its default was
+there), then its prose — for an override, the INTENT. `MethodRow` and
+`EventRow` are the method and event forms.
 */
 
+class OverrideLine extends View [ width = { parent.width },
+    from:  string = "",
+    slot:  string = "",
+    was:   string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+    Muted [ fontSize = { 13 * app.fontScale }, text = "overrides" ],
+    Chip [ kind = "class", cls = { classroot.from }, label = { classroot.from + "." + classroot.slot } ],
+    Mono [ fontSize = { 13 * app.fontScale }, textColor = { theme.sigDim }, visible = { classroot.was != "" },
+        text = { "was = " + classroot.was } ]
+    ]
+
+
 class AttrRow extends View [ width = { parent.width },
-    aname: string = { :name },              // the attribute's name — the jump index matches on it
+    aname: string = { :name },
     live:  boolean = false,                 // page-active, threaded down to any inline island
+
+    // a long or multi-line `{ … }` default leaves the signature line and sits on its
+    // own, indented — a signature is never truncated and never scrolls
+
+    long: boolean = { ("" + (:default ?? "")).length > 44 || ("" + (:default ?? "")).indexOf("\n") >= 0 },
     layout: SimpleLayout [ axis = y, spacing = 6 ],
 
-    // name  : type  = default   — the signature, mono, one line
-
     sig: View [ width = { parent.width },
-        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
         Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { :name } ],
         Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.accentSecondary }, text = { ": " + :type } ],
-        Mono [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim },
+        Mono [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim }, visible = { !classroot.long },
             text = { :default != null ? "= " + :default : "" } ]
         ],
-
-    // prevailing / read-only badges, only when either holds
+    longDefault: Mono [ x = 24, width = { parent.width - 24 }, fontSize = { 13 * app.fontScale }, lineHeight = 1.45, textColor = { theme.sigDim },
+        visible = { classroot.long }, text = { "= " + ("" + :default).split("\n").join("\n  ") } ],
 
     flags: Mono [ fontSize = { 12 * app.fontScale }, textColor = { theme.eyebrow },
         visible = { :prevailing || :readOnly },
         text = { [:prevailing ? "prevailing" : "", :readOnly ? "read-only" : ""].filter(Boolean).join("  ·  ") } ],
 
-    // the captured doc — prose + any inline runnable islands; dimmed for the reference
+    OverrideLine [ visible = { :overrides != null }, from = { "" + :overrides.from }, slot = { "" + :name },
+        was = { :overrides.was != null ? "" + :overrides.was : "" } ],
 
     Block [ datapath = :docSegs[], width = { parent.width },
         live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
@@ -113,6 +307,8 @@ class MethodRow extends View [ width = { parent.width },
         Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.mtail }, text = { classroot.tailtext } ]
         ],
 
+    OverrideLine [ visible = { :overrides != null }, from = { "" + :overrides.from }, slot = { :name + "()" }, was = "" ],
+
     Block [ datapath = :docSegs[], width = { parent.width },
         live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
     ]
@@ -127,6 +323,93 @@ class EventRow extends View [ width = { parent.width },
 
     Block [ datapath = :docSegs[], width = { parent.width },
         live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
+    ]
+
+
+/*
+## The strips
+
+Per ancestor: what the class INHERITS (`Strip` — the disclosure, the class as a
+link, the member counts, one baseline row, then its one-line lead; open, a chip
+cloud of every name, each a link, never the ancestor's prose) and what it READS
+from above of its own (`ReadStrip`, under Provided — present only for an
+ancestor that reads something).
+*/
+
+class ReadStrip extends View [ width = { parent.width }, cornerRadius = 10, visible = { :n > 0 },
+    open:  boolean = false,
+    cname: string = { "" + :name },
+    fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+    layout: SimpleLayout [ axis = y, spacing = 0 ],
+    head: View [ width = { parent.width }, height = 40, cursor = "pointer", cornerRadius = 10,
+        fill = { hovered ? theme.chipBg : null },
+        onClick() { classroot.open = !classroot.open },
+        title: View [ x = 16, y = 10, width = { parent.width - 32 },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+            Mono [ fontSize = { 15 * app.fontScale }, wrap = false, textColor = { theme.accent }, text = { classroot.open ? "▼" : "▶" } ],
+            Muted [ fontSize = { 13 * app.fontScale }, wrap = false, text = "from" ],
+            Chip [ kind = "class", cls = { classroot.cname }, label = { classroot.cname } ],
+            Mono [ fontSize = { 13 * app.fontScale }, wrap = false, textColor = { theme.sigDim },
+                text = { :n + (:n == 1 ? " value" : " values") } ]
+            ]
+        ],
+    body: View [ width = { parent.width }, visible = { classroot.open },
+        inner: View [ x = 16, y = 4, width = { parent.width - 32 },
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            tokens: View [ width = { parent.width }, visible = { :reads.theme.length > 0 },
+                layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+                Chip [ datapath = :reads.theme[], kind = "token", label = { "theme." + this.$data("") } ]
+                ],
+            provided: View [ width = { parent.width }, visible = { :reads.provided.length > 0 },
+                layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+                Chip [ datapath = :reads.provided[], kind = "token", label = { "" + this.$data("") } ]
+                ],
+            pad: View [ width = { parent.width }, height = 8 ]
+            ]
+        ]
+    ]
+
+
+class Strip extends View [ width = { parent.width }, cornerRadius = 10,
+    open:  boolean = false,                    // a declaration default: yields to the click
+    cname: string = { "" + :name },
+    fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+    layout: SimpleLayout [ axis = y, spacing = 0 ],
+
+    head: View [ width = { parent.width }, cursor = "pointer",
+        height = { this.lead.y + this.lead.height + 14 },
+        fill = { hovered ? theme.chipBg : null }, cornerRadius = 10,
+        onClick() { classroot.open = !classroot.open },
+        title: View [ x = 16, y = 12, width = { parent.width - 32 },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+            Mono [ fontSize = { 15 * app.fontScale }, wrap = false, textColor = { theme.accent }, text = { classroot.open ? "▼" : "▶" } ],
+            Muted [ fontSize = { 13 * app.fontScale }, wrap = false, text = "from" ],
+            Chip [ kind = "class", cls = { classroot.cname }, label = { classroot.cname } ],
+            Mono [ fontSize = { 13 * app.fontScale }, wrap = false, textColor = { theme.sigDim },
+                text = { :attributes.length + " attributes · " + :methods.length + " methods · " + :events.length + " events" } ]
+            ],
+        lead: Muted [ x = 42, y = { parent.title.y + parent.title.height + 6 }, fontSize = { 13 * app.fontScale }, width = { parent.width - 58 },
+            text = { "" + :lead } ]
+        ],
+
+    body: View [ width = { parent.width }, visible = { classroot.open },
+        inner: View [ x = 16, y = 12, width = { parent.width - 32 },
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            attrs: View [ width = { parent.width }, visible = { :attributes.length > 0 },
+                layout: WrappingLayout [ spacing = 6, lineSpacing = 6 ],
+                WrapChip [ datapath = :attributes[], kind = "attribute", cls = { classroot.cname }, label = { "" + :label } ]
+                ],
+            methods: View [ width = { parent.width }, visible = { :methods.length > 0 },
+                layout: WrappingLayout [ spacing = 6, lineSpacing = 6 ],
+                WrapChip [ datapath = :methods[], kind = "method", cls = { classroot.cname }, label = { "" + :label } ]
+                ],
+            events: View [ width = { parent.width }, visible = { :events.length > 0 },
+                layout: WrappingLayout [ spacing = 6, lineSpacing = 6 ],
+                WrapChip [ datapath = :events[], kind = "event", cls = { classroot.cname }, label = { "" + :label } ]
+                ],
+            pad: View [ width = { parent.width }, height = 8 ]
+            ]
+        ]
     ]
 
 
@@ -173,14 +456,15 @@ class Example extends View [ width = { parent.width },
     broken: boolean = { app.liveCard == cname && app.liveReport != "" },
     layout: SimpleLayout [ axis = y, spacing = 0 ],   // the preview frame abuts the code block below, no gap
 
-    head: View [ width = { parent.width },
-        layout: SimpleLayout [ axis = y, spacing = 2 ],
-        rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
-        gap:  View [ height = 8 ],
-        Title [ fontSize = { 20 * app.fontScale }, text = "Example" ]
-        ],
+    // the example's own title and lead (from the demo file's opening comment)
 
-    gap12: View [ height = 12 ],         // the title's breathing room (the layout spacing is now 0)
+    head: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Title [ fontSize = { 16 * app.fontScale }, text = { "" + :title } ],
+        lead: Markdown [ width = { parent.width }, visible = { ("" + :lead) != "" }, lineHeight = 1.55,
+            bodyColor = { theme.refDim }, scale = { app.fontScale }, dark = { app.darkUI }, text = { "" + :lead } ],
+        gap: View [ height = 6 ]
+        ],
 
     // the editable source card — coheres with a static code block (the same
     // `chipBg` tint, 8px radius, 13px code face) but is marked LIVE/EDITABLE by an
@@ -368,120 +652,307 @@ class ClassDetail extends View [ width = { parent.width },
     // this page is on screen — the gate every inline preview reads before it mounts
 
     pageLive: boolean = { app.mode == "reference" && app.selected == classroot.cname },
-    layout: SimpleLayout [ axis = y, spacing = 18 ],
+    hasBase:  boolean = { :extends != null },
+    layout: SimpleLayout [ axis = y, spacing = 36 ],
 
-    // Jump: find the member row (attribute, method, or event) carrying this name and
-    // scroll it into view. Imperative, so it lives in the click handler (View.reveal,
-    // the runtime scroll-into-view primitive); every row carries an `aname` to match.
+    // the ancestor projections as DECLARED data (the value-root idiom), so the
+    // chain row and the strips can replicate over them
 
-    revealAttr(name: string) {
-        for (const box of [this.attrs, this.meths, this.evts]) {
-            for (const row of box.children) {
-                if (row.aname === name) { row.scrollIntoView(); return }
-            }
-        }
-        },
+    ancestry:  Dataset [ contents = { ({ items: app.ancestryOf(classroot.cname) }) } ],
+    ancestors: Dataset [ contents = { ({ items: app.ancestorsOf(classroot.cname) }) } ],
 
-    // header: the class name + what it extends
+    /* ### Header — the class, where it sits, and its opener */
 
-    head: View [ width = { parent.width },
-        layout: SimpleLayout [ axis = y, spacing = 6 ],
+    header: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        Eyebrow [ text = { "REFERENCE · " + (:origin == "library" ? "STANDARD LIBRARY" : "BUILT-IN") + (:source != null ? " · " + :source : "") } ],
         Title [ fontSize = { 32 * app.fontScale }, text = { classroot.cname } ],
-        Mono  [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim },
-            text = { :extends != null ? "class " + classroot.cname + " extends " + :extends
-                                      : "class " + classroot.cname + "  (base)" } ]
-        ],
 
-    // the member jump index — one wrap of chips (attributes teal, methods blue, events
-    // amber), click to scroll to a definition below. All three kinds share `revealAttr`.
+        // the chain, every ancestor a link — and the class's siblings and subclasses
 
-    index: View [ width = { parent.width },
-        visible = { :attributes.length > 0 || :methods.length > 0 || :events.length > 0 },
-        layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
+        // (re-rooted to the ancestry data, so its visibility reads the page's fact, not a path)
 
-        // attribute chips
-
-        View [ datapath = :attributes[],
-            aname: string = { :name },
-            height = 26, cornerRadius = 6, fill = { hovered ? theme.chipHov : theme.chipBg },
-            onClick() { classroot.revealAttr(this.aname) },
-            lbl: Mono [ x = 10, y = 5, fontSize = { 13 * app.fontScale }, textColor = { theme.chipTeal }, text = { parent.aname } ],
-            width = { this.lbl.width + 20 }
+        chain: View [ width = { parent.width }, visible = { classroot.hasBase },
+            datapath = { classroot.ancestry.value },
+            layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = baseline ],
+            Mono [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim }, text = { "class " + classroot.cname + " extends" } ],
+            Link [ datapath = :items[] ]
+            ],
+        base: Mono [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim }, visible = { :extends == null },
+            text = { "class " + classroot.cname + "  (base)" } ],
+        subs: View [ width = { parent.width }, visible = { :subclasses.length > 0 },
+            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            Muted [ fontSize = { 13 * app.fontScale }, text = "subclasses:" ],
+            Chip [ datapath = :subclasses[], kind = "class", cls = { "" + this.$data("") }, label = { "" + this.$data("") } ]
+            ],
+        sibs: View [ width = { parent.width }, visible = { :siblings.length > 0 },
+            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            Muted [ fontSize = { 13 * app.fontScale }, text = { "also extends " + :extends + ":" } ],
+            Chip [ datapath = :siblings[], kind = "class", cls = { "" + this.$data("") }, label = { "" + this.$data("") } ]
             ],
 
-        // method chips — name()
+        // the class prose — dimmed, with any inline runnable examples woven in
 
-        View [ datapath = :methods[],
-            aname: string = { :name },
-            height = 26, cornerRadius = 6, fill = { hovered ? theme.mchipHov : theme.mchipBg },
-            onClick() { classroot.revealAttr(this.aname) },
-            lbl: Mono [ x = 10, y = 5, fontSize = { 13 * app.fontScale }, textColor = { theme.chipBlue }, text = { parent.aname + "()" } ],
-            width = { this.lbl.width + 20 }
-            ],
-
-        // event chips — the handler signature
-
-        View [ datapath = :events[],
-            aname: string = { :name },
-            height = 26, cornerRadius = 6, fill = { hovered ? theme.echipHov : theme.echipBg },
-            onClick() { classroot.revealAttr(this.aname) },
-            lbl: Mono [ x = 10, y = 5, fontSize = { 13 * app.fontScale }, textColor = { theme.chipAmber }, text = { :signature } ],
-            width = { this.lbl.width + 20 }
-            ]
+        Block [ datapath = :docSegs[], width = { parent.width },
+            live = { classroot.pageLive }, tone = { theme.refDim }, lead = 1.6 ]
         ],
 
-    // the class prose — dimmed, with any inline runnable examples woven in
+    // the page's sections, one line: for the reader who came for a fact
 
-    Block [ datapath = :docSegs[], width = { parent.width },
-        live = { classroot.pageLive }, tone = { theme.refDim }, lead = 1.6 ],
-
-    // attributes (hidden for a class that documents none — e.g. Dataset)
-
-    attrsHead: View [ width = { parent.width }, visible = { :attributes.length > 0 },
-        layout: SimpleLayout [ axis = y, spacing = 2 ],
-        rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
-        gap:  View [ height = 8 ],
-        Title [ fontSize = { 20 * app.fontScale }, text = "Attributes" ]
+    jump: View [ width = { parent.width },
+        layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = baseline ],
+        Muted [ fontSize = { 16 * app.fontScale }, text = "On this page" ],
+        JumpLink [ label = "Usage",      visible = { :example.length > 0 },    count = { :example.length },    to = { classroot.usage } ],
+        JumpLink [ label = "Attributes", visible = { :attributes.length > 0 }, count = { :attributes.length }, to = { classroot.attrs } ],
+        JumpLink [ label = "Methods",    visible = { :methods.length > 0 },    count = { :methods.length },    to = { classroot.meths } ],
+        JumpLink [ label = "Events",     visible = { :events.length > 0 },     count = { :events.length },     to = { classroot.evts } ],
+        JumpLink [ label = "Provided",   visible = { classroot.hasReads },     count = { :reads.theme.length + :reads.provided.length }, to = { classroot.reads } ],
+        JumpLink [ label = "Inherited",  visible = { :chain.length > 1 },      count = { :chain.length - 1 }, to = { classroot.inh } ]
         ],
+
+    /* ### Usage — the class at work, live: each example runs, and its source is editable */
+
+    usage: View [ width = { parent.width }, visible = { :example.length > 0 },
+        layout: SimpleLayout [ axis = y, spacing = 28 ],
+        SectionHead [ head = "Usage", note = "The class as you would write it. Every example runs below its source, and the source is yours to edit." ],
+        Example [ datapath = :example[], width = { parent.width }, live = { classroot.pageLive } ]
+        ],
+
+    /* ### The members, in three ruled sections — an override sits in its own
+           section, with the ancestor's slot linked under its signature */
+
     attrs: View [ width = { parent.width }, visible = { :attributes.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 22 ],
+        SectionHead [ head = "Attributes",
+            note = { :attributes.length + " on " + classroot.cname + (app.hasOverrides(:attributes) ? " — its own first, then the inherited ones it gives a new default" : "") } ],
         AttrRow [ datapath = :attributes[], width = { parent.width }, live = { classroot.pageLive } ]
         ],
 
-    // methods (hidden for a class that documents none)
-
-    methsHead: View [ width = { parent.width }, visible = { :methods.length > 0 },
-        layout: SimpleLayout [ axis = y, spacing = 2 ],
-        rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
-        gap:  View [ height = 8 ],
-        Title [ fontSize = { 20 * app.fontScale }, text = "Methods" ]
-        ],
     meths: View [ width = { parent.width }, visible = { :methods.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 22 ],
+        SectionHead [ head = "Methods", note = { :methods.length + " on " + classroot.cname } ],
         MethodRow [ datapath = :methods[], width = { parent.width }, live = { classroot.pageLive } ]
         ],
 
-    // events (hidden for a class that documents none)
-
-    evtsHead: View [ width = { parent.width }, visible = { :events.length > 0 },
-        layout: SimpleLayout [ axis = y, spacing = 2 ],
-        rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
-        gap:  View [ height = 8 ],
-        Title [ fontSize = { 20 * app.fontScale }, text = "Events" ]
-        ],
     evts: View [ width = { parent.width }, visible = { :events.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 22 ],
+        SectionHead [ head = "Events", note = { :events.length + " on " + classroot.cname } ],
         EventRow [ datapath = :events[], width = { parent.width }, live = { classroot.pageLive } ]
         ],
 
-    // the live, editable example — replicated 0-or-1 times, so it's built only when
-    // the class ships a demo (apps/docs/demos/<Class>.declare). Its preview is
-    // live only while this class is the reference selection.
+    /* ### Provided — what the class READS from above: its contract with its container */
 
-    exampleBox: View [ width = { parent.width }, visible = { :example.length > 0 },
+    hasReads: boolean = { :reads.theme.length + :reads.provided.length > 0 || app.ancestorsOf(classroot.cname).some((a) => a.n > 0) },
+    reads: View [ width = { parent.width }, visible = { classroot.hasReads },
         layout: SimpleLayout [ axis = y, spacing = 18 ],
-        Example [ datapath = :example[], width = { parent.width },
-            live = { app.mode == "reference" && app.selected == classroot.cname } ]
+        SectionHead [ head = "Provided",
+            note = { "The values " + classroot.cname + " reads from above — its dependencies on whatever contains it. Change one on any ancestor and it follows. Its own body's reads; an ancestor that reads values of its own is folded beneath." } ],
+        tokens: View [ width = { parent.width }, visible = { :reads.theme.length > 0 },
+            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            Chip [ datapath = :reads.theme[], kind = "token", label = { "theme." + this.$data("") } ]
+            ],
+        provided: View [ width = { parent.width }, visible = { :reads.provided.length > 0 },
+            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            Chip [ datapath = :reads.provided[], kind = "token", label = { "" + this.$data("") } ]
+            ],
+        strips: View [ width = { parent.width }, datapath = { classroot.ancestors.value },
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            ReadStrip [ datapath = :items[] ]
+            ]
+        ],
+
+    /* ### Inherited — per ancestor, names only, folded */
+
+    inh: View [ width = { parent.width }, visible = { :chain.length > 1 },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        SectionHead [ head = "Inherited",
+            note = { "Everything else " + classroot.cname + " can do, by the class it comes from. Names only — each is a link to its own entry; the ancestor's documentation stays on the ancestor's page." } ],
+        strips: View [ width = { parent.width }, datapath = { classroot.ancestors.value },
+            layout: SimpleLayout [ axis = y, spacing = 14 ],
+            Strip [ datapath = :items[] ]
+            ]
+        ],
+
+    tail: View [ width = { parent.width }, height = 48 ]
+    ]
+
+
+/*
+## The language pages
+
+A third mode over the same model (its own locations, `language/<form>`, but no
+tab of its own — the forms head the reference rail): every keyword, delimiter,
+operator, and member shape the grammar accepts, from the registry
+(tools/internal/doc/forms.md → model.forms). The rail lists them by group; the page is one form: its syntax in
+a code box, its lead, live usage, the RULES the compiler enforces — each quoting the
+checker's own sentence — and what it relates to. With no form selected the pane
+shows the index: every form, grouped, one line each.
+*/
+
+// a form tab in the rail — the form's display name, lit when it is the location's cursor
+
+class FormTab extends View [ width = { parent.width }, height = 28, cornerRadius = 6,
+    slug: string = "",
+    lit: boolean = { app.mode == "language" && app.form == classroot.slug },
+    fill = { lit ? theme.sel : hovered ? theme.control : null },
+    link = { "#language/" + slug },
+    onClick()     { app.formAt = classroot.slug; app.location = "language/" + classroot.slug; app.showPage() },
+    lbl: Mono [ x = 24, y = 6, fontSize = 13, wrap = false,
+        text = { "" + (:short ?? :name) },
+        textColor = { classroot.lit ? theme.text : theme.tabIdle } ]
+    ]
+
+
+class FormGroup extends View [ width = { parent.width },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    head: FoldHead [ label = { "" + :name },
+        contains = { app.mode == "language" && (:forms as any[]).some(f => f.slug == app.form) } ],
+    body: View [ width = { parent.width }, visible = { classroot.head.open },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        FormTab [ datapath = :forms[], slug = { "" + :slug } ],
+        g: View [ height = 6 ]
+        ]
+    ]
+
+
+// a syntax box: the form's grammar lines, as written, in the code tint
+
+class SyntaxBox extends View [ width = { parent.width }, fill = { theme.chipBg }, cornerRadius = 8,
+    lines: string = "",
+    height = { this.t.height + 28 },
+    bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.accentSecondary } ],
+    t: Mono [ x = 18, y = 14, width = { parent.width - 36 }, fontSize = { 14 * app.fontScale }, lineHeight = 1.6, textColor = { theme.code },
+        text = { classroot.lines } ]
+    ]
+
+
+// one rule: what it is, then the sentence the checker says at the site — quoted
+// verbatim, and re-checked by the docs gate against the rule's own probe
+
+class RuleRow extends View [ width = { parent.width },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    md: Markdown [ width = { parent.width }, lineHeight = 1.55, bodyColor = { theme.refDim }, scale = { app.fontScale }, dark = { app.darkUI },
+        text = { "" + :rule } ],
+    says: View [ width = { parent.width }, height = { this.t.height + 16 },
+        rule: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { theme.line } ],
+        lbl: Muted [ x = 14, y = 8, fontSize = { 12 * app.fontScale }, italic = true, wrap = false, text = "the checker says" ],
+        t: Mono [ x = { parent.lbl.x + parent.lbl.width + 10 }, y = 8, width = { parent.width - parent.lbl.width - 24 },
+            fontSize = { 12.5 * app.fontScale }, lineHeight = 1.5, textColor = { theme.sigDim }, text = { "" + :says } ]
+        ]
+    ]
+
+
+// a form link in an index row or a related row — a location write, like a class chip
+
+class FormChip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6, cursor = "pointer",
+    baseline: number = { this.lbl.y + this.lbl.baseline },
+    slug: string = "",
+    label: string = "",
+    width = { this.lbl.width + 16 },
+    fill = { hovered ? theme.chipHov : theme.chipBg },
+    link = { "#language/" + slug },
+    onClick() { app.formAt = slug; app.location = "language/" + slug; app.showPage() },
+    lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
+        textColor = { theme.accent }, text = { classroot.label } ]
+    ]
+
+
+// the index: one form per row — its name as a link, its gist beside it
+
+class FormRow extends View [ width = { parent.width },
+    height = { Math.max(this.syn.height, this.gist.height) },
+    cursor = "pointer",
+    link = { "#language/" + this.$data("slug") },
+    onClick() { app.formAt = "" + this.$data("slug"); app.location = "language/" + this.$data("slug"); app.showPage() },
+    syn: Mono [ x = 0, y = 0, width = 260, fontSize = { 14 * app.fontScale }, fontWeight = semibold, lineHeight = 1.5,
+        textColor = { classroot.hovered ? theme.accent : theme.chipBlue }, text = { "" + :name } ],
+    gist: Markdown [ x = 276, width = { parent.width - 276 }, lineHeight = 1.55, bodyColor = { theme.refDim }, scale = { app.fontScale }, dark = { app.darkUI },
+        text = { "" + :gist } ]
+    ]
+
+
+class FormIndex extends View [ width = { parent.width },
+    visible = { app.mode == "language" && app.form == "" },
+    layout: SimpleLayout [ axis = y, spacing = 36 ],
+    header: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Eyebrow [ text = "LANGUAGE · docs/declare.md" ],
+        Title [ fontSize = { 32 * app.fontScale }, text = "The language" ],
+        Block [ datapath = :docSegs[], width = { parent.width }, tone = { theme.refDim }, lead = 1.6 ]
+        ],
+    groups: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 36 ],
+        View [ datapath = :groups[], width = { parent.width },
+            layout: SimpleLayout [ axis = y, spacing = 18 ],
+            SectionHead [ head = { "" + :name }, note = { :forms.length + (:forms.length == 1 ? " form" : " forms") } ],
+            FormRow [ datapath = :forms[] ]
+            ]
+        ],
+    tail: View [ width = { parent.width }, height = 48 ]
+    ]
+
+
+class FormDetail extends View [ width = { parent.width },
+    slug: string = "",
+    visible = { app.mode == "language" && app.form == classroot.slug },
+    pageLive: boolean = { app.mode == "language" && app.form == classroot.slug },
+    layout: SimpleLayout [ axis = y, spacing = 36 ],
+    nRelated: number = { :related.forms.length + :related.classes.length + :related.guide.length },
+
+    header: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Eyebrow [ text = { "LANGUAGE · " + ("" + :family).toUpperCase() + " · declare.md " + :spec } ],
+        Mono [ fontSize = { 32 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { "" + :name } ],
+        SyntaxBox [ lines = { "" + :syntaxText } ],   // the lines as written (a line may hold a comma)
+        Block [ datapath = :docSegs[], width = { parent.width }, live = { classroot.pageLive }, tone = { theme.refDim }, lead = 1.6 ]
+        ],
+
+    jump: View [ width = { parent.width },
+        layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = baseline ],
+        Muted [ fontSize = { 16 * app.fontScale }, text = "On this page" ],
+        JumpLink [ label = "Usage",   visible = { :example.length > 0 }, count = { :example.length }, to = { classroot.usage } ],
+        JumpLink [ label = "Rules",   visible = { :rules.length > 0 },   count = { :rules.length },   to = { classroot.rules } ],
+        JumpLink [ label = "Related", visible = { classroot.nRelated > 0 }, count = { classroot.nRelated }, to = { classroot.related } ]
+        ],
+
+    usage: View [ width = { parent.width }, visible = { :example.length > 0 },
+        layout: SimpleLayout [ axis = y, spacing = 28 ],
+        SectionHead [ head = "Usage", note = "The form as you would write it. Every example runs below its source, and the source is yours to edit." ],
+        Example [ datapath = :example[], width = { parent.width }, live = { classroot.pageLive } ]
+        ],
+
+    rules: View [ width = { parent.width }, visible = { :rules.length > 0 },
+        layout: SimpleLayout [ axis = y, spacing = 22 ],
+        SectionHead [ head = "Rules",
+            note = "What the compiler enforces about this form. Each rule quotes the sentence the checker says at the site — the docs build re-runs every rule's probe, so the quote is always what the compiler says today." ],
+        RuleRow [ datapath = :rules[] ]
+        ],
+
+    related: View [ width = { parent.width }, visible = { classroot.nRelated > 0 },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        SectionHead [ head = "Related", note = "Where this form leads: the forms it composes with, the classes it makes, and the guide chapters that teach it." ],
+        forms: View [ width = { parent.width }, visible = { :related.forms.length > 0 },
+            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            Muted [ fontSize = { 13 * app.fontScale }, text = "forms" ],
+            FormChip [ datapath = :related.forms[], slug = { "" + this.$data("") }, label = { app.formName("" + this.$data("")) } ]
+            ],
+        classes: View [ width = { parent.width }, visible = { :related.classes.length > 0 },
+            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            Muted [ fontSize = { 13 * app.fontScale }, text = "classes" ],
+            Chip [ datapath = :related.classes[], kind = "class", cls = { "" + this.$data("") }, label = { "" + this.$data("") } ]
+            ],
+        guide: View [ width = { parent.width }, visible = { :related.guide.length > 0 },
+            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            Muted [ fontSize = { 13 * app.fontScale }, text = "guide" ],
+            View [ datapath = :related.guide[], height = { 24 * app.fontScale }, cornerRadius = 6, cursor = "pointer",
+                baseline: number = { this.lbl.y + this.lbl.baseline },
+                width = { this.lbl.width + 16 }, fill = { hovered ? theme.chipHov : theme.chipBg },
+                link = { "#guide/" + :chapter },
+                onClick() { app.guideAt = "" + this.$data("chapter"); app.location = "guide/" + this.$data("chapter"); app.showPage() },
+                lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false, textColor = { theme.accent },
+                    text = { :chapter + " · " + :title } ]
+                ]
+            ]
         ],
 
     tail: View [ width = { parent.width }, height = 48 ]
@@ -492,9 +963,10 @@ class ClassDetail extends View [ width = { parent.width },
 ## The guide
 
 The mode switch, the chapter rail, and a chapter page. The doc app is two
-views over one model: a narrative GUIDE and the class REFERENCE. `app.mode`
-picks which; each keeps its own selection (`app.chapter` / `app.selected`) so
-switching back lands where you left.
+tabs over one model: a narrative GUIDE and the REFERENCE (the language forms,
+then the classes). `app.mode` picks which; each keeps its own selection
+(`app.chapter` / `app.selected` / `app.form`) so switching back lands where you
+left. Both rails are folds: a group opens when it holds the current page.
 */
 
 // The mode switch is a full-width segmented pair — each tab half the rail, label
@@ -514,7 +986,7 @@ class ChapterTab extends View [ width = { parent.width }, height = 32, cornerRad
 
     // numbered, because the chapters cite each other by number ("chapter 3")
 
-    lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, wrap = false,
+    lbl: Text [ x = 24, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, wrap = false,
         text = { classroot.cnum + ". " + classroot.ctitle },
         textColor = { app.chapter == classroot.cid ? theme.text : theme.tabIdle } ]
     ]
@@ -523,12 +995,14 @@ class ChapterTab extends View [ width = { parent.width }, height = 32, cornerRad
 // one Part in the guide rail — an eyebrow over that part's chapter links
 
 class PartGroup extends View [ width = { parent.width },
-    layout: SimpleLayout [ axis = y, spacing = 3 ],
-    p: string = { :part },
-    g:       View [ height = 14 ],
-    eyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.textMuted }, text = { classroot.p.toUpperCase() } ],
-    g2:      View [ height = 4 ],
-    ChapterTab [ datapath = :chapters[] ]
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    head: FoldHead [ label = { "" + :part },
+        contains = { app.mode == "guide" && (:chapters as any[]).some(c => c.id == app.chapter) } ],
+    body: View [ width = { parent.width }, visible = { classroot.head.open },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        ChapterTab [ datapath = :chapters[] ],
+        g: View [ height = 6 ]
+        ]
     ]
 
 
@@ -679,14 +1153,24 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
 
     guideAt: string = "01-thinking-in-declare",              // last guide chapter visited …
     refAt:   string = "View",                  // … and last reference class
+    formAt:  string = "",                      // … and last language form ("" = the index)
 
     // The active view, parsed out of `location` (the anchor stripped first — it
     // selects a viewpoint, not a page). The inactive mode's cursor falls back to its
     // remembered value, so its rail/selection stay put behind the other mode.
 
-    mode:     string = { app.location.split("@")[0].split("/")[0] || "guide" },
-    chapter:  string = { app.mode == "guide" ? (app.location.split("@")[0].split("/")[1] || "01-thinking-in-declare") : app.guideAt },
-    selected: string = { app.mode == "reference" ? (app.location.split("@")[0].split("/")[1] || "View") : app.refAt },
+    page:     string = { app.location.split("@")[0] },                 // the location less its anchor — the fold heads' key
+    mode:     string = { app.page.split("/")[0] || "guide" },
+    chapter:  string = { app.mode == "guide" ? (app.page.split("/")[1] || "01-thinking-in-declare") : app.guideAt },
+    selected: string = { app.mode == "reference" ? (app.page.split("/")[1] || "View") : app.refAt },
+    form:     string = { app.mode == "language" ? (app.page.split("/")[1] || "") : app.formAt },
+
+    // a form's display name, for a related-forms chip
+
+    formName(slug: string) -> string {
+        const pages = (app.docs.read(["forms", "pages"]) || {}) as any
+        return pages[slug] != null ? "" + pages[slug].name : slug
+        },
 
     fontScale: number = 1.0,                   // reader font-size zoom for the CONTENT pane (the A stepper drives it; nav is fixed)
     themeMode: string = "system",              // "light" | "system" | "dark" — the ☀◐☾ switch; system follows app.dark
@@ -714,6 +1198,47 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     // The snippet is a word-trimmed window around the first body match, terms
     // bolded for the Markdown row (the snippet text is escaped first, so
     // corpus punctuation cannot leak markup into a result).
+
+    /* ## The class page's projections
+       The model stays NORMALIZED — inherited members are never copied into
+       each class — so the page computes its ancestor views here, from the
+       tree, per selection: the ancestry as links, each ancestor's strip
+       (names, types, signatures, its one-line lead, its own reads), and a
+       label's words for the wrapping chip. */
+
+    classNode(name: string) -> object { return (app.docs.read(["tree"]) || []).find((c) => c.name == name) || null },
+
+    ancestryOf(name: string) -> array {
+        const me = app.classNode(name) as any
+        return me == null ? [] : me.chain.slice(1).map((n, i) => ({ name: n, arrow: i > 0 }))
+        },
+
+    ancestorsOf(name: string) -> array {
+        const me = app.classNode(name) as any
+        if (me == null) return []
+        return me.chain.slice(1).map((id) => app.classNode(id) as any).filter((c) => c != null).map((c) => ({
+            name: c.name, lead: app.plainLead(c.doc || ""),
+            reads: c.reads || ({ theme: [], provided: [] }),
+            n: c.reads ? c.reads.theme.length + c.reads.provided.length : 0,
+            attributes: c.attributes.map((a) => ({ name: a.name, label: a.name + ": " + a.type })),
+            methods: c.methods.map((m) => ({ name: m.name, label: m.signature })),
+            events: c.events.map((e) => ({ name: e.name, label: e.signature })) }))
+        },
+
+    // the first paragraph of a class's prose, as plain text — a strip's one-line lead
+
+    plainLead(md: string) -> string {
+        return md.split("\n\n")[0].replace(/\n/g, " ").replace(/\*\*/g, "").replace(/\u0060/g, "").replace(/\*/g, "").replace(/\s*\(docs\/system-design[^)]*\)/g, "").trim()
+        },
+
+    hasOverrides(list: array) -> boolean { return (list || []).some((a) => a.overrides != null) },
+
+    // a label's words, each keeping its trailing space, so a run of word chips reads continuously
+
+    wordsOf(label: string) -> array {
+        const ws = ("" + label).match(/\S+\s*/g) || [label]
+        return ws.map((w, i) => ({ i: i, w: w }))
+        },
 
     findDocs(q: string, idx: object) -> array {
         const query = ("" + q).trim().toLowerCase()
@@ -861,6 +1386,10 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
             return
         }
         if (id == "reference:index") { app.location = "reference/" + app.refAt; app.showPage(); return }
+        if (id.startsWith("language:")) {                    // language:class → the form's page ("language:" alone → the index)
+            const slug = id.slice("language:".length)
+            app.formAt = slug; app.location = "language/" + slug; app.showPage(); return
+        }
         if (!id.includes(":")) {                             // a reference symbol: View / View.width
             app.refAt = id.split(".")[0]; app.location = "reference/" + app.refAt; app.showPage(); return
         }
@@ -975,8 +1504,12 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
             // back round, which is the single source of truth the location
             // comment above asks for.
 
+            // Two tabs. The language pages are a third MODE (their own locations,
+            // `language/<form>`) but not a third tab: they live at the top of the
+            // reference rail, so the Reference tab lights for both.
+
             modes: Segmented [ width = { parent.width }, height = 30,
-                value = { app.mode },
+                value = { app.mode == "language" ? "reference" : app.mode },
                 input(v: object) {
                     app.location = ("" + v) == "guide" ? "guide/" + app.guideAt : "reference/" + app.refAt
                     app.showPage()
@@ -990,21 +1523,34 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
                               ({ id: "reference", label: "Reference", location: "reference/" + app.refAt }) ] }
                 ],
 
-            // guide nav — parts and their chapters
+            // guide nav — the parts, each a fold over its chapters
 
             guideNav: View [ width = { parent.width }, visible = { app.mode == "guide" },
                 layout: SimpleLayout [ axis = y, spacing = 2 ],
+                g1: View [ height = 10 ],
                 PartGroup [ datapath = :guideParts[] ]
                 ],
 
-            // reference nav — the component list
+            // reference nav — LANGUAGE (the forms, by group, with the index above
+            // them) then CLASSES (by topic: model.classGroups). Each group folds.
 
-            refNav: View [ width = { parent.width }, visible = { app.mode == "reference" },
-                layout: SimpleLayout [ axis = y, spacing = 4 ],
+            refNav: View [ width = { parent.width }, visible = { app.mode == "reference" || app.mode == "language" },
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
                 g1:    View [ height = 14 ],
-                eyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.textMuted }, text = "COMPONENTS" ],
+                langEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.textMuted }, text = "LANGUAGE" ],
                 g2:    View [ height = 4 ],
-                ClassTab [ datapath = :tree[], cname = :name ]
+                idx: View [ width = { parent.width }, height = 28, cornerRadius = 6,
+                    lit: boolean = { app.mode == "language" && app.form == "" },
+                    fill = { lit ? theme.sel : hovered ? theme.control : null },
+                    link = "#language/",
+                    onClick() { app.formAt = ""; app.location = "language/"; app.showPage() },
+                    Text [ x = 24, y = 6, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, wrap = false, text = "All forms", textColor = { parent.lit ? theme.text : theme.tabIdle } ]
+                    ],
+                FormGroup [ datapath = :forms.groups[] ],
+                g3:    View [ height = 18 ],
+                classEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.textMuted }, text = "CLASSES" ],
+                g4:    View [ height = 4 ],
+                ClassGroup [ datapath = :classGroups[] ]
                 ]
             ]
         ],
@@ -1043,6 +1589,14 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
 
             refCol: View [ width = { parent.width }, visible = { app.mode == "reference" },
                 ClassDetail [ datapath = { (app.docs.read(["tree"]) || []).find(c => c.name == app.selected) }, cname = :name ]
+                ],
+
+            // the language pane: the index (no cursor) or ONE form's page, re-rooted to
+            // the selection exactly as the reference page is
+
+            langCol: View [ width = { parent.width }, visible = { app.mode == "language" },
+                FormIndex [ datapath = { app.docs.read(["forms"]) } ],
+                FormDetail [ datapath = { ((app.docs.read(["forms", "pages"]) || {}) as any)[app.form] }, slug = { "" + :slug } ]
                 ]
             ],
 

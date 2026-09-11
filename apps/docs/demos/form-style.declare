@@ -1,0 +1,24 @@
+// A bundle worn by name
+// `card` is declared once; three views opt in with `styles = [card]`, and one adds a second
+// bundle. A bundle's field may be a `{ }` — the accent one reads the app's colour live.
+
+style card [ cornerRadius = 10, fill = #FFFFFF, stroke = stroke(1, #DCE3E9) ]
+
+style accent [ stroke = { stroke(2, app.hue) } ]
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 13,
+    hue: Color = 0x2E6FE0,
+    onClick() { hue = hue == 0x2E6FE0 ? 0xC93B47 : 0x2E6FE0 },
+    row: View [ x = 20, y = 20, height = 70, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 12 ],
+        View [ width = 120, height = 70, styles = [card],
+            TextLabel [ x = 10, text = "card" ]
+            ],
+        View [ width = 120, height = 70, styles = [card],
+            TextLabel [ x = 10, text = "card" ]
+            ],
+        View [ width = 120, height = 70, styles = [card, accent],
+            TextLabel [ x = 10, text = "card + accent (click)" ]
+            ]
+        ]
+    ]

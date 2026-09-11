@@ -1,0 +1,24 @@
+// Your own mark, drawn once in a 16-box
+// Subclass and override `draw`: author the shape at 16×16, `unit` scales it to the size
+// the host asks for, and the stroke stays a constant `weight` in device pixels. The same
+// path at three sizes, then tinted.
+
+class SparkIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink; d.lineWidth = weight / unit; d.lineCap = "round"
+        d.beginPath(); d.moveTo(8, 1); d.lineTo(8, 15); d.moveTo(1, 8); d.lineTo(15, 8)
+        d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke()
+        }
+    ]
+
+
+App [ textColor = 0x172530,
+    row: View [ x = 20, y = 20, height = 48, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 24 ],   // an Icon centres itself on y
+        SparkIcon [ iconSize = 16 ],
+        SparkIcon [ iconSize = 24 ],
+        SparkIcon [ iconSize = 32 ],
+        SparkIcon [ iconSize = 48, ink = 0x2E6FE0 ]
+        ]
+    ]

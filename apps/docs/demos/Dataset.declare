@@ -1,3 +1,6 @@
+// Declared data, replicated into rows
+// A `Dataset` holds a document in the tree; `:rows[]` replicates one view per record, and each row reads its record's fields by path.
+
 App [ fill = white, textColor = black,
     facts: Dataset { { "rows": [
         { "label": "reactive", "n": 92 },

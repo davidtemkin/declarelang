@@ -63,6 +63,27 @@ cursor). Always clamped inside the app.
 
 ## py
 **Internal.** The pointer's y where it came to rest.
+
+## visible
+Shown only when asked and there is text to show — an empty tip never paints a bare box.
+
+## width
+Sized to its text plus padding, so the box fits the words and never the other way round.
+
+## height
+Sized to its text plus padding, one line or several.
+
+## x
+Beside the pointer, or centred under the element, then clamped inside the app with a 4px margin — a tip near an edge slides in rather than clipping.
+
+## y
+Below the pointer, or below or above the element as `placement` says, flipping to the other side when the preferred one would leave the app.
+
+## fill
+The theme's tooltip ground when it names one, else a dark slate — a tip is the one surface that stays dark on a light theme.
+
+## stroke
+A hairline only when the theme names a tooltip line; flat themes get none.
 */
 
 class Tooltip extends View [ visible = { shown && tipText != "" },

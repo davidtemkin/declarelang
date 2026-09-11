@@ -18,8 +18,13 @@ across another title switches to it; clicking the open title closes.
 
 Delivery is the one seam: `picked(id)` — override at the use site.
 
+A dropped menu paints over the bar's later siblings: the bar raises itself when a menu
+opens (stacking is source order, and `raise()` is the runtime verb for it). A bar nested
+inside a container that sits under other content wants that container declared last,
+or a menu hosted at the app layer as `Combobox` does.
+
 ```declare
-App [ width = 380, height = 120, chose: string = "",
+App [ width = 380, height = 190, chose: string = "",
     bar: MenuBar [ x = 12, y = 8,
         menus = { [ ({ id: "file", label: "File", items: [ ({ id: "new", label: "New", key: "⌘N" }),
                                                           ({ id: "open", label: "Open…" }) ] }),
@@ -74,6 +79,9 @@ the bar.
 
 ## rowsOf()
 **Internal.** The bar's title views.
+
+## width
+Content-sized to its row of titles, so it sits in a chrome bar without a stated width.
 */
 
 include [ "menu.declare" ]
@@ -114,6 +122,16 @@ class MenuBar extends View [ height = 25,
         // what tracking is). Promote the row back above the backdrop; the
         // panel drops below the bar, so nothing occludes visually.
         this.row.raise()
+        // raise() is per parent: the menu is this bar's child, so it rose
+        // above the bar's row and nothing else. A sibling declared AFTER the
+        // bar — a page's content, laid out under the chrome — still painted
+        // over the dropped panel and took its clicks (the docs page, 2026-09-10).
+        // The bar is chrome: while it drops a menu it belongs above its
+        // siblings, so it raises itself too. (A bar nested in a container that
+        // is itself under other content declares that container last —
+        // stacking is source order — or hosts its menu at the app layer, the
+        // Combobox idiom.)
+        this.raise()
         },
 
     // while open, crossing another title switches to it (menu tracking)

@@ -14,7 +14,13 @@ the window (or the embedding element): you **read** them, you never set them.
 
 ```declare
 App [ fill = white,
-    header: View [ width = { app.hostWidth }, opacity = { 1 - app.scrollY / 200 } ]
+    header: View [ width = { app.hostWidth }, height = 44, fill = #2E6FE0, ignoreScroll = true,
+        opacity = { 1 - app.scrollY / 200 },
+        Text [ x = 12, y = 13, textColor = white, text = { "scroll — the header fades (scrollY " + Math.round(app.scrollY) + ")" } ]
+        ],
+    body: View [ y = 44, width = { app.hostWidth }, height = 900,
+        Text [ x = 12, y = 20, textColor = slategray, text = "900px of page below the header" ]
+        ]
     ]
 ```
 
@@ -179,7 +185,7 @@ gate, and an unrecognized value degrades wherever that parsing sends it. The
 crawl never sees waypoints: content that should be indexed derives from
 `location` — crawlable and shareable are the same property.
 
-```declare
+```declare-fragment
 App [ location = "", waypoint = "",
     query: string = { app.waypoint },
     submit(text: string) {
@@ -189,7 +195,7 @@ App [ location = "", waypoint = "",
     ]
 ```
 
-```declare
+```declare-fragment
 App [ location = "home",
     why: View [ visible = { app.location == "why" } ]
     ]

@@ -1,0 +1,13 @@
+// AutoIcon, at chrome sizes
+// One path — the follow-the-system mark — at 16, 24, and 32, then tinted: `iconSize` scales the 16-box,
+// `ink` colours it, and the stroke keeps a constant weight in device pixels at every size.
+
+App [ textColor = 0x172530,
+    row: View [ x = 20, y = 20, height = 40, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 24 ],   // an Icon centres itself on y
+        AutoIcon [ iconSize = 16 ],
+        AutoIcon [ iconSize = 24 ],
+        AutoIcon [ iconSize = 32 ],
+        AutoIcon [ iconSize = 32, ink = 0x2E6FE0 ]
+        ]
+    ]

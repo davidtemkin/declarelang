@@ -9,8 +9,13 @@ There are **no player controls and no methods to call** — the family ruling, s
 condition under which it is playing, and it follows.
 
 ```declare
-reel: Video [ source = "shots/tour.mp4", stretches = both, loop = true,
-    playing = { app.scrollY + app.height > this.parent.y } ]
+App [ fill = #F6F8FA, textColor = #6A7883, fontSize = 13,
+    reel: Video [ x = 20, y = 20, width = 320, height = 180, cornerRadius = 8, source = "../resources/clip.mp4",
+        stretches = both, loop = true, muted = true, playing = { app.on } ],
+    on: boolean = true,
+    onClick() { on = !on },
+    Text [ x = 20, y = 212, text = { (app.on ? "playing" : "paused") + " · position " + app.reel.position.toFixed(1) + "s — click to toggle" } ]
+    ]
 ```
 
 ## stretches

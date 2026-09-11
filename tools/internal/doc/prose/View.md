@@ -37,13 +37,21 @@ invisible but still lays out and still catches clicks. In a `[ ]` literal a colo
 `#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).
 
 ```declare
-View [ fill = { gradient("90deg", 0x1E2A36, 0x0B141B) } ]
+App [
+    View [ x = 20, y = 20, width = 260, height = 80, cornerRadius = 8, fill = { gradient("90deg", 0x1E2A36, 0x0B141B) } ]
+    ]
 ```
 
 ## cornerRadius
-Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,
-border, and shadow — but not hit-testing or clipping: the box stays a rectangle for
-layout and clicks. To clip children to the rounded shape, set `clip = true` as well.
+Rounds the **painted** box (default `0`, square). One number rounds all four corners;
+four — `[topLeft, topRight, bottomRight, bottomLeft]`, clockwise from the top-left as
+CSS orders them — round each on its own, and a corner given `0` stays square:
+`cornerRadius = [0, 8, 0, 8]` rounds only the top-right and bottom-left, `[8, 8, 0, 0]`
+is a tab that joins the pane below it. Radii that would overlap along an edge shrink
+together, so a radius past half the box is a pill, never a fold. It shapes fill, border,
+and shadow — but not hit-testing or clipping: the box stays a rectangle for layout and
+clicks. To clip children to the rounded shape, set `clip = true` as well. A `Spring` on
+this slot animates the number form.
 
 ## stroke
 A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the
@@ -255,6 +263,24 @@ to size to content with a cap; assigning it is a compile error.
 extent of the subtree, for sizing a container to its content.
 
 
+## draw()
+Custom drawing, declared as a member: `draw(d: Draw) { … }` on any view paints into its
+box with the Canvas2D vocabulary (`d.fillStyle`, `d.beginPath()`, `d.arc(…)`, `d.fill()` —
+the `Draw` interface, on the Types page). It is **a tracked computation, not a frame
+loop**: the body records a display list every renderer replays, and it re-runs when
+something it read changes — a constraint's read of `hovered` or a data field redraws,
+nothing else does. A view with no `draw` never records. Reach for it for graphs,
+iconography, and treatments the tree cannot style; measure frame rate as drawn surfaces
+grow large or change every frame.
+
+```declare-fragment
+gauge: View [ width = 80, height = 80,
+    level: number = 0.6,
+    draw(d: Draw) { d.strokeStyle = 0x2E6FE0; d.lineWidth = 6
+                    d.beginPath(); d.arc(40, 40, 32, -Math.PI / 2, -Math.PI / 2 + level * 2 * Math.PI); d.stroke() }
+    ]
+```
+
 ## bounds()
 This view's **transformed box in the parent's coordinates** — the bounding box of the
 frame under scale-then-rotate about the pivot. The footprint: what a layout packs and
@@ -316,8 +342,11 @@ stray press) — answered by an `onClick()` handler. The primary interaction eve
 `pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases.
 
 ```declare
-View [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,
-    onClick() { fill = 0x4169E1 }
+App [
+    View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = gainsboro,
+        onClick() { fill = 0x4169E1 },
+        TextLabel [ x = 12, fontSize = 13, text = "click me" ]
+        ]
     ]
 ```
 
@@ -524,7 +553,12 @@ same isolating ancestor `blend` does, and like `blend` it is paint only — inpu
 changes. `saturation` defaults to `1`; frosted materials read best around `1.4`–`1.8`.
 
 ```declare
-panel: View [ backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12 ]
+App [ fill = #F6F8FA,
+    art: View [ x = 10, y = 10, width = 220, height = 120, cornerRadius = 8, fill = { gradient("90deg", 0xC93B47, 0x2E6FE0) } ],
+    panel: View [ x = 70, y = 40, width = 240, height = 70, backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12,
+        Text [ x = 14, y = 24, text = "frosted over the art behind it" ]
+        ]
+    ]
 ```
 
 ## blend

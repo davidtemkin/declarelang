@@ -58,7 +58,9 @@ and a `textColor`-less one reads hollow. Per-`Text`, **not** a `prevailing` slot
 here, or wear it through a `style` bundle / a `<span class>`. In a `[ ]` literal the color
 is `#RRGGBB`; inside a `{ }` body it is `0xRRGGBB`.
 ```declare
-Text [ textColor = white, fontWeight = bold, outline = outline(1, #C0392B), text = "ringed" ]
+App [ fill = #1E293B,
+    Text [ x = 20, y = 20, fontSize = 28, textColor = white, fontWeight = bold, outline = outline(1, #C0392B), text = "ringed" ]
+    ]
 ```
 
 ## textTransform

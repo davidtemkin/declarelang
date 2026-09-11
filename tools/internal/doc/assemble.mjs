@@ -33,7 +33,8 @@ import { FLAG_SPECS, DEFAULT_FLAGS } from "../../../compiler/dist/flags.js";
 import { REQ } from "../../../compiler/dist/reqtypes.js";
 import { LANGUAGE_API } from "../../../compiler/dist/scaffold.js";
 import { SCHEMAS, RichTextSchema, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES } from "../../../runtime/dist/schema.js";
-import { DECLARED_TYPE_NAMES } from "../../../runtime/dist/value.js";
+import { DECLARED_TYPE_NAMES, declaredType } from "../../../runtime/dist/value.js";
+import { CSS_COLORS } from "../../../runtime/dist/css-colors.js";
 import { RESERVED, programSchemas } from "../../../runtime/dist/program-schema.js";
 import { parseLibrary } from "../../../runtime/dist/parser.js";
 import { CODE_PREFIX } from "../../../runtime/dist/diagnostics.js";
@@ -273,6 +274,12 @@ function enumVocabularies() {
     }
   }
   vocab.Motion = [...MOTION_TOKENS];
+  // the declarable enum types the library's own attributes use (Axis, Justify,
+  // CrossAlign, …) — registered in value.ts, not on a runtime schema
+  for (const n of DECLARED_TYPE_NAMES) {
+    const t = declaredType(n);
+    if (t && t.kind === "enum" && !(n in vocab)) vocab[n] = [...t.tokens];
+  }
   delete vocab.Unsupported; // internal (strip-mode enum) — not author surface
   return vocab;
 }
@@ -317,6 +324,7 @@ function buildSpine() {
     types: typeSpine(),
     themeTokens: themeTokenSpine(),
     enums: enumVocabularies(),
+    colors: colorSpine(),
     flags: FLAG_SPECS.map((f) => ({ ...f, default: DEFAULT_FLAGS[f.name] })),
     requests: REQ,
     diagnostics: diagnosticSpine(),
@@ -355,7 +363,26 @@ function stampTeaches(guide, spine) {
 // synonym target resolves and every negative entry answers its triggers.
 function conceptSpine() {
   const raw = JSON.parse(readFileSync(join(ROOT, "tools/internal/doc/concepts.json"), "utf8"));
-  return { synonyms: raw.synonyms, forms: raw.forms ?? [], negative: raw.negative };
+  // The FORMS come from the registry (forms.md → the extract's `forms`), never
+  // from concepts.json: one source for the language pages and the help tool's
+  // answers. An answer is the syntax, the lead's first paragraph, and where the
+  // page is. (The extract is read here directly — the spine is built before the
+  // model is assembled — with the committed model as the fallback.)
+  const EXTRACT = join(ROOT, ".derive/docs-extract.json");
+  let pagesOf = { order: [], pages: {} };
+  try { pagesOf = JSON.parse(readFileSync(existsSync(EXTRACT) ? EXTRACT : join(ROOT, "docs/declare-model.json"), "utf8")).forms ?? pagesOf; } catch {}
+  const forms = (pagesOf.order ?? []).map((slug) => {
+    const f = pagesOf.pages[slug];
+    const lead = f.lead.split("\n\n")[0].replace(/\n/g, " ");
+    const answer = [...f.syntax.map((l) => "  " + l), lead, `${f.rules.length} rule${f.rules.length === 1 ? "" : "s"} the compiler enforces · docs: language/${slug} · declare.md ${f.spec}`].join("\n");
+    return { terms: [...new Set([f.name, slug, ...f.terms])], answer, slug };
+  });
+  return { synonyms: raw.synonyms, forms, negative: raw.negative };
+}
+
+// the named colors a bare slot accepts — the CSS set, name → 0xRRGGBB
+function colorSpine() {
+  return Object.fromEntries(Object.entries(CSS_COLORS).map(([n, v]) => [n, "#" + v.toString(16).padStart(6, "0").toUpperCase()]));
 }
 
 // ── the BROWSE tree: the single walkable IA over everything documented ────────
@@ -462,6 +489,9 @@ function elementDoc(id, ref) {
 
 const enumsDoc = (spine) => ["# Enums", "", "*The language's fixed token sets — write the token itself, never a CSS-style value.*", "",
   ...Object.entries(spine.enums).map(([n, toks]) => `**${n}** — ${toks.map((t) => "`" + t + "`").join(" · ")}\n`)].join("\n");
+const colorsDoc = (spine) => ["# Named colors", "",
+  "*The color names a **bare** slot accepts — `fill = navy`, `textColor = slategray` — the CSS set, with the hex each stands for. Inside a `{ }` body write the number: `0x000080`, not `navy`; the checker names the rewrite. A hex literal takes alpha as a fourth pair: `#RRGGBBAA`.*", "",
+  "| name | hex |", "|---|---|", ...Object.entries(spine.colors).map(([n, hex]) => `| \`${n}\` | \`${hex}\` |`)].join("\n");
 const flagsDoc = (spine) => ["# Compile flags", "", "*Modifiers on a program URL (`?…`), the `declarec` CLI (`--…`), and the JS API — one set of names.*", "",
   "| flag | what it does | default |", "|---|---|---|", ...spine.flags.map((f) => `| \`${f.name}\` | ${f.description} | \`${f.default}\` |`)].join("\n");
 const diagnosticsDoc = (spine) => ["# Diagnostic codes", "", `*Every compiler diagnostic carries a \`${spine.diagnostics.prefix}####\` code, and its message names the fix.*`, "",
@@ -650,8 +680,6 @@ const themeTokensDoc = (spine) => {
 function buildBrowse(dm, spine) {
   const ref = dm.reference;
   const cat = (name, children, subtitle = "") => ({ name, subtitle, kind: "category", children });
-  const builtins = dm.roots.filter((id) => ref[id]?.origin !== "library");
-  const library = dm.roots.filter((id) => ref[id]?.origin === "library");
   const elementLeaf = (id) => ({ name: ref[id].name, subtitle: ref[id].extends ? "extends " + ref[id].extends : "", kind: "element",
     label: ref[id].origin === "library" ? "Component" : "Built-in element",
     doc: elementDoc(id, ref), preview: preview(ref[id].doc || "") });
@@ -666,14 +694,21 @@ function buildBrowse(dm, spine) {
     ]),
     cat("Guide", (dm.guideParts ?? []).map((p) => cat(p.part,
       p.chapters.map((ch) => fileLeaf(ch.num + ". " + (ch.short || ch.title), "docs/guide/" + ch.id + ".md", "Guide chapter"))))),
+    // the reference mirrors the docs app's rail: the language forms first, then
+    // the classes by topic (extract's CLASS_GROUPS — the one place the order lives)
     cat("Reference", [
-      cat("Built-ins", builtins.map(elementLeaf)),
-      cat("Standard library", library.map(elementLeaf)),
+      cat("Language forms", ((dm.forms?.order) ?? []).map((slug) => {
+        const f = dm.forms.pages[slug];
+        const md = "# " + f.name + "\n\n```declare-fragment\n" + f.syntax.join("\n") + "\n```\n\n" + f.lead;
+        return { name: f.name, subtitle: f.group, kind: "form", label: "Language form", slug, loc: "language/" + slug, doc: md, preview: preview(md) };
+      }), "every form the grammar accepts — docs: language/<form>"),
+      ...(dm.classGroups ?? []).map((g) => cat(g.name, g.classes.map((c) => elementLeaf(c.name)))),
     ]),
     cat("Vocabulary", [
       hydrated("Types and functions", sharedTypesDoc(spine)),
       hydrated("Theme tokens", themeTokensDoc(spine)),
       hydrated("Enums", enumsDoc(spine)),
+      hydrated("Named colors", colorsDoc(spine)),
       hydrated("Flags", flagsDoc(spine)),
       hydrated("Diagnostics", diagnosticsDoc(spine)),
       hydrated("Requests", requestsDoc(spine)),
@@ -720,9 +755,11 @@ function comprehensiveModel(spine) {
     reference: docsModel.reference,
     roots: docsModel.roots,
     tree: docsModel.tree,
+    classGroups: docsModel.classGroups ?? [],
     guide: stampTeaches(docsModel.guide, spine),
     guideParts: docsModel.guideParts,
     tenets: docsModel.tenets,
+    forms: docsModel.forms ?? { groups: [], pages: {}, order: [] },
     browse: buildBrowse(docsModel, spine),
   }, null, 1) + "\n";
 }

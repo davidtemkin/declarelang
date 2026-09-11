@@ -1,0 +1,19 @@
+// One instance per record
+// `datapath = :rows[]` replicates the row view per record; inside it, `:name` and `:score`
+// read the record's fields. Add a record and a row appears — the tree follows the data.
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    people: Dataset { { "rows": [ { "id": 1, "name": "Ada", "score": 90 }, { "id": 2, "name": "Grace", "score": 80 } ] } },
+    next: number = 3,
+    col: View [ x = 20, y = 16, width = 300, datapath = { people.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ datapath = :rows[], height = 24, width = 300,
+            layout: SimpleLayout [ axis = x, spacing = 12, align = baseline ],
+            Text [ width = 80, fontWeight = semibold, text = :name ],
+            Text [ text = { :score + " points" } ]
+            ],
+        Button [ label = "add a record", height = 30,
+            onClick() { app.people.insert(["rows"], (app.people.value as any).rows.length, ({ id: app.next, name: "Person " + app.next, score: 70 })); app.next = app.next + 1 }
+            ]
+        ]
+    ]

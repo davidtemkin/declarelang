@@ -41,6 +41,10 @@ This radio's identity within its group, compared against the group's `value` by 
 ## label
 The text beside the dot. `""` renders the dot alone.
 
+## baseline
+The baseline a row aligns this radio by — its caption's, so a row of mixed controls and
+text under `align = baseline` reads as one line.
+
 ## on
 Whether this radio is the group's current choice. **Derived from the group, never
 stored** — which is why turning one on cannot leave another stale.
@@ -53,6 +57,12 @@ Rings the round dot rather than the dot-plus-label row — the ruled rendition.
 
 ## onClick
 Runs `press()` when enabled.
+
+## width
+Content-sized: the dot, then a gap and the label when there is one. A label-less radio is exactly its dot.
+
+## opacity
+Disabled dims the whole choice, dot and label alike.
 */
 
 include [ "control.declare" ]
@@ -68,6 +78,7 @@ class RadioGroup extends View [
 
 
 class Radio extends Control [ height = 22,
+    baseline: number = { this.cap.y + this.cap.baseline },   // a row aligns the control by its label
 
     // The ruled rendition: keyboard focus rings the round dot itself,
     // not the dot-plus-label row

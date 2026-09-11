@@ -1,0 +1,23 @@
+// Two arrows in a signature
+// `-> string` is a method's return type; `(n: number) -> string` is a function type, here
+// the type of a parameter. A handler passes a formatter to `render`, which applies it —
+// ordinary TypeScript in a handler, where a callback is just a value.
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    n: number = 1234.5,
+    label: string = "pick a format",
+    render(f: (n: number) -> string) -> string { return "total: " + f(n) },
+    Text [ x = 20, y = 20, text = { app.label } ],
+    row: View [ x = 20, y = 50, height = 32, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Button [ label = "two decimals", height = 32,
+            onClick() { app.label = app.render((v) => v.toFixed(2)) }
+            ],
+        Button [ label = "whole", height = 32,
+            onClick() { app.label = app.render((v) => Math.round(v) + "") }
+            ],
+        Button [ label = "thousands", height = 32,
+            onClick() { app.label = app.render((v) => (v / 1000).toFixed(1) + "k") }
+            ]
+        ]
+    ]

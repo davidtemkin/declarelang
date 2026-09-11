@@ -1,0 +1,23 @@
+// Three ways to set one attribute
+// A bare literal is set once; a `{ }` stays true; a `:path` reads bound data. Drag the
+// slider: the second box follows it, the first never moves, the third reads a record.
+
+App [ fill = 0xF6F8FA, textColor = 0xFFFFFF, fontSize = 13,
+    w: number = 120,
+    d: Dataset { { "box": { "label": "from data", "width": 160 } } },
+    Slider [ x = 20, y = 16, width = 200, min = 60, max = 300, value = { app.w },
+        input(v: number) { app.w = v }
+        ],
+    col: View [ x = 20, y = 50, datapath = { d.value },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        View [ width = 120, height = 30, cornerRadius = 6, fill = 0x8F6F28,
+            TextLabel [ x = 8, text = "width = 120" ]
+            ],
+        View [ width = { app.w }, height = 30, cornerRadius = 6, fill = 0x2E6FE0,
+            TextLabel [ x = 8, text = "width = { app.w }" ]
+            ],
+        View [ width = :box.width, height = 30, cornerRadius = 6, fill = 0x12A594,
+            TextLabel [ x = 8, text = { "width = :box.width — " + :box.label } ]
+            ]
+        ]
+    ]

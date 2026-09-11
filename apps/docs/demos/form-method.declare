@@ -1,0 +1,23 @@
+// A typed method, and a constraint that calls it
+// `price()` is a method with typed parameters and a return type. The total is a constraint
+// that calls it — and stays live through it, because the compiler reads the method's body.
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    qty: number = 2,
+    rate: number = 12.5,
+    price(n: number, discount: boolean) -> number { return n * rate * (discount ? 0.9 : 1) },
+    col: View [ x = 20, y = 16, width = 320,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        row: View [ height = 28, width = { this.contentWidth },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Button [ label = "−", height = 28,
+                onClick() { app.qty = Math.max(0, app.qty - 1) }
+                ],
+            Text [ text = { app.qty + " × " + app.rate } ],
+            Button [ label = "+", height = 28,
+                onClick() { app.qty = app.qty + 1 }
+                ]
+            ],
+        Text [ text = { "total: " + app.price(app.qty, false).toFixed(2) + " · with discount: " + app.price(app.qty, true).toFixed(2) } ]
+        ]
+    ]

@@ -136,6 +136,14 @@ Moves keyboard focus to the adjacent segment. Arrows rove; Space or Enter picks 
 they land, so **an inactive choice is reachable and selectable entirely from the
 keyboard**.
 
+## fill
+The quiet control tint for the track; the picked segment paints its own.
+
+## width
+Content-sized: every segment at least `segMin` wide, so short labels never squeeze.
+
+## datapath
+Roots the control on its own `items` data, so the segments replicate from `choices` without the author writing a datapath.
 */
 
 /*
@@ -179,6 +187,18 @@ Rings the segment's pill inset, not its whole box.
 
 ## isSegment
 **Internal.** The marker a `Segmented` reads to find its own segments — not API.
+
+## height
+As tall as the control.
+
+## width
+Every segment the same width — the control's `segW`, its width divided by its count.
+
+## x
+Placed by index: the control's inset plus `i` segment widths.
+
+## disabled
+Disabled with the control; an item never disables alone.
 */
 
 include [ "control.declare", "icons/icon.declare" ]

@@ -1,449 +1,283 @@
 {
- "note": "declare-help's concept table (declare-help.md §4): synonym → reference id, plus negative-knowledge entries — honest absences answered as facts. Curated, evidence-driven (entries earn their place in eval rounds), and gated: declare-help.test.mjs asserts every synonym target resolves in the reference and every negative entry answers its trigger words. Rides assemble.mjs into spine.concepts so the staleness gate covers it.",
- "synonyms": {
-  "rotation": "View.rotation",
-  "turn": "View.rotation",
-  "scale": "View.scale",
-  "zoom": "View.scale",
-  "pivot": "View.pivotX",
-  "leading": "Text.lineHeight",
-  "line height": "Text.lineHeight",
-  "line spacing": "Text.lineHeight",
-  "crop": "Image.stretches",
-  "cover": "Image.stretches",
-  "contain": "Image.stretches",
-  "aspect ratio": "Image.stretches",
-  "image size": "Image.naturalWidth",
-  "natural size": "Image.naturalWidth",
-  "intrinsic size": "Image.naturalWidth",
-  "tint": "Image.tint",
-  "recolor": "Image.tint",
-  "opacity": "View.opacity",
-  "transparency": "View.opacity",
-  "alpha": "View.opacity",
-  "fade": "View.opacity",
-  "scroll": "View.scrolls",
-  "scrolling": "View.scrolls",
-  "scrollable": "View.scrolls",
-  "hover": "View.hovered",
-  "rollover": "View.hovered",
-  "shadow": "View.shadow",
-  "drop shadow": "View.shadow",
-  "border": "View.stroke",
-  "outline": "View.stroke",
-  "rounded corners": "View.cornerRadius",
-  "rounding": "View.cornerRadius",
-  "corner radius": "View.cornerRadius",
-  "gradient": "View.fill",
-  "background": "View.fill",
-  "animation": "Animator",
-  "animate": "Animator",
-  "tween": "Animator",
-  "spring": "Spring",
-  "bounce": "Spring",
-  "pinch": "View.claim",
-  "pinch zoom": "View.claim",
-  "gesture": "View.claim",
-  "blend": "View.blend",
-  "blend mode": "View.blend",
-  "multiply": "View.blend",
-  "frost": "View.backdrop",
-  "glass": "View.backdrop",
-  "frosted glass": "View.backdrop",
-  "backdrop blur": "View.backdrop",
-  "theme": "View.theme",
-  "dark mode": "View.theme",
-  "palette": "View.theme",
-  "bold": "Markdown",
-  "italic": "Text.italic",
-  "emphasis": "Markdown",
-  "rich text": "Markdown",
-  "font weight": "View.fontWeight",
-  "wrap": "Text.wrap",
-  "wrapping": "Text.wrap",
-  "multiline": "Text.wrap",
-  "keyboard": "Keys",
-  "shortcut": "Keys",
-  "hotkey": "Keys",
-  "clip": "View.clip",
-  "clipping": "View.clip",
-  "deep link": "App.location",
-  "route": "App.location",
-  "navigation": "App.location",
-  "heartbeat": "Time",
-  "ticker": "Time",
-  "wheel": "View.event.wheel",
-  "trackpad": "View.event.wheel",
-  "arrangement": "View.layout",
-  "states": "State",
-  "mode": "State",
-  "modes": "State",
-  "dynamic layout": "Layout.method.laid",
-  "data driven layout": "Layout.method.laid",
-  "layout replication": "Layout.method.laid",
-  "flexbox": "View.layout",
-  "flex layout": "View.layout",
-  "vstack": "SimpleLayout",
-  "hstack": "SimpleLayout",
-  "stack": "SimpleLayout",
-  "stack view": "SimpleLayout",
-  "media query": "ResponsiveLayout",
-  "breakpoint": "ResponsiveLayout",
-  "responsive": "ResponsiveLayout",
-  "scrollview": "View.scrolls",
-  "scroll view": "View.scrolls",
-  "fixed position": "View.ignoreScroll",
-  "sticky header": "View.ignoreScroll",
-  "position fixed": "View.ignoreScroll",
-  "state": "State",
-  "geometryreader": "View.width",
-  "withanimation": "Animator",
-  "router": "App.location",
-  "routing": "App.location",
-  "navigation stack": "App.location",
-  "modal": "Dialog",
-  "sheet": "Dialog",
-  "alert": "Dialog",
-  "popover": "Menu",
-  "dropdown": "Menu",
-  "context menu": "Menu",
-  "select": "Combobox",
-  "combo box": "Combobox",
-  "autocomplete": "Combobox",
-  "form": "Field",
-  "form row": "Field",
-  "toggle": "Switch",
-  "spinner": "ProgressBar",
-  "activity indicator": "ProgressBar",
-  "loading indicator": "ProgressBar",
-  "progress": "ProgressBar",
-  "tabs": "Segmented",
-  "tab bar": "Segmented",
-  "segmented control": "Segmented",
-  "text field": "TextInput",
-  "text input": "TextInput",
-  "textfield": "TextInput",
-  "virtualized list": "View.virtualize",
-  "virtualization": "View.virtualize",
-  "lazy list": "View.virtualize",
-  "recycler": "View.virtualize",
-  "uitableview": "View.virtualize",
-  "flatlist": "View.virtualize",
-  "infinite scroll": "View.virtualize",
-  "letter spacing": "View.letterSpacing",
-  "text align": "Text.textAlign",
-  "font family": "View.fontFamily",
-  "typeface": "View.fontFamily",
-  "italics": "Text.italic",
-  "sticky": "View.ignoreScroll",
-  "position sticky": "View.ignoreScroll",
-  "safe area": "App.safeTop",
-  "safe area insets": "App.safeTop",
-  "safeareainsets": "App.safeTop",
-  "notch": "App.safeTop",
-  "dynamic island": "App.safeTop",
-  "home indicator": "App.safeBottom",
-  "browser toolbar": "App.underlapBottom",
-  "url bar": "App.underlapBottom",
-  "bar chrome": "App.underlapBottom",
-  "viewport fit": "App.edges",
-  "edge to edge": "App.edges",
-  "full bleed": "App.edges",
-  "drag and drop": "View.method.viewAt",
-  "drag-and-drop": "View.method.viewAt",
-  "dnd": "View.method.viewAt",
-  "drop target": "View.method.viewAt",
-  "drop": "View.method.viewAt",
-  "hit test": "View.method.viewAt",
-  "hit testing": "View.method.viewAt",
-  "element under pointer": "View.method.viewAt",
-  "elementFromPoint": "View.method.viewAt",
-  "under the pointer": "View.method.viewAt"
- },
- "negative": [
-  {
-   "terms": [
-    "drawImage",
-    "draw image",
-    "rasterize image",
-    "image in canvas"
-   ],
-   "answer": "No `d.drawImage` — `Draw` cannot rasterize a picture. A picture is an `Image` view (`stretches = cover|contain` for fit, `tint` to recolor), and since the compositing arc it rotates and scales like any view (`rotation`, `scale`, about `pivotX`/`pivotY`) — so a rotated photograph no longer needs a drawing at all. What remains unreachable is compositing a decoded bitmap INSIDE a `draw(d: Draw)` recording."
+  "note": "declare-help's concept table (declare-help.md §4): synonym → reference id, plus negative-knowledge entries — honest absences answered as facts. Curated, evidence-driven (entries earn their place in eval rounds), and gated: declare-help.test.mjs asserts every synonym target resolves in the reference and every negative entry answers its trigger words. Rides assemble.mjs into spine.concepts so the staleness gate covers it. Forms are NOT here: tools/internal/doc/forms.md is the registry (one section per form), and assemble folds its pages into concepts.forms.",
+  "synonyms": {
+    "rotation": "View.rotation",
+    "turn": "View.rotation",
+    "scale": "View.scale",
+    "zoom": "View.scale",
+    "pivot": "View.pivotX",
+    "leading": "Text.lineHeight",
+    "line height": "Text.lineHeight",
+    "line spacing": "Text.lineHeight",
+    "crop": "Image.stretches",
+    "cover": "Image.stretches",
+    "contain": "Image.stretches",
+    "aspect ratio": "Image.stretches",
+    "image size": "Image.naturalWidth",
+    "natural size": "Image.naturalWidth",
+    "intrinsic size": "Image.naturalWidth",
+    "tint": "Image.tint",
+    "recolor": "Image.tint",
+    "opacity": "View.opacity",
+    "transparency": "View.opacity",
+    "alpha": "View.opacity",
+    "fade": "View.opacity",
+    "scroll": "View.scrolls",
+    "scrolling": "View.scrolls",
+    "scrollable": "View.scrolls",
+    "hover": "View.hovered",
+    "rollover": "View.hovered",
+    "shadow": "View.shadow",
+    "drop shadow": "View.shadow",
+    "border": "View.stroke",
+    "outline": "View.stroke",
+    "rounded corners": "View.cornerRadius",
+    "rounding": "View.cornerRadius",
+    "corner radius": "View.cornerRadius",
+    "gradient": "View.fill",
+    "background": "View.fill",
+    "animation": "Animator",
+    "animate": "Animator",
+    "tween": "Animator",
+    "spring": "Spring",
+    "bounce": "Spring",
+    "pinch": "View.claim",
+    "pinch zoom": "View.claim",
+    "gesture": "View.claim",
+    "blend": "View.blend",
+    "blend mode": "View.blend",
+    "multiply": "View.blend",
+    "frost": "View.backdrop",
+    "glass": "View.backdrop",
+    "frosted glass": "View.backdrop",
+    "backdrop blur": "View.backdrop",
+    "theme": "View.theme",
+    "dark mode": "View.theme",
+    "palette": "View.theme",
+    "bold": "Markdown",
+    "italic": "Text.italic",
+    "emphasis": "Markdown",
+    "rich text": "Markdown",
+    "font weight": "View.fontWeight",
+    "wrap": "Text.wrap",
+    "wrapping": "Text.wrap",
+    "multiline": "Text.wrap",
+    "keyboard": "Keys",
+    "shortcut": "Keys",
+    "hotkey": "Keys",
+    "clip": "View.clip",
+    "clipping": "View.clip",
+    "deep link": "App.location",
+    "route": "App.location",
+    "navigation": "App.location",
+    "heartbeat": "Time",
+    "ticker": "Time",
+    "wheel": "View.event.wheel",
+    "trackpad": "View.event.wheel",
+    "arrangement": "View.layout",
+    "states": "State",
+    "mode": "State",
+    "modes": "State",
+    "dynamic layout": "Layout.method.laid",
+    "data driven layout": "Layout.method.laid",
+    "layout replication": "Layout.method.laid",
+    "flexbox": "View.layout",
+    "flex layout": "View.layout",
+    "vstack": "SimpleLayout",
+    "hstack": "SimpleLayout",
+    "stack": "SimpleLayout",
+    "stack view": "SimpleLayout",
+    "media query": "ResponsiveLayout",
+    "breakpoint": "ResponsiveLayout",
+    "responsive": "ResponsiveLayout",
+    "scrollview": "View.scrolls",
+    "scroll view": "View.scrolls",
+    "fixed position": "View.ignoreScroll",
+    "sticky header": "View.ignoreScroll",
+    "position fixed": "View.ignoreScroll",
+    "state": "State",
+    "geometryreader": "View.width",
+    "withanimation": "Animator",
+    "router": "App.location",
+    "routing": "App.location",
+    "navigation stack": "App.location",
+    "modal": "Dialog",
+    "sheet": "Dialog",
+    "alert": "Dialog",
+    "popover": "Menu",
+    "dropdown": "Menu",
+    "context menu": "Menu",
+    "select": "Combobox",
+    "combo box": "Combobox",
+    "autocomplete": "Combobox",
+    "form": "Field",
+    "form row": "Field",
+    "toggle": "Switch",
+    "spinner": "ProgressBar",
+    "activity indicator": "ProgressBar",
+    "loading indicator": "ProgressBar",
+    "progress": "ProgressBar",
+    "tabs": "Segmented",
+    "tab bar": "Segmented",
+    "segmented control": "Segmented",
+    "text field": "TextInput",
+    "text input": "TextInput",
+    "textfield": "TextInput",
+    "virtualized list": "View.virtualize",
+    "virtualization": "View.virtualize",
+    "lazy list": "View.virtualize",
+    "recycler": "View.virtualize",
+    "uitableview": "View.virtualize",
+    "flatlist": "View.virtualize",
+    "infinite scroll": "View.virtualize",
+    "letter spacing": "View.letterSpacing",
+    "text align": "Text.textAlign",
+    "font family": "View.fontFamily",
+    "typeface": "View.fontFamily",
+    "italics": "Text.italic",
+    "sticky": "View.ignoreScroll",
+    "position sticky": "View.ignoreScroll",
+    "safe area": "App.safeTop",
+    "safe area insets": "App.safeTop",
+    "safeareainsets": "App.safeTop",
+    "notch": "App.safeTop",
+    "dynamic island": "App.safeTop",
+    "home indicator": "App.safeBottom",
+    "browser toolbar": "App.underlapBottom",
+    "url bar": "App.underlapBottom",
+    "bar chrome": "App.underlapBottom",
+    "viewport fit": "App.edges",
+    "edge to edge": "App.edges",
+    "full bleed": "App.edges",
+    "drag and drop": "View.method.viewAt",
+    "drag-and-drop": "View.method.viewAt",
+    "dnd": "View.method.viewAt",
+    "drop target": "View.method.viewAt",
+    "drop": "View.method.viewAt",
+    "hit test": "View.method.viewAt",
+    "hit testing": "View.method.viewAt",
+    "element under pointer": "View.method.viewAt",
+    "elementFromPoint": "View.method.viewAt",
+    "under the pointer": "View.method.viewAt"
   },
-  {
-   "terms": [
-    "bitmap cache",
-    "image cache",
-    "preload",
-    "predecode",
-    "prefetch image"
-   ],
-   "answer": "No app-facing bitmap cache or preload call. Today each `Image` instance decodes its `source` itself — a photograph shown on one surface is decoded again on the next. A platform-managed bitmap store (decode table shared across instances + cached draw rasterizations) is planned — see docs/system-design/ (adaptive draw cache) and the 2026-08-06 assessment; until it lands, the idiom is to keep the SAME view alive across surfaces (one sprung scalar, many followers) rather than to rebuild it."
-  },
-  {
-   "terms": [
-    "useState",
-    "use state",
-    "useEffect",
-    "hooks",
-    "redux",
-    "state management",
-    "setState",
-    "props"
-   ],
-   "answer": "No hooks, no stores, no props plumbing — state is an attribute declared where it lives (`count: number = 0` on a view), derived state is a `{ }` constraint reading it, and \"effects\" are the constraint graph's own propagation. A descendant reads an ancestor's attribute by name (`app.count`, `parent.width`, `classroot.…`) — no context, no lifting. Handlers write; constraints react."
-  },
-  {
-   "terms": [
-    "key",
-    "keys prop",
-    "ref",
-    "refs",
-    "useRef"
-   ],
-   "answer": "No `key=` and no refs — a named member IS its handle (`box: View [ … ]` → `app.box`), and replicated rows take their identity from the record's own `id` field automatically. Reach any node by its dotted path; give records an `id` when their identity matters across reloads."
-  },
-  {
-   "terms": [
-    "svg"
-   ],
-   "answer": "No SVG element — a vector mark is a `draw(d: Draw)` member (paths, arcs, gradients — a recorded, reactive drawing), the house icons are `Icon` subclasses drawn exactly that way, and an actual `<svg>` you already have lives inside a `DOMIsland`."
-  },
-  {
-   "terms": [
-    "ellipsis",
-    "truncate",
-    "truncation",
-    "text overflow",
-    "line clamp"
-   ],
-   "answer": "No text truncation — there is no ellipsis today. `wrap = false` keeps a run to one line and `clip = true` crops it at the box; slicing the string yourself in a `{ }` constraint is the current idiom for a measured cut. A real `truncate` is a known gap — worth reporting if it blocks you."
-  },
-  {
-   "terms": [
-    "grid",
-    "css grid",
-    "grid layout"
-   ],
-   "answer": "No grid layout strategy — `WrappingLayout` flows and wraps; a fixed N-column grid is a small `Layout` subclass of your own (`place()` is ~15 lines of arithmetic over `this.laid()` and `this.view.width`); and tabular DATA wants `Table` or `DataGrid`, which are components, not layouts."
-  },
-  {
-   "terms": [
-    "zstack",
-    "z stack",
-    "overlay"
-   ],
-   "answer": "No ZStack and no overlay wrapper — children stack by default: a view with no `layout` imposes no arrangement, and declaration order is z-order (later siblings paint above). Place the layers with x/y; `ignoreLayout = true` floats one child above an arranged set."
-  },
-  {
-   "terms": [
-    "toast",
-    "snackbar",
-    "drawer",
-    "carousel",
-    "skeleton",
-    "badge",
-    "card",
-    "avatar"
-   ],
-   "answer": "No dedicated component — the library is deliberately small, and these are compositions: a card is a `View` (`cornerRadius`, `shadow`, `fill`); a toast is an `ignoreScroll` View a `Spring` slides in; a drawer is a panel whose `x` follows one sprung scalar; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
-  },
-  {
-   "terms": [
-    "setTimeout animation",
-    "setInterval animation",
-    "requestAnimationFrame",
-    "animation frame",
-    "raf",
-    "animation loop",
-    "timer animation"
-   ],
-   "answer": "No `requestAnimationFrame` — and though `setTimeout`/`setInterval` exist for host chores, they are never the motion system. Motion is declared: a `Spring` drives an attribute toward a live target (interruptible for free), an `Animator` is the clock-shaped sibling, and per-frame integration (physics you step yourself) is `Time [ tick = frame, onTick(dt) ]`, which rides the one shared frame clock; a value that is a function of the current time — a clock face, a countdown — derives from a `Time` member's facts (`now`, `minute`, …). A setTimeout-driven animation fights the settle loop and cannot be interrupted mid-flight; see the guide's Motion & states chapter."
-  },
-  {
-   "terms": [
-    "poll",
-    "polling",
-    "wait for",
-    "wait until",
-    "wait for load",
-    "wait for data",
-    "wait for layout",
-    "sleep",
-    "delay until",
-    "check every",
-    "retry until",
-    "interval",
-    "timer",
-    "busy wait"
-   ],
-   "answer": "No polling — nothing waits. A program never checks whether something has happened yet: readiness is a value to constrain on, completion an event to take — a loop or timer that checks whether something has happened yet is a constraint or an event written by hand, and almost always the wrong path. Ask what it is waiting for: a fetch landing → `visible = { data.loaded }` or `onLoad`; a view existing or having a size → `onInit`, `onReady`, `afterSettle`, `onArrive`; a value changing → a constraint on it (the constraint IS the notification); geometry after your own write → `afterSettle(step)`, same frame. Time is only ever an input: `Animator` over a duration, `Spring` toward a target, a `Time` fact (`clock.minute`, `clock.now`) to derive from, `Time [ tick = frame, onTick(dt) ]` to integrate (a per-frame handler that ignores `dt` is polling), `setTimeout` for a genuine timing rule — a debounce, a request timeout — never to let things settle. See the guide's Thinking in Declare chapter, \"Nothing waits\"."
-  }
- ],
- "forms": [
-  {
-   "terms": [
-    "class",
-    "declare a class",
-    "define a component",
-    "component definition"
-   ],
-   "answer": "`class Name extends Base [ … ]` — the one way to define a component. Everything inside the brackets is a MEMBER: `name = value` sets an inherited attribute, `name: Type = value` declares a new one, `name: Type [ … ]` is a named child, `name(args) { … }` a method, `onThing() { … }` an event handler.\nA class is not a file and not a module — it is a top-level declaration, and a program is one tree of them (declare.md §4). `extends` may name a class declared LATER in the file. Guide: 04-tree, 11-make-your-own."
-  },
-  {
-   "terms": [
-    "extends",
-    "subclass",
-    "inherit",
-    "base class"
-   ],
-   "answer": "`class Name extends Base [ … ]` — single inheritance from another component (a library class or one of your own). The subclass sees every attribute, child, method and event of the base; re-stating an attribute overrides its default, and re-stating a named child extends that child rather than replacing it.\nNot top-level in its own right — it is part of a `class` declaration (parser.ts:673). Omit it and you extend `View`. Guide: 11-make-your-own."
-  },
-  {
-   "terms": [
-    "script",
-    "script block",
-    "typescript block",
-    "helper function",
-    "plain typescript"
-   ],
-   "answer": "`script { … }` — a top-level block of plain TypeScript, wholly OUTSIDE the reactive system: constants, functions, stateful helpers, whole libraries. It may `import` ES modules (a relative file, or an npm package by bare specifier — bundled at compile by a Node host: the dev server, declarec, verify), and `script [ \"file.ts\" ]` loads the same block from a file, spelled like `include`. Its top-level names are visible from every `{ }` body; a constraint may call one OPAQUELY — the constraint depends on the values it passes, never on what the function does inside, so pass values, not nodes (declare.md §5). This is where arithmetic, formatting, and imported JS live, so the tree stays about the tree. Guide: 03-relationships, 04-tree."
-  },
-  {
-   "terms": [
-    "include",
-    "include another file",
-    "split a program",
-    "multiple files",
-    "import a file"
-   ],
-   "answer": "`include [ \"path.declare\" ]` — merges another file's TOP-LEVEL DECLARATIONS (its classes, scripts, fonts, styles) into this program, once, however many times it is named. It does not import a root instance and it is not a module system: there are no exports and no namespacing — everything merges into one program.\nThe path resolves relative to the including file. On a static host the browser compiles the app itself and its include host reads a SYNCHRONOUS map, so app-relative includes must be prefetched (test/static-host.test.mjs pins this). Guide: 04-tree."
-  },
-  {
-   "terms": [
-    "use",
-    "use directive",
-    "keep a component",
-    "tree shaking",
-    "constructed by name",
-    "createView"
-   ],
-   "answer": "`use [ Name, Other ]` — keeps components the build would otherwise DROP. The production build tree-shakes anything no tag instantiates; if your code constructs one by name at runtime (`app.createView(\"Badge\")`), nothing in the tree mentions it and it is removed. `use` is how you say it is still needed (declare.md §4, §7).\nThe symptom without it is a component that works in dev and is missing from the built app."
-  },
-  {
-   "terms": [
-    "font",
-    "declare a font",
-    "web font",
-    "font family",
-    "typeface",
-    "font face"
-   ],
-   "answer": "`font Name [ … ]` — declares a font family. `Face` children carry the web-font files (weight/style per face); a use site picks the family by name: `fontFamily = [Name, \"system-ui\"]`, which is a fallback LIST, not a single name.\nDeclaring a font does not load it — a face loads when something asks for it. Guide: 05-space, 06-style."
-  },
-  {
-   "terms": [
-    "style",
-    "style block",
-    "named style",
-    "reusable style"
-   ],
-   "answer": "`style Name [ … ]` — a named bundle of attribute values a view can wear, so a look is declared once and applied by name rather than copied. Top-level, like `class` (parser.ts's `atTop`).\nDistinct from `stylesheet`, which carries THEME TOKENS rather than a bundle of attributes. Guide: 06-style."
-  },
-  {
-   "terms": [
-    "stylesheet",
-    "theme",
-    "tokens",
-    "design tokens",
-    "theming"
-   ],
-   "answer": "`stylesheet Name [ … ]` — declares a swappable SKIN: a dictionary keyed by CLASS name (no selectors, no structural matching, no specificity), resolved by a class-chain walk with field-wise merge, schema-checked at compile time so a stale skin fails loudly. It may carry its own `theme` record, which is what makes a skin theme-aware.\nThe TOP-LEVEL FORM declares; the View ATTRIBUTE of the same name applies — `stylesheet Dark [ … ]` then `App [ stylesheet = Dark ]`. Same word on purpose: it says what kind of thing `Dark` is, and the syntax already tells them apart.\nA sheet is the EXTERNAL channel — style without source edits, imposed on views that never mention it, landing below anything a view sets itself. Compare `styles` (opted into by the view, static after construction) and `theme` (tokens an ancestor provides and bindings read). Guide: 06-style."
-  },
-  {
-   "terms": [
-    "<-",
-    "subscribe",
-    "subscribe operator",
-    "stream operator",
-    "left arrow"
-   ],
-   "answer": "`name <- source` — SUBSCRIBE: this member follows a stream or external source, taking each value as it arrives. The tokenizer's `subfrom` (parser.ts). Distinct from `=` (a one-time value) and from `{ }` (a standing relationship over reactive state).\nUse it where the value is PUSHED to you from outside the program's own state."
-  },
-  {
-   "terms": [
-    "<->",
-    "two way",
-    "two-way binding",
-    "bidirectional",
-    "double arrow",
-    "live commit"
-   ],
-   "answer": "`name <-> :path` — TWO-WAY binding between a leaf input and a data path: edits in the field write back through the cursor (declare.md §9, the leaf-input exception). The tokenizer's `bindtwo` (parser.ts).\nDeliberately narrow — it is for editable leaves, not a general mechanism; ordinary bindings are one-way `{ }` so data flow stays traceable."
-  },
-  {
-   "terms": [
-    "->",
-    "return type",
-    "method return",
-    "arrow in a signature"
-   ],
-   "answer": "`method(arg: Type) -> Type { … }` — the RETURN-TYPE marker in a method signature (declare.md §4; the tokenizer's `arrow`). Omit it for a method that returns nothing.\nNot a lambda arrow and not a binding operator — inside a `{ }` body or a `script` block, `=>` is ordinary TypeScript."
-  },
-  {
-   "terms": [
-    "this",
-    "parent",
-    "classroot",
-    "app",
-    "scope noun",
-    "scope nouns",
-    "nouns"
-   ],
-   "answer": "The four SCOPE NOUNS (declare.md §11) — the only names that reach a node from inside a `{ }` body:\n  this       — the member's own node\n  parent     — its parent in the tree\n  classroot  — the root of the class being defined (how a child reads its class's attributes)\n  app        — the program root\nThey are reserved: a child, method or declared attribute may not take one of these names. `app` compiles to `this.root`, which is why a member named `root` shadows every `app.…` in the same class."
-  },
-  {
-   "terms": [
-    "gradient",
-    "stroke",
-    "shadow",
-    "stop",
-    "frost",
-    "value constructor",
-    "value constructors"
-   ],
-   "answer": "The VALUE CONSTRUCTORS — `gradient(…)`, `stroke(…)`, `shadow(…)`, `stop(…)`, `frost(…)` — build the composite values attributes take: `fill = { gradient(\"180deg\", a, b) }`, `backdrop = { frost(26, 1.5) }`.\nReserved names: none may be used as a member name. Watch the alpha convention — `colorWithAlpha(rgb, a)` takes a 0…255 alpha, not 0…1."
-  },
-  {
-   "terms": [
-    "root",
-    "children",
-    "structural member",
-    "shadowing root"
-   ],
-   "answer": "`root` and `children` are STRUCTURAL members the scaffold declares on every View — not scope nouns, not schema attributes, but not free either:\n  root      — the node reference `app` compiles to (`app` is `this.root`)\n  children  — the node's own child list\nA child, method or declared attribute of either name is refused at typecheck. `root` is the sharp one: shadowing it makes every `{ app.… }` in the SAME class resolve against the shadow, and the error surfaces at some unrelated binding."
-  },
-  {
-   "terms": [
-    "settle",
-    "the settle",
-    "after settle",
-    "when do writes take effect",
-    "update transaction",
-    "write batching"
-   ],
-   "answer": "The SETTLE is the unit in which anything happens at all: a handler's writes are applied together when it returns — constraints re-derive, views appear and retire where data now says so, layout places, sizes update — one indivisible step, run to completion. Nothing paints in the middle of one, and no time passes inside one; motion is many small settles (one per frame), never one long one. (An Animator standing at its destination reads `atRest` — a different fact, on a different clock.)\nTo finish after your own change has taken effect — aim a camera at a view your write just created — register one step at this settle's close: `afterSettle(app.step)`. Constraint first, afterSettle second, never for waiting. Boot's close is delivered instead: `onReady()`, on the App only.\ndocs/declare.md §5 \"The settle\"; the guide teaches it in ch 3 (relationships)."
-  },
-  {
-   "terms": [
-    "schema",
-    "declare a schema",
-    "data shape",
-    "typed data",
-    "record type",
-    "schema declaration"
-   ],
-   "answer": "`schema Name [ id: string, done: boolean, status: \"open\" | \"closed\", note?: string ]` — a named data shape, declared at the top level like a class. It is a TYPE in the one type system: use the name in any type position (`sel: Task = null`, `advance(t: Task) -> Task`, `owner: Person` inside another schema), and declare a dataset's document with it — `schema = [ tasks[]: Task ]`, `schema = TaskDoc`, or `schema = Task[]` for a bare-array response. The dataset's `.value` is then typed (a misspelled field dies at compile), arrival and the embedded body validate against it, and `set`/`insert` refuse a non-conforming write at the write. Field markers: `[]` array, `?` optional; field types are string | number | boolean | any, a literal union of strings or of numbers (\"open\" | \"closed\", 0 | 1 | 2), another schema's name, or a nested `[ … ]`. Extra keys always pass — a schema declares what the program relies on. Guide: data chapter, \"The shape is a type\"."
-  }
- ]
+  "negative": [
+    {
+      "terms": [
+        "drawImage",
+        "draw image",
+        "rasterize image",
+        "image in canvas"
+      ],
+      "answer": "No `d.drawImage` — `Draw` cannot rasterize a picture. A picture is an `Image` view (`stretches = cover|contain` for fit, `tint` to recolor), and since the compositing arc it rotates and scales like any view (`rotation`, `scale`, about `pivotX`/`pivotY`) — so a rotated photograph no longer needs a drawing at all. What remains unreachable is compositing a decoded bitmap INSIDE a `draw(d: Draw)` recording."
+    },
+    {
+      "terms": [
+        "bitmap cache",
+        "image cache",
+        "preload",
+        "predecode",
+        "prefetch image"
+      ],
+      "answer": "No app-facing bitmap cache or preload call. Today each `Image` instance decodes its `source` itself — a photograph shown on one surface is decoded again on the next. A platform-managed bitmap store (decode table shared across instances + cached draw rasterizations) is planned — see docs/system-design/ (adaptive draw cache) and the 2026-08-06 assessment; until it lands, the idiom is to keep the SAME view alive across surfaces (one sprung scalar, many followers) rather than to rebuild it."
+    },
+    {
+      "terms": [
+        "useState",
+        "use state",
+        "useEffect",
+        "hooks",
+        "redux",
+        "state management",
+        "setState",
+        "props"
+      ],
+      "answer": "No hooks, no stores, no props plumbing — state is an attribute declared where it lives (`count: number = 0` on a view), derived state is a `{ }` constraint reading it, and \"effects\" are the constraint graph's own propagation. A descendant reads an ancestor's attribute by name (`app.count`, `parent.width`, `classroot.…`) — no context, no lifting. Handlers write; constraints react."
+    },
+    {
+      "terms": [
+        "key",
+        "keys prop",
+        "ref",
+        "refs",
+        "useRef"
+      ],
+      "answer": "No `key=` and no refs — a named member IS its handle (`box: View [ … ]` → `app.box`), and replicated rows take their identity from the record's own `id` field automatically. Reach any node by its dotted path; give records an `id` when their identity matters across reloads."
+    },
+    {
+      "terms": [
+        "svg"
+      ],
+      "answer": "No SVG element — a vector mark is a `draw(d: Draw)` member (paths, arcs, gradients — a recorded, reactive drawing), the house icons are `Icon` subclasses drawn exactly that way, and an actual `<svg>` you already have lives inside a `DOMIsland`."
+    },
+    {
+      "terms": [
+        "ellipsis",
+        "truncate",
+        "truncation",
+        "text overflow",
+        "line clamp"
+      ],
+      "answer": "No text truncation — there is no ellipsis today. `wrap = false` keeps a run to one line and `clip = true` crops it at the box; slicing the string yourself in a `{ }` constraint is the current idiom for a measured cut. A real `truncate` is a known gap — worth reporting if it blocks you."
+    },
+    {
+      "terms": [
+        "grid",
+        "css grid",
+        "grid layout"
+      ],
+      "answer": "No grid layout strategy — `WrappingLayout` flows and wraps; a fixed N-column grid is a small `Layout` subclass of your own (`place()` is ~15 lines of arithmetic over `this.laid()` and `this.view.width`); and tabular DATA wants `Table` or `DataGrid`, which are components, not layouts."
+    },
+    {
+      "terms": [
+        "zstack",
+        "z stack",
+        "overlay"
+      ],
+      "answer": "No ZStack and no overlay wrapper — children stack by default: a view with no `layout` imposes no arrangement, and declaration order is z-order (later siblings paint above). Place the layers with x/y; `ignoreLayout = true` floats one child above an arranged set."
+    },
+    {
+      "terms": [
+        "toast",
+        "snackbar",
+        "drawer",
+        "carousel",
+        "skeleton",
+        "badge",
+        "card",
+        "avatar"
+      ],
+      "answer": "No dedicated component — the library is deliberately small, and these are compositions: a card is a `View` (`cornerRadius`, `shadow`, `fill`); a toast is an `ignoreScroll` View a `Spring` slides in; a drawer is a panel whose `x` follows one sprung scalar; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
+    },
+    {
+      "terms": [
+        "setTimeout animation",
+        "setInterval animation",
+        "requestAnimationFrame",
+        "animation frame",
+        "raf",
+        "animation loop",
+        "timer animation"
+      ],
+      "answer": "No `requestAnimationFrame` — and though `setTimeout`/`setInterval` exist for host chores, they are never the motion system. Motion is declared: a `Spring` drives an attribute toward a live target (interruptible for free), an `Animator` is the clock-shaped sibling, and per-frame integration (physics you step yourself) is `Time [ tick = frame, onTick(dt) ]`, which rides the one shared frame clock; a value that is a function of the current time — a clock face, a countdown — derives from a `Time` member's facts (`now`, `minute`, …). A setTimeout-driven animation fights the settle loop and cannot be interrupted mid-flight; see the guide's Motion & states chapter."
+    },
+    {
+      "terms": [
+        "poll",
+        "polling",
+        "wait for",
+        "wait until",
+        "wait for load",
+        "wait for data",
+        "wait for layout",
+        "sleep",
+        "delay until",
+        "check every",
+        "retry until",
+        "interval",
+        "timer",
+        "busy wait"
+      ],
+      "answer": "No polling — nothing waits. A program never checks whether something has happened yet: readiness is a value to constrain on, completion an event to take — a loop or timer that checks whether something has happened yet is a constraint or an event written by hand, and almost always the wrong path. Ask what it is waiting for: a fetch landing → `visible = { data.loaded }` or `onLoad`; a view existing or having a size → `onInit`, `onReady`, `afterSettle`, `onArrive`; a value changing → a constraint on it (the constraint IS the notification); geometry after your own write → `afterSettle(step)`, same frame. Time is only ever an input: `Animator` over a duration, `Spring` toward a target, a `Time` fact (`clock.minute`, `clock.now`) to derive from, `Time [ tick = frame, onTick(dt) ]` to integrate (a per-frame handler that ignores `dt` is polling), `setTimeout` for a genuine timing rule — a debounce, a request timeout — never to let things settle. See the guide's Thinking in Declare chapter, \"Nothing waits\"."
+    }
+  ]
 }

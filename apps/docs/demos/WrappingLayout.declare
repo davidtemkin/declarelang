@@ -1,4 +1,5 @@
-// WrappingLayout.declare — a horizontal flow of chips that wraps to new rows
+// A flow of chips that wraps
+// Left to right, `spacing` apart; when the next chip would overflow, a new row `lineSpacing` down.
 
 class Chip extends View [ height = 30, cornerRadius = 15, fill = steelblue,
     label: string = "",

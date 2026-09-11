@@ -22,6 +22,24 @@ Space/Enter.
 ## onClick
 Fires on click when the switch is enabled. `press()` is the activation path;
 prefer overriding `input` if what you want is the value.
+
+## width
+A theme with a native switch size says so (`theme.switchWidth`); otherwise 44, the common pill.
+
+## height
+A theme with a native switch size says so (`theme.switchHeight`); otherwise 24.
+
+## cornerRadius
+Always a pill — half the height, whatever the height is.
+
+## opacity
+Disabled dims the whole control — every part alike, never a recolour — to the theme's `disabledOpacity`, or 0.45 when the theme states none: the one place the number lives.
+
+## fill
+The track's ladder for a toggle: checked takes the accent; unchecked shows the selected tint while hovered or pressed and the quiet control tint at rest — so the track answers the pointer before the value flips.
+
+## stroke
+A hairline in the accent when checked, in the theme's line colour otherwise, so the track keeps an edge on light and dark surfaces alike.
 */
 
 include [ "control.declare" ]

@@ -1,0 +1,15 @@
+// Quiet and primary
+// The two looks. One `primary` per group of choices — the affirmative action fills with the accent, everything beside it stays quiet. Both answer a click, Space, and Enter with the same `onClick`.
+
+App [ saved: number = 0,
+    row: View [ x = 20, y = 20, height = 40, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Button [ label = "Cancel" ],
+        Button [ label = "Save", primary = true,
+            onClick() { app.saved = app.saved + 1 }
+            ]
+        ],
+    Text [ x = 20, y = 78, textColor = slategray,
+        text = { app.saved == 0 ? "nothing saved yet — click Save, or Tab to it and press Space"
+               : "saved " + app.saved + (app.saved == 1 ? " time" : " times") } ]
+    ]

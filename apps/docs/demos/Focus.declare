@@ -1,0 +1,25 @@
+// Where the keyboard is
+// The focus service as a child: `onFocusChange` reports every move, `next()` and `prev()`
+// walk the tab order from a button. Click a field, then Tab, or use the arrows.
+
+App [ textColor = 0x172530, fontSize = 14,
+    who: string = "nothing",
+    Focus [ onFocusChange() { app.who = Focus.getFocus() == null ? "nothing" : "" + Focus.getFocus().placeholder }
+        ],
+    col: View [ x = 20, y = 16, width = { parent.width - 40 },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        TextInput [ width = 220, placeholder = "first name" ],
+        TextInput [ width = 220, placeholder = "last name" ],
+        TextInput [ width = 220, placeholder = "email" ],
+        row: View [ height = 32, width = { this.contentWidth },
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Button [ label = "← prev", height = 32,
+                onClick() { Focus.prev() }
+                ],
+            Button [ label = "next →", height = 32,
+                onClick() { Focus.next() }
+                ],
+            Text [ fontSize = 13, textColor = 0x6A7883, text = { "focus: " + app.who } ]
+            ]
+        ]
+    ]

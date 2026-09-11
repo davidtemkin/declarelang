@@ -1,0 +1,13 @@
+// Named, anonymous, and non-visual children
+// The named box is reached by name from a sibling; the anonymous texts are placed and
+// painted; the Spring is a child too — it lives with the node that declares it. Click.
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    open: boolean = false,
+    onClick() { open = !open },
+    box: View [ x = 20, y = 20, width = 60, height = 60, cornerRadius = 10, fill = 0x2E6FE0,
+        Spring [ attribute = width, to = { app.open ? 260 : 60 }, stiffness = 160, damping = 20 ]
+        ],
+    Text [ x = 20, y = 92, text = { "the box is " + Math.round(app.box.width) + "px wide" } ],
+    Text [ x = 20, y = 116, fontSize = 12, textColor = 0x6A7883, text = "later siblings paint on top; there is no z-index" ]
+    ]

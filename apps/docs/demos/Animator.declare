@@ -1,4 +1,5 @@
-// Animator.declare — click the box; the Animator drives its x to the target
+// Drive a slot to a target
+// Click the box; the Animator moves its `x` toward the target over its duration — the slot animates, nothing is ticked by hand.
 
 App [
     View [ x = 30, y = 90, width = 80, height = 80, cornerRadius = 10, fill = dodgerblue,

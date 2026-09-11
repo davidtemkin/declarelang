@@ -83,6 +83,9 @@ Ends the drag.
 
 ## onKeyDown
 Left and Right nudge by one `step`, delivered through `input` like any other change.
+
+## opacity
+Disabled dims the whole control — every part alike, never a recolour — to the theme's `disabledOpacity`, or 0.45 when the theme states none: the one place the number lives.
 */
 
 include [ "control.declare" ]

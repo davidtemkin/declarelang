@@ -27,7 +27,9 @@ App [ width = 300, height = 160, fill = whitesmoke,
     ]
 ```
 
-`fill` paints the box, `cornerRadius` rounds it, `opacity` fades it; `stroke` and
+`fill` paints the box, `cornerRadius` rounds it (one number for all four corners, or
+`[topLeft, topRight, bottomRight, bottomLeft]` to round only some — a tab joined to its
+pane is `[8, 8, 0, 0]`), `opacity` fades it; `stroke` and
 `shadow` take small constructor calls — `stroke(width, color)`,
 `shadow(dx, dy, blur, color)`. There is no CSS `border` and no `box-shadow` string:
 a border *is* a stroke. (`scale` and `rotation` — degrees, clockwise — share

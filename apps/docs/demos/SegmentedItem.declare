@@ -1,0 +1,15 @@
+// Materialized from data, never authored
+// A `SegmentedItem` is one choice of a `Segmented`, built from that control's `choices`
+// records — you write the records, the control makes the items. Pick one.
+
+App [ textColor = 0x172530, fontSize = 14,
+    view: string = "week",
+    col: View [ x = 20, y = 20, width = { parent.width - 40 },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        Segmented [ value = { app.view },
+            input(v: string) { app.view = v },
+            choices = { [ ({ id: "day", label: "Day" }), ({ id: "week", label: "Week" }), ({ id: "month", label: "Month" }) ] }
+            ],
+        Text [ textColor = 0x6A7883, text = { "showing the " + app.view } ]
+        ]
+    ]

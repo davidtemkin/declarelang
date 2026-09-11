@@ -36,6 +36,10 @@ table cell, where the column heading is the label.
 The box's edge length. Defaults to the theme's figure, so a toolbar checkbox can shrink
 to match its neighbours without a subclass.
 
+## baseline
+The baseline a row aligns this control by — the label's. Under `align = baseline` the
+checkbox's caption sits on the same line as its neighbours; the box rides with it.
+
 ## input()
 **Where the value goes.** The default writes `checked`; override it and the checkbox
 becomes a delivery channel for state you own (`input(v: boolean) { app.muted = v }`).
@@ -52,11 +56,18 @@ drag a wide ring across the row.
 
 ## onClick
 Runs `press()` when enabled. Override `input` instead if what you want is the value.
+
+## width
+Content-sized: the box, then a gap and the label when there is one. A label-less checkbox is exactly its box, so a bare mark in a table cell reserves no phantom room.
+
+## opacity
+Disabled dims the whole control — every part alike, never a recolour — to the theme's `disabledOpacity`, or 0.45 when the theme states none: the one place the number lives.
 */
 
 include [ "control.declare" ]
 
 class Checkbox extends Control [
+    baseline: number = { this.cap.y + this.cap.baseline },   // a row aligns the control by its label
 
     // keyboard focus rings the BOX alone, not box+label (the Radio rule)
 

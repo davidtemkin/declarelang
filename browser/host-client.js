@@ -531,7 +531,7 @@ export async function bootHost(cfg) {
     if (compiled == null) {
       if (name.startsWith("__") && seeds[name] == null) return { compiled: null, unseeded: true };
       const src = await sourceFor(name);                  // seed, or fetched on demand
-      compiled = src == null ? null : await compile(src); // src null (fetch failed) ⇒ retry via defer
+      compiled = src == null ? null : await compile(src, name); // src null (fetch failed) ⇒ retry via defer; compiled AS the demo's own file (its includes resolve beside it)
     }
     return { compiled, unseeded: false };
   }
@@ -634,7 +634,7 @@ export async function bootHost(cfg) {
     const card = theApp.liveCard;                        // captured with the body: both name the edit this timer serves
     clearTimeout(liveTimers.get(theApp));
     liveTimers.set(theApp, setTimeout(async () => {
-      const r = await compile(body);
+      const r = await compile(body, card);          // a live edit compiles as the demo it edits
       if (stopped) return;
       if (r && r.source) { theApp.liveReport = ""; renderChild(box, r, card); }
       else if (r && r.report != null) theApp.liveReport = String(r.report);

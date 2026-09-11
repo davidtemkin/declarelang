@@ -1,0 +1,37 @@
+// Where the slack goes
+// A Spacer absorbs a row's leftover space, structurally: one between two groups pushes
+// them apart, one on each side centres a run, one first right-aligns it.
+
+App [ textColor = 0xFFFFFF, fontSize = 13,
+    col: View [ x = 20, y = 16, width = { parent.width - 40 },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        View [ width = { parent.width }, height = 36, fill = 0xE9EFF4, cornerRadius = 6,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            View [ width = 80, height = 28, fill = 0x2E6FE0, cornerRadius = 6,
+                TextLabel [ x = 8, text = "logo" ]
+                ],
+            Spacer [ ],
+            View [ width = 60, height = 28, fill = 0x12A594, cornerRadius = 6,
+                TextLabel [ x = 8, text = "save" ]
+                ],
+            View [ width = 60, height = 28, fill = 0x12A594, cornerRadius = 6,
+                TextLabel [ x = 8, text = "share" ]
+                ]
+            ],
+        View [ width = { parent.width }, height = 36, fill = 0xE9EFF4, cornerRadius = 6,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Spacer [ ],
+            View [ width = 90, height = 28, fill = 0x8F6F28, cornerRadius = 6,
+                TextLabel [ x = 8, text = "centred" ]
+                ],
+            Spacer [ ]
+            ],
+        View [ width = { parent.width }, height = 36, fill = 0xE9EFF4, cornerRadius = 6,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Spacer [ ],
+            View [ width = 110, height = 28, fill = 0xC93B47, cornerRadius = 6,
+                TextLabel [ x = 8, text = "right-aligned" ]
+                ]
+            ]
+        ]
+    ]

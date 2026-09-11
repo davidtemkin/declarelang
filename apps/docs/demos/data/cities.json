@@ -1,0 +1,7 @@
+{ "updated": "2026-09-10",
+  "cities": [
+    { "name": "Lisbon",    "country": "Portugal", "high": 27, "low": 18, "sky": "clear" },
+    { "name": "Reykjavík", "country": "Iceland",  "high": 11, "low": 6,  "sky": "overcast" },
+    { "name": "Kyoto",     "country": "Japan",    "high": 31, "low": 24, "sky": "humid" },
+    { "name": "Nairobi",   "country": "Kenya",    "high": 24, "low": 13, "sky": "cloudy" }
+  ] }

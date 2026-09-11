@@ -27,6 +27,10 @@ The caption in the left column. It is a `Text`, not a control's own label — **
 labels whatever you nest, so the nested control's own `label` should usually be empty**
 or you will render the words twice.
 
+## baseline
+The baseline a row aligns this field by — its caption's. Two fields side by side under
+`align = baseline` keep their captions on one line whatever their controls' heights.
+
 ## labelWidth
 The label column's width, and the knob that aligns a form. **Every row in a form sets
 the same plain number** — one value, repeated or read from a shared attribute
@@ -36,6 +40,7 @@ the shared column is a value you state rather than one the form discovers.
 */
 
 class Field extends View [
+    baseline: number = { this.cap.y + this.cap.baseline },   // a row aligns the field by its caption
     label:      string = "",
     labelWidth: number = 96,
 

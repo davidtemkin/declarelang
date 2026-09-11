@@ -1,0 +1,7 @@
+// a file with no root — the class it declares merges into whoever includes it
+
+class Tag extends View [ height = 26, cornerRadius = 13, fill = 0x12A594,
+    label: string = "",
+    width = { this.t.width + 20 },
+    t: Text [ x = 10, y = 6, fontSize = 13, textColor = 0xFFFFFF, text = { label } ]
+    ]

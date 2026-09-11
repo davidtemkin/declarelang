@@ -484,7 +484,7 @@ class Footer extends View [ width = { parent.width },
     // avoids a stranded separator at a line's end.
 
     row: View [ width = { parent.width }, height = { this.contentHeight },
-        layout: WrappingLayout [ align = center, spacing = { parent.width >= 620 ? 10 : 18 }, lineSpacing = 10 ],
+        layout: WrappingLayout [ justify = center, spacing = { parent.width >= 620 ? 10 : 18 }, lineSpacing = 10 ],
 
         // "Built in Declare" is one text RUN (HTMLText carries the brand accent
         // inline), so it keeps a word space, not a gap

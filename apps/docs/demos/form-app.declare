@@ -1,0 +1,12 @@
+// The one root
+// `App [ … ]` fills its host when its size is unset. It may declare members of its own —
+// a fact here, read by a text below through `app`, the instance's name from any depth.
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    visits: number = 0,
+    onClick() { visits = visits + 1 },
+    Text [ x = 20, y = 20, text = { "the app is " + app.width + " × " + app.height + " — click anywhere" } ],
+    deep: View [ x = 20, y = 50,
+        Text [ text = { "clicks reach the root's fact: " + app.visits } ]
+        ]
+    ]

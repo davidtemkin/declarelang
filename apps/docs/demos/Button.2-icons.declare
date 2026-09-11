@@ -1,0 +1,14 @@
+// Icons, and the padding
+// `iconLeft` and `iconRight` name an icon class; an absent slot costs nothing, so an icon-only button is just a button with no label. `padH` gives a short word room; `gap` spaces the icon from it.
+
+use [ PlusIcon, ChevronIcon, CloseIcon, CheckIcon ]   // named by string, so kept by name
+
+App [
+    row: View [ x = 20, y = 20, height = 40, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Button [ label = "Add", iconLeft = "PlusIcon" ],
+        Button [ label = "Next", iconRight = "ChevronIcon" ],
+        Button [ iconLeft = "CloseIcon" ],                       // icon only: no label, no gap
+        Button [ label = "Wide", padH = 32, gap = 14, iconLeft = "CheckIcon" ]
+        ]
+    ]

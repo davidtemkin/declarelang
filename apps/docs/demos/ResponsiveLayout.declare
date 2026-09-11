@@ -1,0 +1,26 @@
+// Two arrangements, one width rule
+// A `plan` is a storyboard: the largest `from` that fits wins. Wide, three panels share the
+// row; narrow, they stack and the actions panel is hidden by a share of 0. Drag the
+// slider to change the box's width and watch the plan switch.
+
+App [ textColor = 0xFFFFFF, fontSize = 13,
+    w: number = 420,
+    Slider [ x = 20, y = 12, width = 200, min = 200, max = 460, value = { app.w },
+        input(v: number) { app.w = v }
+        ],
+    Text [ x = 232, y = 16, textColor = 0x6A7883, text = { Math.round(app.w) + "px — " + (app.w >= 380 ? "row" : "stack") } ],
+    box: View [ x = 20, y = 44, width = { app.w }, height = 130, fill = 0xE9EFF4, cornerRadius = 8,
+        layout: ResponsiveLayout [ gap = 8,
+            plan = { [ ({ from: 380, flow: "row",   share: { nav: 1, main: 3, actions: 1 } }),
+                       ({ from: 0,   flow: "stack", share: { nav: 1, main: 1, actions: 0 } }) ] } ],
+        nav:     View [ height = 40, fill = 0x2E6FE0, cornerRadius = 6,
+            TextLabel [ x = 8, text = "nav" ]
+            ],
+        main:    View [ height = 40, fill = 0x12A594, cornerRadius = 6,
+            TextLabel [ x = 8, text = "main" ]
+            ],
+        actions: View [ height = 40, fill = 0x8F6F28, cornerRadius = 6,
+            TextLabel [ x = 8, text = "actions" ]
+            ]
+        ]
+    ]

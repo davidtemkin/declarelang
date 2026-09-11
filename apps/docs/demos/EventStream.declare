@@ -1,0 +1,23 @@
+// A server that pushes
+// Server-Sent Events as a source: `active` opens it, `status` and `last` are facts, and
+// `onMessage` appends. The url here is illustrative — there is no stream behind the docs —
+// so the source stays closed until you point it somewhere real and flip `active`.
+
+App [ textColor = 0x172530, fontSize = 14,
+    log: string = "",
+    feed: EventStream [ url = "/events/updates", active = false,
+        onMessage(e: StreamMessage) { app.log = app.log + e.data + "\n" }
+        ],
+    col: View [ x = 20, y = 16, width = { parent.width - 40 },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        row: View [ height = 32, width = { this.contentWidth },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Switch [ checked = { app.feed.active },
+                input(v: boolean) { app.feed.active = v }
+                ],
+            Text [ text = { "status: " + app.feed.status + (app.feed.error != "" ? " — " + app.feed.error : "") } ]
+            ],
+        Text [ fontSize = 13, textColor = 0x6A7883, wrap = true, width = { parent.width },
+            text = { app.log == "" ? "nothing received yet" : app.log } ]
+        ]
+    ]

@@ -1,0 +1,23 @@
+// Reaching the component from inside it
+// `classroot` is the instance itself from any depth in the class body — here a click on the header selects the tab, and the caption reads the tab's label. `this` in that handler would be the header.
+
+class Tab extends View [ width = 120, height = 36, cornerRadius = [8, 8, 0, 0],
+    selected: boolean = false,
+    label: string = "",
+    fill = { selected ? 0xFFFFFF : 0xDCDCDC },
+    select() { selected = !selected },
+    header: View [ width = { parent.width }, height = { parent.height },
+        onClick() { classroot.select() },                 // `this` here is the header, not the tab
+        caption: Text [ x = 12, y = 9, fontSize = 14, text = { classroot.label } ]
+        ]
+    ]
+
+
+App [ fill = 0xEEF1F4,
+    row: View [ x = 20, y = 20, height = 36, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 4 ],
+        Tab [ label = "Inbox", selected = true ],
+        Tab [ label = "Sent" ],
+        Tab [ label = "Drafts" ]
+        ]
+    ]
