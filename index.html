@@ -211,7 +211,7 @@ width = { parent.width - 40 }                    // ✓</code></pre>
 <p><strong>A <code>:path</code> may also appear inside a <code>{ }</code> body</strong>, and this is central rather than exotic: it is how anything conditional over replicated data gets written. <code>text = { :on ? :title : "—" }</code> reads the datapath exactly as the bare form does, then computes with it in TypeScript. Read <code>{ }</code> as "TypeScript, plus datapath reads."</p>
 <p>Two lexical notes. A <code>"…"</code> string ends at its line, in a bare slot as in a <code>{ }</code> body; a <code>"""</code> block is the form for long text. And a <code>Dataset</code>'s literal body is strict JSON (§7) — the one place <code>{ }</code> is not TypeScript at all.</p>
 <h2>3. Members and scope</h2>
-<p>Everything inside <code>[ ]</code> is a member, in one of six shapes. Two of them look nearly identical and mean different things.</p>
+<p>Everything inside <code>[ ]</code> is a member, in one of five shapes. Two of them look nearly identical and mean different things.</p>
 <pre><code class="language-declare-fragment">width = 100%,                          // SET an attribute that already exists
 x     = { parent.width - 40 },         // SET it live — a constraint
 text  = :title,                        // SET it from bound data
@@ -228,12 +228,12 @@ select() { selected = !selected },     // a METHOD
 onClick()      { count = count + 1 },  // a HANDLER — `on` + an event this node fires
 onPointerMove(e: PointerEvent) { x = e.x },   // pointer handlers get a typed payload
 
-draw(d: Draw) { d.fillStyle = "#4169E1"    // a DRAWING — see below
+draw(d: Draw) { d.fillStyle = "#4169E1"    // a METHOD the view calls to paint itself — see below
             d.fillRect(0, 0, 12, 12) },
 
 bg: View [ fill = midnightblue ],      // a CHILD, named — reachable as `bg`
 Text [ text = "OK" ]                  // a CHILD, anonymous</code></pre>
-<p><strong><code>draw(d: Draw)</code> is a first-class member, not an escape hatch.</strong> It records a display list of plain ops that every renderer replays, and it is a <em>tracked computation</em> like any constraint: it re-runs when what it read changes, never per frame. <code>d</code> takes the Canvas2D drawing calls (<code>fillStyle</code>, <code>beginPath</code>, <code>moveTo</code>, <code>stroke</code>, …).</p>
+<p><strong>Any view can paint itself by defining <code>draw(d: Draw)</code></strong> — graphs, gauges, iconography, marks no fill or font gives you. It is an ordinary method: <code>View</code> calls it from a constraint of its own (<code>drawing = { record(draw) }</code>), so it runs on invalidation and re-runs when what it read changes, never per frame — the same rule as any method a constraint calls. <code>d</code> takes the Canvas2D drawing calls (<code>fillStyle</code>, <code>beginPath</code>, <code>moveTo</code>, <code>stroke</code>, …); what it records, every renderer paints.</p>
 <p><strong><code>name = value</code> sets an attribute that exists; <code>name: Type = value</code> declares a new one.</strong> Declaring is how reactive state enters a program; setting is how it is wired. A declaration's type comes from the same vocabulary a signature's does (below): a primitive, a component class, a function, or an array of any of them.</p>
 <p><strong>A method's signature is typed, name-first</strong>: <code>select() { … }</code>, <code>input(v: boolean) { … }</code>, <code>quant(v: number) -&gt; number { … }</code>. Every parameter carries a written type — a primitive, a component class, an event payload (<code>onPointerUp(e: PointerUpEvent)</code>), a function (<code>f: (id: string) -&gt; void</code>), or an array of one (<code>Window[]</code>); a <code>?</code> after the type (<code>c: Menu?</code>) says the value may be absent, and the body must check. Omit <code>-&gt; Ret</code> for a method that returns nothing. A computed <em>value</em> is still not a method but an attribute with a <code>{ }</code> default, <code>segIndex: number = { … }</code> — an attribute stays reactively true; a method runs when called.</p>
 <p><strong>Events from outside the tree arrive as children.</strong> <code>Keys [ onKeyUp(e: KeyEvent) { … } ]</code> gives a node app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to unregister: a source is a child, so it lives and dies with the node that declares it.</p>
@@ -619,7 +619,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=1aaa8be579d5";
+  import boot from "./bundles/declare-boot.js?v=64ad079c8d60";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().
