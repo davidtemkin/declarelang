@@ -18,9 +18,9 @@ Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for
 ```bash
 npm start
 ```
-Start the dev server on http://127.0.0.1:8200/ — browse to any .declare file's URL and the server compiles and returns the running app.
+Start the dev server. It prints its address — http://127.0.0.1:8200/ unless that port is taken, in which case it says so and names the next (`PORT=8201 npm start`). Browse to any .declare file's URL under it and the server compiles and returns the running app.
 
-Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-apps/hello.declare — the program URL is the app's address.
+Write a program to my-apps/hello.declare and browse to it under the server's address — http://127.0.0.1:8200/my-apps/hello.declare on the default port. The program URL is the app's address.
 <!-- /generated:setup-commands -->
 
 ## The whole model in one program
