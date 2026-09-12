@@ -58,10 +58,10 @@ The acceptance addresses a program by what is on screen and what happens when yo
 it, never by the identifiers a particular solution chose, so any implementation shaped to
 the brief can pass. It resets the fixture before it looks at anything.
 
-**Known brief defect (venue, cadence):** Cadence §2 requires the literal copy
+**Brief defect, fixed in the brief (cadence, 2026-09-11):** §2 required the literal copy
 `4 sessions · 3h 40m` while §6 requires the largest number to be 6× the smallest text on
-the same screen. At 390px those collide, and one run resolved it by demoting the week
-line. Say explicitly that a line may be set as differently-sized runs before using this
-brief again.
+the same screen; at 390px those collided, and one run resolved it by demoting the week
+line. The brief now says that *reads exactly* fixes words and order, not size. A brief is
+handed over as written — a defect is fixed in the brief, once, never patched in the prompt.
 
 Reports from past runs, with screenshots and validated findings: `evals/reports/`.

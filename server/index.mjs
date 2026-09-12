@@ -82,13 +82,24 @@ async function whoHoldsPort(port) {
 
 const holder = await whoHoldsPort(PORT);
 if (holder !== null) {
-  const who = holder.pid !== undefined
-    ? `another Declare dev server — pid ${holder.pid}, root ${holder.root}, started ${holder.started}`
-    : "a process that is not a Declare dev server";
-  console.error(`port ${PORT} is already taken by ${who}.`);
-  console.error(holder.pid !== undefined
-    ? `  Two servers on one port number would each serve their own tree and you could not tell which one a page came from.\n  Stop it first:  kill ${holder.pid}   — or start this one elsewhere:  declare dev ${PORT + 1}`
-    : `  Start this one elsewhere:  declare dev ${PORT + 1}`);
+  // The advice names the command the reader actually ran (`npm start`, the
+  // README's) — not the `declare` bin, which a fresh clone has not linked.
+  // And it distinguishes OUR OWN tree's stale server (stop it; two servers of
+  // one tree is the confusion) from another checkout's live one (not ours to
+  // kill — a second tree on the same machine simply takes the next port; its
+  // path is not printed, since nothing about it is actionable from here).
+  const mine = server.identity().root;
+  const sameTree = holder.root !== undefined && path.resolve(holder.root) === path.resolve(mine);
+  const elsewhere = `start this one on another port:  PORT=${PORT + 1} npm start`;
+  if (holder.pid === undefined) {
+    console.error(`port ${PORT} is already taken by a process that is not a Declare dev server.\n  ${elsewhere[0].toUpperCase()}${elsewhere.slice(1)}`);
+  } else if (sameTree) {
+    console.error(`port ${PORT} is already taken by another Declare dev server — pid ${holder.pid}, root ${holder.root}, started ${holder.started}.`);
+    console.error(`  Two servers on one port number would each serve their own tree and you could not tell which one a page came from.\n  Stop it first:  kill ${holder.pid}   — or ${elsewhere}`);
+  } else {
+    console.error(`port ${PORT} is already taken by another Declare dev server, serving a different tree.`);
+    console.error(`  That one stays; ${elsewhere}`);
+  }
   process.exit(1);
 }
 

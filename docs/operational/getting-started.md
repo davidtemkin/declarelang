@@ -24,9 +24,9 @@ Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for
 ```bash
 npm start
 ```
-Start the dev server on http://127.0.0.1:8200/ — browse to any .declare file's URL and the server compiles and returns the running app.
+Start the dev server. It prints its address — http://127.0.0.1:8200/ unless that port is taken, in which case it says so and names the next (`PORT=8201 npm start`). Browse to any .declare file's URL under it and the server compiles and returns the running app.
 
-Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-apps/hello.declare — the program URL is the app's address.
+Write a program to my-apps/hello.declare and browse to it under the server's address — http://127.0.0.1:8200/my-apps/hello.declare on the default port. The program URL is the app's address.
 <!-- /generated:setup-commands -->
 
 `npm start` serves the distribution. The compiler, runtime, and library are
@@ -74,7 +74,8 @@ App [ width = 360, height = 200, fill = midnightblue,
     ]
 ```
 
-Browse to **http://127.0.0.1:8200/my-apps/hello.declare**. The URL *is* the app:
+Browse to **http://127.0.0.1:8200/my-apps/hello.declare** (or the same path under whatever
+address the server printed). The URL *is* the app:
 click anywhere and the count rises, the label follows, the bar grows to its cap
 and stops.
 

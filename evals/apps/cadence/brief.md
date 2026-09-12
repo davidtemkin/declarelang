@@ -31,6 +31,10 @@ room:
 
 - **The streak** — consecutive days with a session, reading exactly `12 days`,
   or `no streak` when there isn't one.
+
+*Reads exactly* fixes the words and their order, not their size. The figures in
+a line may be set large and the words small, and the line may break, so a
+phone-width screen can honour both this copy and the scale asked for in §6.
 - **The week's shape** — seven days, each showing how much was done that day,
   so a light week and a heavy one are told apart without reading a number.
 - **The last session** — what it was, when, and how it went.
