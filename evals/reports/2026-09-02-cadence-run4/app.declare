@@ -1,0 +1,1348 @@
+/*
+# Cadence — a training log
+
+One surface, two rules, no boxes. The whole app is derived from three numbers:
+`camRight` and `camSpan` (the year's camera, in days) and the session store.
+
+- **Today** is an editorial masthead: the week's volume typeset as one sentence with
+  the numerals as the hero, the week's shape as seven grown bars, the streak, and
+  whatever is happening now.
+- **The year** is 14 months as one continuous surface you push and pull with the hand.
+  Every bar's x and width is a constraint over the two camera scalars, so panning and
+  zooming are the same arithmetic as sitting still — no animation layer, no letting go.
+- **Colour is effort.** One vermilion, earned only by hard work.
+*/
+
+font Num [
+    Face [ src = "fonts/antonio-300.woff2", weight = light ],
+    Face [ src = "fonts/antonio-500.woff2", weight = medium ],
+    Face [ src = "fonts/antonio-700.woff2", weight = bold ]
+    ]
+
+
+font Book [
+    Face [ src = "fonts/inter-400.woff2" ],
+    Face [ src = "fonts/inter-600.woff2", weight = semibold ]
+    ]
+
+
+schema Session [ id: string, date: string, sport: string, minutes: number,
+    distanceKm?: number, effort: number, heartAvg?: number, note?: string ]
+
+schema LiveSession [ id: string, date: string, sport: string, startedSecondsAgo: number,
+    minutes: number, distanceKm?: number, heartNow: number, effort: number ]
+
+
+script {
+    // ── the service ──────────────────────────────────────────────────────────
+    const API = "http://127.0.0.1:8320"
+
+    // ── pure formatting — the brief's exact spellings ─────────────────────────
+    const WD: string[] = ["M", "T", "W", "T", "F", "S", "S"]
+    const WDFULL: string[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    const MON: string[] = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+    const MONFULL: string[] = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"]
+    const SPORTS: string[] = ["run", "ride", "lift", "swim"]
+
+    function tag(sport: string): string {
+        return sport === "run" ? "RUN" : sport === "ride" ? "RIDE" : sport === "lift" ? "LIFT" : "SWIM"
+        }
+
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    // days since the epoch, from a YYYY-MM-DD the person owns — no zone cleverness
+    function dayNum(d: string): number {
+        if (!d) return 0
+        const p = d.split("-")
+        return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000)
+        }
+    function dateOf(n: number): string {
+        const d = new Date(n * 86400000)
+        return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate())
+        }
+    function monthOf(d: string): number { return d ? +d.slice(5, 7) : 1 }
+    function yearOf(d: string): number { return d ? +d.slice(0, 4) : 0 }
+    function dayOfMonth(d: string): number { return d ? +d.slice(8, 10) : 1 }
+
+    // Monday-first weekday index. 1970-01-01 (dayNum 0) was a Thursday.
+    function mondayIndex(n: number): number { return (n + 3) % 7 }
+
+    function fmtDur(m: number): string {
+        const mm = Math.max(0, Math.round(m))
+        const h = Math.floor(mm / 60), r = mm % 60
+        return h === 0 ? r + "m" : r === 0 ? h + "h" : h + "h " + r + "m"
+        }
+    function fmtKm(k: number): string { return (Math.round(k * 10) / 10).toFixed(1) + " km" }
+    function fmtBpm(n: number): string { return Math.round(n) + " bpm" }
+    function fmtCount(n: number, one: string, many: string): string {
+        const v = Math.max(0, Math.round(n))
+        return v + " " + (v === 1 ? one : many)
+        }
+    function fmtClock(secs: number): string {
+        const s = Math.max(0, Math.floor(secs))
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
+        return h > 0 ? h + ":" + pad2(m) + ":" + pad2(r) : m + ":" + pad2(r)
+        }
+    function fmtLongDate(d: string): string {
+        return d ? dayOfMonth(d) + " " + MONFULL[monthOf(d) - 1] + " " + yearOf(d) : ""
+        }
+    function fmtShortDate(d: string, withYear: boolean): string {
+        if (!d) return ""
+        const base = dayOfMonth(d) + " " + MONFULL[monthOf(d) - 1].slice(0, 3)
+        return withYear ? base + " " + yearOf(d) : base
+        }
+    function fmtWeekday(d: string): string { return d ? WDFULL[mondayIndex(dayNum(d))] : "" }
+    function relDay(d: string, today: string): string {
+        if (!d || !today) return ""
+        const diff = dayNum(today) - dayNum(d)
+        if (diff === 0) return "today"
+        if (diff === 1) return "yesterday"
+        if (diff < 7) return fmtWeekday(d)
+        return fmtShortDate(d, yearOf(d) !== yearOf(today))
+        }
+    function errMsg(b: any): string {
+        return b && typeof b === "object" && b.message ? "" + b.message : ""
+        }
+    }
+
+
+/*
+## The year's bar
+
+One session. Its x and width read the two camera scalars and nothing else, so a pan is
+248 constraint recomputes and no rebuild. `app.openness` — how far the surface has been
+pulled open, 0..1 — fades the labels in as a bar becomes wide enough to carry them,
+so a tick *becomes* a block rather than switching to one.
+*/
+
+class YearBar extends View [ height = { app.stripH },
+    y = 0,
+
+    dx: number = { app.stripW * (app.camRight + app.camSpan - :age) / app.camSpan },
+    barW: number = { Math.max(2, app.dayW * 0.66) },
+    hit: number = { Math.max(9, app.dayW) },
+
+    x = { classroot.dx - classroot.hit / 2 },
+    width = { classroot.hit },
+    chosen: boolean = { app.selectedId == :id },
+
+    onClick() { app.pick(:id) },
+
+    ink: View [ width = { classroot.barW }, x = { (parent.width - this.width) / 2 },
+        cornerRadius = { Math.min(2, classroot.barW / 2) },
+        height = { Math.max(3, :minutes / 175 * (app.stripH - app.stripFoot)) },
+        y = { app.stripH - app.stripFoot - this.height },
+        fill = { classroot.chosen ? theme.accent : app.effortInk(:effort) },
+        opacity = { classroot.chosen ? 1 : 0.92 } ],
+
+    // the block's own writing, revealed as the fortnight opens
+
+    lab: Text [ x = { (parent.width - classroot.barW) / 2 + 5 }, wrap = false,
+        y = { app.stripH - app.stripFoot - Math.max(3, :minutes / 175 * (app.stripH - app.stripFoot)) + 6 },
+        fontSize = 10, fontWeight = semibold, letterSpacing = 0.6,
+        textColor = { theme.paper }, opacity = { app.openness },
+        text = { :tag } ],
+    dur: Text [ x = { (parent.width - classroot.barW) / 2 + 5 }, wrap = false,
+        y = { app.stripH - app.stripFoot - 17 },
+        fontFamily = [Num, "Impact", "sans-serif"], fontWeight = medium, fontSize = 14,
+        textColor = { theme.paper }, opacity = { app.openness },
+        text = { fmtDur(:minutes) } ]
+    ]
+
+
+/*
+## A month's dateline
+
+Fourteen of these, positioned by the same camera arithmetic. They thin out rather than
+collide: the label fades when the month is narrower than its own name.
+*/
+
+class MonthMark extends View [ y = 0, width = 1, height = { app.stripH },
+    dx: number = { app.stripW * (app.camRight + app.camSpan - :age) / app.camSpan },
+    x = { classroot.dx },
+    visible = { classroot.dx > -60 && classroot.dx < app.stripW + 60 },
+
+    line: View [ width = 1, height = { app.stripH - app.stripFoot }, fill = { theme.faint } ],
+    name: Text [ x = 6, y = { app.stripH - 14 }, wrap = false,
+        fontSize = 10, fontWeight = semibold, letterSpacing = 1.1,
+        textColor = { :jan ? theme.inkSoft : theme.muted },
+        visible = { classroot.dx > -1 && classroot.dx < app.stripW - this.width - 8 },
+        opacity = { app.clamp((app.monthW - 30) / 24, 0, 1) },
+        text = { :jan ? :label + " " + :yy : :label } ]
+    ]
+
+
+/*
+## The week's shape
+
+Seven days. A bar's height springs from the ground on arrival and to its new value
+whenever the day's total changes — the day a session lands on visibly grows.
+*/
+
+class WeekCol extends View [ y = 0, height = { app.weekBoxH },
+    x = { :i * (app.weekColW + app.weekGap) },
+    width = { app.weekColW },
+
+    mins: number = { :minutes },
+    eff: number = { :effort },
+
+    h: number = 0,
+    Spring [ attribute = h, to = { app.clamp(classroot.mins / 150, 0, 1) * app.weekBarH },
+        stiffness = 150, damping = 20 ],
+
+    ground: View [ y = { app.weekBarH - 2 }, width = { parent.width }, height = 2,
+        fill = { theme.faint } ],
+    bar: View [ width = { parent.width * 0.66 }, x = { parent.width * 0.17 },
+        height = { Math.max(0, classroot.h) },
+        y = { app.weekBarH - this.height }, cornerRadius = 1,
+        fill = { app.effortInk(classroot.eff) } ],
+    dow: Text [ y = { app.weekBarH + 9 }, width = { parent.width }, textAlign = center, wrap = false,
+        fontSize = 10, fontWeight = semibold, letterSpacing = 0.8,
+        textColor = { :isToday ? theme.accent : :future ? theme.faint : theme.muted },
+        text = { :dow } ],
+    mark: View [ y = { app.weekBarH + 24 }, x = { (parent.width - 12) / 2 }, width = 12, height = 2,
+        fill = { theme.accent }, visible = { :isToday } ]
+    ]
+
+
+// ── small display parts ──────────────────────────────────────────────────────
+
+// a numeral in the display face, sitting on a shared baseline so runs of
+// different sizes read as one line
+
+class Numeral extends View [ height = { app.heroStride }, width = { this.t.width },
+    label: string = "",
+    tint: Color = null,
+    t: Text [ fontFamily = [Num, "Impact", "sans-serif"], fontWeight = bold, wrap = false,
+        fontSize = { app.heroSize }, y = { app.heroBase - this.baseline },
+        textColor = { classroot.tint != null ? classroot.tint : theme.ink },
+        text = { classroot.label } ]
+    ]
+
+
+class Wording extends View [ height = { app.heroStride }, width = { this.t.width },
+    label: string = "",
+    t: Text [ fontWeight = semibold, wrap = false, fontSize = { app.heroWord },
+        y = { app.heroBase - this.baseline },
+        textColor = { theme.muted }, text = { classroot.label } ]
+    ]
+
+
+// the micro-caps label that names every band; spacing and weight do the work a
+// border would
+
+class Rubric extends Text [ fontSize = 10, fontWeight = semibold, letterSpacing = 1.6, wrap = false,
+    textColor = { theme.muted }
+    ]
+
+
+class Rule extends View [ height = 1, fill = { theme.rule } ]
+
+// a big number with a small word after it, on one baseline — the streak, the
+// elapsed clock, a session's duration
+
+class Figure extends View [ height = { classroot.size * 0.96 },
+    size: number = 34,
+    value: string = "",
+    unit: string = "",
+    tint: Color = null,
+    width = { this.v.width + (classroot.unit == "" ? 0 : this.u.width + classroot.size * 0.14) },
+    v: Text [ fontFamily = [Num, "Impact", "sans-serif"], fontWeight = bold, wrap = false,
+        fontSize = { classroot.size }, y = { classroot.size * 0.8 - this.baseline },
+        textColor = { classroot.tint != null ? classroot.tint : theme.ink },
+        text = { classroot.value } ],
+    u: Text [ fontWeight = semibold, wrap = false, x = { classroot.v.width + classroot.size * 0.14 },
+        fontSize = { Math.max(11, classroot.size * 0.2) },
+        y = { classroot.size * 0.8 - this.baseline },
+        textColor = { theme.muted }, text = { classroot.unit } ]
+    ]
+
+
+// a tap target that is a word, not a button: type carries it, and the accent
+// only appears when it is the chosen one
+
+class Choice extends View [ height = 44, cornerRadius = 3,
+    label: string = "",
+    on: boolean = false,
+    fill = { classroot.on ? theme.ink : classroot.pressed ? theme.faint : theme.paper },
+    stroke = { classroot.on ? null : stroke(1, theme.rule) },
+    t: Text [ width = { parent.width }, textAlign = center, wrap = false, y = center,
+        fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
+        textColor = { classroot.on ? theme.paper : theme.inkSoft },
+        text = { classroot.label } ]
+    ]
+
+
+class ChevStep extends View [ width = 44, height = 44, cornerRadius = 22,
+    dirn: string = "left",
+    fill = { classroot.pressed ? theme.ink : theme.faint },
+
+    g: ChevronIcon [ iconSize = 17, dir = { classroot.dirn },
+        x = { (parent.width - this.width) / 2 },
+        ink = { classroot.pressed ? theme.paper : theme.ink } ]
+    ]
+
+
+class Stepper extends View [ width = 52, height = 52, cornerRadius = 26,
+    glyph: string = "+",
+    fill = { classroot.pressed ? theme.ink : theme.faint },
+    t: Text [ width = { parent.width }, textAlign = center, wrap = false, y = center,
+        fontFamily = [Num, "Impact", "sans-serif"], fontWeight = bold, fontSize = 30,
+        textColor = { classroot.pressed ? theme.paper : theme.ink }, text = { classroot.glyph } ]
+    ]
+
+
+// a filled-to-here meter: ten taps, one gesture, no keyboard
+
+// The hit box is the whole column — a thumb should not have to find a 20pt mark.
+// The ramp inside it is what you see.
+
+class EffortPip extends View [ width = { app.pipW }, height = 54, y = 0,
+    n: number = 1,
+    x = { (classroot.n - 1) * (app.pipW + 5) },
+    onClick() { app.effortPick = classroot.n },
+
+    ink: View [ width = { parent.width }, cornerRadius = 1,
+        height = { 14 + classroot.n * 3.6 },
+        y = { parent.height - this.height },
+        fill = { classroot.n <= app.formEffort ? app.effortInk(app.formEffort) : theme.faint } ]
+    ]
+
+
+class ActionWord extends View [ height = 44,
+    label: string = "",
+    danger: boolean = false,
+    t: Text [ wrap = false, y = center, fontSize = 11, fontWeight = semibold, letterSpacing = 1.4,
+        textColor = { classroot.danger
+            ? (classroot.hovered || classroot.pressed ? theme.accent : theme.muted)
+            : (classroot.hovered || classroot.pressed ? theme.ink : theme.inkSoft) },
+        text = { classroot.label } ],
+    width = { this.t.width }
+    ]
+
+
+App [ appName = "Cadence", minWidth = 320,
+    fill = { theme.paper }, textColor = { theme.ink },
+    fontFamily = [Book, "system-ui", "sans-serif"], fontSize = 13,
+
+    // ── palette: ink and paper, one accent, and the accent means effort ──────
+
+    theme = { ({ ...Themes.sanFrancisco(app.dark), ...(app.dark ? app.darkPal() : app.lightPal()) }) },
+
+    darkPal() { return ({
+        paper: 0x121110, surface: 0x1B1917, sheet: 0x1B1917,
+        ink: 0xF3EFE7, inkSoft: 0xB6B0A4, muted: 0x7E786C, faint: 0x2C2926, rule: 0x322E2A,
+        accent: 0xFF5B34, accentText: 0x121110,
+        text: 0xF3EFE7, textMuted: 0x7E786C, line: 0x322E2A,
+        control: 0x24211E, controlHover: 0x2C2926, controlPressed: 0x322E2A, controlSelected: 0x3A342E,
+        controlRadius: 3, focusRing: 0xFF5B34 }) },
+
+    lightPal() { return ({
+        paper: 0xF7F4EE, surface: 0xFFFDF8, sheet: 0xFFFDF8,
+        ink: 0x14120F, inkSoft: 0x4C473F, muted: 0x8B8578, faint: 0xE4DFD4, rule: 0xDCD6C9,
+        accent: 0xD93A16, accentText: 0xFFFDF8,
+        text: 0x14120F, textMuted: 0x8B8578, line: 0xDCD6C9,
+        control: 0xEDE9E0, controlHover: 0xE4DFD4, controlPressed: 0xDCD6C9, controlSelected: 0xE4DFD4,
+        controlRadius: 3, focusRing: 0xD93A16 }) },
+
+    // ── the data ─────────────────────────────────────────────────────────────
+
+    clockSrc: DataSource [ url = { API + "/api/today" }, schema = [ today: string ] ],
+
+    src: DataSource [ url = { API + "/api/sessions" }, schema = [ sessions[]: Session ],
+        onLoad() { app.store.set(["sessions"], app.src.value!.sessions) }
+        ],
+
+    // the mutable truth every derivation reads; the fetch seeds it once and every
+    // edit after that is a write to this place, so nothing anywhere needs refreshing
+
+    store: Dataset [ schema = [ sessions[]: Session ] ] {
+        { "sessions": [] }
+        },
+
+    live: DataSource [ url = { API + "/api/live" }, schema = [ session?: LiveSession ],
+        onLoad() { app.liveLanded() }
+        ],
+
+    saver: DataSource [ method = { app.editId == "" ? "POST" : "PUT" },
+        url = { API + "/api/sessions" + (app.editId == "" ? "" : "/" + app.editId) },
+        body = { app.formBody() }, schema = Session,
+        onLoad() { app.saveLanded() }
+        ],
+
+    remover: DataSource [ method = "DELETE",
+        url = { API + "/api/sessions/" + app.selectedId },
+        onLoad() { app.deleteLanded() }
+        ],
+
+    onInit() { this.clockSrc.fetch(); this.src.fetch(); this.live.fetch() },
+
+    // ── the clock ────────────────────────────────────────────────────────────
+
+    secs: Time [ tick = second,
+        onTick(dt: number) { app.tickSecond() }
+        ],
+    frames: Time [ tick = frame, running = { app.liveOn } ],
+
+    beat: number = 0,
+    tickSecond() {
+        this.beat = this.beat + 1
+        if (this.beat % 3 == 0) this.live.fetch()
+        },
+
+    todayKey: string = { app.clockSrc.value != null ? app.clockSrc.value.today : "" },
+    offlineNow: boolean = { app.src.failed || app.clockSrc.failed },
+    ready: boolean = { app.todayKey != "" && app.store.value!.sessions.length > 0 },
+
+    // ── the live session ─────────────────────────────────────────────────────
+
+    liveOn: boolean = { app.live.value != null && app.live.value!.session != null },
+    liveBase: number = 0,
+    liveAt: number = 0,
+    liveLanded() {
+        const s = this.live.value != null ? this.live.value!.session : null
+        if (s == null) return
+        this.liveBase = s.startedSecondsAgo
+        this.liveAt = Date.now()
+        },
+    liveSecs: number = { app.liveOn ? app.liveBase + (app.frames.now - app.liveAt) / 1000 : 0 },
+    liveSport: string = { app.liveOn ? tag(app.live.value!.session!.sport) : "" },
+    liveKm: number = { app.liveOn && app.live.value!.session!.distanceKm != null ? app.live.value!.session!.distanceKm! : 0 },
+    liveBpm: number = { app.liveOn ? app.live.value!.session!.heartNow : 0 },
+    pulse: number = { app.liveOn ? 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(app.frames.now / 480)) : 0 },
+
+    // ── this week, the streak, the week's shape ──────────────────────────────
+
+    sessionsList() -> Session[] { return this.store.value != null ? this.store.value.sessions : [] },
+
+    weekStart: string = { app.todayKey == "" ? "" : dateOf(dayNum(app.todayKey) - mondayIndex(dayNum(app.todayKey))) },
+
+    weekRows() -> Session[] {
+        if (this.todayKey == "") return []
+        const a = dayNum(this.weekStart)
+        return this.sessionsList().filter(s => dayNum(s.date) >= a && dayNum(s.date) < a + 7)
+        },
+    weekCount: number = { app.weekRows().length },
+    weekMinutes: number = { app.weekRows().reduce((a, s) => a + s.minutes, 0) },
+
+    streak: number = { app.computeStreak() },
+    computeStreak() -> number {
+        if (this.todayKey == "") return 0
+        const days = {}
+        for (const s of this.sessionsList()) days[s.date] = 1
+        let d = dayNum(this.todayKey)
+        if (days[dateOf(d)] == null) d = d - 1
+        let n = 0
+        while (days[dateOf(d)] != null && n < 1000) { n = n + 1; d = d - 1 }
+        return n
+        },
+
+    week: Dataset [ contents = { app.buildWeek() } ],
+    buildWeek() {
+        if (this.todayKey == "") return ({ days: [] })
+        const all = this.sessionsList()
+        const a = dayNum(this.weekStart)
+        const t = dayNum(this.todayKey)
+        const days = []
+        for (let i = 0; i < 7; i++) {
+            const key = dateOf(a + i)
+            const rows = all.filter(s => s.date == key)
+            const mins = rows.reduce((x, s) => x + s.minutes, 0)
+            const eff = rows.length > 0 ? rows.reduce((x, s) => x + s.effort, 0) / rows.length : 0
+            days.push(({ i: i, key: key, dow: WD[i], minutes: mins, effort: eff,
+                isToday: a + i == t, future: a + i > t }))
+            }
+        return ({ days: days })
+        },
+
+    // ── the latest finished session ──────────────────────────────────────────
+
+    lastOne() -> Session? {
+        const all = this.sessionsList()
+        return all.length > 0 ? all[0] : null
+        },
+    lastSport: string = { app.lastOne() != null ? tag(app.lastOne()!.sport) : "" },
+    lastMinutes: number = { app.lastOne() != null ? app.lastOne()!.minutes : 0 },
+    lastWhen: string = { app.lastOne() != null ? relDay(app.lastOne()!.date, app.todayKey) : "" },
+    lastEffort: number = { app.lastOne() != null ? app.lastOne()!.effort : 0 },
+    lastLine: string = { app.lastOne() == null ? ""
+        : app.lastWhen + "  ·  effort " + app.lastEffort
+          + (app.lastOne()!.distanceKm != null ? "  ·  " + fmtKm(app.lastOne()!.distanceKm!) : "")
+          + (app.lastOne()!.heartAvg != null ? "  ·  " + fmtBpm(app.lastOne()!.heartAvg!) : "") },
+
+    // ── the year: two scalars, and everything derives from them ──────────────
+
+    camRightTo: number = 0,          // age (days before today) at the right edge
+    camSpanTo: number = 91,          // days visible
+    camRight: number = 0,
+    camSpan: number = 91,
+    handOn: boolean = false,         // is a hand on the surface right now?
+
+    Spring [ attribute = camRight, to = { app.camRightTo },
+        stiffness = { app.handOn ? 2400 : 260 }, damping = { app.handOn ? 100 : 30 }, epsilon = 0.004 ],
+    Spring [ attribute = camSpan, to = { app.camSpanTo },
+        stiffness = { app.handOn ? 2400 : 260 }, damping = { app.handOn ? 100 : 30 }, epsilon = 0.004 ],
+
+    maxAge: number = { app.oldestAge() },
+    oldestAge() -> number {
+        const all = this.sessionsList()
+        if (all.length == 0 || this.todayKey == "") return 400
+        return dayNum(this.todayKey) - dayNum(all[all.length - 1].date) + 20
+        },
+    maxSpan: number = { Math.max(60, app.maxAge + 20) },
+
+    dayW: number = { app.stripW / app.camSpan },
+    monthW: number = { app.dayW * 30.4 },
+    openness: number = { app.clamp((46 - app.camSpan) / 26, 0, 1) },
+
+    bars: Dataset [ contents = { app.buildBars() } ],
+    buildBars() {
+        if (this.todayKey == "") return ({ rows: [] })
+        const t = dayNum(this.todayKey)
+        return ({ rows: this.sessionsList().map(s => ({
+            id: s.id, age: t - dayNum(s.date), minutes: s.minutes, effort: s.effort,
+            tag: tag(s.sport) })) })
+        },
+
+    months: Dataset [ contents = { app.buildMonths() } ],
+    buildMonths() {
+        const all = this.sessionsList()
+        if (this.todayKey == "" || all.length == 0) return ({ months: [] })
+        const t = dayNum(this.todayKey)
+        const first = all[all.length - 1].date
+        let y = yearOf(first), m = monthOf(first)
+        const ty = yearOf(this.todayKey), tm = monthOf(this.todayKey)
+        const out = []
+        while (y < ty || (y == ty && m <= tm)) {
+            const key = y + "-" + pad2(m) + "-01"
+            out.push(({ k: key, age: t - dayNum(key), label: MON[m - 1], jan: m == 1,
+                yy: "" + (y % 100) }))
+            m = m + 1
+            if (m > 12) { m = 1; y = y + 1 }
+            }
+        return ({ months: out })
+        },
+
+    // what is on screen, and what happened in it
+
+    viewFrom: string = { app.todayKey == "" ? "" : dateOf(dayNum(app.todayKey) - Math.round(app.camRight + app.camSpan)) },
+    viewTo: string = { app.todayKey == "" ? "" : dateOf(dayNum(app.todayKey) - Math.round(app.camRight)) },
+    periodLabel: string = { app.viewFrom == "" ? ""
+        : fmtShortDate(app.viewFrom, yearOf(app.viewFrom) != yearOf(app.viewTo)) + " – " + fmtShortDate(app.viewTo, true) },
+
+    inView() -> Session[] {
+        if (this.todayKey == "") return []
+        const t = dayNum(this.todayKey)
+        const lo = this.camRight, hi = this.camRight + this.camSpan
+        return this.sessionsList().filter(s => (t - dayNum(s.date)) >= lo && (t - dayNum(s.date)) <= hi)
+        },
+    periodCount: number = { app.inView().length },
+    periodMinutes: number = { app.inView().reduce((a, s) => a + s.minutes, 0) },
+    periodKm: number = { app.inView().reduce((a, s) => a + (s.distanceKm != null ? s.distanceKm : 0), 0) },
+
+    // ── numbers travel: every headline figure is sprung to its truth ─────────
+
+    nCount: number = 0,
+    nMinutes: number = 0,
+    nStreak: number = 0,
+    pCount: number = 0,
+    pMinutes: number = 0,
+    pKm: number = 0,
+    Spring [ attribute = nCount, to = { app.weekCount }, stiffness = 190, damping = 26 ],
+    Spring [ attribute = nMinutes, to = { app.weekMinutes }, stiffness = 190, damping = 26 ],
+    Spring [ attribute = nStreak, to = { app.streak }, stiffness = 190, damping = 26 ],
+    Spring [ attribute = pCount, to = { app.periodCount }, stiffness = 220, damping = 28 ],
+    Spring [ attribute = pMinutes, to = { app.periodMinutes }, stiffness = 220, damping = 28 ],
+    Spring [ attribute = pKm, to = { app.periodKm }, stiffness = 220, damping = 28 ],
+
+    weekLineCount: string = { "" + Math.max(0, Math.round(app.nCount)) },
+    weekLineDur: string = { fmtDur(app.nMinutes) },
+    streakText: string = { Math.round(app.nStreak) <= 0 ? "no streak" : "" + Math.round(app.nStreak) },
+    periodStats: string = { app.periodCount == 0 ? "nothing here"
+        : fmtCount(app.pCount, "session", "sessions") + "  ·  " + fmtDur(app.pMinutes)
+          + (app.periodKm > 0.05 ? "  ·  " + fmtKm(app.pKm) : "") },
+
+    // ── handling the surface ─────────────────────────────────────────────────
+
+    grabAge: number = 0,
+    grabX: number = 0,
+    pinchSpan: number = 0,
+    pinchAge: number = 0,
+
+    clamp(v: number, a: number, b: number) -> number { return Math.max(a, Math.min(b, v)) },
+    lerp(a: number, b: number, t: number) -> number { return a + (b - a) * t },
+    mix(a: number, b: number, t: number) -> number {
+        const c = (x, y) => Math.round(x + (y - x) * t)
+        return (c((a >> 16) & 255, (b >> 16) & 255) << 16)
+             | (c((a >> 8) & 255, (b >> 8) & 255) << 8)
+             | c(a & 255, b & 255)
+        },
+
+    // effort is the only thing that earns colour: quiet grey through ink, then
+    // vermilion over the last third — a hard session is the one that shouts
+
+    effortInk(e: number) -> number {
+        const t = this.clamp((e - 1) / 9, 0, 1)
+        const th = 0.62
+        return t <= th ? this.mix(this.theme.muted, this.theme.ink, t / th)
+                       : this.mix(this.theme.ink, this.theme.accent, Math.pow((t - th) / (1 - th), 0.55))
+        },
+
+    clampRight(v: number, span: number) -> number {
+        const hi = Math.max(-10, this.maxAge - span + 10)
+        return this.clamp(v, -10, hi)
+        },
+    setSpan(ns: number, focus: number) {
+        const span = this.camSpanTo
+        const s = this.clamp(ns, 12, this.maxSpan)
+        const at = this.camRightTo + span * (1 - focus)
+        this.camSpanTo = s
+        this.camRightTo = this.clampRight(at - s * (1 - focus), s)
+        },
+
+    stripDown(e: PointerEvent) {
+        this.handOn = true
+        this.grabAge = this.camRightTo
+        this.grabX = this.pointerX
+        },
+    stripMove(e: PointerEvent) {
+        const dx = e.x - this.grabX
+        this.camRightTo = this.clampRight(this.grabAge + dx * this.camSpan / this.stripW, this.camSpanTo)
+        },
+    stripUp(e: PointerUpEvent) { this.handOn = false },
+
+    stripWheel(e: WheelEvent) {
+        const f = this.clamp(e.x / this.stripW, 0, 1)
+        if (e.pinch || Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+            this.setSpan(this.camSpanTo * Math.exp(e.deltaY * 0.0022), f)
+        } else {
+            this.camRightTo = this.clampRight(this.camRightTo - e.deltaX * this.camSpan / this.stripW, this.camSpanTo)
+            }
+        },
+
+    pinchOpen(e: PinchEvent) {
+        this.handOn = true
+        this.pinchSpan = this.camSpanTo
+        this.pinchAge = this.camRightTo
+        },
+    pinchGo(e: PinchEvent) {
+        const f = this.clamp((e.center.x - this.stripX) / this.stripW, 0, 1)
+        const s = this.clamp(this.pinchSpan / Math.max(0.2, e.scale), 12, this.maxSpan)
+        const at = this.pinchAge + this.pinchSpan * (1 - f)
+        this.camSpanTo = s
+        this.camRightTo = this.clampRight(at - s * (1 - f), s)
+        },
+    pinchShut(e: PinchEvent) { this.handOn = false },
+
+    zoomBy(k: number) { this.setSpan(this.camSpanTo * k, 0.5) },
+    nudge(d: number) { this.camRightTo = this.clampRight(this.camRightTo + d * this.camSpan * 0.25, this.camSpanTo) },
+    homeView() { this.camSpanTo = 91; this.camRightTo = 0 },
+
+    // ── a session, and where it sits ─────────────────────────────────────────
+
+    selectedId: string = "",
+    pick(id: string) { this.composeOpen = false; this.selectedId = id },
+    closeDetail() { this.selectedId = "" },
+
+    findSession(id: string) -> Session? {
+        const all = this.sessionsList()
+        const i = all.findIndex(s => s.id == id)
+        return i >= 0 ? all[i] : null
+        },
+    selected: Session = { app.findSession(app.selectedId) },
+
+    pctLongerSport(sport: string, minutes: number) -> number {
+        const peers = this.sessionsList().filter(s => s.sport == sport)
+        if (peers.length < 2) return 0
+        return Math.round(peers.filter(s => s.minutes < minutes).length / (peers.length - 1) * 100)
+        },
+    pctHarder(effort: number) -> number {
+        const all = this.sessionsList()
+        if (all.length < 2) return 0
+        return Math.round(all.filter(s => s.effort < effort).length / (all.length - 1) * 100)
+        },
+    pctEasier(effort: number) -> number {
+        const all = this.sessionsList()
+        if (all.length < 2) return 0
+        return Math.round(all.filter(s => s.effort > effort).length / (all.length - 1) * 100)
+        },
+    pctShorterSport(sport: string, minutes: number) -> number {
+        const peers = this.sessionsList().filter(s => s.sport == sport)
+        if (peers.length < 2) return 0
+        return Math.round(peers.filter(s => s.minutes > minutes).length / (peers.length - 1) * 100)
+        },
+    sportMedian(sport: string) -> number {
+        const peers = this.sessionsList().filter(s => s.sport == sport).map(s => s.minutes).sort((a, b) => a - b)
+        return peers.length == 0 ? 0 : peers[peers.length >> 1]
+        },
+    sportName(sport: string) -> string {
+        return sport == "run" ? "runs" : sport == "ride" ? "rides" : sport == "lift" ? "lifts" : "swims"
+        },
+    standDuration(sport: string, minutes: number) -> string {
+        const p = this.pctLongerSport(sport, minutes)
+        const tail = " of your " + this.sportName(sport) + ", which usually run " + fmtDur(this.sportMedian(sport)) + "."
+        return p >= 50 ? "Longer than " + p + "%" + tail
+                       : "Shorter than " + this.pctShorterSport(sport, minutes) + "%" + tail
+        },
+    standEffort(effort: number) -> string {
+        const p = this.pctHarder(effort)
+        return p >= 50 ? "Harder than " + p + "% of everything you have logged."
+                       : "Easier than " + this.pctEasier(effort) + "% of everything you have logged."
+        },
+
+    revealSelected() {
+        const s = this.findSession(this.selectedId)
+        if (s == null || this.todayKey == "") return
+        const age = dayNum(this.todayKey) - dayNum(s.date)
+        if (age < this.camRight || age > this.camRight + this.camSpan) {
+            this.camRightTo = this.clampRight(age - this.camSpanTo * 0.5, this.camSpanTo)
+            }
+        },
+
+    // ── recording one ────────────────────────────────────────────────────────
+
+    composeOpen: boolean = false,
+    editId: string = "",
+    saveError: string = "",
+
+    formSport: string = "",
+    formDateRaw: string = "",
+    durOverride: number = 0,
+    distMode: string = "",              // "" auto · "set" · "none"
+    distOverride: number = 0,
+    effortPick: number = 0,
+    formNote: string = "",
+    noteOpen: boolean = false,
+
+    // what they are most likely to mean is already there — the sport they have
+    // been doing, a duration near their usual, the effort they usually give it
+
+    suggestSport() -> string {
+        const all = this.sessionsList()
+        if (all.length == 0) return "run"
+        const recent = all.slice(0, 24)
+        let best = recent[0].sport, bestN = 0
+        for (const k of SPORTS) {
+            const n = recent.filter(s => s.sport == k).length
+            if (n > bestN) { bestN = n; best = k }
+            }
+        return best
+        },
+    formSportPick: string = { app.formSport != "" ? app.formSport : app.suggestSport() },
+    formDate: string = { app.formDateRaw != "" ? app.formDateRaw : app.todayKey },
+
+    suggestMinutes(sport: string) -> number {
+        const m = this.sportMedian(sport)
+        return m == 0 ? 45 : Math.max(5, Math.round(m / 5) * 5)
+        },
+    formMinutes: number = { app.durOverride > 0 ? app.durOverride : app.suggestMinutes(app.formSportPick) },
+
+    suggestDistance(sport: string, minutes: number) -> number {
+        const peers = this.sessionsList().filter(s => s.sport == sport && s.distanceKm != null)
+        if (peers.length == 0) return 0
+        const pace = peers.reduce((a, s) => a + s.distanceKm! / s.minutes, 0) / peers.length
+        return Math.round(pace * minutes * 10) / 10
+        },
+    hasDistance: boolean = { app.formSportPick != "lift" && app.distMode != "none" },
+    formDistance: number = { app.distMode == "set" ? app.distOverride
+        : app.suggestDistance(app.formSportPick, app.formMinutes) },
+    distStep: number = { app.formSportPick == "ride" ? 1 : app.formSportPick == "swim" ? 0.1 : 0.5 },
+
+    suggestEffort(sport: string) -> number {
+        const peers = this.sessionsList().filter(s => s.sport == sport).map(s => s.effort).sort((a, b) => a - b)
+        return peers.length == 0 ? 5 : peers[peers.length >> 1]
+        },
+    formEffort: number = { app.effortPick > 0 ? app.effortPick : app.suggestEffort(app.formSportPick) },
+
+    formTag: string = { tag(app.formSportPick) },
+    formWhen: string = { relDay(app.formDate, app.todayKey) },
+    canStepDate: boolean = { app.formDate < app.todayKey },
+
+    setSport(s: string) { this.formSport = s },
+    stepDate(d: number) {
+        const n = dayNum(this.formDate) + d
+        if (n > dayNum(this.todayKey)) return
+        this.formDateRaw = dateOf(n)
+        },
+    setDate(k: string) { this.formDateRaw = k },
+    stepMinutes(d: number) { this.durOverride = Math.max(5, this.formMinutes + d) },
+    stepDistance(d: number) {
+        this.distMode = "set"
+        this.distOverride = Math.max(0, Math.round((this.formDistance + d) * 10) / 10)
+        },
+    dropDistance() { this.distMode = this.distMode == "none" ? "set" : "none" },
+
+    openCompose() {
+        this.selectedId = ""
+        this.editId = ""
+        this.saveError = ""
+        this.formSport = ""
+        this.formDateRaw = ""
+        this.durOverride = 0
+        this.distMode = ""
+        this.distOverride = 0
+        this.effortPick = 0
+        this.formNote = ""
+        this.noteOpen = false
+        this.composeOpen = true
+        },
+    openEdit() {
+        const s = this.findSession(this.selectedId)
+        if (s == null) return
+        this.editId = s.id
+        this.saveError = ""
+        this.formSport = s.sport
+        this.formDateRaw = s.date
+        this.durOverride = s.minutes
+        this.distMode = s.distanceKm == null ? "none" : "set"
+        this.distOverride = s.distanceKm != null ? s.distanceKm : 0
+        this.effortPick = s.effort
+        this.formNote = s.note != null ? s.note : ""
+        this.noteOpen = s.note != null && s.note != ""
+        this.selectedId = ""
+        this.composeOpen = true
+        },
+    closeCompose() { this.composeOpen = false },
+
+    formBody() -> object {
+        return ({ sport: this.formSportPick, date: this.formDate,
+            minutes: Math.round(this.formMinutes),
+            distanceKm: this.hasDistance ? Math.round(this.formDistance * 10) / 10 : null,
+            effort: Math.round(this.formEffort),
+            note: this.formNote != "" ? this.formNote : null })
+        },
+    saveLabel: string = { (app.editId == "" ? "Save " : "Update ") + app.formTag.toLowerCase()
+        + "  ·  " + fmtDur(app.formMinutes)
+        + (app.hasDistance && app.formDistance > 0 ? "  ·  " + fmtKm(app.formDistance) : "") },
+
+    saveNow() { this.saveError = ""; this.saver.fetch() },
+    saveLanded() {
+        const rec = this.saver.value
+        if (rec == null) return
+        const cur = this.sessionsList().slice()
+        if (this.editId == "") { cur.push(rec) }
+        else {
+            const i = cur.findIndex(s => s.id == this.editId)
+            if (i >= 0) cur[i] = rec
+            }
+        cur.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (a.id < b.id ? 1 : -1))
+        this.store.set(["sessions"], cur)
+        this.composeOpen = false
+        this.editId = ""
+        this.selectedId = rec.id
+        afterSettle(app.revealSelected)
+        },
+    saveFailed: boolean = { app.saver.failed },
+    saveMessage: string = { app.saver.failed ? errMsg(app.saver.errorBody) : "" },
+
+    deleteNow() { this.remover.fetch() },
+    deleteLanded() {
+        const gone = this.selectedId
+        const cur = this.sessionsList().filter(s => s.id != gone)
+        this.store.set(["sessions"], cur)
+        this.selectedId = ""
+        },
+
+    // ── the room it is in ────────────────────────────────────────────────────
+
+    narrow: boolean = { app.width < 880 },
+    wide: boolean = { app.width >= 1180 },
+    pad: number = { app.narrow ? 18 : 34 },
+    availW: number = { app.width - 2 * app.pad },
+
+    mastH: number = { app.narrow ? 30 : 36 },
+    heroAvail: number = { app.wide ? app.availW - app.weekW - 64 : app.availW },
+    heroSize: number = { app.clamp(Math.min(app.heroAvail / 4.2, app.height * 0.21), 42, 180) },
+    heroWord: number = { app.clamp(app.heroSize * 0.17, 12, 23) },
+    heroBase: number = { app.page.h1.t.baseline },
+    heroCap: number = { app.page.h1.t.capHeight },
+    heroStride: number = { app.heroCap * 1.22 },
+    heroGap: number = { app.heroSize * 0.17 },
+    heroY: number = { app.pad + app.mastH + (app.narrow ? 32 : 48) },
+    heroYAdj: number = { app.heroY - app.heroBase + app.heroCap },
+
+    // the sentence lays itself out: four runs on one baseline, wrapping as one
+    // sentence when the room is a phone's
+
+    hw1: number = { app.page.h1.width },
+    hw2: number = { app.page.h2.width },
+    hw3: number = { app.page.h3.width },
+    hw4: number = { app.page.h4.width },
+    heroWrapped: boolean = { app.hw1 + app.hw2 + app.hw3 + app.hw4 + 3 * app.heroGap > app.heroAvail },
+    hx2: number = { app.pad + app.hw1 + app.heroGap },
+    hx3: number = { app.hx2 + app.hw2 + app.heroGap },
+    hx4: number = { app.heroWrapped ? app.pad : app.hx3 + app.hw3 + app.heroGap },
+    hy4: number = { app.heroWrapped ? app.heroYAdj + app.heroStride : app.heroYAdj },
+    heroH: number = { app.heroCap + (app.heroWrapped ? app.heroStride : 0) },
+
+    heroBottom: number = { app.heroY + app.heroH },
+
+    weekBarH: number = { app.wide ? Math.min(200, app.height * 0.24) : app.narrow ? 84 : Math.min(100, app.height * 0.13) },
+    weekBoxH: number = { app.weekBarH + 32 },
+    weekW: number = { app.narrow ? Math.min(app.availW, 460) : Math.min(430, app.availW * 0.34) },
+    weekGap: number = { app.narrow ? 8 : 9 },
+    weekColW: number = { (app.weekW - 6 * app.weekGap) / 7 },
+    weekX: number = { app.wide ? app.pad + app.availW - app.weekW : app.pad },
+    weekY: number = { app.wide ? app.heroY - 4 : app.heroBottom + (app.narrow ? 42 : 52) },
+
+    sideH: number = 96,
+    sideY: number = { app.wide ? app.heroBottom + 50
+        : app.narrow ? app.weekY + app.weekBoxH + 32 : app.weekY },
+    sideX: number = { app.wide || app.narrow ? app.pad : app.pad + app.weekW + 46 },
+    latchX: number = { app.wide ? app.pad + 270
+        : app.narrow ? app.pad + app.availW * 0.44 : app.sideX + 176 },
+
+    contentBottom: number = { app.wide ? Math.max(app.weekY + app.weekBoxH, app.sideY + app.sideH)
+        : app.narrow ? app.sideY + app.sideH : app.weekY + app.weekBoxH },
+    yearY: number = { app.contentBottom + (app.narrow ? 34 : 46) },
+
+    stripX: number = { app.pad },
+    stripY: number = { app.yearY + (app.narrow ? 62 : 68) },
+    stripW: number = { app.availW },
+    stripFoot: number = 18,
+    stripH: number = { app.narrow ? 220 : Math.max(190, app.height - app.pad - 48 - app.stripY) },
+    pageH: number = { app.stripY + app.stripH + 48 + app.pad + (app.narrow ? 92 : 0) },
+
+    // ── overlays ─────────────────────────────────────────────────────────────
+
+    panelW: number = { app.narrow ? app.hostWidth : Math.min(470, Math.max(360, app.width * 0.4)) },
+    sheetH: number = { app.narrow ? Math.min(app.hostHeight - 24, 660) : app.hostHeight },
+    detailT: number = 0,
+    composeT: number = 0,
+    Spring [ attribute = detailT, to = { app.selectedId != "" ? 1 : 0 }, stiffness = 230, damping = 27 ],
+    Spring [ attribute = composeT, to = { app.composeOpen ? 1 : 0 }, stiffness = 230, damping = 27 ],
+    scrimT: number = { Math.max(app.detailT, app.composeT) },
+    pipW: number = { (app.dW - 45) / 10 },
+
+    // ── the session panel's own rhythm ──
+
+    dW: number = { (app.narrow ? app.hostWidth : app.panelW) - 2 * app.pad },
+    dH: number = { app.narrow ? app.sheetH : app.hostHeight },
+    dTopY: number = { app.narrow ? 24 : 40 },
+    dWhenY: number = { app.narrow ? 52 : 66 },
+    dRule1: number = { app.narrow ? 84 : 100 },
+    dStatY: number = { app.narrow ? 102 : 120 },
+    dEffY: number = { app.narrow ? 166 : 194 },
+    dRule2: number = { app.narrow ? 240 : 272 },
+    dStandY: number = { app.narrow ? 258 : 292 },
+    dStandRow: number = { app.narrow ? 92 : 74 },
+    dNoteY: number = { app.dStandY + 2 * app.dStandRow + 10 },
+    dActY: number = { app.dH - 60 },
+
+    cSportY: number = { app.narrow ? 48 : 56 },
+    cWhenY: number = { app.narrow ? 128 : 136 },
+    cDurY: number = { app.narrow ? 202 : 210 },
+    cKmY: number = { app.narrow ? 288 : 296 },
+    cEffY: number = { app.formSportPick == "lift" ? app.cKmY : app.cKmY + 108 },
+
+    // ── the keyboard, for the desk ───────────────────────────────────────────
+
+    keys: Keys [
+        onKeyDown(e: KeyEvent) {
+            if (app.compose.form.noteField.focused) return
+            if (e.key == "Escape") { app.composeOpen = false; app.selectedId = "" }
+            else if (e.key == "n" && !app.composeOpen) app.openCompose()
+            else if (e.key == "ArrowLeft") app.nudge(1)
+            else if (e.key == "ArrowRight") app.nudge(-1)
+            else if (e.key == "=" || e.key == "+") app.zoomBy(0.7)
+            else if (e.key == "-" || e.key == "_") app.zoomBy(1.45)
+            else if (e.key == "0") app.homeView()
+            else if (e.key == "Enter" && app.composeOpen) app.saveNow()
+            }
+        ],
+
+    // ══ THE PAGE ═════════════════════════════════════════════════════════════
+
+    page: View [ width = { app.width }, height = { app.pageH },
+
+        // ── masthead ──
+
+        mark: Text [ x = { app.pad }, y = { app.pad }, wrap = false,
+            fontFamily = [Num, "Impact", "sans-serif"], fontWeight = bold,
+            fontSize = { app.narrow ? 26 : 32 }, letterSpacing = { app.narrow ? 1.4 : 1.8 },
+            textColor = { theme.ink }, text = "CADENCE" ],
+        stamp: Text [ y = { app.pad + (app.narrow ? 8 : 12) }, wrap = false,
+            x = { app.pad + app.availW - this.width },
+            fontSize = 10, fontWeight = semibold, letterSpacing = 1.4,
+            textColor = { theme.muted },
+            text = { app.todayKey == "" ? "" : (fmtWeekday(app.todayKey) + " " + fmtLongDate(app.todayKey)).toUpperCase() } ],
+        mastRule: Rule [ x = { app.pad }, y = { app.pad + app.mastH + (app.narrow ? 12 : 16) },
+            width = { app.availW } ],
+        offline: Text [ x = { app.pad }, y = { app.heroY + 6 }, wrap = true, width = { app.availW },
+            visible = { app.offlineNow },
+            fontSize = 15, textColor = { theme.accent },
+            text = "The training service at 127.0.0.1:8320 is not answering. Start it and reload." ],
+
+        // ── this week ──
+
+        weekRubric: Rubric [ x = { app.pad }, y = { app.heroY - 20 }, text = "THIS WEEK" ],
+
+        // exactly "4 sessions · 3h 40m" — the words as written, the numerals as
+        // the hero. It wraps as one sentence when the room is a phone's.
+
+        h1: Numeral [ x = { app.pad }, y = { app.heroYAdj }, visible = { !app.offlineNow },
+            label = { app.weekLineCount } ],
+        h2: Wording [ x = { app.hx2 }, y = { app.heroYAdj }, visible = { !app.offlineNow },
+            label = "sessions" ],
+        h3: Wording [ x = { app.hx3 }, y = { app.heroYAdj }, visible = { !app.offlineNow },
+            label = "·" ],
+        h4: Numeral [ x = { app.hx4 }, y = { app.hy4 }, visible = { !app.offlineNow },
+            label = { app.weekLineDur } ],
+
+        // ── the week's shape ──
+
+        shapeRubric: Rubric [ x = { app.weekX }, y = { app.weekY - 20 }, text = "THE WEEK'S SHAPE" ],
+        weekBox: View [ x = { app.weekX }, y = { app.weekY }, width = { app.weekW }, height = { app.weekBoxH },
+            datapath = { app.week.value },
+            WeekCol [ datapath = :days[], key = :i ]
+            ],
+
+        // ── streak ──
+
+        streakRubric: Rubric [ x = { app.sideX }, y = { app.sideY - 20 }, text = "STREAK" ],
+        streakFig: Figure [ x = { app.sideX }, y = { app.sideY },
+            size = { app.narrow ? 40 : 52 },
+            value = { app.streakText },
+            unit = { app.streak <= 0 ? "" : "days" },
+            tint = { app.streak >= 7 ? theme.accent : theme.ink } ],
+
+        // ── what is happening now, or what happened last ──
+
+        latchRubric: Rubric [ x = { app.latchX }, y = { app.sideY - 20 },
+            textColor = { app.liveOn ? theme.accent : theme.muted },
+            text = { app.liveOn ? "IN PROGRESS" : "LAST SESSION" } ],
+        liveDot: View [ x = { app.latchX - 16 }, y = { app.sideY - 20 }, width = 8, height = 8,
+            cornerRadius = 4, fill = { theme.accent }, visible = { app.liveOn },
+            opacity = { app.pulse } ],
+
+        liveFig: Figure [ x = { app.latchX }, y = { app.sideY },
+            visible = { app.liveOn },
+            size = { app.narrow ? 40 : 52 },
+            value = { fmtClock(app.liveSecs) },
+            tint = { theme.accent } ],
+        liveLine: Text [ x = { app.latchX }, y = { app.sideY + (app.narrow ? 44 : 56) }, wrap = false,
+            visible = { app.liveOn }, fontSize = 12, textColor = { theme.inkSoft },
+            text = { app.liveSport + "  ·  " + fmtKm(app.liveKm) + "  ·  " + fmtBpm(app.liveBpm) } ],
+
+        lastFig: Figure [ x = { app.latchX }, y = { app.sideY },
+            visible = { !app.liveOn }, size = { app.narrow ? 40 : 52 },
+            value = { fmtDur(app.lastMinutes) }, unit = { app.lastSport.toLowerCase() } ],
+        lastLineA: Text [ x = { app.latchX }, y = { app.sideY + (app.narrow ? 44 : 56) }, wrap = false,
+            visible = { !app.liveOn }, fontSize = 12, textColor = { theme.inkSoft },
+            text = { app.lastLine } ],
+
+        lastFoot: Text [ x = { app.latchX }, y = { app.sideY + (app.narrow ? 64 : 78) }, wrap = false,
+            visible = { app.liveOn }, fontSize = 11, textColor = { theme.muted },
+            text = { app.lastOne() == null ? "" : "last: " + app.lastSport.toLowerCase() + " " + fmtDur(app.lastMinutes) + ", " + app.lastWhen },
+            onClick() { app.pick(app.lastOne() != null ? app.lastOne()!.id : "") }
+            ],
+
+        // ── the year ──
+
+        yearRule: Rule [ x = { app.pad }, y = { app.yearY - 22 }, width = { app.availW } ],
+        yearRubric: Rubric [ x = { app.pad }, y = { app.yearY }, text = "THE YEAR" ],
+        periodLab: Text [ x = { app.pad }, y = { app.yearY + 18 }, wrap = false,
+            fontFamily = [Num, "Impact", "sans-serif"], fontWeight = medium,
+            fontSize = { app.narrow ? 22 : 26 }, textColor = { theme.ink },
+            text = { app.periodLabel } ],
+        periodSum: Text [ y = { app.yearY + (app.narrow ? 46 : 30) }, wrap = false,
+            x = { app.narrow ? app.pad : app.pad + app.availW - this.width },
+            fontSize = 12, fontWeight = semibold, textColor = { theme.inkSoft },
+            text = { app.periodStats } ],
+
+        strip: View [ x = { app.stripX }, y = { app.stripY }, width = { app.stripW }, height = { app.stripH },
+            clip = true, claim = x,
+
+            onPointerDown(e: PointerEvent) { app.stripDown(e) },
+            onPointerMove(e: PointerEvent) { app.stripMove(e) },
+            onPointerUp(e: PointerUpEvent) { app.stripUp(e) },
+            onWheel(e: WheelEvent) { app.stripWheel(e) },
+            onPinchStart(e: PinchEvent) { app.pinchOpen(e) },
+            onPinch(e: PinchEvent) { app.pinchGo(e) },
+            onPinchEnd(e: PinchEvent) { app.pinchShut(e) },
+
+            datelines: View [ width = { parent.width }, height = { parent.height },
+                datapath = { app.months.value },
+                MonthMark [ datapath = :months[], key = :k ]
+                ],
+            base: View [ y = { app.stripH - app.stripFoot }, width = { parent.width }, height = 1,
+                fill = { theme.rule } ],
+            barField: View [ width = { parent.width }, height = { parent.height },
+                datapath = { app.bars.value },
+                YearBar [ datapath = :rows[], key = :id ]
+                ]
+            ],
+
+        // where the window sits in the whole fourteen months
+
+        railBed: View [ x = { app.pad }, y = { app.stripY + app.stripH + 14 }, width = { app.availW },
+            height = 3, fill = { theme.faint },
+            win: View [ height = 3, fill = { theme.ink },
+                x = { parent.width * (app.maxAge - (app.camRight + app.camSpan)) / app.maxAge },
+                width = { Math.max(6, parent.width * app.camSpan / app.maxAge) } ]
+            ],
+
+        hint: Text [ x = { app.pad }, y = { app.stripY + app.stripH + 24 }, wrap = false,
+            fontSize = 10, fontWeight = semibold, letterSpacing = 1.1, textColor = { theme.muted },
+            text = { app.narrow ? "DRAG TO MOVE · PINCH TO OPEN" : "DRAG TO MOVE · SCROLL TO OPEN" } ],
+        homeWord: ActionWord [ y = { app.stripY + app.stripH + 16 }, label = "TODAY",
+            x = { app.pad + app.availW - this.width },
+            onClick() { app.homeView() }
+            ]
+        ],
+
+    // ══ CHROME — declared last, above the flow ═══════════════════════════════
+
+    addWord: ActionWord [ ignoreScroll = true, y = { app.pad + 8 }, label = "ADD A SESSION",
+        visible = { !app.narrow && app.scrimT < 0.02 },
+        x = { app.width - app.pad - this.width - 210 },
+        onClick() { app.openCompose() }
+        ],
+
+    fab: View [ ignoreScroll = true, width = 64, height = 64, cornerRadius = 32,
+        visible = { app.narrow },
+        x = { app.hostWidth - 88 }, y = { app.hostHeight - 96 - app.safeBottom },
+        fill = { this.pressed ? theme.ink : theme.accent },
+        shadow = { shadow(0, 8, 22, 0x00000033) },
+        opacity = { 1 - app.scrimT },
+        plus: Text [ width = { parent.width }, textAlign = center, wrap = false, y = center,
+            fontFamily = [Num, "Impact", "sans-serif"], fontWeight = medium, fontSize = 36,
+            textColor = { theme.accentText }, text = "+" ],
+        onClick() { app.openCompose() }
+        ],
+
+    scrim: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.hostHeight },
+        fill = 0x000000, opacity = { 0.44 * app.scrimT }, visible = { app.scrimT > 0.004 },
+        onClick() { app.closeDetail(); app.closeCompose() }
+        ],
+
+    // ── a session ──
+
+    detail: View [ ignoreScroll = true, fill = { theme.sheet },
+        visible = { app.detailT > 0.004 },
+        width = { app.narrow ? app.hostWidth : app.panelW },
+        height = { app.narrow ? app.sheetH : app.hostHeight },
+        x = { app.narrow ? 0 : app.hostWidth - app.panelW * app.detailT },
+        y = { app.narrow ? app.hostHeight - app.sheetH * app.detailT : 0 },
+        cornerRadius = { app.narrow ? 18 : 0 },
+        shadow = { shadow(app.narrow ? 0 : -14, app.narrow ? -10 : 0, 34, 0x00000022) },
+        datapath = { app.selected },
+
+        body: View [ x = { app.pad }, y = { app.dTopY }, width = { app.dW },
+            height = { app.dH - app.dTopY - 84 }, scrolls = y,
+
+            kind: Text [ wrap = false, fontFamily = [Num, "Impact", "sans-serif"], fontWeight = bold,
+                fontSize = { app.narrow ? 46 : 58 }, letterSpacing = 1.2,
+                textColor = { app.selected != null ? app.effortInk(:effort) : theme.ink },
+                text = { tag(:sport) } ],
+            when: Text [ y = { app.dWhenY }, wrap = false, fontSize = 12, fontWeight = semibold,
+                letterSpacing = 0.6, textColor = { theme.muted },
+                text = { (fmtWeekday(:date) + ", " + fmtLongDate(:date)).toUpperCase() } ],
+
+            r1: Rule [ y = { app.dRule1 }, width = { parent.width } ],
+
+            durFig: Figure [ y = { app.dStatY }, size = { app.narrow ? 44 : 52 },
+                value = { fmtDur(:minutes) } ],
+            kmFig: Figure [ y = { app.dStatY }, x = { parent.width * 0.52 },
+                size = { app.narrow ? 44 : 52 },
+                visible = { :distanceKm != null },
+                value = { :distanceKm != null ? (Math.round(:distanceKm * 10) / 10).toFixed(1) : "" },
+                unit = "km" ],
+
+            effRubric: Rubric [ y = { app.dEffY }, text = "EFFORT" ],
+            effFig: Figure [ y = { app.dEffY + 16 }, size = { app.narrow ? 40 : 46 },
+                value = { "" + :effort }, unit = "of 10",
+                tint = { app.selected != null ? app.effortInk(:effort) : theme.ink } ],
+
+            bpmRubric: Rubric [ y = { app.dEffY }, x = { parent.width * 0.52 },
+                visible = { :heartAvg != null }, text = "AVERAGE HEART" ],
+            bpmFig: Figure [ y = { app.dEffY + 16 }, x = { parent.width * 0.52 },
+                size = { app.narrow ? 40 : 46 },
+                visible = { :heartAvg != null },
+                value = { :heartAvg != null ? "" + :heartAvg : "" }, unit = "bpm" ],
+
+            r2: Rule [ y = { app.dRule2 }, width = { parent.width } ],
+
+            // where it sits — said in a sentence and shown as a length, so a hard
+            // session looks hard before it is read
+
+            standRubric: Rubric [ y = { app.dStandY }, text = "WHERE IT SITS" ],
+
+            m1: View [ y = { app.dStandY + 24 }, width = { parent.width }, height = 4,
+                fill = { theme.faint },
+                fx: View [ height = 4, fill = { theme.inkSoft },
+                    width = { parent.width * (app.selected != null ? app.pctLongerSport(:sport, :minutes) : 0) / 100 } ]
+                ],
+            stand1: Text [ y = { app.dStandY + 40 }, width = { parent.width }, wrap = true,
+                fontSize = 14, lineHeight = 1.45, textColor = { theme.inkSoft },
+                text = { app.selected == null ? "" : app.standDuration(:sport, :minutes) } ],
+
+            m2: View [ y = { app.dStandY + app.dStandRow + 24 }, width = { parent.width }, height = 4,
+                fill = { theme.faint },
+                fx: View [ height = 4,
+                    fill = { app.selected != null ? app.effortInk(:effort) : theme.ink },
+                    width = { parent.width * (app.selected != null ? app.pctHarder(:effort) : 0) / 100 } ]
+                ],
+            stand2: Text [ y = { app.dStandY + app.dStandRow + 40 }, width = { parent.width }, wrap = true,
+                fontSize = 14, lineHeight = 1.45, textColor = { theme.inkSoft },
+                text = { app.selected == null ? "" : app.standEffort(:effort) } ],
+
+            noteRubric: Rubric [ y = { app.dNoteY }, visible = { :note != null }, text = "NOTE" ],
+            noteText: Text [ y = { app.dNoteY + 20 }, width = { parent.width }, wrap = true,
+                visible = { :note != null }, fontSize = 15, lineHeight = 1.5, italic = true,
+                textColor = { theme.ink }, text = { :note != null ? :note : "" } ]
+            ],
+
+        r3: Rule [ x = { app.pad }, y = { app.dActY - 18 }, width = { app.dW } ],
+        editWord: ActionWord [ x = { app.pad }, y = { app.dActY }, label = "EDIT",
+            onClick() { app.openEdit() }
+            ],
+        delWord: ActionWord [ x = { app.pad + 74 }, y = { app.dActY }, label = "DELETE", danger = true,
+            onClick() { app.deleteNow() }
+            ],
+        closeWord: ActionWord [ y = { app.dActY }, label = "CLOSE",
+            x = { app.pad + app.dW - this.width },
+            onClick() { app.closeDetail() }
+            ]
+        ],
+
+    // ── recording one ──
+
+    compose: View [ ignoreScroll = true, fill = { theme.sheet },
+        visible = { app.composeT > 0.004 },
+        width = { app.narrow ? app.hostWidth : app.panelW },
+        height = { app.narrow ? app.sheetH : app.hostHeight },
+        x = { app.narrow ? 0 : app.hostWidth - app.panelW * app.composeT },
+        y = { app.narrow ? app.hostHeight - app.sheetH * app.composeT : 0 },
+        cornerRadius = { app.narrow ? 18 : 0 },
+        shadow = { shadow(app.narrow ? 0 : -14, app.narrow ? -10 : 0, 34, 0x00000022) },
+
+        form: View [ x = { app.pad }, y = { app.dTopY }, width = { app.dW },
+            height = { app.dH - app.dTopY - 92 }, scrolls = y,
+
+            head: Text [ wrap = false, fontFamily = [Num, "Impact", "sans-serif"], fontWeight = bold,
+                fontSize = { app.narrow ? 34 : 40 }, letterSpacing = 1.1, textColor = { theme.ink },
+                text = { app.editId == "" ? "NEW SESSION" : "CORRECT IT" } ],
+            cancelWord: ActionWord [ y = 2, label = "CANCEL",
+                x = { parent.width - this.width },
+                onClick() { app.closeCompose() }
+                ],
+
+            sportRubric: Rubric [ y = { app.cSportY }, text = "SPORT" ],
+            sportRow: View [ y = { app.cSportY + 18 }, width = { parent.width },
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
+                Choice [ label = "RUN", width = { (parent.width - 24) / 4 },
+                    on = { app.formSportPick == "run" },
+                    onClick() { app.setSport("run") }
+                    ],
+                Choice [ label = "RIDE", width = { (parent.width - 24) / 4 },
+                    on = { app.formSportPick == "ride" },
+                    onClick() { app.setSport("ride") }
+                    ],
+                Choice [ label = "LIFT", width = { (parent.width - 24) / 4 },
+                    on = { app.formSportPick == "lift" },
+                    onClick() { app.setSport("lift") }
+                    ],
+                Choice [ label = "SWIM", width = { (parent.width - 24) / 4 },
+                    on = { app.formSportPick == "swim" },
+                    onClick() { app.setSport("swim") }
+                    ]
+                ],
+
+            whenRubric: Rubric [ y = { app.cWhenY }, text = "WHEN" ],
+            dateBack: ChevStep [ y = { app.cWhenY + 16 }, dirn = "left",
+                onClick() { app.stepDate(-1) }
+                ],
+            dateText: Text [ y = { app.cWhenY + 28 }, x = 56, wrap = false,
+                fontFamily = [Num, "Impact", "sans-serif"], fontWeight = medium, fontSize = 22,
+                textColor = { theme.ink },
+                text = { app.formWhen + " · " + fmtShortDate(app.formDate, false) } ],
+            dateFwd: ChevStep [ y = { app.cWhenY + 16 }, x = { parent.width - 44 }, dirn = "right",
+                opacity = { app.canStepDate ? 1 : 0.3 },
+                onClick() { app.stepDate(1) }
+                ],
+
+            durRubric: Rubric [ y = { app.cDurY }, text = "HOW LONG" ],
+            durMinus: Stepper [ y = { app.cDurY + 18 }, glyph = "–",
+                onClick() { app.stepMinutes(-5) }
+                ],
+            durFig: Figure [ y = { app.cDurY + 24 }, x = 68, size = 40,
+                value = { fmtDur(app.formMinutes) } ],
+            durPlus: Stepper [ y = { app.cDurY + 18 }, x = { parent.width - 52 }, glyph = "+",
+                onClick() { app.stepMinutes(5) }
+                ],
+
+            kmRubric: Rubric [ y = { app.cKmY }, text = "HOW FAR",
+                visible = { app.formSportPick != "lift" } ],
+            kmMinus: Stepper [ y = { app.cKmY + 18 }, glyph = "–",
+                visible = { app.hasDistance },
+                onClick() { app.stepDistance(-app.distStep) }
+                ],
+            kmFig: Figure [ y = { app.cKmY + 24 }, x = 68, size = 40,
+                visible = { app.hasDistance },
+                value = { (Math.round(app.formDistance * 10) / 10).toFixed(1) }, unit = "km" ],
+            kmPlus: Stepper [ y = { app.cKmY + 18 }, x = { parent.width - 52 }, glyph = "+",
+                visible = { app.hasDistance },
+                onClick() { app.stepDistance(app.distStep) }
+                ],
+            kmNone: ActionWord [ y = { app.cKmY + 20 }, x = 68,
+                visible = { app.formSportPick != "lift" && !app.hasDistance },
+                label = "NO DISTANCE — TAP TO ADD ONE",
+                onClick() { app.dropDistance() }
+                ],
+            kmDrop: ActionWord [ y = { app.cKmY - 10 }, label = "NO DISTANCE",
+                x = { parent.width - this.width },
+                visible = { app.hasDistance },
+                onClick() { app.dropDistance() }
+                ],
+
+            effRubric: Rubric [ y = { app.cEffY }, text = "HOW IT FELT" ],
+            effRow: View [ y = { app.cEffY + 18 }, width = { parent.width }, height = 54,
+                EffortPip [ n = 1 ],
+                EffortPip [ n = 2 ],
+                EffortPip [ n = 3 ],
+                EffortPip [ n = 4 ],
+                EffortPip [ n = 5 ],
+                EffortPip [ n = 6 ],
+                EffortPip [ n = 7 ],
+                EffortPip [ n = 8 ],
+                EffortPip [ n = 9 ],
+                EffortPip [ n = 10 ]
+                ],
+            effRead: Text [ y = { app.cEffY + 80 }, wrap = false, fontSize = 12,
+                fontWeight = semibold, textColor = { theme.muted },
+                text = { "effort " + Math.round(app.formEffort) + " of 10" } ],
+
+            noteWord: ActionWord [ y = { app.cEffY + 98 }, label = "ADD A NOTE",
+                visible = { !app.noteOpen },
+                onClick() { app.noteOpen = true }
+                ],
+            noteField: TextInput [ y = { app.cEffY + 104 }, width = { parent.width }, height = 74,
+                visible = { app.noteOpen }, multiline = true, wrap = true, padding = 10,
+                cornerRadius = 3, fontSize = 16,
+                fill = { theme.paper }, textColor = { theme.ink },
+                stroke = { stroke(1, this.focused ? theme.accent : theme.rule) },
+                placeholder = "How did it go?",
+                text = { app.formNote },
+                onInput(v: string) { app.formNote = v }
+                ]
+
+            ],
+
+        problem: Text [ x = { app.pad }, y = { app.dH - 100 }, width = { app.dW }, wrap = false,
+            visible = { app.saveMessage != "" }, fontSize = 13, fontWeight = semibold,
+            textColor = { theme.accent }, text = { app.saveMessage } ],
+
+        // the confirm sits under the thumb, and it says what it will save
+
+        saveBar: View [ x = { app.pad }, width = { app.dW },
+            y = { app.dH - 76 }, height = 56, cornerRadius = 3,
+            fill = { this.pressed ? theme.ink : theme.accent },
+            t: Text [ width = { parent.width }, textAlign = center, wrap = false, y = center,
+                fontSize = 13, fontWeight = semibold, letterSpacing = 1.2,
+                textColor = { theme.accentText }, text = { app.saveLabel.toUpperCase() } ],
+            onClick() { app.saveNow() }
+            ]
+        ]
+    ]

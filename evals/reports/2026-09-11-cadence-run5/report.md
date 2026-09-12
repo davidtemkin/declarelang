@@ -1,4 +1,4 @@
-# Cadence — run 4 · 2026-09-11
+# Cadence — run 5 · 2026-09-11
 
 **Subject:** GitHub `ada29762` (v0.4.4 line), downloaded fresh — `evals/` stripped, brief and fixture staged at `task/`.
 **Model:** Opus (`claude -p --model opus`), headless, `--output-format stream-json --verbose`, tools Read/Glob/Grep/Bash/Write/Edit.
@@ -50,7 +50,7 @@ Reading: 58 tool results, 317 KB returned (≈79k tokens once) — `docs/declare
 |---|---|---|---|
 | Aug 5 run 1 | ~50 min (one stall) | 348k summed | 1,487 lines |
 | Aug 5 run 2 | 56 min | 451k summed | 1,617 lines |
-| Sep 2 (`~/Code/eval-checkpoint/declare`, `evals/` NOT stripped, prompt unrecorded) | ~56 min by file times | — | 1,348 lines + 4 write-ups |
+| Sep 2 run 4 (`../2026-09-02-cadence-run4/`; `evals/` NOT stripped, prompt unrecorded) | ~56 min by file times | — | 1,348 lines + 4 write-ups |
 | **this run** | **50 min** | **205k out / 395k fresh / 34.7M cache-read** | **1,789 lines + assert** |
 
 ## Evidence
