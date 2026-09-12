@@ -1,0 +1,3547 @@
+{
+ "me": "p1",
+ "people": [
+  {
+   "id": "p1",
+   "name": "You",
+   "avatar": "avatars/p1.jpg"
+  },
+  {
+   "id": "p2",
+   "name": "Priya Raman",
+   "avatar": "avatars/p2.jpg"
+  },
+  {
+   "id": "p3",
+   "name": "Marco Bellini",
+   "avatar": "avatars/p3.jpg"
+  },
+  {
+   "id": "p4",
+   "name": "Dana Ruiz",
+   "avatar": null
+  },
+  {
+   "id": "p5",
+   "name": "Kwame Osei-Bonsu",
+   "avatar": "avatars/p5.jpg"
+  },
+  {
+   "id": "p6",
+   "name": "Ines",
+   "avatar": "avatars/p6.jpg"
+  },
+  {
+   "id": "p7",
+   "name": "Tobias Lindqvist-Hane",
+   "avatar": "avatars/p7.jpg"
+  },
+  {
+   "id": "p8",
+   "name": "Mei",
+   "avatar": "avatars/p8.jpg"
+  }
+ ],
+ "sendable": [
+  {
+   "src": "photos/send-1.jpg",
+   "alt": "Baby Watching Guitar"
+  },
+  {
+   "src": "photos/send-2.jpg",
+   "alt": "Beach Lifeguard Tower at Dusk"
+  },
+  {
+   "src": "photos/send-3.jpg",
+   "alt": "Aurora Borealis Over Mountains"
+  },
+  {
+   "src": "photos/send-4.jpg",
+   "alt": "Alpine Forest in Fog"
+  },
+  {
+   "src": "photos/send-5.jpg",
+   "alt": "Bridge Steel Framework"
+  },
+  {
+   "src": "photos/send-6.jpg",
+   "alt": "Busy Train Station"
+  },
+  {
+   "src": "photos/send-7.jpg",
+   "alt": "Beach Morning Sunflare"
+  },
+  {
+   "src": "photos/send-8.jpg",
+   "alt": "California Beach Palm Trees"
+  }
+ ],
+ "threads": [
+  {
+   "id": "t1",
+   "title": "Kestrel Street",
+   "participants": [
+    "p1",
+    "p2",
+    "p4",
+    "p5"
+   ],
+   "lastSeen": "m0039",
+   "messages": [
+    {
+     "id": "m0001",
+     "from": "p5",
+     "at": "2026-08-04T09:10:01.754Z",
+     "kind": "text",
+     "text": "the boiler's making the noise again"
+    },
+    {
+     "id": "m0002",
+     "from": "p2",
+     "at": "2026-08-04T09:24:30.912Z",
+     "kind": "text",
+     "text": "the clanking one or the whistling one"
+    },
+    {
+     "id": "m0003",
+     "from": "p5",
+     "at": "2026-08-04T09:33:39.665Z",
+     "kind": "text",
+     "text": "clanking"
+    },
+    {
+     "id": "m0004",
+     "from": "p2",
+     "at": "2026-08-04T09:40:29.037Z",
+     "kind": "text",
+     "text": "that's the pressure. there's a valve behind the panel"
+    },
+    {
+     "id": "m0005",
+     "from": "p4",
+     "at": "2026-08-04T09:52:38.730Z",
+     "kind": "text",
+     "text": "please do not take the panel off again"
+    },
+    {
+     "id": "m0006",
+     "from": "p5",
+     "at": "2026-08-04T10:01:29.443Z",
+     "kind": "text",
+     "text": "I'm not going to take the panel off"
+    },
+    {
+     "id": "m0007",
+     "from": "p5",
+     "at": "2026-08-04T10:06:52.143Z",
+     "kind": "text",
+     "text": "I took the panel off",
+     "reactions": [
+      {
+       "person": "p2",
+       "emoji": "😱"
+      },
+      {
+       "person": "p4",
+       "emoji": "😱"
+      },
+      {
+       "person": "p1",
+       "emoji": "💀"
+      }
+     ]
+    },
+    {
+     "id": "m0008",
+     "from": "p4",
+     "at": "2026-08-04T10:15:38.106Z",
+     "kind": "text",
+     "text": "kwame"
+    },
+    {
+     "id": "m0009",
+     "from": "p2",
+     "at": "2026-08-04T10:25:11.815Z",
+     "kind": "text",
+     "text": "did it help"
+    },
+    {
+     "id": "m0010",
+     "from": "p5",
+     "at": "2026-08-04T10:39:29.341Z",
+     "kind": "text",
+     "text": "it is quieter. I don't know if that's good"
+    },
+    {
+     "id": "m0011",
+     "from": "p1",
+     "at": "2026-08-04T10:49:24.713Z",
+     "kind": "text",
+     "text": "quieter is usually good"
+    },
+    {
+     "id": "m0012",
+     "from": "p4",
+     "at": "2026-08-04T11:02:49.071Z",
+     "kind": "text",
+     "text": "quieter is how you get a flood"
+    },
+    {
+     "id": "m0013",
+     "from": "p2",
+     "at": "2026-08-04T11:12:00.949Z",
+     "kind": "text",
+     "text": "I'll call the landlord tomorrow, I have to ring about the window anyway"
+    },
+    {
+     "id": "m0014",
+     "from": "p5",
+     "at": "2026-08-04T11:23:53.043Z",
+     "kind": "text",
+     "text": "which window"
+    },
+    {
+     "id": "m0015",
+     "from": "p2",
+     "at": "2026-08-04T11:32:59.603Z",
+     "kind": "text",
+     "text": "the one that doesn't close"
+    },
+    {
+     "id": "m0016",
+     "from": "p4",
+     "at": "2026-08-04T11:46:22.917Z",
+     "kind": "text",
+     "text": "all of them don't close"
+    },
+    {
+     "id": "m0017",
+     "from": "p2",
+     "at": "2026-08-04T11:56:15.651Z",
+     "kind": "text",
+     "text": "the one that REALLY doesn't close"
+    },
+    {
+     "id": "m0018",
+     "from": "p1",
+     "at": "2026-08-04T12:04:52.796Z",
+     "kind": "text",
+     "text": "the bathroom one"
+    },
+    {
+     "id": "m0019",
+     "from": "p2",
+     "at": "2026-08-04T12:18:31.431Z",
+     "kind": "text",
+     "text": "the bathroom one"
+    },
+    {
+     "id": "m0020",
+     "from": "p5",
+     "at": "2026-08-04T12:28:47.835Z",
+     "kind": "text",
+     "text": "oh that one's been like that since I moved in"
+    },
+    {
+     "id": "m0021",
+     "from": "p4",
+     "at": "2026-08-04T12:31:56.899Z",
+     "kind": "text",
+     "text": "that was four years ago"
+    },
+    {
+     "id": "m0022",
+     "from": "p5",
+     "at": "2026-08-04T12:39:35.131Z",
+     "kind": "text",
+     "text": "yes"
+    },
+    {
+     "id": "m0023",
+     "from": "p1",
+     "at": "2026-08-04T12:43:48.322Z",
+     "kind": "text",
+     "text": "kwame"
+    },
+    {
+     "id": "m0024",
+     "from": "p2",
+     "at": "2026-08-04T12:53:24.287Z",
+     "kind": "text",
+     "text": "KWAME"
+    },
+    {
+     "id": "m0025",
+     "from": "p5",
+     "at": "2026-08-04T12:59:09.482Z",
+     "kind": "text",
+     "text": "in my defence it's quite a nice breeze in summer"
+    },
+    {
+     "id": "m0026",
+     "from": "p4",
+     "at": "2026-08-04T13:12:01.918Z",
+     "kind": "text",
+     "text": "it is february"
+    },
+    {
+     "id": "m0027",
+     "from": "p5",
+     "at": "2026-08-04T13:24:16.677Z",
+     "kind": "text",
+     "text": "and it is very fresh in here"
+    },
+    {
+     "id": "m0028",
+     "from": "p2",
+     "at": "2026-08-04T13:35:03.528Z",
+     "kind": "text",
+     "text": "I'm adding it to the list"
+    },
+    {
+     "id": "m0029",
+     "from": "p1",
+     "at": "2026-08-04T13:46:05.021Z",
+     "kind": "text",
+     "text": "there's a list?"
+    },
+    {
+     "id": "m0030",
+     "from": "p2",
+     "at": "2026-08-04T14:00:34.381Z",
+     "kind": "text",
+     "text": "there has been a list for two years"
+    },
+    {
+     "id": "m0031",
+     "from": "p5",
+     "at": "2026-08-04T14:04:29.316Z",
+     "kind": "photo",
+     "src": "photos/1.jpg",
+     "alt": "Abandoned Truck Interior"
+    },
+    {
+     "id": "m0032",
+     "from": "p2",
+     "at": "2026-08-04T14:09:49.851Z",
+     "kind": "text",
+     "text": "exhibit A"
+    },
+    {
+     "id": "m0033",
+     "from": "p4",
+     "at": "2026-08-04T14:23:05.822Z",
+     "kind": "text",
+     "text": "the list is magnificent"
+    },
+    {
+     "id": "m0034",
+     "from": "p1",
+     "at": "2026-08-04T14:29:24.941Z",
+     "kind": "text",
+     "text": "why have I never seen the list"
+    },
+    {
+     "id": "m0035",
+     "from": "p2",
+     "at": "2026-08-04T14:32:40.064Z",
+     "kind": "text",
+     "text": "you're on the list"
+    },
+    {
+     "id": "m0036",
+     "from": "p5",
+     "at": "2026-08-04T14:39:36.510Z",
+     "kind": "text",
+     "text": "ha"
+    },
+    {
+     "id": "m0037",
+     "from": "p1",
+     "at": "2026-08-04T14:51:53.512Z",
+     "kind": "text",
+     "text": "in what capacity"
+    },
+    {
+     "id": "m0038",
+     "from": "p2",
+     "at": "2026-08-04T15:01:29.761Z",
+     "kind": "text",
+     "text": "'ask about the thing with the bins'"
+    },
+    {
+     "id": "m0039",
+     "from": "p1",
+     "at": "2026-08-04T15:05:21.820Z",
+     "kind": "text",
+     "text": "that was ONE time"
+    },
+    {
+     "id": "m0040",
+     "from": "p4",
+     "at": "2026-08-04T15:17:35.868Z",
+     "kind": "text",
+     "text": "it was three times",
+     "reactions": [
+      {
+       "person": "p5",
+       "emoji": "😂"
+      }
+     ]
+    },
+    {
+     "id": "m0041",
+     "from": "p1",
+     "at": "2026-08-04T15:20:52.876Z",
+     "kind": "text",
+     "text": "it was one time that happened three times"
+    },
+    {
+     "id": "m0042",
+     "from": "p5",
+     "at": "2026-08-04T15:28:04.946Z",
+     "kind": "photo",
+     "src": "photos/2.jpg",
+     "alt": "Barn Under Starry Sky"
+    },
+    {
+     "id": "m0043",
+     "from": "p4",
+     "at": "2026-08-04T15:40:34.675Z",
+     "kind": "text",
+     "text": "the bins, for the record"
+    }
+   ]
+  },
+  {
+   "id": "t2",
+   "title": null,
+   "participants": [
+    "p1",
+    "p2"
+   ],
+   "lastSeen": "m0067",
+   "messages": [
+    {
+     "id": "m0044",
+     "from": "p2",
+     "at": "2026-08-07T09:26:33.592Z",
+     "kind": "text",
+     "text": "are you around this weekend"
+    },
+    {
+     "id": "m0045",
+     "from": "p1",
+     "at": "2026-08-07T09:38:58.182Z",
+     "kind": "text",
+     "text": "should be, why"
+    },
+    {
+     "id": "m0046",
+     "from": "p2",
+     "at": "2026-08-07T10:10:05.559Z",
+     "kind": "text",
+     "text": "there's a thing at the print studio, open house, they're doing demos"
+    },
+    {
+     "id": "m0047",
+     "from": "p1",
+     "at": "2026-08-07T10:20:01.246Z",
+     "kind": "text",
+     "text": "what kind of demos"
+    },
+    {
+     "id": "m0048",
+     "from": "p2",
+     "at": "2026-08-07T10:53:15.485Z",
+     "kind": "text",
+     "text": "letterpress mostly. some screen printing"
+    },
+    {
+     "id": "m0049",
+     "from": "p1",
+     "at": "2026-08-07T11:26:30.020Z",
+     "kind": "text",
+     "text": "that's actually perfect timing, I've been trying to figure out the invitations",
+     "reactions": [
+      {
+       "person": "p2",
+       "emoji": "❤️"
+      }
+     ]
+    },
+    {
+     "id": "m0050",
+     "from": "p2",
+     "at": "2026-08-07T12:07:59.410Z",
+     "kind": "text",
+     "text": "that's exactly why I thought of you"
+    },
+    {
+     "id": "m0051",
+     "from": "p1",
+     "at": "2026-08-07T12:17:11.105Z",
+     "kind": "text",
+     "text": "what time"
+    },
+    {
+     "id": "m0052",
+     "from": "p2",
+     "at": "2026-08-07T12:52:58.947Z",
+     "kind": "text",
+     "text": "eleven to four, drop in"
+    },
+    {
+     "id": "m0053",
+     "from": "p1",
+     "at": "2026-08-07T13:07:43.963Z",
+     "kind": "text",
+     "text": "let's go early, before it fills up"
+    },
+    {
+     "id": "m0054",
+     "from": "p2",
+     "at": "2026-08-07T13:41:43.933Z",
+     "kind": "text",
+     "text": "eleven then"
+    },
+    {
+     "id": "m0055",
+     "from": "p1",
+     "at": "2026-08-07T14:18:33.119Z",
+     "kind": "text",
+     "text": "eleven"
+    },
+    {
+     "id": "m0056",
+     "from": "p2",
+     "at": "2026-08-07T14:36:24.680Z",
+     "kind": "voice",
+     "src": "voice/1.m4a",
+     "durationMs": 6917,
+     "peaks": [
+      0.598,
+      0.608,
+      0.53,
+      0.092,
+      0,
+      0.109,
+      0.534,
+      0.299,
+      0.711,
+      0.619,
+      0.37,
+      0.212,
+      0,
+      0.661,
+      0.655,
+      0.609,
+      0.565,
+      0.426,
+      0.702,
+      0.493,
+      0.676,
+      0.611,
+      0.562,
+      0.715,
+      0.605,
+      0.624,
+      0.655,
+      0.648,
+      0.065,
+      0.571,
+      0.526,
+      0.577,
+      0.646,
+      0.61,
+      0.266,
+      0.006,
+      0,
+      0,
+      0.486,
+      0.468,
+      0.607,
+      0.64,
+      0.675,
+      0.583,
+      0.559,
+      0.677,
+      0.622,
+      0.67,
+      0.669,
+      0.561,
+      0.067,
+      0.569,
+      0.522,
+      0.26,
+      0,
+      0.003,
+      0.727,
+      0.703,
+      0.538,
+      0.504,
+      0.63,
+      0.654,
+      0.488,
+      0.021
+     ]
+    },
+    {
+     "id": "m0057",
+     "from": "p1",
+     "at": "2026-08-07T15:09:33.909Z",
+     "kind": "text",
+     "text": "brass"
+    },
+    {
+     "id": "m0058",
+     "from": "p2",
+     "at": "2026-08-07T15:44:10.280Z",
+     "kind": "text",
+     "text": "brass it is"
+    },
+    {
+     "id": "m0059",
+     "from": "p2",
+     "at": "2026-08-07T16:29:37.069Z",
+     "kind": "text",
+     "text": "they had a third kind but it was £40 and I refuse"
+    },
+    {
+     "id": "m0060",
+     "from": "p1",
+     "at": "2026-08-07T17:14:13.544Z",
+     "kind": "text",
+     "text": "correct"
+    },
+    {
+     "id": "m0061",
+     "from": "p2",
+     "at": "2026-08-07T17:23:26.109Z",
+     "kind": "photo",
+     "src": "photos/3.jpg",
+     "alt": "Airplane in Pink Sunset Sky"
+    },
+    {
+     "id": "m0062",
+     "from": "p2",
+     "at": "2026-08-07T17:34:12.387Z",
+     "kind": "text",
+     "text": "that's the one I was talking about"
+    },
+    {
+     "id": "m0063",
+     "from": "p1",
+     "at": "2026-08-07T18:00:57.910Z",
+     "kind": "text",
+     "text": "oh that's lovely"
+    },
+    {
+     "id": "m0064",
+     "from": "p1",
+     "at": "2026-08-07T18:37:30.742Z",
+     "kind": "text",
+     "text": "is that the actual colour"
+    },
+    {
+     "id": "m0065",
+     "from": "p2",
+     "at": "2026-08-07T19:14:36.729Z",
+     "kind": "text",
+     "text": "it's warmer in person"
+    },
+    {
+     "id": "m0066",
+     "from": "p1",
+     "at": "2026-08-07T19:40:23.307Z",
+     "kind": "text",
+     "text": "everything is warmer in person"
+    },
+    {
+     "id": "m0067",
+     "from": "p2",
+     "at": "2026-08-07T20:13:47.823Z",
+     "kind": "text",
+     "text": "deep"
+    }
+   ]
+  },
+  {
+   "id": "t3",
+   "title": null,
+   "participants": [
+    "p1",
+    "p4"
+   ],
+   "lastSeen": "m0083",
+   "messages": [
+    {
+     "id": "m0068",
+     "from": "p4",
+     "at": "2026-08-09T14:19:38.975Z",
+     "kind": "text",
+     "text": "did you get the thing I sent"
+    },
+    {
+     "id": "m0069",
+     "from": "p1",
+     "at": "2026-08-09T14:27:11.267Z",
+     "kind": "text",
+     "text": "the spreadsheet?"
+    },
+    {
+     "id": "m0070",
+     "from": "p4",
+     "at": "2026-08-09T14:45:44.546Z",
+     "kind": "text",
+     "text": "the spreadsheet"
+    },
+    {
+     "id": "m0071",
+     "from": "p1",
+     "at": "2026-08-09T14:52:20.622Z",
+     "kind": "text",
+     "text": "I got it. I have questions"
+    },
+    {
+     "id": "m0072",
+     "from": "p4",
+     "at": "2026-08-09T15:10:44.156Z",
+     "kind": "text",
+     "text": "everyone has questions. that's why it's a spreadsheet and not a sentence"
+    },
+    {
+     "id": "m0073",
+     "from": "p1",
+     "at": "2026-08-09T15:33:54.366Z",
+     "kind": "text",
+     "text": "why is march empty"
+    },
+    {
+     "id": "m0074",
+     "from": "p4",
+     "at": "2026-08-09T15:51:43.535Z",
+     "kind": "text",
+     "text": "march is aspirational"
+    },
+    {
+     "id": "m0075",
+     "from": "p1",
+     "at": "2026-08-09T16:03:54.162Z",
+     "kind": "text",
+     "text": "dana"
+    },
+    {
+     "id": "m0076",
+     "from": "p4",
+     "at": "2026-08-09T16:24:20.049Z",
+     "kind": "text",
+     "text": "march is a placeholder for a conversation we haven't had"
+    },
+    {
+     "id": "m0077",
+     "from": "p1",
+     "at": "2026-08-09T16:46:06.388Z",
+     "kind": "text",
+     "text": "that's a very generous way to describe an empty column"
+    },
+    {
+     "id": "m0078",
+     "from": "p4",
+     "at": "2026-08-09T17:09:18.911Z",
+     "kind": "text",
+     "text": "thank you"
+    },
+    {
+     "id": "m0079",
+     "from": "p1",
+     "at": "2026-08-09T17:21:32.451Z",
+     "kind": "text",
+     "text": "I'll fill in what I know tonight"
+    },
+    {
+     "id": "m0080",
+     "from": "p4",
+     "at": "2026-08-09T17:34:59.001Z",
+     "kind": "text",
+     "text": "🙏"
+    },
+    {
+     "id": "m0081",
+     "from": "p1",
+     "at": "2026-08-09T17:44:05.958Z",
+     "kind": "text",
+     "text": "but I'm not touching march"
+    },
+    {
+     "id": "m0082",
+     "from": "p4",
+     "at": "2026-08-09T18:01:14.578Z",
+     "kind": "text",
+     "text": "nobody is touching march"
+    },
+    {
+     "id": "m0083",
+     "from": "p1",
+     "at": "2026-08-09T18:10:08.280Z",
+     "kind": "text",
+     "text": "good"
+    }
+   ]
+  },
+  {
+   "id": "t4",
+   "title": "Trail crew",
+   "participants": [
+    "p1",
+    "p5",
+    "p7"
+   ],
+   "lastSeen": "m0388",
+   "messages": [
+    {
+     "id": "m0084",
+     "from": "p5",
+     "at": "2026-07-19T09:40:05.809Z",
+     "kind": "text",
+     "text": "got the permits back, all three sections approved"
+    },
+    {
+     "id": "m0085",
+     "from": "p7",
+     "at": "2026-07-19T11:00:25.107Z",
+     "kind": "text",
+     "text": "anyone free saturday"
+    },
+    {
+     "id": "m0086",
+     "from": "p1",
+     "at": "2026-07-19T12:03:17.840Z",
+     "kind": "text",
+     "text": "I can do saturday morning but not the afternoon"
+    },
+    {
+     "id": "m0087",
+     "from": "p5",
+     "at": "2026-07-19T12:53:12.286Z",
+     "kind": "text",
+     "text": "bring the loppers, the corridor above the creek has closed right in"
+    },
+    {
+     "id": "m0088",
+     "from": "p7",
+     "at": "2026-07-19T13:48:50.263Z",
+     "kind": "text",
+     "text": "how many of us are on for next weekend"
+    },
+    {
+     "id": "m0089",
+     "from": "p5",
+     "at": "2026-07-19T15:58:33.292Z",
+     "kind": "text",
+     "text": "four confirmed, maybe five"
+    },
+    {
+     "id": "m0090",
+     "from": "p7",
+     "at": "2026-07-19T17:32:38.615Z",
+     "kind": "text",
+     "text": "the county wants the survey before the end of the month"
+    },
+    {
+     "id": "m0091",
+     "from": "p1",
+     "at": "2026-07-19T18:33:06.904Z",
+     "kind": "text",
+     "text": "rain forecast thursday, might want to move it"
+    },
+    {
+     "id": "m0092",
+     "from": "p5",
+     "at": "2026-07-19T19:54:04.027Z",
+     "kind": "text",
+     "text": "moved to sunday then"
+    },
+    {
+     "id": "m0093",
+     "from": "p7",
+     "at": "2026-07-19T21:29:04.157Z",
+     "kind": "text",
+     "text": "sunday works"
+    },
+    {
+     "id": "m0094",
+     "from": "p5",
+     "at": "2026-07-19T23:40:14.488Z",
+     "kind": "text",
+     "text": "does anyone have the key for the lower gate"
+    },
+    {
+     "id": "m0095",
+     "from": "p7",
+     "at": "2026-07-20T00:50:39.893Z",
+     "kind": "text",
+     "text": "I have it, I'll drop it in the box"
+    },
+    {
+     "id": "m0096",
+     "from": "p1",
+     "at": "2026-07-20T02:40:52.168Z",
+     "kind": "text",
+     "text": "tread is holding up well on the north side"
+    },
+    {
+     "id": "m0097",
+     "from": "p5",
+     "at": "2026-07-20T03:47:49.957Z",
+     "kind": "text",
+     "text": "the culvert is completely blocked again"
+    },
+    {
+     "id": "m0098",
+     "from": "p7",
+     "at": "2026-07-20T04:50:09.701Z",
+     "kind": "text",
+     "text": "third time this year"
+    },
+    {
+     "id": "m0099",
+     "from": "p5",
+     "at": "2026-07-20T07:10:32.153Z",
+     "kind": "text",
+     "text": "we need a bigger culvert honestly"
+    },
+    {
+     "id": "m0100",
+     "from": "p7",
+     "at": "2026-07-20T09:46:36.838Z",
+     "kind": "text",
+     "text": "budget says we need a smaller creek"
+    },
+    {
+     "id": "m0101",
+     "from": "p1",
+     "at": "2026-07-20T12:21:16.166Z",
+     "kind": "text",
+     "text": "😂"
+    },
+    {
+     "id": "m0102",
+     "from": "p5",
+     "at": "2026-07-20T13:54:48.127Z",
+     "kind": "text",
+     "text": "I'll bring the mattock"
+    },
+    {
+     "id": "m0103",
+     "from": "p7",
+     "at": "2026-07-20T16:29:18.798Z",
+     "kind": "text",
+     "text": "who's bringing water"
+    },
+    {
+     "id": "m0104",
+     "from": "p5",
+     "at": "2026-07-20T18:44:04.453Z",
+     "kind": "text",
+     "text": "there's a spigot at the trailhead now"
+    },
+    {
+     "id": "m0105",
+     "from": "p7",
+     "at": "2026-07-20T19:21:04.693Z",
+     "kind": "text",
+     "text": "since when"
+    },
+    {
+     "id": "m0106",
+     "from": "p1",
+     "at": "2026-07-20T20:26:44.445Z",
+     "kind": "text",
+     "text": "since the parks people came through in june"
+    },
+    {
+     "id": "m0107",
+     "from": "p5",
+     "at": "2026-07-20T22:33:28.967Z",
+     "kind": "text",
+     "text": "that's the best news I've had all week"
+    },
+    {
+     "id": "m0108",
+     "from": "p7",
+     "at": "2026-07-20T23:07:33.716Z",
+     "kind": "text",
+     "text": "flagged the reroute this morning, tape is up"
+    },
+    {
+     "id": "m0109",
+     "from": "p5",
+     "at": "2026-07-21T00:36:28.411Z",
+     "kind": "text",
+     "text": "how far does the reroute run"
+    },
+    {
+     "id": "m0110",
+     "from": "p7",
+     "at": "2026-07-21T01:31:36.991Z",
+     "kind": "text",
+     "text": "about two hundred metres, it rejoins above the switchback"
+    },
+    {
+     "id": "m0111",
+     "from": "p1",
+     "at": "2026-07-21T02:22:48.622Z",
+     "kind": "text",
+     "text": "that grade is going to be brutal"
+    },
+    {
+     "id": "m0112",
+     "from": "p5",
+     "at": "2026-07-21T03:43:01.419Z",
+     "kind": "text",
+     "text": "it's better than what's there"
+    },
+    {
+     "id": "m0113",
+     "from": "p7",
+     "at": "2026-07-21T05:58:42.113Z",
+     "kind": "text",
+     "text": "everything is better than what's there"
+    },
+    {
+     "id": "m0114",
+     "from": "p5",
+     "at": "2026-07-21T07:26:50.775Z",
+     "kind": "text",
+     "text": "got the permits back, all three sections approved"
+    },
+    {
+     "id": "m0115",
+     "from": "p7",
+     "at": "2026-07-21T10:13:14.580Z",
+     "kind": "text",
+     "text": "anyone free saturday"
+    },
+    {
+     "id": "m0116",
+     "from": "p1",
+     "at": "2026-07-21T11:42:52.210Z",
+     "kind": "text",
+     "text": "I can do saturday morning but not the afternoon"
+    },
+    {
+     "id": "m0117",
+     "from": "p5",
+     "at": "2026-07-21T12:35:29.158Z",
+     "kind": "text",
+     "text": "bring the loppers, the corridor above the creek has closed right in"
+    },
+    {
+     "id": "m0118",
+     "from": "p7",
+     "at": "2026-07-21T15:06:53.911Z",
+     "kind": "text",
+     "text": "how many of us are on for next weekend"
+    },
+    {
+     "id": "m0119",
+     "from": "p5",
+     "at": "2026-07-21T17:14:13.668Z",
+     "kind": "text",
+     "text": "four confirmed, maybe five"
+    },
+    {
+     "id": "m0120",
+     "from": "p7",
+     "at": "2026-07-21T19:48:45.383Z",
+     "kind": "text",
+     "text": "the county wants the survey before the end of the month"
+    },
+    {
+     "id": "m0121",
+     "from": "p1",
+     "at": "2026-07-21T22:26:01.499Z",
+     "kind": "text",
+     "text": "rain forecast thursday, might want to move it"
+    },
+    {
+     "id": "m0122",
+     "from": "p5",
+     "at": "2026-07-22T00:20:57.113Z",
+     "kind": "text",
+     "text": "moved to sunday then"
+    },
+    {
+     "id": "m0123",
+     "from": "p7",
+     "at": "2026-07-22T02:32:11.242Z",
+     "kind": "text",
+     "text": "sunday works"
+    },
+    {
+     "id": "m0124",
+     "from": "p5",
+     "at": "2026-07-22T03:49:03.239Z",
+     "kind": "text",
+     "text": "does anyone have the key for the lower gate"
+    },
+    {
+     "id": "m0125",
+     "from": "p7",
+     "at": "2026-07-22T04:55:50.579Z",
+     "kind": "text",
+     "text": "I have it, I'll drop it in the box"
+    },
+    {
+     "id": "m0126",
+     "from": "p1",
+     "at": "2026-07-22T05:32:03.906Z",
+     "kind": "text",
+     "text": "tread is holding up well on the north side"
+    },
+    {
+     "id": "m0127",
+     "from": "p5",
+     "at": "2026-07-22T07:55:53.764Z",
+     "kind": "text",
+     "text": "the culvert is completely blocked again"
+    },
+    {
+     "id": "m0128",
+     "from": "p7",
+     "at": "2026-07-22T10:14:37.990Z",
+     "kind": "text",
+     "text": "third time this year"
+    },
+    {
+     "id": "m0129",
+     "from": "p5",
+     "at": "2026-07-22T12:37:46.392Z",
+     "kind": "text",
+     "text": "we need a bigger culvert honestly"
+    },
+    {
+     "id": "m0130",
+     "from": "p7",
+     "at": "2026-07-22T14:10:24.622Z",
+     "kind": "text",
+     "text": "budget says we need a smaller creek"
+    },
+    {
+     "id": "m0131",
+     "from": "p1",
+     "at": "2026-07-22T14:49:04.649Z",
+     "kind": "text",
+     "text": "😂"
+    },
+    {
+     "id": "m0132",
+     "from": "p5",
+     "at": "2026-07-22T16:01:33.348Z",
+     "kind": "text",
+     "text": "I'll bring the mattock"
+    },
+    {
+     "id": "m0133",
+     "from": "p7",
+     "at": "2026-07-22T17:34:24.807Z",
+     "kind": "text",
+     "text": "who's bringing water"
+    },
+    {
+     "id": "m0134",
+     "from": "p5",
+     "at": "2026-07-22T18:15:11.128Z",
+     "kind": "text",
+     "text": "there's a spigot at the trailhead now"
+    },
+    {
+     "id": "m0135",
+     "from": "p7",
+     "at": "2026-07-22T20:49:16.252Z",
+     "kind": "text",
+     "text": "since when"
+    },
+    {
+     "id": "m0136",
+     "from": "p1",
+     "at": "2026-07-22T21:37:30.944Z",
+     "kind": "text",
+     "text": "since the parks people came through in june"
+    },
+    {
+     "id": "m0137",
+     "from": "p5",
+     "at": "2026-07-23T00:01:51.430Z",
+     "kind": "text",
+     "text": "that's the best news I've had all week"
+    },
+    {
+     "id": "m0138",
+     "from": "p7",
+     "at": "2026-07-23T02:35:10.538Z",
+     "kind": "text",
+     "text": "flagged the reroute this morning, tape is up"
+    },
+    {
+     "id": "m0139",
+     "from": "p5",
+     "at": "2026-07-23T05:20:29.822Z",
+     "kind": "text",
+     "text": "how far does the reroute run"
+    },
+    {
+     "id": "m0140",
+     "from": "p7",
+     "at": "2026-07-23T07:07:48.896Z",
+     "kind": "text",
+     "text": "about two hundred metres, it rejoins above the switchback"
+    },
+    {
+     "id": "m0141",
+     "from": "p1",
+     "at": "2026-07-23T08:05:43.306Z",
+     "kind": "text",
+     "text": "that grade is going to be brutal"
+    },
+    {
+     "id": "m0142",
+     "from": "p5",
+     "at": "2026-07-23T09:11:15.913Z",
+     "kind": "text",
+     "text": "it's better than what's there"
+    },
+    {
+     "id": "m0143",
+     "from": "p7",
+     "at": "2026-07-23T11:54:48.859Z",
+     "kind": "text",
+     "text": "everything is better than what's there"
+    },
+    {
+     "id": "m0144",
+     "from": "p5",
+     "at": "2026-07-23T12:36:37.772Z",
+     "kind": "text",
+     "text": "got the permits back, all three sections approved"
+    },
+    {
+     "id": "m0145",
+     "from": "p7",
+     "at": "2026-07-23T13:39:22.147Z",
+     "kind": "text",
+     "text": "anyone free saturday"
+    },
+    {
+     "id": "m0146",
+     "from": "p1",
+     "at": "2026-07-23T14:32:39.048Z",
+     "kind": "text",
+     "text": "I can do saturday morning but not the afternoon"
+    },
+    {
+     "id": "m0147",
+     "from": "p5",
+     "at": "2026-07-23T15:36:39.756Z",
+     "kind": "text",
+     "text": "bring the loppers, the corridor above the creek has closed right in"
+    },
+    {
+     "id": "m0148",
+     "from": "p7",
+     "at": "2026-07-23T17:11:44.962Z",
+     "kind": "text",
+     "text": "how many of us are on for next weekend"
+    },
+    {
+     "id": "m0149",
+     "from": "p5",
+     "at": "2026-07-23T18:04:47.729Z",
+     "kind": "text",
+     "text": "four confirmed, maybe five"
+    },
+    {
+     "id": "m0150",
+     "from": "p7",
+     "at": "2026-07-23T19:34:16.850Z",
+     "kind": "text",
+     "text": "the county wants the survey before the end of the month"
+    },
+    {
+     "id": "m0151",
+     "from": "p1",
+     "at": "2026-07-23T20:19:13.659Z",
+     "kind": "text",
+     "text": "rain forecast thursday, might want to move it"
+    },
+    {
+     "id": "m0152",
+     "from": "p5",
+     "at": "2026-07-23T21:35:16.520Z",
+     "kind": "text",
+     "text": "moved to sunday then"
+    },
+    {
+     "id": "m0153",
+     "from": "p7",
+     "at": "2026-07-23T23:02:10.652Z",
+     "kind": "text",
+     "text": "sunday works"
+    },
+    {
+     "id": "m0154",
+     "from": "p5",
+     "at": "2026-07-24T00:14:18.705Z",
+     "kind": "text",
+     "text": "does anyone have the key for the lower gate"
+    },
+    {
+     "id": "m0155",
+     "from": "p7",
+     "at": "2026-07-24T02:39:46.539Z",
+     "kind": "text",
+     "text": "I have it, I'll drop it in the box"
+    },
+    {
+     "id": "m0156",
+     "from": "p1",
+     "at": "2026-07-24T03:33:48.487Z",
+     "kind": "text",
+     "text": "tread is holding up well on the north side"
+    },
+    {
+     "id": "m0157",
+     "from": "p5",
+     "at": "2026-07-24T04:19:50.255Z",
+     "kind": "text",
+     "text": "the culvert is completely blocked again"
+    },
+    {
+     "id": "m0158",
+     "from": "p7",
+     "at": "2026-07-24T06:31:41.782Z",
+     "kind": "text",
+     "text": "third time this year"
+    },
+    {
+     "id": "m0159",
+     "from": "p5",
+     "at": "2026-07-24T09:04:25.710Z",
+     "kind": "text",
+     "text": "we need a bigger culvert honestly"
+    },
+    {
+     "id": "m0160",
+     "from": "p7",
+     "at": "2026-07-24T10:20:01.830Z",
+     "kind": "text",
+     "text": "budget says we need a smaller creek"
+    },
+    {
+     "id": "m0161",
+     "from": "p1",
+     "at": "2026-07-24T11:46:34.758Z",
+     "kind": "text",
+     "text": "😂"
+    },
+    {
+     "id": "m0162",
+     "from": "p5",
+     "at": "2026-07-24T12:23:55.955Z",
+     "kind": "text",
+     "text": "I'll bring the mattock"
+    },
+    {
+     "id": "m0163",
+     "from": "p7",
+     "at": "2026-07-24T13:08:12.053Z",
+     "kind": "text",
+     "text": "who's bringing water"
+    },
+    {
+     "id": "m0164",
+     "from": "p5",
+     "at": "2026-07-24T15:25:38.026Z",
+     "kind": "text",
+     "text": "there's a spigot at the trailhead now"
+    },
+    {
+     "id": "m0165",
+     "from": "p7",
+     "at": "2026-07-24T17:47:01.214Z",
+     "kind": "text",
+     "text": "since when"
+    },
+    {
+     "id": "m0166",
+     "from": "p1",
+     "at": "2026-07-24T19:30:44.749Z",
+     "kind": "text",
+     "text": "since the parks people came through in june"
+    },
+    {
+     "id": "m0167",
+     "from": "p5",
+     "at": "2026-07-24T21:33:37.094Z",
+     "kind": "text",
+     "text": "that's the best news I've had all week"
+    },
+    {
+     "id": "m0168",
+     "from": "p7",
+     "at": "2026-07-25T00:07:43.411Z",
+     "kind": "text",
+     "text": "flagged the reroute this morning, tape is up"
+    },
+    {
+     "id": "m0169",
+     "from": "p5",
+     "at": "2026-07-25T02:47:21.210Z",
+     "kind": "text",
+     "text": "how far does the reroute run"
+    },
+    {
+     "id": "m0170",
+     "from": "p7",
+     "at": "2026-07-25T04:28:23.985Z",
+     "kind": "text",
+     "text": "about two hundred metres, it rejoins above the switchback"
+    },
+    {
+     "id": "m0171",
+     "from": "p1",
+     "at": "2026-07-25T05:38:20.220Z",
+     "kind": "text",
+     "text": "that grade is going to be brutal"
+    },
+    {
+     "id": "m0172",
+     "from": "p5",
+     "at": "2026-07-25T06:31:54.016Z",
+     "kind": "text",
+     "text": "it's better than what's there"
+    },
+    {
+     "id": "m0173",
+     "from": "p7",
+     "at": "2026-07-25T09:12:04.012Z",
+     "kind": "text",
+     "text": "everything is better than what's there"
+    },
+    {
+     "id": "m0174",
+     "from": "p5",
+     "at": "2026-07-25T11:04:32.699Z",
+     "kind": "text",
+     "text": "got the permits back, all three sections approved"
+    },
+    {
+     "id": "m0175",
+     "from": "p7",
+     "at": "2026-07-25T12:25:12.353Z",
+     "kind": "text",
+     "text": "anyone free saturday"
+    },
+    {
+     "id": "m0176",
+     "from": "p1",
+     "at": "2026-07-25T13:19:12.736Z",
+     "kind": "text",
+     "text": "I can do saturday morning but not the afternoon"
+    },
+    {
+     "id": "m0177",
+     "from": "p5",
+     "at": "2026-07-25T14:14:14.162Z",
+     "kind": "text",
+     "text": "bring the loppers, the corridor above the creek has closed right in"
+    },
+    {
+     "id": "m0178",
+     "from": "p7",
+     "at": "2026-07-25T15:19:50.142Z",
+     "kind": "text",
+     "text": "how many of us are on for next weekend"
+    },
+    {
+     "id": "m0179",
+     "from": "p5",
+     "at": "2026-07-25T17:52:26.543Z",
+     "kind": "text",
+     "text": "four confirmed, maybe five"
+    },
+    {
+     "id": "m0180",
+     "from": "p7",
+     "at": "2026-07-25T19:17:27.905Z",
+     "kind": "text",
+     "text": "the county wants the survey before the end of the month"
+    },
+    {
+     "id": "m0181",
+     "from": "p1",
+     "at": "2026-07-25T21:22:04.197Z",
+     "kind": "text",
+     "text": "rain forecast thursday, might want to move it"
+    },
+    {
+     "id": "m0182",
+     "from": "p5",
+     "at": "2026-07-25T23:03:51.539Z",
+     "kind": "text",
+     "text": "moved to sunday then"
+    },
+    {
+     "id": "m0183",
+     "from": "p7",
+     "at": "2026-07-26T00:55:00.378Z",
+     "kind": "text",
+     "text": "sunday works"
+    },
+    {
+     "id": "m0184",
+     "from": "p5",
+     "at": "2026-07-26T03:28:58.994Z",
+     "kind": "text",
+     "text": "does anyone have the key for the lower gate"
+    },
+    {
+     "id": "m0185",
+     "from": "p7",
+     "at": "2026-07-26T05:08:24.997Z",
+     "kind": "text",
+     "text": "I have it, I'll drop it in the box"
+    },
+    {
+     "id": "m0186",
+     "from": "p1",
+     "at": "2026-07-26T05:42:50.614Z",
+     "kind": "text",
+     "text": "tread is holding up well on the north side"
+    },
+    {
+     "id": "m0187",
+     "from": "p5",
+     "at": "2026-07-26T07:41:05.669Z",
+     "kind": "text",
+     "text": "the culvert is completely blocked again"
+    },
+    {
+     "id": "m0188",
+     "from": "p7",
+     "at": "2026-07-26T08:43:43.479Z",
+     "kind": "text",
+     "text": "third time this year"
+    },
+    {
+     "id": "m0189",
+     "from": "p5",
+     "at": "2026-07-26T09:42:30.677Z",
+     "kind": "text",
+     "text": "we need a bigger culvert honestly"
+    },
+    {
+     "id": "m0190",
+     "from": "p7",
+     "at": "2026-07-26T11:55:25.111Z",
+     "kind": "text",
+     "text": "budget says we need a smaller creek"
+    },
+    {
+     "id": "m0191",
+     "from": "p1",
+     "at": "2026-07-26T14:18:52.462Z",
+     "kind": "text",
+     "text": "😂"
+    },
+    {
+     "id": "m0192",
+     "from": "p5",
+     "at": "2026-07-26T15:38:58.482Z",
+     "kind": "text",
+     "text": "I'll bring the mattock"
+    },
+    {
+     "id": "m0193",
+     "from": "p7",
+     "at": "2026-07-26T17:47:48.701Z",
+     "kind": "text",
+     "text": "who's bringing water"
+    },
+    {
+     "id": "m0194",
+     "from": "p5",
+     "at": "2026-07-26T19:17:19.927Z",
+     "kind": "text",
+     "text": "there's a spigot at the trailhead now"
+    },
+    {
+     "id": "m0195",
+     "from": "p7",
+     "at": "2026-07-26T21:07:32.248Z",
+     "kind": "text",
+     "text": "since when"
+    },
+    {
+     "id": "m0196",
+     "from": "p1",
+     "at": "2026-07-26T22:09:36.004Z",
+     "kind": "text",
+     "text": "since the parks people came through in june"
+    },
+    {
+     "id": "m0197",
+     "from": "p5",
+     "at": "2026-07-27T00:23:58.156Z",
+     "kind": "text",
+     "text": "that's the best news I've had all week"
+    },
+    {
+     "id": "m0198",
+     "from": "p7",
+     "at": "2026-07-27T01:09:42.407Z",
+     "kind": "text",
+     "text": "flagged the reroute this morning, tape is up"
+    },
+    {
+     "id": "m0199",
+     "from": "p5",
+     "at": "2026-07-27T03:30:21.932Z",
+     "kind": "text",
+     "text": "how far does the reroute run"
+    },
+    {
+     "id": "m0200",
+     "from": "p7",
+     "at": "2026-07-27T04:51:33.846Z",
+     "kind": "text",
+     "text": "about two hundred metres, it rejoins above the switchback"
+    },
+    {
+     "id": "m0201",
+     "from": "p1",
+     "at": "2026-07-27T06:32:30.097Z",
+     "kind": "text",
+     "text": "that grade is going to be brutal"
+    },
+    {
+     "id": "m0202",
+     "from": "p5",
+     "at": "2026-07-27T09:03:07.341Z",
+     "kind": "text",
+     "text": "it's better than what's there"
+    },
+    {
+     "id": "m0203",
+     "from": "p7",
+     "at": "2026-07-27T09:38:45.219Z",
+     "kind": "text",
+     "text": "everything is better than what's there"
+    },
+    {
+     "id": "m0204",
+     "from": "p5",
+     "at": "2026-07-27T10:56:05.311Z",
+     "kind": "text",
+     "text": "got the permits back, all three sections approved"
+    },
+    {
+     "id": "m0205",
+     "from": "p7",
+     "at": "2026-07-27T11:35:06.440Z",
+     "kind": "text",
+     "text": "anyone free saturday"
+    },
+    {
+     "id": "m0206",
+     "from": "p1",
+     "at": "2026-07-27T12:51:34.846Z",
+     "kind": "text",
+     "text": "I can do saturday morning but not the afternoon"
+    },
+    {
+     "id": "m0207",
+     "from": "p5",
+     "at": "2026-07-27T13:54:53.875Z",
+     "kind": "text",
+     "text": "bring the loppers, the corridor above the creek has closed right in"
+    },
+    {
+     "id": "m0208",
+     "from": "p7",
+     "at": "2026-07-27T16:17:41.799Z",
+     "kind": "text",
+     "text": "how many of us are on for next weekend"
+    },
+    {
+     "id": "m0209",
+     "from": "p5",
+     "at": "2026-07-27T18:44:17.977Z",
+     "kind": "text",
+     "text": "four confirmed, maybe five"
+    },
+    {
+     "id": "m0210",
+     "from": "p7",
+     "at": "2026-07-27T19:39:38.675Z",
+     "kind": "text",
+     "text": "the county wants the survey before the end of the month"
+    },
+    {
+     "id": "m0211",
+     "from": "p1",
+     "at": "2026-07-27T21:15:36.363Z",
+     "kind": "text",
+     "text": "rain forecast thursday, might want to move it"
+    },
+    {
+     "id": "m0212",
+     "from": "p5",
+     "at": "2026-07-27T22:54:03.846Z",
+     "kind": "text",
+     "text": "moved to sunday then"
+    },
+    {
+     "id": "m0213",
+     "from": "p7",
+     "at": "2026-07-28T01:23:29.072Z",
+     "kind": "text",
+     "text": "sunday works"
+    },
+    {
+     "id": "m0214",
+     "from": "p5",
+     "at": "2026-07-28T02:13:27.370Z",
+     "kind": "text",
+     "text": "does anyone have the key for the lower gate"
+    },
+    {
+     "id": "m0215",
+     "from": "p7",
+     "at": "2026-07-28T04:56:12.304Z",
+     "kind": "text",
+     "text": "I have it, I'll drop it in the box"
+    },
+    {
+     "id": "m0216",
+     "from": "p1",
+     "at": "2026-07-28T06:22:46.034Z",
+     "kind": "text",
+     "text": "tread is holding up well on the north side"
+    },
+    {
+     "id": "m0217",
+     "from": "p5",
+     "at": "2026-07-28T08:10:34.832Z",
+     "kind": "text",
+     "text": "the culvert is completely blocked again"
+    },
+    {
+     "id": "m0218",
+     "from": "p7",
+     "at": "2026-07-28T09:30:54.628Z",
+     "kind": "text",
+     "text": "third time this year"
+    },
+    {
+     "id": "m0219",
+     "from": "p5",
+     "at": "2026-07-28T12:02:58.244Z",
+     "kind": "text",
+     "text": "we need a bigger culvert honestly"
+    },
+    {
+     "id": "m0220",
+     "from": "p7",
+     "at": "2026-07-28T14:21:28.485Z",
+     "kind": "text",
+     "text": "budget says we need a smaller creek"
+    },
+    {
+     "id": "m0221",
+     "from": "p1",
+     "at": "2026-07-28T16:39:45.509Z",
+     "kind": "text",
+     "text": "😂"
+    },
+    {
+     "id": "m0222",
+     "from": "p5",
+     "at": "2026-07-28T18:08:10.908Z",
+     "kind": "text",
+     "text": "I'll bring the mattock"
+    },
+    {
+     "id": "m0223",
+     "from": "p7",
+     "at": "2026-07-28T20:24:05.431Z",
+     "kind": "text",
+     "text": "who's bringing water"
+    },
+    {
+     "id": "m0224",
+     "from": "p5",
+     "at": "2026-07-28T22:14:54.950Z",
+     "kind": "text",
+     "text": "there's a spigot at the trailhead now"
+    },
+    {
+     "id": "m0225",
+     "from": "p7",
+     "at": "2026-07-28T23:38:29.299Z",
+     "kind": "text",
+     "text": "since when"
+    },
+    {
+     "id": "m0226",
+     "from": "p1",
+     "at": "2026-07-29T01:55:04.005Z",
+     "kind": "text",
+     "text": "since the parks people came through in june"
+    },
+    {
+     "id": "m0227",
+     "from": "p5",
+     "at": "2026-07-29T03:22:29.194Z",
+     "kind": "text",
+     "text": "that's the best news I've had all week"
+    },
+    {
+     "id": "m0228",
+     "from": "p7",
+     "at": "2026-07-29T05:04:36.436Z",
+     "kind": "text",
+     "text": "flagged the reroute this morning, tape is up"
+    },
+    {
+     "id": "m0229",
+     "from": "p5",
+     "at": "2026-07-29T07:17:17.347Z",
+     "kind": "text",
+     "text": "how far does the reroute run"
+    },
+    {
+     "id": "m0230",
+     "from": "p7",
+     "at": "2026-07-29T09:01:28.673Z",
+     "kind": "text",
+     "text": "about two hundred metres, it rejoins above the switchback"
+    },
+    {
+     "id": "m0231",
+     "from": "p1",
+     "at": "2026-07-29T11:10:21.917Z",
+     "kind": "text",
+     "text": "that grade is going to be brutal"
+    },
+    {
+     "id": "m0232",
+     "from": "p5",
+     "at": "2026-07-29T13:30:13.525Z",
+     "kind": "text",
+     "text": "it's better than what's there"
+    },
+    {
+     "id": "m0233",
+     "from": "p7",
+     "at": "2026-07-29T15:37:16.210Z",
+     "kind": "text",
+     "text": "everything is better than what's there"
+    },
+    {
+     "id": "m0234",
+     "from": "p5",
+     "at": "2026-07-29T17:08:47.830Z",
+     "kind": "text",
+     "text": "got the permits back, all three sections approved"
+    },
+    {
+     "id": "m0235",
+     "from": "p7",
+     "at": "2026-07-29T19:40:22.599Z",
+     "kind": "text",
+     "text": "anyone free saturday"
+    },
+    {
+     "id": "m0236",
+     "from": "p1",
+     "at": "2026-07-29T21:24:41.547Z",
+     "kind": "text",
+     "text": "I can do saturday morning but not the afternoon"
+    },
+    {
+     "id": "m0237",
+     "from": "p5",
+     "at": "2026-07-29T23:09:47.275Z",
+     "kind": "text",
+     "text": "bring the loppers, the corridor above the creek has closed right in"
+    },
+    {
+     "id": "m0238",
+     "from": "p7",
+     "at": "2026-07-30T00:14:12.067Z",
+     "kind": "text",
+     "text": "how many of us are on for next weekend"
+    },
+    {
+     "id": "m0239",
+     "from": "p5",
+     "at": "2026-07-30T02:55:00.754Z",
+     "kind": "text",
+     "text": "four confirmed, maybe five"
+    },
+    {
+     "id": "m0240",
+     "from": "p7",
+     "at": "2026-07-30T05:12:15.309Z",
+     "kind": "text",
+     "text": "the county wants the survey before the end of the month"
+    },
+    {
+     "id": "m0241",
+     "from": "p1",
+     "at": "2026-07-30T06:56:33.979Z",
+     "kind": "text",
+     "text": "rain forecast thursday, might want to move it"
+    },
+    {
+     "id": "m0242",
+     "from": "p5",
+     "at": "2026-07-30T08:01:15.757Z",
+     "kind": "text",
+     "text": "moved to sunday then"
+    },
+    {
+     "id": "m0243",
+     "from": "p7",
+     "at": "2026-07-30T10:47:52.132Z",
+     "kind": "text",
+     "text": "sunday works"
+    },
+    {
+     "id": "m0244",
+     "from": "p5",
+     "at": "2026-07-30T11:42:28.783Z",
+     "kind": "text",
+     "text": "does anyone have the key for the lower gate"
+    },
+    {
+     "id": "m0245",
+     "from": "p7",
+     "at": "2026-07-30T12:58:28.569Z",
+     "kind": "text",
+     "text": "I have it, I'll drop it in the box"
+    },
+    {
+     "id": "m0246",
+     "from": "p1",
+     "at": "2026-07-30T14:18:53.452Z",
+     "kind": "text",
+     "text": "tread is holding up well on the north side"
+    },
+    {
+     "id": "m0247",
+     "from": "p5",
+     "at": "2026-07-30T16:00:19.290Z",
+     "kind": "text",
+     "text": "the culvert is completely blocked again"
+    },
+    {
+     "id": "m0248",
+     "from": "p7",
+     "at": "2026-07-30T17:44:13.074Z",
+     "kind": "text",
+     "text": "third time this year"
+    },
+    {
+     "id": "m0249",
+     "from": "p5",
+     "at": "2026-07-30T19:17:28.022Z",
+     "kind": "text",
+     "text": "we need a bigger culvert honestly"
+    },
+    {
+     "id": "m0250",
+     "from": "p7",
+     "at": "2026-07-30T21:43:55.906Z",
+     "kind": "text",
+     "text": "budget says we need a smaller creek"
+    },
+    {
+     "id": "m0251",
+     "from": "p1",
+     "at": "2026-07-31T00:11:36.187Z",
+     "kind": "text",
+     "text": "😂"
+    },
+    {
+     "id": "m0252",
+     "from": "p5",
+     "at": "2026-07-31T02:43:28.526Z",
+     "kind": "text",
+     "text": "I'll bring the mattock"
+    },
+    {
+     "id": "m0253",
+     "from": "p7",
+     "at": "2026-07-31T04:01:16.211Z",
+     "kind": "text",
+     "text": "who's bringing water"
+    },
+    {
+     "id": "m0254",
+     "from": "p5",
+     "at": "2026-07-31T05:55:17.159Z",
+     "kind": "text",
+     "text": "there's a spigot at the trailhead now"
+    },
+    {
+     "id": "m0255",
+     "from": "p7",
+     "at": "2026-07-31T08:29:51.909Z",
+     "kind": "text",
+     "text": "since when"
+    },
+    {
+     "id": "m0256",
+     "from": "p1",
+     "at": "2026-07-31T09:43:51.446Z",
+     "kind": "text",
+     "text": "since the parks people came through in june"
+    },
+    {
+     "id": "m0257",
+     "from": "p5",
+     "at": "2026-07-31T10:23:52.534Z",
+     "kind": "text",
+     "text": "that's the best news I've had all week"
+    },
+    {
+     "id": "m0258",
+     "from": "p7",
+     "at": "2026-07-31T11:54:22.750Z",
+     "kind": "text",
+     "text": "flagged the reroute this morning, tape is up"
+    },
+    {
+     "id": "m0259",
+     "from": "p5",
+     "at": "2026-07-31T12:53:14.344Z",
+     "kind": "text",
+     "text": "how far does the reroute run"
+    },
+    {
+     "id": "m0260",
+     "from": "p7",
+     "at": "2026-07-31T14:11:50.993Z",
+     "kind": "text",
+     "text": "about two hundred metres, it rejoins above the switchback"
+    },
+    {
+     "id": "m0261",
+     "from": "p1",
+     "at": "2026-07-31T15:11:46.422Z",
+     "kind": "text",
+     "text": "that grade is going to be brutal"
+    },
+    {
+     "id": "m0262",
+     "from": "p5",
+     "at": "2026-07-31T17:46:36.014Z",
+     "kind": "text",
+     "text": "it's better than what's there"
+    },
+    {
+     "id": "m0263",
+     "from": "p7",
+     "at": "2026-07-31T19:23:05.602Z",
+     "kind": "text",
+     "text": "everything is better than what's there"
+    },
+    {
+     "id": "m0264",
+     "from": "p5",
+     "at": "2026-07-31T20:52:51.807Z",
+     "kind": "text",
+     "text": "got the permits back, all three sections approved"
+    },
+    {
+     "id": "m0265",
+     "from": "p7",
+     "at": "2026-07-31T21:44:56.545Z",
+     "kind": "text",
+     "text": "anyone free saturday"
+    },
+    {
+     "id": "m0266",
+     "from": "p1",
+     "at": "2026-08-01T00:26:22.734Z",
+     "kind": "text",
+     "text": "I can do saturday morning but not the afternoon"
+    },
+    {
+     "id": "m0267",
+     "from": "p5",
+     "at": "2026-08-01T02:28:30.248Z",
+     "kind": "text",
+     "text": "bring the loppers, the corridor above the creek has closed right in"
+    },
+    {
+     "id": "m0268",
+     "from": "p7",
+     "at": "2026-08-01T03:28:58.595Z",
+     "kind": "text",
+     "text": "how many of us are on for next weekend"
+    },
+    {
+     "id": "m0269",
+     "from": "p5",
+     "at": "2026-08-01T05:14:48.224Z",
+     "kind": "text",
+     "text": "four confirmed, maybe five"
+    },
+    {
+     "id": "m0270",
+     "from": "p7",
+     "at": "2026-08-01T05:59:33.122Z",
+     "kind": "text",
+     "text": "the county wants the survey before the end of the month"
+    },
+    {
+     "id": "m0271",
+     "from": "p1",
+     "at": "2026-08-01T07:45:51.719Z",
+     "kind": "text",
+     "text": "rain forecast thursday, might want to move it"
+    },
+    {
+     "id": "m0272",
+     "from": "p5",
+     "at": "2026-08-01T10:08:06.188Z",
+     "kind": "text",
+     "text": "moved to sunday then"
+    },
+    {
+     "id": "m0273",
+     "from": "p7",
+     "at": "2026-08-01T12:22:58.787Z",
+     "kind": "text",
+     "text": "sunday works"
+    },
+    {
+     "id": "m0274",
+     "from": "p5",
+     "at": "2026-08-01T14:32:38.684Z",
+     "kind": "text",
+     "text": "does anyone have the key for the lower gate"
+    },
+    {
+     "id": "m0275",
+     "from": "p7",
+     "at": "2026-08-01T16:31:08.571Z",
+     "kind": "text",
+     "text": "I have it, I'll drop it in the box"
+    },
+    {
+     "id": "m0276",
+     "from": "p1",
+     "at": "2026-08-01T18:28:38.563Z",
+     "kind": "text",
+     "text": "tread is holding up well on the north side"
+    },
+    {
+     "id": "m0277",
+     "from": "p5",
+     "at": "2026-08-01T20:11:03.801Z",
+     "kind": "text",
+     "text": "the culvert is completely blocked again"
+    },
+    {
+     "id": "m0278",
+     "from": "p7",
+     "at": "2026-08-01T21:47:39.713Z",
+     "kind": "text",
+     "text": "third time this year"
+    },
+    {
+     "id": "m0279",
+     "from": "p5",
+     "at": "2026-08-02T00:17:13.655Z",
+     "kind": "text",
+     "text": "we need a bigger culvert honestly"
+    },
+    {
+     "id": "m0280",
+     "from": "p7",
+     "at": "2026-08-02T02:32:58.816Z",
+     "kind": "text",
+     "text": "budget says we need a smaller creek"
+    },
+    {
+     "id": "m0281",
+     "from": "p1",
+     "at": "2026-08-02T03:15:07.313Z",
+     "kind": "text",
+     "text": "😂"
+    },
+    {
+     "id": "m0282",
+     "from": "p5",
+     "at": "2026-08-02T03:55:58.665Z",
+     "kind": "text",
+     "text": "I'll bring the mattock"
+    },
+    {
+     "id": "m0283",
+     "from": "p7",
+     "at": "2026-08-02T05:12:47.837Z",
+     "kind": "text",
+     "text": "who's bringing water"
+    },
+    {
+     "id": "m0284",
+     "from": "p5",
+     "at": "2026-08-02T07:05:43.835Z",
+     "kind": "text",
+     "text": "there's a spigot at the trailhead now"
+    },
+    {
+     "id": "m0285",
+     "from": "p7",
+     "at": "2026-08-02T09:19:23.155Z",
+     "kind": "text",
+     "text": "since when"
+    },
+    {
+     "id": "m0286",
+     "from": "p1",
+     "at": "2026-08-02T11:10:42.093Z",
+     "kind": "text",
+     "text": "since the parks people came through in june"
+    },
+    {
+     "id": "m0287",
+     "from": "p5",
+     "at": "2026-08-02T13:39:12.807Z",
+     "kind": "text",
+     "text": "that's the best news I've had all week"
+    },
+    {
+     "id": "m0288",
+     "from": "p7",
+     "at": "2026-08-02T15:14:52.528Z",
+     "kind": "text",
+     "text": "flagged the reroute this morning, tape is up"
+    },
+    {
+     "id": "m0289",
+     "from": "p5",
+     "at": "2026-08-02T18:00:10.882Z",
+     "kind": "text",
+     "text": "how far does the reroute run"
+    },
+    {
+     "id": "m0290",
+     "from": "p7",
+     "at": "2026-08-02T20:39:52.471Z",
+     "kind": "text",
+     "text": "about two hundred metres, it rejoins above the switchback"
+    },
+    {
+     "id": "m0291",
+     "from": "p1",
+     "at": "2026-08-02T23:03:30.130Z",
+     "kind": "text",
+     "text": "that grade is going to be brutal"
+    },
+    {
+     "id": "m0292",
+     "from": "p5",
+     "at": "2026-08-03T01:34:14.820Z",
+     "kind": "text",
+     "text": "it's better than what's there"
+    },
+    {
+     "id": "m0293",
+     "from": "p7",
+     "at": "2026-08-03T03:37:28.088Z",
+     "kind": "text",
+     "text": "everything is better than what's there"
+    },
+    {
+     "id": "m0294",
+     "from": "p5",
+     "at": "2026-08-03T04:44:01.176Z",
+     "kind": "text",
+     "text": "got the permits back, all three sections approved"
+    },
+    {
+     "id": "m0295",
+     "from": "p7",
+     "at": "2026-08-03T07:03:42.869Z",
+     "kind": "text",
+     "text": "anyone free saturday"
+    },
+    {
+     "id": "m0296",
+     "from": "p1",
+     "at": "2026-08-03T08:51:28.669Z",
+     "kind": "text",
+     "text": "I can do saturday morning but not the afternoon"
+    },
+    {
+     "id": "m0297",
+     "from": "p5",
+     "at": "2026-08-03T09:35:18.713Z",
+     "kind": "text",
+     "text": "bring the loppers, the corridor above the creek has closed right in"
+    },
+    {
+     "id": "m0298",
+     "from": "p7",
+     "at": "2026-08-03T11:22:06.236Z",
+     "kind": "text",
+     "text": "how many of us are on for next weekend"
+    },
+    {
+     "id": "m0299",
+     "from": "p5",
+     "at": "2026-08-03T13:53:00.369Z",
+     "kind": "text",
+     "text": "four confirmed, maybe five"
+    },
+    {
+     "id": "m0300",
+     "from": "p7",
+     "at": "2026-08-03T16:14:11.226Z",
+     "kind": "text",
+     "text": "the county wants the survey before the end of the month"
+    },
+    {
+     "id": "m0301",
+     "from": "p1",
+     "at": "2026-08-03T18:17:17.018Z",
+     "kind": "text",
+     "text": "rain forecast thursday, might want to move it"
+    },
+    {
+     "id": "m0302",
+     "from": "p5",
+     "at": "2026-08-03T20:57:16.902Z",
+     "kind": "text",
+     "text": "moved to sunday then"
+    },
+    {
+     "id": "m0303",
+     "from": "p7",
+     "at": "2026-08-03T22:19:01.498Z",
+     "kind": "text",
+     "text": "sunday works"
+    },
+    {
+     "id": "m0304",
+     "from": "p5",
+     "at": "2026-08-04T00:59:45.251Z",
+     "kind": "text",
+     "text": "does anyone have the key for the lower gate"
+    },
+    {
+     "id": "m0305",
+     "from": "p7",
+     "at": "2026-08-04T02:17:06.915Z",
+     "kind": "text",
+     "text": "I have it, I'll drop it in the box"
+    },
+    {
+     "id": "m0306",
+     "from": "p1",
+     "at": "2026-08-04T04:19:48.595Z",
+     "kind": "text",
+     "text": "tread is holding up well on the north side"
+    },
+    {
+     "id": "m0307",
+     "from": "p5",
+     "at": "2026-08-04T06:20:57.753Z",
+     "kind": "text",
+     "text": "the culvert is completely blocked again"
+    },
+    {
+     "id": "m0308",
+     "from": "p7",
+     "at": "2026-08-04T08:10:03.692Z",
+     "kind": "text",
+     "text": "third time this year"
+    },
+    {
+     "id": "m0309",
+     "from": "p5",
+     "at": "2026-08-04T10:03:52.246Z",
+     "kind": "text",
+     "text": "we need a bigger culvert honestly"
+    },
+    {
+     "id": "m0310",
+     "from": "p7",
+     "at": "2026-08-04T12:48:00.285Z",
+     "kind": "text",
+     "text": "budget says we need a smaller creek"
+    },
+    {
+     "id": "m0311",
+     "from": "p1",
+     "at": "2026-08-04T13:26:46.228Z",
+     "kind": "text",
+     "text": "😂"
+    },
+    {
+     "id": "m0312",
+     "from": "p5",
+     "at": "2026-08-04T14:29:42.991Z",
+     "kind": "text",
+     "text": "I'll bring the mattock"
+    },
+    {
+     "id": "m0313",
+     "from": "p7",
+     "at": "2026-08-04T16:40:03.529Z",
+     "kind": "text",
+     "text": "who's bringing water"
+    },
+    {
+     "id": "m0314",
+     "from": "p5",
+     "at": "2026-08-04T17:34:12.178Z",
+     "kind": "text",
+     "text": "there's a spigot at the trailhead now"
+    },
+    {
+     "id": "m0315",
+     "from": "p7",
+     "at": "2026-08-04T19:16:41.079Z",
+     "kind": "text",
+     "text": "since when"
+    },
+    {
+     "id": "m0316",
+     "from": "p1",
+     "at": "2026-08-04T22:03:34.955Z",
+     "kind": "text",
+     "text": "since the parks people came through in june"
+    },
+    {
+     "id": "m0317",
+     "from": "p5",
+     "at": "2026-08-04T22:46:07.553Z",
+     "kind": "text",
+     "text": "that's the best news I've had all week"
+    },
+    {
+     "id": "m0318",
+     "from": "p7",
+     "at": "2026-08-05T00:30:01.056Z",
+     "kind": "text",
+     "text": "flagged the reroute this morning, tape is up"
+    },
+    {
+     "id": "m0319",
+     "from": "p5",
+     "at": "2026-08-05T02:21:16.583Z",
+     "kind": "text",
+     "text": "how far does the reroute run"
+    },
+    {
+     "id": "m0320",
+     "from": "p7",
+     "at": "2026-08-05T05:06:39.524Z",
+     "kind": "text",
+     "text": "about two hundred metres, it rejoins above the switchback"
+    },
+    {
+     "id": "m0321",
+     "from": "p1",
+     "at": "2026-08-05T05:55:19.155Z",
+     "kind": "text",
+     "text": "that grade is going to be brutal"
+    },
+    {
+     "id": "m0322",
+     "from": "p5",
+     "at": "2026-08-05T06:35:49.357Z",
+     "kind": "text",
+     "text": "it's better than what's there"
+    },
+    {
+     "id": "m0323",
+     "from": "p7",
+     "at": "2026-08-05T09:19:56.195Z",
+     "kind": "text",
+     "text": "everything is better than what's there"
+    },
+    {
+     "id": "m0324",
+     "from": "p5",
+     "at": "2026-08-05T11:44:10.818Z",
+     "kind": "text",
+     "text": "got the permits back, all three sections approved"
+    },
+    {
+     "id": "m0325",
+     "from": "p7",
+     "at": "2026-08-05T13:07:24.944Z",
+     "kind": "text",
+     "text": "anyone free saturday"
+    },
+    {
+     "id": "m0326",
+     "from": "p1",
+     "at": "2026-08-05T14:33:48.671Z",
+     "kind": "text",
+     "text": "I can do saturday morning but not the afternoon"
+    },
+    {
+     "id": "m0327",
+     "from": "p5",
+     "at": "2026-08-05T15:17:25.960Z",
+     "kind": "text",
+     "text": "bring the loppers, the corridor above the creek has closed right in"
+    },
+    {
+     "id": "m0328",
+     "from": "p7",
+     "at": "2026-08-05T16:04:14.226Z",
+     "kind": "text",
+     "text": "how many of us are on for next weekend"
+    },
+    {
+     "id": "m0329",
+     "from": "p5",
+     "at": "2026-08-05T18:51:01.281Z",
+     "kind": "text",
+     "text": "four confirmed, maybe five"
+    },
+    {
+     "id": "m0330",
+     "from": "p7",
+     "at": "2026-08-05T19:44:39.161Z",
+     "kind": "text",
+     "text": "the county wants the survey before the end of the month"
+    },
+    {
+     "id": "m0331",
+     "from": "p1",
+     "at": "2026-08-05T20:44:47.562Z",
+     "kind": "text",
+     "text": "rain forecast thursday, might want to move it"
+    },
+    {
+     "id": "m0332",
+     "from": "p5",
+     "at": "2026-08-05T22:09:38.730Z",
+     "kind": "text",
+     "text": "moved to sunday then"
+    },
+    {
+     "id": "m0333",
+     "from": "p7",
+     "at": "2026-08-05T23:32:50.091Z",
+     "kind": "text",
+     "text": "sunday works"
+    },
+    {
+     "id": "m0334",
+     "from": "p5",
+     "at": "2026-08-06T01:27:00.410Z",
+     "kind": "text",
+     "text": "does anyone have the key for the lower gate"
+    },
+    {
+     "id": "m0335",
+     "from": "p7",
+     "at": "2026-08-06T03:00:11.522Z",
+     "kind": "text",
+     "text": "I have it, I'll drop it in the box"
+    },
+    {
+     "id": "m0336",
+     "from": "p1",
+     "at": "2026-08-06T04:29:04.978Z",
+     "kind": "text",
+     "text": "tread is holding up well on the north side"
+    },
+    {
+     "id": "m0337",
+     "from": "p5",
+     "at": "2026-08-06T05:48:43.183Z",
+     "kind": "text",
+     "text": "the culvert is completely blocked again"
+    },
+    {
+     "id": "m0338",
+     "from": "p7",
+     "at": "2026-08-06T07:10:43.279Z",
+     "kind": "text",
+     "text": "third time this year"
+    },
+    {
+     "id": "m0339",
+     "from": "p5",
+     "at": "2026-08-06T08:58:24.844Z",
+     "kind": "text",
+     "text": "we need a bigger culvert honestly"
+    },
+    {
+     "id": "m0340",
+     "from": "p7",
+     "at": "2026-08-06T10:57:59.261Z",
+     "kind": "text",
+     "text": "budget says we need a smaller creek"
+    },
+    {
+     "id": "m0341",
+     "from": "p1",
+     "at": "2026-08-06T13:33:44.023Z",
+     "kind": "text",
+     "text": "😂"
+    },
+    {
+     "id": "m0342",
+     "from": "p5",
+     "at": "2026-08-06T14:56:21.798Z",
+     "kind": "text",
+     "text": "I'll bring the mattock"
+    },
+    {
+     "id": "m0343",
+     "from": "p7",
+     "at": "2026-08-06T17:25:41.308Z",
+     "kind": "text",
+     "text": "who's bringing water"
+    },
+    {
+     "id": "m0344",
+     "from": "p5",
+     "at": "2026-08-06T20:02:53.687Z",
+     "kind": "text",
+     "text": "there's a spigot at the trailhead now"
+    },
+    {
+     "id": "m0345",
+     "from": "p7",
+     "at": "2026-08-06T21:10:36.633Z",
+     "kind": "text",
+     "text": "since when"
+    },
+    {
+     "id": "m0346",
+     "from": "p1",
+     "at": "2026-08-06T23:18:27.499Z",
+     "kind": "text",
+     "text": "since the parks people came through in june"
+    },
+    {
+     "id": "m0347",
+     "from": "p5",
+     "at": "2026-08-07T01:02:58.122Z",
+     "kind": "text",
+     "text": "that's the best news I've had all week"
+    },
+    {
+     "id": "m0348",
+     "from": "p7",
+     "at": "2026-08-07T01:47:34.427Z",
+     "kind": "text",
+     "text": "flagged the reroute this morning, tape is up"
+    },
+    {
+     "id": "m0349",
+     "from": "p5",
+     "at": "2026-08-07T03:42:08.590Z",
+     "kind": "text",
+     "text": "how far does the reroute run"
+    },
+    {
+     "id": "m0350",
+     "from": "p7",
+     "at": "2026-08-07T06:01:35.049Z",
+     "kind": "text",
+     "text": "about two hundred metres, it rejoins above the switchback"
+    },
+    {
+     "id": "m0351",
+     "from": "p1",
+     "at": "2026-08-07T07:25:19.382Z",
+     "kind": "text",
+     "text": "that grade is going to be brutal"
+    },
+    {
+     "id": "m0352",
+     "from": "p5",
+     "at": "2026-08-07T10:08:14.337Z",
+     "kind": "text",
+     "text": "walked the ridge before the fog came in"
+    },
+    {
+     "id": "m0353",
+     "from": "p5",
+     "at": "2026-08-07T11:40:55.131Z",
+     "kind": "voice",
+     "src": "voice/2.m4a",
+     "durationMs": 20338,
+     "peaks": [
+      0.581,
+      0.602,
+      0.666,
+      0.51,
+      0.481,
+      0.575,
+      0.498,
+      0.584,
+      0.621,
+      0.526,
+      0.063,
+      0.676,
+      0.538,
+      0.532,
+      0.633,
+      0.626,
+      0.557,
+      0.707,
+      0.689,
+      0.399,
+      0.118,
+      0.518,
+      0.429,
+      0.643,
+      0.62,
+      0.698,
+      0.56,
+      0.773,
+      0.579,
+      0.679,
+      0.761,
+      0.667,
+      0.694,
+      0.625,
+      0.588,
+      0.747,
+      0.495,
+      0.745,
+      0.063,
+      0.691,
+      0.536,
+      0.459,
+      0.528,
+      0.467,
+      0.552,
+      0.573,
+      0.543,
+      0.698,
+      0.911,
+      0.743,
+      0.586,
+      0.501,
+      0.198,
+      0.541,
+      0.76,
+      0.523,
+      0.246,
+      0.015,
+      0.688,
+      0.458,
+      0.711,
+      0.642,
+      0.608,
+      0.234
+     ]
+    },
+    {
+     "id": "m0354",
+     "from": "p7",
+     "at": "2026-08-07T13:12:09.331Z",
+     "kind": "text",
+     "text": "two hundred metres above the switchback? that's above the reroute"
+    },
+    {
+     "id": "m0355",
+     "from": "p5",
+     "at": "2026-08-07T14:48:50.017Z",
+     "kind": "text",
+     "text": "it's above everything we flagged"
+    },
+    {
+     "id": "m0356",
+     "from": "p7",
+     "at": "2026-08-07T15:53:57.479Z",
+     "kind": "text",
+     "text": "so the reroute doesn't help"
+    },
+    {
+     "id": "m0357",
+     "from": "p5",
+     "at": "2026-08-07T17:02:29.270Z",
+     "kind": "text",
+     "text": "the reroute helps with the grade. it does nothing for the water"
+    },
+    {
+     "id": "m0358",
+     "from": "p1",
+     "at": "2026-08-07T17:43:34.655Z",
+     "kind": "text",
+     "text": "can we intercept it higher"
+    },
+    {
+     "id": "m0359",
+     "from": "p5",
+     "at": "2026-08-07T18:42:26.810Z",
+     "kind": "text",
+     "text": "we can, but that's outside the permit boundary"
+    },
+    {
+     "id": "m0360",
+     "from": "p7",
+     "at": "2026-08-07T20:55:09.233Z",
+     "kind": "text",
+     "text": "of course it is"
+    },
+    {
+     "id": "m0361",
+     "from": "p5",
+     "at": "2026-08-07T22:08:55.682Z",
+     "kind": "text",
+     "text": "here, look at it"
+    },
+    {
+     "id": "m0362",
+     "from": "p5",
+     "at": "2026-08-08T00:44:21.615Z",
+     "kind": "photo",
+     "src": "photos/4.jpg",
+     "alt": "Airplane Against Pink Clouds"
+    },
+    {
+     "id": "m0363",
+     "from": "p5",
+     "at": "2026-08-08T03:04:38.453Z",
+     "kind": "text",
+     "text": "you can see where it's been cutting"
+    },
+    {
+     "id": "m0364",
+     "from": "p7",
+     "at": "2026-08-08T05:21:40.510Z",
+     "kind": "photo",
+     "src": "photos/pano.jpg",
+     "alt": "The whole ridge, seen from the top"
+    },
+    {
+     "id": "m0365",
+     "from": "p5",
+     "at": "2026-08-08T07:39:24.991Z",
+     "kind": "text",
+     "text": "and that's the whole ridge from the top"
+    },
+    {
+     "id": "m0366",
+     "from": "p1",
+     "at": "2026-08-08T08:29:52.210Z",
+     "kind": "text",
+     "text": "that is a very wide picture"
+    },
+    {
+     "id": "m0367",
+     "from": "p5",
+     "at": "2026-08-08T11:02:16.767Z",
+     "kind": "text",
+     "text": "it is a very wide ridge"
+    },
+    {
+     "id": "m0368",
+     "from": "p1",
+     "at": "2026-08-08T13:21:18.989Z",
+     "kind": "text",
+     "text": "that's a lot deeper than I pictured"
+    },
+    {
+     "id": "m0369",
+     "from": "p7",
+     "at": "2026-08-08T14:43:38.433Z",
+     "kind": "text",
+     "text": "that's not a rill, that's a gully",
+     "reactions": [
+      {
+       "person": "p1",
+       "emoji": "😮"
+      },
+      {
+       "person": "p7",
+       "emoji": "😮"
+      },
+      {
+       "person": "p5",
+       "emoji": "🔥"
+      }
+     ]
+    },
+    {
+     "id": "m0370",
+     "from": "p5",
+     "at": "2026-08-08T15:42:03.950Z",
+     "kind": "text",
+     "text": "that's what I said to the ranger"
+    },
+    {
+     "id": "m0371",
+     "from": "p1",
+     "at": "2026-08-08T16:59:48.216Z",
+     "kind": "text",
+     "text": "what did the ranger say"
+    },
+    {
+     "id": "m0372",
+     "from": "p5",
+     "at": "2026-08-08T18:45:43.773Z",
+     "kind": "text",
+     "text": "the ranger said ‘huh’"
+    },
+    {
+     "id": "m0373",
+     "from": "p7",
+     "at": "2026-08-08T19:59:38.166Z",
+     "kind": "text",
+     "text": "comprehensive"
+    },
+    {
+     "id": "m0374",
+     "from": "p1",
+     "at": "2026-08-08T22:02:19.153Z",
+     "kind": "text",
+     "text": "so what are the options"
+    },
+    {
+     "id": "m0375",
+     "from": "p5",
+     "at": "2026-08-08T23:40:44.888Z",
+     "kind": "text",
+     "text": "amend the permit, or armour the crossing and accept we redo it"
+    },
+    {
+     "id": "m0376",
+     "from": "p7",
+     "at": "2026-08-09T00:25:39.265Z",
+     "kind": "text",
+     "text": "how often is 'redo it'"
+    },
+    {
+     "id": "m0377",
+     "from": "p5",
+     "at": "2026-08-09T01:13:55.125Z",
+     "kind": "text",
+     "text": "every two winters. maybe three if we're lucky"
+    },
+    {
+     "id": "m0378",
+     "from": "p1",
+     "at": "2026-08-09T02:14:36.725Z",
+     "kind": "text",
+     "text": "and the amendment takes how long"
+    },
+    {
+     "id": "m0379",
+     "from": "p5",
+     "at": "2026-08-09T03:32:09.234Z",
+     "kind": "text",
+     "text": "six weeks if nobody objects"
+    },
+    {
+     "id": "m0380",
+     "from": "p7",
+     "at": "2026-08-09T04:40:17.515Z",
+     "kind": "text",
+     "text": "somebody always objects"
+    },
+    {
+     "id": "m0381",
+     "from": "p5",
+     "at": "2026-08-09T05:35:29.575Z",
+     "kind": "text",
+     "text": "somebody always objects"
+    },
+    {
+     "id": "m0382",
+     "from": "p1",
+     "at": "2026-08-09T07:51:07.441Z",
+     "kind": "text",
+     "text": "let's start the amendment anyway. worst case we've lost six weeks"
+    },
+    {
+     "id": "m0383",
+     "from": "p7",
+     "at": "2026-08-09T09:09:21.733Z",
+     "kind": "text",
+     "text": "agreed",
+     "reactions": [
+      {
+       "person": "p7",
+       "emoji": "👍"
+      },
+      {
+       "person": "p1",
+       "emoji": "👍"
+      }
+     ]
+    },
+    {
+     "id": "m0384",
+     "from": "p5",
+     "at": "2026-08-09T11:44:40.670Z",
+     "kind": "text",
+     "text": "I'll write it up tonight"
+    },
+    {
+     "id": "m0385",
+     "from": "p7",
+     "at": "2026-08-09T12:58:29.818Z",
+     "kind": "text",
+     "text": "put the photos in, the photos do the arguing"
+    },
+    {
+     "id": "m0386",
+     "from": "p5",
+     "at": "2026-08-09T14:03:29.029Z",
+     "kind": "text",
+     "text": "that's the plan"
+    },
+    {
+     "id": "m0387",
+     "from": "p1",
+     "at": "2026-08-09T16:05:36.043Z",
+     "kind": "text",
+     "text": "thank you for walking it"
+    },
+    {
+     "id": "m0388",
+     "from": "p5",
+     "at": "2026-08-09T16:59:41.573Z",
+     "kind": "text",
+     "text": "it was a good morning to be up there honestly"
+    }
+   ]
+  },
+  {
+   "id": "t5",
+   "title": null,
+   "participants": [
+    "p1",
+    "p3"
+   ],
+   "lastSeen": "m0407",
+   "messages": [
+    {
+     "id": "m0389",
+     "from": "p3",
+     "at": "2026-08-08T09:10:41.074Z",
+     "kind": "text",
+     "text": "walked past the old place today"
+    },
+    {
+     "id": "m0390",
+     "from": "p1",
+     "at": "2026-08-08T09:45:58.328Z",
+     "kind": "text",
+     "text": "how does it look"
+    },
+    {
+     "id": "m0391",
+     "from": "p3",
+     "at": "2026-08-08T10:05:04.735Z",
+     "kind": "photo",
+     "src": "photos/7.jpg",
+     "alt": "Abstract Ocean Sunset Long Exposure"
+    },
+    {
+     "id": "m0392",
+     "from": "p1",
+     "at": "2026-08-08T10:36:56.578Z",
+     "kind": "text",
+     "text": "they painted it"
+    },
+    {
+     "id": "m0393",
+     "from": "p3",
+     "at": "2026-08-08T11:11:50.964Z",
+     "kind": "text",
+     "text": "they painted it"
+    },
+    {
+     "id": "m0394",
+     "from": "p1",
+     "at": "2026-08-08T11:28:29.511Z",
+     "kind": "text",
+     "text": "that's a choice"
+    },
+    {
+     "id": "m0395",
+     "from": "p3",
+     "at": "2026-08-08T11:43:46.363Z",
+     "kind": "text",
+     "text": "it's certainly a colour"
+    },
+    {
+     "id": "m0396",
+     "from": "p1",
+     "at": "2026-08-08T11:53:51.764Z",
+     "kind": "text",
+     "text": "was the tree always that big"
+    },
+    {
+     "id": "m0397",
+     "from": "p3",
+     "at": "2026-08-08T12:22:20.622Z",
+     "kind": "text",
+     "text": "the tree has been busy"
+    },
+    {
+     "id": "m0398",
+     "from": "p3",
+     "at": "2026-08-08T12:50:06.833Z",
+     "kind": "photo",
+     "src": "photos/8.jpg",
+     "alt": "Above the Clouds"
+    },
+    {
+     "id": "m0399",
+     "from": "p3",
+     "at": "2026-08-08T12:58:39.469Z",
+     "kind": "text",
+     "text": "and they took the railing out"
+    },
+    {
+     "id": "m0400",
+     "from": "p1",
+     "at": "2026-08-08T13:14:23.996Z",
+     "kind": "text",
+     "text": "no!"
+    },
+    {
+     "id": "m0401",
+     "from": "p3",
+     "at": "2026-08-08T13:31:33.884Z",
+     "kind": "text",
+     "text": "yes"
+    },
+    {
+     "id": "m0402",
+     "from": "p1",
+     "at": "2026-08-08T13:40:55.369Z",
+     "kind": "text",
+     "text": "I liked that railing"
+    },
+    {
+     "id": "m0403",
+     "from": "p3",
+     "at": "2026-08-08T14:05:16.129Z",
+     "kind": "text",
+     "text": "everyone liked that railing"
+    },
+    {
+     "id": "m0404",
+     "from": "p3",
+     "at": "2026-08-08T14:28:52.127Z",
+     "kind": "photo",
+     "src": "photos/9.jpg",
+     "alt": "Big Sur Waves and Sea Stacks"
+    },
+    {
+     "id": "m0405",
+     "from": "p3",
+     "at": "2026-08-08T15:05:26.661Z",
+     "kind": "text",
+     "text": "anyway. thought you'd want to see"
+    },
+    {
+     "id": "m0406",
+     "from": "p1",
+     "at": "2026-08-08T15:34:23.408Z",
+     "kind": "text",
+     "text": "I did. mixed feelings but I did"
+    },
+    {
+     "id": "m0407",
+     "from": "p3",
+     "at": "2026-08-08T16:00:57.846Z",
+     "kind": "text",
+     "text": "that's the correct response"
+    }
+   ]
+  },
+  {
+   "id": "t6",
+   "title": "Book club",
+   "participants": [
+    "p1",
+    "p3",
+    "p6",
+    "p7",
+    "p8"
+   ],
+   "lastSeen": "m0441",
+   "messages": [
+    {
+     "id": "m0408",
+     "from": "p6",
+     "at": "2026-08-05T09:20:59.109Z",
+     "kind": "text",
+     "text": "so are we all pretending we finished it"
+    },
+    {
+     "id": "m0409",
+     "from": "p3",
+     "at": "2026-08-05T09:31:27.200Z",
+     "kind": "text",
+     "text": "I finished it"
+    },
+    {
+     "id": "m0410",
+     "from": "p7",
+     "at": "2026-08-05T09:57:32.628Z",
+     "kind": "text",
+     "text": "I finished it twice, which I regret"
+    },
+    {
+     "id": "m0411",
+     "from": "p8",
+     "at": "2026-08-05T10:04:22.141Z",
+     "kind": "text",
+     "text": "I finished the first half twice"
+    },
+    {
+     "id": "m0412",
+     "from": "p6",
+     "at": "2026-08-05T10:14:13.504Z",
+     "kind": "text",
+     "text": "that's the same as not finishing it"
+    },
+    {
+     "id": "m0413",
+     "from": "p8",
+     "at": "2026-08-05T10:35:56.970Z",
+     "kind": "text",
+     "text": "it is not"
+    },
+    {
+     "id": "m0414",
+     "from": "p3",
+     "at": "2026-08-05T10:43:23.168Z",
+     "kind": "text",
+     "text": "it's really not the same"
+    },
+    {
+     "id": "m0415",
+     "from": "p6",
+     "at": "2026-08-05T10:53:34.325Z",
+     "kind": "text",
+     "text": "explain"
+    },
+    {
+     "id": "m0416",
+     "from": "p8",
+     "at": "2026-08-05T11:00:10.220Z",
+     "kind": "text",
+     "text": "the first half is a different book. the second half is when he gets bored",
+     "reactions": [
+      {
+       "person": "p6",
+       "emoji": "🤨"
+      },
+      {
+       "person": "p3",
+       "emoji": "💯"
+      },
+      {
+       "person": "p7",
+       "emoji": "💯"
+      },
+      {
+       "person": "p8",
+       "emoji": "😂"
+      }
+     ]
+    },
+    {
+     "id": "m0417",
+     "from": "p7",
+     "at": "2026-08-05T11:13:59.160Z",
+     "kind": "text",
+     "text": "that is a genuinely good point and I hate it"
+    },
+    {
+     "id": "m0418",
+     "from": "p3",
+     "at": "2026-08-05T11:38:47.690Z",
+     "kind": "voice",
+     "src": "voice/3.m4a",
+     "durationMs": 8728,
+     "peaks": [
+      0.6,
+      0.385,
+      0.531,
+      0.696,
+      0.544,
+      0.478,
+      0.557,
+      0.092,
+      0.005,
+      0.78,
+      0.789,
+      0.675,
+      0.424,
+      0.499,
+      0.632,
+      0.596,
+      0.672,
+      0.535,
+      0.049,
+      0.533,
+      0.316,
+      0.489,
+      0.461,
+      0.435,
+      0.339,
+      0.024,
+      0.579,
+      0.596,
+      0.519,
+      0.473,
+      0.585,
+      0.501,
+      0.55,
+      0.492,
+      0.473,
+      0.538,
+      0.538,
+      0.565,
+      0.632,
+      0.588,
+      0.12,
+      0.01,
+      0.144,
+      0.556,
+      0.574,
+      0.511,
+      0.605,
+      0.608,
+      0.425,
+      0.482,
+      0.598,
+      0.582,
+      0.572,
+      0.646,
+      0.535,
+      0.559,
+      0.528,
+      0.548,
+      0.548,
+      0.511,
+      0.709,
+      0.549,
+      0.516,
+      0.202
+     ]
+    },
+    {
+     "id": "m0419",
+     "from": "p6",
+     "at": "2026-08-05T11:54:57.985Z",
+     "kind": "text",
+     "text": "chapter eleven is my favourite chapter"
+    },
+    {
+     "id": "m0420",
+     "from": "p3",
+     "at": "2026-08-05T12:05:33.544Z",
+     "kind": "text",
+     "text": "of course it is"
+    },
+    {
+     "id": "m0421",
+     "from": "p6",
+     "at": "2026-08-05T12:30:54.174Z",
+     "kind": "text",
+     "text": "what does that mean"
+    },
+    {
+     "id": "m0422",
+     "from": "p3",
+     "at": "2026-08-05T12:46:26.143Z",
+     "kind": "text",
+     "text": "nothing! nothing"
+    },
+    {
+     "id": "m0423",
+     "from": "p8",
+     "at": "2026-08-05T13:08:56.812Z",
+     "kind": "text",
+     "text": "it means chapter eleven is where the plot stops to look at some weather"
+    },
+    {
+     "id": "m0424",
+     "from": "p6",
+     "at": "2026-08-05T13:26:45.168Z",
+     "kind": "text",
+     "text": "the weather is DOING something"
+    },
+    {
+     "id": "m0425",
+     "from": "p7",
+     "at": "2026-08-05T13:33:25.706Z",
+     "kind": "text",
+     "text": "the weather is doing a great deal"
+    },
+    {
+     "id": "m0426",
+     "from": "p3",
+     "at": "2026-08-05T13:53:29.828Z",
+     "kind": "text",
+     "text": "the weather is the only character with an arc"
+    },
+    {
+     "id": "m0427",
+     "from": "p6",
+     "at": "2026-08-05T14:05:48.875Z",
+     "kind": "text",
+     "text": "I'm leaving"
+    },
+    {
+     "id": "m0428",
+     "from": "p8",
+     "at": "2026-08-05T14:20:38.748Z",
+     "kind": "text",
+     "text": "next one should be shorter"
+    },
+    {
+     "id": "m0429",
+     "from": "p7",
+     "at": "2026-08-05T14:39:15.772Z",
+     "kind": "text",
+     "text": "next one should be funnier"
+    },
+    {
+     "id": "m0430",
+     "from": "p6",
+     "at": "2026-08-05T14:50:42.076Z",
+     "kind": "text",
+     "text": "next one is my pick and it is neither"
+    },
+    {
+     "id": "m0431",
+     "from": "p3",
+     "at": "2026-08-05T15:12:00.284Z",
+     "kind": "text",
+     "text": "😀"
+    },
+    {
+     "id": "m0432",
+     "from": "p8",
+     "at": "2026-08-05T15:29:18.269Z",
+     "kind": "text",
+     "text": "how long"
+    },
+    {
+     "id": "m0433",
+     "from": "p6",
+     "at": "2026-08-05T15:43:14.704Z",
+     "kind": "text",
+     "text": "six hundred pages"
+    },
+    {
+     "id": "m0434",
+     "from": "p7",
+     "at": "2026-08-05T16:08:49.808Z",
+     "kind": "text",
+     "text": "ines"
+    },
+    {
+     "id": "m0435",
+     "from": "p6",
+     "at": "2026-08-05T16:16:59.755Z",
+     "kind": "text",
+     "text": "six hundred TREMENDOUS pages"
+    },
+    {
+     "id": "m0436",
+     "from": "p8",
+     "at": "2026-08-05T16:41:22.009Z",
+     "kind": "text",
+     "text": "how many of them are weather"
+    },
+    {
+     "id": "m0437",
+     "from": "p6",
+     "at": "2026-08-05T16:50:19.075Z",
+     "kind": "text",
+     "text": "blocked"
+    },
+    {
+     "id": "m0438",
+     "from": "p3",
+     "at": "2026-08-05T17:02:17.357Z",
+     "kind": "photo",
+     "src": "photos/13.jpg",
+     "alt": "Arc de Triomphe Looking Up"
+    },
+    {
+     "id": "m0439",
+     "from": "p8",
+     "at": "2026-08-05T17:17:10.433Z",
+     "kind": "text",
+     "text": "this was the edition I read"
+    },
+    {
+     "id": "m0440",
+     "from": "p7",
+     "at": "2026-08-05T17:39:02.873Z",
+     "kind": "text",
+     "text": "that cover is a war crime"
+    },
+    {
+     "id": "m0441",
+     "from": "p3",
+     "at": "2026-08-05T17:52:34.948Z",
+     "kind": "photo",
+     "src": "photos/14.jpg",
+     "alt": "Acorns and Autumn Leaf"
+    },
+    {
+     "id": "m0442",
+     "from": "p6",
+     "at": "2026-08-05T18:02:59.251Z",
+     "kind": "text",
+     "text": "mine's nicer",
+     "reactions": [
+      {
+       "person": "p3",
+       "emoji": "😂"
+      },
+      {
+       "person": "p7",
+       "emoji": "😂"
+      },
+      {
+       "person": "p8",
+       "emoji": "😂"
+      }
+     ]
+    },
+    {
+     "id": "m0443",
+     "from": "p3",
+     "at": "2026-08-05T18:16:51.437Z",
+     "kind": "text",
+     "text": "mine is nicest and I will not be taking questions"
+    }
+   ]
+  }
+ ]
+}

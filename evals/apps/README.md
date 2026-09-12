@@ -7,6 +7,7 @@ writes, and — where one exists — a hidden acceptance plus a reference soluti
 ```
 venue/     seat booking. brief · api/ · accept.mjs (12 phases) · reference.declare
 cadence/   training log, design-led. brief · api/          (no acceptance yet)
+murmur/    conversation app, craft eval — design unspecified. brief · api/ · fixtures/ (shipped) · run-arm.mjs
 ```
 
 **Setting up a sandbox — the whole rule.** These artifacts are committed, so a clean
