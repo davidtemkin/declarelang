@@ -53,8 +53,8 @@ region.
 ## Drawing what attributes cannot say
 
 Boxes, rounding, strokes and shadows cover most of an interface. For the rest — a gauge
-arc, a tick, a sparkline, a mark no font will give you — a view can declare a **`draw`**
-member, and it is a first-class member kind, not an escape hatch:
+arc, a tick, a sparkline, a mark no font will give you — a view can define a **`draw`**
+method and paint itself:
 
 ```declare
 App [ width = 340, height = 200, fill = white, textColor = black,
@@ -87,13 +87,16 @@ App [ width = 340, height = 200, fill = white, textColor = black,
 Drag the slider. The arc follows, the label follows, and the colour crosses to red past
 80% — and **you wrote no redraw call**, because:
 
-> **A drawing is a tracked computation, not a paint callback. It re-runs when what it
+> **`draw` is an ordinary method, and a constraint calls it. It re-runs when what it
 > *read* changes — never per frame.**
 
-That is the whole idea, and it is why drawing *composes* here instead of escaping. The
-body read `app.level`, so `app.level` is a wired dependency exactly as it would be inside
-a `{ }` constraint ([chapter 3](declare-docs:guide:relationships)). Sitting still, this
-gauge costs nothing; there is no animation loop and nothing to invalidate.
+That is the whole idea, and it is why drawing *composes* here instead of escaping. `View`
+holds a constraint of its own, `drawing = { record(draw) }`, that runs your method through
+a recorder; a method called from a constraint has its reads tracked, so the body's read of
+`app.level` is a wired dependency exactly as it would be inside your own `{ }`
+([chapter 3](declare-docs:guide:relationships)). Nothing about `draw` is special beyond
+whose constraint calls it. Sitting still, this gauge costs nothing; there is no animation
+loop and nothing to invalidate.
 
 What it records is a **display list** of plain operations, which every renderer replays —
 so a drawing is not a canvas dependency, and the same view paints identically through DOM

@@ -145,7 +145,7 @@ the one place `{ }` is not TypeScript at all.
 
 ## 3. Members and scope
 
-Everything inside `[ ]` is a member, in one of six shapes. Two of them look nearly identical
+Everything inside `[ ]` is a member, in one of five shapes. Two of them look nearly identical
 and mean different things.
 
 ```declare-fragment
@@ -165,17 +165,18 @@ select() { selected = !selected },     // a METHOD
 onClick()      { count = count + 1 },  // a HANDLER — `on` + an event this node fires
 onPointerMove(e: PointerEvent) { x = e.x },   // pointer handlers get a typed payload
 
-draw(d: Draw) { d.fillStyle = "#4169E1"    // a DRAWING — see below
+draw(d: Draw) { d.fillStyle = "#4169E1"    // a METHOD the view calls to paint itself — see below
             d.fillRect(0, 0, 12, 12) },
 
 bg: View [ fill = midnightblue ],      // a CHILD, named — reachable as `bg`
 Text [ text = "OK" ]                  // a CHILD, anonymous
 ```
 
-**`draw(d: Draw)` is a first-class member, not an escape hatch.** It records a display list of plain
-ops that every renderer replays, and it is a *tracked computation* like any constraint: it re-runs
-when what it read changes, never per frame. `d` takes the Canvas2D drawing calls (`fillStyle`,
-`beginPath`, `moveTo`, `stroke`, …).
+**Any view can paint itself by defining `draw(d: Draw)`** — graphs, gauges, iconography, marks no
+fill or font gives you. It is an ordinary method: `View` calls it from a constraint of its own
+(`drawing = { record(draw) }`), so it runs on invalidation and re-runs when what it read changes,
+never per frame — the same rule as any method a constraint calls. `d` takes the Canvas2D drawing
+calls (`fillStyle`, `beginPath`, `moveTo`, `stroke`, …); what it records, every renderer paints.
 
 **`name = value` sets an attribute that exists; `name: Type = value` declares a new one.**
 Declaring is how reactive state enters a program; setting is how it is wired. A declaration's

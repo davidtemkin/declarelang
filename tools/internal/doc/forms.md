@@ -75,7 +75,7 @@ usage: form-instance
 Square brackets hold a component's members — attributes, declarations, methods, handlers,
 children — and the nesting of brackets *is* the tree. Naming a type with a bracketed body
 instantiates it: `Text [ text = "OK" ]` is a Text, `bg: View [ … ]` a View reachable as `bg`.
-Every member inside is one of the six shapes (set, declare, child, method, handler, drawing),
+Every member inside is one of the five shapes (set, declare, child, method, handler),
 separated by commas.
 
 An instance is a full component in its own right: it may declare new attributes and methods

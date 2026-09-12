@@ -376,9 +376,9 @@ for (const [cls, lines] of Object.entries(LANGUAGE_STATICS)) {
   }
 }
 
-// `draw(d: Draw)` is a member with a RESERVED name a view may define (declare.md
-// §3: "a first-class member, not an escape hatch") — author-declared, so tsc's
-// surface never lists it on View. It enters through the callable door, so the
+// `draw(d: Draw)` is an ordinary method with a RESERVED name a view may define
+// (declare.md §3: View calls it from a constraint of its own) — author-declared,
+// so tsc's surface never lists it on View. It enters through the callable door, so the
 // View page carries it (`## draw()` prose, View.md) and `declare-help View.draw`
 // answers. The Draw interface itself is on the Types page.
 (CALLABLE.View ??= new Map()).set("draw", { signature: "draw(d: Draw): void", isStatic: false });

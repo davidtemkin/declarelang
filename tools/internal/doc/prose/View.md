@@ -251,14 +251,17 @@ extent of the subtree, for sizing a container to its content.
 
 
 ## draw()
-Custom drawing, declared as a member: `draw(d: Draw) { … }` on any view paints into its
-box with the Canvas2D vocabulary (`d.fillStyle`, `d.beginPath()`, `d.arc(…)`, `d.fill()` —
-the `Draw` interface, on the Types page). It is **a tracked computation, not a frame
-loop**: the body records a display list every renderer replays, and it re-runs when
-something it read changes — a constraint's read of `hovered` or a data field redraws,
-nothing else does. A view with no `draw` never records. Reach for it for graphs,
-iconography, and treatments the tree cannot style; measure frame rate as drawn surfaces
-grow large or change every frame.
+Custom drawing: define `draw(d: Draw) { … }` on any view, and it paints into its box with
+the Canvas2D vocabulary (`d.fillStyle`, `d.beginPath()`, `d.arc(…)`, `d.fill()` — the
+`Draw` interface, on the Types page). It is **an ordinary method**, overridable like any
+other; what makes it paint is who calls it. `View` holds a standing constraint of its own,
+`drawing = { record(draw) }`, which runs your method through a recorder when the view
+attaches and again whenever something the body read changes — a read of `hovered` or a
+data field redraws, nothing else does, and nothing runs per frame. That is the same rule
+every method has when a constraint calls it; `draw` is only unusual in that the constraint
+is View's rather than yours. A view with no `draw` carries no drawing machinery at all.
+Reach for it for graphs, iconography, and treatments the tree cannot style; measure frame
+rate as drawn surfaces grow large or change every frame.
 
 ```declare-fragment
 gauge: View [ width = 80, height = 80,
