@@ -264,16 +264,24 @@ class AttrRow extends View [ width = { parent.width },
     // a long or multi-line `{ … }` default leaves the signature line and sits on its
     // own, indented — a signature is never truncated and never scrolls
 
-    long: boolean = { ("" + (:default ?? "")).length > 44 || ("" + (:default ?? "")).indexOf("\n") >= 0 },
+    long: boolean = { ("" + (:default ?? "")).length > 44 || ("" + (:default ?? "")).indexOf("\n") >= 0 || this.longType },
+
+    // a long union type (blendMode's eleven modes) leaves the line the same way and
+    // WRAPS — an unwrapped line wider than the pane is what a click-to-jump scrolled
+    // the whole page sideways against (2026-09-11)
+
+    longType: boolean = { ("" + :type).length > 56 },
     layout: SimpleLayout [ axis = y, spacing = 6 ],
 
     sig: View [ width = { parent.width },
         layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
         Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").text }, text = { :name } ],
-        Mono [ fontSize = { 15 * app.fontScale }, textColor = { provided("theme").accentSecondary }, text = { ": " + :type } ],
+        Mono [ fontSize = { 15 * app.fontScale }, textColor = { provided("theme").accentSecondary }, visible = { !classroot.longType }, text = { ": " + :type } ],
         Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, visible = { !classroot.long },
             text = { :default != null ? "= " + :default : "" } ]
         ],
+    longTypeLine: Mono [ x = 24, width = { parent.width - 24 }, fontSize = { 14 * app.fontScale }, lineHeight = 1.45, textColor = { provided("theme").accentSecondary },
+        visible = { classroot.longType }, text = { ": " + :type } ],
     longDefault: Mono [ x = 24, width = { parent.width - 24 }, fontSize = { 13 * app.fontScale }, lineHeight = 1.45, textColor = { provided("theme").sigDim },
         visible = { classroot.long }, text = { "= " + ("" + :default).split("\n").join("\n  ") } ],
 
@@ -835,7 +843,8 @@ class RuleRow extends View [ width = { parent.width },
         text = { "" + :rule } ],
     says: View [ width = { parent.width }, height = { this.t.height + 16 },
         rule: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { provided("theme").line } ],
-        lbl: Muted [ x = 14, y = 8, fontSize = { 12 * app.fontScale }, italic = true, wrap = false, text = "the checker says" ],
+        lbl: Muted [ x = 14, y = { parent.t.y + parent.t.baseline - this.baseline },   // one baseline with the quote
+            fontSize = { 12 * app.fontScale }, italic = true, wrap = false, text = "the checker says" ],
         t: Mono [ x = { parent.lbl.x + parent.lbl.width + 10 }, y = 8, width = { parent.width - parent.lbl.width - 24 },
             fontSize = { 12.5 * app.fontScale }, lineHeight = 1.5, textColor = { provided("theme").sigDim }, text = { "" + :says } ]
         ]

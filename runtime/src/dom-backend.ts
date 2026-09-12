@@ -1330,8 +1330,33 @@ class DomSurface implements Surface {
     // element to the container's leading edge (a Miller strip's left). smooth animates.
     // `inset` — land short of the top, clearing fixed chrome (location.md
     // §0.5.4): realized as scroll-margin, which native scrollIntoView honors.
+    //
+    // The inline axis follows `align` ONLY when some scroller above actually
+    // scrolls x. A `scrolls = y` pane is `overflow-x: hidden`, and hidden is
+    // still a scroll container that native scrollIntoView will shift — so a
+    // "start" jump inside one whose content overran its width (one unwrapped
+    // line is enough) pinned the target to the pane's LEFT edge and ate the
+    // margin (docs reference, 2026-09-11). The scroll model says a y-scroller's
+    // x is never the platform's to move; "nearest" on a target that fits is inert.
     if (inset > 0) this.element.style.scrollMarginTop = `${inset}px`;
-    this.element.scrollIntoView({ block: align, inline: align, behavior: smooth ? "smooth" : "auto" });
+    const inline = this.inlineAxisScrolls() ? align : "nearest";
+    this.element.scrollIntoView({ block: align, inline, behavior: smooth ? "smooth" : "auto" });
+  }
+
+  /** Does any scroller above this element scroll HORIZONTALLY? Inner panes
+   *  carry Declare's own truth as their inline `overflow-x` (applyScrollStyle:
+   *  `auto` iff `scrolls` includes x); the page root scrolls the document, whose
+   *  width exceeds the viewport only when the App declared an x axis
+   *  (applyRootSize sizes the clipped root to its extent on declared axes only). */
+  private inlineAxisScrolls(): boolean {
+    for (let el = this.element.parentElement; el !== null; el = el.parentElement) {
+      if (el.style.overflowX === "auto") return true;
+      if (el.dataset.declareApp !== undefined) {
+        const d = el.ownerDocument.scrollingElement ?? el.ownerDocument.documentElement;
+        return d.scrollWidth > d.clientWidth;
+      }
+    }
+    return false;
   }
 
   /** Rich text measures ASYNCHRONOUSLY here — the ResizeObserver in

@@ -240,7 +240,29 @@ const TAKEOVER_RAW = `App [ width = 640, height = 400, fill = #202830,
 const takeoverCompiled = await compile(TAKEOVER_RAW);
 assert.deepEqual(takeoverCompiled.errors, [], "takeover fixture compiles clean");
 
+// A click-to-jump (`scrollIntoView()`, block:start) inside a `scrolls = y` pane
+// whose content overran its WIDTH — one unwrapped line is enough — must move
+// the pane on y only. `overflow-x: hidden` is still a scroll container native
+// scrollIntoView will shift, and `inline: start` pinned the target to the
+// pane's left edge (the docs reference lost its margin, 2026-09-11). An x
+// scroller keeps the leading-edge pin — a Miller strip's `"start"` still lands.
+const JUMP_RAW = `App [ width = 640, height = 400, fill = #202830,
+    pane: View [ x = 40, y = 40, width = 300, height = 200, fill = #3A4855, scrolls = y,
+        wide: Text [ x = 24, y = 8, wrap = false, fontSize = 14, textColor = #FFFFFF,
+            text = "an unwrapped line far wider than the pane, an unwrapped line far wider than the pane, and wider still" ],
+        target: View [ x = 24, y = 600, width = 200, height = 40, fill = #66AA88 ],
+        tail: View [ x = 0, y = 900, width = 300, height = 20, fill = #223344 ],
+        ],
+    strip: View [ x = 40, y = 260, width = 300, height = 100, fill = #2E3A45, scrolls = x,
+        a: View [ x = 0, y = 0, width = 300, height = 100, fill = #334455 ],
+        b: View [ x = 400, y = 0, width = 300, height = 100, fill = #445566 ],
+        ],
+    ]`;
+const jumpCompiled = await compile(JUMP_RAW);
+assert.deepEqual(jumpCompiled.errors, [], "jump fixture compiles clean");
+
 const pages = {
+  "/dom-jump": pageHtml("DomBackend", jumpCompiled.source),
   "/dom-claims": pageHtml("DomBackend", claimsCompiled.source),
   "/dom-takeover": pageHtml("DomBackend", takeoverCompiled.source),
   "/canvas-claims": pageHtml("CanvasBackend", claimsCompiled.source),
@@ -1162,6 +1184,26 @@ await test("TextInput.select: words and numbers place the caret; a held select a
   g = await sel(); assert.deepEqual([g.s, g.e], [0, 0], "clamped low");
   await page.evaluate(() => window.__app.field.select(99));
   g = await sel(); assert.deepEqual([g.s, g.e], [10, 10], "clamped high");
+});
+
+// ── DOM: a jump inside a y-scroller never moves it sideways ────────────────
+
+await open("/dom-jump");
+
+await test("scrollIntoView in a scrolls=y pane with overrun width moves y only; an x strip still pins start", async () => {
+  const r = await page.evaluate(() => {
+    const app = window.__app;
+    const pane = app.pane.surface.element;
+    const overran = pane.scrollWidth > pane.clientWidth;
+    app.pane.target.scrollIntoView();
+    const strip = app.strip.surface.element;
+    app.strip.b.scrollIntoView("start");
+    return { overran, top: Math.round(pane.scrollTop), left: Math.round(pane.scrollLeft), stripLeft: Math.round(strip.scrollLeft) };
+  });
+  assert.equal(r.overran, true, "the fixture's unwrapped line overruns the pane (the trap's precondition)");
+  assert.ok(r.top > 0, `the jump moved the pane vertically (scrollTop ${r.top})`);
+  assert.equal(r.left, 0, "a y-only scroller was not moved sideways");
+  assert.equal(r.stripLeft, 400, "an x scroller's \"start\" jump still pins the leading edge");
 });
 
 await browser.close();
