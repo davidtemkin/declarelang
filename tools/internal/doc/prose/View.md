@@ -252,9 +252,14 @@ which can happen mid-run, since the policy accepts a `{ }`. And it is what makes
 the auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)
 to size to content with a cap; assigning it is a compile error.
 
+Its other use is a component that takes content. A class whose instances receive children
+from the use site sizes itself to what it was handed with `width = { contentWidth }` — the
+children are not the class's own, so nothing else knows their extent.
+
 ## contentHeight
 **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured
-extent of the subtree, for sizing a container to its content.
+extent of the subtree, for sizing a container to its content, including content the use
+site supplied (`height = { contentHeight }` on a class that takes children).
 
 
 ## draw()

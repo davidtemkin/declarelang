@@ -205,6 +205,60 @@ refuses in a `{ }` body. That is not an inconsistency; arranging children is pre
 layout's job, and it is the reason the aggregation you sometimes want belongs here rather
 than in a binding.
 
+## A component that takes content
+
+Everything so far is a component that owns all of its children. The other kind is as
+common and is one line of difference: a component that is *handed* its children by the
+use site. A figure with a caption, a card with whatever goes in it, a panel with a
+heading — the wrapper supplies the frame and the arrangement, and the caller supplies
+the content.
+
+An instance may carry anonymous children, and they arrive as the class's children. The
+class arranges them with its own layout, and sizes itself to what it was given:
+
+```declare
+class Plate extends View [ width = { parent.width }, height = { contentHeight },
+    layout: SimpleLayout [ axis = y, spacing = 10 ]
+    ]
+
+App [ width = 340, height = 220, fill = white, textColor = black,
+    col: View [ x = 20, y = 20, width = 300,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Plate [
+            View [ width = { parent.width }, height = 70, cornerRadius = 6, fill = #DCE6F0 ],
+            Text [ text = "the caption sits under the figure", wrap = true,
+                width = { parent.width }, fontSize = 13 ]
+            ],
+        Plate [
+            View [ width = { parent.width }, height = 40, cornerRadius = 6, fill = #E7E0F0 ],
+            Text [ text = "and the next one is the same class", wrap = true,
+                width = { parent.width }, fontSize = 13 ]
+            ]
+        ]
+    ]
+```
+
+`contentHeight` is what makes it work. The wrapper cannot know what it was handed, so it
+measures: the height is whatever the children came to, plus whatever the layout put
+between them. `contentWidth` does the same on the other axis for a component that hugs
+its content horizontally.
+
+Configuring goes the other way. A use site does **not** reach into a component's own
+children — writing `Heading [ label: Text [ text = "Hi" ] ]` declares a *second* child
+called `label` and collides with the one the class already has. What a component exposes
+is attributes, and its children read them:
+
+```declare-fragment
+class Heading extends View [ width = { parent.width }, height = { label.height },
+    text: string = "",
+    label: Text [ fontSize = 30, fontWeight = semibold, text = { classroot.text } ]
+    ]
+```
+
+The rule behind both halves is one rule: **a class owns its own members, and a use site
+speaks to it through attributes and content.** Attributes carry values in; anonymous
+children carry structure in; nothing reaches across the boundary in either direction.
+
 ## The same tools the library uses
 
 When you build something the library has no equivalent for — a popover, a palette, a

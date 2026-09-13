@@ -46,8 +46,29 @@ export function gradient(...args) {
     return Object.freeze({ angle, stops: Object.freeze(stops) });
 }
 export const stop = (offset, color) => Object.freeze({ offset, color });
-export const stroke = (width, color) => Object.freeze({ width, color });
-export const outline = (width, color) => Object.freeze({ width, color });
+/** A width that cannot be a width. A stroke is drawn INSIDE the box, so a value
+ *  past a few thousand points is never art — and a `Color` is a number at
+ *  runtime, so `stroke(theme.line, 1)` produces exactly this: a fourteen-million
+ *  point stroke, which paints as a filled black box, with nothing to say so.
+ *  Reported once per distinct pair, because the constructor runs inside a
+ *  constraint and may re-evaluate on every settle. (A warning, not a refusal:
+ *  the value is legal, it is only certainly not what was meant.) */
+const MAX_SANE_STROKE = 4096;
+const swapped = new Set();
+function checkOrder(fn, width, color) {
+    if (!(typeof width === "number") || width <= MAX_SANE_STROKE)
+        return;
+    const key = `${fn}:${width}:${String(color)}`;
+    if (swapped.has(key))
+        return;
+    swapped.add(key);
+    const looksSwapped = Number.isInteger(width) && width <= 0xffffff && typeof color === "number" && color <= MAX_SANE_STROKE;
+    console.warn(looksSwapped
+        ? `[Declare] ${fn}(${width}, ${String(color)}) — the arguments look reversed: it is ${fn}(width, color), and ${width} is 0x${width.toString(16).toUpperCase()} as a colour. A stroke is drawn inside the box, so this paints as a filled rectangle`
+        : `[Declare] ${fn}(${width}, …) — a stroke width of ${width} is drawn inside the box, so it paints as a filled rectangle. ${fn}(width, color) takes the width first`);
+}
+export const stroke = (width, color) => { checkOrder("stroke", width, color); return Object.freeze({ width, color }); };
+export const outline = (width, color) => { checkOrder("outline", width, color); return Object.freeze({ width, color }); };
 export const shadow = (dx, dy, blur, color) => Object.freeze({ dx, dy, blur, color });
 export const frost = (radius, saturation = 1) => Object.freeze({ blur: radius, saturate: saturation });
 // Structural equality for the decoration values (ruled: the === write gate

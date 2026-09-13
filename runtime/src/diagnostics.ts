@@ -228,8 +228,13 @@ export const Diag = {
   type: (message: string, pos?: Pos): DeclareError => err(code4(3000), message, pos),
 
   // 4xxx name resolution
-  unresolved: (name: string, scope: string, pos: Pos): DeclareError =>
-    err(code4(4001), `cannot resolve '${name}' — not a member of ${scope}, a parameter, or one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …)`, pos),
+  unresolved: (name: string, scope: string, pos: Pos, sizing = false): DeclareError =>
+    err(code4(4001), `cannot resolve '${name}' — not a member of ${scope}, a parameter, or one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …)` +
+      // In a size slot the missing name is often a child the USE SITE supplied,
+      // which the class cannot name because it does not own it. It can measure
+      // it: that is what the content intrinsics are for, and nothing else in the
+      // message points at them.
+      (sizing ? `. To size to children the use site handed this component, read 'contentWidth' / 'contentHeight'` : ``), pos),
   shadowing: (message: string, pos: Pos): DeclareError => err(code4(4002), message, pos),
   // A body assigns a `let`/`var` a script { } block declared. Each body gets
   // its own const copy of every script binding, so the write throws at runtime

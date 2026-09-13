@@ -15,6 +15,7 @@ import { test, summarize } from "./harness.mjs";
 import { compile, compileTracked, isUpToDate, diskProbe, extractStatic, settleHeadless } from "../compiler/dist/compile-node.js";
 import { KeysService } from "../runtime/dist/keys.js";
 import { wrapLines, wrapEditable, provideMeasurer } from "../runtime/dist/measure.js";
+import { stroke, outline } from "../runtime/dist/value.js";
 import { Focus, FocusService, deliverKeys } from "../runtime/dist/focus.js";
 import { routeInput } from "../runtime/dist/input.js";
 import {
@@ -7524,6 +7525,67 @@ App [ width = 100, height = 100,
   const row = app.col.children[0];
   assert.equal(row.t.textColor, 0x00ff00, "the model reads the provision");
   assert.equal(row.t.surface.textStyle.color, 0x00ff00, "the face pushed at attach carried it too");
+});
+
+// ── the field report of 2026-09-13: a document written in Declare ────────────
+// Four findings, each a pin. Three were the difference between that document
+// and a one-shot; the fourth is the capability the author could not find.
+
+await test("a component takes content from its use site and sizes to it", async () => {
+  // The wrapper owns the frame and the arrangement; the caller owns what goes
+  // in. `contentHeight` is what lets a class measure children it does not own.
+  const app = await buildL(`class Plate extends View [ width = { parent.width }, height = { contentHeight },
+      layout: SimpleLayout [ axis = y, spacing = 10 ] ]
+    App [ width = 300, height = 300,
+      col: View [ width = 300,
+        Plate [ View [ width = { parent.width }, height = 70 ],
+                View [ width = { parent.width }, height = 30 ] ] ] ]`);
+  const plate = app.col.children[0];
+  assert.equal(plate.children.length, 2, "the anonymous children arrived as the class's own");
+  assert.equal(plate.height, 110, "70 + 30 + the layout's 10 — the wrapper measured what it was handed");
+});
+
+await test("check(): redeclaring a component's own child is refused in the SOURCE, naming the attribute door", async () => {
+  // It used to reach the boot rung and advise a rename, which produces a second
+  // child beside the styled one — never what was wanted.
+  const r = await compile(`class Heading extends View [ width = { parent.width }, height = { label.height },
+      label: Text [ fontSize = 30 ] ]
+    App [ width = 400, height = 100, Heading [ label: Text [ text = "Hello" ] ] ]`);
+  const m = (r.errors ?? []).map((e) => e.message).join("\n");
+  assert.match(m, /'label' is already a member of Heading/);
+  assert.match(m, /configures a component through its attributes/, "the message names what to write instead");
+  assert.match(m, /classroot\.text/, "…and the spelling that reads it back");
+
+  const ok = await compile(`class Heading extends View [ width = { parent.width }, height = { label.height },
+      text: string = "",
+      label: Text [ fontSize = 30, text = { classroot.text } ] ]
+    App [ width = 400, height = 100, Heading [ text = "Hello" ] ]`);
+  assert.deepEqual(ok.errors ?? [], [], "the attribute door compiles");
+});
+
+await test("stroke(color, width) — the reversal a { } body cannot catch — is named at the value", () => {
+  // A Color is a number at runtime, so the swap is invisible downstream: the
+  // width becomes 14 million and the stroke, drawn inside the box, fills it.
+  const warn = console.warn; const said = [];
+  console.warn = (m) => said.push(String(m));
+  try {
+    stroke(0xD6DEDB, 1);
+    stroke(1, 0xD6DEDB);            // the correct order stays silent
+    outline(0xD6DEDB, 2);
+  } finally { console.warn = warn; }
+  assert.equal(said.length, 2, said.join("\n"));
+  assert.match(said[0], /arguments look reversed/);
+  assert.match(said[0], /0xD6DEDB as a colour/);
+  assert.match(said[1], /outline\(/, "outline has the same shape and the same guard");
+});
+
+await test("an unresolved name in a SIZE slot points at the content intrinsics", async () => {
+  const r = await compile(`class Plate extends View [ width = { parent.width }, height = { art.height } ]
+    App [ width = 400, height = 200, Plate [ ] ]`);
+  assert.match((r.errors ?? [])[0]?.message ?? "", /contentWidth' \/ 'contentHeight/);
+  const other = await compile(`App [ width = 100, height = 100, t: string = { nope } ]`);
+  assert.doesNotMatch((other.errors ?? [])[0]?.message ?? "", /contentHeight/,
+                      "and nowhere else — the hint belongs to size slots");
 });
 
 summarize("unit");

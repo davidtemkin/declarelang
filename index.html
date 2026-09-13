@@ -268,6 +268,7 @@ App [ width = 400, height = 100, fill = black,
         caption: Text [ text = { classroot.label } ]  // reaches the tab from a leaf
         ]
     ]</code></pre>
+<p>A <strong>direct</strong> child of the class body can reach the same instance as <code>parent</code>, and that is legal — <code>parent</code> is the enclosing view, which for a direct child is the component itself. The difference shows up later: nest that child one level deeper and <code>parent</code> now means the new wrapper, while <code>classroot</code> still means the component. Reach for <code>classroot</code> when you mean the component, and keep <code>parent</code> for when you mean <em>whatever encloses me</em>.</p>
 <h3>Layout is an attribute</h3>
 <p>There is no <code>&lt;Stack&gt;</code>, no <code>&lt;Row&gt;</code>, no flexbox, and no grid. A view positions its children absolutely by <code>x</code>/<code>y</code> until you set a <code>layout:</code> member — and because that member is an ordinary reactive slot, it can be swapped, derived, or animated.</p>
 <pre><code class="language-declare-fragment">layout: SimpleLayout   [ axis = y, spacing = 10 ],
@@ -619,7 +620,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=d047b89748e9";
+  import boot from "./bundles/declare-boot.js?v=e4827d9615ea";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

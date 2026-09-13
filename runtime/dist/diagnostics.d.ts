@@ -57,7 +57,7 @@ export declare const Diag: {
     setTwice: (message: string, pos: Pos) => DeclareError;
     smallField: (message: string, pos: Pos, hint?: string) => DeclareError;
     type: (message: string, pos?: Pos) => DeclareError;
-    unresolved: (name: string, scope: string, pos: Pos) => DeclareError;
+    unresolved: (name: string, scope: string, pos: Pos, sizing?: boolean) => DeclareError;
     shadowing: (message: string, pos: Pos) => DeclareError;
     hostGlobal: (name: string, hint: string, pos: Pos) => DeclareError;
     enumTokenInExpr: (token: string, slot: string, pos: Pos, quoted?: boolean) => DeclareError;

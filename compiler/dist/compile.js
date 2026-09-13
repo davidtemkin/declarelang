@@ -1482,7 +1482,7 @@ class Resolver {
                         this.errors.push(Diag.hostGlobal(id.name, hostHint, pos));
                     }
                     else {
-                        this.errors.push(Diag.unresolved(id.name, levels.map(describe).join(" → "), pos));
+                        this.errors.push(Diag.unresolved(id.name, levels.map(describe).join(" → "), pos, slot === "width" || slot === "height"));
                     }
                 }
                 continue;

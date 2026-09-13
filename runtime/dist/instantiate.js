@@ -1483,6 +1483,10 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
         slot.prev = child;
         if (childEl.name !== null) {
             if (childEl.name in parentView) {
+                // The BACKSTOP. The checker refuses this in the source — both the
+                // runtime's own surface and a member the component declares, the
+                // second with the attribute door named — so what reaches here is a
+                // path that skipped the checker (a direct instantiate).
                 throw new DeclareError(`'${childEl.name}' is already a member of the running ${parentView.constructor.name} — choose another name for this child`, childEl.pos);
             }
             parentView[childEl.name] = child;

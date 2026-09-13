@@ -36,6 +36,11 @@ import { resolveShapes, shapeNames } from "./shape-resolve.js";
 // The program-under-check's declared schema names — set at check() entry
 // (checkElement recurses too deep to thread one more parameter through).
 let CHECK_SHAPES = new Set();
+/** Class name → every member its body declares (decls, methods, named children),
+ *  base chain included. A use site that names a child the same thing is
+ *  redeclaring a member of the component it is instantiating — refused below,
+ *  where the source shows it, rather than at boot. */
+let CLASS_MEMBERS = new Map();
 import { validateExpr, validateBody } from "./expr.js";
 import { isSelective, staticSegs } from "./datapath.js";
 import { faceWeight, FONT_WEIGHTS } from "./font.js";
@@ -73,6 +78,34 @@ export function check(input) {
     const shapeResolution = resolveShapes(program);
     CHECK_SHAPES = shapeNames(program);
     const { infos, schemas, errors } = programSchemas(program.classes, CHECK_SHAPES);
+    {
+        const byName = new Map(program.classes.map((c) => [c.name, c]));
+        const members = new Map();
+        const membersOf = (name, seen = new Set()) => {
+            const hit = members.get(name);
+            if (hit !== undefined)
+                return hit;
+            const out = new Set();
+            members.set(name, out);
+            const decl = byName.get(name);
+            if (decl === undefined || seen.has(name))
+                return out;
+            seen.add(name);
+            for (const n of membersOf(decl.base, seen))
+                out.add(n);
+            for (const d of decl.body.decls)
+                out.add(d.name);
+            for (const m of decl.body.methods)
+                out.add(m.name);
+            for (const c of decl.body.children)
+                if (c.name !== null)
+                    out.add(c.name);
+            return out;
+        };
+        for (const c of program.classes)
+            membersOf(c.name);
+        CLASS_MEMBERS = members;
+    }
     errors.push(...shapeResolution.errors);
     const env = checkStyleDecls(program, schemas, errors);
     // A class body checks as an instance of its own (just-registered) class:
@@ -637,6 +670,13 @@ classRoot = false) {
             }
             else if (declared !== null) {
                 errors.push(new DeclareError(`${schema.name}.${child.name} is an attribute — a child may not take an attribute's name`, child.pos));
+            }
+            else if (!declsOwned && CLASS_MEMBERS.get(el.tag)?.has(child.name) === true) {
+                // The use site is configuring the component's own child by redeclaring
+                // it. Naming a different child is how to silence this and never what
+                // was wanted: it puts a SECOND child beside the styled one. The answer
+                // is the attribute door, so the message names it.
+                errors.push(new DeclareError(`'${child.name}' is already a member of ${el.tag} — a use site configures a component through its attributes, not by redeclaring its children. Give ${el.tag} an attribute and read it in the child ('text: string = ""' on the class, 'text = { classroot.text }' on '${child.name}')`, child.pos));
             }
         }
     }

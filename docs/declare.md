@@ -278,6 +278,12 @@ class WeatherTab extends View [ selected: boolean = false,
     ]
 ```
 
+A **direct** child of the class body can reach the same instance as `parent`, and that is
+legal — `parent` is the enclosing view, which for a direct child is the component itself. The
+difference shows up later: nest that child one level deeper and `parent` now means the new
+wrapper, while `classroot` still means the component. Reach for `classroot` when you mean the
+component, and keep `parent` for when you mean *whatever encloses me*.
+
 ### Layout is an attribute
 
 There is no `<Stack>`, no `<Row>`, no flexbox, and no grid. A view positions its children
