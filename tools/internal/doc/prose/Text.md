@@ -39,6 +39,14 @@ Whether a width-bounded run wraps to multiple lines (default `true`). Set `wrap 
 to force a single line that overflows instead. Wrapping is reactive: narrow the
 bounding width and the run re-flows in the same frame. Pairs with `textAlign`.
 
+## maxLines
+A line clamp: at most this many lines, the last ending in an ellipsis that fits the
+width — words dropped from its end until `…` fits, then characters if one word alone is
+too long. `0` (the default) means no clamp. With `wrap = false` it is a one-line ellipsis.
+The run's measured height follows the clamp, and the three renderers clamp by the one
+rule in the measurer, so what is counted is what is painted. A list's preview line is the
+case: `wrap = true, maxLines = 2`.
+
 ## textAlign
 Horizontal alignment of wrapped lines within the run's width — `left` (default),
 `center`, or `right`. Only meaningful once the run has a width to align within.

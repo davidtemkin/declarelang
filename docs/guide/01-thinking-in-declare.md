@@ -89,6 +89,7 @@ such loop is waiting for something specific; ask what, and depend on that instea
 | poll until a fetch lands | the request's state | `visible = { data.loaded }`, or `onLoad` |
 | poll until a view exists, or has a size | the tree settling | `onInit`, `onReady`, `afterSettle`, `onArrive` |
 | poll a value until it changes | the value | a constraint on it |
+| poll until a condition flips, then act once | the crossing | `trackChanges` + `onChange` |
 | "wait 100ms, then read the geometry" | layout | `afterSettle(() => …)` — same frame, geometry real |
 | tick to advance a cursor or a progress | time itself | an `Animator` (time → value) |
 | tick to move something toward a target | a target | a `Spring` |

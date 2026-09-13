@@ -185,6 +185,8 @@ interface Draw {
   translate(x: number, y: number): void;
 }
 interface Touch { id: number; x: number; y: number }
+interface ValueChange { readonly name: string; readonly previousValue: any; readonly currentValue: any }
+interface ChangeEvent { readonly changed: readonly ValueChange[] }
 interface PointerEvent { x: number; y: number }
 interface PointerUpEvent extends PointerEvent { canceled: boolean }
 interface TouchEvent extends PointerEvent { touches: readonly Touch[]; changed: readonly Touch[] }

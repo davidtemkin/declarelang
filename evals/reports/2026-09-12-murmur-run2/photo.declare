@@ -1,0 +1,85 @@
+/*
+# A photograph at full size
+
+The photograph does not open; it *grows*. Tapping one hands the viewer the
+rectangle that photograph occupies on screen right now, and one sprung scalar
+takes that rectangle to the full-size one — so what arrives is recognisably the
+thing that was tapped, and closing takes it home to the same place.
+
+Both rectangles are contain-fits of the same proportion, so every frame in
+between has the photograph's own shape: nothing is stretched, and nothing is
+cropped, at either end or anywhere along the way.
+*/
+
+class PhotoViewer extends View [
+
+    of: string = "",
+    src: string = "",
+    want: boolean = false,
+    ratio: number = 0.72,
+    fromX: number = 0,
+    fromY: number = 0,
+    fromW: number = 0,
+    fromH: number = 0,
+
+    z: number = 0,
+    fly: Spring [ attribute = z, to = { classroot.want ? 1 : 0 }, stiffness = 215, damping = 28, mass = 0.95 ],
+
+    showing: boolean = { classroot.want },
+    visible = { classroot.z > 0.002 },
+
+    // the destination: the largest box of the photograph's own proportion that
+    // fits the window, with a margin that widens with the window
+
+    margin: number = { app.wide ? 56 : 18 },
+    roomW: number = { parent.width - classroot.margin * 2 },
+    roomH: number = { parent.height - classroot.margin * 2 },
+    trueRatio: number = { classroot.shotBox.shot.loaded && classroot.shotBox.shot.naturalWidth > 0
+        ? classroot.shotBox.shot.naturalHeight / classroot.shotBox.shot.naturalWidth : classroot.ratio },
+    toW: number = { Math.min(classroot.roomW, classroot.roomH / classroot.trueRatio) },
+    toH: number = { classroot.toW * classroot.trueRatio },
+
+    open(id: string, src: string, box: object, ratio: number) {
+        classroot.of = id
+        classroot.src = src
+        classroot.ratio = ratio
+        classroot.fromX = box.x
+        classroot.fromY = box.y
+        classroot.fromW = box.width
+        classroot.fromH = box.height
+        classroot.want = true
+        },
+    close() { classroot.want = false },
+
+    lerp(a: number, b: number) -> number { return a + (b - a) * classroot.z },
+
+    scrim: View [ width = { parent.width }, height = { parent.height },
+        fill = { provided("theme").scrim },
+        opacity = { 0.95 * classroot.z },
+        onClick() { classroot.close() }
+        ],
+
+    shotBox: View [ clip = true,
+        x = { classroot.lerp(classroot.fromX, (parent.width - classroot.toW) / 2) },
+        y = { classroot.lerp(classroot.fromY, (parent.height - classroot.toH) / 2) },
+        width = { classroot.lerp(classroot.fromW, classroot.toW) },
+        height = { classroot.lerp(classroot.fromH, classroot.toH) },
+        cornerRadius = { classroot.lerp(19, 5) },
+
+        shot: Image [ width = { parent.width }, height = { parent.height }, stretches = both,
+            source = { classroot.src } ],
+
+        onClick() { classroot.close() }
+        ],
+
+    shut: CloseButton [ y = { 14 + app.safeTop }, opacity = { classroot.z },
+        x = { parent.width - 58 } ]
+    ]
+
+
+class CloseButton extends Control [ width = 44, height = 44, cornerRadius = 22,
+    fill = { classroot.hot ? 0xFFFFFF2E : 0xFFFFFF1A },
+    press() { app.photo.close() },
+    onClick() { app.photo.close() },
+    g: CloseIcon [ x = center, y = center, iconSize = 19, ink = 0xFFFFFF ]
+    ]

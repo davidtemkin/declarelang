@@ -496,6 +496,22 @@ classRoot = false) {
                 errors.push(new DeclareError(`'${attr.name}' is replication metadata — it belongs on a node whose datapath matches many ('datapath = :rows[]'), beside that path. This node replicates nothing, so there is no collection for it to describe`, attr.pos));
                 continue;
             }
+            // `trackChanges` (the change event) names this node's reactive values:
+            // schema attributes and the element's own declarations. Data is heard
+            // through an attribute over the path (`kind: string = { :kind }`) — one
+            // door. A COMPUTED list is not visible here; the runtime refuses an
+            // unknown name when the node arms (reactive.ts trackNode).
+            if (attr.name === "trackChanges" && attr.value.kind === "list") {
+                for (const it of attr.value.items) {
+                    if (it.kind !== "string") {
+                        errors.push(new DeclareError(`${schema.name}.trackChanges: a list of attribute names as strings — 'trackChanges = [ "loaded", "kind" ]'`, it.pos));
+                    }
+                    else if (attrType(schema, it.value) === null && !el.decls.some((d) => d.name === it.value)) {
+                        errors.push(new DeclareError(`${schema.name}.trackChanges: '${it.value}' is not a reactive value of ${schema.name} — it names this node's own attributes and facts (to hear a record's field, declare an attribute over the path: 'kind: string = { :kind }')`, it.pos));
+                    }
+                }
+                continue;
+            }
             if (attr.name === "key" && replicated) {
                 if (attr.value.kind !== "path" || attr.value.many) {
                     errors.push(new DeclareError(`key = :field names each record's identity field (e.g. 'key = :id') — a single :path, not ${attr.value.kind === "path" ? "a many-path" : "a literal"}`, attr.value.pos));

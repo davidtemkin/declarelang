@@ -186,7 +186,7 @@ following the reference you already stand at arrives again — no dead clicks �
 Back and Forward pass through the same door, so a camera flight written here answers
 them too. And it never waits for motion: the target arrives when it exists and has
 geometry, even if it is still gliding toward how it will look. "When the glide
-lands" is a fact motion itself exposes (`atRest`, next chapter), not an arrival.
+lands" is a fact motion itself exposes (`arrived`, next chapter), not an arrival.
 
 > **From React:** this section replaced the router. No route table, no `<Link>`
 > component, no guards, no history listener — and the "router state vs app state"

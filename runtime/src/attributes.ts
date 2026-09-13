@@ -351,6 +351,11 @@ function write(self: object, name: string, v: unknown): void {
   // equal value stops the cascade exactly as === does for scalars (ruled).
   const eq = tableFor(EQUALS, self.constructor)?.[name];
   if (eq !== undefined && eq(cur, v)) return;
+  // THE CHANGE EVENT (reactive.ts wakes, fires at the settle's close): a change
+  // handler may not write a value it was called for — a loop with a name.
+  if ((carrier as { $changing?: ReadonlySet<string> }).$changing?.has(name) === true) {
+    throw new DeclareError(`onChange assigned '${name}', which is one of the values it was called for — a change handler may not write what it was told changed`);
+  }
   (carrier.$attrs ??= Object.create(defaults) as Record<string, unknown>)[name] = v;
   tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
   carrier.$cells?.[name]?.changed();

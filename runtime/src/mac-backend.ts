@@ -544,6 +544,7 @@ class MacSurface implements Surface {
             stops: (style.textFill as Gradient).stops.map((st) => [st.offset, colorToCss(st.color)]) }
         : null,
       align: style.align ?? "left", wrap: style.wrap === true,
+      maxLines: style.maxLines ?? 0,
       letterSpacing: style.letterSpacing ?? 0,
       // Leading as a fontSize multiplier (0 = natural). The host's TextEngine
       // does not consume it yet — seam row in test/seam.test.mjs.

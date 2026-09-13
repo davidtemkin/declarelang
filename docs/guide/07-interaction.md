@@ -193,6 +193,12 @@ the pointer itself is routed by — clip shapes, scale, `pointerEvents`, and ove
 count exactly as they do for a real press — so what your handler computes and what the
 runtime delivers can never disagree.
 
+The walk stops at the first view that has declared an interest in the pointer: a handler, a
+`link`, a `tip`, or a `scrolls` axis. That last one catches people out. A scrolling pane
+answers drags and wheels with scrolling, so it takes presses over its box too, and a control
+declared *before* it — and therefore beneath it — is visible through it and unreachable
+through it. Put anything that must stay clickable in front of the scroller, or outside it.
+
 The idiomatic drop target combines the two layers: the dragger decides with `viewAt`
 and writes **one** reactive slot; every target derives its appearance from that slot by
 constraint.

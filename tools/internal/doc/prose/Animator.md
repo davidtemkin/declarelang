@@ -43,8 +43,8 @@ When true, `to`/`from` are **offsets** from the current value rather than absolu
 Set true to run it — the declarative `start()`. Drive it from a constraint to gate playback
 on state: every change drives the run — true starts, false stops in place, and a fresh true
 is a fresh run from the top. `started` is the **request**, not a status readback: a run that
-completes (or is `stop()`ed) leaves it reading whatever was asked, so ask `atRest` or
-`onStop` for arrival, never `started`.
+completes (or is `stop()`ed) leaves it reading whatever was asked, so ask `arrived` or
+`onStop` for arrival, and `running` for flight — never `started`.
 
 ## paused
 Freeze a running animation and resume it without resetting — distinct from `started`, which
@@ -70,10 +70,17 @@ Halts the run where it is and leaves the attribute at its current value — it d
 snap back to `from`. Pair with `start()` for handler-driven control, or drive `started`
 reactively instead.
 
-## atRest
-**Read-only.** Motion at rest, as a reactive fact: true only at an uninterrupted
-destination — the animation twin of a `DataSource`'s `.loaded`. The animator computes it;
-`start()` and `stop()` are what move it. Read it to sequence what should happen *after*
-motion (revealing a detail panel once its container has finished opening) instead of
-guessing with a timer that a retarget would invalidate. (Not to be confused with **the
-settle**, the update transaction — a spring comes to rest across many settles.)
+## running
+**Read-only.** A journey is in flight: false at birth, true from `start()` (a spring: from
+the moment its target moves away from its value) until it stops for any reason — a landing
+or a `stop()`. The fact to gate a clock or a follow on: `Time [ running = { fit.running } ]`
+runs for exactly the length of the motion. `started` is the request; this is the report.
+
+## arrived
+**Read-only.** The run reached its destination on its own: false at birth, false after a
+mid-flight `stop()`, cleared by a new start, true only at natural completion — the animation
+twin of a `DataSource`'s `.loaded`. For a spring: true once it has landed on its target
+after travelling — exact target, velocity zero. Read it to sequence what should happen *after* motion
+(revealing a detail panel once its container has finished opening) instead of guessing with
+a timer that a retarget would invalidate: `visible = { open.arrived }`. (Not to be confused
+with **the settle**, the update transaction — a spring arrives across many settles.)

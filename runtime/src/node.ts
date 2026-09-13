@@ -7,11 +7,13 @@
 // and construct/init events (R4/R5). Establishing the Node↔View seam now is
 // what lets those land without reshaping the base.
 
-import { Cell, isTracking } from "./reactive.js";
-import { providedRead } from "./attributes.js";
+import { Cell, isTracking, trackNode, untrackNode } from "./reactive.js";
+import { providedRead, defineAttributes } from "./attributes.js";
 
 export class Node {
   parent: Node | null = null;
+  /** The values this node reports changes to (schema.ts NodeSchema). */
+  declare trackChanges: string[] | null;
   readonly children: Node[] = [];
 
   /** The read behind `provided("name")` — a value an ancestor makes available,
@@ -151,6 +153,7 @@ export function onDiscard(node: Node, fn: () => void): void {
  *  base) and by View.discard (which re-implements the recursion rather than
  *  calling super — each discard path runs it exactly once). */
 export function runRetire(node: Node): void {
+  untrackNode(node);
   const retire = RETIRE.get(node);
   if (retire !== undefined) {
     RETIRE.delete(node);
@@ -173,3 +176,14 @@ export function authoredName(node: Node): string | null {
   }
   return null;
 }
+
+// `trackChanges` (schema.ts NodeSchema): the values this node reports changes
+// to. Re-arming is the reactive part — a rebound list re-tracks and re-seeds,
+// so a name added later starts silent. Before `init` there is nothing to arm;
+// view.ts arms the node when it goes live.
+defineAttributes(Node, {
+  trackChanges: { def: null, push: (n, v) => {
+    if ((n as unknown as { $live?: boolean }).$live !== true) return;
+    trackNode(n, Array.isArray(v) ? v.map((x) => String(x)) : null);
+  } },
+});

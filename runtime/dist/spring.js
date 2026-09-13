@@ -55,10 +55,10 @@ export class Spring extends Animator {
         if (this.attribute === "" || this.resolveTarget() === null)
             return;
         this.springRunning = true;
-        // leaving rest: arrival is no longer true (Animator's start() does the
-        // same for the timed half)
-        if (this.atRest)
-            setBound(this, "atRest", false);
+        // a journey begins: running, not arrived (Animator's start() says the same)
+        setBound(this, "running", true);
+        if (this.arrived)
+            setBound(this, "arrived", false);
         // Seed the baseline NOW rather than on the first tick: enrollment is the
         // moment motion begins, so the first tick integrates a real dt. With a null
         // seed the first tick only recorded a baseline — invisible at 60Hz, but
@@ -66,9 +66,6 @@ export class Spring extends Animator {
         // exactly as "the spring never ran".
         this.springLastNow = sharedClock.now();
         sharedClock.add(this);
-    }
-    isRunning() {
-        return this.springRunning;
     }
     /** A Spring is not start()-triggered — it wakes on `to`. Keep start()/stop()
      *  as simple clock enroll/withdraw so the Animatable contract still holds
@@ -80,6 +77,7 @@ export class Spring extends Animator {
         if (!this.springRunning)
             return;
         this.springRunning = false;
+        setBound(this, "running", false); // stopped in flight: not running, not arrived
         sharedClock.remove(this);
     }
     /** One integration frame (semi-implicit Euler). The SLOT is the position
@@ -149,6 +147,7 @@ export class Spring extends Animator {
         if (!this.primed) {
             this.prime();
             this.springRunning = false;
+            setBound(this, "running", false);
             sharedClock.remove(this);
             return false;
         }
@@ -166,6 +165,7 @@ export class Spring extends Animator {
         const attr = this.attribute;
         if (target === null || attr === "") {
             this.springRunning = false;
+            setBound(this, "running", false);
             return false;
         }
         const to = this.to; // reactive: the live target this frame
@@ -193,7 +193,7 @@ export class Spring extends Animator {
         if (Math.abs(to - pos) < eps && Math.abs(this.vel) < eps * 60) {
             // Landed: assign the exact target, zero the velocity, and sleep — then
             // ANNOUNCE it. A spring integrates its own tick rather than running
-            // Animator's timed path, so nothing else was ever going to: `atRest`
+            // Animator's timed path, so nothing else was ever going to: `arrived`
             // stayed false forever and `onStop` never fired, on the half of the
             // family you would actually sequence off ("read it to sequence what
             // should happen after motion instead of guessing with a timer" — the
@@ -203,7 +203,8 @@ export class Spring extends Animator {
             this.vel = 0;
             this.springRunning = false;
             sharedClock.remove(this);
-            setBound(this, "atRest", true);
+            setBound(this, "running", false);
+            setBound(this, "arrived", true);
             this.fire("onStop");
             return false;
         }

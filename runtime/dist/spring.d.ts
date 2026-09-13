@@ -19,7 +19,6 @@ export declare class Spring extends Animator {
     /** Called by the `to` pusher on every retarget: (re)enroll on the clock.
      *  A no-op while already live, so a moving target does not pile up tickers. */
     wake(): void;
-    isRunning(): boolean;
     /** A Spring is not start()-triggered — it wakes on `to`. Keep start()/stop()
      *  as simple clock enroll/withdraw so the Animatable contract still holds
      *  (e.g. an author who does call spring.stop() to pin it). */

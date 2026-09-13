@@ -23,6 +23,10 @@ const SUITE = [
   "test/error-codes.test.mjs",
   "test/release.test.mjs",         // a release is a projection of the tree: the check, the scaffold, the projection
   "test/databinding.test.mjs",
+  "test/dataset-merge.test.mjs",
+  "test/text-clamp.test.mjs",
+  "test/change-event.test.mjs",
+  "test/super.test.mjs",
   "test/materialization.test.mjs",
   "test/dataschema.test.mjs",
   "test/datasource-failure.test.mjs",

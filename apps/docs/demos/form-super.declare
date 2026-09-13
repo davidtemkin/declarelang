@@ -1,0 +1,31 @@
+// A subclass reaches its base's method
+// `Counter.bump()` adds one. `Capped` replaces it and decides for itself whether the base
+// runs: below the cap it calls `super.bump()`, at the cap it never does. Nothing else about
+// the method changes — `super` is an ordinary call, placed wherever the body wants it.
+
+class Counter extends View [ height = 28,
+    count: number = 0,
+    bump() { count = count + 1 },
+    t: Text [ y = 5, text = { "count: " + classroot.count } ]
+    ]
+
+
+class Capped extends Counter [
+    cap: number = 3,
+    refused: number = 0,
+    bump() { if (count < cap) { super.bump() } else { refused = refused + 1 } },
+    note: Text [ x = 90, y = 5, textColor = 0x6A7883,
+        text = { classroot.refused > 0 ? "refused " + classroot.refused + "×" : "" } ]
+    ]
+
+
+App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
+    col: View [ x = 20, y = 16, width = 360,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        plain: Counter [ width = 200 ],
+        capped: Capped [ width = 260 ],
+        Button [ label = "bump both", height = 28,
+            onClick() { app.col.plain.bump(); app.col.capped.bump() }
+            ]
+        ]
+    ]

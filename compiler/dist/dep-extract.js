@@ -669,8 +669,10 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                             errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
                     }
                     else if (PURE_METHODS.has(m)) { /* pure projection */ }
-                    else if (USER_METHODS.has(m))
-                        calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
+                    else if (USER_METHODS.has(m)) {
+                        const rt = pathTextOf(recv);
+                        calls.push({ kind: "method", name: m, receiver: rt === "$base" ? "this" : rt, viaBase: rt === "$base" || undefined, args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
+                    }
                     else if (LANGUAGE_METHOD_EFFECTS.has(m)) {
                         // A language-supplied method with a DECLARED reactive effect
                         // (effects.ts): union its read-paths, rebased to this receiver — as
@@ -1028,6 +1030,9 @@ function buildMethodSummaries() {
     // stays for what it is still right about — the classification gate, the
     // computed-defaults merge, and the last-resort fallback.
     const ownEl = new Map();
+    const classNameOf = new Map();
+    for (const [name, el] of CLASS_EL)
+        classNameOf.set(el, name);
     for (const [el, mm] of METHODS_OF) {
         for (const [name, { params, body, returns, pos }] of mm) {
             const key = METHOD_EL_ID.get(el) + ":" + name;
@@ -1041,6 +1046,23 @@ function buildMethodSummaries() {
                 for (const par of roots)
                     locals.delete(par);
                 const d = extractBody(sf, locals, undefined, roots, pos);
+                // a `super` call: resolve the provider beneath THIS body now, while the
+                // element is known — a class body starts at its base, a use site at its tag
+                for (const c of d.calls) {
+                    if (c.kind !== "method" || c.viaBase !== true)
+                        continue;
+                    let tag = classNameOf.get(el) !== undefined ? CLASS_BASE.get(classNameOf.get(el)) : el.tag;
+                    const seen = new Set();
+                    while (tag !== undefined && !seen.has(tag)) {
+                        seen.add(tag);
+                        const ce = CLASS_EL.get(tag);
+                        if (ce !== undefined && METHODS_OF.get(ce)?.has(c.name)) {
+                            c.baseKey = METHOD_EL_ID.get(ce) + ":" + c.name;
+                            break;
+                        }
+                        tag = CLASS_BASE.get(tag);
+                    }
+                }
                 ownEl.set(key, { ...d, params, returned: new Set(), ret: returnedPaths(sf, locals, params), returns });
             }
         }
@@ -1187,6 +1209,13 @@ function buildMethodSummaries() {
             return { reads: new Set(), errors: [] };
         let o;
         let tag;
+        if (c.kind === "method" && c.baseKey !== undefined) {
+            // `super.name(…)`: the base's body, resolved when the calling body was
+            // summarized — never the caller's own override (which the residence
+            // lookup would find, and the recursion guard would then drop silently)
+            const ob = ownEl.get(c.baseKey);
+            return ob === undefined ? { reads: new Set(), errors: [] } : followSummary(ob, c.baseKey, c, stack, ctx);
+        }
         if (COMPUTED_DEFAULTS.has(c.name)) {
             // a computed-default read (or a name that doubles as one): the name-level
             // merged summary, exactly as before typed residences existed

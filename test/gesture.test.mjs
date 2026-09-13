@@ -261,7 +261,43 @@ const JUMP_RAW = `App [ width = 640, height = 400, fill = #202830,
 const jumpCompiled = await compile(JUMP_RAW);
 assert.deepEqual(jumpCompiled.errors, [], "jump fixture compiles clean");
 
+
+// THE WHEEL HAS NO END (dom-backend setScroll, 2026-09-12): a momentum wheel
+// stream is a decaying series of events with no terminator, and each event's
+// scroll is followed by `scrollend` in the same task. Keyed to scrollend alone
+// the `scrolling` fact read FALSE for the whole gesture (Murmur run 2: a program
+// yielding to it re-anchored between wheel events and fought the hand). Now
+// wheel activity holds the fact until 160 ms of quiet.
+const WHEEL_RAW = `App [ width = 640, height = 400, fill = #202830,
+    pane: View [ x = 40, y = 40, width = 300, height = 200, fill = #3A4855, scrolls = y, scrollStartY = 800,
+        tall: View [ x = 0, y = 0, width = 300, height = 1000, fill = #46586A ],
+        ],
+    ]`;
+const wheelCompiled = await compile(WHEEL_RAW);
+assert.deepEqual(wheelCompiled.errors, [], "wheel fixture compiles clean");
+
+// A SCROLLER TAKES THE POINTER (2026-09-12): `scrolls` declares that a view
+// answers drags and wheels over its box, so it is an input participant like any
+// other and content BEHIND it is not reachable through it. The fixture is the
+// shape that exposed the disagreement (Cadence run 5): a control declared
+// before — and therefore beneath — a scrolling pane that covers it. Every
+// renderer must agree that the pane takes the click and the button hears
+// nothing; the app's fix is the declaration order, not the platform's walk.
+const SINK_RAW = `App [ width = 640, height = 400, fill = #202830,
+    hits: number = 0,
+    under: View [ x = 40, y = 40, width = 200, height = 60, fill = #66AA88,
+        onClick() { app.hits = app.hits + 1 } ],
+    pane: View [ x = 0, y = 0, width = 640, height = 400, scrolls = y,
+        tall: View [ x = 0, y = 0, width = 640, height = 1200 ],
+        ],
+    ]`;
+const sinkCompiled = await compile(SINK_RAW);
+assert.deepEqual(sinkCompiled.errors, [], "scroller-sink fixture compiles clean");
+
 const pages = {
+  "/dom-sink": pageHtml("DomBackend", sinkCompiled.source),
+  "/canvas-sink": pageHtml("CanvasBackend", sinkCompiled.source),
+  "/dom-wheel": pageHtml("DomBackend", wheelCompiled.source),
   "/dom-jump": pageHtml("DomBackend", jumpCompiled.source),
   "/dom-claims": pageHtml("DomBackend", claimsCompiled.source),
   "/dom-takeover": pageHtml("DomBackend", takeoverCompiled.source),
@@ -349,6 +385,16 @@ await test("dom+canvas: an EMBEDDED island's root default never retires pan — 
   await open("/canvas-embedded");
   const cvTa = await page.evaluate(() => getComputedStyle(document.querySelector("canvas")).touchAction);
   assert.equal(cvTa, "manipulation");
+  await open("/dom-claims"); // restore the suite's working page
+});
+
+await test("dom+canvas: a scroller takes the click — the control beneath it hears nothing, in both renderers", async () => {
+  for (const url of ["/dom-sink", "/canvas-sink"]) {
+    await open(url);
+    await page.mouse.click(140, 70);            // over the button, and over the pane covering it
+    const hits = await page.evaluate(() => window.__declare.find("app").hits);
+    assert.equal(hits, 0, `${url}: the pane took the point`);
+  }
   await open("/dom-claims"); // restore the suite's working page
 });
 
@@ -1204,6 +1250,28 @@ await test("scrollIntoView in a scrolls=y pane with overrun width moves y only; 
   assert.ok(r.top > 0, `the jump moved the pane vertically (scrollTop ${r.top})`);
   assert.equal(r.left, 0, "a y-only scroller was not moved sideways");
   assert.equal(r.stripLeft, 400, "an x scroller's \"start\" jump still pins the leading edge");
+});
+
+// ── DOM: the `scrolling` fact holds through a momentum wheel stream ─────────
+
+await open("/dom-wheel");
+
+await test("a momentum-shaped wheel stream keeps `scrolling` true until 160 ms of quiet, then false", async () => {
+  const cdp = await page.createCDPSession();
+  const geo = await page.evaluate(() => { const p = window.__app.pane; const r = p.rootBounds(); window.__seen = []; return { x: r.x + r.width / 2, y: r.y + r.height / 2, y0: p.scrollY }; });
+  let delta = 60, gap = 16; const during = [];
+  for (let i = 0; i < 16; i++) {
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: geo.x, y: geo.y, deltaX: 0, deltaY: -delta });
+    await new Promise((r) => setTimeout(r, gap));
+    during.push(await page.evaluate(() => window.__app.pane.scrolling));   // sampled BETWEEN events, where scrollend already fired
+    delta = Math.max(2, delta * 0.85); gap = Math.min(120, gap * 1.15);
+  }
+  const moved = await page.evaluate(() => window.__app.pane.scrollY);
+  assert.ok(moved < geo.y0 - 100, `the wheel moved the pane (${geo.y0} → ${moved})`);
+  assert.equal(during.filter(Boolean).length, during.length, `scrolling stayed true between every pair of wheel events (${during.filter(Boolean).length}/${during.length})`);
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(await page.evaluate(() => window.__app.pane.scrolling), false, "and fell false once the stream went quiet");
+  await cdp.detach();
 });
 
 await browser.close();

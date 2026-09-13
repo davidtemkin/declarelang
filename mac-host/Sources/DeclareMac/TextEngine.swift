@@ -66,6 +66,16 @@ enum TextEngine {
         return resolved
     }
 
+    /// Drop every memo. A face that lands after something was measured makes
+    /// both caches lie: the entry says "13px Title" and holds the fallback's
+    /// numbers. FontRegistry calls this whenever the face table changes.
+    static func flushFontCaches() {
+        cacheLock.lock()
+        fontCache.removeAll()
+        measureCache.removeAll()
+        cacheLock.unlock()
+    }
+
     /// What a CSS GENERIC family resolves to — the reference's table, measured.
     ///
     /// This is not a matter of taste, and Core Text's own answers are the wrong
@@ -98,6 +108,14 @@ enum TextEngine {
             var name = raw.trimmingCharacters(in: .whitespaces)
             name = name.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
             let lower = name.lowercased()
+            // A DECLARED family first (FontRegistry): `font Title [ Face [ … ] ]`
+            // names a family no system lookup can find — the name is the
+            // author's label, and a subset file usually carries no name of its
+            // own. Before this, every declared face fell through to the system
+            // font and the whole program rendered in a fallback.
+            if let declared = FontRegistry.font(family: name, weight: f.weight, italic: f.italic, size: f.size) {
+                return styled(declared, f)
+            }
             if lower == "system-ui" || lower == "-apple-system" || lower == "blinkmacsystemfont" {
                 return styled(NSFont.systemFont(ofSize: f.size, weight: weight), f)
             }
@@ -302,6 +320,7 @@ struct TextStyleSpec {
     var color: NSColor? = nil
     var align: NSTextAlignment = .left
     var wrap: Bool = false
+    var maxLines: Int = 0        // line clamp, ellipsis on the last kept line (0 = none)
     var letterSpacing: Double = 0
     var selectable: Bool = false
     var shadow: (Double, Double, Double, NSColor)? = nil

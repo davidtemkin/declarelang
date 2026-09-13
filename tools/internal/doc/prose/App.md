@@ -124,7 +124,7 @@ idea of *showing* something is a camera or a pan (`onArrive(target: View) {
 app.flyTo(target) }`), and compose the scroll back with `reveal(target)` when you want
 both. Fires per follow, not per change of address — arriving where you already are arrives
 again — and Back/Forward come through the same door. It never waits for motion: "the glide
-landed" is `atRest`, a fact, not an arrival.
+landed" is `arrived`, a fact, not an arrival.
 
 ## onReady
 Fires once, on the App only, when the app's **first settle** has completed — the tree

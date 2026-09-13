@@ -46,7 +46,9 @@ is unrelated: that is the derive graph's cache-busting build hash.
 ## The flow
 
 The release steps sit inside the ordinary arc; nothing runs around derive or
-the push.
+the push. The arc itself — edit, test, derive, commit, push, and what each
+command builds — is [`docs/operational/shipping.md`](docs/operational/shipping.md);
+this page adds only what a release does on top of it.
 
 1. **Declare it** (during the arc, once the surface is known):
 

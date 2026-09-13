@@ -48,8 +48,10 @@ const CORPUS = [
   "test/probe/frost.declare",
   "test/probe/rotation.declare",
   "test/probe/richtext.declare",
+  "test/probe/webfont.declare",     // declared web faces load and MEASURE here (FontRegistry, 2026-09-13)
   "test/probe/editable.declare",
   "test/probe/glowclip.declare",   // a glow on a clipping card: the clip host keeps the shadow (2026-09-10)
+  "test/probe/textclamp.declare",  // Text.maxLines: the line clamp + ellipsis on every renderer (2026-09-12)
   "apps/calendar/calendar.declare",
   "apps/lzx-weather/lzx-weather.declare",
   "apps/controls/controls.declare",

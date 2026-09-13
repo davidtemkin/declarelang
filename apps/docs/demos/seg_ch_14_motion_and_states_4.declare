@@ -1,0 +1,20 @@
+class Thread extends View [ scrolls = y, fill = #F2F5F8,
+    atEnd: boolean = { scrollY >= contentHeight - height - 1 },
+    trackChanges = ["atEnd"],
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) {
+            if (c.name == "atEnd" && c.currentValue) app.markRead()
+            }
+        }
+    ]
+
+
+App [ width = 320, height = 250, fill = white, textColor = #172530, fontSize = 14,
+    unread: number = 3,
+    markRead() { unread = 0 },
+    thread: Thread [ x = 12, y = 12, width = 296, height = 190, cornerRadius = 8,
+        column: View [ width = { parent.width }, height = 900, fill = #DCE6F0 ]
+        ],
+    status: Text [ x = 12, y = 214,
+        text = { app.unread > 0 ? app.unread + " unread — scroll to the end" : "all read" } ]
+    ]

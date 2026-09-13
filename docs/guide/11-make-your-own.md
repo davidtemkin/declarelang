@@ -75,6 +75,29 @@ Three things arrived without being asked for:
 - **Focus** — the control is in the tab order, a click claims focus, and the app-level
   focus ring finds it.
 
+A method you declare on a subclass replaces the base's method of the same name, and that is
+true of handlers too: they are methods. When you want the base's behaviour as well as your
+own, call it — `super.press()` — before your work, after it, or only on some paths:
+
+```declare
+class Stepper extends Control [ width = 96, height = 28, value: number = 0,
+    input(v: number) { value = v },
+    press() { input(value + 1) },
+    onClick() { if (!disabled) press() }
+    ]
+
+class BoundedStepper extends Stepper [ max: number = 5,
+    press() { if (value < max) super.press() }
+    ]
+
+App [ width = 320, height = 60, theme = { SanFrancisco },
+    BoundedStepper [ x = 20, y = 16, fill = { provided("theme").control } ]
+    ]
+```
+
+`super` reaches a method written in your program or the library, never the runtime's own
+members, and a use site overriding a class's method reaches the class's the same way.
+
 ## The contract is the one you already know
 
 Look at what `press()` does: it calls `input()`. It does **not** write `value`.

@@ -524,6 +524,8 @@ const VOCAB_NOTE = {
   KeyEvent: "a key went down or up — `key`, `code`, and modifier flags; never a numeric code",
   FocusGeometry: "the focused control's live silhouette, for a focus indicator",
   TipEvent: "a tooltip request from the `Tip` service",
+  ChangeEvent: "values this node tracks (`trackChanges`) changed in this settle — `changed`, one `ValueChange` each",
+  ValueChange: "one changed value — its `name`, its `previousValue`, and its `currentValue`",
   StreamMessage: "one arrival from an `EventStream` or `Socket`",
   gradient: "build a `Gradient` from an angle and colours",
   stroke: "build a `Stroke`",

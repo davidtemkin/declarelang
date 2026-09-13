@@ -407,6 +407,22 @@ export class Dataset extends Node {
   private wakeChain(chain: readonly [object, string][]): void {
     for (const [container, key] of chain) wake(container, key);
   }
+
+  /** A derived dataset's recompute lands here (`contents` push): merge into
+   *  the standing tree when both are containers of one kind, else replace
+   *  wholesale through the value slot (mergeTree, below). */
+  adopt(v: unknown): void {
+    const next = unwrapValue(v);
+    const old = unwrapValue(this.value);
+    if (isContainer(old) && isContainer(next) && old !== next) {
+      if (Array.isArray(old) && Array.isArray(next)) {
+        const r = mergeRows(this, old, next, [], []);
+        if (r === true) return;
+        if (r !== false) { this.value = r; return; }          // a new list: the value slot wakes its readers
+      } else if (mergeTree(this, old, next, [], [])) return;
+    }
+    this.value = v;
+  }
 }
 
 defineAttributes(Dataset, {
@@ -433,8 +449,107 @@ defineAttributes(Dataset, {
   // recompute tags the new tree and wakes every `:path` reader and replicator,
   // exactly as a wholesale `.value` replacement does. `contents` itself is
   // never read back (nothing tracks it); it is the author-facing write slot.
-  contents: { def: null, push: (d: Dataset, v: unknown) => { d.value = v; } },
+  contents: { def: null, push: (d: Dataset, v: unknown) => { d.adopt(v); } },
 });
+
+/** STRUCTURAL MERGE for a derived dataset's recompute (2026-09-12, from the
+ *  Murmur run-2 profile: one appended message re-ran every constraint in a
+ *  305-row column — 430 ms — because `contents = { build() }` replaced the
+ *  whole value and "whole-value replacement wakes every reader"). A rebuilt
+ *  tree is usually the old tree plus a small change; this walks the two
+ *  together and lands only the difference through the ordinary wake model:
+ *  an unchanged region keeps its OLD object (so its cells, tags, and tracked
+ *  views stay valid and its readers stay asleep); a changed leaf is written
+ *  in place and wakes its cell plus the ancestor chain, exactly as a `set`
+ *  at that path would; a key added or removed is structural and wakes the
+ *  container's readers too. Cost: one walk of the new tree per recompute —
+ *  proportional to the DATA, where the replacement it replaces cost a
+ *  re-evaluation proportional to the VIEWS. Returns true if it merged, false
+ *  if the shapes differ at the root (then the caller replaces wholesale). */
+function mergeTree(data: Dataset, old: object, next: object, path: string[], chain: [object, string][]): boolean {
+  const oldArr = Array.isArray(old), nextArr = Array.isArray(next);
+  if (oldArr !== nextArr) return false;
+  if (oldArr) return mergeRows(data, old as unknown[], next as unknown[], path, chain) === true;
+  let structural = false;
+  const nextKeys = Object.keys(next);
+  for (const k of nextKeys) {
+    const a = getOwn(old, k), b = getOwn(next, k);
+    if (Object.is(a, b)) continue;
+    if (Array.isArray(a) && Array.isArray(b)) {
+      const r = mergeRows(data, a, b, [...path, k], [...chain, [old, k]]);
+      if (r === true) continue;                                   // rows merged in place, order and membership unchanged
+      if (r !== false) {                                          // a NEW array (structural change): land it, wake the old one's readers
+        // wake the LIST's own readers (index and length cells), not the rows':
+        // the rows that survived are the same objects and stay asleep; the
+        // removed ones were woken by mergeRows
+        (old as Record<string, unknown>)[k] = r; wake(old, k); wakeAll(a); for (const [c, ck] of chain) wake(c, ck);
+        continue;
+      }
+      // r === false: not a keyed list — falls through to the wholesale landing below
+    } else if (isContainer(a) && isContainer(b) && mergeTree(data, a, b, [...path, k], [...chain, [old, k]])) continue;
+    // a changed leaf, or a container whose shape changed: land the new value here
+    const had = Object.prototype.hasOwnProperty.call(old, k);
+    (old as Record<string, unknown>)[k] = b;
+    tagTree(data, b, [...path, k]);
+    wake(old, k);
+    if (isContainer(a)) wakeTree(a);
+    if (!had) structural = true;
+    for (const [c, ck] of chain) wake(c, ck);
+  }
+  for (const k of Object.keys(old)) if (!Object.prototype.hasOwnProperty.call(next, k)) { const a = getOwn(old, k); delete (old as Record<string, unknown>)[k]; wake(old, k); if (isContainer(a)) wakeTree(a); structural = true; }
+  if (structural) { wakeAll(old); for (const [c, ck] of chain) wake(c, ck); }
+  return true;
+}
+
+/** An ARRAY merges BY KEY, never by index. A row is a record with an `id`
+ *  (the same key replication reconciles on); a rebuilt list is matched to the
+ *  standing one by that key, so a row that moved keeps its object — and with
+ *  it its identity for every consumer that holds one (a selection, a cursor,
+ *  a tracked view) — and only a row whose fields changed wakes its readers.
+ *  Order and membership changes are structural: the array's own readers wake.
+ *  An array whose elements are not all keyed records is NOT merged: the caller
+ *  lands the new array wholesale, which is the behaviour before the merge
+ *  existed (a keyless derived list rebuilds its changed rows — the
+ *  structural-equality fallback replication already performs). Index-wise
+ *  merging was tried first and broke exactly this: a sort flip overwrote row
+ *  A's object with row B's fields, and everything holding A now held B. */
+function mergeRows(data: Dataset, old: unknown[], next: unknown[], path: string[], chain: [object, string][]): boolean | unknown[] {
+  const keyOf = (v: unknown): string | null => {
+    if (!isContainer(v) || Array.isArray(v)) return null;
+    const id = (v as Record<string, unknown>).id;
+    return typeof id === "string" || typeof id === "number" ? String(id) : null;
+  };
+  if (next.length === 0 && old.length === 0) return true;
+  const byKey = new Map<string, unknown>();
+  for (const v of old) { const k = keyOf(v); if (k === null || byKey.has(k)) return false; byKey.set(k, v); }
+  const seen = new Set<string>();
+  const merged: unknown[] = new Array(next.length);
+  let structural = old.length !== next.length;
+  for (let i = 0; i < next.length; i++) {
+    const nv = next[i]; const k = keyOf(nv);
+    if (k === null || seen.has(k)) return false;
+    seen.add(k);
+    const ov = byKey.get(k);
+    const at = [...path, String(i)];
+    if (ov !== undefined) {
+      if (!mergeTree(data, ov as object, nv as object, at, [...chain, [old, String(i)]])) return false;
+      if (ov !== old[i]) { structural = true; tagTree(data, ov, at); }   // moved: re-tag its place
+      merged[i] = ov;
+    } else {
+      tagTree(data, nv, at);
+      merged[i] = nv;
+      structural = true;
+    }
+  }
+  for (const [k, ov] of byKey) if (!seen.has(k)) { wakeTree(ov); structural = true; }
+  // A structural change yields a NEW array — the rows keep their objects, the
+  // list does not: whoever held the old array holds a stable snapshot, and its
+  // readers wake through the parent's landing (wakeAll + chain there). Mutating
+  // the standing array in place was tried first: a caller that had read
+  // `rows` before a collapse watched its own snapshot shrink.
+  if (!structural) return true;
+  return merged;
+}
 
 /** The injected transport — the network's entry seam, like the measurer's
  *  (measure.ts provideMeasurer). Default = the platform fetch; HEADLESS

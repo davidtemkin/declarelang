@@ -25,6 +25,8 @@
 import { View, onDiscard } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
 import { shadowEqual, outlineEqual, type Fill, type Shadow, type Outline, type Color } from "./value.js";
+/** A line count under `maxLines` (0 = no clamp). */
+const clampN = (n: number, max: number): number => (max > 0 ? Math.min(n, max) : n);
 import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight, type TextTransform, type FontWeight } from "./measure.js";
 import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault } from "./attributes.js";
 import { Constraint } from "./reactive.js";
@@ -45,6 +47,8 @@ export class Text extends View {
   declare textShadow: Shadow | null;
   /** A bounded-width run wraps (default) or stays a single line. */
   declare wrap: boolean;
+  /** Line clamp (schema.ts): the height derive and every renderer honour it. */
+  declare maxLines: number;
   declare textAlign: "left" | "center" | "right";
   declare italic: boolean;
   declare textFill: Fill | null;
@@ -107,7 +111,7 @@ export class Text extends View {
         // container/viewport resize re-wraps and re-flows — baseline.
         const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
         const lines = bounded && this.wrap
-          ? wrapLines(transformText(this.text, this.textTransform), fontString(this), this.width, this.letterSpacing).length
+          ? clampN(wrapLines(transformText(this.text, this.textTransform), fontString(this), this.width, this.letterSpacing).length, this.maxLines)
           : 1;
         return Math.ceil(lineH * lines);
       });
@@ -130,7 +134,7 @@ export class Text extends View {
     const m = fontMetrics(font);
     const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
     const lines = bounded && this.wrap
-      ? wrapLines(disp, font, this.width, this.letterSpacing).length
+      ? clampN(wrapLines(disp, font, this.width, this.letterSpacing).length, this.maxLines)
       : 1;
     return Math.ceil(this.lineAdvance(m) * lines);
   }
@@ -158,6 +162,7 @@ export class Text extends View {
         color: this.textColor,
         shadow: this.textShadow,
         wrap: this.wrap && (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0,
+        maxLines: this.maxLines,
         align: this.textAlign,
         italic: this.italic,
         textFill: this.textFill,
@@ -197,6 +202,7 @@ defineAttributes(Text, {
   text: { def: "", push: (t, v) => t.surface?.setText(v) },
   textShadow: { def: null, equal: shadowEqual },
   wrap: { def: true },
+  maxLines: { def: 0 },
   textAlign: { def: "left" },
   italic: { def: false },
   textFill: { def: null },

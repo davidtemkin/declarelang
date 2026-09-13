@@ -255,7 +255,11 @@ export function validateBody(params: readonly string[], src: string): string | n
 /** A compiled method body: `this` = the owning node, `parent` its view-tree
  *  parent, `classroot` its enclosing class instance, then the declared
  *  parameters. */
-export type BodyFn = (this: unknown, parent: unknown, classroot: unknown, ...args: unknown[]) => unknown;
+/** `base` is the `$base` object — what `super` reaches from this body: the
+ *  nearest providers of every method name BELOW it in the class chain
+ *  (instantiate.ts installs one snapshot per body). The compiler rewrites
+ *  `super.name(…)` to `$base.name(…)` (compile.ts, the super rule). */
+export type BodyFn = (this: unknown, parent: unknown, classroot: unknown, base: object, ...args: unknown[]) => unknown;
 
 /** Compile a method member's *statement* body (R5) — the same seam as
  *  compileExpr, statement-shaped: no `return (…)` wrapping, so bodies hold
@@ -278,10 +282,10 @@ export function compileBody(params: readonly string[], src: string): { fn: BodyF
       // The body runs inside its own block so a statement may shadow a
       // constructor name (`const stop = …`) without a redeclaration error;
       // `var` still hoists to the function and `return` works unchanged.
-      const raw = new Function("$d", "$s", "parent", "classroot", ...params, `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} { ${r.src} }`);
+      const raw = new Function("$d", "$s", "parent", "classroot", "$base", ...params, `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} { ${r.src} }`);
       return {
-        fn: function (this: unknown, parent: unknown, classroot: unknown, ...args: unknown[]): unknown {
-          return raw.call(this, SCOPE, scripts, parent, classroot, ...args);
+        fn: function (this: unknown, parent: unknown, classroot: unknown, base: object, ...args: unknown[]): unknown {
+          return raw.call(this, SCOPE, scripts, parent, classroot, base, ...args);
         },
       };
     } catch (e) {

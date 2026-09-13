@@ -8,8 +8,10 @@ import { type Motion, type Ticker } from "./animate.js";
 interface Animatable extends Ticker {
     start(): void;
     stop(): void;
-    isRunning(): boolean;
     tick(now: number, frozen?: boolean): boolean;
+    /** The in-flight fact — a read-only attribute on every implementor (Animator,
+     *  Spring, AnimatorGroup); the group coordinates its members by it. */
+    readonly running: boolean;
 }
 export declare class Animator extends Node implements Animatable {
     /** The target's slot name — a bare token, schema-checked against the
@@ -41,16 +43,20 @@ export declare class Animator extends Node implements Animatable {
     started: boolean;
     /** Freeze in place; resume continues (LZX). */
     paused: boolean;
-    /** AT REST as a reactive fact — the animation twin of a DataSource's
-     *  `.loaded`: true only after a run completes NATURALLY at its destination;
-     *  false while running, after a mid-flight stop(), and before any run.
-     *  `visible = { open.atRest }` says "this exists only at the resting
-     *  end-state" — no onStop bookkeeping, no interruption guards: a restart
-     *  clears it, an interrupted stop never sets it. (Named for the physical
-     *  fact — motion at rest — because "the settle" names the update
-     *  transaction, language §7; the two are different clocks.) */
-    atRest: boolean;
-    private running;
+    /** THE TWO FACTS OF MOTION (2026-09-12 ruling — one name, one meaning, on
+     *  Animator and Spring alike; `started` is the request, these are the
+     *  platform's report). `running`: a journey is in flight — false at birth,
+     *  true from start (or a spring's wake) until it stops for ANY reason, a
+     *  landing or a stop(). `arrived`: the run reached its destination on its
+     *  own — false at birth, false after a mid-flight stop(), cleared by a new
+     *  start, true only at natural completion (the animation twin of a
+     *  DataSource's `.loaded`). `visible = { open.arrived }` reveals a panel
+     *  once its container has finished opening; `Time [ running = { fit.running } ]`
+     *  runs a clock for exactly the length of a motion. (Neither is "the
+     *  settle", the update transaction, language §7 — different clocks.) */
+    running: boolean;
+    arrived: boolean;
+    private live;
     /** Group-driven: an enclosing AnimatorGroup registers the clock and ticks
      *  us, so start()/stop() must NOT touch the shared clock themselves. */
     private grouped;
@@ -77,7 +83,6 @@ export declare class Animator extends Node implements Animatable {
     /** Marked by an enclosing AnimatorGroup at construct: the group drives the
      *  clock and cascades attributes, so this animator is group-controlled. */
     markGrouped(): void;
-    isRunning(): boolean;
     /** The node whose slot this animator drives: its parent, but for a grouped
      *  member the enclosing group is transparent — the target is the group's own
      *  target (LZX cascades `target` down a group), i.e. the nearest ancestor
@@ -174,6 +179,9 @@ export declare class AnimatorGroup extends Node implements Animatable {
      *  did not set one of these inherits the group's. Not surface the group reads
      *  itself (its motion lives in its members) — declared so cascade can carry
      *  them and the schema can check the group's `attribute` against its target. */
+    /** The two facts of motion, on a group as on its members (see Animator). */
+    running: boolean;
+    arrived: boolean;
     attribute: string;
     to: number;
     from: number | null;
@@ -189,14 +197,13 @@ export declare class AnimatorGroup extends Node implements Animatable {
     started: boolean;
     /** Freeze the whole group; members hold in place and resume together. */
     paused: boolean;
-    private running;
+    private live;
     /** The members still to finish this run, in tree order — LZX's `actAnim`. */
     private active;
     private cyclesLeft;
     private grouped;
     private autoStarted;
     markGrouped(): void;
-    isRunning(): boolean;
     /** This group's members (child Animators / AnimatorGroups), in tree order. */
     private members;
     autoStart(): void;

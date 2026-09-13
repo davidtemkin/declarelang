@@ -258,10 +258,10 @@ export function compileBody(params, src) {
             // The body runs inside its own block so a statement may shadow a
             // constructor name (`const stop = …`) without a redeclaration error;
             // `var` still hoists to the function and `return` works unchanged.
-            const raw = new Function("$d", "$s", "parent", "classroot", ...params, `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} { ${r.src} }`);
+            const raw = new Function("$d", "$s", "parent", "classroot", "$base", ...params, `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} { ${r.src} }`);
             return {
-                fn: function (parent, classroot, ...args) {
-                    return raw.call(this, SCOPE, scripts, parent, classroot, ...args);
+                fn: function (parent, classroot, base, ...args) {
+                    return raw.call(this, SCOPE, scripts, parent, classroot, base, ...args);
                 },
             };
         }

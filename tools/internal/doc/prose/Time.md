@@ -85,3 +85,8 @@ The local-zone hour, 0–23.
 previous tick, clamped to about one tick (≈1/15 s at `frame`; one period on the
 calendar tiers, so a page returning from an hour hidden gets 60, not 3600). Three
 consecutive throws stop the Time, loudly, naming the node; `running = true` restarts it.
+
+**A clock is not a way to hear about a change.** A `Time` gated on a condition, whose handler
+does its work and closes its own gate, is asking to be told that something crossed into a new
+state. Name the value in `trackChanges` and answer `onChange` (Node): it runs at the close of
+the settle that moved the value, not on the next frame, and it costs no clock.

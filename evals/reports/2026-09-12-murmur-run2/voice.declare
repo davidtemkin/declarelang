@@ -1,0 +1,178 @@
+/*
+# The voice message
+
+The control with no off-the-shelf answer, so it is built out of what the service
+already knows: `durationMs` gives the length before a byte of audio is fetched,
+and `peaks` gives the shape.
+
+Three decisions carry it.
+
+**The length is stated at rest.** A clip announces "0:21" before it is touched;
+only while it is running does the readout become the elapsed time, because that
+is the only moment the elapsed time is the useful number.
+
+**The playhead is a spring, and its stiffness is a state.** The element reports
+its position four times a second — sprung, that reads as a smooth sweep. Under a
+finger the same spring is stiffened tenfold, so the head is *on* the finger with
+no lag and no second source of truth.
+
+**The waveform swells under the finger.** A Gaussian lens centred on the grab
+point lifts the bars around it while the track grows taller. It is not
+decoration: a 64-bar waveform in 200 points is about three pixels a bar, and the
+lens is what makes a particular moment in the clip something you can actually
+aim at.
+*/
+
+class Wave extends View [
+
+    peaks: number[] = [],
+    ink: number = 0x888888,
+    lens: number = 0,                 // 0 at rest, 1 under a finger
+    grab: number = 0,                 // where the finger is, 0..1
+    barW: number = 2.5,
+    pitch: number = 4.5,
+
+    draw(d: Draw) {
+        const n = Math.max(6, Math.floor(d.w / pitch))
+        const src = peaks.length > 0 ? peaks : [0.2]
+        d.fillStyle = ink
+        for (let i = 0; i < n; i++) {
+            const p = src[Math.min(src.length - 1, Math.floor(i * src.length / n))]
+            const away = (i + 0.5) / n - grab
+            const swell = 1 + 0.85 * lens * Math.exp(-(away * away) * 42)
+            const h = Math.min(d.h, Math.max(barW, (0.16 + 0.84 * p) * d.h * 0.86 * swell))
+            d.beginPath()
+            d.roundRect(i * pitch, (d.h - h) / 2, barW, h, barW / 2)
+            d.fill()
+            }
+        }
+    ]
+
+
+class VoiceBubble extends Leaf [ clip = true,
+
+    width = { app.voiceW },
+    height = 76,
+    fill = { :mine ? provided("theme").mine : provided("theme").card },
+    stroke = { :mine ? null : stroke(1, provided("theme").line) },
+
+    // ink roles, one line each, so nothing below asks which side it is on
+
+    quiet: number = { :mine ? provided("theme").mineFaint : provided("theme").wave },
+    loud: number = { :mine ? provided("theme").mineInk : provided("theme").accent },
+    label: number = { :mine ? provided("theme").mineFaint : provided("theme").inkFaint },
+
+    trackX: number = 70,
+    trackW: number = { this.width - classroot.trackX - 16 },
+
+    dur: number = { :durationMs / 1000 },
+
+    // Where the playhead belongs: under a finger it is the finger; otherwise
+    // it is wherever this clip's own element has got to — so a clip you left
+    // half-played still shows where you left it.
+
+    frac: number = { classroot.scrubbing ? classroot.grab
+        : classroot.sound.duration > 0 ? classroot.sound.position / classroot.sound.duration
+        : 0 },
+
+    scrubbing: boolean = false,
+    grab: number = 0,
+    lens: number = 0,
+    focus: Spring [ attribute = lens, to = { classroot.scrubbing ? 1 : 0 }, stiffness = 260, damping = 24 ],
+
+    // the swept width IS the playhead: one number, one spring, two tempers
+
+    swept: number = 0,
+    sweep: Spring [ attribute = swept, to = { classroot.frac * classroot.trackW },
+        stiffness = { classroot.scrubbing ? 1400 : 190 }, damping = { classroot.scrubbing ? 60 : 30 } ],
+
+    sound: Audio [ source = { :kind == "voice" ? :src : "" },
+        playing = { app.playingId == :id && app.playWants },
+        onEnded() { app.playWants = false; classroot.sound.position = 0 }
+        ],
+
+    btn: PlayButton [ x = 14, y = 15 ],
+
+    // `claim = x` leaves the vertical finger to the conversation: a swipe that
+    // happens to start on a waveform scrolls the thread, as it should, while
+    // a sideways drag is a scrub.
+
+    track: View [ x = { classroot.trackX }, y = 13, height = 38,
+        width = { classroot.trackW },
+        cursor = "pointer", claim = x,
+
+        rest: Wave [ width = { parent.width }, height = { parent.height },
+            peaks = :peaks, ink = { classroot.quiet },
+            lens = { classroot.lens }, grab = { classroot.grab } ],
+
+        done: View [ width = { Math.max(0, classroot.swept) }, height = { parent.height }, clip = true,
+            played: Wave [ width = { classroot.trackW }, height = { parent.height },
+                peaks = :peaks, ink = { classroot.loud },
+                lens = { classroot.lens }, grab = { classroot.grab } ]
+            ],
+
+        // The head reads against both halves of the waveform, so it is the
+        // bubble's own ink rather than the played colour it sits on.
+
+        head: View [ width = 3, cornerRadius = 1.5,
+            x = { classroot.swept - 1.5 },
+            height = { parent.height * (0.76 + 0.24 * classroot.lens) },
+            y = center,
+            fill = { :mine ? provided("theme").mineInk : provided("theme").ink },
+            lvl: number = 0,
+            opacity = { lvl },
+            show: Spring [ attribute = lvl, to = { classroot.scrubbing || classroot.frac > 0 ? 1 : 0 },
+                stiffness = 240, damping = 26 ]
+            ],
+
+        onPointerDown(e: PointerEvent) {
+            classroot.scrubbing = true
+            classroot.grab = Math.max(0, Math.min(1, e.x / this.width))
+            },
+        onPointerMove(e: PointerEvent) {
+            if (!classroot.scrubbing) return
+            classroot.grab = Math.max(0, Math.min(1, (e.x - this.rootOrigin().x) / this.width))
+            },
+        onPointerUp(e: PointerUpEvent) {
+            if (!classroot.scrubbing) return
+            classroot.scrubbing = false
+            if (e.canceled) return
+            classroot.sound.position = classroot.grab * classroot.dur
+            app.play(:id)
+            }
+        ],
+
+    // At rest the clip says how long it is. Playing or being aimed, it says
+    // where you are — the same slot, so the number never moves.
+
+    time: Text [ y = 52, wrap = false, fontSize = 11.5, fontWeight = medium,
+        x = { classroot.trackX },
+        letterSpacing = 0.2,
+        textColor = { classroot.label },
+        text = { classroot.scrubbing ? app.mmssOf(classroot.grab * :durationMs)
+               : classroot.sound.position > 0 ? app.mmssOf(classroot.sound.position * 1000)
+               : :length } ]
+    ]
+
+
+class PlayButton extends Control [ width = 46, height = 46, cornerRadius = 23,
+
+    fill = { :mine ? provided("theme").mineInk : provided("theme").accent },
+    opacity = { classroot.hot ? 0.86 : 1 },
+    sq: number = 1,
+    scale = { sq },
+    pivotX = 23,
+    pivotY = 23,
+    squash: Spring [ attribute = sq, to = { classroot.down ? 0.93 : 1 }, stiffness = 420, damping = 26 ],
+
+    running: boolean = { app.playingId == :id && app.playWants },
+    turn: number = 0,
+    morph: Spring [ attribute = turn, to = { classroot.running ? 1 : 0 }, stiffness = 300, damping = 26 ],
+
+    glyph: PlayMark [ x = center, y = center, iconSize = 20,
+        pauseness = { classroot.turn },
+        ink = { :mine ? provided("theme").mine : provided("theme").paper } ],
+
+    press() { app.togglePlay(:id) },
+    onClick() { app.togglePlay(:id) }
+    ]

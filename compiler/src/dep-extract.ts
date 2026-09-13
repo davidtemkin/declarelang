@@ -313,7 +313,12 @@ function collectLocals(sf: ts.Node, params: readonly string[]): Set<string> {
  *  *through* the result (`f(x).title`) — what makes a callee that returns one of
  *  its own parameters unsafe. */
 type Call =
-  | { kind: "method"; name: string; receiver: string; args: (string | null)[]; projected: boolean; tail: string | null; body?: Pos }
+  | { kind: "method"; name: string; receiver: string; args: (string | null)[]; projected: boolean; tail: string | null; body?: Pos;
+      /** `super.name(…)` (spelled `$base.name(…)` after resolution): the receiver
+       *  is `this`, but the body to follow is the nearest provider BENEATH the
+       *  calling body in its class chain — `baseKey` names that summary
+       *  (filled in where the calling body's element is known). */
+      viaBase?: boolean; baseKey?: string }
   | { kind: "script"; name: string; args: (string | null)[]; projected: boolean; tail: string | null }
   | { kind: "scriptValue"; name: string };
 
@@ -601,7 +606,10 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
           } else if (ITER.has(m)) {
             if (recvName && NODE_COLLECTIONS.has(recvName)) errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
           } else if (PURE_METHODS.has(m)) { /* pure projection */ }
-          else if (USER_METHODS.has(m)) calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
+          else if (USER_METHODS.has(m)) {
+            const rt = pathTextOf(recv);
+            calls.push({ kind: "method", name: m, receiver: rt === "$base" ? "this" : rt, viaBase: rt === "$base" || undefined, args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
+          }
           else if (LANGUAGE_METHOD_EFFECTS.has(m)) {
             // A language-supplied method with a DECLARED reactive effect
             // (effects.ts): union its read-paths, rebased to this receiver — as
@@ -964,6 +972,8 @@ function buildMethodSummaries(): Summaries {
   // stays for what it is still right about — the classification gate, the
   // computed-defaults merge, and the last-resort fallback.
   const ownEl = new Map<string, Summary>();
+  const classNameOf = new Map<unknown, string>();
+  for (const [name, el] of CLASS_EL) classNameOf.set(el, name);
   for (const [el, mm] of METHODS_OF) {
     for (const [name, { params, body, returns, pos }] of mm) {
       const key = METHOD_EL_ID.get(el) + ":" + name;
@@ -974,6 +984,19 @@ function buildMethodSummaries(): Summaries {
         const roots = new Set<string>(params);
         for (const par of roots) locals.delete(par);
         const d = extractBody(sf, locals, undefined, roots, pos);
+        // a `super` call: resolve the provider beneath THIS body now, while the
+        // element is known — a class body starts at its base, a use site at its tag
+        for (const c of d.calls) {
+          if (c.kind !== "method" || c.viaBase !== true) continue;
+          let tag: string | undefined = classNameOf.get(el) !== undefined ? CLASS_BASE.get(classNameOf.get(el)!) : (el as { tag?: string }).tag;
+          const seen = new Set<string>();
+          while (tag !== undefined && !seen.has(tag)) {
+            seen.add(tag);
+            const ce = CLASS_EL.get(tag);
+            if (ce !== undefined && METHODS_OF.get(ce)?.has(c.name)) { c.baseKey = METHOD_EL_ID.get(ce) + ":" + c.name; break; }
+            tag = CLASS_BASE.get(tag);
+          }
+        }
         ownEl.set(key, { ...d, params, returned: new Set<string>(), ret: returnedPaths(sf, locals, params), returns });
       }
     }
@@ -1099,6 +1122,13 @@ function buildMethodSummaries(): Summaries {
     if (c.kind === "scriptValue") return { reads: new Set(), errors: [] };
     let o: Summary | undefined;
     let tag: string;
+    if (c.kind === "method" && c.baseKey !== undefined) {
+      // `super.name(…)`: the base's body, resolved when the calling body was
+      // summarized — never the caller's own override (which the residence
+      // lookup would find, and the recursion guard would then drop silently)
+      const ob = ownEl.get(c.baseKey);
+      return ob === undefined ? { reads: new Set(), errors: [] } : followSummary(ob, c.baseKey, c, stack, ctx);
+    }
     if (COMPUTED_DEFAULTS.has(c.name)) {
       // a computed-default read (or a name that doubles as one): the name-level
       // merged summary, exactly as before typed residences existed

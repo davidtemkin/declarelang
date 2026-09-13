@@ -391,6 +391,18 @@ final class Bridge {
             self?.loadImage(handle: handle, urlStr: urlStr)
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "loadImage")
 
+        // Web faces (FontRegistry). The env's FontFace shim drives these, so the
+        // runtime's own loadFonts runs here unchanged and first paint waits for
+        // the bytes exactly as it does on the web.
+        host.setObject({ [weak self] (handle: Int, urlStr: String, family: String, weight: String, italic: Bool) in
+            self?.loadFont(handle: handle, urlStr: urlStr, family: family, weight: weight, italic: italic)
+        } as @convention(block) (Int, String, String, String, Bool) -> Void, forKeyedSubscript: "loadFont")
+        host.setObject({ (family: String, name: String, weight: String, italic: Bool) -> Bool in
+            FontRegistry.registerLocal(family: family, name: name, weight: weight, italic: italic)
+        } as @convention(block) (String, String, String, Bool) -> Bool, forKeyedSubscript: "registerLocalFont")
+        host.setObject({ FontRegistry.clear() } as @convention(block) () -> Void,
+                       forKeyedSubscript: "clearFonts")
+
         // Media (Media.swift): the env's media-element shim by handle. Audio is
         // a bare AVPlayer; a Video node additionally binds an AVPlayerLayer via
         // op MEDIA, so frames never cross the bridge.
@@ -1081,8 +1093,30 @@ final class Bridge {
     }
     var pendingHeaders: [Int: [String: String]] = [:]
 
+    /// One web face: fetch the bytes, hand them to FontRegistry, answer the
+    /// waiting promise. `ok = false` means the env should try the next source
+    /// in the CSS chain, and if there is none, the runtime warns and the app
+    /// renders in a fallback — type is the one asset whose absence has a
+    /// fallback built into every text stack (boot.ts says the same).
+    private func loadFont(handle: Int, urlStr: String, family: String, weight: String, italic: Bool) {
+        let finish: (Bool) -> Void = { [weak self] ok in
+            guard let self else { return }
+            if !ok { NSLog("[font] %@ (%@) did not load from %@", family, weight, urlStr) }
+            self.call("__declareFontDone", [handle, ok])
+            self.needsFrame()
+        }
+        guard let url = URL(string: urlStr), url.scheme != nil else {
+            NSLog("[font] unresolvable src: %@", urlStr); finish(false); return
+        }
+        let land: (Data?) -> Void = { data in
+            guard let data else { finish(false); return }
+            finish(FontRegistry.register(family: family, weight: weight, italic: italic, data: data))
+        }
+        if url.isFileURL { land(try? Data(contentsOf: url)); return }
+        Self.net.dataTask(with: url) { data, _, _ in land(data) }.resume()
+    }
+
     private func loadImage(handle: Int, urlStr: String) {
-        NSLog("[image] load %d <- %@", handle, urlStr)
         let finish: (CGImage?) -> Void = { [weak self] img in
             guard let self else { return }
             if let img {
@@ -1092,19 +1126,91 @@ final class Bridge {
             self.call("__declareImageDone", [handle, img?.width ?? 0, img?.height ?? 0, img != nil])
             self.needsFrame()
         }
+        // ONE FETCH AND ONE DECODE PER URL. A view that comes and goes — a card
+        // re-made on every step of a carousel — asks for the same bitmap again,
+        // and without this the host re-fetched AND re-decoded it every time: 26
+        // loads of 7 files in one short session of the All Access mirror,
+        // measured 2026-09-13. A browser answers the second ask from its cache.
+        Self.decodedLock.lock()
+        let hit = Self.decoded[urlStr]
+        Self.decodedLock.unlock()
+        if let hit { finish(hit); return }
+        NSLog("[image] load %d <- %@", handle, urlStr)
         guard let url = URL(string: urlStr), url.scheme != nil else {
             NSLog("[image] unresolvable src: %@", urlStr)
             finish(nil); return
         }
-        if url.isFileURL {
-            finish(Self.decode(try? Data(contentsOf: url))); return
+        let landed: (CGImage?) -> Void = { img in
+            if let img { Self.remember(urlStr, img) }
+            finish(img)
         }
-        Self.net.dataTask(with: url) { data, _, _ in finish(Self.decode(data)) }.resume()
+        if url.isFileURL {
+            landed(Self.decode(try? Data(contentsOf: url))); return
+        }
+        Self.net.dataTask(with: url) { data, _, _ in landed(Self.decode(data)) }.resume()
+    }
+
+    /// Decode ONCE, into real pixels.
+    ///
+    /// `CGImageSourceCreateImageAtIndex` returns a LAZY image: it holds the
+    /// compressed bytes and decodes on demand — and Core Animation's demand is
+    /// EVERY COMMIT. Measured 2026-09-13 with `sample(1)` on the All Access
+    /// mirror: 2957 of the 3004 samples inside `CA::Transaction::commit` sat in
+    /// `PNGReadPlugin::decodeImageImp`, under
+    /// `CA::Layer::prepare_contents → CA::Render::prepare_image`. The host was
+    /// re-running the PNG decoder for six badge bitmaps on every frame, which
+    /// put the window at 11 fps where Chrome held 57 on the same machine with
+    /// the same files — the image size looked like the cause and was only the
+    /// multiplier.
+    ///
+    /// Drawing the image once into a bitmap context makes the pixels resident,
+    /// which is what a browser's decode cache does. The cost moves to load time,
+    /// off the main thread (this runs on the URLSession callback or the file
+    /// read), and the commit gets a plain texture upload.
+    ///
+    /// A decoded 12-megapixel image is ~48 MB resident, so the obvious follow-on
+    /// is a size-aware decode — `kCGImageSourceThumbnailMaxPixelSize` at the
+    /// layer's real on-screen size, re-decoded when it grows — which is also
+    /// what browsers do. Not done here: it changes fidelity under scale, and the
+    /// defect this fixes is per-frame work, not memory.
+    /// url → its decoded image, so a re-made view pays nothing. Capped by COUNT,
+    /// which is crude: a decoded 12-megapixel image is ~48 MB, so this holds real
+    /// memory, and the size-aware decode named in `LayerTree.displayImage` is the
+    /// proper answer to both that and this.
+    private static var decoded: [String: CGImage] = [:]
+    private static var decodedOrder: [String] = []
+    private static let decodedLock = NSLock()
+    static func remember(_ url: String, _ img: CGImage) {
+        decodedLock.lock()
+        if decoded[url] == nil {
+            decoded[url] = img
+            decodedOrder.append(url)
+            while decodedOrder.count > 16, let oldest = decodedOrder.first {
+                decoded.removeValue(forKey: oldest); decodedOrder.removeFirst()
+            }
+        }
+        decodedLock.unlock()
     }
 
     static func decode(_ data: Data?) -> CGImage? {
-        guard let data, let src = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
-        return CGImageSourceCreateImageAtIndex(src, 0, nil)
+        guard let data, let src = CGImageSourceCreateWithData(data as CFData, nil),
+              let lazy = CGImageSourceCreateImageAtIndex(src, 0, nil) else { return nil }
+        return forceDecoded(lazy) ?? lazy
+    }
+
+    /// One draw into an sRGB bitmap, so the returned image owns its pixels.
+    /// Premultiplied-first, little-endian is Core Animation's own layout, so the
+    /// upload needs no conversion pass either.
+    private static func forceDecoded(_ img: CGImage) -> CGImage? {
+        let w = img.width, h = img.height
+        guard w > 0, h > 0, let cs = CGColorSpace(name: CGColorSpace.sRGB),
+              let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: cs,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                                      | CGBitmapInfo.byteOrder32Little.rawValue)
+        else { return nil }
+        ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage()
     }
 
     func image(_ handle: Int) -> CGImage? { imagesLock.lock(); defer { imagesLock.unlock() }; return images[handle] }

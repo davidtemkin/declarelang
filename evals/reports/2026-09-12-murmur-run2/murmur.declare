@@ -1,0 +1,568 @@
+/*
+# Murmur
+
+A reader for conversations that are already going on. One service supplies the
+people, the history and a live feed; everything here is the experience of using
+it.
+
+The whole app is **two panes and one number**. `slide` says how far the
+conversation has come over the list — pinned open on a wide screen, sprung by a
+tap on a narrow one — and every position on screen is arithmetic over it, so the
+two shapes are one design rather than two layouts.
+
+Three data nodes carry the state. `hist` is the raw truth: the served document,
+mutated in place as the feed arrives. `list` and `convo` are derivations of it —
+the ordered conversation list and the open conversation's rows, each recomputed
+by the cascade when the truth underneath changes. Nothing in the view layer ever
+edits anything: a send, a reaction and an arriving message are all one write into
+`hist`.
+*/
+
+include [ "marks.declare" ]
+
+include [ "rail.declare" ]
+
+include [ "thread.declare" ]
+
+include [ "voice.declare" ]
+
+include [ "photo.declare" ]
+
+include [ "composer.declare" ]
+
+font Sans [ family = "system-ui" ]
+
+script {
+    // A run is one person speaking without interruption. A pause long enough
+    // to be a new thought breaks it, and the run's last message wears the time.
+
+    const RUN_BREAK = 45 * 60 * 1000
+
+    // Each person carries a hue, used in exactly two places that must agree:
+    // their name over a run in a group, and their monogram when they have no
+    // picture. Cool and mid-dark, every one of them — the clay belongs to
+    // "mine" and "new", and a person must never be mistaken for either.
+
+    const HUES = [0x8A5A2B, 0x2F6A5B, 0x45558C, 0x7A4270, 0x2C6A72, 0x6A5A22, 0x5A4A86, 0x3D6B41]
+
+    const REACTIONS = ["❤️", "😂", "👍", "😮", "🔥", "💯"]
+
+    function two(n) { return n < 10 ? "0" + n : "" + n }
+
+    function initialsOf(name) {
+        const parts = name.trim().split(/\s+/)
+        const first = parts[0] ? parts[0][0] : "?"
+        const last = parts.length > 1 ? parts[parts.length - 1][0] : ""
+        return (first + last).toUpperCase()
+        }
+
+    function clockOf(ms) {
+        const d = new Date(ms)
+        const h = d.getHours() % 12
+        return (h === 0 ? 12 : h) + ":" + two(d.getMinutes()) + (d.getHours() < 12 ? " AM" : " PM")
+        }
+
+    function dayIndexOf(ms) {
+        const d = new Date(ms)
+        return Math.floor((ms - d.getTimezoneOffset() * 60000) / 86400000)
+        }
+
+    function dayLabelOf(ms, now) {
+        const back = dayIndexOf(now) - dayIndexOf(ms)
+        if (back === 0) return "Today"
+        if (back === 1) return "Yesterday"
+        const d = new Date(ms)
+        const wd = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getDay()]
+        const mo = ["January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December"][d.getMonth()]
+        if (back < 7) return wd
+        return wd + ", " + mo + " " + d.getDate()
+        }
+
+    // The list's stamp is the coarsest thing still true: a time today, a weekday
+    // this week, a date before that.
+
+    function stampOf(ms, now) {
+        const back = dayIndexOf(now) - dayIndexOf(ms)
+        const d = new Date(ms)
+        if (back === 0) return clockOf(ms).replace(" ", " ")
+        if (back === 1) return "Yesterday"
+        if (back < 7) return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]
+        return ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()] + " " + d.getDate()
+        }
+
+    function mmss(ms) {
+        const s = Math.max(0, Math.round(ms / 1000))
+        return Math.floor(s / 60) + ":" + two(s % 60)
+        }
+
+    // Both list previews and group names want first names only — "Priya" reads
+    // as a person, "Priya Raman" reads as a database row.
+
+    function firstNameOf(name) { return name.split(" ")[0] }
+
+    // A message that is nothing but a mark or two is not a sentence, and a
+    // bubble around it reads as one. Those are set large and bare instead.
+
+    const EMOJI_ONLY = /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D|\p{Emoji_Modifier}|\s)+$/u
+    function isBare(text) {
+        const t = text.trim()
+        if (t === "" || !EMOJI_ONLY.test(t)) return false
+        return Array.from(t).filter(c => /\p{Extended_Pictographic}/u.test(c)).length <= 3
+        }
+    }
+
+
+App [ minWidth = 320, minHeight = 420, appName = "Murmur",
+
+    fill = { provided("theme").paper },
+    fontFamily = [Sans, "system-ui", "sans-serif"],
+    theme = { { ...SanFrancisco, ...app.palette() } },
+    clip = true,                                 // the app is a window, not a page: nothing scrolls but the panes
+
+    // ── the service ────────────────────────────────────────────────────────
+
+    api: string = "http://localhost:8330",
+
+    hist: DataSource [ url = { app.api + "/threads.json" } ],
+
+    // A window wide enough for two panes should not open on an empty one. The
+    // condition is a fact, not an event, so a frame clock gated on it opens the
+    // busiest conversation once — on load, and again if the window grows into
+    // two panes while the list is showing — and closes its own gate by acting.
+
+    opener: Time [ tick = frame, running = { app.wide && app.openId == "" && app.hist.loaded },
+        onTick() { app.openBusiest() }
+        ],
+
+    // Connected exactly while there is a history for its frames to land in —
+    // which is also the whole of the race between the two.
+
+    live: Socket [ active = { app.hist.loaded },
+        url = { "ws" + app.api.slice(4) + "/live" },
+        onMessage(e: StreamMessage) { app.take(e.data) }
+        ],
+
+    me: string = { app.hist.value != null ? app.hist.value.me : "p1" },
+    serverNow: number = 0,
+
+    // ── what the app is showing ────────────────────────────────────────────
+
+    openId: string = "",
+
+    // What the conversation pane is RENDERING, which is not the same as what
+    // is open: on the way out it keeps its contents until it has finished
+    // leaving, so a conversation slides away rather than emptying first.
+
+    showing: string = "",
+
+    // One reaction picker, declared once in the column and opened for a
+    // message — these four say which message and where it sits.
+
+    pickerFor: string = "",
+    pickerY: number = 0,
+    pickerIndent: number = 0,
+    pickerMine: boolean = false,
+    trayOpen: boolean = false,
+    sending: number = 0,                         // local ids for messages the service has not answered yet
+
+    // ── the two shapes ─────────────────────────────────────────────────────
+    // `wide` is the only place a width is compared. Everything else reads the
+    // numbers below, so the narrow layout is the wide one with the rail grown to
+    // full width and the conversation slid over it.
+
+    wide: boolean = { app.width >= 760 },
+    railW: number = { app.wide ? Math.max(300, Math.min(392, Math.round(app.width * 0.29))) : app.width },
+    gutter: number = { app.wide ? 22 : 16 },
+
+    slide: number = 0,
+    slider: Spring [ attribute = slide, to = { app.wide || app.openId != "" ? 1 : 0 },
+        stiffness = 210, damping = 27, mass = 0.9, epsilon = 0.0004 ],
+
+    threadX: number = { app.wide ? app.railW : app.width * (1 - app.slide) },
+    threadW: number = { app.wide ? app.width - app.railW : app.width },
+    railX: number = { app.wide ? 0 : -0.26 * app.width * app.slide },
+
+    // ── the measures ───────────────────────────────────────────────────────
+    // The numbers the whole layout is written in, and the only place a width
+    // decides anything. A wide window is not a stretched narrow one: the
+    // gutters open, a photograph is allowed to be bigger, and the conversation
+    // column stops growing well before the window does.
+
+    rowH: number = { app.wide ? 82 : 86 },
+    msgSize: number = 16,
+
+    // A wide window does not widen the conversation past the width a line of
+    // talk is comfortable at; it centres the column and gives the rest to air.
+
+    colW: number = { Math.min(720, app.threadW - app.gutter * 2) },
+    colX: number = { (app.threadW - app.colW) / 2 },
+
+    // A bubble stops where the gutter begins: the indent a group needs on one
+    // side, and on the other the room the time and the reaction mark live in.
+    // Nothing in the gutter is ever clipped, at either width.
+
+    gutterW: number = 66,
+    bubbleMax: number = { Math.min(520, app.colW - 38 - app.gutterW) },
+    photoMaxW: number = { Math.min(app.bubbleMax, app.wide ? 420 : 268) },
+    photoMaxH: number = { app.wide ? 380 : 276 },
+    voiceW: number = { Math.min(app.bubbleMax, app.wide ? 380 : 286) },
+
+    rowCount: number = { app.list.value != null ? app.list.value.threads.length : 0 },
+    selRank: number = { app.rankOf(app.openId) },
+    rankOf(id: string) -> number {
+        const rows = app.list.value != null ? app.list.value.threads : []
+        return rows.findIndex(r => r.id == id)
+        },
+    convoGrouped: boolean = { app.convo.value != null && app.convo.value.grouped == true },
+    reactionAt(i: number) -> string { return REACTIONS[i] },
+    mmssOf(ms: number) -> string { return mmss(ms) },
+
+    // ── composing, playing, typing ─────────────────────────────────────────
+
+    draft: string = "",
+    playingId: string = "",
+    playWants: boolean = false,
+
+    play(id: string) { app.playingId = id; app.playWants = true },
+    togglePlay(id: string) {
+        if (app.playingId == id) app.playWants = !app.playWants
+        else { app.playingId = id; app.playWants = true }
+        },
+
+    // one clock, running only while somebody in the open conversation is
+    // writing — the three dots are a pure function of it
+
+    beat: Time [ tick = frame, running = { app.convo.value != null && app.convo.value.typing == true } ],
+
+    // ── the model ──────────────────────────────────────────────────────────
+
+    list: Dataset [ contents = { app.buildList() } ],
+    convo: Dataset [ contents = { app.buildConvo() } ],
+
+    // ── the palette ────────────────────────────────────────────────────────
+    // Warm paper, one ink, one clay. The clay is the only saturated colour in
+    // the app and it means exactly two things: this is mine, or this is new.
+
+    palette() { return ({
+        paper: 0xF6F2EA, railGround: 0xEFE9DF, chrome: 0xFBF8F3, card: 0xFFFFFF,
+        ink: 0x1C1A16, inkMuted: 0x6B645A, inkFaint: 0x8C8477,
+        line: 0xE3DBCD, hairline: 0xDCD3C2, wave: 0xCCC4B4,
+        mine: 0xA84C2B, mineInk: 0xFFF3EC, mineFaint: 0xE8BCA6,
+        accent: 0xC2542F, accentSoft: 0xF2E0D5,
+        scrim: 0x15130F }) },
+
+    // ── people ─────────────────────────────────────────────────────────────
+
+    person(id: string) -> object {
+        const all = app.hist.value != null ? app.hist.value.people : []
+        const hit = all.find(p => p.id == id)
+        return hit != null ? hit : ({ id: id, name: "Someone", avatar: null })
+        },
+    hueOf(id: string) -> number {
+        const all = app.hist.value != null ? app.hist.value.people : []
+        const i = all.findIndex(p => p.id == id)
+        return HUES[(i < 0 ? 0 : i) % HUES.length]
+        },
+    faceOf(id: string) -> object {
+        const p = app.person(id)
+        return ({ src: p.avatar != null ? app.api + "/" + p.avatar : "",
+                  mono: initialsOf(p.name), hue: app.hueOf(id) })
+        },
+    threadById(id: string) -> object {
+        const all = app.hist.value != null ? app.hist.value.threads : []
+        const hit = all.find(t => t.id == id)
+        return hit != null ? hit : null
+        },
+    indexOf(id: string) -> number {
+        const all = app.hist.value != null ? app.hist.value.threads : []
+        return all.findIndex(t => t.id == id)
+        },
+    titleOf(t: object) -> string {
+        if (t.title != null) return t.title
+        const other = t.participants.find(p => p != app.me)
+        return other != null ? app.person(other).name : "Just you"
+        },
+    unreadIn(t: object) -> number {
+        const seen = t.messages.findIndex(m => m.id == t.lastSeen)
+        return t.messages.length - 1 - (seen < 0 ? t.messages.length - 1 : seen)
+        },
+
+    // ── the conversation list ──────────────────────────────────────────────
+    // Sorted by what is happening, then ranked. Every row's y is its rank, so a
+    // conversation that moves up travels there rather than reappearing.
+
+    buildList() {
+        const h = app.hist.value
+        if (h == null) return ({ threads: [] })
+        const rows = h.threads.map(t => app.listRow(t))
+        rows.sort((a, b) => b.at - a.at)
+        return ({ threads: rows.map((r, i) => Object.assign({}, r, { rank: i })) })
+        },
+
+    listRow(t: object) -> object {
+        const last = t.messages[t.messages.length - 1]
+        const others = t.participants.filter(p => p != app.me)
+        const a = app.faceOf(others[0])
+        const b = others.length > 1 ? app.faceOf(others[1]) : ({ src: "", mono: "", hue: 0 })
+        const typing = (t.typing != null ? t.typing : []).filter(p => p != app.me)
+        const speaker = last.from == app.me ? "You" : firstNameOf(app.person(last.from).name)
+        return ({
+            id: t.id,
+            title: app.titleOf(t),
+            grouped: others.length > 1,
+            facesrc: a.src, facemono: a.mono, facehue: a.hue,
+            face2src: b.src, face2mono: b.mono, face2hue: b.hue,
+            kind: last.kind,
+            lead: others.length > 1 || last.from == app.me ? speaker + ": " : "",
+            preview: last.kind == "text" ? last.text
+                   : last.kind == "photo" ? "Photo"
+                   : mmss(last.durationMs) + " voice message",
+            stamp: stampOf(Date.parse(last.at), app.serverNow),
+            unread: app.unreadIn(t),
+            typing: typing.length > 0,
+            typingName: typing.length > 0 ? firstNameOf(app.person(typing[0]).name) : "",
+            at: Date.parse(last.at) })
+        },
+
+    // ── the open conversation ──────────────────────────────────────────────
+    // One pass over the messages decides everything the rows cannot see for
+    // themselves: where a day turns, where a run of one voice starts and ends,
+    // and which marks a message carries.
+
+    buildConvo() {
+        const t = app.threadById(app.showing)
+        if (t == null) return ({ id: "", title: "", sub: "", rows: [], grouped: false })
+        const others = t.participants.filter(p => p != app.me)
+        const a = app.faceOf(others[0])
+        const b = others.length > 1 ? app.faceOf(others[1]) : ({ src: "", mono: "", hue: 0 })
+        const ms = t.messages
+        const rows = ms.map((m, i) => app.convoRow(m, ms[i - 1], ms[i + 1], others.length > 1))
+        const typing = (t.typing != null ? t.typing : []).filter(p => p != app.me)
+        return ({
+            id: t.id,
+            title: app.titleOf(t),
+            sub: others.length > 1
+                ? others.map(p => firstNameOf(app.person(p).name)).join(", ")
+                : "",
+            grouped: others.length > 1,
+            facesrc: a.src, facemono: a.mono, facehue: a.hue,
+            face2src: b.src, face2mono: b.mono, face2hue: b.hue,
+            typing: typing.length > 0,
+            typingName: typing.length > 0 ? firstNameOf(app.person(typing[0]).name) : "",
+            typingFace: typing.length > 0 ? app.faceOf(typing[0]).src : "",
+            typingMono: typing.length > 0 ? app.faceOf(typing[0]).mono : "",
+            typingHue: typing.length > 0 ? app.hueOf(typing[0]) : 0,
+            rows: rows })
+        },
+
+    convoRow(m: object, prev: object, next: object, grouped: boolean) -> object {
+        const at = Date.parse(m.at)
+        const face = app.faceOf(m.from)
+        const newDay = prev == null || dayIndexOf(Date.parse(prev.at)) != dayIndexOf(at)
+        const gap = prev == null ? 0 : at - Date.parse(prev.at)
+        const first = newDay || prev.from != m.from || gap > RUN_BREAK
+        const nextGap = next == null ? 1e12 : Date.parse(next.at) - at
+        const marks = app.groupReactions(m)
+        const last = next == null || next.from != m.from || nextGap > RUN_BREAK
+            || dayIndexOf(Date.parse(next.at)) != dayIndexOf(at)
+        return ({
+            id: m.id,
+            mine: m.from == app.me,
+            kind: m.kind,
+            text: m.kind == "text" ? m.text : "",
+            bare: m.kind == "text" && isBare(m.text),
+            src: m.kind == "text" ? "" : app.api + "/" + m.src,
+            alt: m.alt != null ? m.alt : "",
+            durationMs: m.durationMs != null ? m.durationMs : 0,
+            length: m.durationMs != null ? mmss(m.durationMs) : "",
+            peaks: m.peaks != null ? m.peaks : [],
+            clock: clockOf(at),
+            day: newDay,
+            dayLabel: newDay ? dayLabelOf(at, app.serverNow) : "",
+            first: first,
+            last: last,
+            showName: grouped && m.from != app.me && first,
+            name: firstNameOf(app.person(m.from).name),
+            facesrc: face.src, facemono: face.mono, facehue: face.hue,
+            indent: grouped && m.from != app.me ? 38 : 0,
+            pending: m.pending == true,
+            nreact: marks.length,
+            reactions: marks })
+        },
+
+    groupReactions(m: object) -> array {
+        const out = []
+        for (const r of (m.reactions != null ? m.reactions : [])) {
+            const hit = out.find(g => g.emoji == r.emoji)
+            if (hit != null) { hit.n = hit.n + 1; hit.mine = hit.mine || r.person == app.me }
+            else out.push({ id: r.emoji, emoji: r.emoji, n: 1, mine: r.person == app.me })
+            }
+        return out
+        },
+
+    // ── arriving ───────────────────────────────────────────────────────────
+
+    openBusiest() {
+        const all = app.hist.value.threads
+        if (all.length == 0) return
+        const newest = all.reduce((best, t) => app.lastAt(t) > app.lastAt(best) ? t : best, all[0])
+        app.enter(newest.id)
+        },
+    lastAt(t: object) -> number { return Date.parse(t.messages[t.messages.length - 1].at) },
+
+    take(raw: string) {
+        const f = JSON.parse(raw)
+        if (f.t == "hello") { app.serverNow = f.serverNow; return }
+        if (f.t == "message") { app.land(f.thread, f.message); return }
+        if (f.t == "sent") { app.confirm(f.ref, f.message); return }
+        if (f.t == "reaction") { app.addMark(f.thread, f.message, f.person, f.emoji); return }
+        if (f.t == "composing") { app.composing(f.thread, f.person, f.state == "start") }
+        // `seen` says what other people have read. Nothing in this app's scope
+        // shows it, so it is deliberately dropped rather than half-built.
+        },
+
+    land(threadId: string, message: object) {
+        const i = app.indexOf(threadId)
+        if (i < 0) return
+        // Read the world before the write: whether the newest message was in
+        // view is what decides between following it down and staying put.
+        const following = threadId == app.openId && app.thread.atTail()
+        app.hist.set(["threads", i, "messages", "-"], message)
+        app.composing(threadId, message.from, false)
+        if (following) afterSettle(app.thread.follow)
+        },
+
+    addMark(threadId: string, messageId: string, person: string, emoji: string) {
+        const i = app.indexOf(threadId)
+        if (i < 0) return
+        const t = app.hist.value.threads[i]
+        const j = t.messages.findIndex(m => m.id == messageId)
+        if (j < 0) return
+        const have = t.messages[j].reactions != null ? t.messages[j].reactions : []
+        // The service echoes our own reaction back; a mark is a set, not a tally.
+        if (have.some(r => r.person == person && r.emoji == emoji)) return
+        app.hist.set(["threads", i, "messages", j, "reactions"], have.concat([{ person: person, emoji: emoji }]))
+        },
+
+    composing(threadId: string, person: string, on: boolean) {
+        const i = app.indexOf(threadId)
+        if (i < 0) return
+        const t = app.hist.value.threads[i]
+        const have = t.typing != null ? t.typing : []
+        const next = on ? (have.includes(person) ? have : have.concat([person])) : have.filter(p => p != person)
+        if (next.length != have.length) app.hist.set(["threads", i, "typing"], next)
+        },
+
+    // ── acting ─────────────────────────────────────────────────────────────
+
+    enter(id: string) {
+        if (id == app.openId) return
+        if (app.openId != "") app.thread.remember()
+        app.pickerFor = ""
+        app.trayOpen = false
+        app.openId = id
+        app.showing = id
+        app.thread.arrive()
+        afterSettle(app.thread.restore)
+        },
+    leave() {
+        if (app.openId != "") app.thread.remember()
+        app.pickerFor = ""
+        app.trayOpen = false
+        app.openId = ""
+        },
+
+    // What was typed appears as a sent message immediately, with a local id.
+    // The service's answer replaces it in place — same record, same row, the
+    // only visible change being that it stops being pale.
+
+    send(kind: string, text: string, src: string) {
+        const i = app.indexOf(app.openId)
+        if (i < 0) return
+        app.sending = app.sending + 1
+        const ref = "local-" + app.sending
+        const draft = kind == "text"
+            ? ({ id: ref, from: app.me, at: new Date().toISOString(), kind: "text", text: text, pending: true })
+            : ({ id: ref, from: app.me, at: new Date().toISOString(), kind: "photo", src: src, alt: "", pending: true })
+        app.hist.set(["threads", i, "messages", "-"], draft)
+        app.hist.set(["threads", i, "lastSeen"], ref)      // sending is having seen
+        if (app.live.open) {
+            app.live.send(kind == "text"
+                ? JSON.stringify({ t: "send", ref: ref, thread: app.openId, kind: "text", text: text })
+                : JSON.stringify({ t: "send", ref: ref, thread: app.openId, kind: "photo", src: src }))
+            }
+        afterSettle(app.thread.follow)
+        },
+
+    confirm(ref: string, message: object) {
+        const threads = app.hist.value.threads
+        for (let i = 0; i < threads.length; i++) {
+            const j = threads[i].messages.findIndex(m => m.id == ref)
+            if (j < 0) continue
+            app.hist.set(["threads", i, "messages", j], message)
+            if (threads[i].lastSeen == ref) app.hist.set(["threads", i, "lastSeen"], message.id)
+            return
+            }
+        },
+
+    react(messageId: string, emoji: string) {
+        app.pickerFor = ""
+        app.addMark(app.openId, messageId, app.me, emoji)       // the mark lands now, not when the service answers
+        if (app.live.open) app.live.send(JSON.stringify({ t: "react", thread: app.openId, message: messageId, emoji: emoji }))
+        },
+
+    openPicker(messageId: string, y: number, indent: number, mine: boolean) {
+        if (app.pickerFor == messageId) { app.pickerFor = ""; return }
+        app.pickerY = y
+        app.pickerIndent = indent
+        app.pickerMine = mine
+        app.pickerFor = messageId
+        },
+
+    // Reaching the bottom is what "read" means. There is no scroll event to hang
+    // that on — but being at the bottom is a reactive FACT, so a frame clock
+    // gated on it fires exactly once, does the work, and closes its own gate.
+
+    reader: Time [ tick = frame,
+        running = { app.openId != "" && app.thread.tailSeen && app.unreadOpen > 0 },
+        onTick() { app.markRead() }
+        ],
+    unreadOpen: number = { app.openId == "" || app.hist.value == null ? 0 : app.unreadCount(app.openId) },
+    unreadCount(id: string) -> number {
+        const t = app.threadById(id)
+        return t == null ? 0 : app.unreadIn(t)
+        },
+    markRead() {
+        const i = app.indexOf(app.openId)
+        if (i < 0) return
+        const ms = app.hist.value.threads[i].messages
+        app.hist.set(["threads", i, "lastSeen"], ms[ms.length - 1].id)
+        },
+
+    onReady() {
+        app.serverNow = Date.now()
+        app.hist.fetch()
+        },
+
+    keys: Keys [
+        onKeyUp(e: KeyEvent) {
+            if (e.key != "Escape") return
+            if (app.photo.showing) app.photo.close()
+            else if (app.pickerFor != "") app.pickerFor = ""
+            else if (app.trayOpen) app.trayOpen = false
+            else if (!app.wide) app.leave()
+            }
+        ],
+
+    // ── the surface ────────────────────────────────────────────────────────
+    // Declaration order is depth: the list, the conversation over it, the
+    // photograph over everything.
+
+    rail: Rail [ x = { app.railX }, y = 0, width = { app.railW }, height = { app.height } ],
+
+    thread: ThreadPane [ x = { app.threadX }, y = 0, width = { app.threadW }, height = { app.height } ],
+
+    photo: PhotoViewer [ width = { app.width }, height = { app.height } ]
+    ]

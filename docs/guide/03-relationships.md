@@ -173,7 +173,7 @@ step writes lands in the same frame as the change itself; the user never sees th
 in-between. It is tied to your change, not to a clock: no interval, no frame
 callback, nothing left standing afterward. And if you catch yourself wanting it to
 wait for something more — data arriving, motion finishing — stop: those are values
-changing (`data.loaded`, `open.atRest`), and values changing is what constraints
+changing (`data.loaded`, `open.arrived`), and values changing is what constraints
 are for ([nothing waits](declare-docs:guide:thinking-in-declare)).
 
 One settle has no handler anywhere inside it: the first, when the program boots.

@@ -59,11 +59,18 @@ export interface ComponentSchema {
 const NodeSchema: ComponentSchema = {
   name: "Node",
   base: null,
-  attrs: {},
+  attrs: {
+    // THE CHANGE EVENT: `trackChanges` names this node's own reactive values —
+    // attributes it declares, facts it carries, attributes bound to data — and
+    // the node fires `change` at the close of any settle in which one of them
+    // changed (reactive.ts). Nothing else is tracked, so a node that names
+    // nothing costs nothing.
+    trackChanges: { kind: "array", of: "string" },
+  },
   // the faceless lifecycle: a plain Node fires `init` when its tree stands
   // (instantiate.ts initNodeTree) — Node.md promised it; the walk and this
-  // declaration caught up 2026-08-20
-  events: ["init"],
+  // declaration caught up 2026-08-20. `change`: a watched value changed.
+  events: ["init", "change"],
 };
 
 const ViewSchema: ComponentSchema = {
@@ -547,6 +554,10 @@ export const TextSchema: ComponentSchema = {
     // Wrapping (docs/system-design/text-and-markdown.md): a bounded-width run wraps by
     // default; `wrap = false` forces a single line. `textAlign` pairs with it.
     wrap: { kind: "boolean" },
+    // LINE CLAMP: at most this many lines, the last ending in an ellipsis that
+    // fits (measure.ts clampLines — one rule on every renderer). 0 = unclamped.
+    // With `wrap = false` it is a one-line ellipsis.
+    maxLines: { kind: "number" },
     textAlign: enumType("TextAlign", "left", "center", "right"),
     italic: { kind: "boolean" },
     // Fill the glyphs with a gradient (or solid Fill), like the box `fill` —
@@ -973,13 +984,15 @@ const AnimatorSchema: ComponentSchema = {
     relative: { kind: "boolean" },
     started: { kind: "boolean" },
     paused: { kind: "boolean" },
-    // AT REST as a reactive fact (animator.ts) — the animation twin of a
-    // DataSource's .loaded: true only at an uninterrupted destination.
-    atRest: { kind: "boolean" },
+    // THE TWO FACTS OF MOTION (animator.ts): `running` — a journey is in
+    // flight; `arrived` — the run reached its destination on its own (the
+    // animation twin of a DataSource's .loaded). `started` is the request.
+    running: { kind: "boolean" },
+    arrived: { kind: "boolean" },
   },
-  // The animator computes arrival; a program write would be overwritten by the
-  // very next tick. Start/stop are the verbs; `atRest` is the fact.
-  readOnly: ["atRest"],
+  // The animator computes both; a program write would be overwritten by the
+  // very next tick. Start/stop are the verbs; these are the facts.
+  readOnly: ["running", "arrived"],
   // Bare event names (like View's ["click", …]); handlerName() prefixes `on`,
   // so these answer the onStart / onStop / onRepeat handlers (animation.md §1).
   events: ["start", "stop", "repeat"],
@@ -997,6 +1010,8 @@ const AnimatorGroupSchema: ComponentSchema = {
   name: "AnimatorGroup",
   base: NodeSchema,
   attrs: {
+    running: { kind: "boolean" },   // the two facts of motion, as on Animator
+    arrived: { kind: "boolean" },
     attribute: { kind: "slotref" },
     to: { kind: "number" },
     from: { kind: "number" },
@@ -1008,6 +1023,7 @@ const AnimatorGroupSchema: ComponentSchema = {
     started: { kind: "boolean" },
     paused: { kind: "boolean" },
   },
+  readOnly: ["running", "arrived"],
   events: ["start", "stop", "repeat"],
 };
 
@@ -1248,6 +1264,9 @@ export const handlerName = (event: string): string =>
  *  handler that writes a WRONG type is an override mismatch (TS2416), exactly
  *  as TypeScript treats any other override. */
 export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
+  // one or more tracked values changed in this settle (their names, the value
+  // each had before it, the value each has now)
+  change: "ChangeEvent",
   // the single-point pointer family — view-local or root-space per handler
   click: "PointerEvent", dblClick: "PointerEvent", hold: "PointerEvent",
   contextMenu: "PointerEvent",
@@ -1281,6 +1300,7 @@ export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
 export const PAYLOAD_TYPE_NAMES: ReadonlySet<string> = new Set([
   ...Object.values(EVENT_PAYLOAD),
   "Touch",                      // reachable through TouchEvent.touches
+  "ValueChange",                // reachable through ChangeEvent.changed
   "Draw", "DrawGradient",       // the `draw(d: Draw)` context (draw.ts)
 ]);
 

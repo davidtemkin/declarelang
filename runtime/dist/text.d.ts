@@ -15,6 +15,8 @@ export declare class Text extends View {
     textShadow: Shadow | null;
     /** A bounded-width run wraps (default) or stays a single line. */
     wrap: boolean;
+    /** Line clamp (schema.ts): the height derive and every renderer honour it. */
+    maxLines: number;
     textAlign: "left" | "center" | "right";
     italic: boolean;
     textFill: Fill | null;

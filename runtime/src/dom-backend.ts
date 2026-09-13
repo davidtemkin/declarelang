@@ -1554,19 +1554,42 @@ class DomSurface implements Surface {
         // event of a run, false at `scrollend` (or, where the browser lacks it,
         // 160ms of quiet). The PLATFORM's report of its own process; the
         // program reads it, never sets it.
-        const settle = () => { if (this.scrollIdleTimer !== undefined) { clearTimeout(this.scrollIdleTimer); this.scrollIdleTimer = undefined; } if (this.scrollActive) { this.scrollActive = false; onScrolling?.(false); } };
-        this.scrollListener = () => {
-          if (el.clientHeight > 0) onScroll(el.scrollTop);
+        // THE WHEEL HAS NO END (2026-09-12, Murmur run 2): a wheel stream —
+        // momentum especially — is a decaying series of events with nothing
+        // that says "done", and each event's scroll is followed by its own
+        // `scrollend` in the same task. Keyed to scrollend alone, `scrolling`
+        // flipped true and false between two samples and read FALSE for the
+        // whole gesture; a program that yields to `scrolling` (the reference
+        // teaches exactly that) re-anchored between wheel events and fought
+        // the user's hand. So the fact is held by WHEEL ACTIVITY too: a wheel
+        // event marks the stream live, and neither scrollend nor the idle
+        // timer may end it until WHEEL_QUIET ms have passed with no wheel —
+        // the platform's own notion of a stream's end, the mac host's rule.
+        const WHEEL_QUIET = 160;
+        const settle = () => {
+          if (this.scrollIdleTimer !== undefined) { clearTimeout(this.scrollIdleTimer); this.scrollIdleTimer = undefined; }
+          const since = performance.now() - this.wheelLast;
+          if (since < WHEEL_QUIET) { this.scrollIdleTimer = setTimeout(settle, WHEEL_QUIET - since); return; }
+          if (this.scrollActive) { this.scrollActive = false; onScrolling?.(false); }
+        };
+        const live = () => {
           if (!this.scrollActive) { this.scrollActive = true; onScrolling?.(true); }
           if (this.scrollIdleTimer !== undefined) clearTimeout(this.scrollIdleTimer);
           this.scrollIdleTimer = setTimeout(settle, 160);
         };
+        this.scrollListener = () => {
+          if (el.clientHeight > 0) onScroll(el.scrollTop);
+          live();
+        };
+        this.scrollWheelListener = () => { this.wheelLast = performance.now(); live(); };
         this.scrollEndListener = settle;
         el.addEventListener("scroll", this.scrollListener, { passive: true });
+        el.addEventListener("wheel", this.scrollWheelListener, { passive: true });
         el.addEventListener("scrollend", this.scrollEndListener, { passive: true });
       }
     } else if (this.scrollListener !== undefined) {
       el.removeEventListener("scroll", this.scrollListener);
+      if (this.scrollWheelListener !== undefined) { el.removeEventListener("wheel", this.scrollWheelListener); this.scrollWheelListener = undefined; }
       if (this.scrollEndListener !== undefined) { el.removeEventListener("scrollend", this.scrollEndListener); this.scrollEndListener = undefined; }
       if (this.scrollIdleTimer !== undefined) { clearTimeout(this.scrollIdleTimer); this.scrollIdleTimer = undefined; }
       this.scrollActive = false;
@@ -1578,6 +1601,8 @@ class DomSurface implements Surface {
   // The `scrolling` fact's plumbing (setScroll): the scrollend listener, the
   // quiet-timer fallback, and whether a run is in progress.
   private scrollEndListener: (() => void) | undefined;
+  private scrollWheelListener: (() => void) | undefined;
+  private wheelLast = -1e9;
   private scrollIdleTimer: ReturnType<typeof setTimeout> | undefined;
   private scrollActive = false;
 
@@ -2170,6 +2195,24 @@ class DomSurface implements Surface {
     // non-left single line (so textAlign has a box to align within). A plain
     // left run stays shrink-to-content, preserving auto-size.
     s.width = st.wrap || align !== "left" ? "100%" : "";
+    // LINE CLAMP (measure.ts clampLines is the rule; here the browser's own
+    // clamp is asked for the same count). A non-wrapping run under a clamp is
+    // a one-line ellipsis: it still needs the box's width to know where.
+    const clamp = st.maxLines != null && st.maxLines > 0 ? st.maxLines : 0;
+    const sx = s as CSSStyleDeclaration & { webkitLineClamp: string; webkitBoxOrient: string };
+    if (clamp > 0) {
+      s.width = "100%";
+      s.overflow = "hidden";
+      s.display = "-webkit-box";
+      sx.webkitBoxOrient = "vertical";
+      sx.webkitLineClamp = String(st.wrap ? clamp : 1);
+      s.whiteSpace = "pre-wrap";
+    } else {
+      s.overflow = "";
+      s.display = "";
+      sx.webkitBoxOrient = "";
+      sx.webkitLineClamp = "";
+    }
     // Pin the first baseline to the font ascent: a line-height of exactly
     // ascent+descent leaves no half-leading, so DOM text and the Canvas
     // backend's fillText(…, ascent) place identical glyph geometry. A declared

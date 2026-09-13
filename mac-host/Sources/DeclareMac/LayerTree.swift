@@ -1086,10 +1086,23 @@ final class LayerTree {
         if n.scrolls || n.scrollsX { updateBars(n, flash: false) }
     }
 
+    /// node id → the scaled copy its layer is showing, and the size bucket it was
+    /// made for (displayImage).
+    private var scaledImages: [Int: (bucket: Int, image: CGImage)] = [:]
+    /// node id → the bucket a background resample is currently making for it.
+    private var scalingFor: [Int: Int] = [:]
+
     private func layoutContent(_ n: Node) {
         let h = n.box.height
         if let g = n.gradient { g.bounds = CGRect(origin: .zero, size: n.box.size); g.position = .zero }
-        if let i = n.image { i.bounds = CGRect(origin: .zero, size: n.box.size); i.position = .zero }
+        if let i = n.image {
+            i.bounds = CGRect(origin: .zero, size: n.box.size); i.position = .zero
+            // the box decides the size bucket; a resize past it wants new pixels
+            if let h = n.imageHandle, let img = bridge.image(h) {
+                let shown = displayImage(n, img)
+                if n.tint == nil, i.contents as AnyObject? !== shown { i.contents = shown }
+            }
+        }
         if let p = n.player { p.bounds = CGRect(origin: .zero, size: n.box.size); p.position = .zero }
         if let t = n.text {
             t.bounds = CGRect(origin: .zero, size: CGSize(width: max(n.box.width, 1), height: max(h, 1)))
@@ -1141,6 +1154,7 @@ final class LayerTree {
         default: st.align = .left
         }
         st.wrap = (s["wrap"] as? NSNumber)?.boolValue ?? false
+        st.maxLines = (s["maxLines"] as? NSNumber)?.intValue ?? 0
         st.letterSpacing = (s["letterSpacing"] as? NSNumber)?.doubleValue ?? 0
         st.selectable = (s["selectable"] as? NSNumber)?.boolValue ?? false
         if let sh = s["shadow"] as? [Any], sh.count == 4 {
@@ -1194,11 +1208,74 @@ final class LayerTree {
         t.ascent = CGFloat(m[1])
         t.descent = CGFloat(m[2])
         t.wrap = n.textStyle.wrap
+        t.maxLines = n.textStyle.maxLines
         t.align = n.textStyle.align
         t.fillGradient = n.textStyle.fillGradient
         t.attributed = TextEngine.attributed(n.textString, style: n.textStyle)
         t.bounds = CGRect(origin: .zero, size: CGSize(width: max(n.box.width, 1), height: max(n.box.height, 1)))
         t.position = .zero
+    }
+
+    /// Bitmaps far larger than the box they are drawn in, at the size they will
+    /// actually be drawn — scaled OFF the main thread.
+    ///
+    /// Core Animation does not upload an oversized image and let the GPU scale
+    /// it: `CA::Layer::prepare_contents` renders a scaled COPY, on the main
+    /// thread, inside the commit, and again whenever the layer's geometry moved.
+    /// Measured 2026-09-13 with `sample(1)` on the All Access mirror, after the
+    /// lazy-decode fix: 1360 of 1531 commit samples were
+    /// `CA::Render::create_image_by_rendering → CGContextDrawImage`, re-scaling
+    /// 12-megapixel badges into a 260 pt card every frame.
+    ///
+    /// So scale once per layer per SIZE BUCKET (powers of two, so a springing
+    /// scale does not re-scale every frame) — but NOT inline. Doing it inline
+    /// merely moved the cost into the first commit: 225 samples in this function
+    /// during boot, a 362 ms frame. A browser decodes and resamples off-thread
+    /// and shows what it has meanwhile, which is exactly this: hand back the
+    /// image we already have, scale on a background queue, swap the layer's
+    /// contents when the copy lands.
+    private func displayImage(_ n: Node, _ img: CGImage) -> CGImage {
+        let need = max(n.box.width, n.box.height) * scale * 2      // 2× headroom for scale-up
+        let have = CGFloat(max(img.width, img.height))
+        guard need > 0, have > need * 1.3 else { return img }      // close enough: use the pixels we have
+        let bucket = max(64, Int(exp2((log2(Double(need))).rounded(.up))))
+        if let c = scaledImages[n.id], c.bucket == bucket { return c.image }
+        if scalingFor[n.id] != bucket {
+            scalingFor[n.id] = bucket
+            let id = n.id
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let out = LayerTree.resample(img, longest: bucket) else { return }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.scalingFor[id] == bucket else { return }   // the size moved on
+                    if self.scaledImages.count > 64 { self.scaledImages.removeAll() }
+                    self.scaledImages[id] = (bucket, out)
+                    if let node = self.nodes[id], let layer = node.image, node.tint == nil {
+                        layer.contents = out
+                    }
+                    self.bridge.needsFrame()
+                }
+            }
+        }
+        return img                                                  // this frame draws what we have
+    }
+
+    /// One resample into an sRGB bitmap, premultiplied-first little-endian —
+    /// Core Animation's own layout, so the upload needs no conversion pass.
+    private static func resample(_ img: CGImage, longest: Int) -> CGImage? {
+        let have = CGFloat(max(img.width, img.height))
+        guard have > 0 else { return nil }
+        let k = CGFloat(longest) / have
+        let w = max(1, Int((CGFloat(img.width) * k).rounded()))
+        let h = max(1, Int((CGFloat(img.height) * k).rounded()))
+        guard let cs = CGColorSpace(name: CGColorSpace.sRGB),
+              let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: cs,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                                      | CGBitmapInfo.byteOrder32Little.rawValue)
+        else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage()
     }
 
     private func applyImage(_ n: Node) {
@@ -1211,7 +1288,8 @@ final class LayerTree {
             l.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull()]
             n.image = l; restack(n)
         }
-        l.contents = n.tint.flatMap { LayerTree.tinted(img, $0) } ?? img
+        let shown = displayImage(n, img)
+        l.contents = n.tint.flatMap { LayerTree.tinted(shown, $0) } ?? shown
         l.contentsGravity = n.stretch == "fill" ? .resize : (n.stretch == "cover" ? .resizeAspectFill : .resizeAspect)
         l.masksToBounds = true
         l.bounds = CGRect(origin: .zero, size: n.box.size)

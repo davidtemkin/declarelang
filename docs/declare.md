@@ -190,7 +190,8 @@ component class, an event payload (`onPointerUp(e: PointerUpEvent)`), a function
 (`c: Menu?`) says the value may be absent, and the body must check. Omit `-> Ret` for a
 method that returns nothing. A computed *value* is still not a method but an attribute with
 a `{ }` default, `segIndex: number = { … }` — an attribute stays reactively true; a method
-runs when called.
+runs when called. A subclass's method, handlers included, **replaces** the base's of the same
+name; `super.name(args)` calls the replaced one, wherever in the body it is written, or never.
 
 **Events from outside the tree arrive as children.** `Keys [ onKeyUp(e: KeyEvent) { … } ]` gives a node
 app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to
@@ -328,8 +329,9 @@ glide cannot be *in* a settle, only cause the next. This is why the world is nev
 half-updated, and why history can count "one entry per settle" (§6). Animation is a user of
 it, not an exception: a Spring writes its attribute once per frame, and each frame's writes
 get a settle of their own — motion is many small settles, never one long one. (The physical
-sense is a different fact with its own name: an Animator that reached its destination reads
-`atRest = true`, across however many settles the journey took.)
+sense is a different pair of facts with their own names: an Animator in flight reads
+`running = true`, and one that reached its destination reads `arrived = true`, across however
+many settles the journey took.)
 
 Inside a handler, the world you read is the world *before* your writes land. Almost always
 the right response is no response: state what should be true with a constraint, and it is
@@ -632,7 +634,10 @@ a `DataSource`, and nothing to unsubscribe.
 
 **Handlers are methods named with an `on` prefix**, answering this node's own events: `onClick`,
 the pointer and touch families, `onKeyDown` and `onKeyUp` on the focused view, and `onInit` after
-construction.
+construction. **`onChange`** answers the values a node names in `trackChanges = [ … ]`: it fires at the
+close of a settle in which one of them ended different from where it started, once, carrying each
+name with its previous and current value — for a state change the program must act on, never to
+follow a value (a constraint) or to move one (a Spring).
 
 **Nothing bubbles.** A handler fires on the node that declares it, full stop. A child that needs
 to tell its owner something calls a method. There is no `addEventListener`, no `event` keyword,
@@ -680,7 +685,9 @@ the mark it serves.
 *and* from its parent's layout and auto-extent. So a fade that should end in absence is
 `visible = { opacity > 0 }`, while flow content that merely fades in should stay visible and let
 opacity do the work. `pointerEvents = "none"` is the third, for a view that should be seen and
-not touched.
+not touched. **A view takes the pointer when it has declared an interest in it** — a handler,
+a `link`, a `tip`, or a `scrolls` axis, since a scroller answers drags and wheels with
+scrolling — and content behind such a view is not reachable through it.
 
 ### Hover and press are values
 

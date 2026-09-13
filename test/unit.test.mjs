@@ -1240,7 +1240,7 @@ await test("check() rejects a typo'd handler, naming the handlers it knows", () 
   const [err] = check(parse("View [ onClik() { } ]"));
   // names the typo and lists the handlers it knows (the set grows with the
   // schema — pin the stable leading pointer handlers, not the whole tail)
-  assert.match(err.message, /View has no 'onClik' event — its handlers: onInit, onClick, onDblClick, onHold, onPointerDown, onPointerUp, onPointerMove/);
+  assert.match(err.message, /View has no 'onClik' event — its handlers: onInit, onChange, onClick, onDblClick, onHold, onPointerDown, onPointerUp, onPointerMove/);
   assert.equal(err.pos.col, 8);
 });
 
@@ -1343,8 +1343,25 @@ await test("a view with a pointer handler gets an input sink; one without gets n
   };
   app.attach(backend, null);
   const sinks = logs.map((log) => log.some(([m]) => m === "setInput"));
-  assert.deepEqual(sinks, [false, true, false, false],
-    "only the pointer-handling view is wired (init alone does not make a view interactive)");
+  assert.deepEqual(sinks, [true, true, false, false],
+    "the App is wired because it scrolls; among plain views only the pointer-handling one is (init alone does not make a view interactive)");
+});
+
+await test("a scroller takes the pointer with no handler of its own", () => {
+  // `scrolls` declares that this view answers drags and wheels over its box —
+  // the platform's scroll process is the handler — so it is wired like any
+  // other interactive view, and content behind it is not reachable through it.
+  const app = build(`App [ width=100, height=60,
+    View [ scrolls = y ],
+    View [ x=1 ] ]`);
+  const logs = [[], [], []];
+  const backend = {
+    createSurface: (() => { let i = 0; return () => mockBackend(logs[i++]).createSurface(); })(),
+    attachRoot: () => {},
+  };
+  app.attach(backend, null);
+  assert.deepEqual(logs.map((log) => log.some(([m]) => m === "setInput")), [true, true, false],
+                   "the scrolling view is wired; its plain sibling is not");
 });
 
 await test("dispatch: the sink calls the right handler with view-local {x,y}", () => {
@@ -1354,7 +1371,8 @@ await test("dispatch: the sink calls the right handler with view-local {x,y}", (
            onPointerDown(e: PointerEvent) { globalThis.__ev.push(["down", e.x, e.y]) } ] ]`);
   const log = [];
   app.attach(mockBackend(log), null);
-  const childSink = log.filter(([m]) => m === "setInput")[0][1];
+  // the App is wired too (it scrolls), so the CHILD's sink is the later one
+  const childSink = log.filter(([m]) => m === "setInput").at(-1)[1];
   childSink("pointerDown", 7, 8);
   childSink("pointerUp", 7, 8); // no handler — must be silently ignored
   childSink("click", 3, 4);
@@ -2124,7 +2142,7 @@ await test("check(): a class body checks as an instance of the class itself", ()
   const errs = check(parseProgram(`class A extends View [ zap = 1, onClik() { } ]\nApp [ width=1 ]`));
   assert.equal(errs.length, 2);
   assert.match(errs[0].message, /A has no attribute 'zap'/);
-  assert.match(errs[1].message, /A has no 'onClik' event — its handlers: onInit, onClick/);
+  assert.match(errs[1].message, /A has no 'onClik' event — its handlers: onInit, onChange, onClick/);
 });
 
 await test("check() flags a class that contains itself, directly or transitively", () => {
@@ -4677,7 +4695,7 @@ await test("Animator: handlers are allowed (declared events); decls, children, t
     Animator [ attribute=x, to=1, foo: number = 1, onWiggle() { }, View [ ] ] ] ]`));
   const msgs = errs.map((e) => e.message).join("\n");
   assert.match(msgs, /an animator declares no new attributes/);
-  assert.match(msgs, /Animator has no 'onWiggle' event — its handlers: onInit, onStart, onStop, onRepeat/);
+  assert.match(msgs, /Animator has no 'onWiggle' event — its handlers: onInit, onChange, onStart, onStop, onRepeat/);
   assert.match(msgs, /an animator drives a slot — it has no children/);
 });
 
@@ -4731,6 +4749,49 @@ await test("build(): started=true auto-starts the animator at init (opt-in)", ()
   assert.equal(sched.scheduled, false, "idle after completion");
 });
 
+// THE TWO FACTS OF MOTION (2026-09-12 ruling): `running` — a journey in flight;
+// `arrived` — it reached its destination on its own. One meaning on Animator
+// and Spring alike; `started` is the request. `atRest` (arrived under the wrong
+// name, false at birth) is gone — a spring born on its target used to read
+// "not at rest" forever, and every clock gated on it spun (Murmur run 2).
+await test("Animator: the two facts of motion — running while in flight, arrived only at natural completion", () => {
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  const app = build(`App [ width=100, height=100,
+    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear ] ] ]`);
+  const a = app.v.anim;
+  assert.equal(a.running, false, "false at birth"); assert.equal(a.arrived, false, "not arrived at birth");
+  a.start(); settle();
+  assert.equal(a.running, true, "running from start()"); assert.equal(a.arrived, false);
+  sched.frame(0); sched.frame(50); settle();
+  assert.equal(a.running, true, "still in flight at t=50");
+  sched.frame(100); settle();
+  assert.equal(a.running, false, "landed: not running"); assert.equal(a.arrived, true, "landed: arrived");
+  a.start(); settle();
+  assert.equal(a.arrived, false, "a new start clears arrived"); assert.equal(a.running, true);
+  sched.frame(130); settle();
+  a.stop(); settle();
+  assert.equal(a.running, false, "stopped mid-flight: not running"); assert.equal(a.arrived, false, "…and not arrived");
+});
+
+await test("Spring: born on its target it is neither running nor arrived; travels, lands, and a stop() in flight is neither", () => {
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  const app = build(`App [ width=100, height=100,
+    v: View [ target: number = 0, s: Spring [ attribute=x, to = { parent.target }, stiffness = 300, damping = 30 ] ] ]`);
+  const v = app.v, s = v.s;
+  assert.equal(s.running, false, "born on target: not running"); assert.equal(s.arrived, false, "born on target: not arrived (never travelled)");
+  v.target = 100; settle();
+  assert.equal(s.running, true, "a moved target starts a journey");
+  let t = 0; while (s.running && t < 5000) { t += 16; sched.frame(t); settle(); }
+  assert.equal(s.running, false, "landed within " + t + " ms"); assert.equal(s.arrived, true, "landed: arrived"); assert.equal(v.x, 100);
+  v.target = 200; settle();
+  assert.equal(s.running, true); assert.equal(s.arrived, false, "a new journey clears arrived");
+  sched.frame(t + 16); settle(); s.stop(); settle();
+  assert.equal(s.running, false, "stopped in flight"); assert.equal(s.arrived, false, "…not arrived");
+  assert.ok(v.x > 100 && v.x < 200, "pinned where it stopped: " + v.x);
+});
+
 await test("Animator: `started` is REACTIVE — a constraint flipping it starts and stops the run (issue #19)", () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
@@ -4743,20 +4804,20 @@ await test("Animator: `started` is REACTIVE — a constraint flipping it starts 
   v.open = true;
   settle();
   assert.equal(v.anim.started, true, "the constraint re-evaluated");
-  assert.equal(v.anim.isRunning(), true, "…and the change STARTED the run — not just the slot's value");
+  assert.equal(v.anim.running, true, "…and the change STARTED the run — not just the slot's value");
   sched.frame(0);
   sched.frame(40);
   assert.equal(v.x, 40, "driving the target slot like any other start()");
   // Flipping the same fact back stops it, in place — one declaration, both edges.
   v.open = false;
   settle();
-  assert.equal(v.anim.isRunning(), false, "false → stop()");
+  assert.equal(v.anim.running, false, "false → stop()");
   assert.equal(v.x, 40, "halted in place — no snap to either end");
   assert.equal(sched.scheduled, false, "the clock goes idle (idle-zero)");
   // And it re-triggers: the fact becoming true again is a fresh run.
   v.open = true;
   settle();
-  assert.equal(v.anim.isRunning(), true, "true again → a new run");
+  assert.equal(v.anim.running, true, "true again → a new run");
   sched.frame(60);
   sched.frame(200);
   assert.equal(v.x, 100, "which lands on `to`");
@@ -4774,7 +4835,7 @@ await test("Animator: `paused` is clock MEMBERSHIP — a paused animator holds z
   v.anim.paused = true;
   settle();
   assert.equal(sched.scheduled, false, "paused → OFF the clock — no frame loop, no CPU");
-  assert.equal(v.anim.isRunning(), true, "still running (armed), just frozen");
+  assert.equal(v.anim.running, true, "still running (armed), just frozen");
   sched.advance(5000); // five seconds of wall time, ZERO frames (the whole point)
   v.anim.paused = false;
   settle();
@@ -4823,7 +4884,7 @@ await test("Animator: start() under `paused = true` arms without enrolling (zero
     v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear, paused=true ] ] ]`);
   const v = app.v;
   v.anim.start();
-  assert.equal(v.anim.isRunning(), true, "armed");
+  assert.equal(v.anim.running, true, "armed");
   assert.equal(sched.scheduled, false, "…but frozen at from — no clock, no frames");
   v.anim.paused = false;
   settle();
@@ -4845,7 +4906,7 @@ await test("AnimatorGroup: a reactive `started` drives the whole group (issue #1
   assert.equal(sched.scheduled, false, "the group is the driver — a member's own started=true does not pre-fire");
   v.open = true;
   settle();
-  assert.equal(v.grp.isRunning(), true, "the group started on the constraint's change");
+  assert.equal(v.grp.running, true, "the group started on the constraint's change");
   sched.frame(0);
   sched.frame(100);
   assert.equal(v.x, 10, "member x ran under the group");
@@ -5251,8 +5312,8 @@ await test("A2 AnimatorGroup: stop() cascades — halts every running member in 
   assert.equal(v.y, 25, "member y halted in place");
   assert.equal(sched.scheduled, false, "the group's stop() takes it (and its members) off the clock");
   const [mx, my] = grp.children;
-  assert.equal(mx.isRunning(), false, "member x is stopped");
-  assert.equal(my.isRunning(), false, "member y is stopped");
+  assert.equal(mx.running, false, "member x is stopped");
+  assert.equal(my.running, false, "member y is stopped");
 });
 
 await test("A2 AnimatorGroup: started=true auto-starts the group at init (members are group-driven)", () => {
@@ -5265,7 +5326,7 @@ await test("A2 AnimatorGroup: started=true auto-starts the group at init (member
   assert.equal(sched.scheduled, true, "started=true → the group auto-started at build's init");
   const v = app.children[0];
   const grp = groupOf(v);
-  assert.equal(grp.isRunning(), true, "the group is running");
+  assert.equal(grp.running, true, "the group is running");
   sched.frame(0);
   sched.frame(100);
   assert.equal(v.x, 100);
@@ -6656,7 +6717,7 @@ await test("sources: the `<-` operator is GONE, and the error names the rewrite"
 await test("sources: a handler the source does not call is the ordinary typo error", async () => {
   const bad = await compile(`App [ width = 100, height = 100, k: Keys [ onWheel(e: WheelEvent) { } ] ]`, {});
   assert.equal(bad.source, null);
-  assert.match(bad.errors[0].message, /Keys has no 'onWheel' event — its handlers: onInit, onKeyDown, onKeyUp/);
+  assert.match(bad.errors[0].message, /Keys has no 'onWheel' event — its handlers: onInit, onChange, onKeyDown, onKeyUp/);
 });
 
 await test("sources: `Keys` is both a component and a callable service, under one name", async () => {

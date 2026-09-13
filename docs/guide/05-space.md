@@ -156,6 +156,11 @@ log: View [ width = { parent.width }, height = 320, scrolls = y,
     ]
 ```
 
+A scroller takes the pointer over its box, whether or not it declares a handler, because
+answering drags and wheels is what scrolling is. So a scrolling pane laid over other content
+hides that content from the pointer as well as from the eye: anything that must stay
+clickable goes in front of the pane, later in the body, or outside it.
+
 The page scrolls past the log; a finger or wheel *on* the log scrolls the log —
 the nearest scroller wins — with native momentum and its own edge bounce, never
 dragging the page along. Panes nest to any depth, and a native text field is the
@@ -204,6 +209,30 @@ The app sees one thing: a layer exactly frame-sized, riding the frame. What the
 panel does inside it is the layer's private business — nothing off the edge, no
 scrollbar conjured by parked furniture, and the sheet slides in from the edge the
 user can actually see.
+
+### Your scroll and theirs
+
+Scrolling is a process the platform runs, and `scrollTo` is a request into it, not an
+assignment. The user's hand is in the same process at the same time, and it does not pause
+for your program, so a request made mid-gesture can be ignored, clamped, overtaken by
+momentum — or worse, honored, so that the surface fights the finger holding it.
+
+Two habits keep the two of you out of each other's way.
+
+**Ask because something grew, not because the offset looks right.** A conversation that
+follows the newest message should re-anchor when the column *gained* height, and only then.
+The version that asks "is the offset near the bottom" also asks it while the user is reading
+something from an hour ago, and drags them away from it. Growth is a fact about your content;
+a position is a fact about their hand.
+
+**Read `scrolling` before you ask.** It is true while the platform is moving the pane — a
+wheel stream, its momentum, a drag, a glide — and a request that waits for it to fall quiet
+never lands on a moving surface. Read it in a constraint, as a condition on *whether* to ask;
+do not try to catch the moment it flips, because the fact flickers by nature: a trackpad's
+momentum has pauses in it, and a mouse wheel's notches are pauses.
+
+What never works is re-asserting a position every frame. The gesture will win, and the
+program will spend the whole gesture losing.
 
 Who owns a *finger* over all of this — and how a draggable thing on a scrolling
 surface takes the finger only on a press-and-hold — is gesture territory:

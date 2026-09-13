@@ -35,7 +35,7 @@ import { notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type 
 import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Outline, type Radius, type Shadow, type Stroke } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
-import { cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type TextStyle, type TextTransform } from "./measure.js";
+import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type TextStyle, type TextTransform } from "./measure.js";
 import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS, type DisplayList, type Bounds } from "./draw.js";
 import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-filter.js";
 import { rasterWorkerAvailable, rasterInWorker } from "./raster-client.js";
@@ -995,6 +995,7 @@ class CanvasSurface implements Surface {
   /** Wrapping (set-time): whether this run wraps within `width`, its alignment,
    *  and the cached line break — recomputed when text/style/width change so the
    *  paint walk stays measure-free after the first frame. */
+  private maxLines = 0;
   private wrap = false;
   private align: "left" | "center" | "right" = "left";
   private textLines: string[] | null = null;
@@ -1346,6 +1347,9 @@ class CanvasSurface implements Surface {
     this.textStrike = st.strike ?? false;
     this.letterSpacing = st.letterSpacing;
     this.wrap = st.wrap ?? false;
+    // a clamped non-wrapping run is a one-line clamp (the DOM does the same)
+    this.maxLines = st.maxLines != null && st.maxLines > 0 ? (this.wrap ? st.maxLines : 1) : 0;
+    if (this.maxLines > 0) this.wrap = true;
     this.align = st.align ?? "left";
     this.textLines = null;
     this.compositor.invalidate();
@@ -2402,7 +2406,7 @@ class CanvasSurface implements Surface {
         // within the box. The greedy breaker (measure.ts) is the one BOTH
         // backends share, so the DOM's native wrap and this agree.
         if (this.textLines === null) {
-          this.textLines = wrapLines(disp, this.font, this.width, this.letterSpacing);
+          this.textLines = clampLines(wrapLines(disp, this.font, this.width, this.letterSpacing), this.maxLines, this.font, this.width, this.letterSpacing);
         }
         const lines = this.textLines;
         for (let i = 0; i < lines.length; i++) {

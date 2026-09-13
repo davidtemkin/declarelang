@@ -53,8 +53,10 @@ import type { Constraint } from "./reactive.js";
 interface Animatable extends Ticker {
   start(): void;
   stop(): void;
-  isRunning(): boolean;
   tick(now: number, frozen?: boolean): boolean;
+  /** The in-flight fact — a read-only attribute on every implementor (Animator,
+   *  Spring, AnimatorGroup); the group coordinates its members by it. */
+  readonly running: boolean;
 }
 
 /** One animated slot's exact-landing bookkeeping (animation.md §4.3,
@@ -122,20 +124,24 @@ export class Animator extends Node implements Animatable {
   declare started: boolean;
   /** Freeze in place; resume continues (LZX). */
   declare paused: boolean;
-  /** AT REST as a reactive fact — the animation twin of a DataSource's
-   *  `.loaded`: true only after a run completes NATURALLY at its destination;
-   *  false while running, after a mid-flight stop(), and before any run.
-   *  `visible = { open.atRest }` says "this exists only at the resting
-   *  end-state" — no onStop bookkeeping, no interruption guards: a restart
-   *  clears it, an interrupted stop never sets it. (Named for the physical
-   *  fact — motion at rest — because "the settle" names the update
-   *  transaction, language §7; the two are different clocks.) */
-  declare atRest: boolean;
+  /** THE TWO FACTS OF MOTION (2026-09-12 ruling — one name, one meaning, on
+   *  Animator and Spring alike; `started` is the request, these are the
+   *  platform's report). `running`: a journey is in flight — false at birth,
+   *  true from start (or a spring's wake) until it stops for ANY reason, a
+   *  landing or a stop(). `arrived`: the run reached its destination on its
+   *  own — false at birth, false after a mid-flight stop(), cleared by a new
+   *  start, true only at natural completion (the animation twin of a
+   *  DataSource's `.loaded`). `visible = { open.arrived }` reveals a panel
+   *  once its container has finished opening; `Time [ running = { fit.running } ]`
+   *  runs a clock for exactly the length of a motion. (Neither is "the
+   *  settle", the update transaction, language §7 — different clocks.) */
+  declare running: boolean;
+  declare arrived: boolean;
 
   // ── Per-run state: set by start(), read by tick(), cleared by end(). All
   //    the driving inputs are SAMPLED at start (animation.md §1) so writing
   //    `to`/`duration`/… mid-run has no effect until a restart. ────────────
-  private running = false;
+  private live = false;
   /** Group-driven: an enclosing AnimatorGroup registers the clock and ticks
    *  us, so start()/stop() must NOT touch the shared clock themselves. */
   private grouped = false;
@@ -164,10 +170,6 @@ export class Animator extends Node implements Animatable {
    *  clock and cascades attributes, so this animator is group-controlled. */
   markGrouped(): void {
     this.grouped = true;
-  }
-
-  isRunning(): boolean {
-    return this.running;
   }
 
   /** The node whose slot this animator drives: its parent, but for a grouped
@@ -218,7 +220,7 @@ export class Animator extends Node implements Animatable {
    *  must keep ticking its OTHER members, so the member's own pause cannot
    *  withdraw the group's ticker. */
   pausedChanged(v: boolean): void {
-    if (!this.running || this.grouped) return;
+    if (!this.live || this.grouped) return;
     if (v) {
       sharedClock.remove(this);
     } else {
@@ -231,7 +233,7 @@ export class Animator extends Node implements Animatable {
    *  pause calls this down its members, whose anchors went stale while the
    *  group was off the clock (the unpause twin of rebase()). */
   reanchor(now: number): void {
-    if (this.running && this.lastNow !== null) this.lastNow = now;
+    if (this.live && this.lastNow !== null) this.lastNow = now;
   }
 
   /** Begin driving the target slot through the curve (LZX's doStart). A no-op
@@ -239,7 +241,7 @@ export class Animator extends Node implements Animatable {
    *  motion / repeat ONCE here, and enrolls in the slot's exact-landing ledger
    *  (displacing the slot's prior non-animator driver on the first arrival). */
   start(): void {
-    if (this.running) return;
+    if (this.live) return;
     const target = this.resolveTarget();
     const attr = this.attribute;
     if (target === null || attr === "") return; // no target / unnamed slot: nothing to drive
@@ -290,8 +292,9 @@ export class Animator extends Node implements Animatable {
     // hand-cranked clock reads as "the animation never ran" — a full-duration
     // step() moved nothing (GitHub #17's Animator readout).
     this.lastNow = sharedClock.now();
-    this.running = true;
-    setBound(this, "atRest", false);   // a new journey leaves rest (see `atRest`)
+    this.live = true;
+    setBound(this, "running", true);   // a new journey (the two facts, above)
+    setBound(this, "arrived", false);
     // A start under `paused = true` arms without enrolling — frozen at `from`,
     // zero frames until the resume push re-anchors and enrolls (pausedChanged).
     if (!this.grouped && !this.paused) sharedClock.add(this);
@@ -302,7 +305,7 @@ export class Animator extends Node implements Animatable {
    *  running. Leaves the ledger (resuming the displaced driver when it was the
    *  last animator), without landing an end value (animation.md §2). */
   stop(): void {
-    if (!this.running) return;
+    if (!this.live) return;
     if (!this.grouped) sharedClock.remove(this);
     this.releaseSlot(false); // halt in place — read runTarget before end() clears it
     this.end();
@@ -330,7 +333,7 @@ export class Animator extends Node implements Animatable {
   }
 
   tick(now: number, frozen = false): boolean {
-    if (!this.running) return false;
+    if (!this.live) return false;
     if (this.lastNow === null) this.lastNow = now; // defensive: start() seeds it
     const dt = Math.max(now - this.lastNow, 0);
     this.lastNow = now;
@@ -346,9 +349,9 @@ export class Animator extends Node implements Animatable {
     const t = this.runDuration > 0 ? Math.min(this.elapsed / this.runDuration, 1) : 1;
     if (t >= 1) {
       this.releaseSlot(true); // natural completion: land the full delta / exact expected
-      setBound(this, "atRest", true); // arrived — BEFORE onStop, so its handler reads the resting truth
+      setBound(this, "arrived", true); // arrived — BEFORE onStop, so its handler reads the landed truth
       this.end(); // resumes a displaced owner (when last) + fires onStop, which MAY restart us
-      return this.running; // an onStop that called start() keeps the ticker alive; else false → dropped
+      return this.live; // an onStop that called start() keeps the ticker alive; else false → dropped
     }
     // The additive write: this animator's cumulative contribution is
     // `fromJump + ease(t)·runDelta`; land the increment since last frame so it
@@ -397,7 +400,8 @@ export class Animator extends Node implements Animatable {
    *  (which MAY restart us). The ledger cleanup + displaced resume already ran
    *  in releaseSlot; this only closes out the animator. */
   private end(): void {
-    this.running = false;
+    this.live = false;
+    setBound(this, "running", false);
     this.runTarget = null;
     this.fire("onStop");
   }
@@ -423,7 +427,8 @@ defineAttributes(Animator, {
   repeat: { def: 1 },
   started: { def: false, push: (s: Animator, v: boolean) => s.startedChanged(v) },
   paused: { def: false, push: (s: Animator, v: boolean) => s.pausedChanged(v) },
-  atRest: { def: false },
+  running: { def: false },
+  arrived: { def: false },
 });
 
 /** AnimatorGroup — coordinates several animators (or nested groups) in
@@ -441,6 +446,9 @@ export class AnimatorGroup extends Node implements Animatable {
    *  did not set one of these inherits the group's. Not surface the group reads
    *  itself (its motion lives in its members) — declared so cascade can carry
    *  them and the schema can check the group's `attribute` against its target. */
+  /** The two facts of motion, on a group as on its members (see Animator). */
+  declare running: boolean;
+  declare arrived: boolean;
   declare attribute: string;
   declare to: number;
   declare from: number | null;
@@ -457,7 +465,7 @@ export class AnimatorGroup extends Node implements Animatable {
   /** Freeze the whole group; members hold in place and resume together. */
   declare paused: boolean;
 
-  private running = false;
+  private live = false;
   /** The members still to finish this run, in tree order — LZX's `actAnim`. */
   private active: Animatable[] = [];
   private cyclesLeft = 1;
@@ -466,10 +474,6 @@ export class AnimatorGroup extends Node implements Animatable {
 
   markGrouped(): void {
     this.grouped = true;
-  }
-
-  isRunning(): boolean {
-    return this.running;
   }
 
   /** This group's members (child Animators / AnimatorGroups), in tree order. */
@@ -497,7 +501,7 @@ export class AnimatorGroup extends Node implements Animatable {
    *  and on resume every running member's anchor is re-seeded at NOW before the
    *  group re-enrolls, so no member measures the pause as elapsed time. */
   pausedChanged(v: boolean): void {
-    if (!this.running || this.grouped) return;
+    if (!this.live || this.grouped) return;
     if (v) {
       sharedClock.remove(this);
     } else {
@@ -519,8 +523,10 @@ export class AnimatorGroup extends Node implements Animatable {
    *  becomes active (so a sequential member samples its `from` only once the
    *  members before it have moved the slot). */
   start(): void {
-    if (this.running) return;
-    this.running = true;
+    if (this.live) return;
+    this.live = true;
+    setBound(this, "running", true);
+    setBound(this, "arrived", false);
     this.cyclesLeft = this.repeat;
     this.active = this.members();
     // Armed-but-frozen under `paused = true`, exactly as an Animator's start
@@ -532,9 +538,9 @@ export class AnimatorGroup extends Node implements Animatable {
   /** Stop the group (LZX stop): halt every still-running member in place, drop
    *  the group ticker, fire onStop. Idempotent. */
   stop(): void {
-    if (!this.running) return;
+    if (!this.live) return;
     if (!this.grouped) sharedClock.remove(this);
-    for (const m of this.active) if (m.isRunning()) m.stop();
+    for (const m of this.active) if (m.running) m.stop();
     this.endGroup();
   }
 
@@ -557,23 +563,23 @@ export class AnimatorGroup extends Node implements Animatable {
   }
 
   tick(now: number, frozen = false): boolean {
-    if (!this.running) return false;
+    if (!this.live) return false;
     const freeze = frozen || this.paused;
     if (freeze) {
-      for (const m of this.active) if (m.isRunning()) m.tick(now, true);
+      for (const m of this.active) if (m.running) m.tick(now, true);
       return true;
     }
     if (this.process === "sequential") {
       const head = this.active[0];
       if (head !== undefined) {
-        if (!head.isRunning()) head.start(); // lazy start — samples `from` now
+        if (!head.running) head.start(); // lazy start — samples `from` now
         if (!head.tick(now)) this.active.shift();
       }
     } else {
       let i = 0;
       while (i < this.active.length) {
         const m = this.active[i];
-        if (!m.isRunning()) m.start();
+        if (!m.running) m.start();
         if (m.tick(now)) i += 1;
         else this.active.splice(i, 1);
       }
@@ -591,11 +597,12 @@ export class AnimatorGroup extends Node implements Animatable {
       return true;
     }
     this.endGroup();
-    return this.running; // an onStop that restarted the group keeps the ticker alive
+    return this.live; // an onStop that restarted the group keeps the ticker alive
   }
 
   private endGroup(): void {
-    this.running = false;
+    this.live = false;
+    setBound(this, "running", false);
     this.active = [];
     this.fire("onStop");
   }
@@ -617,6 +624,8 @@ defineAttributes(AnimatorGroup, {
   repeat: { def: 1 },
   started: { def: false, push: (s: AnimatorGroup, v: boolean) => s.startedChanged(v) },
   paused: { def: false, push: (s: AnimatorGroup, v: boolean) => s.pausedChanged(v) },
+  running: { def: false },
+  arrived: { def: false },
 });
 
 /** Is this node an animation member a group can drive — an Animator or a nested

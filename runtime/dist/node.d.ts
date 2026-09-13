@@ -1,5 +1,7 @@
 export declare class Node {
     parent: Node | null;
+    /** The values this node reports changes to (schema.ts NodeSchema). */
+    trackChanges: string[] | null;
     readonly children: Node[];
     /** The read behind `provided("name")` — a value an ancestor makes available,
      *  read explicitly here. The compiler rewrites a `provided(…)` call's callee

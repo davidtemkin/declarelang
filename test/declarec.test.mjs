@@ -154,8 +154,18 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // stubs refuse through one notAboard() whose sentences live in errors.ts.
   // What ships as prose now is app-renderable by intent (a DataSource's
   // `.error`) or not a sentence at all (selectors, meta names).
+  // 88 (2026-09-12, the day's runtime surface): measured 86.00 — 88,064 bytes,
+  // one byte over the old ceiling, which is what surfaced it. Six additions,
+  // every one reachable by a shipped app: the derived-dataset structural merge
+  // (a recompute keeps row identity instead of rebuilding the list), `scrolling`
+  // held through wheel activity, the motion facts `running`/`arrived` in place
+  // of `atRest`, `Text.maxLines` (a measured line clamp with an ellipsis, in the
+  // measurer so every renderer paints the same lines), the change event
+  // (`watch` + `onChange`, a settle-close registry), and `super` (a per-body
+  // provider snapshot, built only for a body that calls it). Product surface;
+  // carried, not shaken.
   const gz = out.sizes.totalGzip;
-  assert.ok(gz > 20 * 1024 && gz < 86 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  assert.ok(gz > 20 * 1024 && gz < 88 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
 // THE STUB-DRIFT TRAP, made structural. The production build replaces

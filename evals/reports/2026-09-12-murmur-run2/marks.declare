@@ -1,0 +1,205 @@
+/*
+# Marks
+
+The drawn vocabulary — five icons, an avatar, and the small stack that stands in
+for a group. Everything here is shape only: no icon knows what it is for, and the
+avatar takes its person as three plain values so the same class serves a row, a
+header and a message run.
+*/
+
+// ── icons ──────────────────────────────────────────────────────────────────
+// One family: 16-box paths, round caps, the stroke divided by `unit` so the
+// weight lands the same at 15px in a row and at 22px in the composer.
+
+class BackIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(10, 3)
+        d.lineTo(5.5, 8)
+        d.lineTo(10, 13)
+        d.stroke()
+        }
+    ]
+
+
+class SendIcon extends Icon [
+    weight = 1.9,
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(8, 13.5)
+        d.lineTo(8, 3)
+        d.moveTo(3.6, 7.2)
+        d.lineTo(8, 2.8)
+        d.lineTo(12.4, 7.2)
+        d.stroke()
+        }
+    ]
+
+
+class PhotoIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineJoin = "round"
+        d.beginPath()
+        d.roundRect(2.2, 3.4, 11.6, 9.2, 1.8)
+        d.stroke()
+        d.beginPath()
+        d.moveTo(3.4, 11.4)
+        d.lineTo(6.6, 7.8)
+        d.lineTo(9.2, 10.6)
+        d.lineTo(10.6, 9.2)
+        d.lineTo(12.8, 11.4)
+        d.stroke()
+        d.beginPath()
+        d.arc(10.3, 6.4, 1.05, 0, Math.PI * 2)
+        d.fillStyle = ink
+        d.fill()
+        }
+    ]
+
+
+// The list's voice mark: four bars in the proportions of a real clip, so a
+// glance at a row says "somebody spoke" before the label does.
+
+class VoiceIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(3.2, 6.4)
+        d.lineTo(3.2, 9.6)
+        d.moveTo(6.4, 3.6)
+        d.lineTo(6.4, 12.4)
+        d.moveTo(9.6, 5.4)
+        d.lineTo(9.6, 10.6)
+        d.moveTo(12.8, 7)
+        d.lineTo(12.8, 9)
+        d.stroke()
+        }
+    ]
+
+
+// Play and pause are one mark seen at two moments, so they share a box and a
+// visual mass; `on` morphs the triangle into the bars through a single scalar.
+
+class PlayMark extends Icon [
+    pauseness: number = 0,                     // 0 = play, 1 = pause — sprung by the bubble
+
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.fillStyle = ink
+        const t = pauseness
+        d.globalAlpha = 1 - t
+        d.beginPath()
+        d.moveTo(5.6, 3.2)
+        d.lineTo(12.4, 8)
+        d.lineTo(5.6, 12.8)
+        d.closePath()
+        d.fill()
+        d.globalAlpha = t
+        d.beginPath()
+        d.roundRect(4.6, 3.4, 2.4, 9.2, 1.1)
+        d.roundRect(9, 3.4, 2.4, 9.2, 1.1)
+        d.fill()
+        }
+    ]
+
+
+// The reaction affordance. A plus in a ring — the one mark in the set that has
+// to read at 13px inside a 26px target.
+
+class AddMarkIcon extends Icon [
+    weight = 1.5,
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.beginPath()
+        d.arc(8, 8, 5.9, 0, Math.PI * 2)
+        d.stroke()
+        d.beginPath()
+        d.moveTo(8, 5.1)
+        d.lineTo(8, 10.9)
+        d.moveTo(5.1, 8)
+        d.lineTo(10.9, 8)
+        d.stroke()
+        }
+    ]
+
+
+/*
+## Avatar
+
+A person as three values — picture, initials, hue. Not everyone has a picture,
+so the monogram is not a fallback but the other half of the design: the hue is
+the person's, and it is the same hue their name wears in a group.
+
+The picture fades up rather than appearing, because a grid of rows all filling
+in at once is the most visible "assembled" moment an app like this has.
+*/
+
+class Avatar extends View [ size: number = 36,
+    src: string = "",
+    initials: string = "",
+    hue: number = 0x8E867B,
+
+    width = { classroot.size },
+    height = { classroot.size },
+    cornerRadius = { classroot.size / 2 },
+    clip = true,
+    fill = { classroot.hue },
+
+    mono: Text [ x = center, y = center, wrap = false, fontWeight = semibold,
+        fontSize = { Math.round(classroot.size * 0.38) },
+        letterSpacing = { classroot.size * 0.012 },
+        textColor = { provided("theme").paper }, text = { classroot.initials } ],
+
+    pic: Image [ width = { parent.width }, height = { parent.height }, stretches = cover, opacity = 0,
+        source = { classroot.src },
+        fade: Spring [ attribute = opacity, to = { parent.loaded ? 1 : 0 }, stiffness = 120, damping = 22 ]
+        ]
+    ]
+
+
+/*
+## Cluster
+
+A conversation's face. A pair shows the other person; a group shows two of them,
+the second tucked behind and under, which is enough to say "more than one" at
+36px without a second row of chrome.
+*/
+
+class Cluster extends View [ size: number = 44,
+
+    width = { classroot.size },
+    height = { classroot.size },
+
+    // A group's second face sits behind and above; the paper ring between them
+    // is what keeps two circles from reading as one shape.
+
+    back: Avatar [ x = { classroot.size * 0.3 }, y = 0, visible = { :grouped },
+        size = { classroot.size * 0.7 },
+        src = :face2src, initials = :face2mono, hue = :face2hue ],
+    ring: View [ x = -2.5, y = { classroot.size * 0.28 }, visible = { :grouped },
+        width = { classroot.size * 0.7 + 5 }, height = { classroot.size * 0.7 + 5 },
+        cornerRadius = { (classroot.size * 0.7 + 5) / 2 },
+        fill = { provided("theme").railGround } ],
+    front: Avatar [ y = { :grouped ? classroot.size * 0.3 : 0 },
+        size = { :grouped ? classroot.size * 0.7 : classroot.size },
+        src = :facesrc, initials = :facemono, hue = :facehue ]
+    ]

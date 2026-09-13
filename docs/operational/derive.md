@@ -1,5 +1,9 @@
 # Derived artifacts and the gates — what runs when
 
+*This page is the per-rule contract: which rule owns which file, what it reads, what it
+writes, and what each gate checks. For the order to work in — edit, test, derive, commit,
+push — see [`shipping.md`](shipping.md), which is the single source for that.*
+
 This repository commits its generated artifacts — the prewarm cache, the
 documentation model, the production builds, the baked static pages, the build id —
 so a clone hosts and runs with no build step. Two commands keep those artifacts

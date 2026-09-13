@@ -17,6 +17,8 @@ export interface TextStyle {
     readonly shadow?: Shadow | null;
     /** Run wraps within its box width (`pre-wrap`) vs a single line (`pre`). */
     readonly wrap?: boolean;
+    /** Clamp to this many lines, the last ending in an ellipsis; 0 = unclamped. */
+    readonly maxLines?: number;
     readonly align?: "left" | "center" | "right";
     readonly italic?: boolean;
     /** Fill the glyphs with a gradient (or solid Fill) — overrides `color` when
@@ -93,6 +95,13 @@ export declare function xHeight(font: string): number;
  *  ideographs), the other Unicode spaces, the dash family past ASCII "-", the
  *  soft hyphen, and a tab, which it measures as one glyph rather than to the
  *  next `tab-size` stop. Widen it against a measurement, never a theory. */
+/** LINE CLAMP (2026-09-12, `Text.maxLines`): keep the first `max` lines and end
+ *  the last kept line with an ellipsis that FITS — words dropped from its end
+ *  until "…" fits the width, then characters if the last word alone is too
+ *  long. Every renderer clamps through this one function (the DOM's native
+ *  clamp is asked for the same count; the mac host mirrors the rule), so the
+ *  measured height and the painted lines agree. `max <= 0` = no clamp. */
+export declare function clampLines(lines: string[], max: number, font: string, width: number, letterSpacing?: number): string[];
 export declare function wrapLines(text: string, font: string, width: number, letterSpacing?: number): string[];
 /** The same breaker under an EDITABLE's rules — what a native field will do
  *  with this text, which is not what a box of text would do with it. Used by

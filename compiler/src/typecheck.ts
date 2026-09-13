@@ -690,10 +690,18 @@ class CaseEmitter {
     // parameter also blinds dep-extraction to every read through it.
     const paramTs = (p: Param): string =>
       (p.type === undefined ? null : signatureTsType(p.type, (n) => this.schemas[n] !== undefined || this.shapeNames.has(n), p.nullable === true)) ?? "any";
+    // A method body's `super.name(…)` arrives here as `$base.name(…)` (the
+    // super rule, compile.ts): `$base` is typed as what super reaches — a
+    // class body's BASE class, any other element's own class — so the call
+    // checks against the base method's real signature.
+    const baseTs = expression ? null
+      : (classBody && levels.length === 1 ? (this.schemas[levels[0].tag]?.base?.name ?? "Node") : levels[0].tag);
+    const baseSig = baseTs === null ? "" : `, $base: ${baseTs}`;
+    const baseArg = baseTs === null ? "" : `, undefined as any`;
     const paramSig = params.map((p) => `, ${p.name}: ${paramTs(p)}`).join("");
     const paramArgs = params.map(() => `, undefined as any`).join("");
-    const header = `(function (this: ${self}, parent: ${parent}, classroot: ${root}${paramSig}) {`;
-    const footer = `}).call(${inst(self)}, ${inst(parent)}, ${inst(root)}${paramArgs});`;
+    const header = `(function (this: ${self}, parent: ${parent}, classroot: ${root}${baseSig}${paramSig}) {`;
+    const footer = `}).call(${inst(self)}, ${inst(parent)}, ${inst(root)}${baseArg}${paramArgs});`;
 
     // Emit the body verbatim across its own lines, so a diagnostic line maps
     // straight back. The body opens on `brace.line` (just after `{`).

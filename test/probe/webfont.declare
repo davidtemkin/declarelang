@@ -1,0 +1,24 @@
+// A declared web font, on every renderer. The vertical rules sit at each run's
+// MEASURED advance, so a renderer that fell back to a system face shows it
+// twice: the glyphs look wrong and the rule lands somewhere else.
+
+font Roboto [
+    Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
+    Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
+    ]
+
+
+App [ width = 640, height = 260, fill = white, textColor = black, fontSize = 28,
+
+    a: Text [ x = 20, y = 24, fontFamily = [Roboto, "Helvetica"], text = "Hamburgefonstiv 123" ],
+    ruleA: View [ x = { a.x + a.width }, y = 20, width = 2, height = 40, fill = #E4572E ],
+
+    b: Text [ x = 20, y = 78, fontFamily = [Roboto, "Helvetica"], fontWeight = medium, text = "Hamburgefonstiv 123" ],
+    ruleB: View [ x = { b.x + b.width }, y = 74, width = 2, height = 40, fill = #E4572E ],
+
+    c: Text [ x = 20, y = 132, fontFamily = ["Helvetica"], text = "Hamburgefonstiv 123" ],
+    ruleC: View [ x = { c.x + c.width }, y = 128, width = 2, height = 40, fill = #2E6FE0 ],
+
+    key: Text [ x = 20, y = 196, fontSize = 13, fontFamily = ["Helvetica"],
+        text = "Roboto 400 · Roboto 500 · Helvetica control (blue rule)" ]
+    ]

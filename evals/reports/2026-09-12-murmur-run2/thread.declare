@@ -1,0 +1,554 @@
+/*
+# The conversation
+
+One scrolling column of messages, a header over it and a composer under it. The
+column is plain: every message is a `Msg`, every `Msg` is the same handful of
+constraints over its row record, and the three kinds differ only in which leaf
+is visible.
+
+Three of the guarantees live in this file and all three come from the same
+place — **the column is anchored at its top**. Messages arrive at the bottom, so
+history never moves under the reader; a reaction grows the message that earned
+it and slides only what is below it; and "follow the newest" is a deliberate
+glide asked for in one place, `follow`, rather than a jump nobody asked for.
+*/
+
+// ── the day mark ──────────────────────────────────────────────────────────
+// A rule with the date let into it. It is the only band that crosses the
+// conversation, so it can only ever mean one thing: the day turned here.
+
+class DayMark extends View [ width = { parent.width }, height = 52,
+
+    left: View [ y = center, height = 1, x = 0,
+        width = { (parent.width - classroot.label.width) / 2 - 14 },
+        fill = { provided("theme").hairline } ],
+    right: View [ y = center, height = 1,
+        x = { (parent.width + classroot.label.width) / 2 + 14 },
+        width = { (parent.width - classroot.label.width) / 2 - 14 },
+        fill = { provided("theme").hairline } ],
+
+    label: Text [ x = center, y = center, wrap = false,
+        fontSize = 11.5, fontWeight = semibold, letterSpacing = 0.9,
+        textTransform = uppercase,
+        textColor = { provided("theme").inkMuted },
+        text = :dayLabel ]
+    ]
+
+
+// ── the three leaves ──────────────────────────────────────────────────────
+// Everything they share: which side of the column they sit on, and the one
+// tightened corner that marks the end of a run. No tails, no pointers — the
+// corner does the work, and it works for a photograph as well as for words.
+
+class Leaf extends View [ flat: boolean = false,
+
+    x = { :mine ? parent.width - this.width : :indent },
+    cornerRadius = { flat ? 0
+        : :mine ? [19, 19, :last ? 7 : 19, 19]
+        :         [19, 19, 19, :last ? 7 : 19] },
+    tip = :clock
+    ]
+
+
+class TextBubble extends Leaf [ clip = true,
+
+    waiting: boolean = { :pending },
+    bare: boolean = { :bare },
+    padX: number = { classroot.bare ? 3 : 14 },
+    padY: number = { classroot.bare ? 1 : 9 },
+
+    // A message that is nothing but a mark gets no bubble at all: flat, large,
+    // and standing on the paper.
+
+    flat = { classroot.bare },
+    width = { classroot.t.width + classroot.padX * 2 },
+    height = { classroot.t.height + classroot.padY * 2 },
+    fill = { classroot.bare ? 0xFFFFFF00 : :mine ? provided("theme").mine : provided("theme").card },
+    stroke = { classroot.bare ? null : :mine ? null : stroke(1, provided("theme").line) },
+
+    // pale until the service has answered — the message is here either way
+
+    opacity = 1,
+    landed: Spring [ attribute = opacity, to = { classroot.waiting ? 0.58 : 1 }, stiffness = 150, damping = 24 ],
+
+    t: Text [ x = { classroot.padX }, y = { classroot.padY }, wrap = true, lineHeight = 1.34,
+        selectable = true,
+        fontSize = { classroot.bare ? 42 : app.msgSize },
+        width = { Math.min(app.bubbleMax - classroot.padX * 2, this.contentWidth) },
+        textColor = { :mine && !classroot.bare ? provided("theme").mineInk : provided("theme").ink },
+        text = :text ]
+    ]
+
+
+/*
+## A photograph in the flow
+
+The service does not say how big a photograph is, so the box is a guess that
+becomes the truth: a neutral landscape until the bytes land, then a spring to
+the real proportions while the image fades up inside it. `cover` means the frame
+is never distorted on the way — at rest the frame IS the proportion, so nothing
+is cropped either.
+*/
+
+class PhotoBubble extends Leaf [ clip = true,
+
+    waiting: boolean = { :pending },
+    fill = { provided("theme").line },
+
+    ratio: number = { classroot.img.loaded && classroot.img.naturalWidth > 0
+        ? classroot.img.naturalHeight / classroot.img.naturalWidth : 0.75 },
+    wTo: number = { Math.min(app.photoMaxW, app.photoMaxH / classroot.ratio) },
+
+    // the box is a sprung scalar; the frame is arithmetic over it, so the
+    // guess becomes the truth in one continuous move
+
+    w: number = 200,
+    width = { w },
+    height = { w * classroot.ratio },
+    fit: Spring [ attribute = w, to = { classroot.wTo }, stiffness = 240, damping = 26 ],
+    onInit() { classroot.w = classroot.wTo },
+
+    // A photograph is the one thing in the column whose height is not known
+    // when it is placed. While its box is still travelling, a conversation
+    // sitting at its end is re-anchored there — the clock runs only for the
+    // length of that spring and stops itself when the box comes to rest.
+
+    fitting: Time [ tick = frame, running = { !classroot.fit.atRest },
+        onTick() { app.thread.land() }
+        ],
+
+    opacity = 1,
+    landed: Spring [ attribute = opacity, to = { classroot.waiting ? 0.58 : 1 }, stiffness = 150, damping = 24 ],
+
+    img: Image [ width = { parent.width }, height = { parent.height }, stretches = cover, opacity = 0,
+        source = { :kind == "photo" ? :src : "" },
+        fade: Spring [ attribute = opacity, to = { parent.loaded ? 1 : 0 }, stiffness = 130, damping = 24 ]
+        ],
+
+    // hidden while it is the one being looked at full size, so the photograph
+    // that flies up is the only copy of itself on screen
+
+    seam: View [ width = { parent.width }, height = { parent.height },
+        fill = { provided("theme").paper },
+        opacity = { app.photo.of == :id ? 1 : 0 } ],
+
+    onClick() { app.photo.open(:id, :src, classroot.rootBounds(), classroot.ratio) }
+    ]
+
+
+// ── one message ───────────────────────────────────────────────────────────
+
+class Msg extends View [ width = { parent.width },
+
+    // the vertical budget, top to bottom: a date if the day turned, the gap
+    // before this message, a name if a run is starting, the leaf, and the
+    // reactions it carries
+
+    sepH: number = { :day ? 52 : 0 },
+    gap: number = { :day ? 0 : :first ? 14 : 3 },
+    nameH: number = { :showName ? 20 : 0 },
+    top: number = { classroot.sepH + classroot.gap + classroot.nameH },
+    leafW: number = { :kind == "text" ? classroot.txt.width : :kind == "photo" ? classroot.pho.width : classroot.voi.width },
+    leafH: number = { :kind == "text" ? classroot.txt.height : :kind == "photo" ? classroot.pho.height : classroot.voi.height },
+
+    // the strip's height is sprung, so a mark arriving grows its message and
+    // eases everything below it down rather than jolting it
+
+    marked: boolean = { :nreact > 0 },
+    reactH: number = 0,
+    swell: Spring [ attribute = reactH, to = { classroot.marked ? 26 : 0 }, stiffness = 240, damping = 27 ],
+
+    height = { classroot.top + classroot.leafH + Math.max(0, classroot.reactH - 9) },
+
+    mark: DayMark [ visible = { :day } ],
+
+    name: Text [ x = { :indent }, y = { classroot.sepH + classroot.gap }, wrap = false,
+        visible = { :showName }, fontSize = 12.5, fontWeight = semibold,
+        letterSpacing = 0.1, textColor = :facehue, text = :name ],
+
+    face: Avatar [ x = 0, y = { classroot.top }, size = 28, visible = { :showName },
+        src = :facesrc, initials = :facemono, hue = :facehue ],
+
+    txt: TextBubble [ y = { classroot.top }, visible = { :kind == "text" } ],
+    pho: PhotoBubble [ y = { classroot.top }, visible = { :kind == "photo" } ],
+    voi: VoiceBubble [ y = { classroot.top }, visible = { :kind == "voice" } ],
+
+    strip: View [ y = { classroot.top + classroot.leafH - 9 }, height = { classroot.reactH }, clip = true,
+        x = { :mine ? parent.width - this.width : :indent + 10 },
+        layout: SimpleLayout [ axis = x, spacing = 4 ],
+        Chip [ datapath = :reactions[], key = :id ]
+        ],
+
+    /* The gutter beside a message holds one thing at a time. At rest it is the
+       time this run of talk ended — so "when" is legible without a band across
+       the conversation for every pause. Reach for the message and the time
+       gives way to the way in to a reaction: shown on hover where there is a
+       pointer, always faintly present where there is not, so it is never a
+       gesture someone had to be told about. */
+
+    lit: number = { classroot.hovered || app.pickerFor == :id ? 1 : app.touchDevice ? 0.32 : 0 },
+    gutterY: number = { classroot.top + classroot.leafH - 27 },
+
+    when: Text [ y = { classroot.gutterY + 7 }, wrap = false, visible = { :last },
+        x = { :mine ? parent.width - classroot.leafW - 9 - this.width : :indent + classroot.leafW + 9 },
+        fontSize = 11, fontWeight = medium, letterSpacing = 0.1,
+        textColor = { provided("theme").inkFaint },
+        opacity = 1,
+        yield: Spring [ attribute = opacity, to = { 1 - classroot.lit }, stiffness = 300, damping = 30 ],
+        text = :clock
+        ],
+
+    add: AddMark [ y = { classroot.gutterY }, anchorY = { classroot.y + classroot.top },
+        x = { :mine ? parent.width - classroot.leafW - 35 : :indent + classroot.leafW + 9 },
+        opacity = 0,
+        show: Spring [ attribute = opacity, to = { classroot.lit }, stiffness = 300, damping = 30 ]
+        ],
+
+    onHold() { app.openPicker(:id, classroot.y + classroot.top, :indent, :mine) }
+    ]
+
+
+class Chip extends View [ height = 26, cornerRadius = 13,
+
+    width = { classroot.e.width + (:n > 1 ? classroot.n.width + 3 : 0) + 17 },
+    fill = { provided("theme").card },
+    stroke = { stroke(1, :mine ? provided("theme").accent : provided("theme").line) },
+
+    scale = 0,
+    pivotX = { this.width / 2 },
+    pivotY = 13,
+    pop: Animator [ attribute = scale, from = 0, to = 1, duration = 340, motion = backOut, started = true ],
+
+    e: Text [ x = 8, y = center, wrap = false, fontSize = 13, text = :emoji ],
+    n: Text [ x = { 8 + classroot.e.width + 3 }, y = center, wrap = false, visible = { :n > 1 },
+        fontSize = 11.5, fontWeight = semibold,
+        textColor = { provided("theme").inkMuted }, text = { "" + :n } ]
+    ]
+
+
+class AddMark extends Control [ width = 26, height = 26, cornerRadius = 13,
+
+    anchorY: number = 0,
+    fill = { classroot.hot ? provided("theme").accentSoft : 0xFFFFFF00 },
+    press() { classroot.reach() },
+    onClick() { classroot.reach() },
+    reach() { app.openPicker(:id, classroot.anchorY, :indent, :mine) },
+
+    glyph: AddMarkIcon [ x = center, y = center, iconSize = 17,
+        ink = { classroot.hot || app.pickerFor == :id ? provided("theme").accent : provided("theme").inkFaint } ]
+    ]
+
+
+/*
+## The picker
+
+It grows out of the corner of the message it belongs to — the pivot is that
+corner — and the six marks arrive on six springs of falling stiffness, so they
+fan rather than flash. If the message is near the top of the pane the panel
+slides down to stay whole; it never gets clipped and it never covers what you
+were looking at.
+*/
+
+class Picker extends View [ ignoreLayout = true,
+
+    p: number = 0,
+    bloom: Spring [ attribute = p, to = { app.pickerFor != "" ? 1 : 0 }, stiffness = 260, damping = 25 ],
+
+    width = 266,
+    height = 52,
+    cornerRadius = 26,
+    fill = { provided("theme").card },
+    stroke = { stroke(1, provided("theme").line) },
+    shadow = { shadow(0, 8, 26, 0x1C1A1626) },
+    visible = { classroot.p > 0.005 },
+    opacity = { Math.min(1, classroot.p * 1.6) },
+
+    scale = { 0.78 + 0.22 * classroot.p },
+    pivotX = { app.pickerMine ? this.width : 0 },
+    pivotY = { this.height },
+
+    // wanted 58 above the message; pushed down only as far as the top of the
+    // pane forces, so the panel is never clipped and never leaves its message
+
+    y = { Math.max(app.pickerY - 58, app.thread.pane.scrollY - app.thread.colY + 6) },
+    x = { app.pickerMine ? Math.max(0, parent.width - this.width)
+                         : Math.min(app.pickerIndent, Math.max(0, parent.width - this.width)) },
+
+    layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+    Emoji [ idx = 0, drive = { classroot.p } ],
+    Emoji [ idx = 1, drive = { classroot.p } ],
+    Emoji [ idx = 2, drive = { classroot.p } ],
+    Emoji [ idx = 3, drive = { classroot.p } ],
+    Emoji [ idx = 4, drive = { classroot.p } ],
+    Emoji [ idx = 5, drive = { classroot.p } ]
+    ]
+
+
+class Emoji extends Control [ idx: number = 0,
+
+    // six springs of falling stiffness: the marks fan out rather than flash
+
+    drive: number = 0,
+    glyph: string = { app.reactionAt(classroot.idx) },
+
+    width = 42,
+    height = 42,
+    cornerRadius = 21,
+    fill = { classroot.hot ? provided("theme").accentSoft : 0xFFFFFF00 },
+
+    scale = 0,
+    pivotX = 21,
+    pivotY = 21,
+    fan: Spring [ attribute = scale, to = { classroot.drive },
+        stiffness = { 300 - classroot.idx * 24 }, damping = 20, mass = 0.8 ],
+
+    mark: Text [ x = center, y = center, wrap = false, fontSize = 23, text = { classroot.glyph } ],
+
+    press() { app.react(app.pickerFor, classroot.glyph) },
+    onClick() { app.react(app.pickerFor, classroot.glyph) }
+    ]
+
+
+// ── somebody is writing ───────────────────────────────────────────────────
+// Three dots on one clock, a third of a cycle apart. The bubble has the shape
+// and the ground of an incoming message because that is what it is about to be.
+
+class Writing extends View [ width = { parent.width },
+
+    on: boolean = { :typing },
+    h: number = 0,
+    rise: Spring [ attribute = h, to = { classroot.on ? 52 : 0 }, stiffness = 230, damping = 27 ],
+    height = { classroot.h },
+    clip = true,
+
+    // the bubble rising is the conversation growing: an end-anchored reader
+    // follows it, for exactly as long as the spring is travelling
+
+    rising: Time [ tick = frame, running = { !classroot.rise.atRest },
+        onTick() { app.thread.land() }
+        ],
+
+    face: Avatar [ x = 0, y = 12, size = 28, visible = { app.convoGrouped },
+        src = :typingFace, initials = :typingMono, hue = :typingHue ],
+
+    bubble: View [ y = 12, height = 34, width = 68, cornerRadius = [19, 19, 19, 7],
+        x = { app.convoGrouped ? 38 : 0 },
+        fill = { provided("theme").card },
+        stroke = { stroke(1, provided("theme").line) },
+        a: Dot [ x = 18, phase = 0 ],
+        b: Dot [ x = 31, phase = 2.1 ],
+        c: Dot [ x = 44, phase = 4.2 ]
+        ]
+    ]
+
+
+class Dot extends View [ width = 7, height = 7, cornerRadius = 3.5,
+    phase: number = 0,
+    fill = { provided("theme").inkFaint },
+    y = { 17 - 3.5 - 2.6 * Math.sin(app.beat.now / 150 + classroot.phase) },
+    opacity = { 0.5 + 0.35 * Math.sin(app.beat.now / 150 + classroot.phase) }
+    ]
+
+
+/*
+## The pane
+
+The header and the composer are siblings of the scroller, not passengers in it,
+so the conversation slides under them.
+*/
+
+class ThreadPane extends View [ fill = { provided("theme").paper },
+
+    // Narrow, the conversation rides OVER the list, and the edge shadow is
+    // what says so — carried by the same number as the travel, so a pane
+    // parked off screen casts nothing. Wide, it sits beside the list instead.
+
+    shadow = { app.wide ? null : shadow(-3, 0, 22, 0x15130F00 + Math.round(40 * app.slide)) },
+
+    headH: number = { app.wide ? 78 : 66 },
+    colY: number = { classroot.headH + 16 },
+
+    // per-conversation seat. Leaving writes where you were; arriving asks for it
+    // back, and a conversation never opened before asks for its far end instead.
+
+    remember() {
+        const i = app.indexOf(app.openId)
+        if (i >= 0) app.hist.set(["threads", i, "seat"], classroot.pane.scrollY)
+        },
+    restore() {
+        const t = app.threadById(app.openId)
+        if (t == null) return
+        if (t.seat != null && t.seat >= 0) classroot.pane.scrollTo(t.seat)
+        else classroot.toEnd(false)
+        },
+
+    /* Reaching the end means revealing the tail, not scrolling to a number: a
+       virtualized column's idea of its own height trails what it has built, so
+       an offset computed from it lands short. The tail is a real view; asking
+       to see it is exact.
+
+       `land` is the second half. A glide takes a third of a second, and the
+       conversation can grow taller while it travels — a photograph resolving,
+       a writing bubble folding away. So the ask is repeated once the travel is
+       over, and it yields twice: to a pane the reader's finger is on, and to a
+       reader who has already moved somewhere else entirely. */
+
+    follow() { classroot.toEnd(true) },
+    toEnd(glide: boolean) {
+        classroot.pane.stack.tail.scrollIntoView("nearest", glide)
+        setTimeout(() => classroot.land(), glide ? 420 : 90)
+        setTimeout(() => classroot.land(), glide ? 760 : 430)
+        },
+    land() {
+        const p = classroot.pane
+        if (p.scrolling) return
+        const below = p.stack.tail.rootBounds().y - (p.rootBounds().y + p.height)
+        if (below > 0 && below < 400) p.stack.tail.scrollIntoView("nearest")
+        },
+
+    tailSeen: boolean = { classroot.pane.stack.tail.onScreen },
+    atTail() -> boolean { return classroot.pane.stack.tail.onScreen },
+
+    // The pane runs the full height under the header, so the conversation
+    // passes beneath the title rather than stopping at a seam. Its floor is the
+    // composer's BAR — the photograph tray slides over the conversation instead
+    // of shortening it, which would move what someone is reading.
+
+    pane: View [ y = 0, width = { parent.width }, scrolls = y,
+        height = { parent.height - classroot.composer.barH - app.safeBottom },
+
+        /* The column is virtualized — three hundred messages, built near the
+           viewport and logical everywhere else. What follows the conversation
+           is NOT part of it: the writing bubble and the tail sit in the stack
+           beside the column, so the column is one uninterrupted replication
+           and the two of them are placed after its full logical extent. */
+
+        stack: View [ x = { app.colX }, y = { classroot.colY }, width = { app.colW },
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            opacity = { 0.15 + 0.85 * classroot.swapT },
+
+            onClick() { app.pickerFor = "" },
+
+            col: View [ width = { parent.width }, datapath = { app.convo.value },
+                layout: SimpleLayout [ axis = y, spacing = 0 ],
+                Msg [ datapath = :rows[], key = :id, virtualize = true ]
+                ],
+
+            writing: Writing [ width = { parent.width }, datapath = { app.convo.value } ],
+
+            // the sensor for "the newest message is in view" — the one fact
+            // the reader, the follow, and the new-message pill all derive from
+
+            tail: View [ width = 2, height = 18 ],
+
+            picker: Picker [ ]
+            ]
+        ],
+
+    // ── nothing open (only reachable on a wide window) ──
+
+    blank: View [ width = { parent.width }, height = { parent.height },
+        visible = { app.openId == "" && app.wide },
+        opacity = { app.openId == "" && app.wide ? 1 : 0 },
+        wordmark: Text [ x = center, y = center, wrap = false, fontSize = 48, fontWeight = semibold,
+            letterSpacing = -1.4, opacity = 0.1,
+            textColor = { provided("theme").ink }, text = "Murmur" ],
+
+        // before the history lands there is nothing to pick, so the mark
+        // stands alone; the line arrives with the conversations
+
+        hint: Text [ x = center, wrap = false, fontSize = 14,
+            y = { parent.height / 2 + 44 },
+            opacity = 0,
+            arrive: Spring [ attribute = opacity, to = { app.hist.loaded ? 1 : 0 }, stiffness = 160, damping = 26 ],
+            textColor = { provided("theme").inkFaint }, text = "Pick a conversation"
+            ]
+        ],
+
+    // ── header ──
+
+    headLeft: number = { app.wide ? app.colX : 48 },
+
+    // On a wide window a conversation does not slide, so the swap needs its
+    // own short arrival — and it covers the seat being restored underneath.
+
+    swapT: number = 1,
+    fade: Animator [ attribute = swapT, from = 0, to = 1, duration = 240, motion = cubicOut ],
+    arrive() { if (app.wide) classroot.fade.start() },
+
+    head: View [ width = { parent.width }, height = { classroot.headH },
+        fill = 0xFBF8F3D6,
+        backdrop = frost(22, 1.2),
+        visible = { app.showing != "" },
+        datapath = { app.convo.value },
+
+        back: BackButton [ x = 2, y = { (parent.height - 44) / 2 }, visible = { !app.wide } ],
+
+        face: Cluster [ y = { (parent.height - 38) / 2 }, size = 38,
+            x = { classroot.headLeft } ],
+
+        titles: View [ y = 0, height = { parent.height }, clip = true,
+            x = { classroot.headLeft + 50 },
+            width = { app.colW - 50 },
+
+            name: Text [ wrap = false, fontSize = 17.5, fontWeight = semibold, letterSpacing = -0.2,
+                y = { :sub == "" ? (parent.height - this.height) / 2 : parent.height / 2 - 19 },
+                textColor = { provided("theme").ink }, text = :title ],
+            sub: Text [ wrap = false, fontSize = 12.5, visible = { :sub != "" },
+                y = { parent.height / 2 + 3 },
+                textColor = { provided("theme").inkFaint }, text = :sub ],
+
+            fade: View [ width = 22, height = { parent.height },
+                x = { parent.width - 22 },
+                fill = { gradient("90deg", 0xFBF8F300, 0xFBF8F3D6) } ]
+            ],
+
+        hair: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1,
+            fill = { provided("theme").hairline },
+            opacity = { Math.min(1, classroot.pane.scrollY / 14) } ]
+        ],
+
+    // ── something new, below ──
+
+    jump: JumpPill [ y = { classroot.pane.height - 62 } ],
+
+    // ── composer ──
+
+    composer: Composer [ width = { parent.width }, y = { parent.height - this.height } ]
+    ]
+
+
+class BackButton extends Control [ width = 44, height = 44, cornerRadius = 22,
+    fill = { classroot.hot ? provided("theme").accentSoft : 0xFFFFFF00 },
+    press() { app.leave() },
+    onClick() { app.leave() },
+    g: BackIcon [ x = center, y = center, iconSize = 20,
+        ink = { provided("theme").accent } ]
+    ]
+
+
+class JumpPill extends Control [ height = 38, cornerRadius = 19,
+
+    on: boolean = { app.unreadOpen > 0 && !app.thread.tailSeen },
+    p: number = 0,
+    rise: Spring [ attribute = p, to = { classroot.on ? 1 : 0 }, stiffness = 240, damping = 24 ],
+
+    width = { classroot.label.width + 46 },
+    x = { (parent.width - this.width) / 2 },
+    visible = { classroot.p > 0.01 },
+    opacity = { Math.min(1, classroot.p * 1.4) },
+    scale = { 0.9 + 0.1 * classroot.p },
+    pivotX = { this.width / 2 },
+    pivotY = 19,
+    fill = { provided("theme").accent },
+    shadow = { shadow(0, 6, 18, 0x1C1A1633) },
+
+    press() { app.thread.follow() },
+    onClick() { app.thread.follow() },
+
+    label: Text [ x = 16, y = center, wrap = false, fontSize = 13.5, fontWeight = semibold,
+        textColor = { provided("theme").paper },
+        text = { app.unreadOpen + (app.unreadOpen == 1 ? " new message" : " new messages") } ],
+    chev: ChevronIcon [ x = { parent.width - 26 }, y = center, iconSize = 15, dir = "down",
+        ink = { provided("theme").paper } ]
+    ]

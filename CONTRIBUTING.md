@@ -30,24 +30,11 @@ npm run test:derived           # the artifact gates — only meaningful straight
 npm run test:ladder            # the slow rungs — real input, real pixels, headless Chromium
 ```
 
-The full edit-to-push sequence — why **a push is a deploy** (this repo commits its
-built artifacts and Pages serves what lands on `main`), one commit when you derive
-last, and the recovery for when something moved after the derive — is one page:
-[`docs/operational/shipping.md`](docs/operational/shipping.md).
-
-**Derive stages what it owns.** A derive produces three kinds of change — files rewritten,
-files created under NEW NAMES (`apps/docs/demos/seg_*.declare`), and files pruned — and
-only the first is something `git commit -a` would pick up. So derive reconciles the index
-for its OWN outputs itself (`git add -A` over each output pathspec) and reports
-`· outputs staged`; that is why the suites inside `test:derived` can trust that every
-generated artifact they check is in the tree. Two boundaries it keeps: **stamped**
-files (README, `docs/declare.md`, `index.html` — hand-authored around their markers) are
-never staged wholesale, since that would sweep up prose you were still writing — those stay
-yours to stage; and it stages **unconditionally**, not only when this run rewrote something,
-because "git's picture of derive's outputs matches the disk" can be false with nothing
-regenerated at all (a half-staged rename, an interrupted run). If staging itself fails,
-derive prints the exact `git add -A -- …` to run by hand; `--paths` remains the full
-audit list (outputs plus stamps), which is what the pre-push gate checks against.
+**How to work: one page.** The order, what each command actually builds, what derive
+stages and what it leaves to you, the two questions pre-push asks, and the trap at each
+step live in [`docs/operational/shipping.md`](docs/operational/shipping.md). It is the
+single source for edit-to-push; this page holds the norms, not the loop. The per-rule
+contract (what each rule reads and writes) is [`docs/operational/derive.md`](docs/operational/derive.md).
 
 `verify` stops at the first real rung that fails and reports every independent error there.
 A clean compile is not a working app: layout, fonts, paint, and input routing do not exist
@@ -64,11 +51,6 @@ meaningful straight after `npm run derive`:
 | `spine-gate` | a `declare-model.json` a fresh assembly would not reproduce |
 | `prose-gate` | a `## heading` in reference prose binding to no real attribute, event, or method |
 
-**Nothing regenerates on commit.** `npm run derive` is what writes the derived artifacts —
-the prewarm cache, stamped stats, the model, crawler bakes, bundles, the build id — and you
-run it yourself, before a push. Neither hook derives; neither hook writes. (One exception to
-"only derive writes": a suite that boots the dev server rebuilds a stale platform bundle via
-`rebuildStale()`. See [`docs/operational/derive.md`](docs/operational/derive.md).)
 **Never hand-edit a generated file** — `docs/declare-model.json` above all. It is written by
 `extract.mjs`, then augmented in place by `assemble.mjs`; a manual edit is silently
 overwritten on the next derive.
@@ -145,16 +127,15 @@ found something and chose to leave it, say that too.
 
 ## Pull requests carry source, never build output
 
-This repo *commits* its derived artifacts — `bundles/`, `apps/*/dist/`, the hashed
-`index.html` pages, `docs/declare-model.json`, `bundles/cache/`, `service-worker.js` —
-because a fresh clone must run cold, with no build step. That has one consequence for a
-PR: when you run the build or the test suite locally (please do), those files regenerate
-in your working tree, and a `git commit -a` will sweep them in.
+Stage only the files you authored. This repo *commits* its derived artifacts — `bundles/`,
+`apps/*/dist/`, the hashed `index.html` pages, `docs/declare-model.json`, `bundles/cache/`,
+`service-worker.js` — so a fresh clone runs cold with no build step, and the build or the
+test suite regenerates them in your working tree as you go. Each is a function of the *whole
+tree at one commit*: the moment main moves, your regenerated copies describe a tree that no
+longer exists, and the PR conflicts on files nobody hand-edited (a two-line fix once arrived
+wrapped in 1.9 MB of them). Whoever lands the PR re-runs the derive chain on top of current
+main. Self-check before pushing a branch: if `bundles/`, `dist/`, or `declare-model.json`
+appear in your diff, unstage them.
 
-**Don't ship them.** Each is a function of the *whole tree at one commit*; the moment
-main moves, your regenerated copies describe a tree that no longer exists, and the PR
-conflicts on files nobody hand-edited (a two-line fix once arrived wrapped in 1.9 MB of
-them). Stage only the files you authored. Whoever lands the PR re-runs the derive chain
-(`node tools/internal/derive.mjs`) on top of current main — the same staleness gates
-check the result either way. Quick self-check before pushing: if `bundles/`, `dist/`, or
-`declare-model.json` appear in your diff, unstage them.
+Working on `main` is the opposite case — there the artifacts belong *in* the commit, because
+the push is the deploy. [`shipping.md`](docs/operational/shipping.md) states both.

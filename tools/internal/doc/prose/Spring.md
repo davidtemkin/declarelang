@@ -16,6 +16,14 @@ App [ fill = #F6F8FA, textColor = #6A7883, fontSize = 13,
     ]
 ```
 
+**One spring per motion.** Declare the spring once, on the thing that moves, and constrain
+everything that must move with it to that spring's value — a row's `y`, a panel's `opacity`,
+a mark's `scale` all reading one sprung number stay in step for free (the calendar's zoom is
+one scalar; a conversation sliding over its list is one scalar). A `Spring` written inside a
+replicated class is *N* springs, one per row; three hundred rows of "the same handful of
+constraints" each carrying their own springs is three hundred integrators for motion that
+only one row at a time is ever in.
+
 ## stiffness
 Spring stiffness — higher pulls to the target faster (and can overshoot). The "how eager"
 knob.
@@ -31,3 +39,4 @@ dot).
 ## epsilon
 The rest threshold: how close to `to` counts as at rest, at which point the spring **sleeps**
 (and stops costing anything). Larger = sleeps sooner, at the price of stopping a hair short.
+

@@ -44,7 +44,7 @@
 // guesses, and phased diagnostics (syntax → types → resolution) beat noisy
 // ones.
 
-import { parseProgram, type Element, type Program } from "../../runtime/dist/parser.js";
+import { parseProgram, type Element, type Program, type ClassDecl } from "../../runtime/dist/parser.js";
 import { DeclareError, DeclareErrors, type Pos } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { SCHEMAS, descendsFrom, attrType } from "../../runtime/dist/schema.js";
@@ -334,7 +334,9 @@ function smallFieldWarnings(program: Program, mainStart: number): DeclareError[]
  *  surfaced as a free identifier so the resolver can REJECT it in the App body
  *  (there is no component to root there) and pass it through untouched in a
  *  class body, where the runtime binds it. */
-const BOUND = ["parent", "arguments"];
+// `$base` is the resolved spelling of `super` (the super rule below): bound
+// in every method body, so resolving emitted output again is a fixpoint.
+const BOUND = ["parent", "arguments", "$base"];
 
 /** Which kind of `{ }` body is being resolved. `classroot` is valid ONLY in a
  *  `class` body (the component you define); every other kind rejects it. */
@@ -1094,7 +1096,11 @@ class Resolver {
   /** Whether this compile can bundle script imports (CompileOptions.bundleScripts). */
   canBundleScripts = false;
 
+  /** The program's user classes by name — the chain `super` walks. */
+  private readonly classDecls = new Map<string, ClassDecl>();
+
   constructor(source: string, program: Program) {
+    for (const cls of program.classes) this.classDecls.set(cls.name, cls);
     this.schemas = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name))).schemas; // check-clean: no errors
     this.themeNames = new Set((program.themes ?? []).map((t) => t.name));
     this.scriptNames = new Set(program.scripts.flatMap((b) => topLevelBindings(b.src)));
@@ -1159,6 +1165,26 @@ class Resolver {
           continue;
         }
       }
+      // A CLASS NAME IS NOT A VALUE. `Row` is a type and a tag, in Declare and
+      // in script alike: a body cannot say `createView(Row, …)` either (it is
+      // `createView("Row", …)`, with `use [ Row ]`). The typecheck scaffold
+      // declares each class ambiently so signatures can name it, which let
+      // `n instanceof Row` through to a runtime that has no such binding and
+      // threw. Refused here, where the name is known, and only for classes
+      // THIS program declares — a built-in's name may be a host global a
+      // script legitimately means (`new Image()`, `new Audio()`).
+      const declaredHere = new Set(program.classes.map((c) => c.name));
+      const localNames = new Set(topLevelBindings(b.src));
+      const walkValues = (n: ts.Node): void => {
+        if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword &&
+            ts.isIdentifier(n.right) && declaredHere.has(n.right.text) && !localNames.has(n.right.text)) {
+          this.errors.push(new DeclareError(
+            `'${n.right.text}' is a class this program declares, and a class name is a type and a tag — never a value, in script or in a { } body. To ask what a node is, read it from the node (n.constructor.name == ${JSON.stringify(n.right.text)}), or give the record an attribute that says so and test that`,
+            this.posAt(bodyOpen + n.right.getStart(sf))));
+        }
+        ts.forEachChild(n, walkValues);
+      };
+      walkValues(sf);
       for (const st of sf.statements) {
         const pos = (n: ts.Node): Pos => this.posAt(bodyOpen + n.getStart(sf));
         if (ts.isImportEqualsDeclaration(st)) {
@@ -1345,6 +1371,7 @@ class Resolver {
     // The TS-facing passes below still see the ORIGINAL body text (edits are
     // collected, not applied), so islands are neutralized with a same-length,
     // identifier-free filler to keep every offset true.
+    this.resolveSuper(fillDatapaths(src), bodyStart, expression, levels, scope);
     const idents = freeIdentifiers(fillDatapaths(src), { expression, bound: [...BOUND, ...params] });
     if (idents === null) return; // TS could not parse what new Function did — leave the body alone
     for (const id of idents) {
@@ -1440,6 +1467,15 @@ class Resolver {
         end: bodyStart + id.end,
         text: id.shorthand ? `${id.name}: ${expr}` : expr,
       });
+      // A member BEATS a same-named script function, silently — the surface
+      // search runs first. Say so where it happens: the script one is then
+      // unreachable from every body, which is rarely what was meant.
+      if (this.scriptNames.has(id.name)) {
+        this.warnings.push(Diag.shadowing(
+          `bare '${id.name}' means ${describe(levels[k])}'s member here, not the script { } function of the same name — the script one cannot be reached from a body while the member exists; rename one of them`,
+          pos
+        ));
+      }
       for (let j = k + 1; j < levels.length; j++) {
         if (this.surfaceOf(levels[j]).declared.has(id.name)) {
           // The outer reach the user should WRITE. In the App body the root is
@@ -1467,6 +1503,70 @@ class Resolver {
         text: `colorWithAlpha(0x${c.rgb.toString(16).padStart(6, "0")}, 0x${c.a.toString(16).padStart(2, "0")})`,
       });
     }
+  }
+
+  /** THE SUPER RULE (2026-09-12). A method is a method (the draw ruling: no
+   *  sixth member shape), and a subclass's method REPLACES its base's — so a
+   *  body that wants the base's behaviour says so: `super.name(args)`, anywhere
+   *  in the body, before, between, after, or not at all. It resolves to the
+   *  nearest provider of `name` BENEATH the body in the class chain (a class
+   *  body reaches its base's chain; a use-site body reaches the class's), and
+   *  the runtime hands each body that provider set as `$base` (instantiate.ts).
+   *  Refused where it cannot mean anything: outside a method body, in any form
+   *  but a call, or with no provider up the chain — a built-in's method is not
+   *  overridable (the runtime refuses the name), so `super` only ever reaches
+   *  a method written in this program. Rewritten to `$base` — the same length,
+   *  so every later offset in the body stays true for the typecheck. */
+  private resolveSuper(src: string, bodyStart: number, expression: boolean, levels: readonly Element[], scope: ScopeKind): void {
+    if (!/\bsuper\b/.test(src)) return;
+    const sf = ts.createSourceFile("body.ts", src, ts.ScriptTarget.Latest, true);
+    const walk = (n: ts.Node): void => {
+      if (n.kind === ts.SyntaxKind.SuperKeyword) {
+        const pos = this.posAt(bodyStart + n.getStart(sf));
+        if (expression) {
+          this.errors.push(new DeclareError(`super is for a method body — a { } value has no base method to reach`, pos));
+          return;
+        }
+        const p = n.parent;
+        const call = p !== undefined && ts.isPropertyAccessExpression(p) && p.expression === n && p.parent !== undefined && ts.isCallExpression(p.parent) && p.parent.expression === p ? p : null;
+        if (call === null) {
+          this.errors.push(new DeclareError(`super is a call up the class chain — write super.name(…)`, pos));
+          return;
+        }
+        const name = call.name.text;
+        const here = levels[0];
+        // A class body reaches its BASE's chain; any other element (a use
+        // site, a nested child) reaches its own tag's chain.
+        const own = scope === "class" && levels.length === 1 ? this.classDecls.get(here.tag) : undefined;
+        let cls: string | undefined = own !== undefined ? own.base : here.tag;
+        let found = false;
+        const seen = new Set<string>();
+        while (cls !== undefined && !seen.has(cls)) {
+          seen.add(cls);
+          const d = this.classDecls.get(cls);
+          if (d === undefined) break;
+          if (d.body.methods.some((m) => m.name === name)) { found = true; break; }
+          cls = d.base;
+        }
+        if (!found) {
+          // Uniform, for every name: super needs a provider WRITTEN in Declare.
+          // Every built-in is a base — App extends View extends Node — but a
+          // built-in supplies no body to call: it FIRES events rather than
+          // writing handlers, and its own methods cannot be replaced (the
+          // runtime refuses a member of that name). So the wall is the same
+          // whether the name is a handler or a plain method.
+          const from = own !== undefined ? `${here.tag} extends ${own.base}` : here.tag;
+          this.errors.push(new DeclareError(
+            `super.${name}(): no class beneath ${from} declares ${name}() — super reaches a method written in this program or the library; a built-in base fires events and owns its own methods, and offers neither as a body to call`,
+            pos));
+          return;
+        }
+        this.edits.push({ start: bodyStart + n.getStart(sf), end: bodyStart + n.getEnd(), text: "$base" });
+        return;
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk(sf);
   }
 
   /** The explicit path to level `k` of `count` levels: the node itself, a

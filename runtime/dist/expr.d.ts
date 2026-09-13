@@ -36,7 +36,11 @@ export declare function validateBody(params: readonly string[], src: string): st
 /** A compiled method body: `this` = the owning node, `parent` its view-tree
  *  parent, `classroot` its enclosing class instance, then the declared
  *  parameters. */
-export type BodyFn = (this: unknown, parent: unknown, classroot: unknown, ...args: unknown[]) => unknown;
+/** `base` is the `$base` object — what `super` reaches from this body: the
+ *  nearest providers of every method name BELOW it in the class chain
+ *  (instantiate.ts installs one snapshot per body). The compiler rewrites
+ *  `super.name(…)` to `$base.name(…)` (compile.ts, the super rule). */
+export type BodyFn = (this: unknown, parent: unknown, classroot: unknown, base: object, ...args: unknown[]) => unknown;
 /** Compile a method member's *statement* body (R5) — the same seam as
  *  compileExpr, statement-shaped: no `return (…)` wrapping, so bodies hold
  *  ordinary TS statements and may `return` a value themselves. Parameter

@@ -1,0 +1,173 @@
+/*
+# The list
+
+Every conversation, ordered by what is happening. The order is the data's —
+`buildList` sorts and ranks — and a row's `y` is nothing but its rank, so when a
+message lands somewhere else and the ranks change, the rows *travel* to their new
+places. Keyed replication means the row that moves is the same row, not a
+redrawn one.
+
+The selected conversation is marked by a single block that springs between
+ranks, one object moving rather than two changing colour.
+*/
+
+class Row extends Control [ width = { parent.width }, height = { app.rowH },
+
+    // what sits behind this row: the selection block, or the rail itself
+
+    ground: number = { app.wide && app.openId == :id ? provided("theme").paper : provided("theme").railGround },
+
+    rank: number = { :rank },
+    writing: boolean = { :typing },
+    chosen: boolean = { app.openId == :id },
+
+    // The rank is the position. A row that changes rank travels there, so the
+    // list re-ordering itself is one continuous motion — seeded at construction
+    // so a row that has always been third does not fly in from the top.
+
+    here: number = 0,
+    y = { classroot.here * app.rowH },
+    ranked: Spring [ attribute = here, to = { classroot.rank }, stiffness = 220, damping = 27, mass = 0.9 ],
+    onInit() { classroot.here = classroot.rank },
+
+    press() { app.enter(:id) },
+    onClick() { app.enter(:id) },
+
+    // hover and press are the Control's own facts, so a disabled row could not
+    // light up even if this list ever grew one
+
+    wash: View [ x = { app.wide ? 8 : 0 }, y = 2, width = { parent.width - (app.wide ? 16 : 0) },
+        height = { parent.height - 4 }, cornerRadius = 14,
+        fill = { provided("theme").ink },
+        lvl: number = 0,
+        opacity = { lvl },
+        soften: Spring [ attribute = lvl, to = { classroot.down ? 0.07 : classroot.hot ? 0.035 : 0 },
+            stiffness = 300, damping = 30 ]
+        ],
+
+    face: Cluster [ x = { app.gutter }, y = { (parent.height - 44) / 2 }, size = 44 ],
+
+    rule: View [ x = { app.gutter + 58 }, y = { parent.height - 1 }, height = 1,
+        width = { parent.width - app.gutter * 2 - 58 },
+        fill = { provided("theme").hairline },
+        lvl: number = 1,
+        opacity = { lvl },
+        ease: Spring [ attribute = lvl, to = { classroot.hot || classroot.chosen ? 0 : 1 }, stiffness = 300, damping = 30 ]
+        ],
+
+    stamp: Text [ y = { (parent.height - 64) / 2 + 3 }, wrap = false, fontSize = 12, fontWeight = medium,
+        x = { parent.width - app.gutter - this.width },
+        textColor = { :unread > 0 ? provided("theme").accent : provided("theme").inkFaint },
+        text = :stamp ],
+
+    count: View [ height = 21, cornerRadius = 10.5, visible = { :unread > 0 },
+        x = { parent.width - app.gutter - this.width }, y = { (parent.height - 64) / 2 + 26 },
+        width = { Math.max(21, this.n.width + 13) },
+        fill = { provided("theme").accent },
+        pop: Animator [ attribute = scale, from = 0.4, to = 1, duration = 260, motion = backOut, started = true ],
+        pivotX = { this.width / 2 }, pivotY = 10.5,
+        n: Text [ x = center, y = center, wrap = false, fontSize = 12, fontWeight = semibold,
+            textColor = { provided("theme").paper }, text = { "" + :unread } ]
+        ],
+
+    // Name and line live in a clipped column that fades at its right edge, so a
+    // name longer than the room it was given ends in air rather than at a cut.
+
+    body: View [ x = { app.gutter + 58 }, y = 0, height = { parent.height }, clip = true,
+        width = { parent.width - app.gutter * 2 - 58 - Math.max(classroot.stamp.width, :unread > 0 ? 21 : 0) - 12 },
+
+        name: Text [ y = { (parent.height - 64) / 2 }, wrap = false, fontSize = 16.5,
+            fontWeight = { :unread > 0 ? "semibold" : "medium" },
+            textColor = { provided("theme").ink }, text = :title ],
+
+        line: Text [ y = { (parent.height - 64) / 2 + 25 }, wrap = false, fontSize = 14.5,
+            lvl: number = 1,
+            opacity = { lvl },
+            visible = { lvl > 0.02 },
+            textColor = { :unread > 0 ? provided("theme").inkMuted : provided("theme").inkFaint },
+            text = { :lead + :preview },
+            swap: Spring [ attribute = lvl, to = { classroot.writing ? 0 : 1 }, stiffness = 240, damping = 28 ]
+            ],
+
+        kindMark: View [ y = { (parent.height - 64) / 2 + 26 }, width = 17, height = 17, visible = { :kind != "text" && !classroot.writing },
+            pic: PhotoIcon [ iconSize = 15, y = 1, visible = { :kind == "photo" },
+                ink = { :unread > 0 ? provided("theme").inkMuted : provided("theme").inkFaint } ],
+            voi: VoiceIcon [ iconSize = 15, y = 1, visible = { :kind == "voice" },
+                ink = { :unread > 0 ? provided("theme").inkMuted : provided("theme").inkFaint } ]
+            ],
+
+        typed: Text [ y = { (parent.height - 64) / 2 + 25 }, wrap = false, fontSize = 14.5,
+            lvl: number = 0,
+            opacity = { lvl },
+            visible = { lvl > 0.02 },
+            textColor = { provided("theme").accent },
+            text = { :typingName + " is writing" },
+            swap: Spring [ attribute = lvl, to = { classroot.writing ? 1 : 0 }, stiffness = 240, damping = 28 ]
+            ],
+
+        fade: View [ y = 0, width = 24, height = { parent.height },
+            x = { parent.width - 24 },
+            fill = { gradient("90deg", classroot.ground * 256, classroot.ground) } ]
+        ]
+    ]
+
+
+/*
+## The rail
+
+Wordmark, then the list. The hairline under the wordmark is not decoration: it
+appears as the list scrolls under it, which is the only cue that the header is a
+layer rather than the first row.
+*/
+
+class Rail extends View [ fill = { provided("theme").railGround },
+
+    headH: number = 72,
+
+    list: View [ y = { classroot.headH }, width = { parent.width }, scrolls = y,
+        height = { parent.height - classroot.headH },
+
+        inner: View [ width = { parent.width }, datapath = { app.list.value },
+            height = { app.rowCount * app.rowH + 14 },
+
+            // the selection, one block springing between ranks — declared before
+            // the rows so it reads as ground beneath them
+
+            sel: View [ x = { app.wide ? 8 : 0 }, width = { parent.width - (app.wide ? 16 : 0) },
+                height = { app.rowH - 4 }, cornerRadius = 14,
+                fill = { provided("theme").paper },
+                stroke = { stroke(1, provided("theme").line) },
+                at: number = 0,
+                lvl: number = 0,
+                y = { at * app.rowH + 2 },
+                opacity = { lvl },
+                travel: Spring [ attribute = at, to = { Math.max(0, app.selRank) }, stiffness = 250, damping = 29 ],
+                appear: Spring [ attribute = lvl, to = { app.wide && app.selRank >= 0 ? 1 : 0 }, stiffness = 220, damping = 28 ]
+                ],
+
+            Row [ datapath = :threads[], key = :id ]
+            ]
+        ],
+
+    edge: View [ x = { parent.width - 1 }, width = 1, height = { parent.height },
+        fill = { provided("theme").hairline }, visible = { app.wide } ],
+
+    // the list recedes under the conversation as it comes over — depth, not
+    // decoration: without it the two surfaces read as one sliding sheet
+
+    under: View [ width = { parent.width }, height = { parent.height },
+        fill = { provided("theme").ink },
+        opacity = { app.wide ? 0 : 0.14 * app.slide },
+        pointerEvents = "none" ],
+
+    head: View [ width = { parent.width }, height = { classroot.headH },
+        fill = { provided("theme").railGround },
+
+        mark: Text [ x = { app.gutter }, y = 28, wrap = false, fontSize = 27, fontWeight = semibold,
+            letterSpacing = -0.7, textColor = { provided("theme").ink }, text = "Murmur" ],
+
+        hair: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1,
+            fill = { provided("theme").hairline },
+            opacity = { Math.min(1, classroot.list.scrollY / 14) } ]
+        ]
+    ]

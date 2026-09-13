@@ -102,6 +102,11 @@ list never asks, and one that is fetches its artifact and renders it — **no co
 compile, and no validation round trips**. It is not a production build and it does not replace
 compilation; it is the deployment asserting "this is what these sources compile to."
 
+The server keeps the *platform* bundles fresh the same way, rebuilding a stale one in place
+when a page asks for it — which is why `bundles/` can change during a test run that boots a
+server. What that means for your working tree is in
+[`shipping.md`](shipping.md); the rule itself is [`derive.md`](derive.md).
+
 That assertion is what `derive` and pre-push exist to keep true: `npm run derive` regenerates
 every artifact from current sources, and a push is refused if the derived artifacts are stale
 on disk or fresh but uncommitted. So a deploy cannot carry a build that disagrees with the

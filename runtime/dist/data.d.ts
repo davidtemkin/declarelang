@@ -80,6 +80,10 @@ export declare class Dataset extends Node {
     private locate;
     private array;
     private wakeChain;
+    /** A derived dataset's recompute lands here (`contents` push): merge into
+     *  the standing tree when both are containers of one kind, else replace
+     *  wholesale through the value slot (mergeTree, below). */
+    adopt(v: unknown): void;
 }
 /** The injected transport — the network's entry seam, like the measurer's
  *  (measure.ts provideMeasurer). Default = the platform fetch; HEADLESS

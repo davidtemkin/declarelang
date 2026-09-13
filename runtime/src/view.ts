@@ -25,7 +25,7 @@ export function provideViewCreator(fn: ViewCreator): void {
 }
 import { record, type Draw, type DisplayList } from "./draw.js";
 import { sharedClock } from "./animate.js";
-import { Constraint, Cell, afterSettle } from "./reactive.js";
+import { Constraint, Cell, afterSettle, setChangeDispatcher, trackNode } from "./reactive.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, type InteractionView } from "./interaction.js";
 import { bindDerived, declarationsOf, defineAttributes, disposeBindings, isSet, localProvision, ownerOf, percentOwned, setBound, type DeclRecord } from "./attributes.js";
 import { declaredType } from "./value.js";
@@ -1088,7 +1088,16 @@ export class View extends Node {
     // grants interest the way a handler does, and a plain click follows the
     // reference — AFTER any declared onClick (handler first, then follow; the
     // handler cannot cancel — veto belongs to onFollow, or to link = "").
-    if (!handled && this.tip === "" && this.link === "") return null;
+    // A SCROLLER is interactive by the same rule. `scrolls` declares that this
+    // view answers drags and wheels over its box, and the answer is scrolling —
+    // performed by the platform's scroll process rather than by a method, which
+    // is what makes it look like an exception and is not one. The consequence
+    // the walk needs is that a scroller TAKES the point: content behind it is
+    // not reachable through it, exactly as on the web and in every native
+    // toolkit, and a tap on its empty area does not fall through to whatever
+    // was declared beneath it.
+    const scroller = this.scrolls !== "none";
+    if (!handled && !scroller && this.tip === "" && this.link === "") return null;
     return (type, x, y, extra) => {
       if (this.tip !== "") {
         if (type === "pointerOver") Tip.over(this);
@@ -1207,6 +1216,9 @@ const pushScrolls = (v: View, ax: string): void => {
   const scrolling = (a: boolean) => { v.scrolling = a; };
   v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; }, scrolling);
   v.surface?.setScrollX?.(ax === "x" || ax === "both", (x) => { v.scrollX = x; }, scrolling);
+  // opening (or closing) a scroll axis changes whether this view takes the
+  // pointer — the same rewire a late `link` or `tip` triggers
+  v.rewireInput();
 };
 
 /** visibleRect's rest state — one frozen instance, so an off-screen view's
@@ -1388,6 +1400,16 @@ export function nodeLabel(n: Node): string {
 export function fireEvent(view: Node, event: string, ...args: unknown[]): void {
   // typed at Node, not View: an event is a handler lookup on the instance, and
   // the faceless tier has a lifecycle too (a plain Node fires `init`)
+  // `init` is the moment a node is LIVE for the change event: boot's own
+  // first values are not changes (reactive.ts / attributes.ts write)
+  if (event === "init") {
+    // `init` is the moment a node is LIVE for the change event: the values it
+    // tracks are read once here to seed, so boot's own first values are not
+    // changes (reactive.ts trackNode).
+    (view as unknown as { $live?: boolean }).$live = true;
+    const names = (view as unknown as { trackChanges?: unknown }).trackChanges;
+    if (Array.isArray(names) && names.length > 0) trackNode(view, names.map((x) => String(x)));
+  }
   const h = (view as unknown as Record<string, unknown>)[handlerName(event)];
   if (typeof h === "function") {
     // A throwing handler is LOUD and ATTRIBUTED, never fatal: the settle it
@@ -2337,4 +2359,14 @@ export class DOMIsland extends Island {
 defineAttributes(DOMIsland, {
   slot: { def: "", push: (v, id) => v.surface?.setEmbed(id, v) },
   childName: { def: "" },
+});
+
+// THE CHANGE EVENT's delivery (reactive.ts wakes and batches; this module owns
+// the handler door). The node remembers which values it is being called for, so
+// attributes.ts can refuse the handler writing one of them back.
+setChangeDispatcher((node, changed) => {
+  const n = node as { $changing?: Set<string> };
+  n.$changing = new Set(changed.map((c) => c.name));
+  try { fireEvent(node as Node, "change", { changed }); }
+  finally { n.$changing = undefined; }
 });

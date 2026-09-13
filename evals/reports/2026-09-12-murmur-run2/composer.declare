@@ -1,0 +1,129 @@
+/*
+# The composer
+
+A field, a way to reach the photographs the service offers, and a send that is
+only there when there is something to send.
+
+The tray grows out of the composer's own top edge rather than arriving over the
+conversation from somewhere else. It rides *over* the last of the conversation
+on purpose: shortening the scroller instead would move what somebody is
+reading, to show them something they can already see.
+*/
+
+class Composer extends View [ fill = { provided("theme").chrome },
+
+    visible = { app.showing != "" },
+    barH: number = 64,
+    trayH: number = 0,
+    open: Spring [ attribute = trayH, to = { app.trayOpen ? 108 : 0 }, stiffness = 230, damping = 27 ],
+    height = { classroot.barH + classroot.trayH + app.safeBottom },
+
+    ready: boolean = { app.draft.trim() != "" },
+
+    fire() {
+        if (!classroot.ready) return
+        app.send("text", app.draft.trim(), "")
+        app.draft = ""
+        classroot.bar.field.entry.text = ""
+        },
+
+    hair: View [ width = { parent.width }, height = 1, fill = { provided("theme").hairline } ],
+
+    // ── the photographs on offer ──
+
+    tray: View [ y = 1, width = { parent.width }, height = { Math.max(0, classroot.trayH - 1) },
+        clip = true, scrolls = x,
+
+        strip: View [ x = { app.colX }, y = 12, height = 84,
+            datapath = { app.hist.value },
+            layout: SimpleLayout [ axis = x, spacing = 10 ],
+            Sendable [ datapath = :sendable[], key = :src ]
+            ]
+        ],
+
+    bar: View [ y = { classroot.trayH }, width = { parent.width }, height = { classroot.barH },
+
+        pick: TrayButton [ x = { app.colX - 10 }, y = 11 ],
+
+        field: View [ y = 11, height = 42, cornerRadius = 21,
+            x = { app.colX + 38 },
+            w: number = 200,
+            width = { w },
+            fill = { provided("theme").paper },
+            stroke = { stroke(1, this.entry.focused ? provided("theme").accent : provided("theme").line) },
+            grow: Spring [ attribute = w,
+                to = { app.colW - 38 - (classroot.ready ? 50 : 0) },
+                stiffness = 300, damping = 30 ],
+
+            entry: TextInput [ x = 15, y = 0, height = 42, wrap = false,
+                width = { parent.width - 26 },
+                fontSize = 15.5,
+                textColor = { provided("theme").ink },
+                placeholder = "Message",
+                onInput(v: string) { app.draft = v },
+                onEnter() { classroot.fire() }
+                ]
+            ],
+
+        send: SendButton [ y = 11, x = { app.colX + app.colW - 42 } ]
+        ]
+    ]
+
+
+class Sendable extends Control [ width = 84, height = 84, cornerRadius = 14, clip = true,
+
+    fill = { provided("theme").line },
+    sq: number = 1,
+    scale = { sq },
+    pivotX = 42,
+    pivotY = 42,
+    lift: Spring [ attribute = sq, to = { classroot.down ? 0.95 : classroot.hot ? 1.03 : 1 },
+        stiffness = 330, damping = 24 ],
+
+    press() { classroot.choose() },
+    onClick() { classroot.choose() },
+    choose() {
+        app.send("photo", "", :src)
+        app.trayOpen = false
+        },
+
+    pic: Image [ width = { parent.width }, height = { parent.height }, stretches = cover, opacity = 0,
+        source = { app.api + "/" + :src },
+        fade: Spring [ attribute = opacity, to = { parent.loaded ? 1 : 0 }, stiffness = 130, damping = 24 ]
+        ]
+    ]
+
+
+class TrayButton extends Control [ width = 42, height = 42, cornerRadius = 21,
+
+    fill = { app.trayOpen ? provided("theme").accentSoft : classroot.hot ? provided("theme").paper : 0xFFFFFF00 },
+    press() { app.trayOpen = !app.trayOpen },
+    onClick() { app.trayOpen = !app.trayOpen },
+
+    turn: number = 0,
+    spin: Spring [ attribute = turn, to = { app.trayOpen ? 1 : 0 }, stiffness = 250, damping = 24 ],
+
+    g: PhotoIcon [ x = center, y = center, iconSize = 21,
+        rotation = { classroot.turn * -0.18 },
+        ink = { app.trayOpen ? provided("theme").accent : provided("theme").inkMuted } ]
+    ]
+
+
+class SendButton extends Control [ width = 42, height = 42, cornerRadius = 21,
+
+    ready: boolean = { app.draft.trim() != "" },
+    fill = { provided("theme").accent },
+    opacity = 0,
+    scale = 0,
+    pivotX = 21,
+    pivotY = 21,
+    arrive: Spring [ attribute = scale, to = { classroot.ready ? (classroot.down ? 0.9 : 1) : 0.3 },
+        stiffness = 320, damping = 24 ],
+    show: Spring [ attribute = opacity, to = { classroot.ready ? 1 : 0 }, stiffness = 300, damping = 28 ],
+    visible = { classroot.opacity > 0.01 },
+
+    press() { app.thread.composer.fire() },
+    onClick() { app.thread.composer.fire() },
+
+    g: SendIcon [ x = center, y = center, iconSize = 21, ink = { provided("theme").paper } ]
+    ]

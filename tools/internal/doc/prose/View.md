@@ -124,6 +124,12 @@ scroller is the page itself (the ruled page shape — see `App`). A scrolling vi
 scroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out
 of frame. The value is a token **string** in a `{ }` body — compare explicitly
 (`scrolls == "y"`), never truthily: `"none"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.
+**A scroller takes the pointer.** Declaring an axis says this view answers drags and wheels
+over its box, so it is an input participant whether or not it declares a handler, and content
+declared *behind* it is not reachable through it — a press on its empty area does not fall
+through to whatever sits underneath. Something that must stay clickable belongs in front of
+the scroller (later in the body), or outside it.
+
 Both backends present the same model; only the overscroll *feel* differs, where the
 platform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and
 rubber-band overscroll *contained* to this pane, so it bounces on its own edges and never
@@ -152,8 +158,9 @@ be shot mid-scroll declares this rather than gesturing.
 ## scrolling
 **A fact, not a slot.** True while this scroller is in motion — a wheel or trackpad
 stream, its momentum, a scrollbar drag, or a glide — and false once it settles. Read it
-to hold work off until the user is done (`onChange(scrolling)`), or to keep a heavy
-effect cheap mid-gesture. Written by the platform's scroll process; never assigned.
+in a constraint to hold work off until the user is done, or to keep a heavy effect cheap
+mid-gesture. Read it, rather than acting on its edges: a trackpad's momentum pauses and a
+mouse wheel's notches make this fact flicker by nature. Written by the platform's scroll process; never assigned.
 
 ## layout
 How this view arranges its children — a reactive `Layout` attribute, not a child and
@@ -450,6 +457,16 @@ bottom" with no magic number; the clamp resolves it against the range the pane h
 can finally take it. The `scrollY` fact follows the platform's answer. Call it on the
 `scrolls` view itself; to reveal a particular *view*, `scrollIntoView()` on the target
 finds the scroller for you. A no-op before the view is attached.
+
+**The user may be scrolling the same pane.** Scrolling is a process the platform owns, driven
+by a hand that does not pause for the program, so a request can arrive mid-gesture and lose —
+overridden by momentum, or worse, fighting it. Two habits keep the two from contending. Ask
+because something *changed by this much* rather than because the offset is near some value:
+a reader who is following the end of a list wants the new content, and a reader who scrolled
+up wants to be left alone, and only the first is expressible as growth. And read `scrolling`
+before asking, so a request waits for a hand that is still moving. What does not work is
+re-asserting a position every frame; the gesture will win, and the program will spend the
+whole gesture losing.
 
 **With a glide** — `scrollTo(y, { duration, motion })` — the request moves the pane over
 `duration` milliseconds on the platform's own motion: the browser's smooth scroll, the

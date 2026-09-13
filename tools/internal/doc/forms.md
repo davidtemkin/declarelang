@@ -384,7 +384,8 @@ syntax:
 usage: form-handler
 
 A handler is a method named `on` + an event this node fires — `onClick`, `onPointerMove`,
-`onInit`, `onKeyDown`. The payload, when there is one, is typed by the event, and the
+`onInit`, `onKeyDown` — and it is a method in every respect: a subclass's `onInit` replaces
+its base's, and reaches it with `super.onInit()` when it wants the base's to run. The payload, when there is one, is typed by the event, and the
 compiler names the type when you write the wrong one. Handlers only assign attributes; every
 constraint that reads those attributes follows, which is the whole update model.
 
@@ -396,7 +397,7 @@ up through `parent` or `classroot`). Events from outside the tree arrive as chil
 ### rules
 
 - The event must be one this node fires; the message lists its handlers.
-  > says: App has no 'onFrobnicate' event — its handlers: onInit, onClick, onDblClick
+  > says: App has no 'onFrobnicate' event — its handlers: onInit
   > probe: App [ onFrobnicate() { } ]
 - The payload's type is the event's.
   > says: 'onClick' receives a PointerEvent — write 'onClick(e: PointerEvent)', not 'string'
@@ -404,9 +405,52 @@ up through `parent` or `classroot`). Events from outside the tree arrive as chil
 
 ### related
 
-forms: method, set, child
+forms: method, super, set, child
 classes: View, Keys, Control
 guide: 07-interaction · Interaction
+
+## super
+
+name: super.name(…)
+group: Members
+family: member
+spec: §3 Members and scope
+terms: super, base method, call the base, override, overriding a method, parent class method, inherited method
+syntax:
+    name(v: T) { super.name(v) }
+usage: form-super
+
+A method a subclass declares replaces the base's method of the same name, handlers included.
+`super.name(args)` calls the one it replaced: the nearest method of that name beneath the
+body in the `extends` chain. It is an ordinary call, so the body decides where it goes —
+before its own work, after it, in the middle, conditionally, or not at all — and passes
+whatever arguments it likes. Inside the base's method, `this` is still the instance, so the
+base's own calls reach the subclass's overrides, as in any class language.
+
+A use site that overrides a class's method (`Stepper [ input(v: number) { … } ]`) reaches the
+class's with `super` the same way. A constraint that calls a method stays live through
+`super` too: the base body's reads are wired like the override's.
+
+### rules
+
+- `super` reaches a method written in this program, up the chain.
+  > says: super.go(): no class beneath B extends A declares go()
+  > probe: class A extends View [ ]\nclass B extends A [ go() { super.go() } ]\nApp [ B [ ] ]
+- A built-in base offers no body to call: it fires events and owns its own methods.
+  > says: no class beneath App declares onInit()
+  > probe: App [ onInit() { super.onInit() } ]
+- `super` is a call, not a value.
+  > says: super is a call up the class chain — write super.name(…)
+  > probe: class A extends View [ f() { } ]\nclass B extends A [ f() { const g = super.f } ]\nApp [ B [ ] ]
+- A `{ }` value has no base method to reach.
+  > says: super is for a method body
+  > probe: class A extends View [ f() -> number { return 1 } ]\nclass B extends A [ w: number = { super.f() } ]\nApp [ B [ ] ]
+
+### related
+
+forms: method, handler, extends, class
+classes: View, Control
+guide: 11-make-your-own · Make your own
 
 ## arrow
 

@@ -115,6 +115,34 @@ export function xHeight(font) {
  *  ideographs), the other Unicode spaces, the dash family past ASCII "-", the
  *  soft hyphen, and a tab, which it measures as one glyph rather than to the
  *  next `tab-size` stop. Widen it against a measurement, never a theory. */
+/** LINE CLAMP (2026-09-12, `Text.maxLines`): keep the first `max` lines and end
+ *  the last kept line with an ellipsis that FITS — words dropped from its end
+ *  until "…" fits the width, then characters if the last word alone is too
+ *  long. Every renderer clamps through this one function (the DOM's native
+ *  clamp is asked for the same count; the mac host mirrors the rule), so the
+ *  measured height and the painted lines agree. `max <= 0` = no clamp. */
+export function clampLines(lines, max, font, width, letterSpacing = 0) {
+    if (max <= 0)
+        return lines;
+    const kept = lines.slice(0, max);
+    const n = kept.length;
+    if (n === 0)
+        return kept;
+    // nothing to do when the text fit its lines — an over-long TOKEN on its own
+    // line (the breaker's `overflow-wrap: normal` rule) is the one kept line
+    // that does not, and it gets the ellipsis too
+    if (lines.length <= max && textWidth(kept[n - 1], font, letterSpacing) <= width)
+        return lines;
+    let last = kept[n - 1].replace(/\s+$/, "");
+    const fits = (s) => textWidth(s + "…", font, letterSpacing) <= width;
+    while (last.length > 0 && !fits(last)) {
+        const cut = last.lastIndexOf(" ");
+        last = cut > 0 ? last.slice(0, cut) : last.slice(0, -1);
+        last = last.replace(/\s+$/, "");
+    }
+    kept[n - 1] = last + "…";
+    return kept;
+}
 export function wrapLines(text, font, width, letterSpacing = 0) {
     // A box of text (`white-space: pre-wrap` on the DOM, the same rule on canvas)
     // COUNTS a line's own leading spaces and overflows an over-long token on its own

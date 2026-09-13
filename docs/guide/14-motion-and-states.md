@@ -54,14 +54,20 @@ time-based sibling for the rare clock-shaped case, and `AnimatorGroup` runs seve
 in step when a sequence genuinely has to be choreographed rather than derived;
 springs are the house idiom.)
 
+**One spring per motion.** Declare it once, on the thing that moves, and let everything
+that must move with it be a constraint on that spring's value: the rows below a growing
+message read the one sprung height, not each carry a spring of their own. A `Spring` inside
+a replicated class is one spring *per row* — fine for a dozen, a mistake for a few hundred.
+
 When something should happen only once motion has genuinely landed — a detail panel
 revealed after its container finishes opening — that is not a completion handler
-either; it is a *fact*, and springs and animators expose it: **`atRest`** is true
-only at an uninterrupted destination. `visible = { open.atRest }` sequences off the
-landing with no bookkeeping, and a mid-flight retarget un-rests it exactly as you'd
-hope. (Distinct from *the settle*, the update transaction from
-[Relationships](declare-docs:guide:relationships) — a spring comes to rest across
-many settles.)
+either; it is a *fact*, and springs and animators expose two: **`running`** while a
+journey is in flight, and **`arrived`**, true only at an uninterrupted destination.
+`visible = { open.arrived }` sequences off the landing with no bookkeeping, and a
+mid-flight retarget clears it exactly as you'd hope; `Time [ running = { open.running } ]`
+runs a clock for exactly the length of the motion. (Distinct from *the settle*, the
+update transaction from [Relationships](declare-docs:guide:relationships) — a spring
+arrives across many settles.)
 
 > **From SwiftUI:** `withAnimation` animates the *transaction* — changes made inside
 > the block. A `Spring` here is a standing declaration on the attribute itself:
@@ -192,6 +198,7 @@ The choice is about the *shape of the dependence*, not about speed:
 | a pure function of the current time — a readout, a countdown, progress toward a deadline | a **`Time` fact** |
 | dependent on its own previous value — integration | **`onTick(dt)`** at `tick = frame` |
 | something that should move *toward* a destination — anything that reads as animation | **`Spring` / `Animator`**: say where it belongs; never compute the path |
+| an *action* the program takes once, when a value crosses into a new state | **`trackChanges` + `onChange`** (below) — never a clock checking whether it has happened yet |
 
 Before writing an `onTick`, ask which of the other two you are about to re-implement. A
 value that should *arrive* somewhere is a `Spring`. A value that should *advance* — a
@@ -208,7 +215,99 @@ when something it *read* changes, and the host's clock is not something in the t
 compiler warns. Read time through `Time`; `Date.now()` belongs in a handler, which runs
 at a moment. And a per-frame `onTick` that ignores `dt` to *check whether something has
 happened yet* is polling — the compiler warns there too, and the answer is a constraint
-on the thing you were waiting for. Nothing waits.
+on the thing you were waiting for, or — when there is genuinely something to *do* at
+that moment — the change event below. Nothing waits.
+
+## When a change is a state change: `onChange`
+
+Almost everything in a Declare program *follows*. A value reads another, the other changes,
+and the first one is already right — the constraint is the notification. That is why the
+language has so few events: there is usually nothing to tell anyone.
+
+A few things are not followings. A conversation is marked read when the reader reaches the
+end of it. The busiest conversation opens once, when the history lands. A fetch starts when
+the selection changes. Those are **actions**: something crossed into a new state, and the
+program does one thing about it, once. There is no value to write that would mean "I did
+this" — the doing is the point.
+
+For those, a node names the values it wants to hear about, and answers `onChange`:
+
+```declare
+class Thread extends View [ scrolls = y, fill = #F2F5F8,
+    atEnd: boolean = { scrollY >= contentHeight - height - 1 },
+    trackChanges = [ "atEnd" ],
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) {
+            if (c.name == "atEnd" && c.currentValue) app.markRead()
+            }
+        }
+    ]
+
+App [ width = 320, height = 250, fill = white, textColor = #172530, fontSize = 14,
+    unread: number = 3,
+    markRead() { unread = 0 },
+    thread: Thread [ x = 12, y = 12, width = 296, height = 190, cornerRadius = 8,
+        column: View [ width = { parent.width }, height = 900, fill = #DCE6F0 ]
+        ],
+    status: Text [ x = 12, y = 214,
+        text = { app.unread > 0 ? app.unread + " unread — scroll to the end" : "all read" } ]
+    ]
+```
+
+`trackChanges` names this node's own reactive values — attributes you declared, facts it
+carries like `scrollY` or `loaded`, attributes bound to data — and nothing else is tracked,
+so a node that names nothing costs nothing. A name that is not one of the node's values is a
+compile error, not a handler that silently never fires. To hear a record's field, declare an
+attribute over the path (`kind: string = { :kind }`) and name that.
+
+### When it fires
+
+**At the close of the settle** — after every constraint has re-run and every reader already
+holds the new value. Never in the middle, where half the tree would still be stale. This is
+also why `currentValue` is simply what the attribute holds: by the time your handler runs,
+the change is everywhere it belongs, and `previousValue` is history that nothing in the tree
+is still carrying.
+
+**Once per settle, carrying everything that moved.** `e.changed` is a list, in the order you
+named them, so a node whose two subjects change together acts once rather than twice. A
+value that changes and changes back inside one settle did not change; one that changes twice
+reports the first value and the last.
+
+**Not at boot.** First values are not changes. Setup that must run once belongs in `onInit`,
+or — when it needs the whole tree standing and measured — in the App's `onReady`.
+
+Your handler's writes are the next settle, so a change may cause a change, and the rules are
+the ones you would want. A handler may not assign a value it was told about, which is a loop
+with a name, and it is refused. A ring — mine moves yours, yours moves mine — ends on its
+own, because a value is delivered at most once per settle chain.
+
+### Declare the condition; handle only the action
+
+Notice that `atEnd` is an attribute, not a test written inside the handler. That is the same
+discipline a state's condition follows, for the same reason: the *what* stays readable, other
+things can depend on it, and the handler is left holding only the *do*.
+
+The shape to aim for is an action that **closes its own gate**. Marking the conversation read
+makes `atEnd`'s consequence — the unread count — zero, so nothing is left to do if the
+handler runs again. When an action cannot be written that way, because it posts a message or
+appends to a log, give that concern its own node rather than letting one handler carry two.
+
+### Only when you really need a state change
+
+This is the one place a Declare program acts instead of describing, and the bar is that high.
+A value that should follow another is a constraint. A value that should arrive somewhere is a
+`Spring`. A look that depends on a condition is a state. None of them needs a handler, and
+every one of them is interruptible and impossible to leave half-applied, which a handler's
+aftermath is not.
+
+It is **not** meant for use in conjunction with animation. A spring's `running` and `arrived`
+are facts for constraints to read, not moments to catch. The same caution covers the other
+moment-to-moment facts: `scrolling`, `hot` and `down` flicker by nature — a trackpad's
+momentum has pauses, a mouse wheel's notches are pauses — and a handler on that edge fires on
+every stop and every restart, which is rarely what the program meant.
+
+The test is one line: if the handler's body could have been written as `x = { … }`, write
+that instead.
 
 ---
 

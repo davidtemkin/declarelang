@@ -73,5 +73,15 @@
     "differing": 0.25,
     "structural": 0.2,
     "theme": "light"
+  },
+  "textclamp": {
+    "differing": 99.97,
+    "structural": 99.7,
+    "theme": "light"
+  },
+  "webfont": {
+    "differing": 0.58,
+    "structural": 0.49,
+    "theme": "light"
   }
 }

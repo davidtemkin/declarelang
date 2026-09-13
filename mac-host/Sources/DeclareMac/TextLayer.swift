@@ -22,6 +22,9 @@ final class TextLayer: CALayer {
     private(set) var version = 0
     var attributed: NSAttributedString? { didSet { lines = nil; version &+= 1; setNeedsDisplay() } }
     var wrap = false { didSet { lines = nil; version &+= 1; setNeedsDisplay() } }
+    /// LINE CLAMP (measure.ts clampLines): at most this many lines, the last
+    /// truncated with an ellipsis; a non-wrapping clamped run is one line.
+    var maxLines = 0 { didSet { lines = nil; version &+= 1; setNeedsDisplay() } }
     var align: NSTextAlignment = .left { didSet { version &+= 1; setNeedsDisplay() } }
     /// Font ascent/descent for the run's style — the baseline contract.
     var ascent: CGFloat = 0 { didSet { version &+= 1; setNeedsDisplay() } }
@@ -44,7 +47,8 @@ final class TextLayer: CALayer {
     /// greedy breaks the runtime measured with.
     private func buildLines() -> [CTLine] {
         guard let a = attributed, a.length > 0 else { return [] }
-        if !wrap { return [CTLineCreateWithAttributedString(a)] }
+        let clamp = maxLines > 0 ? (wrap ? maxLines : 1) : 0
+        if !wrap && clamp == 0 { return [CTLineCreateWithAttributedString(a)] }
         let width = bounds.width > 0 ? bounds.width : .greatestFiniteMagnitude
         let ts = CTTypesetterCreateWithAttributedString(a)
         var out: [CTLine] = []
@@ -52,6 +56,14 @@ final class TextLayer: CALayer {
         while start < a.length {
             let count = CTTypesetterSuggestLineBreak(ts, start, Double(width))
             if count <= 0 { break }
+            if clamp > 0 && out.count == clamp - 1 && start + count < a.length {
+                // the last kept line carries the REST of the text, truncated with an ellipsis
+                let rest = CTTypesetterCreateLine(ts, CFRange(location: start, length: a.length - start))
+                let attrs = a.attributes(at: start, effectiveRange: nil)
+                let token = CTLineCreateWithAttributedString(NSAttributedString(string: "\u{2026}", attributes: attrs))
+                out.append(CTLineCreateTruncatedLine(rest, Double(width), .end, token) ?? rest)
+                return out
+            }
             out.append(CTTypesetterCreateLine(ts, CFRange(location: start, length: count)))
             start += count
         }

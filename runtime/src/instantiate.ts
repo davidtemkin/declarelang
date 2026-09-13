@@ -45,7 +45,7 @@
 // build time and at every later data arrival. `onInit` fires once per view
 // (INITED), however the view came to exist.
 
-import type { Element, Attr, Method, Program, TopDecl } from "./parser.js";
+import type { Element, Attr, Program, TopDecl } from "./parser.js";
 import { DeclareError, diag, type Pos } from "./errors.js";
 import { View, fireEvent } from "./view.js";
 import { Node } from "./node.js";
@@ -97,6 +97,11 @@ function isSourceNode(n: unknown): n is { autoStart(): void } {
 /** One registered user class at runtime: its check-side info, its
  *  synthesized ctor, and its body chain, base-most first — the member
  *  sources every instance expands. */
+/** The `$base` of a body with no class chain beneath it (a source's or
+ *  animator's handler): `super` has nothing to reach, and the compiler
+ *  refused it there. */
+const NO_BASE: object = Object.freeze({});
+
 interface UserClass {
   info: ClassInfo;
   ctor: ViewCtor;
@@ -752,7 +757,6 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   // the instance overrides the class's — and only the winner installs, so a
   // class-body `{ }` binding and an instance literal on one slot never fight
   // over ownership.
-  const methods = new Map<string, { m: Method; croot: View }>();
   const attrs = new Map<string, { attr: Attr; croot: View }>();
   const sources = [...(user?.chain ?? []).map((body) => ({ el: body, croot: view })), { el, croot }];
   // Stamp the navigation target (capabilities.md §6, links.ts): the leaf-most
@@ -760,9 +764,8 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   // same nearest-wins rule the methods/attrs merge below follows. Read only by
   // the static extractor; runtime navigation is the handler's own navigate(to).
   for (const s of sources) if (s.el.link) view._navLink = s.el.link;
-  for (const s of sources) {
-    for (const m of s.el.methods) methods.set(m.name, { m, croot: s.croot });
-  }
+  // (methods are installed per SOURCE below, so each body's `super` reaches
+  // the providers beneath it — see the install loop)
   // Attribute channels land in the ruled precedence order, so "nearest
   // provider wins" is simply map-insertion order: class-body sets base→leaf
   // (rank 4), then the use site (rank 5). Only the winner installs, so no two
@@ -796,30 +799,43 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   // Methods first: they are the instance's behavior, in place before any
   // literal lands, any binding runs, or init fires — a sibling's constraint
   // may call them during its first evaluation.
-  for (const { m, croot: mcroot } of methods.values()) {
-    if (!ctx.trusted) {
-      const r = checkMethod(eff, m);
-      if (!r.ok) throw r.error;
+  //
+  // SUPER (2026-09-12): sources run base → leaf → use site, and each body's
+  // methods are compiled against a SNAPSHOT of what was installed before it —
+  // the `$base` object `super.name(…)` reaches (compile.ts rewrites the
+  // keyword). Nearest provider still wins the instance member; a base body's
+  // own `super` reaches ITS base, since its snapshot was taken before it.
+  const methods = new Map<string, (...args: unknown[]) => unknown>();
+  for (const s of sources) {
+    // built only for a body that calls super (compiled bodies spell it $base):
+    // a replicated row whose class never does pays no per-instance object
+    const base: object = s.el.methods.some((m) => m.body.includes("$base")) ? Object.fromEntries(methods) : NO_BASE;
+    for (const m of s.el.methods) {
+      if (!ctx.trusted) {
+        const r = checkMethod(eff, m);
+        if (!r.ok) throw r.error;
+      }
+      // Collision with the runtime's own members is an instantiation-context
+      // fact (the checker is runtime-free by design, like percent-on-root):
+      // installing over `attach`/`children`/`toString` would corrupt the view.
+      if (m.name in view) {
+        throw new DeclareError(
+          `${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`,
+          m.pos
+        );
+      }
+      const c = compileBody(m.params.map((p) => p.name), m.body);
+      if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
+      const fn = c.fn;
+      const mcroot = s.croot;
+      // Close over the instance (rather than relying on call-site `this`), so
+      // an extracted reference — `const f = v.select; f()` — still works and
+      // `this`/`parent`/`classroot` inside the body always mean this view, its
+      // parent, and the scope the member was written in.
+      methods.set(m.name, (...args: unknown[]) => fn.call(view, view.parent, mcroot, base, ...args));
     }
-    // Collision with the runtime's own members is an instantiation-context
-    // fact (the checker is runtime-free by design, like percent-on-root):
-    // installing over `attach`/`children`/`toString` would corrupt the view.
-    if (m.name in view) {
-      throw new DeclareError(
-        `${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`,
-        m.pos
-      );
-    }
-    const c = compileBody(m.params.map((p) => p.name), m.body);
-    if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
-    const fn = c.fn;
-    // Close over the instance (rather than relying on call-site `this`), so
-    // an extracted reference — `const f = v.select; f()` — still works and
-    // `this`/`parent`/`classroot` inside the body always mean this view, its
-    // parent, and the scope the member was written in.
-    const installed = (...args: unknown[]) => fn.call(view, view.parent, mcroot, ...args);
-    (view as unknown as Record<string, unknown>)[m.name] = installed;
   }
+  for (const [name, installed] of methods) (view as unknown as Record<string, unknown>)[name] = installed;
   for (const { attr, croot: acroot } of attrs.values()) {
     const t0 = attrType(eff, attr.name);
     // A bare `[tl, tr, br, bl]` on a radius slot — check.ts vetted the shape.
@@ -980,7 +996,7 @@ function constructData(el: Element, schema: ComponentSchema, outer: View | null,
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     (node as unknown as Record<string, unknown>)[m.name] =
-      (...args: unknown[]) => fn.call(node, node.parent, outer, ...args);
+      (...args: unknown[]) => fn.call(node, node.parent, outer, NO_BASE, ...args);
   }
   for (const a of el.attrs) {
     const r = routeAttr(schema, a, ctx.trusted);
@@ -1074,7 +1090,7 @@ function constructAnimator(el: Element, schema: ComponentSchema, outer: View | n
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     (node as unknown as Record<string, unknown>)[m.name] =
-      (...args: unknown[]) => fn.call(node, node.parent, outer, ...args);
+      (...args: unknown[]) => fn.call(node, node.parent, outer, NO_BASE, ...args);
   }
   for (const a of el.attrs) {
     const r = routeAttr(schema, a, ctx.trusted);
@@ -1121,7 +1137,7 @@ function constructSource(el: Element, schema: ComponentSchema, outer: View | nul
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     (node as unknown as Record<string, unknown>)[m.name] =
-      (...args: unknown[]) => fn.call(node, node.parent, outer, ...args);
+      (...args: unknown[]) => fn.call(node, node.parent, outer, NO_BASE, ...args);
   }
   for (const a of el.attrs) {
     // A bare `[ … ]` on an array slot (`listenTo = ["delta", "done"]`) —
@@ -1208,7 +1224,7 @@ function constructAnimatorGroup(
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     (node as unknown as Record<string, unknown>)[m.name] =
-      (...args: unknown[]) => fn.call(node, node.parent, outer, ...args);
+      (...args: unknown[]) => fn.call(node, node.parent, outer, NO_BASE, ...args);
   }
   // The effective cascade for members: what this group inherited, overlaid with
   // its own cascadeable literals (a `{ }`-bound cascade attribute stays on the
@@ -1293,7 +1309,7 @@ function constructState(
     const c = compileBody(m.params.map((p) => p.name), m.body);
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
-    (node as unknown as Record<string, unknown>)[m.name] = (...args: unknown[]) => fn.call(node, node.parent, outer, ...args);
+    (node as unknown as Record<string, unknown>)[m.name] = (...args: unknown[]) => fn.call(node, node.parent, outer, NO_BASE, ...args);
   }
   // Attributes: `applied` is the one control slot (a literal now, a `{ }` gate
   // in pass two). Every other attribute is an OVERRIDE on the enclosing view —
@@ -1396,22 +1412,26 @@ function installLayoutClass(layout: Layout, el: Element, uc: UserClass, owner: V
   const self = layout as unknown as Record<string, unknown>;
 
   // Methods: class chain base→leaf, then the use site; nearest provider wins.
-  const methods = new Map<string, Method>();
-  for (const body of uc.chain) for (const m of body.methods) methods.set(m.name, m);
-  for (const m of el.methods) methods.set(m.name, m);
-  for (const m of methods.values()) {
-    if (!ctx.trusted) {
-      const r = checkMethod(eff, m);
-      if (!r.ok) throw r.error;
+  // Each body compiles against a snapshot of the providers beneath it — what
+  // its `super.name(…)` reaches (the view path's rule).
+  const methods = new Map<string, (...args: unknown[]) => unknown>();
+  for (const body of [...uc.chain, el]) {
+    const base: object = body.methods.some((m) => m.body.includes("$base")) ? Object.fromEntries(methods) : NO_BASE;
+    for (const m of body.methods) {
+      if (!ctx.trusted) {
+        const r = checkMethod(eff, m);
+        if (!r.ok) throw r.error;
+      }
+      if (m.name in layout) {
+        throw new DeclareError(`${el.tag}.${m.name}: '${m.name}' is a built-in member of the runtime layout — choose another name`, m.pos);
+      }
+      const c = compileBody(m.params.map((p) => p.name), m.body);
+      if ("error" in c) throw new DeclareError(`${el.tag}.${m.name}(…) ${c.error}`, m.bodyPos);
+      const fn = c.fn;
+      methods.set(m.name, (...args: unknown[]) => fn.call(layout, layout.parent, croot, base, ...args));
     }
-    if (m.name in layout) {
-      throw new DeclareError(`${el.tag}.${m.name}: '${m.name}' is a built-in member of the runtime layout — choose another name`, m.pos);
-    }
-    const c = compileBody(m.params.map((p) => p.name), m.body);
-    if ("error" in c) throw new DeclareError(`${el.tag}.${m.name}(…) ${c.error}`, m.bodyPos);
-    const fn = c.fn;
-    self[m.name] = (...args: unknown[]) => fn.call(layout, layout.parent, croot, ...args);
   }
+  for (const [name, installed] of methods) self[name] = installed;
 
   // Attributes: class chain base→leaf, then use site; a literal lands directly,
   // a `{ }` binding installs a constraint over the layout's slot.

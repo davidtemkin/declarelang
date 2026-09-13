@@ -119,7 +119,7 @@ zooming rectangle — normally a bespoke project on its own:
 
 | <!--stat:calendar.code-->498<!--/stat--> | lines of Declare — four views, continuous zoom, drag, and edit |
 |----:|:---|
-| **<!--stat:calendar.wireKB-->85<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
+| **<!--stat:calendar.wireKB-->86<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
 | **0** | lines written by hand — an LLM wrote it; the compiler kept it honest |
 
 → How to think in it: [the guide](docs/guide/01-thinking-in-declare.md). The language in
@@ -182,10 +182,10 @@ npm run test:derived# the suites whose subject IS an artifact — run straight a
 npm run test:ladder # the slow rungs — real input and pixels, in headless Chromium
 ```
 
-Commit freely: nothing regenerates on commit, and stale artifacts are the expected
-state of a working tree. A **push is a publication** (it deploys), so the pre-push
-hook refuses one whose derived artifacts are stale or uncommitted, and names the
-commands to fix it. → [`docs/operational/derive.md`](docs/operational/derive.md)
+A **push is a publication** — this tree is the distro, and Pages serves what lands.
+The order to work in, what each of these commands does and does not build, and what
+the hooks refuse is one page:
+→ [`docs/operational/shipping.md`](docs/operational/shipping.md)
 
 | dir | what |
 |-----|------|
