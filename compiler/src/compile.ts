@@ -1092,6 +1092,9 @@ class Resolver {
   /** Names the program's `theme Name [ … ]` declarations bind — in body scope
    *  by name, like a preset (`theme = { app.dark ? BrandDark : Brand }`). */
   private readonly themeNames: Set<string>;
+  /** Names the program's `style Name [ … ]` bundles bind — plain text-style
+   *  records, in body scope by name like a theme (`fillText(s, x, y, Caption)`). */
+  private readonly styleNames: Set<string>;
 
   /** Whether this compile can bundle script imports (CompileOptions.bundleScripts). */
   canBundleScripts = false;
@@ -1103,6 +1106,21 @@ class Resolver {
     for (const cls of program.classes) this.classDecls.set(cls.name, cls);
     this.schemas = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name))).schemas; // check-clean: no errors
     this.themeNames = new Set((program.themes ?? []).map((t) => t.name));
+    this.styleNames = new Set((program.styles ?? []).map((s) => s.name));
+    // A style's or a theme's NAME is a value in every { } body — so one named like
+    // a name bodies already use (`Math`, `String`, `fetch`, `tint`) would hide it
+    // program-wide. Refused at the declaration. (A theme may still reuse a preset's
+    // name: a declared theme overriding a preset is the ruled behaviour.)
+    const inBodies = (n: string): boolean =>
+      ES_GLOBALS.has(n) || PRELUDE_NAMES.has(n) || (RUNTIME_SERVICES.has(n) && !THEME_PRESET_NAMES.includes(n));
+    for (const [kind, decls] of [["style", program.styles ?? []], ["theme", program.themes ?? []]] as const) {
+      for (const d of decls) {
+        if (!inBodies(d.name)) continue;
+        this.errors.push(new DeclareError(
+          `${kind} ${d.name}: '${d.name}' is already a name every { } body uses — a ${kind}'s name is a value in bodies, so it would hide that one; choose another name`,
+          d.pos));
+      }
+    }
     this.scriptNames = new Set(program.scripts.flatMap((b) => topLevelBindings(b.src)));
     this.scriptMutable = new Set(program.scripts.flatMap((b) => topLevelMutableBindings(b.src)));
     for (let i = 0; i < source.length; i++) {
@@ -1435,7 +1453,7 @@ class Resolver {
         selfName = true;
       }
       if (k === -1) {
-        if (!isKnownGlobal(id.name) && !this.scriptNames.has(id.name) && !this.themeNames.has(id.name)) {
+        if (!isKnownGlobal(id.name) && !this.scriptNames.has(id.name) && !this.themeNames.has(id.name) && !this.styleNames.has(id.name)) {
           const hostHint = hostGlobalHint(id.name);
           // A bare enum token inside { } — `fontWeight = { bold ? semibold : regular }`
           // — is the slot's OWN vocabulary spoken without quotes. The bare form is

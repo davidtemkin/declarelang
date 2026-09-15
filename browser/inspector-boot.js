@@ -12,7 +12,7 @@
 // inspected, which must stay fully usable while you inspect it.
 //
 // Relative imports, like every other boot module — subpath-portable.
-import { build, mountApp, loadFonts, fontFacesOf, settle, DomBackend, setInspectionTarget } from "../runtime/dist/index.js";
+import { build, mountApp, fontsReady, settle, DomBackend, setInspectionTarget } from "../runtime/dist/index.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 
 const ROOT = new URL("../", import.meta.url);
@@ -63,7 +63,7 @@ export async function openInspector(subject, origin = undefined) {
     throw new Error("Inspector failed to compile");
   }
   const app = build(out.source, { deps: out.deps });
-  await loadFonts(fontFacesOf(app));
+  await fontsReady(app);
   mountApp(app, host, new DomBackend(), { chrome: true });
   settle();
   mounted = { app, host };

@@ -21,15 +21,17 @@ import type { RenderBackend, RichBlock, RichRun, Surface } from "./backend.js";
 import { Layout, type Box } from "./layout.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes, providedDefault, providedRead, setBound } from "./attributes.js";
-import { fontMetrics, fontString, textWidth, transformText, type FontWeight, type TextTransform } from "./measure.js";
+import { ellipsize, fontMetrics, fontString, textWidth, transformText, type FontWeight, type TextTransform } from "./measure.js";
+import { featureFamily, featureTags, type Numerals, type NumeralWidth } from "./font-features.js";
+import { faceGeneration } from "./face-table.js";
+import { heldFamily, type FamilyValue } from "./font-value.js";
 import { parse, type Block, type Inline } from "./md.js";
 import { headingSlug } from "./slug.js";
 import { parseHtml, type Unsupported } from "./html.js";
 import { resolveAsset } from "./asset-base.js";
-import { coerce, type Fill, type Shadow, type Outline, type Color } from "./value.js";
+import type { Fill, Shadow, Outline, Color } from "./value.js";
 import type { Literal } from "./parser.js";
-import { styleBundles } from "./style-bundles.js";
-import { compileExpr } from "./expr.js";
+import { styleBundles, bundleRecord } from "./style-bundles.js";
 
 // ── prose style map ──────────────────────────────────────────────────────────
 // The role → style map that makes rendered Markdown look good with zero author
@@ -70,6 +72,13 @@ const COLORS_LIGHT = {
 };
 let C: typeof COLORS_DARK = COLORS_DARK;        // active set; set at the top of each rebuild
 let SCALE = 1;                                   // font-size multiplier (the `scale` attr), set per rebuild
+// THE LINE BUDGET for one build (`RichText.maxLines`). Lines are counted across
+// the WHOLE document, in order, and spent while it is BUILT (layoutBlocks and
+// the structural builders) — never while a flow renders, because a flow renders
+// again later (a width change, an image or a face landing) when this global no
+// longer describes anything. Infinity = no clamp.
+let BUDGET = Infinity;
+let TRUNCATED = false;
 // A named style a `<span class="…">` selects: a bundle of TEXT'S OWN style
 // attributes, named exactly as on `Text` (no terse parallel vocabulary — the skin
 // pattern), applied to the run. All optional; absent = inherit. `accents` retired
@@ -87,6 +96,9 @@ export interface RunStyle {
   outline?: Outline | null;
   textTransform?: TextTransform;
   smallCaps?: boolean;
+  numerals?: Numerals;
+  numeralWidth?: NumeralWidth;
+  slashedZero?: boolean;
   underline?: boolean;
   strike?: boolean;
 }
@@ -96,24 +108,11 @@ let STYLES: Record<string, RunStyle> = {};       // named styles (HTMLText local
 // A `<span class>` resolves the by-name cascade: LOCAL inline `textStyles` first,
 // then a global `style` bundle (from style-bundles.js) — so `style hero [ … ]`
 // serves a run, a view (`styles = [hero]`), or a subtree alike. A field is read
-// into the run either statically (a literal, coerced) or DYNAMICALLY (a `{ }` body,
-// evaluated against the RichText — the read is tracked by the render this runs
-// inside, so a theme flip re-renders). A dynamic bundle is NOT cached (its value
-// can change); a fully-static one is, per Element (a WeakMap, collected with it).
+// into the run from the bundle's record (style-bundles.ts) — plain literal values,
+// like a theme's tokens — so a run style is read once per Element (a WeakMap,
+// collected with it).
 type BundleEl = { attrs: readonly { name: string; value: Literal }[] };
 const bundleCache = new WeakMap<object, RunStyle>();
-// The scope a bundle's `{ }` field evaluates in: `this` = the RichText (so
-// `theme`, `app`, etc. resolve exactly as in an ordinary body). Set per rebuild.
-let R_HOST: unknown = null;
-let R_PARENT: unknown = null;
-
-/** Evaluate a bundle field's `{ }` body against the current RichText scope,
- *  returning its runtime value (a color number, a Fill, an Outline, …). */
-function evalBundleField(src: string): unknown {
-  const c = compileExpr(src);
-  if (!("fn" in c)) return undefined;
-  try { return c.fn.call(R_HOST, R_PARENT, R_HOST); } catch { return undefined; }
-}
 
 /** Set one RunStyle field from a runtime value (shared by static + dynamic). */
 function assignRunField(rs: RunStyle, name: string, val: unknown): void {
@@ -124,6 +123,9 @@ function assignRunField(rs: RunStyle, name: string, val: unknown): void {
     case "fontWeight": if (typeof val === "string" || typeof val === "number") rs.fontWeight = val as FontWeight; break;
     case "italic": rs.italic = val === true; break;
     case "smallCaps": rs.smallCaps = val === true; break;
+    case "numerals": if (typeof val === "string") rs.numerals = val as Numerals; break;
+    case "numeralWidth": if (typeof val === "string") rs.numeralWidth = val as NumeralWidth; break;
+    case "slashedZero": rs.slashedZero = val === true; break;
     case "underline": rs.underline = val === true; break;
     case "strike": rs.strike = val === true; break;
     case "textColor": if (typeof val === "number" || val === null) rs.textColor = val as number; break;
@@ -135,29 +137,14 @@ function assignRunField(rs: RunStyle, name: string, val: unknown): void {
 }
 
 const TEXT_ATTR = new Set(["fontSize", "fontFamily", "fontWeight", "italic", "textColor", "textFill", "letterSpacing",
-  "textShadow", "outline", "textTransform", "smallCaps", "underline", "strike"]);
-/** A `style` bundle's text attributes read into a RunStyle. */
+  "textShadow", "outline", "textTransform", "smallCaps", "numerals", "numeralWidth", "slashedZero",
+  "underline", "strike"]);
+/** A `style` bundle's text attributes read into a RunStyle — from the bundle's
+ *  record (style-bundles.ts), the same values a drawing or a body reads by name. */
 function bundleToRunStyle(el: BundleEl): RunStyle {
   const rs: RunStyle = {};
-  for (const a of el.attrs) {
-    if (!TEXT_ATTR.has(a.name)) continue;
-    const v = a.value;
-    if (v.kind === "code") { assignRunField(rs, a.name, evalBundleField(v.src)); continue; }   // dynamic { }
-    // static literal → runtime value
-    if (a.name === "fontSize") { if (v.kind === "number") rs.fontSize = v.value; }
-    else if (a.name === "letterSpacing") { if (v.kind === "number") rs.letterSpacing = v.value; }
-    else if (a.name === "fontFamily") { if (v.kind === "string") rs.fontFamily = v.value; }
-    else if (a.name === "fontWeight") { rs.fontWeight = (v.kind === "number" ? v.value : v.kind === "ident" ? v.name : rs.fontWeight) as FontWeight; }
-    else if (a.name === "italic") { if (v.kind === "ident") rs.italic = v.name === "true"; }
-    else if (a.name === "textColor") { const c = coerce({ kind: "color" }, v); if (c.ok) rs.textColor = c.value as number; }
-    else if (a.name === "textFill") { const c = coerce({ kind: "fill" }, v); if (c.ok) rs.textFill = c.value as Fill; }
-    else if (a.name === "textShadow") { const c = coerce({ kind: "shadow" }, v); if (c.ok) rs.textShadow = c.value as Shadow | null; }
-    else if (a.name === "outline") { const c = coerce({ kind: "outline" }, v); if (c.ok) rs.outline = c.value as Outline | null; }
-    else if (a.name === "textTransform") { if (v.kind === "ident") rs.textTransform = v.name as TextTransform; else if (v.kind === "string") rs.textTransform = v.value as TextTransform; }
-    else if (a.name === "smallCaps") { if (v.kind === "ident") rs.smallCaps = v.name === "true"; }
-    else if (a.name === "underline") { if (v.kind === "ident") rs.underline = v.name === "true"; }
-    else if (a.name === "strike") { if (v.kind === "ident") rs.strike = v.name === "true"; }
-  }
+  const rec = bundleRecord(el as unknown as Parameters<typeof bundleRecord>[0]);
+  for (const [name, val] of Object.entries(rec)) if (TEXT_ATTR.has(name)) assignRunField(rs, name, val);
   return rs;
 }
 // The running-text style pulled from the provided text slots (fontSize/
@@ -230,12 +217,9 @@ function resolveStyle(name: string): RunStyle | undefined {
     if (tok in STYLES) return STYLES[tok];               // local inline (nearest)
     const b = bundles.get(tok);
     if (b !== undefined) {                               // global `style` bundle
-      // A dynamic bundle (any `{ }` field) is re-evaluated every render (its value
-      // can change); a fully-static one is cached per Element.
-      const el = b as BundleEl;
-      if (el.attrs.some((a) => a.value.kind === "code")) return bundleToRunStyle(el);
+      // A bundle is a record of literals: its run style is read once per Element.
       let rs = bundleCache.get(b as object);
-      if (rs === undefined) { rs = bundleToRunStyle(el); bundleCache.set(b as object, rs); }
+      if (rs === undefined) { rs = bundleToRunStyle(b as BundleEl); bundleCache.set(b as object, rs); }
       return rs;
     }
   }
@@ -247,7 +231,7 @@ const FALLBACK_FAMILY = "system-ui, sans-serif";
 
 // ── inline tier ────────────────────────────────────────────────────────────
 // A run's resolved style, flattened from the inline tree for the seam.
-interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill; family?: string; shadow?: Shadow | null; outline?: Outline | null; transform?: TextTransform; smallCaps?: boolean; underline?: boolean }
+interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill; family?: string; shadow?: Shadow | null; outline?: Outline | null; transform?: TextTransform; smallCaps?: boolean; numerals?: Numerals; numeralWidth?: NumeralWidth; slashedZero?: boolean; underline?: boolean }
 function base(size: number, weight: FontWeight, color: number, tracking = 0): Style {
   return { size: sz(size), weight, italic: false, mono: false, strike: false, color, tracking };
 }
@@ -268,6 +252,9 @@ function applyStyle(style: Style, rs: RunStyle): Style {
   if (rs.outline !== undefined) s.outline = rs.outline;
   if (rs.textTransform !== undefined) s.transform = rs.textTransform;
   if (rs.smallCaps !== undefined) s.smallCaps = rs.smallCaps;
+  if (rs.numerals !== undefined) s.numerals = rs.numerals;
+  if (rs.numeralWidth !== undefined) s.numeralWidth = rs.numeralWidth;
+  if (rs.slashedZero !== undefined) s.slashedZero = rs.slashedZero;
   if (rs.underline !== undefined) s.underline = rs.underline;
   if (rs.strike !== undefined) s.strike = rs.strike;
   return s;
@@ -341,7 +328,11 @@ function richRunsOf(inline: Inline[], style: Style, family: string): RichRun[] {
     const s = a.style;
     const run: RichRun = {
       text: a.text, size: s.size, weight: s.weight, italic: s.italic,
-      family: s.mono ? CODEFAM : (s.family ?? family), strike: s.strike, color: s.color, tracking: s.tracking,
+      // THE FEATURES RIDE THE FAMILY NAME (font-features.ts), so deriving it
+      // once here is all the plumbing there is: every fontString in the flow,
+      // the DOM run block and the Mac payload all read `run.family`.
+      family: featureFamily(s.mono ? CODEFAM : (s.family ?? family), featureTags(s)),
+      strike: s.strike, color: s.color, tracking: s.tracking,
     };
     // inline code reads as a colored mono word, not a filled chip/button
     if (s.link !== undefined) { run.href = s.link; if (LINKU) run.underline = true; }
@@ -381,8 +372,13 @@ type ImageFor = (src: string) => ImageInfo;
  *  views to parent and the total height. Inline images are placed as atomic
  *  replaced boxes via `imageFor` (a persistent Image view per src); an image
  *  whose load has FAILED degrades to its `alt` text. */
-function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: string) => void, imageFor?: ImageFor): { views: View[]; height: number; anchors: Map<string, number>; firstBaseline: number | null } {
+function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: string) => void, imageFor?: ImageFor,
+                        opts?: { measure?: boolean; keep?: number }): { views: View[]; height: number; anchors: Map<string, number>; firstBaseline: number | null; lines: number } {
   const views: View[] = [];
+  // How many lines this flow may show — the share of `RichText.maxLines` its
+  // document allotted it when it was built (TextFlow.clampLines). Absent = all.
+  let remaining = opts?.keep ?? Infinity;
+  let lines = 0;
   const anchors = new Map<string, number>();
   // The first block's first line's baseline, in flow coordinates — what a
   // baseline-aligning layout sits this flow on. Decided by the same strut and
@@ -396,13 +392,32 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     // reveal can clamp the scroll ancestor to it — the Canvas twin of the DOM
     // heading element's native scrollIntoView. First slug wins (preorder).
     if (b.anchor !== undefined && !anchors.has(b.anchor)) anchors.set(b.anchor, y);
-    const lead = b.runs.find((r): r is Extract<RichRun, { text: string }> => "text" in r);
+    // The block's LEAD run sets its strut and the space it coalesces with: the
+    // LONGEST text run, not the first. A paragraph that opens with inline code
+    // ("`src` is a URL…") used to take both from the monospace code face, so every
+    // body word was placed on its own at a monospace space's width — visibly
+    // spaced-out lines on canvas. Ordinary prose has one dominant run, which is the
+    // first run anyway, so its geometry is unchanged.
+    const textRuns = b.runs.filter((r): r is Extract<RichRun, { text: string }> => "text" in r);
+    const lead = textRuns.length === 0 ? undefined : textRuns.reduce((best, r) => (r.text.length > best.text.length ? r : best));
     const bm = fontMetrics(fontString({ fontFamily: lead?.family ?? FALLBACK_FAMILY, fontSize: lead?.size ?? sz(PROSE.body), fontWeight: lead?.weight ?? "normal" }));
     const lineH = Math.ceil(bm.ascent + bm.descent);              // glyph box (for half-leading)
     const adv = Math.round(b.fontSize * b.lineHeight);            // line box = round(fontSize × lineHeight), CSS-unitless — matches the DOM path
     const halfLead = Math.round((adv - lineH) / 2);              // centre the glyph box in the line box (half-leading)
     const spaceFont = fontString({ fontFamily: lead?.family ?? FALLBACK_FAMILY, fontSize: lead?.size ?? sz(PROSE.body), fontWeight: "normal" });
     const spaceW = textWidth(" ", spaceFont);
+    // A space is as wide as a space in the face it was typed in — the run it came
+    // from. The lead face keeps the one measured above (bit-identical for plain prose).
+    const spaceMemo = new Map<string, number>();
+    const spaceOf = (r: Extract<RichRun, { text: string }> | undefined): number => {
+      if (r === undefined) return spaceW;
+      const sf = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: "normal" });
+      if (sf === spaceFont) return spaceW;
+      let w = spaceMemo.get(sf);
+      if (w === undefined) { w = textWidth(" ", sf, r.tracking); spaceMemo.set(sf, w); }
+      return w;
+    };
+    let pendingRun: Extract<RichRun, { text: string }> | undefined;
 
     // Preformatted (a `<pre>` code flow): keep whitespace verbatim, break on the
     // runs' own newlines, no soft-wrap — the manual twin of CSS `white-space: pre`.
@@ -416,7 +431,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         for (let si = 0; si < segs.length; si++) {
           if (si > 0) { ln++; px = 0; }
           const seg = segs[si];
-          if (seg === "") continue;
+          if (seg === "" || ln >= remaining) continue;
           const w = textWidth(r.transform ? transformText(seg, r.transform) : seg, f, r.tracking);
           const t = new Text();
           t.x = px; t.y = y + ln * adv + halfLead; t.width = Math.ceil(w) + 2; t.wrap = false;
@@ -430,12 +445,14 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         }
       }
       firstBaseline ??= y + halfLead + bm.ascent;   // a pre's line 0: the strut, nothing grows it
-      y += (ln + 1) * adv;
+      lines += ln + 1;
+      y += Math.min(ln + 1, Math.max(0, remaining)) * adv;
+      remaining -= ln + 1;
       continue;
     }
 
     type P = { text: string; run: Extract<RichRun, { text: string }>; w: number };
-    type Tok = { word: P[] } | { sp: true } | { br: true } | { img: Image; w: number; h: number; href?: string };
+    type Tok = { word: P[] } | { sp: true; run?: Extract<RichRun, { text: string }> } | { br: true } | { img: Image; w: number; h: number; href?: string };
     const toks: Tok[] = [];
     let word: P[] = [];
     const flush = () => { if (word.length) { toks.push({ word }); word = []; } };
@@ -470,7 +487,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
       for (const part of r.text.split(/(\s+)/)) {
         if (part === "") continue;
-        if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last)) toks.push({ sp: true }); }
+        if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last)) toks.push({ sp: true, run: r }); }
         else word.push({ text: part, run: r, w: textWidth(r.transform ? transformText(part, r.transform) : part, f, r.tracking) });
       }
     }
@@ -564,7 +581,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     };
     for (const tok of broken) {
       if ("br" in tok) { flushGroup(); line++; x = 0; pending = false; continue; }
-      if ("sp" in tok) { pending = true; continue; }
+      if ("sp" in tok) { pending = true; pendingRun = tok.run; continue; }
       // An inline image: an atomic replaced box. Wrap it like a word if it does
       // not fit, grow the line to its height (bottom on the baseline), and place
       // the persistent Image view. Zero-sized (not-yet-loaded) images just take
@@ -572,7 +589,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       if ("img" in tok) {
         flushGroup();
         const iw = tok.w, ih = tok.h;
-        const gap = pending && x > 0 ? spaceW : 0;
+        const gap = pending && x > 0 ? spaceOf(pendingRun) : 0;
         if (iw > 0 && x + gap + iw > width && x > 0) { line++; x = 0; } else x += gap;
         pending = false;
         const im = tok.img;
@@ -585,7 +602,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         continue;
       }
       const ww = tok.word.reduce((s, p) => s + p.w, 0);
-      const gap = pending && x > 0 ? spaceW : 0;
+      const gap = pending && x > 0 ? spaceOf(pendingRun) : 0;
       if (x + gap + ww > width && x > 0) { flushGroup(); line++; x = 0; } else x += gap;
       pending = false;
       let first = true;
@@ -652,13 +669,45 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         if (free > 0) v.x += b.align === "center" ? free / 2 : free;
       }
     }
+    // THE CLAMP (RichText.maxLines). The lines exist here — every view carries
+    // its line index — so spending the budget is: keep the lines that fit, drop
+    // the views on the rest, end the last kept line with an ellipsis, and stop
+    // the block's height at that line's bottom. `remaining` runs across the
+    // blocks of this flow, so the next block sees what this one left.
+    const lineCount = line + 1;
+    lines += lineCount;
+    let keep = lineCount;
+    if (remaining < lineCount) {
+      keep = Math.max(0, Math.floor(remaining));
+      // The ellipsis marks a line that was CUT SHORT, which happens only when
+      // this block is PARTLY kept. When the budget runs out exactly at a block
+      // boundary, the last kept line is a whole line and nothing marks it —
+      // which is also what -webkit-line-clamp and CTLineCreateTruncatedLine do
+      // there, so the three renderers agree by rule and not by luck.
+      if (keep > 0) {
+        const onLast = blockViews.filter((bv) => bv.line === keep - 1 && bv.v instanceof Text);
+        const tail = onLast[onLast.length - 1]?.v as Text | undefined;
+        if (tail !== undefined && !tail.text.endsWith("…")) {
+          const f = fontString({ fontFamily: tail.fontFamily, fontSize: tail.fontSize, fontWeight: tail.fontWeight, italic: tail.italic });
+          tail.text = ellipsize(tail.text, f, width - tail.x, tail.letterSpacing);
+          tail.width = Math.ceil(textWidth(tail.text, f, tail.letterSpacing)) + 2;
+        }
+      }
+      // A wholly dropped block takes its gap with it: `y` was already advanced
+      // by `gapBefore` above, and a gap before nothing is a gap nobody asked for.
+      yy = keep > 0 ? lineTop[keep - 1] + (lineAbove[keep - 1] ?? strutAbove) + (lineBelow[keep - 1] ?? strutBelow) : lineTop[0] - b.gapBefore;
+    }
+    remaining -= lineCount;
     // Persistent (image) views are already children managed by the flow's image
     // cache — position them (done above) but do NOT hand them back to be inserted
     // and discarded with the per-pass text views.
-    for (const bv of blockViews) if (bv.persistent !== true) views.push(bv.v);
+    for (const bv of blockViews) {
+      if (bv.line >= keep) { if (bv.persistent !== true) bv.v.discard(); continue; }
+      if (bv.persistent !== true) views.push(bv.v);
+    }
     y = yy;
   }
-  return { views, height: y, anchors, firstBaseline };
+  return { views, height: y, anchors, firstBaseline, lines };
 }
 
 /** TextFlow — the internal native-flow renderer (NOT a user component; see the
@@ -668,6 +717,9 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
 class TextFlow extends View {
   content: RichBlock[] = [];
   flowWidth = 0;
+  /** The lines this flow may show under its document's `maxLines`, allotted
+   *  when the document was BUILT and reused by every render after; 0 = all. */
+  clampLines = 0;
 
   /** Re-flow at a new width, keeping the view and its content.
    *
@@ -843,14 +895,24 @@ class TextFlow extends View {
     if (h >= 0) {                       // native path: the backend flowed + measured
       this.clearManual();
       this.height = h;
-      this.firstBaseline = this.content.length > 0 ? flowRichCanvas(this.content.slice(0, 1), this.flowWidth).firstBaseline : null;
+      this.firstBaseline = this.content.length > 0
+        ? flowRichCanvas(this.content.slice(0, 1), this.flowWidth, undefined, undefined, { measure: true }).firstBaseline
+        : null;
+      // THE CLAMP, on a renderer that wraps for itself (RichText.maxLines). The
+      // document allotted this flow its lines when it was built; the engine is
+      // handed that count on every render, so a later render cannot drift.
+      if (this.clampLines > 0) {
+        const clamped = s.setRichClamp?.(this.clampLines) ?? -1;
+        if (clamped >= 0) this.height = clamped;
+      }
       return;
     }
     // Canvas: lay the runs out as child views ourselves.
     this.clearManual();
     this.imageUsed.clear();
     this.imageSeq.clear();
-    const { views, height, anchors, firstBaseline } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? this.followLink, this.imageFor);
+    const { views, height, anchors, firstBaseline } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? this.followLink, this.imageFor,
+      this.clampLines > 0 ? { keep: this.clampLines } : undefined);
     // Prune image children the content no longer references (a re-pointed `text`).
     for (const [key, im] of this.imageViews) if (!this.imageUsed.has(key)) { this.removeChild(im); im.discard(); this.imageViews.delete(key); }
     this.anchorYs = anchors;
@@ -951,6 +1013,11 @@ function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ct
   let group: RichBlock[] = [];
   let prevProse: "paragraph" | "heading" | null = null;      // previous prose block in this group
   let groupGeo: ReturnType<typeof geoFor> | null = null;     // the coalesced group's geometry
+  // THE LINE BUDGET is spent here, while the document is built. Each prose block
+  // is COUNTED at its content width (the measure-only pass canvas lays out by) and
+  // its group allotted what is left; a group that must stop early carries that
+  // count as `clampLines`. A block that begins with nothing left is not built.
+  let groupTotal = 0, groupKeep = 0;
   // Flush the coalesced prose group: one TextFlow, built at its measure-capped
   // content width and offset by its alignment. An empty map ⇒ contentWidth = width
   // and placeX = 0, so this is byte-identical to the old `flowView(group, width)`.
@@ -958,12 +1025,14 @@ function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ct
     if (group.length && groupGeo) {
       const cw = contentWidth(width, groupGeo);
       const v = flowView(group, cw, ctx);
+      if (groupKeep < groupTotal) v.clampLines = groupKeep;
       v.x = placeX(width, cw, groupGeo);
       out.push({ view: v, geo: groupGeo });
     }
-    group = []; prevProse = null; groupGeo = null;
+    group = []; prevProse = null; groupGeo = null; groupTotal = 0; groupKeep = 0;
   };
   for (const b of blocks) {
+    if (BUDGET <= 0) { TRUNCATED = true; break; }
     if (b.t === "paragraph" || b.t === "heading") {
       const g = geoFor(b.t);
       // A geometry change within a prose run (e.g. centered headings over a
@@ -975,7 +1044,14 @@ function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ct
         : b.t === "heading" ? PROSE.headingGap[b.level - 1]
         : prevProse === "heading" ? PROSE.headingBelow
         : PROSE.blockGap;
-      group.push(proseBlock(b, gap, bodyColor, ctx));
+      const rb = proseBlock(b, gap, bodyColor, ctx);
+      if (BUDGET < Infinity) {
+        const n = linesOf([rb], contentWidth(width, g));
+        const k = Math.min(n, BUDGET);
+        groupTotal += n; groupKeep += k; BUDGET -= n;
+        if (k < n) TRUNCATED = true;
+      }
+      group.push(rb);
       prevProse = b.t;
       groupGeo = g;
       continue;
@@ -996,6 +1072,11 @@ function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ct
   }
   flush();
   return out;
+}
+
+/** How many lines `blocks` flow to at `width` — the measure-only pass. */
+function linesOf(blocks: RichBlock[], width: number): number {
+  return flowRichCanvas(blocks, width, undefined, undefined, { measure: true }).lines;
 }
 
 /** A stacked container of `blocks` at `width` — the recursion point for a list
@@ -1053,6 +1134,12 @@ function buildPre(b: Extract<Block, { t: "pre" }>, width: number, bodyColor: num
   const fm = fontMetrics(fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" }));
   const lead = (fm.ascent + fm.descent) / sz(CODESIZE);
   const flow = flowView([{ tag: "pre", runs, gapBefore: 0, lineHeight: lead, fontSize: sz(CODESIZE), pre: true }], flowW, ctx);
+  if (BUDGET < Infinity) {                       // a <pre> spends its lines, and stops at its share
+    const n = linesOf(flow.content, flowW);
+    const k = Math.min(n, BUDGET);
+    if (k < n) { flow.clampLines = Math.max(1, k); TRUNCATED = true; }
+    BUDGET -= n;
+  }
   // the widest line, for the gutter decision below — the runs' own text, priced
   // with the code face (a pre never wraps, so this is the scroll-overflow test)
   const preFont = fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" });
@@ -1108,7 +1195,14 @@ function buildCode(b: Extract<Block, { t: "code" }>, width: number): View {
   const bar = CODERULE !== null;
   const padL = codePadLeft(bar);
   const codeFont = fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" });
-  const textLines = b.text === "" ? [""] : b.text.split("\n");
+  let codeText = b.text;
+  if (BUDGET < Infinity) {                       // a fenced block spends one line per line of code
+    const all = codeText === "" ? [""] : codeText.split("\n");
+    const k = Math.min(all.length, BUDGET);
+    if (k < all.length) { codeText = all.slice(0, k).join("\n"); TRUNCATED = true; }
+    BUDGET -= all.length;
+  }
+  const textLines = codeText === "" ? [""] : codeText.split("\n");
   const maxW = textLines.reduce((m, l) => Math.max(m, textWidth(l, codeFont)), 0);
   const baseH = Math.ceil(textLines.length * (fm.ascent + fm.descent)) + 2 * PROSE.codePad;
   const box = rectView(width, baseH, CODEBG ?? C.codeBg, PROSE.codeRadius);
@@ -1118,7 +1212,7 @@ function buildCode(b: Extract<Block, { t: "code" }>, width: number): View {
   // an inner scroller holds the text — long lines scroll while the bar stays fixed
   const scroller = new View();
   scroller.x = padL; scroller.y = PROSE.codePad; scroller.scrolls = "x";
-  const t = textView(width - padL - PROSE.codePad, sz(CODESIZE), C.codeFg, "normal", b.text);
+  const t = textView(width - padL - PROSE.codePad, sz(CODESIZE), C.codeFg, "normal", codeText);
   t.x = 0; t.y = 0; t.wrap = false; t.fontFamily = CODEFAM;
   scroller.appendChild(t);
   box.appendChild(scroller);
@@ -1151,6 +1245,10 @@ function buildList(b: Extract<Block, { t: "list" }>, width: number, bodyColor: n
   const rows: { row: View; body: View }[] = [];
   const bodyW = width - PROSE.indent;
   for (let i = 0; i < b.items.length; i++) {
+    // The marker is a flow too, but it spends none of the budget: only the item's
+    // BODY does (through buildBlocks). An item reached with nothing left is not
+    // built at all, so a clamp never strands a bullet beside no text.
+    if (BUDGET <= 0) { TRUNCATED = true; break; }
     const it = b.items[i];
     const marker = b.ordered ? `${b.start + i}.` : it.task === null ? "•" : it.task ? "☑" : "☐";
     const row = new View();
@@ -1193,12 +1291,22 @@ function buildTable(b: Extract<Block, { t: "table" }>, width: number, bodyColor:
     const rowCells: TextFlow[] = [];
     const row = new View();
     row.width = width;
+    const contents: RichBlock[][] = [];
     for (let c = 0; c < cols; c++) {
       const al = b.align[c];
-      const cell = flowView([{
+      contents.push([{
         tag: "p", runs: richRunsOf(cells[c] ?? [], base(BODY.size, weight, color, BODY.tracking), ctx.family),
         gapBefore: 0, lineHeight: ctx.lead, fontSize: sz(BODY.size), align: al === "center" || al === "right" ? al : undefined,
-      }], colW, ctx);
+      }]);
+    }
+    // A row spends the lines of its TALLEST cell, once — not a share per cell.
+    const cellLines = BUDGET < Infinity ? contents.map((cc) => linesOf(cc, colW)) : [];
+    const rowLines = cellLines.reduce((m, n) => Math.max(m, n), 0);
+    const rowKeep = BUDGET < Infinity ? Math.min(rowLines, BUDGET) : Infinity;
+    if (BUDGET < Infinity) { BUDGET -= rowLines; if (rowKeep < rowLines) TRUNCATED = true; }
+    for (let c = 0; c < cols; c++) {
+      const cell = flowView(contents[c], colW, ctx);
+      if (rowKeep < (cellLines[c] ?? 0)) cell.clampLines = rowKeep;
       cell.x = colX(c); cell.y = 0;
       rowCells.push(cell);
       row.appendChild(cell);
@@ -1209,7 +1317,10 @@ function buildTable(b: Extract<Block, { t: "table" }>, width: number, bodyColor:
   table.appendChild(makeRow(b.header, HEADINGW, HEADINGC));
   const headRule = rectView(width, 1, C.rule);
   table.appendChild(headRule);
-  for (const r of b.rows) table.appendChild(makeRow(r, "normal", bodyColor));
+  for (const r of b.rows) {
+    if (BUDGET <= 0) { TRUNCATED = true; break; }   // a row reached with nothing left is not built
+    table.appendChild(makeRow(r, "normal", bodyColor));
+  }
   table.layout = yStack(PROSE.itemGap);
   // Column widths are arithmetic — no content measurement — so a width change is
   // a re-x and a reflow per cell. The runs are untouched.
@@ -1257,7 +1368,8 @@ export abstract class RichText extends View {
   // style; `selectable` defaults TRUE (a flowing document selects by nature).
   declare textColor: Color;
   declare fontSize: number;
-  declare fontFamily: string;
+  /** A family string, a Font, or a list of them. */
+  declare fontFamily: FamilyValue;
   declare fontWeight: FontWeight;
   declare letterSpacing: number;
   declare headingColor: Color;
@@ -1265,11 +1377,15 @@ export abstract class RichText extends View {
   declare linkColor: Color;
   declare codeColor: Color;
   declare codeSize: number;
-  declare codeFamily: string;
+  declare codeFamily: FamilyValue;
   declare codeBackground: Color;
   declare codeRule: Color;
   declare richTextLayout: Readonly<Record<string, { maxWidth?: number; margin?: readonly [number, number]; align?: "left" | "center" | "right" }>> | null;
   declare lineHeight: number;
+  /** Line clamp over the whole flow (schema.ts). 0 = unclamped. */
+  declare maxLines: number;
+  /** True when the clamp dropped something — what a "Show more" binds to. */
+  declare truncated: boolean;
   declare bodyColor: number | null;
   declare linkUnderline: boolean;
   declare scale: number;
@@ -1341,7 +1457,11 @@ export abstract class RichText extends View {
     // flip or font-size change re-renders.
     // STRUCTURE — the source and everything baked into the runs (palette, scale,
     // sizes). These genuinely need a re-parse and a rebuild.
-    const c = new Constraint(`${this.constructor.name}.render`, () => `${this.sourceKey()} ${this.lineHeight} ${this.bodyColor} ${this.isDark()} ${this.scale} ${this.codeBackground} ${this.codeRule}`, () => this.rebuild(), 0);
+    // `faceGeneration()` is in the key because the flow MEASURES inside rebuild,
+    // which is the apply — where reads are not tracked (face-table.ts). Without
+    // it a face that lands after this flow was built leaves every run placed by
+    // the fallback's widths, and paints the real face over those positions.
+    const c = new Constraint(`${this.constructor.name}.render`, () => `${this.sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.isDark()} ${this.scale} ${this.codeBackground} ${this.codeRule} ${faceGeneration()} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => this.rebuild(), 0);
     c.run();
     onDiscard(this, () => c.dispose());
     // WIDTH — nothing structural depends on it, so re-width in place. Separate
@@ -1394,6 +1514,9 @@ export abstract class RichText extends View {
    *  Falls back to a full rebuild if any block has no re-width registered, so an
    *  unconverted block type stays correct. */
   private relayout(width: number): void {
+    // A clamped document's allotments depend on how its lines wrap, and wrapping
+    // depends on width — so a width change re-spends the budget from the top.
+    if (this.maxLines > 0) { this.rebuild(); return; }
     if (this.laid.length === 0) { this.rebuild(); return; }
     if (!relayoutEntries(this.laid, width)) { this.rebuild(); return; }
     this.childrenMutated();
@@ -1409,13 +1532,16 @@ export abstract class RichText extends View {
 
   private rebuild(): void {
     C = this.isDark() ? COLORS_DARK : COLORS_LIGHT;   // pick the palette for this render
+    BUDGET = this.maxLines > 0 ? this.maxLines : Infinity;   // the flow clamp, for this render
+    TRUNCATED = false;
     SCALE = this.scale || 1;                          // font-size multiplier for this render
     STYLES = this.stylesOf();                         // named styles for this render
-    R_HOST = this; R_PARENT = this.parent;            // scope for a bundle's { } fields (evaluated with this = the RichText)
     for (const v of this.built) { this.removeChild(v); v.discard(); }
     this.built = [];
     const width = this.width > 0 ? this.width : 640;
-    const family = this.fontFamily || FALLBACK_FAMILY;
+    // The family a flow's value names now — held while a newly chosen font is
+    // inside its wait, exactly as the render key above read it (font-value.ts).
+    const family = heldFamily(this, "fontFamily", this.fontFamily) || FALLBACK_FAMILY;
     const lead = this.lineHeight || 1;
     const bodyColor = this.bodyColor ?? C.bodyColor;
     // Running text obeys the ambient text style, exactly like a
@@ -1432,7 +1558,7 @@ export abstract class RichText extends View {
     LINKU = this.linkUnderline === true;
     CODEC = this.codeColor ?? C.code;
     CODESIZE = this.codeSize || PROSE.codeSize;
-    CODEFAM = this.codeFamily || PROSE.mono;
+    CODEFAM = heldFamily(this, "codeFamily", this.codeFamily) || PROSE.mono;
     CODEBG = this.codeBackground;
     CODERULE = this.codeRule;
     LAYOUT = this.richTextLayout ?? {};
@@ -1456,6 +1582,9 @@ export abstract class RichText extends View {
     this.layout = yStack(PROSE.blockGap);
     this.childrenMutated();
     this.claimBaseline();
+    // The build spent the budget; report what happened, so a
+    // "Show more" has a fact to bind to rather than a look to infer.
+    setBound(this, "truncated", TRUNCATED);
   }
 }
 
@@ -1512,6 +1641,7 @@ defineAttributes(RichText, {
   codeRule: { def: null, defBinding: providedDefault("codeRule", null) },
   richTextLayout: { def: null, defBinding: providedDefault("richTextLayout", null) },
   lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null }, baseline: { def: null },
+  maxLines: { def: 0 }, truncated: { def: false },
 });
 defineAttributes(Markdown, {
   text: { def: "" },

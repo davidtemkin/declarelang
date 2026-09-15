@@ -25,12 +25,21 @@
 # holding an author to files they never touched)
 DECLARE_FILES=$(git diff --cached --name-only --diff-filter=ACM -- '*.declare' | grep -v '^docs/system-design/')
 if [ -n "$DECLARE_FILES" ]; then
-  if ! node tools/format.mjs --check $DECLARE_FILES >/dev/null 2>&1; then
-    echo "pre-commit: staged .declare file(s) are not canon. Run:"
-    echo ""
-    echo "    node tools/format.mjs --write $DECLARE_FILES"
-    echo ""
-    echo "  then stage them and commit again.  (git commit --no-verify to override)"
+  if ! OUT=$(node tools/format.mjs --check $DECLARE_FILES 2>&1); then
+    # name only the files the formatter refused — listing every staged file sent
+    # one commit (2026-09-15) toward reformatting 37 files when one was off
+    BAD=$(printf '%s\n' "$OUT" | sed -n 's/^not canon: //p' | tr '\n' ' ')
+    if [ -n "$BAD" ]; then
+      echo "pre-commit: staged .declare file(s) are not canon. Run:"
+      echo ""
+      echo "    node tools/format.mjs --write $BAD"
+      echo ""
+      echo "  then stage them and commit again.  (git commit --no-verify to override)"
+    else
+      # the formatter failed without naming a file (a parse error, a crash): its own words
+      echo "pre-commit: the canon check failed:"
+      printf '%s\n' "$OUT"
+    fi
     exit 1
   fi
 fi

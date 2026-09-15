@@ -1,0 +1,47 @@
+/* The 2D affine completion of the transform: per-axis scale and skew, with
+   hovered/pressed and clicks landing on the VISIBLE geometry. */
+
+App [ width = 900, height = 400, fill = #202124, textColor = whitesmoke,
+    hit: string = "click a card",
+    onClick() { hit = "miss" },
+
+    // per-axis scale: a card squashed to a sliver (the odometer flip's frame)
+
+    a: View [ x = 30, y = 40, width = 160, height = 200, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0x2EC4B6 },
+        scaleY = 0.35, pivotX = 80, pivotY = 100,
+        onClick() { app.hit = "a (scaleY .35)" },
+        Text [ x = 20, y = 90, fontSize = 22, fontWeight = bold, text = "scaleY" ]
+        ],
+
+    // skew: a sheared card
+
+    b: View [ x = 240, y = 40, width = 160, height = 200, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0xFFD23F }, textColor = #202124,
+        skewX = 20, pivotX = 80, pivotY = 100,
+        onClick() { app.hit = "b (skewX 20)" },
+        Text [ x = 20, y = 90, fontSize = 22, fontWeight = bold, text = "skewX" ]
+        ],
+
+    // everything at once: scale, per-axis scale, skew, rotation, about a pivot — with a child and a filter
+
+    c: View [ x = 460, y = 40, width = 160, height = 200, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0x4C8DFF },
+        scale = 1.1, scaleX = 0.8, skewY = -12, rotation = 15, pivotX = 80, pivotY = 0, filter = shadow(0, 10, 24, 0x000000AA),
+        onClick() { app.hit = "c (composed)" },
+        Text [ x = 14, y = 90, fontSize = 20, fontWeight = bold, text = "composed" ],
+        Image [ x = 40, y = 120, width = 80, height = 70, stretches = contain, source = "assets/badge.png" ]
+        ],
+
+    // mirrored: a negative scale flips the view
+
+    d: View [ x = 680, y = 40, width = 160, height = 200, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0x9B59B6 },
+        scaleX = -1, pivotX = 80,
+        onClick() { app.hit = "d (mirrored)" },
+        Text [ x = 20, y = 90, fontSize = 22, fontWeight = bold, text = "flip" ]
+        ],
+
+    // footprint: the parent auto-sizes to the sheared child's bounds
+
+    box: View [ x = 30, y = 280, fill = #FFFFFF14, stroke = { stroke(1, 0xFFFFFF55) },
+        View [ x = 10, y = 10, width = 200, height = 60, fill = #2EC4B6, skewX = -30, pivotX = 0, pivotY = 0 ]
+        ],
+    readout: Text [ x = 460, y = 300, fontSize = 22, text = { app.hit } ]
+    ]

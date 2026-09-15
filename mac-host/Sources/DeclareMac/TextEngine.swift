@@ -18,6 +18,10 @@ enum TextEngine {
         var size: Double
         var weight: Int
         var italic: Bool
+        /// CSS's font-variant slot, which `fontString` fills for a small-caps run.
+        /// It belongs in the KEY as well as the face: a small-caps run measures
+        /// differently from the same string without it.
+        var smallCaps: Bool = false
     }
 
     // Both caches are reached from TWO threads since the runtime moved off
@@ -38,6 +42,16 @@ enum TextEngine {
         var rest = css.trimmingCharacters(in: .whitespaces)
 
         if rest.hasPrefix("italic ") { italic = true; rest = String(rest.dropFirst(7)) }
+        // THE VARIANT SLOT. The CSS shorthand is style, variant, weight, size,
+        // family, and measure.ts fills the variant for a small-caps run — so this
+        // string arrives as "small-caps 400 16px Rowan". Failing to consume the
+        // token left it in front of the size, the size parse failed, and the run
+        // was MEASURED at the 13px fallback in the wrong family while it was
+        // DRAWN at its real size: every width, wrap and line box wrong, on one
+        // renderer only.
+        var smallCaps = false
+        if rest.hasPrefix("small-caps ") { smallCaps = true; rest = String(rest.dropFirst(11)) }
+        if rest.hasPrefix("italic ") { italic = true; rest = String(rest.dropFirst(7)) }
         // weight (a number or a keyword)
         let parts = rest.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
         if let first = parts.first {
@@ -51,14 +65,14 @@ enum TextEngine {
             rest = String(rest[r.upperBound...]).trimmingCharacters(in: .whitespaces)
         }
         if !rest.isEmpty { family = rest }
-        return Font(family: family, size: size, weight: weight, italic: italic)
+        return Font(family: family, size: size, weight: weight, italic: italic, smallCaps: smallCaps)
     }
 
     static func nsFont(_ f: Font) -> NSFont {
         cacheLock.lock()
         if let c = fontCache[f] { cacheLock.unlock(); return c }
         cacheLock.unlock()
-        let resolved = resolve(f)
+        let resolved = f.smallCaps ? smallCaps(resolve(f)) : resolve(f)
         cacheLock.lock()
         if fontCache.count > 512 { fontCache.removeAll() }
         fontCache[f] = resolved
@@ -100,6 +114,76 @@ enum TextEngine {
         "cursive": "Apple Chancery", "fantasy": "Papyrus",
     ]
 
+    /// THE DERIVED-FAMILY MARKER (runtime/src/font-features.ts). OpenType
+    /// features travel inside the family NAME, because the family name is the
+    /// one channel the CSS font string — the single encoding all three
+    /// renderers share — already carries. `Hoefler_Text--ot--lnum-tnum` is
+    /// Hoefler Text with lining, tabular figures, and the host applies them
+    /// through a Core Text descriptor rather than registering a second family
+    /// the way the web side does. Both halves are pinned against each other in
+    /// test/text.test.mjs.
+    private static let OT_MARK = "--ot--"
+
+    /// One entry from a CSS family list → a face, or nil to try the next entry.
+    private static func resolveOne(_ name0: String, _ f: Font) -> NSFont? {
+        var name = name0
+        // A derived name resolves its BASE and then wears the features. If the
+        // base does not resolve, nil sends the caller to the next list entry —
+        // which is the plain base name, since the web side always writes the two
+        // side by side.
+        if let r = name.range(of: OT_MARK) {
+            let base = String(name[name.startIndex..<r.lowerBound]).replacingOccurrences(of: "_", with: " ")
+            let tags = String(name[r.upperBound...]).split(separator: "-").map(String.init)
+            guard let plain = resolveOne(base, f) else { return nil }
+            return withFeatures(plain, tags)
+        }
+        let weight = nsWeight(f.weight)
+        let lower = name.lowercased()
+        // A DECLARED family first (FontRegistry): `font Title [ Face [ … ] ]`
+        // names a family no system lookup can find — the name is the
+        // author's label, and a subset file usually carries no name of its
+        // own. Before this, every declared face fell through to the system
+        // font and the whole program rendered in a fallback.
+        if let declared = FontRegistry.font(family: name, weight: f.weight, italic: f.italic, size: f.size) {
+            return styled(declared, f)
+        }
+        if lower == "system-ui" || lower == "-apple-system" || lower == "blinkmacsystemfont" {
+            return styled(NSFont.systemFont(ofSize: f.size, weight: weight), f)
+        }
+        // A generic is rewritten to its concrete face and then resolved by
+        // name below, so it picks up the weight/italic conversion like any
+        // other family. A NAMED face is never rewritten: asking for `Menlo`
+        // gets Menlo, and an absent family falls through to the next entry in
+        // the list, as CSS says.
+        if let concrete = generics[lower] { name = concrete }
+        if let named = NSFont(name: name, size: f.size) {
+            // Apply the requested weight via the font manager where possible.
+            let fm = NSFontManager.shared
+            let w = max(0, min(15, Int((Double(f.weight) / 1000.0) * 15)))
+            if let converted = fm.font(withFamily: named.familyName ?? name,
+                                       traits: f.italic ? .italicFontMask : [],
+                                       weight: w, size: f.size) {
+                return converted
+            }
+            return styled(named, f)
+        }
+        return nil
+    }
+
+    /// `base` with OpenType feature tags switched on, through Core Text's
+    /// tag-keyed feature settings (the OpenType keys, not the old selector
+    /// pairs — a tag is the same four bytes the web side writes).
+    private static func withFeatures(_ base: NSFont, _ tags: [String]) -> NSFont {
+        guard !tags.isEmpty else { return base }
+        let settings: [[String: Any]] = tags.map {
+            [kCTFontOpenTypeFeatureTag as String: $0, kCTFontOpenTypeFeatureValue as String: 1]
+        }
+        let d = CTFontDescriptorCreateCopyWithAttributes(
+            base.fontDescriptor as CTFontDescriptor,
+            [kCTFontFeatureSettingsAttribute as String: settings] as CFDictionary)
+        return NSFont(descriptor: d as NSFontDescriptor, size: base.pointSize) ?? base
+    }
+
     private static func resolve(_ f: Font) -> NSFont {
         // The family list is CSS: try each, fall back to the system face —
         // which is what `system-ui` and `-apple-system` mean here anyway.
@@ -107,35 +191,8 @@ enum TextEngine {
         for raw in f.family.split(separator: ",") {
             var name = raw.trimmingCharacters(in: .whitespaces)
             name = name.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-            let lower = name.lowercased()
-            // A DECLARED family first (FontRegistry): `font Title [ Face [ … ] ]`
-            // names a family no system lookup can find — the name is the
-            // author's label, and a subset file usually carries no name of its
-            // own. Before this, every declared face fell through to the system
-            // font and the whole program rendered in a fallback.
-            if let declared = FontRegistry.font(family: name, weight: f.weight, italic: f.italic, size: f.size) {
-                return styled(declared, f)
-            }
-            if lower == "system-ui" || lower == "-apple-system" || lower == "blinkmacsystemfont" {
-                return styled(NSFont.systemFont(ofSize: f.size, weight: weight), f)
-            }
-            // A generic is rewritten to its concrete face and then resolved by
-            // name below, so it picks up the weight/italic conversion like any
-            // other family. A NAMED face is never rewritten: asking for `Menlo`
-            // gets Menlo, and an absent family falls through to the next entry in
-            // the list, as CSS says.
-            if let concrete = generics[lower] { name = concrete }
-            if let named = NSFont(name: name, size: f.size) {
-                // Apply the requested weight via the font manager where possible.
-                let fm = NSFontManager.shared
-                let w = max(0, min(15, Int((Double(f.weight) / 1000.0) * 15)))
-                if let converted = fm.font(withFamily: named.familyName ?? name,
-                                           traits: f.italic ? .italicFontMask : [],
-                                           weight: w, size: f.size) {
-                    return converted
-                }
-                return styled(named, f)
-            }
+            if let got = resolveOne(name, f) { return got }
+            _ = name
         }
         // Nothing in the list resolved. A monospace request must not land on a
         // proportional face — code would stop lining up — so honour the generic
@@ -320,7 +377,13 @@ struct TextStyleSpec {
     var color: NSColor? = nil
     var align: NSTextAlignment = .left
     var wrap: Bool = false
-    var maxLines: Int = 0        // line clamp, ellipsis on the last kept line (0 = none)
+    /// LINE CLAMP (measure.ts clampLines): at most this many lines, the last
+    /// truncated with an ellipsis; a non-wrapping clamped run is one line.
+    var maxLines: Int = 0
+    /// Declared leading, as a MULTIPLIER of the font size (0 = the face's own
+    /// ascent+descent). The runtime sizes the box with this, so a host that
+    /// ignores it draws bunched lines inside a box sized for open ones.
+    var lineHeight: Double = 0
     var letterSpacing: Double = 0
     var selectable: Bool = false
     var shadow: (Double, Double, Double, NSColor)? = nil

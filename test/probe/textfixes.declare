@@ -1,0 +1,38 @@
+// The defect probe: a solid textFill, small-caps metrics, stroked text in a
+// drawing, a transformed drawing, and the non-aspect image fits — each of which
+// a renderer got wrong until 2026-09-13.
+
+App [ width = 820, height = 560, fill = white, textColor = #999999, fontSize = 22,
+
+    solid: Text [ x = 20, y = 20, textFill = #E4572E, text = "solid textFill (orange, not grey)" ],
+    caps: Text [ x = 20, y = 60, smallCaps = true, text = "Small Caps Measure Right" ],
+    rule: View [ x = { caps.x + caps.width }, y = 56, width = 2, height = 30, fill = #2E6FE0 ],
+
+    marks: View [ x = 20, y = 110, width = 380, height = 180,
+        draw(d: Draw) {
+            d.strokeStyle = 0x2E6FE0
+            d.lineWidth = 1.5
+            d.font = "28px Helvetica"
+            d.strokeText("stroked, not filled", 4, 34)
+            d.save()
+            d.transform(1, 0.28, 0, 1, 10, 60)          // a shear: collapses if `m` is misread
+            d.fillStyle = 0xE4572E
+            d.fillRect(0, 0, 160, 40)
+            d.restore()
+            d.save()
+            d.translate(240, 120)
+            d.rotate(-0.5)                                // drops if `angle` is misread
+            d.fillStyle = 0x17BEBB
+            d.fillRect(-50, -14, 100, 28)
+            d.restore()
+            }
+        ],
+
+    n: Image [ x = 430, y = 110, width = 170, height = 120, stretches = none, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
+    w: Image [ x = 620, y = 110, width = 170, height = 120, stretches = width, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
+    b: Image [ x = 430, y = 250, width = 170, height = 120, stretches = both, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
+    hh: Image [ x = 620, y = 250, width = 170, height = 120, stretches = height, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
+
+    key: Text [ x = 20, y = 400, fontSize = 14, textColor = #444444,
+        text = "images: none · width · both · height (each must differ)" ]
+    ]

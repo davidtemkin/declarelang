@@ -9,16 +9,42 @@ import { diag } from "./errors.js";
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS } from "./animate.js";
+import { faceSourceLiteral, faceWeightLiteral } from "./face-literal.js";
+import { coerceFilter, coerceRadialConic } from "./effects.js";
 /** The base of the translucent encoding — see the Color doc above. */
 const ALPHA = 0x100000000;
 /** Encode rgb (0xRRGGBB) + alpha (0…255) as one Color number. */
 export function colorWithAlpha(rgb, a) {
     return a >= 0xff ? rgb : ALPHA + rgb * 0x100 + a;
 }
+/** The CSS spelling of a gradient — background, mask-image and text-fill share it. */
+export function gradientCss(g) {
+    const stops = g.stops.map((st) => colorToCss(st.color) + (st.offset === null ? "" : ` ${st.offset * 100}%`)).join(", ");
+    const at = `${(g.cx ?? 0.5) * 100}% ${(g.cy ?? 0.5) * 100}%`;
+    if (g.kind === "radial") {
+        // the reach scales every placed stop (an unplaced last stop lands at r)
+        const r = g.r ?? 1;
+        const scaled = g.stops.map((st, i) => colorToCss(st.color) + " " + ((st.offset ?? (i === g.stops.length - 1 ? 1 : i === 0 ? 0 : NaN)) * r * 100).toFixed(3) + "%")
+            .map((s) => s.replace(" NaN%", ""));
+        return `radial-gradient(circle farthest-corner at ${at}, ${scaled.join(", ")})`;
+    }
+    if (g.kind === "conic")
+        return `conic-gradient(from ${g.angle}deg at ${at}, ${stops})`;
+    return `linear-gradient(${g.angle}deg, ${stops})`;
+}
 /** Narrow a Fill to its gradient arm. */
 export function isGradient(f) {
     return typeof f === "object" && f !== null;
 }
+export function isMaskGradient(m) {
+    return typeof m === "object" && m !== null && "stops" in m;
+}
+export function filterList(v) {
+    if (v === null || v === undefined)
+        return EMPTY_FILTERS;
+    return Array.isArray(v) ? v : [v];
+}
+const EMPTY_FILTERS = Object.freeze([]);
 // ── The value constructors' RUNTIME forms — the same names inside `{ }`
 // bodies (expr.ts puts them in scope), producing the same immutable
 // plain-data records the literal grammar coerces to. One asymmetry, recorded:
@@ -45,6 +71,8 @@ export function gradient(...args) {
     });
     return Object.freeze({ angle, stops: Object.freeze(stops) });
 }
+// radialGradient / conicGradient and the filter functions live in effects.ts —
+// carried by a production build only when a program names one.
 export const stop = (offset, color) => Object.freeze({ offset, color });
 /** A width that cannot be a width. A stroke is drawn INSIDE the box, so a value
  *  past a few thousand points is never art — and a `Color` is a number at
@@ -69,8 +97,66 @@ function checkOrder(fn, width, color) {
 }
 export const stroke = (width, color) => { checkOrder("stroke", width, color); return Object.freeze({ width, color }); };
 export const outline = (width, color) => { checkOrder("outline", width, color); return Object.freeze({ width, color }); };
-export const shadow = (dx, dy, blur, color) => Object.freeze({ dx, dy, blur, color });
-export const frost = (radius, saturation = 1) => Object.freeze({ blur: radius, saturate: saturation });
+export const shadow = (dx, dy, blur, color) => Object.freeze({ fn: "shadow", dx, dy, blur, color });
+/** The CSS spelling of a filter list — DOM `filter:`/`backdrop-filter:` and
+ *  canvas `ctx.filter` share it. `scale` maps view units to the target's
+ *  (device px on canvas, 1 on the DOM where CSS scales with the transform).
+ *  `tint` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
+ *  reference the backend registers (`tintRef`), canvas as a `source-in` pass
+ *  after the blit — both leave it out of this string. */
+export function filterCss(list, scale = 1, tintRef) {
+    const parts = [];
+    for (const f of list) {
+        switch (f.fn) {
+            case "blur":
+                parts.push(`blur(${f.radius * scale}px)`);
+                break;
+            case "brightness":
+            case "contrast":
+            case "saturate":
+            case "grayscale":
+            case "invert":
+            case "sepia":
+                parts.push(`${f.fn}(${f.amount})`);
+                break;
+            case "hueRotate":
+                parts.push(`hue-rotate(${f.degrees}deg)`);
+                break;
+            // CSS drop-shadow's third length is the Gaussian's σ; `shadow(…)`'s blur is
+            // the box-shadow radius (2σ) at every site, so one value looks the same
+            // on a box, on glyphs, and in a filter list — halve it here.
+            case "shadow":
+                parts.push(`drop-shadow(${f.dx * scale}px ${f.dy * scale}px ${(f.blur * scale) / 2}px ${colorToCss(f.color)})`);
+                break;
+            case "tint":
+                if (tintRef !== undefined)
+                    parts.push(tintRef(f.color));
+                break;
+        }
+    }
+    return parts.length === 0 ? "none" : parts.join(" ");
+}
+/** How far a filter's output can reach past the painted box, in view units —
+ *  a blur's 3σ, a shadow's offset plus its 3σ. The over-scan a backdrop sample
+ *  and an offscreen group both pad by (graphics-pass.md §0, the bleed rule). */
+export function filterBleed(list) {
+    let pad = 0;
+    for (const f of list) {
+        if (f.fn === "blur")
+            pad += f.radius * 3;
+        else if (f.fn === "shadow")
+            pad = Math.max(pad, Math.max(Math.abs(f.dx), Math.abs(f.dy)) + f.blur * 3);
+    }
+    return Math.ceil(pad);
+}
+/** The largest blur radius in a list — what a frost's sample over-scans by. */
+export function filterBlur(list) {
+    let r = 0;
+    for (const f of list)
+        if (f.fn === "blur")
+            r += f.radius;
+    return r;
+}
 // Structural equality for the decoration values (ruled: the === write gate
 // extends to shallow structural equality for these — a constraint
 // re-producing an equal record stops the cascade like a scalar). Each is
@@ -85,8 +171,31 @@ export function strokeEqual(a, b) {
 export function outlineEqual(a, b) {
     return a !== null && b !== null && a.width === b.width && a.color === b.color;
 }
+export function filterEqual(a, b) {
+    if (a === b)
+        return true;
+    if (a.fn !== b.fn)
+        return false;
+    switch (a.fn) {
+        case "blur": return a.radius === b.radius;
+        case "hueRotate": return a.degrees === b.degrees;
+        case "tint": return a.color === b.color;
+        case "shadow": return shadowEqual(a, b);
+        default: return a.amount === b.amount;
+    }
+}
+/** Structural equality over a filter value in any written form (one, a list, null). */
+export function filtersEqual(a, b) {
+    const la = filterList(a), lb = filterList(b);
+    if (la.length !== lb.length)
+        return false;
+    for (let i = 0; i < la.length; i++)
+        if (!filterEqual(la[i], lb[i]))
+            return false;
+    return true;
+}
 export function backdropEqual(a, b) {
-    return a !== null && b !== null && a.blur === b.blur && a.saturate === b.saturate;
+    return filtersEqual(a, b);
 }
 export function fillEqual(a, b) {
     if (!isGradient(a) || !isGradient(b))
@@ -127,6 +236,10 @@ export function isPercent(v) {
  *  Text.fontWeight (R3); user unions and Align slot in as pure data. */
 export function enumType(name, ...tokens) {
     return { kind: "enum", name, tokens };
+}
+/** An enum that also takes a number in `[min, max]` — see AttrType's `numeric`. */
+export function numericEnumType(name, range, ...tokens) {
+    return { kind: "enum", name, tokens, numeric: range };
 }
 // What a user attribute declaration may name as its type (language §4:
 // "ordinary TypeScript types plus the built-in value vocabulary of §6") —
@@ -270,8 +383,14 @@ export function coerce(type, lit) {
             }
             if (lit.kind === "ident" && type.tokens.includes(lit.name))
                 return ok(lit.name);
+            if (type.numeric !== undefined && lit.kind === "number") {
+                const [lo, hi] = type.numeric;
+                if (Number.isFinite(lit.value) && lit.value >= lo && lit.value <= hi)
+                    return ok(lit.value);
+                return fail(diag `a ${type.name} (one of ${type.tokens.join(" | ")}, or a number ${lo}–${hi})`);
+            }
             // Vowel-aware article: R7's Axis is the first enum that needs "an".
-            return fail(diag `${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")})`);
+            return fail(diag `${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")}${type.numeric !== undefined ? `, or a number ${type.numeric[0]}–${type.numeric[1]}` : ""})`);
         case "fn":
             // Like a component slot: `null` is the one literal form ("no callback").
             // A real function arrives by assignment from a { } body, never as a
@@ -331,17 +450,36 @@ export function coerce(type, lit) {
             return coerceOutline(lit);
         case "shadow":
             return coerceShadow(lit);
-        case "backdrop":
-            return coerceBackdrop(lit);
+        case "filter":
+            return coerceFilter(lit);
+        case "mask": {
+            if (lit.kind === "ident" && lit.name === "null")
+                return ok(null);
+            if (lit.kind !== "call")
+                return fail(MASK);
+            const g = coerceFill(lit);
+            if (!g.ok || typeof g.value !== "object" || g.value === null)
+                return fail(MASK, g.ok ? undefined : g.found);
+            return g;
+        }
         case "motion":
             return coerceMotion(lit);
         case "font":
-            // A raw family string is the literal form; a `font Name` reference (an
-            // ident) resolves against program declarations — routed in
-            // check.ts/instantiate.ts before coercion.
+            // A family string is the literal form (a list joins in check.ts/instantiate.ts
+            // before coercion); a Font object arrives from a { }.
             if (lit.kind === "string")
                 return ok(lit.value);
-            return fail(diag `a declared font (by name), or a raw family string like "Helvetica, sans-serif"`);
+            return fail(diag `a family string like "Helvetica, sans-serif" — or a Font, written in a { } (fontFamily = { app.brand })`);
+        case "faceSource": {
+            // a source string, or the list of them tried in order
+            const r = faceSourceLiteral(lit);
+            return "error" in r ? fail(r.error) : ok(r.value);
+        }
+        case "faceWeight": {
+            // a token, a number, or a variable font's [lo, hi]
+            const r = faceWeightLiteral(lit);
+            return "error" in r ? fail(r.error) : ok(r.value);
+        }
     }
 }
 // The literal forms for Color: navy / #354D5B / 0x354D5B / null (language
@@ -395,19 +533,46 @@ function coerceColor(lit) {
 // literals (colors in any Color form, numbers, nested `stop(…)`). The same
 // names are ordinary functions inside `{ }` bodies (expr.ts puts them in
 // scope), so one vocabulary serves both lexical homes.
-const FILL = diag `a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
+export const FILL = diag `a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
 const STROKE = diag `a Stroke (stroke(width, color) — drawn inside the box — or null)`;
 const SHADOW = diag `a Shadow (shadow(dx, dy, blur, color), or null)`;
 /** A constructor argument as a plain color number (no null). */
-function argColor(lit) {
+export function argColor(lit) {
     const c = coerceColor(lit);
     return c.ok && typeof c.value === "number" ? c.value : null;
 }
-function argNumber(lit) {
+export function argNumber(lit) {
     return lit.kind === "number" ? lit.value : null;
+}
+/** The stops of a written gradient call (after its geometry arguments). */
+export function coerceStops(args) {
+    const stops = [];
+    for (const a of args) {
+        if (a.kind === "call" && a.name === "stop") {
+            const offset = a.args.length === 2 ? argNumber(a.args[0]) : null;
+            const color = a.args.length === 2 ? argColor(a.args[1]) : null;
+            if (offset === null || color === null)
+                return diag `a stop is stop(offset, color) — offset 0…1, color a Color`;
+            stops.push(Object.freeze({ offset, color }));
+            continue;
+        }
+        const color = argColor(a);
+        if (color === null)
+            return diag `a gradient stop is a color or stop(offset, color)`;
+        stops.push(Object.freeze({ offset: null, color }));
+    }
+    if (stops.length < 2)
+        return diag `at least two stops`;
+    return stops;
+}
+function coerceGradientCall(lit) {
+    return lit.name === "radialGradient" || lit.name === "conicGradient" ? coerceRadialConic(lit) : null;
 }
 function coerceFill(lit) {
     if (lit.kind === "call") {
+        const rc = coerceGradientCall(lit);
+        if (rc !== null)
+            return rc;
         if (lit.name !== "gradient")
             return fail(FILL, diag `'${lit.name}(…)' (not a fill constructor)`);
         const args = [...lit.args];
@@ -476,7 +641,7 @@ function coerceOutline(lit) {
         return fail(diag `an outline (outline(width, color))`);
     return ok({ width, color });
 }
-function coerceShadow(lit) {
+export function coerceShadow(lit) {
     if (lit.kind === "ident" && lit.name === "null")
         return ok(null);
     if (lit.kind !== "call" || lit.name !== "shadow")
@@ -487,22 +652,9 @@ function coerceShadow(lit) {
     const color = argColor(lit.args[3]);
     if (dx === null || dy === null || blur === null || color === null || blur < 0)
         return fail(SHADOW);
-    return ok({ dx, dy, blur, color });
+    return ok(shadow(dx, dy, blur, color));
 }
-const BACKDROP = diag `a Backdrop (frost(radius) or frost(radius, saturation) — blur what lies beneath, saturation ≥ 0 (default 1) — or null)`;
-function coerceBackdrop(lit) {
-    if (lit.kind === "ident" && lit.name === "null")
-        return ok(null);
-    if (lit.kind !== "call" || lit.name !== "frost")
-        return fail(BACKDROP);
-    if (lit.args.length < 1 || lit.args.length > 2)
-        return fail(BACKDROP);
-    const radius = argNumber(lit.args[0]);
-    const saturation = lit.args.length === 2 ? argNumber(lit.args[1]) : 1;
-    if (radius === null || saturation === null || radius < 0 || saturation < 0)
-        return fail(BACKDROP);
-    return ok(frost(radius, saturation));
-}
+const MASK = diag `a mask — a gradient (gradient(…), radialGradient(…), conicGradient(…); its alpha masks the view), a stencil view from a { } binding (mask = { stencil }), or null`;
 // ── Motion (animation.md §1) ─────────────────────────────────────────────────
 //
 // A named token OR a value constructor — both forms already in the grammar,

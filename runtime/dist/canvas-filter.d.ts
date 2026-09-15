@@ -7,6 +7,16 @@ export interface FilterSpec {
     contrast: number;
     grayscale: number;
     invert: number;
+    sepia: number;
+    /** hue-rotate, in degrees */
+    hue: number;
+    /** drop-shadow(dx dy sigma color), device px — applied after the rest, natively */
+    shadows: {
+        dx: number;
+        dy: number;
+        sigma: number;
+        color: string;
+    }[];
     /** Functions present in the string that this cannot express — reported, not applied. */
     unsupported: string[];
 }

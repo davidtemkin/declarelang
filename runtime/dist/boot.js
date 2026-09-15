@@ -8,8 +8,8 @@
 // the instantiated program, so this module is the runtime's true floor.
 import { instantiate } from "./instantiate.js";
 import { App, View } from "./view.js";
-import { fontFacesOf, noteLoadedFaces } from "./font.js";
-import { assetBaseFor, rebaseAsset, setAppAssetBase } from "./asset-base.js";
+import { fontsReady } from "./font-value.js";
+import { setAppAssetBase } from "./asset-base.js";
 import { setAppDataBase } from "./data.js";
 import { DeclareError } from "./errors.js";
 import { Keys } from "./keys.js";
@@ -17,66 +17,6 @@ import { Focus, deliverKeys } from "./focus.js";
 import { bridgeFor } from "./inspect.js";
 import { localPoint } from "./dom-backend.js";
 import { observe } from "./reactive.js";
-/** A CSS src value's `url("…")` arguments, rebased against `base` — the same
- *  rule an Image's relative `source` follows, because a face src IS a relative
- *  asset: `Face [ src = "resources/fonts/vera.ttf" ]` names a file beside the
- *  PROGRAM. A FontFace resolves it against the DOCUMENT instead, so an app
- *  booted from elsewhere in the tree (an entry page, an embedded child in an
- *  island) asked the wrong directory for its type. `local("…")` names an
- *  installed face and is left alone. */
-function rebaseFontSrc(src, base) {
-    if (base === null)
-        return src;
-    return src.replace(/url\("((?:[^"\\]|\\.)*)"\)/g, (whole, quoted) => {
-        try {
-            return `url(${JSON.stringify(rebaseAsset(JSON.parse(`"${quoted}"`), base))})`;
-        }
-        catch {
-            return whole;
-        }
-    });
-}
-/** Load web fonts into the document so BOTH backends see them — one FontFace
- *  serves the Canvas backend's `ctx.font`/measureText and the DOM backend's
- *  `font-family` alike. A sanctioned runtime primitive: font loading lives in
- *  the runtime, never in a `{ }` body (which cannot reach `document`, per the
- *  sealed-abstraction rule). Awaiting every face lets a caller gate first paint
- *  on it so text measures against the real metrics, not a fallback that reflows
- *  on arrival. A no-op off the DOM (Node/tests), so it stays safe in the
- *  zero-dependency graph.
- *
- *  `base` is the directory relative face sources resolve against — the calling
- *  app's own program dir; omitted, the page-wide asset base applies.
- *
- *  A face that fails to load (404, a corrupt file, a CORS refusal) is REPORTED
- *  and SKIPPED, never thrown: type is the one asset whose absence has a
- *  fallback built into every text stack. A rejection here used to take the
- *  whole render with it — one missing woff2 and the app never mounted at all,
- *  which is a worse answer than the app in fallback type. */
-export async function loadFonts(fonts, base) {
-    if (typeof FontFace === "undefined" || typeof document === "undefined")
-        return;
-    const b = base === undefined ? assetBaseFor(null) : base;
-    const landed = [];
-    await Promise.all(fonts.map(async (f) => {
-        // f.src is a full CSS src value — `url("…")`, `local("…")`, or a chain.
-        const src = rebaseFontSrc(f.src, b);
-        const weight = String(f.weight ?? "normal");
-        const style = f.style ?? "normal";
-        try {
-            const face = new FontFace(f.family, src, { weight, style });
-            await face.load();
-            // FontFaceSet is Set-like at runtime; the configured DOM lib omits `add`.
-            document.fonts.add(face);
-            landed.push({ family: f.family, src, weight, style });
-        }
-        catch (e) {
-            console.warn(`[Declare] font ${f.family}: ${src} did not load — falling back`, e);
-        }
-    }));
-    if (landed.length > 0)
-        noteLoadedFaces(landed); // the raster worker loads the same faces
-}
 /** Is this mount host EMBEDDED inside another Declare app? A top-level app roots on
  *  a bare host (document.body's child); an embedded app is rendered into an
  *  `HTML []` island's box, which lives inside the outer app's marked tree
@@ -557,7 +497,7 @@ export async function renderProgramAsync(program, host, backend, assetBase) {
         setAppAssetBase(root, assetBase);
         setAppDataBase(root, assetBase); // data rides the same sibling rule, per app
     }
-    await loadFonts(fontFacesOf(root), assetBase);
+    await fontsReady(root);
     mountApp(root, host, backend);
     startTitleMirror(root, host);
     return root;

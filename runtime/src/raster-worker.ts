@@ -13,27 +13,31 @@
 // translate of bitmaps that already exist.
 //
 // Fonts: text ops raster HERE, so the worker must see the same faces the page
-// loaded (boot.ts loadFonts → `fonts` message; system fonts need nothing).
+// has (font.ts noteLoadedFaces → `fonts`, noteUnloadedFamily → `unfonts`;
+// system fonts need nothing).
 // Filters: draw.ts's fallback path makes scratch canvases through
 // `makeCanvas`, which is an OffscreenCanvas off the DOM.
 //
 // Protocol (raster-client.ts is the other half):
 //   → { t: "fonts", faces: [{ family, src, weight, style }] }
+//   → { t: "unfonts", family }                          (a family withdrawn)
+//   → { t: "image", h, bitmap }                          (a drawImage source, once per handle)
 //   → { t: "raster", id, list, sx, sy, bx, by, w, h, blankCheck }
 //   ← { t: "raster", id, bitmap, rasterMs, blank }      (bitmap transferred)
 //   ← { t: "error", id, message }
 
 import { replay, rasterLooksBlank, type DisplayList } from "./draw.js";
+import { registerDrawImage } from "./draw-image.js";
 
 interface FaceMsg { family: string; src: string; weight: string; style: string }
 interface RasterMsg {
   t: "raster"; id: number; list: DisplayList; sx: number; sy: number; bx: number; by: number;
   w: number; h: number; blankCheck: boolean;
 }
-type InMsg = { t: "fonts"; faces: FaceMsg[] } | RasterMsg;
+type InMsg = { t: "fonts"; faces: FaceMsg[] } | { t: "unfonts"; family: string } | { t: "image"; h: number; bitmap: ImageBitmap } | RasterMsg;
 
 const scope = self as unknown as {
-  fonts?: { add(f: FontFace): void };
+  fonts?: { add(f: FontFace): void; delete?(f: FontFace): void };
   postMessage(m: unknown, transfer?: Transferable[]): void;
   onmessage: ((e: MessageEvent<InMsg>) => void) | null;
 };
@@ -42,6 +46,14 @@ const scope = self as unknown as {
  *  before its face arrived would bake the fallback face into the memo). */
 let fontsReady: Promise<void> = Promise.resolve();
 
+/** The faces added here, by family — what an `unfonts` withdraws. */
+const byFamily = new Map<string, FontFace[]>();
+
+function unloadFamily(family: string): void {
+  for (const face of byFamily.get(family) ?? []) scope.fonts?.delete?.(face);
+  byFamily.delete(family);
+}
+
 function loadFaces(faces: FaceMsg[]): void {
   if (typeof FontFace === "undefined" || scope.fonts === undefined) return;
   const pending = faces.map(async (f) => {
@@ -49,6 +61,8 @@ function loadFaces(faces: FaceMsg[]): void {
       const face = new FontFace(f.family, f.src, { weight: f.weight, style: f.style });
       await face.load();
       scope.fonts!.add(face);
+      const list = byFamily.get(f.family);
+      if (list !== undefined) list.push(face); else byFamily.set(f.family, [face]);
     } catch {
       // the page already reported the face; here it simply falls back
     }
@@ -83,5 +97,7 @@ async function raster(m: RasterMsg): Promise<void> {
 scope.onmessage = (e: MessageEvent<InMsg>): void => {
   const m = e.data;
   if (m.t === "fonts") loadFaces(m.faces);
+  else if (m.t === "unfonts") unloadFamily(m.family);
+  else if (m.t === "image") registerDrawImage(m.h, m.bitmap);
   else if (m.t === "raster") void raster(m);
 };

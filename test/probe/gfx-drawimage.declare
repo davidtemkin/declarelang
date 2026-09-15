@@ -1,0 +1,22 @@
+// drawImage in draw(): an Image view is the bitmap holder; the drawing reads
+// its `loaded` fact, so it records again when the bitmap lands
+
+App [ width = 420, height = 220, fill = #20242C,
+    art: Image [ visible = false, source = "assets/badge.png" ],
+    plate: View [ x = 10, y = 10, width = 400, height = 200, fill = #2E3440, cornerRadius = 12,
+        draw(d: Draw) {
+            if (!art.loaded) return
+            d.drawImage(art, 10, 10, 90, 120)                                   // 5-arg: scaled into a box
+            d.drawImage(art, 0, 0, art.naturalWidth / 2, art.naturalHeight / 2, 120, 10, 90, 120)   // 9-arg: the top-left quarter
+            d.filter = "blur(4px)"
+            d.drawImage(art, 230, 10, 90, 120)                                  // through a filter
+            d.filter = "none"
+            d.globalAlpha = 0.5
+            d.drawImage(art, 330, 60, 60, 80)                                    // half alpha
+            d.globalAlpha = 1
+            d.fillStyle = "#E4572E"
+            d.font = "14px sans-serif"
+            d.fillText("drawImage: box · crop · blur · alpha", 10, 180)
+            }
+        ]
+    ]

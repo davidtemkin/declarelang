@@ -1,0 +1,65 @@
+/*
+The filter tier, where its absence shows: a transparent-edged badge blurred
+over stripes (a backdrop cannot pass this — its alpha edge stays crisp), a
+brightness cut, a shadow of the group's alpha, a tint, a list-form backdrop,
+and a filtered view WITH children.
+*/
+
+App [ width = 900, height = 620, fill = #202124, textColor = whitesmoke,
+
+    stripes: View [ width = 900, height = 620,
+        draw(d: Draw) { for (let x = 0; x < 900; x += 24) { d.fillStyle = x % 48 == 0 ? "#3a4a5a" : "#151a20"; d.fillRect(x, 0, 24, 620) } }
+        ],
+
+    // a plain badge, the reference
+
+    a: Image [ x = 20, y = 20, width = 180, height = 240, stretches = contain, source = "assets/badge.png" ],
+
+    // blurred: alpha edge softens with the interior
+
+    b: Image [ x = 220, y = 20, width = 180, height = 240, stretches = contain, source = "assets/badge.png",
+        filter = { [blur(3), brightness(0.74)] } ],
+
+    // a shadow of the alpha (the box `shadow` would be a rectangle)
+
+    c: Image [ x = 420, y = 20, width = 180, height = 240, stretches = contain, source = "assets/badge.png",
+        filter = shadow(0, 26, 52, #00000080) ],
+
+    // tinted
+
+    d: Image [ x = 620, y = 20, width = 180, height = 240, stretches = contain, source = "assets/badge.png",
+        filter = { [colorize(0xFF5A36), blur(1)] } ],
+
+    // a filtered GROUP with children: the whole card blurs as one
+
+    card: View [ x = 20, y = 300, width = 260, height = 140, cornerRadius = 16, fill = #FFFFFF22, stroke = { stroke(1, 0xFFFFFF55) },
+        filter = { [blur(k), saturate(1.4)] },
+        k: number = 2,
+        Text [ x = 16, y = 14, fontSize = 22, fontWeight = bold, text = "A card, blurred" ],
+        View [ x = 16, y = 60, width = 100, height = 40, cornerRadius = 8, fill = #FF5A36 ],
+        Image [ x = 160, y = 40, width = 80, height = 90, stretches = contain, source = "assets/badge.png" ]
+        ],
+
+    // the same vocabulary beneath: a frost written as a list, and as frost()
+
+    glassA: View [ x = 300, y = 300, width = 260, height = 140, cornerRadius = 16, fill = #FFFFFF22, stroke = { stroke(1, 0xFFFFFF55) },
+        backdrop = [blur(12), saturate(1.6), brightness(1.1)],
+        Text [ x = 16, y = 14, fontSize = 18, text = "backdrop = [blur, saturate, brightness]" ]
+        ],
+    glassB: View [ x = 580, y = 300, width = 260, height = 140, cornerRadius = 16, fill = #FFFFFF22, stroke = { stroke(1, 0xFFFFFF55) },
+        backdrop = frost(12, 1.6),
+        Text [ x = 16, y = 14, fontSize = 18, text = "backdrop = frost(12, 1.6)" ]
+        ],
+
+    // hue and sepia and grayscale
+
+    e: Image [ x = 20, y = 460, width = 120, height = 140, stretches = contain, source = "assets/badge.png", filter = hueRotate(120) ],
+    f: Image [ x = 160, y = 460, width = 120, height = 140, stretches = contain, source = "assets/badge.png", filter = sepia(1) ],
+    g: Image [ x = 300, y = 460, width = 120, height = 140, stretches = contain, source = "assets/badge.png", filter = { [grayscale(1), contrast(1.5)] } ],
+    h: Image [ x = 440, y = 460, width = 120, height = 140, stretches = contain, source = "assets/badge.png", filter = invert(1) ],
+
+    // rotated + scaled: radii are view units, so the blur follows the transform
+
+    i: Image [ x = 600, y = 460, width = 120, height = 140, stretches = contain, source = "assets/badge.png",
+        filter = { [blur(2), shadow(0, 10, 20, 0x000000AA)] }, rotation = 15, scale = 1.2, pivotX = 60, pivotY = 0 ]
+    ]

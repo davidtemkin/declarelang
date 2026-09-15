@@ -1,7 +1,12 @@
-App [ fill = white, fontFamily = ["Helvetica Neue", "sans-serif"], fontSize = 15, fontWeight = bold, textColor = black,
-    topBar: View [ x = 20, y = 20,
-        layout: SimpleLayout [ axis = y, spacing = 6 ],
-        Text [ text = "Rain or Shine?" ],
-        Text [ text = "94110", textColor = royalblue ]   // overrides only the color
+style Caption [ fontSize = 13, smallCaps = true, letterSpacing = 0.5, textColor = #1B2733 ]
+
+App [ width = 240, height = 80, fill = white,
+    plate: View [ x = 20, y = 20, width = 200, height = 40,
+        draw(d: Draw) {
+            const m = measureText("Plate 4", Caption)
+            d.fillStyle = 0xE7EBF1
+            d.fillRect((d.w - m.width) / 2 - 8, 0, m.width + 16, d.h)
+            d.fillText("Plate 4", (d.w - m.width) / 2, (d.h - m.height) / 2 + m.baseline, Caption)
+            }
         ]
     ]

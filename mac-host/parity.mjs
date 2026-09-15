@@ -33,6 +33,7 @@
 // re-launch to a plausible-looking number.
 
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
+import { CTL_IN, CTL_OUT, APP_NAME } from "./app.mjs";
 import { execFileSync, spawn } from "node:child_process";
 import { hostWindow } from "./win.mjs";
 import { hostBinary, NO_HOST } from "./app.mjs";
@@ -42,8 +43,8 @@ import puppeteer from "puppeteer-core";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const URL_DOM = "http://127.0.0.1:8260/apps/desktop/desktop.declare?render=dom";
-const IN = "/tmp/declare-ctl.in";
-const OUT = "/tmp/declare-ctl.out";
+const IN = CTL_IN;
+const OUT = CTL_OUT;
 const CHROME_H = 32;                      // the native capture includes the title bar
 
 const args = process.argv.slice(2);

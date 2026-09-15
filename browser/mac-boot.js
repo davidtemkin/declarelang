@@ -31,7 +31,7 @@
 // pointer capture, hover, keyboard, host sizing — and only the drawing is
 // native.
 
-import { build, mountApp, settle, observe, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor,
+import { build, mountApp, settle, observe, provideTransport, provideMeasurer, fontsReady, bridgeFor,
          Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant, setAppAssetBase } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScrollFacts, macWheel, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
@@ -277,7 +277,7 @@ export async function macBoot(url) {
   // Faces are PROCESS-wide here (one host, many programs in turn), so the
   // previous program's families must not shadow this one's.
   try { globalThis.__declareMacHost?.clearFonts?.(); } catch {}
-  try { await loadFonts(fontFacesOf(app)); } catch {}
+  try { await fontsReady(app); } catch {}
 
   backend = new MacBackend();
   mountApp(app, hostStub(), backend);

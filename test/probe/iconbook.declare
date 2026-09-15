@@ -3,8 +3,6 @@
    the set with nothing to port: five apps built this switch and all five reached
    for ☀︎ ◐ ☾, so the drawn versions are new work and need judging on sight. */
 
-font Sans [ family = "system-ui" ]
-
 class Lab extends Text [
     x = 0, y = center, width = 132, fontSize = 11.5, wrap = false,
     textColor = { provided("theme").textMuted }

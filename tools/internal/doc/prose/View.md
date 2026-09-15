@@ -68,7 +68,33 @@ CSS's `border` precisely so a bordered view and an unbordered one occupy the sam
 
 ## shadow
 A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape
-minus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.
+minus spread. `null` by default. The same value shadows glyphs as `Text.textShadow`,
+and the painted **alpha** of any subtree inside a `filter` list — one `shadow(…)`, three
+sites, one look (its `blur` is the box-shadow radius everywhere).
+
+## filter
+The view's own painted subtree, filtered as a **group** — children included — before
+`opacity` and `blend` land (graphics-pass.md §1). One function or a bare list:
+`filter = blur(3)`, `filter = [blur(2), brightness(0.8)]`, `filter = { [blur(k), saturate(1.4)] }`.
+The functions are `blur(radius)`, `brightness(k)`, `contrast(k)`, `saturate(k)`,
+`grayscale(k)`, `invert(k)`, `sepia(k)`, `hueRotate(deg)`, `colorize(color)` — the group's
+alpha in one colour, what `Image.tint` is sugar for — and `shadow(dx, dy, blur, color)`, which
+here shadows the painted **alpha** (a badge with a transparent background casts its own
+outline) where the box `shadow` slot casts the rectangle. Lengths are **view units** and
+scale with the view's transform; the output may bleed past the box (a blur's 3σ, a shadow's
+reach) and layout ignores the bleed. A filtered view isolates blending and backdrops inside
+it. Paint only, never input — a blurred button is still its box. `null` (the default) is none.
+The same vocabulary, sampled **beneath** the view, is `backdrop`.
+
+## mask
+A soft alpha mask over the view's painted (clipped) subtree, applied before `opacity`
+(graphics-pass.md §2): a gradient's **alpha** over the box — `mask = gradient("180deg",
+#00000000, #000000FF)` fades the top out; `radialGradient(…)` vignettes — or a **stencil**,
+another view whose painted alpha, placed by its own `x`/`y` inside this box, is the mask:
+`mask = { stencil }` with `stencil: Image [ visible = false, … ]` as a child is the idiom.
+A masked view isolates. Paint only. `null` (the default) is none. On the DOM renderer a
+stencil must be an `Image` or a view with `draw()` (its alpha is what CSS `mask-image`
+can take); the canvas and Mac renderers take any view.
 
 ## opacity
 Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a
@@ -273,7 +299,10 @@ data field redraws, nothing else does, and nothing runs per frame. That is the s
 every method has when a constraint calls it; `draw` is only unusual in that the constraint
 is View's rather than yours. A view with no `draw` carries no drawing machinery at all.
 Reach for it for graphs, iconography, and treatments the tree cannot style; measure frame
-rate as drawn surfaces grow large or change every frame.
+rate as drawn surfaces grow large or change every frame. Bitmaps come in through an
+`Image` view: `d.drawImage(pic, …)` takes the view (Canvas2D's three argument shapes),
+paints nothing until `pic.loaded`, and that read is what re-records the drawing when the
+bitmap arrives — a hidden `Image [ visible = false, source = … ]` is the holder idiom.
 
 ```declare-fragment
 gauge: View [ width = 80, height = 80,
@@ -297,7 +326,11 @@ scale.
 origin** — `x`/`y` are the lead offsets the transform introduces (0 untransformed),
 `width`/`height` the footprint extents. It never reads the view's `x`/`y`, which is why
 a layout's `place()` consumes this form: a strategy must never read the slots it
-writes. Reach for `bounds()` everywhere else.
+writes. A view tipped in 3D (`rotateX`, `rotateY`, `translateZ`) is measured as if the
+vanishing point sat at its own pivot — the exact projection depends on where the view
+lands in its parent and on the parent's size, which the layout is deciding — so an
+auto-sized reel of flipping digits sizes without a cycle; the hit walk uses the exact
+projection. Reach for `bounds()` everywhere else.
 ## rootBounds()
 This view's transformed box in **root-content space** — every ancestor's position,
 scale, rotation, and scroll composed (the hit walk's own math). A one-shot query for
@@ -508,6 +541,45 @@ lets layout disagree with what you see. The view's **own** `width`/`height` stay
 smaller"); the parent packs the transformed **footprint** (`bounds()`). Pair with
 `pivotX`/`pivotY` to choose the center; `1` is unscaled; spring it for zoom effects.
 
+## scaleX
+Per-axis scale, multiplied with the uniform `scale` — `scaleY = 0.2` squashes a card to a
+sliver without changing its width (the frame of a flip). Same pivot, same one-geometry
+rule: paint, the hit walk's inverse, `rootTransform()` and the footprint share one matrix
+(graphics-pass.md §5). `1` is unscaled.
+
+## scaleY
+The vertical twin of `scaleX`.
+
+## skewX
+A shear in **degrees**: `skewX = 20` slants the view's vertical edges by 20°, about the
+pivot, composing with scale and rotation in one matrix. `0` is unsheared.
+
+## skewY
+The vertical twin of `skewX`.
+
+## rotateX
+A rotation about the view's **horizontal axis**, in degrees, about the pivot — the third
+dimension (graphics-pass.md §6), seen through the parent's `perspective`. A card tipped
+away foreshortens; past 90° its back shows (`backface`). Hit-testing unprojects, so
+`hovered`, `pressed` and `viewAt` name the view where it is drawn. `0` is flat.
+
+## rotateY
+A rotation about the view's **vertical axis**, in degrees — the twin of `rotateX`.
+
+## translateZ
+A push along the depth axis, in px, positive toward the viewer — under the parent's
+`perspective` the view grows as it comes closer. `0` is in the plane.
+
+## perspective
+Sets this view as the **eye** for its children's `rotateX`/`rotateY`/`translateZ`: the
+distance, in px, from the viewer to the plane, with the vanishing point at this box's
+centre — CSS's model (`perspective: 700px`). `0` (the default) projects orthographically,
+so a rotated child simply foreshortens.
+
+## backface
+`visible` (the default) or `hidden`: whether a view turned past 90° about X or Y still
+shows (and hits) from behind.
+
 ## pivotX
 The horizontal center of `scale` and `rotation`, in the view's own coordinates. Defaults
 to the origin; set both `pivotX`/`pivotY` to transform about the middle rather than the
@@ -676,17 +748,6 @@ that cannot. The view tree does not move: hit testing and layout see nothing cha
 the surface is re-homed. This is a specialist tool for chrome that must track scrolled
 content exactly (the focus ring following a control inside a pane); pass `null` to return
 it to the root.
-
-## $data()
-Reads the datum at a path **relative to this view's cursor** — the compiled form every
-`:path` lowers to, callable by hand. `$data("")` is the whole record at the cursor, which
-is what a replicated row calls to hand its own record to a method. Reach for the `:path`
-spelling in ordinary code; reach for this when the path is computed, or when you need the
-record itself rather than a field of it.
-
-```declare-fragment
-member() -> object { return this.datapath != null ? this.$data("") : this }
-```
 
 ## $setData()
 Writes a value at a path relative to this view's cursor — **the write half of `$data`**,

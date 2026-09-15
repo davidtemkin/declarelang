@@ -209,6 +209,7 @@ function dispatch() {
 function readBody(req) {
   return new Promise((resolve) => {
     let b = "";
+    req.setEncoding("utf8");   // one utf-8 stream: a character split across chunks must not decode as U+FFFD
     req.on("data", (c) => { b += c; });
     req.on("end", () => resolve(b));
   });

@@ -1,0 +1,44 @@
+/* Soft masks: a gradient's alpha, and a stencil view's painted alpha. */
+
+App [ width = 900, height = 420, fill = #202124, textColor = whitesmoke,
+    stripes: View [ width = 900, height = 420,
+        draw(d: Draw) { for (let x = 0; x < 900; x += 24) { d.fillStyle = x % 48 == 0 ? "#3a4a5a" : "#151a20"; d.fillRect(x, 0, 24, 420) } }
+        ],
+
+    // the badge site's fade: transparent at the top, solid from 11.5% down
+
+    a: Image [ x = 20, y = 20, width = 200, height = 260, stretches = contain, source = "assets/badge.png",
+        mask = gradient("180deg", stop(0, #00000000), stop(0.015, #00000014), stop(0.05, #00000066), stop(0.08, #000000CC), stop(0.115, #000000FF), stop(1, #000000FF)) ],
+
+    // a radial vignette mask on a photo
+
+    b: Image [ x = 250, y = 20, width = 220, height = 260, stretches = cover, source = "../../apps/lzx-weather/resources/weather_bg.jpg",
+        mask = radialGradient(0.5, 0.5, 0.75, #000000FF, #000000FF, #00000000) ],
+
+    // a stencil: the RIT badge's alpha cuts a gradient card (any view masks on canvas/mac; an Image or draw() on the DOM)
+
+    c: View [ x = 500, y = 20, width = 180, height = 260, fill = conicGradient(0.5, 0.5, 0, #FF5A36, #FFD23F, #2EC4B6, #FF5A36),
+        mask = { stencil },
+        stencil: Image [ visible = false, width = 180, height = 260, stretches = contain, source = "assets/badge.png" ]
+        ],
+
+    // a drawn stencil: text-shaped hole through a filled panel
+
+    d: View [ x = 700, y = 20, width = 180, height = 260, fill = #2EC4B6,
+        mask = { hole },
+        hole: View [ visible = false, x = 10, y = 60, width = 160, height = 140,
+            draw(d: Draw) { d.fillStyle = "#000"; d.beginPath(); d.arc(80, 70, 60, 0, Math.PI * 2); d.fill(); d.font = "bold 40px sans-serif"; d.fillText("MASK", 10, 130) }
+            ]
+        ],
+
+    // a masked GROUP with children, and a filter on top of the mask
+
+    e: View [ x = 20, y = 300, width = 400, height = 100, fill = #FFFFFF22, cornerRadius = 12,
+        mask = gradient("90deg", #000000FF, #00000000),
+        Text [ x = 16, y = 30, fontSize = 28, fontWeight = bold, text = "fades to the right, children too" ]
+        ],
+    f: View [ x = 460, y = 300, width = 400, height = 100, fill = #FF5A36, cornerRadius = 12,
+        mask = gradient("90deg", #00000000, #000000FF), filter = blur(2),
+        Text [ x = 16, y = 30, fontSize = 28, fontWeight = bold, text = "mask + blur" ]
+        ]
+    ]

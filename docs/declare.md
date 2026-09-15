@@ -242,7 +242,7 @@ because the compiler synthesizes an anonymous subclass, and the instance remains
 its base. Promote a one-off to a named `class` when you instantiate it twice, or when you need
 to name its type.
 
-Besides `class`, the top level holds `script`, `include`, `use`, `font`, and `style` — that is
+Besides `class`, the top level holds `script`, `include`, `use`, `theme`, and `style` — that is
 the complete set, **in any order**, before or after the root instance;
 `extends` may name a class declared later in the file. **`script { … }`** holds free TypeScript — helpers,
 models, whole libraries — and may **`import`** ES modules (a file, or an npm package by bare
@@ -256,8 +256,9 @@ inline block refuses `export` — its top-level names are already visible to eve
 Imports resolve at the build toolchain's bundler; the in-browser compile refuses them by name. **`include
 [ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
 a component the build would otherwise drop, for when your code constructs it by name at runtime
-(`createView`, §7). **`font Name [ … ]`** declares a font family (a use site picks with
-`fontFamily = [Name, "system-ui"]`), and `style` is the prose-styling construct (§9).
+(`createView`, §7). **`theme Name [ … ]`** and **`style Name [ … ]`** are named records of
+literal values — a token record, and the style of a run of text with no view (§9). A typeface is
+not a declaration but an object in the tree, `brand: Font [ Face [ … ] ]` (§9).
 
 ### `classroot`
 
@@ -713,7 +714,7 @@ describes. Like `contentWidth`, they are computed for you.
 
 There is no CSS, no stylesheet file, no selector, no cascade, and no specificity — which is also
 what makes a non-DOM renderer possible. Your CSS *knowledge* transfers: colors, font stacks, and
-shadows read the same. The names do not. A border is a **stroke**, rounding is **`cornerRadius`**
+shadows read the same. The names do not. A border is a **stroke**, rounding is **`cornerRadius`**, a CSS `filter` is `filter = [blur(3), brightness(0.8)]` (the same list beneath the view is `backdrop`), a soft mask is `mask`, and a transform is its parts — `scale`/`scaleX`/`scaleY`, `skewX`/`skewY`, `rotation`, `rotateX`/`rotateY`/`translateZ` under a parent's `perspective`
 (one number, or `[topLeft, topRight, bottomRight, bottomLeft]` to round only some corners),
 and `borderWidth`, `boxShadow`, and `outline` do not exist.
 
@@ -723,6 +724,17 @@ keyword. The text face — `fontFamily`, `fontSize`, `fontWeight`, `textColor`, 
 works this way (each lives on `Text`, defaulting to `provided(…)`, so setting one on a container
 provides it to the runs below), and so does **`theme`**, a token record every color in an app
 should name once.
+
+A **typeface is an object in the tree**, like an `Image`: `brand: Font [ Face [ src =
+"brand-400.woff2" ], Face [ src = "brand-700.woff2", weight = bold ] ]`, usually on the App; a
+`Font [ family = "Helvetica Neue" ]` with no faces is a system font, the same kind of object.
+`fontFamily` takes a Font, a family string, or a list — a list holding a font is a value,
+`fontFamily = { [app.brand, "sans-serif"] }` — so switching fonts is an assignment. A font's
+`loaded` and `failed` are read-only facts; its `wait` (default 500 ms) is how long whatever is
+about to change to it keeps its current look, the first paint included, and `late` (`swap` or
+`keep`) decides what a face arriving after that does. Text, layout and drawings follow a face
+landing with no code. `measureText(text, style, width?)` measures a run in a style record with
+the measurer a `Text` uses — fields left out take plain defaults, never inherited ones.
 
 ```declare-fragment
 theme = { app.dark ? SanFranciscoDark : SanFrancisco },      // on the App: PROVIDE a preset, light or dark
@@ -744,21 +756,24 @@ value.
 Start from a library preset — `SanFrancisco` / `Cupertino` / `MountainView` / `Redmond`, each a
 light record with a `…Dark` companion, in scope by name — and spread to change a token. The
 standard library reads specific token names, so build from a preset rather than an empty record.
-You can declare your own with `theme Brand [ … ]`, a top-level named record like `font Name [ … ]`.
+You can declare your own with `theme Brand [ … ]`, a top-level named record like a `style` bundle.
 
 The `{ { … } }` is not special syntax: the outer braces open the constraint, the inner ones are a
 TypeScript object literal. With no theme provided an app renders the house default (`SanFrancisco`,
 set on `Control.theme`), and that zero-declaration look never varies by system dark mode —
 following the system is the one-line opt-in above.
 
-A **`style` bundle** is the one top-level styling form: a named set of attribute values a
-`<span class>` inside `HTMLText`/`Markdown` applies to a run of prose — the vehicle for styling a
-run, which is not a node you can set attributes on. Its fields may be `{ }` bodies (reading
-`provided("theme")`, so a highlighted keyword follows the theme), and it re-evaluates live. To
-reuse a look across whole views you **subclass** instead (`class Card extends View [ … ]`).
+A **`style` bundle** is a named record of literal text attributes — the style of a run of text
+that has no view: a `<span class>` inside `HTMLText`/`Markdown` wears it, and a drawing's
+`d.fillText` and `measureText` take it. Like a theme record it holds literals only — it has no
+place in the tree, so nothing in it can depend on where it is used — and its name is a value in
+any `{ }`, typed by the fields it sets. A look that follows the theme is written where it is
+used: a `textStyles = { … }` map on the rich text, or a spread in a drawing. To reuse a look
+across whole views you **subclass** instead (`class Card extends View [ … ]`).
 
 ```declare-fragment
-style kw [ textColor = { provided("theme").accent } ]   // a <span class='kw'> in prose wears it
+style Keyword [ textColor = #C678DD, fontWeight = bold ]                          // a <span class='Keyword'> in prose wears it
+class Plate extends View [ draw(d: Draw) { d.fillText("class", 0, 20, { ...Keyword, textColor: provided("theme").accent }) } ]   // a drawn run, following the theme
 ```
 
 Precedence is fixed: a value **set locally always outranks a provided one** — a `Text` that sets

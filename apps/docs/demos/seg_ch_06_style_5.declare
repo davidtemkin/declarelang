@@ -1,4 +1,9 @@
-App [ width = 320, height = 84, fill = #0B141B,
-    Text [ x = 20, y = 24, fontSize = 26, textColor = white, fontWeight = bold,
-        outline = outline(1, #C0392B), text = "OUTLINED" ]
+class Heading extends Text [ fontWeight = bold, textColor = { provided("theme").text } ]
+
+App [ fill = { provided("theme").surface }, theme = { { text: 0xE7EEF2, muted: 0x8A9BA6, accent: 0x4C8DFF, surface: 0x101E28 } },
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Heading [ text = "Signals" ],
+        Text [ textColor = { provided("theme").muted }, text = "muted subtitle" ]
+        ]
     ]

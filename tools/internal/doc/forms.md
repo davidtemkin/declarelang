@@ -890,32 +890,42 @@ family: declaration
 spec: §9 Style
 terms: font, declare a font, web font, font family, typeface, font face
 syntax:
-    font Name [ family = "Inter, system-ui" ]
-    font Name [ family = "Inter", Face [ src = url("inter.woff2"), weight = 400 ] ]
+    brand: Font [ Face [ src = "brand-400.woff2" ], Face [ src = "brand-700.woff2", weight = bold ] ]
+    ui: Font [ family = "Helvetica Neue" ]
+    fontFamily = { [app.brand, "sans-serif"] }
 usage: form-font
 
-Declares a font family. `family` is the CSS-style family string; `Face` children carry web
-font files, one per weight and style. A use site picks the family **by name in a list** —
-`fontFamily = [Name, "system-ui"]` — a fallback chain, not a single name, so a face that
-has not loaded yet falls back to the next.
+**Retired** (2026-09-14): there is no top-level `font` declaration. A typeface is an
+**object in the tree** — a `Font` with `Face` children, usually on the App, or a `Font [
+family = "…" ]` with no faces for a system font — and a family slot holds it:
+`fontFamily = { app.brand }`, or a list in a `{ }`, `{ [app.brand, "sans-serif"] }`.
+Switching fonts is an assignment; `loaded` and `failed` are the font's facts; `wait` and
+`late` say what loading is worth. See the `Font` and `Face` classes.
 
-Declaring a font does not load it: a face loads when something asks for it. The four text
-slots — `fontFamily`, `fontSize`, `fontWeight`, `textColor` — are prevailing, so a family set
-on the App reaches every Text below it until one overrides.
+The parser still reads the old form, so the checker can say exactly what to write
+instead: move the body into the App as `brand: Font [ … ]`, with the same Face children.
+A Face's `weight` keeps its vocabulary — a keyword, a number 1–1000, or `range(lo, hi)`
+for a variable font file.
 
 ### rules
 
-- A name in a `fontFamily` list must be a declared font (or a raw family string).
-  > says: no font named 'Nope' — this program declares no fonts (use a raw family string, or add a 'font Nope [ … ]')
+- `font Name [ … ]` at the top level is retired — a font is an object in the tree.
+  > says: 'font Body [ … ]' is no longer a top-level declaration — a font is an object in the tree
+  > probe: font Body [ family = "Helvetica" ]\nApp [ ]
+- A font name where a family goes is not a family — name the object in a `{ }`.
+  > says: 'Nope' is not a family — a font is an object in the tree
   > probe: App [ fontFamily = [Nope, "system-ui"] ]
-- A font body carries `family` and Face children only; weight and style live on a Face.
-  > says: a font body carries 'family = "…"' and Face children only — not 'weight'
-  > probe: font F [ family = "x", weight = 950 ]\nApp [ ]
+- A Face weight is a keyword, a whole number 1–1000, or range(lo, hi) with lo < hi.
+  > says: a numeric weight is a whole number 1–1000, not 1200
+  > probe: App [ f: Font [ Face [ src = "f.woff2", weight = 1200 ] ] ]
+- A Face lives inside a Font, and a Font holds Face children only.
+  > says: a Face belongs inside a Font
+  > probe: App [ Face [ src = "x.woff2" ] ]
 
 ### related
 
 forms: style, theme
-classes: Text, View
+classes: Font, Face, Text
 guide: 06-style · Style
 
 ## style
@@ -926,30 +936,39 @@ family: declaration
 spec: §9 Style
 terms: style, style block, named style, reusable style, style bundle, span class, styled run
 syntax:
-    style kw [ textColor = #C678DD, fontWeight = bold ]
-    HTMLText [ html = "<span class='kw'>class</span>" ]     // a run wears the bundle by name
+    style Keyword [ textColor = #C678DD, fontWeight = bold ]
+    HTMLText [ html = "<span class='Keyword'>class</span>" ]     // a run wears the bundle by name
+    d.fillText("class", 0, 20, Keyword)                          // so does a drawn run
 usage: form-style
 
-A named bundle of **text attributes** a run of prose wears: `<span class='kw'>` inside
-`HTMLText` or `Markdown` applies it, so a look is declared once and applied by name to
-words the tree has no node for. A bundle's field may be a `{ }` body.
+A named **record of text attributes** — the style of a run of text that has no view of its
+own. `<span class='Keyword'>` inside `HTMLText` or `Markdown` wears it, and a drawing's
+`d.fillText` / `d.strokeText` and `measureText` take it. Its name is a value in any `{ }`,
+typed by the fields it sets (`Keyword.textColor`).
+
+Like a theme record, a bundle holds **literal values only**: it has no place in the tree, so
+nothing in it can depend on where it is used. A look that should follow something — the
+theme, dark mode — is written where it is used: a `textStyles = { … }` map on the rich text,
+or a spread in a drawing, `{ ...Keyword, textColor: provided("theme").accent }`. Top-level
+declared names are capitalized by convention.
 
 For whole views there is no bundle: reuse a look by **subclassing** (`class Card extends
-View [ … ]`), and provide values downward with `theme` and the face attributes. A bundle is
-the one styling form that exists because a run of text is not a node you can set attributes
-on.
+View [ … ]`), and provide values downward with `theme` and the face attributes.
 
 ### rules
 
 - A bundle sets text attributes; a name `Text` does not declare is refused.
-  > says: style kw sets 'frob', which Text does not declare
-  > probe: style kw [ frob = 1 ]\nApp [ ]
+  > says: style Keyword sets 'frob', which Text does not declare
+  > probe: style Keyword [ frob = 1 ]\nApp [ ]
 - A bundle holds attribute sets only — no children, methods, or declarations.
-  > says: style kw: a bundle has no children — attribute sets only
-  > probe: style kw [ View [ ] ]\nApp [ ]
+  > says: style Keyword: a bundle has no children — attribute sets only
+  > probe: style Keyword [ View [ ] ]\nApp [ ]
+- A bundle's fields are literal values — a `{ }` field is written where it is used instead.
+  > says: style Keyword.textColor: a style holds literal values only
+  > probe: style Keyword [ textColor = { provided("theme").accent } ]\nApp [ ]
 - Its name shares one namespace with classes, themes, and fonts.
-  > says: there is already a component, theme, style, or font named 'kw'
-  > probe: style kw [ textColor = #336699 ]\nclass kw extends View [ ]\nApp [ ]
+  > says: there is already a component, theme, style, or font named 'Keyword'
+  > probe: style Keyword [ textColor = #336699 ]\nclass Keyword extends View [ ]\nApp [ ]
 
 ### related
 

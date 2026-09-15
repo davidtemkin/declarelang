@@ -64,8 +64,18 @@ const CELLS = new WeakMap<object, Map<string, Cell>>();
 // come back out as a place: the value itself knows where it lives.
 const TAGS = new WeakMap<object, { data: Dataset; path: string[] }>();
 
-const isContainer = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null;
+/** A data CONTAINER is an array or a plain object — the shapes data is made of.
+ *  Any other object in a value tree (a Font or a view a record points at, a Date)
+ *  is a LEAF: never walked, tagged, merged or proxied. A node carries parent
+ *  pointers, so walking one recursed forever (a Segmented whose choice ids were
+ *  Fonts overflowed the stack at boot, 2026-09-14), and proxying one broke the
+ *  identity a control compares by. */
+const isContainer = (v: unknown): v is Record<string, unknown> => {
+  if (typeof v !== "object" || v === null) return false;
+  if (Array.isArray(v)) return true;
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+};
 
 // ── the tracked VIEW of a value tree (#15 / open-items L-23) ────────────────
 // A { } reading `db.value.issues` gets a PROXY of the tree: each property step
@@ -949,9 +959,12 @@ export function coerceData(type: AttrType, v: unknown, def: unknown): unknown {
     case "stroke":
     case "outline":
     case "shadow":
-    case "backdrop":
+    case "filter":
+    case "mask":
     case "motion":
     case "font":
+    case "faceSource":
+    case "faceWeight":
     case "slotref":
       return def; // never data-bound in a useful form; total for safety
   }

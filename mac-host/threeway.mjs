@@ -18,11 +18,12 @@
 // idle, native ticks ~126Hz under the recorder; headless Chrome ~120Hz. So both
 // sides are reporting the same thing — how long the main thread went dark.
 import puppeteer from "puppeteer-core";
+import { CTL_IN, CTL_OUT, APP_NAME } from "./app.mjs";
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const ORIGIN = process.env.DECLARE_ORIGIN ?? "http://127.0.0.1:8260";
-const IN = "/tmp/declare-ctl.in", OUT = "/tmp/declare-ctl.out";
+const IN = CTL_IN, OUT = CTL_OUT;
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
 const RECORDER = `globalThis.__fr = []; globalThis.__rec = function t(x){ globalThis.__fr.push(x); globalThis.__raf = requestAnimationFrame(t); }; globalThis.__raf = requestAnimationFrame(globalThis.__rec);`;

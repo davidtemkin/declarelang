@@ -18,8 +18,9 @@ import { writeFileSync, readFileSync, existsSync, unlinkSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { hostWindow } from "./win.mjs";
 
-const IN = "/tmp/declare-ctl.in";
-const OUT = "/tmp/declare-ctl.out";
+import { CTL_IN, CTL_OUT } from "./app.mjs";
+const IN = CTL_IN;
+const OUT = CTL_OUT;
 
 function windowId() {
   return String(hostWindow().id);

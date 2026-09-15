@@ -18,9 +18,12 @@
 // is target → nearest sinked surface; the pairing/click rule is shared
 // (input.ts), so both backends decide clicks identically.
 import { allowedRef, notifyIslandSlot } from "./backend.js";
-import { colorToCss, isGradient, radiusIsSquare } from "./value.js";
+import { domTransform3D, unproject } from "./projective.js";
+import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, cssMatrix, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
+import { colorToCss, isGradient, radiusIsSquare, filterCss, gradientCss } from "./value.js";
+import { applyDomMask, tintFilterRef } from "./dom-effects.js";
 import {} from "./boxpaint.js";
-import { fontMetrics, fontString, cssWeight } from "./measure.js";
+import { effectiveFamily, fontMetrics, fontString, cssWeight } from "./measure.js";
 import { replay, rasterEntryCap, rasterLooksBlank, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA } from "./draw.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive } from "./input.js";
@@ -36,7 +39,10 @@ function editStyleEq(a, b) {
 }
 function applyEditStyle(el, st) {
     const s = el.style;
-    s.fontFamily = st.fontFamily;
+    // The EFFECTIVE family, not the authored one: OpenType figures ride the
+    // family name (font-features.ts), and this element must paint in the family
+    // the shared measurer measured, or its width is a lie.
+    s.fontFamily = effectiveFamily(st);
     s.fontSize = st.fontSize + "px";
     s.fontWeight = cssWeight(st.fontWeight);
     s.letterSpacing = st.letterSpacing === 0 ? "normal" : st.letterSpacing + "px";
@@ -399,18 +405,16 @@ function throughTransforms(el, cx, cy) {
     }
     const t = TRANSFORMS.get(el);
     if (t !== undefined) {
-        // Forward is TRANSLATE-then-scale-then-rotate about (ox, oy): a transformed
-        // box carries its position in the transform (setX/setY pin left/top to 0),
-        // so the layout offset subtracted above is 0 and the translation is undone
-        // HERE instead. Scale and rotation are uniform, so they commute and one
-        // inverse rotation over the descaled offset undoes both.
-        const rad = (-t.deg * Math.PI) / 180;
-        const c = Math.cos(rad);
-        const s = Math.sin(rad);
-        const dx = (x - t.tx - t.ox) / t.k;
-        const dy = (y - t.ty - t.oy) / t.k;
-        x = t.ox + dx * c - dy * s;
-        y = t.oy + dx * s + dy * c;
+        // Forward is TRANSLATE-then-the-matrix (about the pivot, folded into the
+        // matrix — affine.ts): a transformed box carries its position in the
+        // transform (setX/setY pin left/top to 0), so the layout offset subtracted
+        // above is 0 and the translation is undone HERE, then the matrix inverse.
+        // A view out of its plane unprojects instead (projective.ts) — its
+        // homography carries the position too.
+        if (t.h !== undefined)
+            [x, y] = unproject(t.h, x, y);
+        else
+            [x, y] = applyAffine(invertAffine(t.m), x - t.tx, y - t.ty);
     }
     return { x, y };
 }
@@ -419,6 +423,7 @@ let carveCtx = null;
 function carveHitCtx() {
     return (carveCtx ??= document.createElement("canvas").getContext("2d"));
 }
+const FIT_POS = { start: "0%", center: "50%", end: "100%" };
 /** Is `a` painted above `b`? Our surfaces are untransformed absolutes in one
  *  stacking context, so paint order IS document order — and a descendant
  *  paints above its ancestor, which PRECEDING also answers (an ancestor's
@@ -748,7 +753,7 @@ function ensureClipBoxFor(el) {
         el.appendChild(box);
     return box;
 }
-class DomSurface {
+export class DomSurface {
     element;
     textEl = null;
     editEl = null;
@@ -756,10 +761,21 @@ class DomSurface {
     richEl = null;
     richObserver = null;
     onRichResize;
+    /** package-private: a mask stencil's users read these (applyMask) */
     imgEl = null;
     drawEl = null;
     drawing = null;
     stretch = "none";
+    alignX = "center";
+    alignY = "center";
+    setImageAlign(ax, ay) {
+        this.alignX = ax;
+        this.alignY = ay;
+        if (this.imgEl !== null) {
+            this.applyStretch();
+            this.applyTint();
+        }
+    }
     /** The box's retained paint state — cornerRadius/stroke/shadow that decorate()
      *  brushes onto the div as CSS. `fillV` keeps the raw Fill for the gradient
      *  string. (The box is the div itself, painting beneath its children — no
@@ -817,7 +833,7 @@ class DomSurface {
     setX(v) { this.posX = v; this.placeSelf(); }
     setY(v) { this.posY = v; this.placeSelf(); }
     placeSelf() {
-        if (this.scaleK !== 1 || this.rotationDeg !== 0)
+        if (!affineIsIdentity(this.xform) || this.spec3D !== null)
             this.applyTransform(this.pivotXCache, this.pivotYCache);
         else {
             this.element.style.left = this.posX + "px";
@@ -844,6 +860,7 @@ class DomSurface {
     }
     /** The view-model frame (setWidth/setHeight, verbatim) — the ROOT element
      *  may realize LARGER than it along a declared scroll axis (applyRootSize). */
+    /** package-private: a mask stencil's bitmap reads its box (dom-effects.ts) */
     frameW = 0;
     frameH = 0;
     /** ROOT only, stamped by attachRoot: this app is an EMBEDDED island in a
@@ -935,11 +952,7 @@ class DomSurface {
     decorate() {
         const s = this.element.style;
         const f = this.fillV;
-        s.background = f === null ? "" : isGradient(f)
-            ? `linear-gradient(${f.angle}deg, ${f.stops
-                .map((st) => colorToCss(st.color) + (st.offset === null ? "" : ` ${st.offset * 100}%`))
-                .join(", ")})`
-            : colorToCss(f);
+        s.background = f === null ? "" : isGradient(f) ? gradientCss(f) : colorToCss(f);
         // one value, or four (CSS's own order — top-left clockwise — is Radius's)
         const cr = this.box.cornerRadius;
         s.borderRadius = radiusIsSquare(cr) ? "" : typeof cr === "number" ? cr + "px" : cr.map((v) => Math.max(0, v) + "px").join(" ");
@@ -1029,14 +1042,39 @@ class DomSurface {
     // here is never half-updated.
     scaleK = 1;
     rotationDeg = 0;
+    /** The whole paint transform about the pivot (affine.ts); the similarity
+     *  setters rebuild it, setTransform hands it over whole. */
+    xform = IDENTITY_AFFINE;
+    setTransform(m, px, py) {
+        this.xform = m;
+        this.scaleK = affineScaleOf(m);
+        this.rotationDeg = (affineRotationOf(m) * 180) / Math.PI;
+        this.applyTransform(px, py);
+    }
+    /** The third dimension (graphics-pass.md §6): CSS rotateX/rotateY/translateZ
+     *  about the pivot, seen through the parent's `perspective`; the registry
+     *  keeps the homography for the pointer inverse. */
+    spec3D = null;
+    setTransform3D(spec) {
+        this.spec3D = spec;
+        this.element.style.backfaceVisibility = spec !== null && spec.backfaceHidden ? "hidden" : "";
+        this.applyTransform(this.pivotXCache, this.pivotYCache);
+    }
+    setPerspective(px) {
+        const s = this.element.style;
+        s.perspective = px > 0 ? `${px}px` : "";
+        s.perspectiveOrigin = px > 0 ? "50% 50%" : "";
+    }
     pivotXCache = 0;
     pivotYCache = 0;
     setScale(scale, pivotX, pivotY) {
         this.scaleK = scale;
+        this.xform = affineFromParts({ scale, scaleX: 1, scaleY: 1, rotation: this.rotationDeg, skewX: 0, skewY: 0, pivotX, pivotY });
         this.applyTransform(pivotX, pivotY);
     }
     setRotation(deg, pivotX, pivotY) {
         this.rotationDeg = deg;
+        this.xform = affineFromParts({ scale: this.scaleK, scaleX: 1, scaleY: 1, rotation: deg, skewX: 0, skewY: 0, pivotX, pivotY });
         this.applyTransform(pivotX, pivotY);
     }
     applyTransform(pivotX, pivotY) {
@@ -1048,7 +1086,7 @@ class DomSurface {
         // application changes nothing).
         this.pivotXCache = pivotX;
         this.pivotYCache = pivotY;
-        if (this.scaleK === 1 && this.rotationDeg === 0) {
+        if (affineIsIdentity(this.xform) && this.spec3D === null) {
             this.element.style.transform = "";
             this.element.style.transformOrigin = "";
             this.element.style.left = this.posX + "px"; // hand position back to layout
@@ -1061,13 +1099,11 @@ class DomSurface {
         this.element.style.top = "0px";
         if (!TRANSFORMS.has(this.element))
             liveTransforms++;
-        TRANSFORMS.set(this.element, { k: this.scaleK, deg: this.rotationDeg, ox: pivotX, oy: pivotY,
-            tx: this.posX, ty: this.posY });
-        this.element.style.transformOrigin = pivotX + "px " + pivotY + "px";
-        this.element.style.transform =
-            "translate(" + this.posX + "px," + this.posY + "px)" +
-                (this.scaleK !== 1 ? " scale(" + this.scaleK + ")" : "") +
-                (this.rotationDeg !== 0 ? " rotate(" + this.rotationDeg + "deg)" : "");
+        const t3 = this.spec3D === null ? null : domTransform3D(this.xform, this.posX, this.posY, pivotX, pivotY, this.spec3D);
+        TRANSFORMS.set(this.element, { m: this.xform, tx: this.posX, ty: this.posY, h: t3?.h });
+        // the pivot is folded into the matrix, so the CSS origin is the corner
+        this.element.style.transformOrigin = "0 0";
+        this.element.style.transform = "translate(" + this.posX + "px," + this.posY + "px) " + (t3?.css ?? "") + cssMatrix(this.xform);
     }
     setBlend(mode) {
         // The schema's camelCase token → CSS's hyphenated spelling (colorDodge →
@@ -1084,11 +1120,33 @@ class DomSurface {
         // and CSS over-scans the sample internally. `backdrop-filter` also
         // isolates in CSS — which matches the §4.1 list, since a frosted view is
         // an offscreen group on canvas too. The -webkit- twin carries Safari.
-        const v = spec === null ? "" : `blur(${spec.blur}px) saturate(${spec.saturate})`;
+        // The list is the one filter vocabulary (graphics-pass.md §1); `tint`
+        // rides as an SVG colour-matrix reference the document registers once.
+        const v = spec === null ? "" : filterCss(spec, 1, (c) => tintFilterRef(this.element.ownerDocument, c));
         const s = this.element.style;
         s.backdropFilter = v;
         s.webkitBackdropFilter = v;
     }
+    /** The view's own painted subtree, filtered as a group (graphics-pass.md
+     *  §1): CSS `filter` on the element. Children are DOM descendants, so the
+     *  group is the element's rendering — and CSS `filter` creates a stacking
+     *  context and a backdrop root, exactly the isolation §4.1 rules. Lengths
+     *  are CSS px, which scale with the element's transform as view units do. */
+    setFilter(list) {
+        this.element.style.filter = list === null ? "" : filterCss(list, 1, (c) => tintFilterRef(this.element.ownerDocument, c));
+    }
+    /** The soft mask (graphics-pass.md §2): CSS `mask-image`, realized in
+     *  dom-effects.ts. package-private: the realization reads these. */
+    maskSpec = null;
+    /** Surfaces masked by THIS one's raster (a draw() stencil re-exports on re-raster). */
+    maskUsers = null;
+    /** A stencil asked twice with nothing to give is not still loading — warn then. */
+    stencilSettled = false;
+    setMask(spec) {
+        this.maskSpec = spec;
+        this.applyMask();
+    }
+    applyMask() { applyDomMask(this); }
     setClip(d) {
         // clip-path clips native hit-testing along with the pixels, so the
         // clipped-away part of an interactive box falls through — the same
@@ -1667,6 +1725,33 @@ class DomSurface {
         if (this.richEl !== null)
             this.richEl.style.width = width + "px";
     }
+    /** Clamp the flow to `maxLines` (0 lifts the clamp), and answer its new height.
+     *
+     *  `-webkit-line-clamp` on the flow HOST rather than on a block: the host is
+     *  one `-webkit-box` and a clamp there counts lines ACROSS its block children,
+     *  which is the cross-block semantics the model wants and not the usual use of
+     *  the property. Measured on the probe flow: 209px unclamped, 126px at five
+     *  lines, 81px at three, later blocks gone. The browser ends the last kept line
+     *  with its own ellipsis, because it is the one that wrapped it. */
+    setRichClamp(maxLines) {
+        const host = this.richEl;
+        if (host === null)
+            return -1;
+        const s = host.style;
+        if (maxLines > 0) {
+            s.display = "-webkit-box";
+            s.webkitBoxOrient = "vertical";
+            s.webkitLineClamp = String(maxLines);
+            s.overflow = "hidden";
+        }
+        else {
+            s.display = "";
+            s.webkitBoxOrient = "";
+            s.webkitLineClamp = "";
+            s.overflow = "";
+        }
+        return Math.ceil(host.getBoundingClientRect().height);
+    }
     setRichContent(blocks, selectable, width, onResize, onLink) {
         const doc = this.element.ownerDocument;
         let host = this.richEl;
@@ -1802,7 +1887,7 @@ class DomSurface {
                 // a solid fill is just that color.
                 if (r.fill != null) {
                     if (isGradient(r.fill)) {
-                        rs.backgroundImage = `linear-gradient(${r.fill.angle}deg, ${r.fill.stops.map((g) => colorToCss(g.color) + (g.offset === null ? "" : ` ${g.offset * 100}%`)).join(", ")})`;
+                        rs.backgroundImage = gradientCss(r.fill);
                         rs.webkitBackgroundClip = "text";
                         rs.backgroundClip = "text";
                         rs.webkitTextFillColor = "transparent";
@@ -2242,7 +2327,10 @@ class DomSurface {
     }
     setTextStyle(st) {
         const s = this.textRun().style;
-        s.fontFamily = st.fontFamily;
+        // The EFFECTIVE family, not the authored one: OpenType figures ride the
+        // family name (font-features.ts), and this element must paint in the family
+        // the shared measurer measured, or its width is a lie.
+        s.fontFamily = effectiveFamily(st);
         s.fontSize = st.fontSize + "px";
         s.fontWeight = cssWeight(st.fontWeight);
         s.fontStyle = st.italic ? "italic" : "normal";
@@ -2251,9 +2339,7 @@ class DomSurface {
         // realizes the same ramp over the box); a solid fill is the plain color.
         const tf = st.textFill;
         if (tf != null && isGradient(tf)) {
-            s.backgroundImage = `linear-gradient(${tf.angle}deg, ${tf.stops
-                .map((g) => colorToCss(g.color) + (g.offset === null ? "" : ` ${g.offset * 100}%`))
-                .join(", ")})`;
+            s.backgroundImage = gradientCss(tf);
             s.webkitBackgroundClip = "text";
             s.backgroundClip = "text";
             s.webkitTextFillColor = "transparent";
@@ -2263,7 +2349,10 @@ class DomSurface {
             s.backgroundImage = "";
             s.backgroundClip = "";
             s.webkitTextFillColor = "";
-            s.color = colorToCss(st.color);
+            // A SOLID fill is a Color, and it overrides `textColor` — "like the box
+            // `fill` but for the letters" (schema.ts). Every renderer read the gradient
+            // arm and dropped this one, so `textFill = #E4572E` did nothing anywhere.
+            s.color = colorToCss(typeof tf === "number" ? tf : st.color);
         }
         const sh = st.shadow ?? null;
         s.textShadow = sh === null ? "" : `${sh.dx}px ${sh.dy}px ${sh.blur}px ${colorToCss(sh.color)}`;
@@ -2374,6 +2463,9 @@ class DomSurface {
         this.tintEl?.remove();
         this.tintEl = null;
         this.imgEl = image;
+        if (this.maskUsers !== null)
+            for (const u of this.maskUsers)
+                u.applyMask(); // a stencil's bitmap arrived
         if (image !== null) {
             const s = image.style;
             s.position = "absolute";
@@ -2460,6 +2552,7 @@ class DomSurface {
             s.width = "100%";
             s.height = "100%";
             s.objectFit = this.stretch;
+            s.objectPosition = `${FIT_POS[this.alignX] ?? "50%"} ${FIT_POS[this.alignY] ?? "50%"}`;
             return;
         }
         s.objectFit = "";
@@ -2468,6 +2561,9 @@ class DomSurface {
     }
     setDrawing(list) {
         this.drawing = list;
+        if (this.maskUsers !== null)
+            for (const u of this.maskUsers)
+                u.applyMask(); // a stencil's recording (re)arrived
         if (list === null || list.bounds === null) {
             this.drawEl?.remove();
             this.drawEl = null;
@@ -2544,6 +2640,9 @@ class DomSurface {
         const ctx = c.getContext("2d");
         ctx.setTransform(kk, 0, 0, kk, -b.x * kk, -b.y * kk);
         replay(ctx, this.drawing);
+        if (this.maskUsers !== null)
+            for (const u of this.maskUsers)
+                u.applyMask(); // a stencil re-rastered: its users re-export
         // THE DISCOVERED CEILING, on the backend that holds obligatory bytes. A
         // canvas the platform refused (Safari past its budget, Firefox past ~130 MB)
         // comes back TRANSPARENT and nothing else says so — measured on the extent

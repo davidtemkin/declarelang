@@ -61,8 +61,8 @@ import { attrType, descendsFrom, BUILTIN_PROVIDED, RichTextSchema, TextSchema } 
 // `trusted` false and validates every step, exactly as before.
 import { checkAttr, checkMethod, checkComponentValue } from "./check.js";
 import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken } from "./program-schema.js";
-import { buildFonts, collectFaces, registerFontFaces } from "./font.js";
-import { setStyleBundles } from "./style-bundles.js";
+import { fontObjectHint, isFontNode } from "./font-value.js";
+import { setStyleBundles, bundleRecord } from "./style-bundles.js";
 import { THEME_PRESETS } from "./themes.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
 import { coerce, isPercent, isAlign } from "./value.js";
@@ -141,8 +141,8 @@ function applyProvision(r, view, attr, ctx, classroot) {
 /** Coerce a LITERAL provision value. A provision has no declared slot on the
  *  providing node, but its NAME may match a text FACE value (`fontFamily`,
  *  `fontWeight`, `textColor`, …), and then it should coerce exactly as that slot
- *  would — a `fontFamily = [Sans, "sans-serif"]` resolves the declared font to
- *  its family string, a `fontWeight = normal` keeps the token — so the reader
+ *  would — a `fontFamily = ["Georgia", "serif"]` joins into one family chain, a
+ *  `fontWeight = normal` keeps the token — so the reader
  *  (`Text`'s `provided("fontFamily")`) gets a well-formed value. A name no face
  *  value claims (`accent`, `density`) coerces by its written form. */
 function resolveProvisionLiteral(attr, ctx) {
@@ -159,13 +159,14 @@ function resolveProvisionLiteral(attr, ctx) {
     }
     const ptype = attrType(TextSchema, attr.name) ?? attrType(RichTextSchema, attr.name);
     if (ptype?.kind === "font" && ((v.kind === "ident" && v.name !== "null") || v.kind === "list")) {
-        const familyOf = (name) => {
-            const font = ctx.fonts.get(name);
-            return font !== undefined ? font.family : name;
-        };
-        return v.kind === "ident"
-            ? familyOf(v.name)
-            : v.items.map((i) => (i.kind === "ident" ? familyOf(i.name) : i.kind === "string" ? i.value : "")).join(", ");
+        // A bare list of family strings joins into one chain. A font is an object,
+        // reached in a { } — a bare name here is refused (checker), thrown (unchecked).
+        const items = v.kind === "ident" ? [v] : v.items;
+        return items.map((i) => {
+            if (i.kind === "string")
+                return i.value;
+            throw new DeclareError(i.kind === "ident" ? `'${i.name}' is not a family — ${fontObjectHint(i.name)}` : `a fontFamily list holds family strings`, i.pos);
+        }).join(", ");
     }
     if (ptype !== null) {
         const c = coerce(ptype, v);
@@ -206,6 +207,10 @@ export function instantiate(input) {
     // one — `theme = { app.dark ? BrandDark : Brand }`.
     for (const t of program.themes)
         scriptScope[t.name] = themeRecord(t);
+    // …and its `style` bundles, the same way: a bundle is a plain record of text
+    // attributes, so a body names one — `d.fillText("Plate 4", 0, 20, Caption)`.
+    for (const s of program.styles)
+        scriptScope[s.name] = bundleRecord(s.body);
     // The blocks share one namespace, in source order, exactly as a module
     // would — and that must be true for the BLOCKS THEMSELVES, not only for
     // the { } bodies reading the merged table: a block-2 function calling a
@@ -271,7 +276,6 @@ function buildTree(program, trusted) {
         layoutCtors,
         schemas,
         classes,
-        fonts: buildFonts(program.fonts),
         bundles: collectBundles(program),
         themes: buildThemeMap(program.themes),
         pending: [],
@@ -290,8 +294,6 @@ function buildTree(program, trusted) {
     // against this tree's own classes + built-ins. Weak by root, so a
     // discarded tree releases its context with it.
     CONTEXTS.set(root, ctx);
-    // The web faces the runtime loads before first paint (index.ts → loadFonts).
-    registerFontFaces(root, collectFaces(ctx.fonts));
     installPending(ctx.pending, ctx);
     // Construction-complete lifecycle (R5): the tree is linked, methods are
     // installed, every binding has evaluated once — so `onInit` sees settled
@@ -365,7 +367,7 @@ function installBatch(ordered, ctx) {
             }
             // The assignment is the install: the slot's pusher (view.ts) attaches
             // the strategy over the now-linked children.
-            p.view[p.layoutEl.name] = buildLayout(p.layoutEl, p.view, ctx);
+            p.view[p.layoutEl.name] = buildLayout(p.layoutEl, p.view, p.classroot, ctx);
         }
         else if ("replicator" in p)
             p.replicator.arm();
@@ -464,6 +466,11 @@ function initNodeTree(node) {
         INITED.add(node);
         fireEvent(node, "init");
     }
+    // A font inside a faceless node (a controller holding its own typeface) starts
+    // loading like one on a view (initTree's source pass).
+    for (const child of node.children)
+        if (isFontNode(child))
+            child.autoStart();
 }
 function initTree(view) {
     for (const child of view.children) {
@@ -741,21 +748,27 @@ function construct(el, outer, ctx, parentSchema = null) {
     // [ … ]` or the cancelling literal `layout = null` (how a use site turns an
     // inherited arrangement off; the null itself lands through the ordinary
     // literal pass). Only the winning element builds a strategy, in pass two.
+    // The winner keeps its source's `classroot`, like any member: a layout written
+    // in a class body reads that class's instance, one written at the use site the
+    // enclosing scope.
     let layoutEl = null;
+    let layoutCroot = croot;
     for (const s of sources) {
         for (const a of s.el.attrs) {
             if (attrType(eff, a.name)?.kind === "component")
                 layoutEl = null;
         }
         for (const c of s.el.children) {
-            if (c.name !== null && attrType(eff, c.name)?.kind === "component")
+            if (c.name !== null && attrType(eff, c.name)?.kind === "component") {
                 layoutEl = c;
+                layoutCroot = s.croot;
+            }
         }
     }
     if (layoutEl !== null) {
         const t = attrType(eff, layoutEl.name);
         if (t !== null && t.kind === "component")
-            ctx.pending.push({ view, layoutEl, of: t.of });
+            ctx.pending.push({ view, layoutEl, of: t.of, classroot: layoutCroot });
     }
     // Methods first: they are the instance's behavior, in place before any
     // literal lands, any binding runs, or init fires — a sibling's constraint
@@ -837,29 +850,17 @@ function construct(el, outer, ctx, parentSchema = null) {
             view[attr.name] = themeByName(ctx, attr.value.name, attr.value.pos);
             continue;
         }
-        // `fontFamily = Name` / `[Name, "Helvetica", "sans-serif"]` → a CSS family
-        // string (static): each item is a declared font (→ its family) or a raw
-        // string, and a list joins them into an ordered fallback chain. A bare
-        // string falls through to coercion.
+        // `fontFamily = ["Helvetica Neue", "sans-serif"]` → one ordered family chain.
+        // A bare string falls through to coercion. A font is an object reached in a
+        // { } (`fontFamily = { app.brand }`) — a bare name is refused by the checker
+        // and thrown here for an unchecked tree.
         if (t0?.kind === "font" && ((attr.value.kind === "ident" && attr.value.name !== "null") || attr.value.kind === "list")) {
-            const familyOf = (name, pos) => {
-                const font = ctx.fonts.get(name);
-                if (font === undefined) {
-                    throw new DeclareError(ctx.fonts.size > 0
-                        ? diag `no font named '${name}' — declared fonts: ${[...ctx.fonts.keys()].join(", ")}`
-                        : diag `no font named '${name}' — this program declares no fonts`, pos);
-                }
-                return font.family;
-            };
-            const family = attr.value.kind === "ident"
-                ? familyOf(attr.value.name, attr.value.pos)
-                : attr.value.items.map((i) => {
-                    if (i.kind === "ident")
-                        return familyOf(i.name, i.pos);
-                    if (i.kind === "string")
-                        return i.value;
-                    throw new DeclareError(`a fontFamily list holds font names and strings`, i.pos);
-                }).join(", ");
+            const items = attr.value.kind === "ident" ? [attr.value] : attr.value.items;
+            const family = items.map((i) => {
+                if (i.kind === "string")
+                    return i.value;
+                throw new DeclareError(i.kind === "ident" ? `'${i.name}' is not a family — ${fontObjectHint(i.name)}` : `a fontFamily list holds family strings`, i.pos);
+            }).join(", ");
             view[attr.name] = family;
             continue;
         }
@@ -1335,7 +1336,7 @@ function constructState(el, schema, outer, ctx, parentSchema) {
  *  validated it): construct the class, land the literal attributes through
  *  its reactive setters — axis and spacing get the full attribute lifecycle,
  *  which is what makes `strategy.spacing = 12` a live re-flow later. */
-function buildLayout(el, owner, ctx) {
+function buildLayout(el, owner, croot, ctx) {
     const userClass = ctx.classes.get(el.tag);
     // A user-authored layout (`class X extends TweenLayout [ … ]`): the
     // synthesized ctor carries its declared attributes; install its class-chain
@@ -1343,7 +1344,7 @@ function buildLayout(el, owner, ctx) {
     if (userClass !== undefined) {
         const layout = new ctx.layoutCtors[el.tag]();
         layout.parent = owner;
-        installLayoutClass(layout, el, userClass, owner, ctx);
+        installLayoutClass(layout, el, userClass, croot, ctx);
         return layout;
     }
     // A built-in strategy (SimpleLayout): a literal lands directly; a `{ }` binding
@@ -1355,7 +1356,6 @@ function buildLayout(el, owner, ctx) {
     // first eval — attachTo re-wires the identical ref when the slot is pushed.
     strategy.parent = owner;
     const schema = ctx.schemas[el.tag];
-    const croot = owner.classroot ?? owner;
     for (const a of el.attrs) {
         if (a.value.kind === "code") {
             bindConstraint(strategy, a.name, a.value.src, a.value.pos, croot);
@@ -1375,11 +1375,10 @@ function buildLayout(el, owner, ctx) {
  *  strategy — the layout-side mirror of construct()'s install. Methods close
  *  over the layout, so `this` is the strategy and `this.view` its arranged
  *  view; `parent` in a body is that view (Layout.parent), `classroot` the
- *  enclosing scope. Attributes land as literals or `{ }` bindings over the
- *  layout's own slots (place()/retarget read them). */
-function installLayoutClass(layout, el, uc, owner, ctx) {
+ *  classroot of the member source the layout was written in. Attributes land as
+ *  literals or `{ }` bindings over the layout's own slots (place()/retarget read them). */
+function installLayoutClass(layout, el, uc, croot, ctx) {
     const eff = withDecls(ctx.schemas[el.tag], el.decls, (n) => ctx.schemas[n] !== undefined, (n) => ctx.shapes.has(n));
-    const croot = owner.classroot ?? owner;
     const self = layout;
     // Methods: class chain base→leaf, then the use site; nearest provider wins.
     // Each body compiles against a snapshot of the providers beneath it — what

@@ -1,0 +1,8 @@
+// Text whose lineHeight is tighter than the font's rows overflows its box on every
+// renderer (the Mac clipped it at the box until TextLayer.fit, 2026-09-12); and an
+// Image with filter = shadow(…) casts its alpha's shadow.
+
+App [ fill = #111111, width = 400, height = 200,
+    a: Text [ x = 20, y = 40, fontFamily = ["Georgia", "serif"], fontSize = 100, lineHeight = 0.72, textColor = #DDDDDD, text = "1993" ],
+    b: Image [ x = 20, y = 130, width = 60, height = 60, stretches = contain, source = "assets/badge.png", filter = shadow(0, 8, 16, #FF0000FF) ]
+    ]

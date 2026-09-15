@@ -16,18 +16,39 @@
 //   • READS (measureText, getImageData, isPointInPath/Stroke, every getter):
 //     the body records ops possibly detached from any live context, so it
 //     cannot answer a synchronous read.
-//   • LIVE IMAGE SOURCES (drawImage, createPattern(image), putImageData): they
-//     take a live HTMLImageElement/ImageBitmap/ImageData; the op shape is here
-//     and ready, but the pixels reach it through an image-HANDLE model (a
-//     decoded, transferable bitmap) that the loading side must supply — the
-//     follow-on, not a refusal.
+//   • createPattern(image) and putImageData: not yet — they follow the same
+//     handle model `drawImage` uses (below) when something needs them.
 // Everything else — text, gradients, shadow/blur, filter, compositing,
-// clipping, transforms, the full path and rect set — is here.
+// clipping, transforms, the full path and rect set, and `drawImage` — is here.
+//
+// drawImage (graphics-pass.md §7a, built 2026-09-12): the source is an `Image`
+// VIEW, not a live element — the view already owns loading, natural size and
+// `loaded`, and on the Mac the bridge handle. The op carries an integer HANDLE
+// (the Mac bridge's own number there; a registry id on the web), so the
+// recording stays plain data: the main thread resolves the handle to the
+// element the view loaded, the raster worker to an ImageBitmap the client
+// sent it once (raster-client.ts), the Mac to `Bridge.image(h)`. Reading the
+// view's `loaded` inside the body is what re-records when the bitmap lands;
+// an unloaded source records nothing.
 
 import { DeclareError } from "./errors.js";
 import { applyFilterFallback, ctxFilterSupported, isIdentity, parseFilter, type FilterSpec } from "./canvas-filter.js";
-import { fontMetrics, textWidth } from "./measure.js";
-import { colorToCss, type Color } from "./value.js";
+import { fontMetrics, textWidth, type FontWeight, type TextTransform } from "./measure.js";
+import { drawImageBitmap, drawImageOp } from "./draw-image.js";
+import { styledRun } from "./draw-text.js";
+import { colorToCss, type Color, type Shadow } from "./value.js";
+import type { Numerals, NumeralWidth } from "./font-features.js";
+
+/** The style of one drawn run — a `style` bundle or an inline record of `Text`
+ *  attribute names (text-measure.ts takes the same). A field left out takes its
+ *  plain default, never an inherited value. */
+export interface DrawTextStyle {
+  fontFamily?: unknown; fontSize?: number; fontWeight?: FontWeight; italic?: boolean;
+  letterSpacing?: number; textColor?: Color | null; textShadow?: Shadow | null;
+  textTransform?: TextTransform; smallCaps?: boolean;
+  numerals?: Numerals; numeralWidth?: NumeralWidth; slashedZero?: boolean;
+  textFill?: unknown; outline?: unknown; underline?: boolean; strike?: boolean;
+}
 
 /** A style value may be a CSS string or a Declare `Color` (a number) — draw() is
  *  first-class with the language's Color type, so `d.fillStyle = #BCC4E2`
@@ -106,6 +127,8 @@ export type DrawOp =
   | { readonly op: "clip"; readonly rule?: CanvasFillRule }
   | { readonly op: "fillText"; readonly text: string; readonly x: number; readonly y: number; readonly maxWidth?: number }
   | { readonly op: "strokeText"; readonly text: string; readonly x: number; readonly y: number; readonly maxWidth?: number }
+  // images — always the 9-argument shape (the recorder resolves the shorter ones)
+  | { readonly op: "drawImage"; readonly h: number; readonly sx: number; readonly sy: number; readonly sw: number; readonly sh: number; readonly dx: number; readonly dy: number; readonly dw: number; readonly dh: number }
   // state + transform
   | { readonly op: "save" }
   | { readonly op: "restore" }
@@ -143,6 +166,20 @@ export interface DisplayList {
  *  independence, so the style properties throw on read. Inputs reach a draw
  *  method through the view's attributes; at R4, reading a constrained
  *  attribute inside draw is what re-triggers recording. */
+/** What `drawImage` takes: an `Image` view (structurally — the runtime's
+ *  Image class is not imported here, so this module stays a leaf). `bitmap`
+ *  is the element the view loaded; `loaded` is the reactive fact whose read
+ *  re-records the drawing when the bitmap lands. */
+export interface DrawImageSource {
+  readonly loaded: boolean;
+  readonly bitmap: unknown;
+  readonly naturalWidth: number;
+  readonly naturalHeight: number;
+}
+
+// The image handle store (register / resolve / list a recording's handles) is
+// draw-image.ts — carried by a production build only when a program calls drawImage.
+
 export class Draw {
   private readonly ops: DrawOp[] = [];
   /** parallel to `ops` — see DisplayList.extents */
@@ -186,10 +223,11 @@ export class Draw {
   private exactBounds = true;
   /** Mirror of the recorded text state, for bounding a run — the same
    *  pattern as `strokeHalf` for stroke expansion. Canvas2D's defaults. */
-  private tFont = "10px sans-serif";
+  /** package-private: styledRun (draw-text.ts) saves and restores these */
+  tFont = "10px sans-serif";
   private tAlign = "start";
   private tBaseline = "alphabetic";
-  private tLetter = 0;
+  tLetter = 0;
   /** The live transform matrix [a,b,c,d,e,f] and its save/restore stack. Every
    *  painted extent is mapped through it before it grows the ink box, so the
    *  recording's bounds land in the VIEW's local space even under scale/rotate/
@@ -381,15 +419,35 @@ export class Draw {
   // canvas to the bounds — allocated a 1x1 canvas and rendered NOTHING.
   // Measured on test/probe/textbounds.declare: 0 white pixels on DOM against
   // 3597 on the canvas backend, whose bounds only gate the memo.
-  fillText(text: string, x: number, y: number, maxWidth?: number): void {
-    this.push({ op: "fillText", text: String(text), x, y, maxWidth });
-    this.exactBounds = false;
-    this.textExtent(String(text), x, y, maxWidth, 0);
+  // A run with a text style goes through draw-text.ts (styledRun); a plain run
+  // never reaches it.
+  fillText(text: string, x: number, y: number, styleOrMax?: number | DrawTextStyle, maxWidth?: number): void {
+    const style = typeof styleOrMax === "object" && styleOrMax !== null ? styleOrMax : null;
+    const max = style !== null ? maxWidth : (styleOrMax as number | undefined);
+    const emit = (shown: string): void => {
+      this.push({ op: "fillText", text: shown, x, y, maxWidth: max });
+      this.exactBounds = false;
+      this.textExtent(shown, x, y, max, 0);
+    };
+    if (style === null) emit(String(text)); else styledRun(this, style, "fill", String(text), emit);
   }
-  strokeText(text: string, x: number, y: number, maxWidth?: number): void {
-    this.push({ op: "strokeText", text: String(text), x, y, maxWidth });
-    this.exactBounds = false;
-    this.textExtent(String(text), x, y, maxWidth, this.strokeHalf);
+  strokeText(text: string, x: number, y: number, styleOrMax?: number | DrawTextStyle, maxWidth?: number): void {
+    const style = typeof styleOrMax === "object" && styleOrMax !== null ? styleOrMax : null;
+    const max = style !== null ? maxWidth : (styleOrMax as number | undefined);
+    const emit = (shown: string): void => {
+      this.push({ op: "strokeText", text: shown, x, y, maxWidth: max });
+      this.exactBounds = false;
+      this.textExtent(shown, x, y, max, this.strokeHalf);
+    };
+    if (style === null) emit(String(text)); else styledRun(this, style, "stroke", String(text), emit);
+  }
+
+  /** Canvas2D's three shapes over an `Image` view (draw-image.ts builds the op). */
+  drawImage(image: DrawImageSource, ...a: number[]): void {
+    const op = drawImageOp(image, a);
+    if (op === null) return;
+    this.push(op);
+    this.mark(op.dx, op.dy, op.dx + op.dw, op.dy + op.dh);
   }
   /** The run's box from the mirrored text state. With no measurer at all (a
    *  bare Node test constructing a Draw — headless verify provides one) this
@@ -618,7 +676,7 @@ const UNCULLABLE = new Set(["copy", "source-in", "source-out", "destination-in",
  *  is 1–3 µs, not 20. `shadow` applies while shadowBlur > 0 is live at the
  *  paint — the probe's radius scaled with its mark, so this is a flat weight
  *  standing in for a radius-dependent cost, and says so. */
-const KIND_WEIGHT = { fill: 1, stroke: 0.6, shadow: 4.3, text: 8.5, gradient: 30 } as const;
+const KIND_WEIGHT = { fill: 1, stroke: 0.6, shadow: 4.3, text: 8.5, gradient: 30, image: 1.2 } as const;
 
 function listInfo(list: DisplayList): ListInfo {
   const hit = infoCache.get(list);
@@ -646,6 +704,7 @@ function listInfo(list: DisplayList): ListInfo {
         const e = ext[i]; if (e) area += e.w * e.h * w(KIND_WEIGHT.text); break;
       }
       case "clearRect": { const e = ext[i]; if (e) area += e.w * e.h; break; }
+      case "drawImage": { const e = ext[i]; if (e) area += e.w * e.h * w(KIND_WEIGHT.image); break; }
     }
   }
   const info = { area: filtered ? Infinity : area, cullable };
@@ -790,6 +849,7 @@ function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bo
       case "fillRect": ctx.fillRect(o.x, o.y, o.w, o.h); break;
       case "strokeRect": ctx.strokeRect(o.x, o.y, o.w, o.h); break;
       case "clearRect": ctx.clearRect(o.x, o.y, o.w, o.h); break;
+      case "drawImage": { const im = drawImageBitmap(o.h); if (im !== undefined) ctx.drawImage(im, o.sx, o.sy, o.sw, o.sh, o.dx, o.dy, o.dw, o.dh); break; }
       case "beginPath": ctx.beginPath(); break;
       case "moveTo": ctx.moveTo(o.x, o.y); break;
       case "lineTo": ctx.lineTo(o.x, o.y); break;
@@ -910,6 +970,7 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
       case "fillRect": paint((c) => c.fillRect(o.x, o.y, o.w, o.h)); break;
       case "strokeRect": paint((c) => c.strokeRect(o.x, o.y, o.w, o.h)); break;
       case "clearRect": ctx.clearRect(o.x, o.y, o.w, o.h); break;   // not a drawing op — never filtered
+      case "drawImage": { const im = drawImageBitmap(o.h); if (im !== undefined) paint((c) => c.drawImage(im, o.sx, o.sy, o.sw, o.sh, o.dx, o.dy, o.dw, o.dh)); break; }
       case "beginPath": both((c) => c.beginPath()); break;
       case "moveTo": both((c) => c.moveTo(o.x, o.y)); break;
       case "lineTo": both((c) => c.lineTo(o.x, o.y)); break;

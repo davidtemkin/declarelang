@@ -29,6 +29,10 @@ export class Image extends View {
    *  compositing.md §3.4): shape from the bitmap, color from here, exactly
    *  template-image rendering. null = the untouched bitmap. */
   declare tint: Color;
+  /** Where a `contain`/`cover` fit sits in the box — `start`, `center`
+   *  (default), `end` per axis (graphics-pass.md §4). */
+  declare alignX: "start" | "center" | "end";
+  declare alignY: "start" | "center" | "end";
   /** True once a bitmap has arrived (and any natural-sizing applied) —
    *  reactive, read-only surface (schema'd 2026-07-30), so constraints can
    *  derive from it: `visible = { !pic.loaded }` is the placeholder idiom.
@@ -44,6 +48,11 @@ export class Image extends View {
    *  a new load starts, so it always speaks about the present `source`;
    *  a failure keeps whatever bitmap was already showing. */
   declare failed: boolean;
+
+  /** The loaded element — what `d.drawImage(pic, …)` paints from (draw.ts's
+   *  DrawImageSource). null until a bitmap lands; kept across a re-pointed
+   *  `source` until the replacement lands, like `loaded`. */
+  bitmap: HTMLImageElement | null = null;
 
   /** Discards a superseded load: only the latest request may land. */
   private loadSeq = 0;
@@ -69,6 +78,7 @@ export class Image extends View {
     // Pushers fire on *change*; attach's flush carries the pre-attach state
     // across (the image element itself arrives via load's async landing).
     s.setImageStretch(this.stretches);
+    if (this.alignX !== "center" || this.alignY !== "center") s.setImageAlign?.(this.alignX, this.alignY);
     if (this.tint !== null) s.setImageTint?.(this.tint);
   }
 
@@ -107,6 +117,7 @@ export class Image extends View {
       if (!isSet(this, "height") && ownerOf(this, "height") === null) {
         setBound(this, "height", img.naturalHeight);
       }
+      this.bitmap = img;
       setBound(this, "loaded", true);
       this.surface.setImage(img);
     };
@@ -121,6 +132,8 @@ export class Image extends View {
 defineAttributes(Image, {
   source: { def: "", push: (i) => i.load() },
   stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
+  alignX: { def: "center", push: (i) => i.surface?.setImageAlign?.(i.alignX, i.alignY) },
+  alignY: { def: "center", push: (i) => i.surface?.setImageAlign?.(i.alignX, i.alignY) },
   tint: { def: null, push: (i, v) => i.surface?.setImageTint?.(v) },
   loaded: { def: false },
   failed: { def: false },

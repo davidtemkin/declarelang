@@ -1,5 +1,6 @@
 import type { Color, Fill, Shadow, Outline } from "./value.js";
-export type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black";
+import { type Numerals, type NumeralWidth } from "./font-features.js";
+export type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black" | number;
 /** A content transform applied to a run's text (CSS text-transform). */
 export type TextTransform = "none" | "uppercase" | "lowercase" | "capitalize";
 export declare function cssWeight(w: FontWeight): string;
@@ -36,6 +37,12 @@ export interface TextStyle {
     /** Leading as a fontSize multiplier (line box = round(fontSize × lineHeight));
      *  0/absent = the font's natural ascent + descent. */
     readonly lineHeight?: number;
+    /** OpenType figures (font-features.ts). They reach the renderers through the
+     *  family NAME, so a backend that wants the painted family asks
+     *  `effectiveFamily(style)` rather than reading `fontFamily` raw. */
+    readonly numerals?: Numerals;
+    readonly numeralWidth?: NumeralWidth;
+    readonly slashedZero?: boolean;
 }
 /** Inject the measuring context for a DOM-less host — the environment
  *  contract's text-metrics seam (docs/system-design/capabilities.md §3, verify §2.8).
@@ -46,13 +53,25 @@ export interface TextStyle {
 export declare function provideMeasurer(ctx: CanvasRenderingContext2D): void;
 /** A style as a canvas font string — the one font encoding the measurer and
  *  both backends share, so they cannot disagree about which font they mean. */
-export declare function fontString(style: {
-    fontFamily: string;
+export interface FaceStyle {
+    /** A family string, a Font, or a list of them (font-value.ts). */
+    fontFamily: unknown;
     fontSize: number;
     fontWeight: FontWeight;
     italic?: boolean;
     smallCaps?: boolean;
-}): string;
+    numerals?: Numerals;
+    numeralWidth?: NumeralWidth;
+    slashedZero?: boolean;
+}
+/** The family list a style actually paints and measures in: the family its value
+ *  names now (a string as written; a Font's current family, held for a text view
+ *  while a newly chosen font loads — font-value.ts), or — when the style asks for
+ *  OpenType figures — the derived-then-plain list those features ride in
+ *  (font-features.ts). Every renderer asks THIS, so all three name the same font
+ *  and the measurer cannot drift from the painter. */
+export declare function effectiveFamily(style: FaceStyle): string;
+export declare function fontString(style: FaceStyle): string;
 /** The glyphs a `textTransform` actually paints — applied at BOTH measure and
  *  paint time so a transformed run's width matches its picture (the DOM gets the
  *  same shaping free from CSS `text-transform`). `capitalize` uppercases the
@@ -102,6 +121,12 @@ export declare function xHeight(font: string): number;
  *  clamp is asked for the same count; the mac host mirrors the rule), so the
  *  measured height and the painted lines agree. `max <= 0` = no clamp. */
 export declare function clampLines(lines: string[], max: number, font: string, width: number, letterSpacing?: number): string[];
+/** The tail half of `clampLines`, separately callable: drop words (then, if the
+ *  last word alone is too long, characters) from the end until the text plus an
+ *  ellipsis fits `width`, and return it WITH the ellipsis. A FLOW clamp needs it
+ *  on its own, because the line it cuts short was wrapped to fit exactly — the
+ *  ellipsis has to be made room for beside what is already there. */
+export declare function ellipsize(text: string, font: string, width: number, letterSpacing?: number): string;
 export declare function wrapLines(text: string, font: string, width: number, letterSpacing?: number): string[];
 /** The same breaker under an EDITABLE's rules — what a native field will do
  *  with this text, which is not what a box of text would do with it. Used by

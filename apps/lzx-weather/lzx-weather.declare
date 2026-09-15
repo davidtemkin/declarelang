@@ -8,13 +8,6 @@ it. Three named fonts: `Chrome` and `Body` are already on the machine,
 `Title` is a web font downloaded from its .woff2 file.
 */
 
-font Chrome [ family = "Tahoma" ]
-
-font Body   [ family = "Helvetica" ]
-
-font Title  [ Face [ src = "resources/fonts/work-sans-700.woff2", weight = bold ]
-    ]
-
 
 /*
 ## Building blocks
@@ -112,7 +105,7 @@ class WeatherTab extends View [ width = 100%,
 // read from whichever forecast entry it's bound to.
 
 class WeatherSummary extends View [ fill = #000000, width = 34, height = 34, x = 10,
-    fontFamily = [Body, "Arial", "sans-serif"], fontSize = 12,
+    fontFamily = ["Helvetica", "Arial", "sans-serif"], fontSize = 12,
 
     icon: Image [ x = 1, y = 1, width = 32, height = 32, stretches = both,
         source = { :code != null ? `resources/icons/${:code}.gif` : "" } ],
@@ -147,7 +140,10 @@ data has loaded.
 */
 
 App [ width = 240, height = 320, fill = #EAEAEA,
-    fontFamily = [Chrome, "Geneva", "sans-serif"], fontSize = 9,
+    title: Font [
+        Face [ src = "resources/fonts/work-sans-700.woff2", weight = bold ]
+        ],
+    fontFamily = ["Tahoma", "Geneva", "sans-serif"], fontSize = 9,
     fontWeight = bold, textColor = #FFFFFF,
 
     zip: string = "94403",
@@ -228,7 +224,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
 
         topBar: BeveledBar [ y = -16, opacity = 0, width = 240, height = 16,
             fill = #3F4977, highlight = #6F79A7, lowlight = #1A2452,
-            fontFamily = Title, fontWeight = bold, fontSize = 10, textColor = #FFFFFF,
+            fontFamily = { app.title }, fontWeight = bold, fontSize = 10, textColor = #FFFFFF,
 
             // The bar slides down into view after a successful fetch, and back up
             // when you return to the splash.
@@ -262,7 +258,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
 
                     layout: SimpleLayout [ axis = y, spacing = 10 ],
 
-                    form: View [ width = 240, fontFamily = [Body, "Arial", "sans-serif"], fontSize = 14,
+                    form: View [ width = 240, fontFamily = ["Helvetica", "Arial", "sans-serif"], fontSize = 14,
 
                         where: Text [ x = 15, width = 240,
                             text = { :location.city + ", " + :location.region } ],

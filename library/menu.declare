@@ -266,14 +266,17 @@ class Menu extends View [
     // records (a y-run's contentWidth is its widest child — content-sized text,
     // so no cycle through the panel's width; the checker rightly refuses an
     // aggregate over live children). A use site's own `width` overrides.
+    // Plain `Text`, not `TextLabel`: these runs only MEASURE widths, and a TextLabel
+    // owns its own `y` (cap-centring) — inside a y-stack that is a conflict the
+    // runtime reports on every open, once per row per run.
 
     labelRun: View [ visible = false, datapath = { classroot.data.value },
         layout: SimpleLayout [ axis = y, spacing = 0 ],
-        TextLabel [ datapath = :rows[], fontSize = 13, wrap = false, text = { "" + (:label || "") } ]
+        Text [ datapath = :rows[], fontSize = 13, wrap = false, text = { "" + (:label || "") } ]
         ],
     keyRun: View [ visible = false, datapath = { classroot.data.value },
         layout: SimpleLayout [ axis = y, spacing = 0 ],
-        TextLabel [ datapath = :rows[], fontSize = 12, wrap = false, text = { "" + (:key || "") } ]
+        Text [ datapath = :rows[], fontSize = 12, wrap = false, text = { "" + (:key || "") } ]
         ],
     widestLabel: number = { this.labelRun.contentWidth },
     widestKey:   number = { this.keyRun.contentWidth },

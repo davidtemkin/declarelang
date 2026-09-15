@@ -6,6 +6,9 @@
 // first baseline to the font ascent), and the Canvas backend (the fillText
 // baseline) — so both backends place identical glyph geometry and differ
 // only in the rasterizer that inks it.
+import { trackFamilies } from "./face-table.js";
+import { familyOf } from "./font-value.js";
+import { featureFamily, featureTags } from "./font-features.js";
 /** A weight token → its numeric CSS weight. The numeric form is what both the
  *  canvas `ctx.font` string and the DOM `font-weight` carry, and it is what
  *  selects the matching web face when a `font` declares several. */
@@ -14,6 +17,8 @@ const WEIGHT_CSS = {
     medium: "500", semibold: "600", bold: "700", extrabold: "800", black: "900",
 };
 export function cssWeight(w) {
+    if (typeof w === "number")
+        return Number.isFinite(w) ? String(Math.round(Math.min(1000, Math.max(1, w)))) : "400";
     return WEIGHT_CSS[w] ?? "400";
 }
 // Created on first use — never at import or instantiation time — so the
@@ -32,13 +37,27 @@ function measurer() {
 export function provideMeasurer(ctx) {
     measureCtx = ctx;
 }
-/** A style as a canvas font string — the one font encoding the measurer and
- *  both backends share, so they cannot disagree about which font they mean. */
+/** The family list a style actually paints and measures in: the family its value
+ *  names now (a string as written; a Font's current family, held for a text view
+ *  while a newly chosen font loads — font-value.ts), or — when the style asks for
+ *  OpenType figures — the derived-then-plain list those features ride in
+ *  (font-features.ts). Every renderer asks THIS, so all three name the same font
+ *  and the measurer cannot drift from the painter. */
+export function effectiveFamily(style) {
+    return featureFamily(familyOf(style), featureTags(style));
+}
 export function fontString(style) {
+    const family = effectiveFamily(style);
+    // THE FACE TABLE IS A TRACKED READ (face-table.ts). Every measurement in the
+    // program goes through this one function, so tracking the family here is what
+    // makes a face that lands after boot re-measure and redraw the text that asked
+    // for it — the auto-size constraints and the metric getters were always inside
+    // the graph; the table they measure against was not. A no-op while painting.
+    trackFamilies(family);
     // CSS font shorthand order: font-style font-variant font-weight font-size family.
     // `small-caps` rides the variant slot — canvas `ctx.font` honors it, so the
     // shared measurer sees the same synthesized caps the painter draws (widths agree).
-    return `${style.italic ? "italic " : ""}${style.smallCaps ? "small-caps " : ""}${cssWeight(style.fontWeight)} ${style.fontSize}px ${style.fontFamily}`;
+    return `${style.italic ? "italic " : ""}${style.smallCaps ? "small-caps " : ""}${cssWeight(style.fontWeight)} ${style.fontSize}px ${family}`;
 }
 /** The glyphs a `textTransform` actually paints — applied at BOTH measure and
  *  paint time so a transformed run's width matches its picture (the DOM gets the
@@ -133,15 +152,23 @@ export function clampLines(lines, max, font, width, letterSpacing = 0) {
     // that does not, and it gets the ellipsis too
     if (lines.length <= max && textWidth(kept[n - 1], font, letterSpacing) <= width)
         return lines;
-    let last = kept[n - 1].replace(/\s+$/, "");
+    kept[n - 1] = ellipsize(kept[n - 1], font, width, letterSpacing);
+    return kept;
+}
+/** The tail half of `clampLines`, separately callable: drop words (then, if the
+ *  last word alone is too long, characters) from the end until the text plus an
+ *  ellipsis fits `width`, and return it WITH the ellipsis. A FLOW clamp needs it
+ *  on its own, because the line it cuts short was wrapped to fit exactly — the
+ *  ellipsis has to be made room for beside what is already there. */
+export function ellipsize(text, font, width, letterSpacing = 0) {
+    let last = text.replace(/\s+$/, "");
     const fits = (s) => textWidth(s + "…", font, letterSpacing) <= width;
     while (last.length > 0 && !fits(last)) {
         const cut = last.lastIndexOf(" ");
         last = cut > 0 ? last.slice(0, cut) : last.slice(0, -1);
         last = last.replace(/\s+$/, "");
     }
-    kept[n - 1] = last + "…";
-    return kept;
+    return last + "…";
 }
 export function wrapLines(text, font, width, letterSpacing = 0) {
     // A box of text (`white-space: pre-wrap` on the DOM, the same rule on canvas)

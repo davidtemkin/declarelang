@@ -28,10 +28,12 @@ import { THEME_PRESETS, tint } from "./themes.js";
 import { Focus } from "./focus.js";
 import { Inspect } from "./inspect-service.js";
 import { afterSettle } from "./reactive.js";
+import { measureText } from "./text-measure.js";
 
 // The theme presets are in scope inside every `{ }` body by name (a bare
 // `SanFrancisco` / `CupertinoDark` is the record), alongside `tint`. afterSettle
 // is a FUNCTION, not a service object — the one body-scope name that is a verb:
-// "finish after your change has taken effect" (language §7).
-setBodyServices({ Focus, Keys, Inspect, afterSettle, tint, ...THEME_PRESETS });
+// "finish after your change has taken effect" (language §7). `measureText` is a
+// pure function of what it is given (text-measure.ts).
+setBodyServices({ Focus, Keys, Inspect, afterSettle, tint, measureText, ...THEME_PRESETS });
 setKeysFocusProbe(() => Focus.getFocus() !== null);

@@ -45,17 +45,6 @@ those are exactly the pieces drawn here. The same program under
 single `<canvas>`.
 */
 
-font Vera      [ Face [ src = "resources/fonts/verabd.ttf", weight = bold ]
-    ]
-
-
-font VeraRoman [ Face [ src = "resources/fonts/vera.ttf" ]
-    ]
-
-
-font Kroe      [ Face [ src = "resources/fonts/kroeger-6-plain-regular.ttf" ]
-    ]
-
 
 include [ "chrome.declare" ]
 
@@ -74,8 +63,17 @@ the video tab all speak about one thing.
 */
 
 App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
+    vera: Font [
+        Face [ src = "resources/fonts/verabd.ttf", weight = bold ]
+        ],
+    veraRoman: Font [
+        Face [ src = "resources/fonts/vera.ttf" ]
+        ],
+    kroe: Font [
+        Face [ src = "resources/fonts/kroeger-6-plain-regular.ttf" ]
+        ],
     clip = true,                       // the stage's edge clips a dragged window, as the canvas did
-    fontFamily = [Vera, "Verdana", "sans-serif"],
+    fontFamily = { [app.vera, "Verdana", "sans-serif"] },
 
     deskW: number = 987,
     deskH: number = 684,
@@ -130,7 +128,7 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
     // same column with a margin inside the desktop's frame.
 
     clock: Text [ x = 850, y = 15, width = 122, visible = { app.signedIn },
-        fontFamily = Vera, fontWeight = bold, fontSize = 9, textColor = #FFFFFF,
+        fontFamily = { app.vera }, fontWeight = bold, fontSize = 9, textColor = #FFFFFF,
         textAlign = right, text = { app.clockText } ],
 
     /*
@@ -297,7 +295,7 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
             closeBtn: Image [ x = 126, y = 4, source = "resources/img/media_close.png",
                 onClick() { parent.hide() }
                 ],
-            infoText: Text [ x = 3, y = 25, width = 100, fontFamily = Vera, fontWeight = bold,
+            infoText: Text [ x = 3, y = 25, width = 100, fontFamily = { app.vera }, fontWeight = bold,
                 fontSize = 10, textColor = #FFFFFF, textAlign = center,
                 text = { parent.trackLabel } ]
             ]
@@ -358,9 +356,9 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
 
             form: View [ x = 4, y = 31, width = 300, opacity = 0,
                 fadeUp: Animator [ attribute = opacity, to = 1, duration = 500 ],
-                fontFamily = VeraRoman, fontSize = 12, textColor = #000000,
+                fontFamily = { app.veraRoman }, fontSize = 12, textColor = #000000,
 
-                signHead: Text [ x = 8, y = 8, opacity = 0.8, fontFamily = Vera, fontWeight = bold, text = "Sign in to chat" ],
+                signHead: Text [ x = 8, y = 8, opacity = 0.8, fontFamily = { app.vera }, fontWeight = bold, text = "Sign in to chat" ],
                 signNote: Text [ x = 112, y = 10, fontSize = 10, opacity = 0.8,
                     text = "(information not saved)" ],
 
@@ -382,7 +380,7 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
                 divA: View [ x = 8, y = 96, width = 280, height = 1, fill = #000000, opacity = 0.5 ],
                 divB: View [ x = 8, y = 97, width = 280, height = 1, fill = #FFFFFF, opacity = 0.5 ],
 
-                guestLbl: Text [ x = 8, y = 108, fontFamily = Vera, fontWeight = bold, text = "or enter as a guest." ],
+                guestLbl: Text [ x = 8, y = 108, fontFamily = { app.vera }, fontWeight = bold, text = "or enter as a guest." ],
                 guestBtn: DashButton [ x = 230, y = 105, width = 55, height = 20, label = "guest",
                     face = #B25F45, edge = #4A2418,
                     onClick() { app.signIn("") }

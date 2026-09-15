@@ -73,7 +73,10 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BUNDLES, newestMtime } from "./bundle-freshness.mjs";
-import { SEARCH } from "../../mac-host/app.mjs";
+import { SEARCH, APP_NAME, CTL_IN } from "../../mac-host/app.mjs";
+// A variant app ("Declare Mac Graphics") gets its own bundle identifier — its
+// own UserDefaults, its own LaunchServices entry — and its own control pipe.
+const VARIANT = APP_NAME === "Declare Mac" ? "" : "." + APP_NAME.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^declare-mac-?/, "");
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const MAC = path.join(ROOT, "mac-host");
@@ -91,7 +94,7 @@ const die = (m) => { process.stderr.write("\n✗  " + m + "\n"); process.exit(1)
 const bundleInputs = (out) => BUNDLES.find((b) => b.out === out)?.inputs;
 
 const BAKE = [
-  { from: "mac-host/.build/release/DeclareMac", to: "Contents/MacOS/Declare Mac",
+  { from: "mac-host/.build/release/DeclareMac", to: `Contents/MacOS/${APP_NAME}`,
     inputs: ["mac-host/Sources", "mac-host/Package.swift"] },
   { from: "browser/mac-env.js", to: "Contents/Resources/mac-env.js" },
   { from: "bundles/declare-mac.js", to: "Contents/Resources/declare-mac.js",
@@ -200,7 +203,7 @@ function destination() {
   }
   return MAC;
 }
-const DEST = path.join(destination(), "Declare Mac.app");
+const DEST = path.join(destination(), `${APP_NAME}.app`);
 
 // ASSEMBLE BESIDE IT, SWAP AT THE END. The verification below is allowed to
 // fail the build, and a build that fails must not also destroy the app you had
@@ -327,10 +330,11 @@ writeFileSync(path.join(OUT, "Contents/Info.plist"), `<?xml version="1.0" encodi
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Declare Mac</string>
-  <key>CFBundleDisplayName</key><string>Declare Mac</string>
-  <key>CFBundleExecutable</key><string>Declare Mac</string>
-  <key>CFBundleIdentifier</key><string>com.davidtemkin.declare.host</string>
+  <key>CFBundleName</key><string>${APP_NAME}</string>
+  <key>CFBundleDisplayName</key><string>${APP_NAME}</string>
+  <key>CFBundleExecutable</key><string>${APP_NAME}</string>
+  <key>CFBundleIdentifier</key><string>com.davidtemkin.declare.host${VARIANT}</string>
+  <key>DeclareCtlPipe</key><string>${CTL_IN}</string>
   <key>CFBundleIconFile</key><string>Declare</string>
   <key>CFBundleIconName</key><string>Declare</string>
   <key>CFBundlePackageType</key><string>APPL</string>

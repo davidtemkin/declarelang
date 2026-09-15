@@ -17,7 +17,9 @@ write.
 ## `:path` reads from a cursor
 
 `datapath = …` sets a **cursor** on a node; every descendant reads `:field` relative
-to it, reactively. And the strongest move follows from one rule: a path that matches
+to it, reactively — and *descendant* means every member, not only the visible ones. A
+`Spring`'s target, a `Time`'s gate, a `DataSource`'s url are all written inside some view,
+so a `:path` in one of them reads that view's cursor like anything else there. And the strongest move follows from one rule: a path that matches
 *many* records **replicates** its node — one instance per record:
 
 ```declare

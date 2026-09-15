@@ -127,8 +127,12 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
     "declare function gradient(",
     "declare function stroke(width: number, color: Color): Stroke;",
     "declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;",
-    "interface Backdrop { blur: number; saturate: number }",
+    "type Backdrop = readonly Filter[];",
     "declare function frost(radius: number, saturation?: number): Backdrop;",
+    "declare function blur(radius: number): Filter;",
+    "declare function colorize(color: Color): Filter;",
+    "declare function radialGradient(cx: number, cy: number, r: number, ",
+    "declare function conicGradient(cx: number, cy: number, angle: number, ",
     "declare function colorWithAlpha(rgb: number, a: number): number;",
   ]) {
     assert.ok(s.includes(line), `prelude should contain: ${line}`);
@@ -138,7 +142,7 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
 await test("scaffold: enum-typed attributes emit named string-literal unions", () => {
   const s = scaffoldFor(PROGRAM);
   assert.ok(s.includes(`type Stretch = "none" | "width" | "height" | "both" | "cover" | "contain";`), "Stretch enum alias");
-  assert.ok(s.includes(`type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black";`), "FontWeight enum alias");
+  assert.ok(s.includes(`type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black" | number;`), "FontWeight enum alias — keywords or a number 1–1000");
   // Axis reaches the scaffold through a DECLARED enum now (the built-in value
   // enums are declarable — library SimpleLayout's `axis: Axis = y`):
   const lib = scaffoldFor(`class S extends Layout [ axis: Axis = y, place() { return [] } ]
@@ -166,7 +170,8 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   // The text FACE kinds moved OFF View onto the text leaves (provided values):
   // string / color / enum are demonstrated on Text, the record kind on RichText.
   const text = classBlock(s, "Text");
-  assert.ok(text.includes("fontFamily: string;"), "string → string");
+  assert.ok(text.includes("text: string;"), "string → string");
+  assert.ok(text.includes("fontFamily: string | Font | readonly (string | Font)[] | null;"), "font → a family string, a Font, or a list of them");
   assert.ok(text.includes("textColor: Color;"), "color → Color");
   assert.ok(text.includes("fontWeight: FontWeight;"), "enum → named union");
   const rich = classBlock(s, "RichText");

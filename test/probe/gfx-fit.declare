@@ -1,0 +1,21 @@
+/* Aligned fits: where a contain/cover picture sits in its box. */
+
+App [ width = 900, height = 420, fill = #202124, textColor = whitesmoke, fontSize = 12,
+    // contain, aligned top / centre / bottom (a portrait picture in a wide box)
+
+    a: Image [ x = 20, y = 20, width = 200, height = 180, stretches = contain, alignY = start, source = "assets/badge.png", stroke = { stroke(1, 0xFFFFFF55) } ],
+    b: Image [ x = 240, y = 20, width = 200, height = 180, stretches = contain, source = "assets/badge.png", stroke = { stroke(1, 0xFFFFFF55) } ],
+    c: Image [ x = 460, y = 20, width = 200, height = 180, stretches = contain, alignY = end, source = "assets/badge.png", stroke = { stroke(1, 0xFFFFFF55) } ],
+
+    // contain aligned left in a tall box
+
+    d: Image [ x = 680, y = 20, width = 200, height = 180, stretches = contain, alignX = start, alignY = end, source = "assets/badge.png", stroke = { stroke(1, 0xFFFFFF55) } ],
+
+    // cover, aligned: which end of the photo survives the crop
+
+    e: Image [ x = 20, y = 220, width = 200, height = 180, stretches = cover, alignY = start, source = "../../apps/lzx-weather/resources/weather_bg.jpg" ],
+    f: Image [ x = 240, y = 220, width = 200, height = 180, stretches = cover, source = "../../apps/lzx-weather/resources/weather_bg.jpg" ],
+    g: Image [ x = 460, y = 220, width = 200, height = 180, stretches = cover, alignY = end, source = "../../apps/lzx-weather/resources/weather_bg.jpg" ],
+    h: Image [ x = 680, y = 220, width = 100, height = 180, stretches = cover, alignX = end, source = "../../apps/lzx-weather/resources/weather_bg.jpg" ],
+    Text [ x = 20, y = 402, text = "contain: top / centre / bottom · left+bottom        cover: top / centre / bottom · right" ]
+    ]

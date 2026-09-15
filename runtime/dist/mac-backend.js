@@ -20,9 +20,23 @@
 // and JSON-posted at flush. Opcodes are ints so the wire stays small; strings
 // (colors, text, path data) ride verbatim. A surface is an integer id — the
 // Swift side keeps id → CALayer.
+import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
+import { applyH, frontFacing, homography, inFront, invertH } from "./projective.js";
+import { effectiveFamily } from "./measure.js";
 import { colorToCss, isGradient } from "./value.js";
 import { routeInput } from "./input.js";
 // ── the wire ────────────────────────────────────────────────────────────────
+/** A filter function as the Swift side reads it: `fn` plus its one argument
+ *  (`v`), colours as CSS text — the SHADOW op's own convention. */
+function wireFilter(f) {
+    switch (f.fn) {
+        case "blur": return { fn: "blur", v: f.radius };
+        case "hueRotate": return { fn: "hueRotate", v: f.degrees };
+        case "tint": return { fn: "tint", color: colorToCss(f.color) };
+        case "shadow": return { fn: "shadow", dx: f.dx, dy: f.dy, blur: f.blur, color: colorToCss(f.color) };
+        default: return { fn: f.fn, v: f.amount };
+    }
+}
 export const OP = {
     CREATE: 1, DESTROY: 2, INSERT: 3, ROOT: 4,
     GEOM: 5, FILL: 6, GRADIENT: 7, RADIUS: 8, STROKE: 9, SHADOW: 10,
@@ -39,6 +53,19 @@ export const OP = {
      *  that claims the wheel (`onWheel`) so the host's walk hands it the stream
      *  instead of scrolling; and a glide request — (axis, to, duration, bezier). */
     WHEELCLAIM: 42, SCROLLGLIDE: 43,
+    /** The filter tier (graphics-pass.md §1): the node's own painted subtree
+     *  through `layer.filters` (+ the layer's own shadow for a shadow-of-alpha). */
+    FILTER: 44,
+    /** The soft mask (graphics-pass.md §2): a gradient's alpha, or a stencil node's painted alpha. */
+    MASK: 45,
+    /** The whole paint transform as one affine (graphics-pass.md §5): a b c d e f, y-down local space. */
+    TRANSFORM: 46,
+    /** Where a contain/cover fit sits in the box: alignX alignY tokens. */
+    IMAGEALIGN: 47,
+    /** The third dimension: rotateX rotateY translateZ backfaceHidden — or null (LayerTree case 48). */
+    TRANSFORM3D: 48,
+    /** This node is the eye for its children: perspective px (0 = none) (case 49). */
+    PERSPECTIVE: 49,
 };
 /** A Declare motion token as the cubic bezier the host animates with — the
  *  platform's motion honoring the program's curve (scrolling.md: "where a
@@ -250,7 +277,8 @@ class MacSurface {
         if (isGradient(fill)) {
             const g = fill;
             this.fillCss = null;
-            emit(OP.GRADIENT, this.id, { angle: g.angle, stops: g.stops.map((st) => [st.offset, colorToCss(st.color)]) });
+            emit(OP.GRADIENT, this.id, { kind: g.kind ?? "linear", angle: g.angle, cx: g.cx ?? 0.5, cy: g.cy ?? 0.5, r: g.r ?? 1,
+                stops: g.stops.map((st) => [st.offset, colorToCss(st.color)]) });
         }
         else {
             this.fillCss = fill === null ? null : colorToCss(fill);
@@ -286,7 +314,34 @@ class MacSurface {
      *  result as a masked layer under the node's own fill. [blur, saturate]
      *  ride the wire; null clears. */
     setBackdrop(spec) {
-        emit(OP.BACKDROP, this.id, spec === null ? null : spec.blur, spec === null ? 1 : spec.saturate);
+        // the list rides the wire as plain records (Frost.swift reads the chain)
+        emit(OP.BACKDROP, this.id, spec === null ? null : spec.map(wireFilter));
+    }
+    /** The view's own painted subtree, filtered as a group — LayerTree case 44:
+     *  Core Image on the node's own layer (`layer.filters`), which macOS 26 still
+     *  honours (frostprobe2), plus the layer's own shadow for `shadow(…)`. */
+    setFilter(list) {
+        emit(OP.FILTER, this.id, list === null ? null : list.map(wireFilter));
+    }
+    /** The mask — LayerTree case 45: a CAGradientLayer as `layer.mask`, or the
+     *  stencil node's subtree rendered to a bitmap at its box (re-rendered per
+     *  commit, the frost's epoch rule). A stencil not yet attached sends
+     *  nothing; its own attach re-pushes through the model (View.flush). */
+    setMask(spec) {
+        if (spec === null) {
+            emit(OP.MASK, this.id, null);
+            return;
+        }
+        if (spec.kind === "gradient") {
+            const g = spec.gradient;
+            emit(OP.MASK, this.id, "gradient", { kind: g.kind ?? "linear", angle: g.angle, cx: g.cx ?? 0.5, cy: g.cy ?? 0.5, r: g.r ?? 1,
+                stops: g.stops.map((st) => [st.offset, colorToCss(st.color)]) });
+            return;
+        }
+        const st = spec.stencil.surface;
+        if (st === null)
+            return;
+        emit(OP.MASK, this.id, "view", st.id, spec.stencil.x, spec.stencil.y, spec.stencil.width, spec.stencil.height);
     }
     setCursor(c) { this.cursorStyle = c; emit(OP.CURSOR, this.id, c); }
     /** No CSS pointer-events natively: the hit walk is ours, so an inert
@@ -301,35 +356,52 @@ class MacSurface {
      *  both into one CATransform3D (applyScale). */
     setRotation(deg, _px, _py) {
         this.rotationDeg = deg;
+        this.xform = affineFromParts({ scale: this.scaleK, scaleX: 1, scaleY: 1, rotation: deg, skewX: 0, skewY: 0, pivotX: this.pivotX, pivotY: this.pivotY });
         emit(OP.ROTATE, this.id, deg);
     }
     /** Invert the paint transform (scale, then rotation, about the shared
      *  pivot) — the hit/cursor/wheel walks' transform term, the same inverse
      *  interaction.ts toChildLocal applies (the ONE-WALK rule). */
     invertTransform(lx, ly) {
-        if (this.scaleK === 1 && this.rotationDeg === 0)
+        if (this.spec3D !== null) {
+            const d = this.spec3D;
+            const H = homography(this.xform, this.x, this.y, this.pivotX, this.pivotY, d, d.perspective, d.originX, d.originY);
+            if (d.backfaceHidden && !frontFacing(H, this.width, this.height))
+                return [-1e9, -1e9]; // a hidden back is not there to hit
+            const inv = invertH(H);
+            return inFront(inv, lx + this.x, ly + this.y) ? applyH(inv, lx + this.x, ly + this.y) : [-1e9, -1e9];
+        }
+        if (affineIsIdentity(this.xform))
             return [lx, ly];
-        let dx = lx - this.pivotX;
-        let dy = ly - this.pivotY;
-        if (this.scaleK !== 1 && this.scaleK !== 0) {
-            dx /= this.scaleK;
-            dy /= this.scaleK;
-        }
-        if (this.rotationDeg !== 0) {
-            const a = (-this.rotationDeg * Math.PI) / 180;
-            const ca = Math.cos(a);
-            const sa = Math.sin(a);
-            const rx = dx * ca - dy * sa;
-            const ry = dx * sa + dy * ca;
-            dx = rx;
-            dy = ry;
-        }
-        return [dx + this.pivotX, dy + this.pivotY];
+        return applyAffine(invertAffine(this.xform), lx, ly);
+    }
+    /** The whole paint transform about the pivot (affine.ts). The similarity
+     *  setters rebuild it; setTransform hands it over whole and the Swift side
+     *  folds it into one CATransform3D (case 46). */
+    xform = IDENTITY_AFFINE;
+    spec3D = null;
+    setTransform3D(spec) {
+        this.spec3D = spec;
+        if (spec === null)
+            emit(OP.TRANSFORM3D, this.id, null);
+        // the pivot rides along: the affine folds it in, so no SCALE op carries it
+        else
+            emit(OP.TRANSFORM3D, this.id, spec.rotateX, spec.rotateY, spec.translateZ, spec.backfaceHidden ? 1 : 0, this.pivotX, this.pivotY);
+    }
+    setPerspective(px) { emit(OP.PERSPECTIVE, this.id, px); }
+    setTransform(m, px, py) {
+        this.xform = m;
+        this.pivotX = px;
+        this.pivotY = py;
+        this.scaleK = affineScaleOf(m);
+        this.rotationDeg = (affineRotationOf(m) * 180) / Math.PI;
+        emit(OP.TRANSFORM, this.id, m[0], m[1], m[2], m[3], m[4], m[5]);
     }
     setScale(scale, px, py) {
         this.scaleK = scale;
         this.pivotX = px;
         this.pivotY = py;
+        this.xform = affineFromParts({ scale, scaleX: 1, scaleY: 1, rotation: this.rotationDeg, skewX: 0, skewY: 0, pivotX: px, pivotY: py });
         emit(OP.SCALE, this.id, scale, px, py);
     }
     /** The composed scale a drawing is seen at, at rest (backend.ts). The host
@@ -540,8 +612,18 @@ class MacSurface {
     setText(text) { emit(OP.TEXT, this.id, text); }
     setTextStyle(style) {
         emit(OP.TEXTSTYLE, this.id, {
-            family: style.fontFamily, size: style.fontSize, weight: style.fontWeight,
-            italic: style.italic === true, color: style.color === null ? null : colorToCss(style.color),
+            // The EFFECTIVE family: OpenType figures ride the family name, and the
+            // host reads the suffix off it (TextEngine.swift) — so what the shared
+            // measurer measured and what Core Text paints are one string.
+            family: effectiveFamily(style), size: style.fontSize, weight: style.fontWeight,
+            italic: style.italic === true,
+            // a SOLID textFill overrides textColor before the payload is built, so the
+            // host needs no second colour slot (schema.ts: "like the box fill, but for
+            // the letters")
+            color: (() => {
+                const solid = typeof style.textFill === "number" ? style.textFill : style.color;
+                return solid === null ? null : colorToCss(solid);
+            })(),
             // A gradient text-fill: the DOM clips a background to the glyphs and the
             // canvas realizes the same ramp over the box, so the host is handed the
             // ramp itself and clips it to the glyph outlines.
@@ -583,6 +665,7 @@ class MacSurface {
         emit(OP.IMAGE, this.id, handle);
     }
     setImageStretch(stretch) { emit(OP.STRETCH, this.id, stretch); }
+    setImageAlign(ax, ay) { emit(OP.IMAGEALIGN, this.id, ax, ay); }
     /** Tint (compositing.md §3.4): the color rides as CSS text; the Swift side
      *  re-derives the bitmap as an alpha-mask fill (LayerTree case 37). */
     setImageTint(color) {
@@ -612,6 +695,17 @@ class MacSurface {
      *  laid-out state and only re-sizes its container. */
     setRichWidth(width) {
         emit(OP.RICHWIDTH, this.id, width);
+    }
+    /** The flow's LINE CLAMP (`RichText.maxLines`). Synchronous like `richLayout`
+     *  and for the same reason: the clamped height is a fact this settle needs,
+     *  since everything stacked below the flow is placed from it. The model says
+     *  HOW MANY lines (it owns the budget across the whole document); TextKit
+     *  decides where the last one ends, being the thing that wrapped it. */
+    setRichClamp(maxLines) {
+        const h = host().richClamp(this.id, maxLines);
+        if (h >= 0)
+            this.richHeight = h;
+        return h;
     }
     /** Called from the host when a rich flow's laid-out height is known. */
     applyRichHeight(h) {

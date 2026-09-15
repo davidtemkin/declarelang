@@ -17,6 +17,17 @@ provided value, exactly like `fontSize`.
 Leading multiplier on the natural line height — `1` (the default) is tight, `1.5` airy.
 Tune prose density without touching the font size.
 
+## maxLines
+A line limit over the **whole document** (default `0`, no limit), counted in order:
+headings, paragraphs, list items, table rows and code lines all spend it, and a list's
+bullets spend nothing. A block that starts after the limit is not shown at all. An
+ellipsis marks a line that was cut short, so when the limit falls exactly between two
+blocks no ellipsis appears — read `truncated` to show that more exists. A width change
+re-spends the budget from the top.
+
+## truncated
+`true` when `maxLines` dropped something. Read-only and reactive.
+
 ## bodyColor
 Overrides the running-text color (`null` = the theme-aware house body). Headings and inline
 code keep their own tokens, so this dims **body text only** — the hierarchy stays crisp. (Body

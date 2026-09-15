@@ -15,7 +15,19 @@ import { Constraint } from "../runtime/dist/reactive.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 let pass = 0, fail = 0;
-function test(name, fn) { try { fn(); pass++; console.log("  ok —", name); } catch (e) { fail++; console.log("  FAIL —", name, "\n     ", e.message); } }
+// Every test here is async. The old helper called `fn()` without awaiting it, so a
+// test was counted as PASSED the moment it started, the summary printed before any
+// of them finished, and a failing assertion surfaced only as an unhandled rejection
+// after "N passed, 0 failed". Tests now run one after another on a chain and are
+// counted when they actually settle; section headers ride the same chain.
+let chain = Promise.resolve();
+function test(name, fn) {
+  chain = chain.then(async () => {
+    try { await fn(); pass++; console.log("  ok —", name); }
+    catch (e) { fail++; console.log("  FAIL —", name, "\n     ", e.message); }
+  });
+}
+function section(title) { chain = chain.then(() => console.log(title)); }
 
 // compile a source to its RESOLVED program, then extract. Returns the constraint list.
 async function extract(src) {
@@ -27,7 +39,7 @@ const find = (list, attr, name = undefined) => list.find((c) => c.attr === attr 
 const readsOf = (list, attr, name) => (find(list, attr, name)?.reads ?? []).sort();
 const errsOf = (list, attr, name) => (find(list, attr, name)?.errors ?? []);
 
-console.log("dep-extract\n─ A. unit: extraction + residue ─");
+section("dep-extract\n─ A. unit: extraction + residue ─");
 
 test("direct reads — union of the slots the expression names", async () => {
   const r = await extract(`App [ n: number = 3, m: number = 4, v: View [ width = { app.n * 20 + app.m } ] ]`);
@@ -177,7 +189,7 @@ test("aggregation over DATA is fine (not node) — no error", async () => {
 // contract needs: an argument that IS a node — its reference never changes, so
 // fields the function reads off it would go permanently stale. Pass values,
 // not nodes; a helper that wants analyzed parameter reads is a METHOD.
-console.log("\n─ A2. script { } calls are opaque: values in, value out ─");
+section("\n─ A2. script { } calls are opaque: values in, value out ─");
 
 /** Compile expecting REFUSAL; returns the error messages. */
 async function refusedBy(src) {
@@ -338,7 +350,7 @@ App [ v: number = 10, onClick() { v = bump(this) }, b: View [ width = { app.v } 
 });
 
 // ── B. corpus: every real app extracts with zero residue ──
-console.log("─ B. corpus: 0 residue across all apps ─");
+section("─ B. corpus: 0 residue across all apps ─");
 test("all five apps: 700 constraints, 0 residue errors", async () => {
   const apps = ["calendar/calendar", "lzx-calendar/lzx-calendar", "lzx-weather/lzx-weather", "homepage/homepage", "docs/docs"];
   let tot = 0, errs = 0;
@@ -351,7 +363,7 @@ test("all five apps: 700 constraints, 0 residue errors", async () => {
 });
 
 // ── C. ground-truth cross-check against the runtime tracker ──
-console.log("─ C. cross-check: prewire(extracted) ⊇ track(whole constraint) ─");
+section("─ C. cross-check: prewire(extracted) ⊇ track(whole constraint) ─");
 
 // Resolve a read-path to the runtime cells it touches, by evaluating it under a
 // throwaway Constraint (the tracker) — exactly the intended link-time prewiring.
@@ -406,7 +418,7 @@ async function compileProgram(src) {
   return parseProgram(r.source);
 }
 
-console.log("\n─ C2. inlining rebase + path canonicalization (the Radio bug, 2026-07-13) ─");
+section("\n─ C2. inlining rebase + path canonicalization (the Radio bug, 2026-07-13) ─");
 
 test("inlined computed default — parent-rooted reads REBASE to the reader's frame", async () => {
   // Radio's `on` formula reads `(parent as G).value`; the dot's constraint reads
@@ -493,7 +505,7 @@ test("shadowing still inlines the RIGHT default when two elements share a name",
   assert.ok(kids.some((k) => k.includes("parent.root.b")), "the other inlines app.b: " + JSON.stringify(kids));
 });
 
-console.log("\n─ D. self-dependence: a constraint may not read its own slot ─");
+section("\n─ D. self-dependence: a constraint may not read its own slot ─");
 
 // The check fires inside compile() (annotate → hard constraint-phase error), so
 // a self-dep program REFUSES TO COMPILE — assert at that layer.
@@ -509,6 +521,18 @@ test("self-dep — a set-attribute reading its own slot is refused", async () =>
 });
 // (A computed DECL default reading itself takes the inliner path, not this
 // check — its handling is the inliner's cycle guard, out of scope here.)
+
+test("a same-named computed default ELSEWHERE does not make an App field read itself", async () => {
+  // The extractor used to union every `{ }` default of one name into every read
+  // of that name, so a library icon's `ink = { textColor }` leaked into an App
+  // field `ink`, and `textColor = { app.ink }` on the App was refused as reading
+  // itself (found by my-apps/fonts-and-text, 2026-09-14). A read whose receiver
+  // resolves now follows that element's own default only.
+  const r = await compile(`class Ico extends Text [ ink: Color = { textColor } ]
+    App [ textColor = { app.ink }, ink: Color = { 0x111111 },
+      Ico [ text = "x" ] ]`, {});
+  assert.ok(r.source !== null, "expected it to compile: " + r.errors.map((e) => e.message).join("; "));
+});
 
 test("a subtree reskins by spreading the provided value it overrides — NOT self", async () => {
   // `p` provides a new theme derived from the one it inherits: `provided("theme")`
@@ -527,5 +551,6 @@ test("self-dep — content intrinsics are not self (`width` reading contentWidth
   assert.equal(errsOf(r, "width", null).length, 0);
 });
 
+await chain;
 console.log(`\ndep-extract: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -10,9 +10,6 @@ placed time-blocks; drag one to reschedule. Year is the same surface a step
 further out, each month folding into a mini.
 */
 
-font Sans [ family = "system-ui" ]
-
-// The appearance switch names its icons in DATA (a `choices` record), so no
 // static reference reaches them and the keep-list would drop the classes. This
 // is the documented cost of a computed name — it lands only on the apps that
 // actually compute one, which is why it is three words here and nothing at all
@@ -254,7 +251,7 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { prov
 // legible columns, the same budget a phone-native month view spends.
 
 App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
-    fill = { provided("theme").bg }, fontFamily = [Sans, "system-ui", "sans-serif"],
+    fill = { provided("theme").bg }, fontFamily = ["system-ui", "sans-serif"],
 
     /* Colors are two role-named palettes; `theme` swaps between them. `themeMode`
        is Light / Dark / Auto — Auto follows the ENVIRONMENT: the host's

@@ -9,8 +9,6 @@
 // cards on a quiet ground. Each specimen is a card whose inset column stacks the
 // label, the live example, and the snippet as siblings, so it auto-sizes to fit.
 
-font Mono [ family = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" ]
-
 use [ SunIcon, AutoIcon, MoonIcon ]
 
 // Named text styles, defined once and referenced by <span class> in the Rich
@@ -49,7 +47,7 @@ class Snippet extends View [ code: string = "",
     cornerRadius = 7,
     fill = { provided("theme").bg },
     body: Text [ x = 12, y = 9, width = { parent.width - 24 },
-        fontFamily = Mono, fontSize = 11.5, lineHeight = 1.5,
+        fontFamily = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize = 11.5, lineHeight = 1.5,
         textColor = { provided("theme").textMuted }, text = { classroot.code }, wrap = true ]
     ]
 

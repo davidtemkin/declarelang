@@ -25,10 +25,12 @@
 import { View, onDiscard } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
 import { shadowEqual, outlineEqual, type Fill, type Shadow, type Outline, type Color } from "./value.js";
+import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight, type TextTransform, type FontWeight } from "./measure.js";
+import type { Numerals, NumeralWidth } from "./font-features.js";
+import { holdsFamily, heldFamily, type FamilyValue } from "./font-value.js";
 /** A line count under `maxLines` (0 = no clamp). */
 const clampN = (n: number, max: number): number => (max > 0 ? Math.min(n, max) : n);
-import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight, type TextTransform, type FontWeight } from "./measure.js";
-import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault } from "./attributes.js";
+import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault, setBound } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 
 export class Text extends View {
@@ -37,7 +39,8 @@ export class Text extends View {
   // inherits its region's style.
   declare textColor: Color;
   declare fontSize: number;
-  declare fontFamily: string;
+  /** A family string, a Font, or a list of them. */
+  declare fontFamily: FamilyValue;
   declare fontWeight: FontWeight;
   declare letterSpacing: number;
   declare selectable: boolean;
@@ -49,12 +52,17 @@ export class Text extends View {
   declare wrap: boolean;
   /** Line clamp (schema.ts): the height derive and every renderer honour it. */
   declare maxLines: number;
+  /** True when the clamp actually dropped something (schema.ts). Read-only. */
+  declare truncated: boolean;
   declare textAlign: "left" | "center" | "right";
   declare italic: boolean;
   declare textFill: Fill | null;
   declare outline: Outline | null;
   declare textTransform: TextTransform;
   declare smallCaps: boolean;
+  declare numerals: Numerals;
+  declare numeralWidth: NumeralWidth;
+  declare slashedZero: boolean;
   declare underline: boolean;
   declare strike: boolean;
   declare lineHeight: number;
@@ -96,11 +104,20 @@ export class Text extends View {
   get baseline(): number { return fontMetrics(fontString(this)).ascent; }
 
   override attach(backend: RenderBackend, parentSurface: Surface | null): void {
+    // A switch to a font still inside its wait keeps this run in the family it
+    // had until the font settles (font-value.ts) — measure and paint alike.
+    holdsFamily(this);
     // Auto-size installs at attach (measurement is a browser activity — the
     // model stays Node-importable) and only for unowned, never-set slots: an
     // author literal, constraint, or percent takes precedence untouched.
     if (!isSet(this, "width") && ownerOf(this, "width") === null) {
-      bindDerived(this, "width", () => Math.ceil(textWidth(transformText(this.text, this.textTransform), fontString(this), this.letterSpacing)));
+      // As wide as the widest HARD line: a newline breaks the line on every renderer
+      // even when soft wrapping is off, so the whole string is not one line's width.
+      bindDerived(this, "width", () => {
+        const font = fontString(this);
+        return Math.ceil(transformText(this.text, this.textTransform).split("\n")
+          .reduce((w, line) => Math.max(w, textWidth(line, font, this.letterSpacing)), 0));
+      });
     }
     if (!isSet(this, "height") && ownerOf(this, "height") === null) {
       bindDerived(this, "height", () => {
@@ -110,9 +127,13 @@ export class Text extends View {
         // wrapped line count. Reading `width` keeps this reactive, so a
         // container/viewport resize re-wraps and re-flows — baseline.
         const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
-        const lines = bounded && this.wrap
-          ? clampN(wrapLines(transformText(this.text, this.textTransform), fontString(this), this.width, this.letterSpacing).length, this.maxLines)
-          : 1;
+        const all = bounded && this.wrap
+          ? wrapLines(transformText(this.text, this.textTransform), fontString(this), this.width, this.letterSpacing).length
+          // Not wrapping still breaks at a HARD newline — DOM (`pre`), canvas and the
+          // Mac host all draw each line — so a code block's Text is as tall as its lines.
+          : this.text.split("\n").length;
+        setBound(this, "truncated", this.maxLines > 0 && all > this.maxLines);
+        const lines = clampN(all, this.maxLines);
         return Math.ceil(lineH * lines);
       });
     }
@@ -130,12 +151,12 @@ export class Text extends View {
   protected override contentExtent(size: "width" | "height"): number {
     const font = fontString(this);
     const disp = transformText(this.text, this.textTransform);
-    if (size === "width") return Math.ceil(textWidth(disp, font, this.letterSpacing));
+    if (size === "width") return Math.ceil(disp.split("\n").reduce((w, line) => Math.max(w, textWidth(line, font, this.letterSpacing)), 0));
     const m = fontMetrics(font);
     const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
-    const lines = bounded && this.wrap
-      ? clampN(wrapLines(disp, font, this.width, this.letterSpacing).length, this.maxLines)
-      : 1;
+    const all = bounded && this.wrap ? wrapLines(disp, font, this.width, this.letterSpacing).length : disp.split("\n").length;
+    setBound(this, "truncated", this.maxLines > 0 && all > this.maxLines);
+    const lines = clampN(all, this.maxLines);
     return Math.ceil(this.lineAdvance(m) * lines);
   }
 
@@ -154,26 +175,40 @@ export class Text extends View {
     // re-roots above), and the tracked reads here are what follow it.
     const style = new Constraint(
       `${this.constructor.name}.textStyle`,
-      () => ({
-        fontFamily: this.fontFamily,
-        fontSize: this.fontSize,
-        fontWeight: this.fontWeight,
-        letterSpacing: this.letterSpacing,
-        color: this.textColor,
-        shadow: this.textShadow,
-        wrap: this.wrap && (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0,
-        maxLines: this.maxLines,
-        align: this.textAlign,
-        italic: this.italic,
-        textFill: this.textFill,
-        outline: this.outline,
-        textTransform: this.textTransform,
-        smallCaps: this.smallCaps,
-        underline: this.underline,
-        strike: this.strike,
-        selectable: this.selectable,
-        lineHeight: this.lineHeight,
-      }),
+      () => {
+        // THE FACE TABLE, read here too (face-table.ts). A Text with both
+        // dimensions set has no auto-size constraint, so this push is the only
+        // thing on the view that can notice its face changing — and a backend
+        // only re-wraps when it receives a push (canvas drops its lines, the host
+        // rebuilds its layer). `fontString` is the one choke point that tracks
+        // the effective families, so reading it subscribes this push to exactly
+        // this Text's families and no others. Pinned in test/text.test.mjs,
+        // which drives the table by assignment; a real load race never showed it.
+        fontString(this);
+        return {
+          fontFamily: heldFamily(this, "fontFamily", this.fontFamily),
+          fontSize: this.fontSize,
+          fontWeight: this.fontWeight,
+          letterSpacing: this.letterSpacing,
+          color: this.textColor,
+          shadow: this.textShadow,
+          wrap: this.wrap && (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0,
+          maxLines: this.maxLines,
+          align: this.textAlign,
+          italic: this.italic,
+          textFill: this.textFill,
+          outline: this.outline,
+          textTransform: this.textTransform,
+          smallCaps: this.smallCaps,
+          numerals: this.numerals,
+          numeralWidth: this.numeralWidth,
+          slashedZero: this.slashedZero,
+          underline: this.underline,
+          strike: this.strike,
+          selectable: this.selectable,
+          lineHeight: this.lineHeight,
+        };
+      },
       // Constraint is deliberately untyped across compute→apply; this
       // apply's input is exactly its compute's output.
       (st) => this.surface?.setTextStyle(st as never),
@@ -203,6 +238,7 @@ defineAttributes(Text, {
   textShadow: { def: null, equal: shadowEqual },
   wrap: { def: true },
   maxLines: { def: 0 },
+  truncated: { def: false },
   textAlign: { def: "left" },
   italic: { def: false },
   textFill: { def: null },
@@ -211,6 +247,11 @@ defineAttributes(Text, {
   outline: { def: null, equal: outlineEqual },
   textTransform: { def: "none" },
   smallCaps: { def: false },
+  // OpenType figures: `normal` on either axis is the face's own default, which
+  // is why both tabular and proportional are sayable (schema.ts says the rest).
+  numerals: { def: "normal" },
+  numeralWidth: { def: "normal" },
+  slashedZero: { def: false },
   underline: { def: false },
   strike: { def: false },
   lineHeight: { def: 0 },

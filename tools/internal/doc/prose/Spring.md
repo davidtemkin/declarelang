@@ -40,3 +40,4 @@ dot).
 The rest threshold: how close to `to` counts as at rest, at which point the spring **sleeps**
 (and stops costing anything). Larger = sleeps sooner, at the price of stopping a hair short.
 
+`running` and `arrived` are inherited from `Animator`, with one meaning on both.

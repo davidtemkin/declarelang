@@ -95,7 +95,7 @@ export function typecheckBodies(resolved, program) {
     for (const cls of rprog.classes)
         emitter.assignTypes(cls.body, true);
     const rootType = emitter.assignTypes(rprog.root, false);
-    let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras, emitter.signatureTypeNames, rprog.shapes ?? [], (rprog.themes ?? []).map((t) => t.name));
+    let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras, emitter.signatureTypeNames, rprog.shapes ?? [], (rprog.themes ?? []).map((t) => t.name), (rprog.styles ?? []).map((s) => ({ name: s.name, fields: s.body.attrs.map((a) => a.name) })));
     // A program's `script { … }` blocks are ambient TypeScript for every body:
     // their declarations are real signatures, so appending the source to the
     // scaffold is what makes `dbl(app.v)` typecheck against the actual function
@@ -262,7 +262,7 @@ function explainTs(d, u, synthTags) {
                     // (borrowed from coerceFont's own failure text — the type alone
                     // says "string" without saying WHICH string).
                     : u.slot === "fontFamily" || u.slot === "codeFamily"
-                        ? ` — a declared font (by name), or a raw family string like "Helvetica, sans-serif"`
+                        ? ` — a Font (fontFamily = { app.brand }), a family string like "Helvetica, sans-serif", or a list of them`
                         : ` — make the expression yield a ${m[2]}`;
                 return `${home} computes ${article(m[1])}, but '${u.slot}' is typed ${m[2]}${canon}`;
             }
@@ -503,7 +503,14 @@ class CaseEmitter {
             for (const t of inherited)
                 childTypes.add(t);
         if (childTypes.size > 0 || unresolved) {
-            const exact = !unresolved && childTypes.size === 1;
+            // Exact only for VIEW children: the root declares `children: View[]`, so a
+            // faceless child list (a Font's Faces, a node's clocks) typed exactly would
+            // be an incompatible override — and the instance would stop being its tag
+            // (`fontFamily = { app.brand }` refused). Those widen to `any[]`.
+            const only = [...childTypes][0];
+            const onlyTag = this.synthTags.get(only) ?? only;
+            const viewChild = this.schemas[onlyTag] !== undefined && descendsFrom(this.schemas[onlyTag], "View");
+            const exact = !unresolved && childTypes.size === 1 && viewChild;
             members.push(`  readonly children: ${exact ? `${[...childTypes][0]}[]` : "any[]"};`);
         }
         for (const d of el.decls) {

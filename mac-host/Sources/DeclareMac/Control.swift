@@ -25,8 +25,11 @@ import CoreImage
 import ImageIO
 
 final class ControlChannel {
-    private let inPath = "/tmp/declare-ctl.in"
-    private let outPath = "/tmp/declare-ctl.out"
+    /// `/tmp/declare-ctl.in` unless the bundle names another (`DeclareCtlPipe`
+    /// in Info.plist — a VARIANT app built beside the main one, so two trees
+    /// can drive two apps on one machine without crossing wires).
+    private let inPath: String = (Bundle.main.infoDictionary?["DeclareCtlPipe"] as? String) ?? "/tmp/declare-ctl.in"
+    private var outPath: String { inPath.hasSuffix(".in") ? String(inPath.dropLast(3)) + ".out" : inPath + ".out" }
     private var timer: Timer?
     /// The channel outlives any one window, so it addresses the FRONT one at
     /// the moment a command arrives rather than holding a program hostage.

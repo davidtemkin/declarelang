@@ -1,4 +1,5 @@
-import type { Backdrop, Color, Fill, Radius, Shadow, Stroke, Outline } from "./value.js";
+import type { Backdrop, Color, Fill, Filter, Gradient, Radius, Shadow, Stroke, Outline } from "./value.js";
+import type { Affine } from "./affine.js";
 import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
 /** The reference schemes a link may carry (location.md §0.4): the app's own
@@ -64,6 +65,22 @@ export interface ScrollGlide {
     duration?: number;
     motion?: string;
 }
+/** The stencil half of a mask: a live view — its surface (null until it
+ *  attaches) and its box, read at paint time. */
+export interface MaskStencil {
+    readonly surface: Surface | null;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+}
+export type MaskSpec = {
+    readonly kind: "gradient";
+    readonly gradient: Gradient;
+} | {
+    readonly kind: "view";
+    readonly stencil: MaskStencil;
+};
 /** How an Image scales its bitmap into the view box — the language's
  *  `value Stretch = none | width | height | both` (§6). */
 /** What can cross the bitmap seam: a decoded still, or a video element whose
@@ -210,6 +227,29 @@ export interface Surface {
      *  alongside this call, so a backend may keep one composed transform.
      *  Optional — a backend adopts independently; the seam table says which. */
     setRotation?(deg: number, pivotX: number, pivotY: number): void;
+    /** The whole paint transform as ONE affine matrix, local → parent before
+     *  the view's own x/y (graphics-pass.md §5: per-axis scale and skew joined
+     *  scale and rotation; runtime/src/affine.ts builds it about the pivot).
+     *  A backend that implements this never sees setScale/setRotation; one
+     *  that omits it still gets the similarity pair. */
+    setTransform?(m: Affine, pivotX: number, pivotY: number): void;
+    /** The third dimension (graphics-pass.md §6): rotations about X/Y and a Z
+     *  push about the same pivot, projected through the parent's perspective
+     *  (carried here so a backend need not walk up). null = in its plane. DOM
+     *  `rotateX()/rotateY()/translateZ()` + `backface-visibility`; canvas a
+     *  group layer drawn through the homography in strips; Mac a CATransform3D
+     *  with the parent's `sublayerTransform` perspective. */
+    setTransform3D?(spec: {
+        rotateX: number;
+        rotateY: number;
+        translateZ: number;
+        backfaceHidden: boolean;
+        perspective: number;
+        originX: number;
+        originY: number;
+    } | null): void;
+    /** This view is the EYE for its children's 3D (CSS `perspective`, px; 0 = none). */
+    setPerspective?(px: number): void;
     /** The compositing OPERATOR this surface lands with against what has
      *  already painted beneath it within the nearest isolating ancestor
      *  (compositing.md §4.1 — the App root, a group-opacity subtree, a
@@ -233,6 +273,18 @@ export interface Surface {
      *  technique at composite time. Optional — a backend that composites
      *  nothing omits it; the seam table says which. */
     setBackdrop?(spec: Backdrop | null): void;
+    /** The view's own painted subtree filtered as a group (graphics-pass.md
+     *  §1): DOM `filter:` on the element; canvas an offscreen group landed
+     *  through `ctx.filter` (shadow/tint natively); Mac `layer.filters` (+ the
+     *  layer's own shadow). Lengths are view units. null = none. */
+    setFilter?(list: readonly Filter[] | null): void;
+    /** A soft alpha mask over the view's painted (clipped) subtree (graphics-
+     *  pass.md §2): a gradient's alpha over the box, or a STENCIL — another view
+     *  whose surface the backend reads lazily (it may attach after this push)
+     *  and whose x/y/width/height place it inside the masked box. DOM
+     *  `mask-image`; canvas a `destination-in` pass over the group layer; Mac
+     *  `layer.mask`. null = none. */
+    setMask?(spec: MaskSpec | null): void;
     /** Clip this surface's subtree to a shape (SVG path data, view-local
      *  coordinates); null = unclipped. Applied at composite time — moving or
      *  re-clipping never re-rasterizes content (rendering model rule 3). */
@@ -315,6 +367,15 @@ export interface Surface {
      *  (an all-`pre` flow; its lines never rewrap) but whose host box still bounds
      *  the native horizontal scroller. A backend without it gets a full render. */
     setRichWidth?(width: number): void;
+    /** OPTIONAL clamp follow-up to `setRichContent`, for a backend that wraps the
+     *  flow ITSELF (`RichText.maxLines`). `maxLines` is how many lines of THIS
+     *  flow may show — 0 lifts a clamp, so a re-render is not stuck with the last
+     *  one. The model decides the number, because a document is a sequence of
+     *  native flows and model-side blocks sharing ONE budget and no engine can see
+     *  past its own flow; the engine decides how to end the last line, because it
+     *  is the one that wrapped it. Returns the flow's new height, or -1 when the
+     *  backend cannot clamp (the canvas path clamps model-side instead). */
+    setRichClamp?(maxLines: number): number;
     /** Scroll this surface to the top of its nearest scrolling ancestor — the
      *  imperative companion to `setScroll`, behind `View.scrollIntoView()` (a click-to-
      *  jump index, "scroll this into view"). No-op when nothing above scrolls.
@@ -459,6 +520,10 @@ export interface Surface {
      *  so a moving picture is the same content kind, not a second one. */
     setImage(image: Bitmap | null): void;
     setImageStretch(stretch: Stretch): void;
+    /** Where an aspect-preserving fit sits in the box (graphics-pass.md §4):
+     *  `start`/`center`/`end` per axis — CSS object-position on the DOM, the
+     *  placement arithmetic on canvas, the fit rect / contentsRect on the Mac. */
+    setImageAlign?(alignX: string, alignY: string): void;
     /** Tint (compositing.md §3.4): a color multiplied over the bitmap's ALPHA
      *  — result color = tint, shape = the bitmap's alpha (template-image
      *  rendering; the canvas realizes it as a `source-in` fill, the DOM as a

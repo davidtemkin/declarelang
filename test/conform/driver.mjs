@@ -33,6 +33,7 @@
 // which exists only in the browser and must stay in the browser suites.
 
 import { execFileSync } from "node:child_process";
+import { CTL_IN, CTL_OUT } from "../../mac-host/app.mjs";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -94,7 +95,7 @@ export function browserDriver(page, label) {
 
 /** The native host, over the control channel. Same two verbs; the transport is
  *  a FIFO and a screenshot tool instead of CDP, which the caller never sees. */
-export function macDriver({ inPath = "/tmp/declare-ctl.in", outPath = "/tmp/declare-ctl.out" } = {}) {
+export function macDriver({ inPath = CTL_IN, outPath = CTL_OUT } = {}) {
   /** One command, one reply — with a HANDSHAKE, because the channel has a race
    *  and the client cannot see it lose.
    *

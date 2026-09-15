@@ -79,7 +79,20 @@ function sendFile(req, res, abs, body) {
   const type = mime(abs);
   const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? "").trim());
   if (m === null) {
-    res.writeHead(200, { "content-type": type, "accept-ranges": "bytes", "content-length": buf.length });
+    // VALIDATORS (2026-09-12). Without an ETag or Last-Modified a browser has
+    // nothing to revalidate against, so every reload re-downloaded and
+    // re-decoded every asset — 30 MB of badge PNGs on the All Access mirror,
+    // where the site it mirrors answered 304s from cache. `no-cache` keeps the
+    // dev server's freshness (an edit shows on the next load); an unchanged
+    // file now costs one round trip and no bytes.
+    let etag = null;
+    try { const st = statSync(abs); etag = `W/"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`; } catch { /* a synthesized body: no validator */ }
+    if (etag !== null && String(req.headers["if-none-match"] ?? "") === etag) {
+      res.writeHead(304, { etag, "cache-control": "no-cache" });
+      return res.end();
+    }
+    res.writeHead(200, { "content-type": type, "accept-ranges": "bytes", "content-length": buf.length,
+      ...(etag !== null ? { etag, "cache-control": "no-cache" } : {}) });
     return res.end(buf);
   }
   // `bytes=N-` runs to the end; `bytes=-N` is the LAST n bytes (suffix form)
@@ -536,6 +549,12 @@ bootHost(cfg);
     // DIAG(probe) — TEMPORARY, REMOVE (see probeTag above): the recorder.
     if (req.method === "POST" && p === "/__probe") {
       let body = "";
+      // Decode as ONE utf-8 stream, not chunk by chunk: `body += c` turned each
+      // Buffer into a string separately, so a multi-byte character split across two
+      // network chunks became U+FFFD — an intermittent "declaration’s" →
+      // "declaration���s" in compiled programs, depending on where the TCP
+      // segments happened to fall.
+      req.setEncoding("utf8");
       req.on("data", (c) => { body += c; if (body.length > 4e6) req.destroy(); });
       req.on("end", () => {
         try {
@@ -598,6 +617,12 @@ bootHost(cfg);
     // the closure, because on this host the closure is not its business.
     if (req.method === "POST" && p === "/compile") {
       let body = "";
+      // Decode as ONE utf-8 stream, not chunk by chunk: `body += c` turned each
+      // Buffer into a string separately, so a multi-byte character split across two
+      // network chunks became U+FFFD — an intermittent "declaration’s" →
+      // "declaration���s" in compiled programs, depending on where the TCP
+      // segments happened to fall.
+      req.setEncoding("utf8");
       req.on("data", (c) => { body += c; if (body.length > 4e6) req.destroy(); });
       req.on("end", async () => {
         let originDir, mainAbs;

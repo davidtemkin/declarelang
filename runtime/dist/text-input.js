@@ -18,6 +18,7 @@ import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault, provide
 import { Constraint, settle } from "./reactive.js";
 import { Focus } from "./focus.js";
 import { fontMetrics, fontString, wrapEditable } from "./measure.js";
+import { heldFamily } from "./font-value.js";
 import { isTwoWay, edited, commitDraft, Editor } from "./editor.js";
 import { stroke } from "./value.js";
 export class TextInput extends Editor {
@@ -115,7 +116,7 @@ export class TextInput extends Editor {
     }
     editStyle() {
         return {
-            fontFamily: this.fontFamily,
+            fontFamily: heldFamily(this, "fontFamily", this.fontFamily),
             fontSize: this.fontSize,
             fontWeight: this.fontWeight,
             letterSpacing: this.letterSpacing,

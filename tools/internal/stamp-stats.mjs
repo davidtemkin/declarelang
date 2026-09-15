@@ -69,8 +69,12 @@ const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "
 {
   const version = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
   const pending = `releases/v${version}.md`;
-  let tagged = false;
-  try { tagged = execFileSync("git", ["tag", "-l", `v${version}`], { cwd: ROOT, encoding: "utf8" }).trim() !== ""; } catch { tagged = false; }
+  // No git to ask (a tree copy, an unpacked archive) is NOT "untagged": a figure
+  // that may already be published stays frozen. Guessing untagged there restamped
+  // the tagged v0.4.4 notes in a git-less copy, and a merge carried the rewrite
+  // back toward main (2026-09-15). A pending release is stamped where git exists.
+  let tagged = true;
+  try { tagged = execFileSync("git", ["tag", "-l", `v${version}`], { cwd: ROOT, encoding: "utf8" }).trim() !== ""; } catch { tagged = true; }
   if (!tagged && existsSync(path.join(ROOT, pending))) FILES.push(pending);
 }
 // key class admits digits: `calendar.wireKB1` (one decimal) never matched under

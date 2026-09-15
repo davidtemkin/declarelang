@@ -1,3 +1,4 @@
+import { type Affine } from "./affine.js";
 /** The geometry surface the chain walk reads — structurally, any View. */
 export interface InteractionView {
     x: number;
@@ -105,6 +106,7 @@ export declare function rootTransform(view: InteractionView, stopAt?: Interactio
     rotation: number;
     tx: number;
     ty: number;
+    matrix: Affine;
 };
 /** A view's origin in the ROOT'S FRAME space (viewport coordinates for a
  *  top-level app) — the composed transform of (0, 0). Shared for the same

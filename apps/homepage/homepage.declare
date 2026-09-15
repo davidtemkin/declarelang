@@ -13,10 +13,6 @@ take `#…`. Every color on the page has a name in the App's `theme` record —
 the palette lives there, once, and nowhere else.
 */
 
-font Sans [ family = "system-ui" ]
-
-font Mono [ family = "ui-monospace" ]
-
 /*
 ## The figures under an app card
 
@@ -57,7 +53,7 @@ class Heading extends Text [ fontWeight = semibold, textColor = { provided("them
     ]
 
 
-class Eyebrow extends Text [ fontFamily = [Mono, "monospace"], fontSize = 13,
+class Eyebrow extends Text [ fontFamily = ["ui-monospace", "monospace"], fontSize = 13,
     fontWeight = semibold, letterSpacing = 1.6, textColor = { provided("theme").muted }, selectable = true
     ]
 
@@ -118,7 +114,7 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
     // device gets in place of hover (mouseDown/Up fire on a tap, hover does not).
 
     fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
-    lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
+    lbl: Text [ x = 12, y = 8, fontFamily = ["system-ui", "sans-serif"], fontSize = 14,
         text = { classroot.label },
         textColor = { classroot.hovered || classroot.pressed ? provided("theme").text : provided("theme").muted } ],
     width = { this.lbl.width + 24 }
@@ -157,7 +153,7 @@ class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerR
 
     onClick()     { app.menuOpen = false; app.appsOpen = false },
 
-    lbl: Text [ x = { classroot.sub ? 30 : 14 }, y = center, fontFamily = [Sans, "system-ui", "sans-serif"],
+    lbl: Text [ x = { classroot.sub ? 30 : 14 }, y = center, fontFamily = ["system-ui", "sans-serif"],
         fontSize = 16, fontWeight = medium,
         text = { classroot.label },
         textColor = { classroot.hovered || classroot.pressed ? provided("theme").text : classroot.sub ? provided("theme").muted : provided("theme").lead } ]
@@ -256,7 +252,7 @@ at the press, the same direction every other text link here answers a tap. Not
 selectable: it is a control, not copy.
 */
 
-class SmallLink extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
+class SmallLink extends Text [ fontFamily = ["system-ui", "sans-serif"],
     fontSize = 14, fontWeight = medium, wrap = false, selectable = false,
     url: string = "",
     textColor = { pressed ? provided("theme").linkPress : hovered ? provided("theme").linkHover : provided("theme").accent },
@@ -522,7 +518,7 @@ very editor only descends one level per user click.
 */
 
 class CodeField extends TextInput [ multiline = true, spellcheck = false,
-    fontFamily = [Mono, "monospace"], fontSize = 11, textColor = { provided("theme").lead },
+    fontFamily = ["ui-monospace", "monospace"], fontSize = 11, textColor = { provided("theme").lead },
     editName: string = "",
     src: string = "",
     initial = { src },
@@ -552,7 +548,7 @@ class SourcePanel extends View [
 
     live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = { provided("theme").accent },
         width = { this.t.width + 14 },
-        t: Text [ x = 7, y = 4, fontFamily = [Sans, "system-ui"], fontSize = 9, fontWeight = bold,
+        t: Text [ x = 7, y = 4, fontFamily = ["system-ui"], fontSize = 9, fontWeight = bold,
             letterSpacing = 0.8, wrap = false, textColor = { provided("theme").ink }, text = "LIVE · EDITABLE" ]
         ],
     revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").revertLine) },
@@ -562,7 +558,7 @@ class SourcePanel extends View [
         onClick() { classroot.field.text = classroot.src
                     app.liveCard = classroot.editName
                     app.liveSource = classroot.src },
-        rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui"], fontSize = 11, fontWeight = semibold,
+        rlbl: Text [ x = 8, y = 3, fontFamily = ["system-ui"], fontSize = 11, fontWeight = semibold,
             textColor = { parent.hovered ? provided("theme").text : provided("theme").lead }, text = "Revert" ]
         ],
     hairline: View [ y = 31, width = { parent.width }, height = 1, fill = { provided("theme").panelLine } ],
@@ -578,7 +574,7 @@ class SourcePanel extends View [
         height = { this.msg.height + 16 },
         bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").errBar } ],
         msg: Text [ x = 14, y = 8, width = { parent.width - 28 }, wrap = true,
-            fontFamily = [Mono, "monospace"], fontSize = 11, textColor = { provided("theme").errText },
+            fontFamily = ["ui-monospace", "monospace"], fontSize = 11, textColor = { provided("theme").errText },
             text = { app.liveReport } ]
         ]
     ]
@@ -680,7 +676,7 @@ App [ tagline: string = "a UI language for you and your AI",
         errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6,
         stage: 0x151A22, scrim: 0x0B141BB3, shade: 0x00000066 } },
     fill = { provided("theme").ink },
-    fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
     textColor = { provided("theme").text },
 
     // in-app location: "home" (the scrolling page), "why" (the mini-article),
@@ -862,11 +858,11 @@ App [ tagline: string = "a UI language for you and your AI",
 
                 learn: View [ width = { parent.width },
                     layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 16 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
-                    why: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
+                    why: Text [ fontFamily = ["system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         textColor = { this.pressed ? provided("theme").linkPress : this.hovered ? provided("theme").linkHover : provided("theme").accent }, text = "Why a new language, now? →",
                         link = "#why" ],
                     Dot [ y = 1, visible = { parent.width >= 600 } ],
-                    onefile: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
+                    onefile: Text [ fontFamily = ["system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         textColor = { this.pressed ? provided("theme").linkPress : this.hovered ? provided("theme").linkHover : provided("theme").accent }, text = "The whole language, in one file →",
                         link = "#language" ]
                     ]

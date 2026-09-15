@@ -1,9 +1,10 @@
 import { Node } from "./node.js";
-import { type Backdrop, type Fill, type Radius, type Shadow, type Stroke } from "./value.js";
+import { type Backdrop, type Fill, type FilterValue, type Mask, type Radius, type Shadow, type Stroke } from "./value.js";
 import { type RenderBackend, type Surface } from "./backend.js";
 type ViewCreator = (root: View, tag: string, parent: View, props?: Record<string, unknown>) => View;
 export declare function provideViewCreator(fn: ViewCreator): void;
 import { type Draw } from "./draw.js";
+import { type Affine } from "./affine.js";
 import type { LinkTarget } from "./parser.js";
 import type { Cursor } from "./data.js";
 /** What a layout strategy is to the View — the whole protocol: begin
@@ -87,6 +88,28 @@ export declare class View extends Node {
      *  order). Layout never rotates; hit-testing follows the visible result
      *  through the inverse transform. */
     rotation: number;
+    /** Per-axis scale (multiplied with the uniform `scale`) and skew in
+     *  degrees — the affine completion of the transform (graphics-pass.md §5).
+     *  `scaleY = 0.2` squashes a card to a sliver without changing its width;
+     *  `skewX = 12` shears it. Same pivot, same one-geometry rule. */
+    scaleX: number;
+    scaleY: number;
+    skewX: number;
+    skewY: number;
+    /** The third dimension (graphics-pass.md §6): rotations about X and Y in
+     *  degrees and a push along Z, about the pivot, projected through the
+     *  PARENT's `perspective` (0 = orthographic). `backface = hidden` hides a
+     *  view showing its back. Paint and the hit walk agree (projective.ts). */
+    rotateX: number;
+    rotateY: number;
+    translateZ: number;
+    perspective: number;
+    backface: "visible" | "hidden";
+    /** Does this view leave its plane? */
+    is3D(): boolean;
+    /** This view's paint transform as one matrix, local → parent (before the
+     *  view's own x/y): what every reader composes and inverts. */
+    localTransform(): Affine;
     /** The compositing operator this view LANDS with against what has already
      *  painted beneath it within the nearest isolating ancestor (compositing.md
      *  §4.1 — the App root, a group-opacity subtree, a scroller's content
@@ -99,6 +122,22 @@ export declare class View extends Node {
      *  painted shape — the view's `fill` then paints OVER the frosted sample,
      *  the platform-material shape. Paint only, never input. */
     backdrop: Backdrop | null;
+    /** The view's own painted subtree, filtered as a group (graphics-pass.md
+     *  §1): one filter or a list — `blur(3)`, `[blur(2), brightness(0.8)]`,
+     *  `shadow(…)` for a shadow of the group's alpha, `tint(c)` for the group's
+     *  alpha in one colour. Lengths in view units. Paint only, never input. */
+    filter: FilterValue;
+    /** A soft alpha mask (graphics-pass.md §2): a gradient's alpha over the
+     *  box, or a stencil view (`mask = { stencil }`) whose painted alpha,
+     *  placed by its own x/y inside this box, masks the subtree. Applied after
+     *  clip, before opacity. Paint only, never input. */
+    mask: Mask | null;
+    /** Views masked BY this one (it is their stencil) — re-pushed when this
+     *  view attaches, since a stencil declared after (or inside) the masked
+     *  view has no surface at the masked view's own push. */
+    private maskUsers;
+    /** Push the mask to the seam; a stencil rides as the live view itself. */
+    applyMask(m: Mask | null): void;
     /** Which axes of interior overflow this view scrolls — `"none"` (the View
      *  default), `"y"`, `"x"`, or `"both"`. Overflow along a declared axis
      *  becomes scroll range; along any other axis it is out of frame. */

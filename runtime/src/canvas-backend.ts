@@ -28,12 +28,15 @@
 // so the hit walk tells the truth about a turned or scaled surface).
 
 import { DeclareError } from "./errors.js";
+import { applyH, frontFacing, homography, inFront, invertH, type Homography } from "./projective.js";
+const FIT_FRAC: Record<string, number> = { start: 0, center: 0.5, end: 1 };
+import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
 import { inAnimationFrame, sample, motionToken, DEFAULT_MOTION, type Motion } from "./animate.js";
 import { ScrollPhysics, type ScrollState } from "./scroll-physics.js";
 const MICROTASK_PAINT = -1;
-import { notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type RenderBackend, type Stretch, type Surface, type InputWants } from "./backend.js";
+import { type MaskSpec, notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type RenderBackend, type Stretch, type Surface, type InputWants } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
-import { colorToCss, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Outline, type Radius, type Shadow, type Stroke } from "./value.js";
+import { colorToCss, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Outline, type Radius, type Shadow, type Stroke, filterCss, filterBlur, type Filter, filterBleed } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type TextStyle, type TextTransform } from "./measure.js";
 import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS, type DisplayList, type Bounds } from "./draw.js";
@@ -403,6 +406,19 @@ class Compositor {
 
   hostElement(): HTMLElement | null {
     return this.host;
+  }
+  /** Size the page STRUT to the root's content extent NOW. Paint does this every
+   *  frame; a page scroll asks first too, because an arrival reveals in the settle
+   *  BEFORE the first paint — against a document not yet tall enough, the browser
+   *  clamped `window.scrollTo` to 0, the reveal reported success, and a deep link
+   *  (`#section`) on canvas landed at the top. */
+  syncPageExtent(): void {
+    const root = this.root;
+    if (this.strut === null || root === null || !root.pageRoot) return;
+    // the extent arrives from the model (setPageExtent — the App's own
+    // contentHeight), so no child walk is needed here
+    const target = Math.max(root.height, Math.round(root.extentH));
+    if (this.strut.style.height !== `${target}px`) this.strut.style.height = `${target}px`;
   }
   registerEditable(s: CanvasSurface): void {
     this.editables.add(s);
@@ -826,12 +842,7 @@ class Compositor {
     // The page realization's STRUT tracks the content extent — the document's
     // scroll range is exactly the scrolling content's reach (visible children
     // that didn't opt out), never more.
-    if (this.strut !== null && root.pageRoot) {
-      // the extent arrives from the model (setPageExtent — the App's own
-      // contentHeight), so no child walk is needed here
-      const target = Math.max(root.height, Math.round(root.extentH));
-      if (this.strut.style.height !== `${target}px`) this.strut.style.height = `${target}px`;
-    }
+    this.syncPageExtent();
     // Glue each native editable overlay to its surface's on-screen box (Layer
     // 3) — after paint, so an animating ancestor's new position is reflected.
     for (const e of this.editables) e.reposition();
@@ -879,6 +890,29 @@ class CanvasSurface implements Surface {
    *  applies it after scale (they commute for uniform scale); the hit walk
    *  inverts it so a rotated control stays honestly clickable. */
   rotationDeg = 0;
+  /** The whole paint transform as one matrix about the pivot (affine.ts) —
+   *  what paint applies and the hit walk inverts; setScale/setRotation keep
+   *  it in step for a caller of the similarity pair. */
+  xform: Affine = IDENTITY_AFFINE;
+  private rebuildXform(): void {
+    this.xform = affineFromParts({ scale: this.scaleK, scaleX: 1, scaleY: 1, rotation: this.rotationDeg, skewX: 0, skewY: 0, pivotX: this.pivotX, pivotY: this.pivotY });
+  }
+  setTransform(m: Affine, px: number, py: number): void {
+    this.xform = m; this.pivotX = px; this.pivotY = py;
+    this.scaleK = affineScaleOf(m); this.rotationDeg = (affineRotationOf(m) * 180) / Math.PI;
+    this.compositor.invalidate();
+  }
+  /** The third dimension (graphics-pass.md §6): the subtree paints into a
+   *  local-space layer and lands through its homography in horizontal
+   *  strips (each strip an affine — exact along rows for rotateX, close for
+   *  the rest); the hit walk unprojects the same homography. */
+  spec3D: { rotateX: number; rotateY: number; translateZ: number; backfaceHidden: boolean; perspective: number; originX: number; originY: number } | null = null;
+  setTransform3D(spec: typeof this.spec3D): void { this.spec3D = spec; this.compositor.invalidate(); }
+  setPerspective(_px: number): void { /* the eye rides each child's spec3D */ }
+  private homography3D(): Homography {
+    const d = this.spec3D!;
+    return homography(this.xform, this.x, this.y, this.pivotX, this.pivotY, d, d.perspective, d.originX, d.originY);
+  }
   scrolls = false;
   scrollOffset = 0;
   /** The HORIZONTAL twin (setScrollX / scrollToX): a pane may scroll one axis
@@ -1000,6 +1034,9 @@ class CanvasSurface implements Surface {
   private align: "left" | "center" | "right" = "left";
   private textLines: string[] | null = null;
   private image: Bitmap | null = null;
+  private alignX = "center";
+  private alignY = "center";
+  setImageAlign(ax: string, ay: string): void { this.alignX = ax; this.alignY = ay; this.compositor.invalidate(); }
   private stretch: Stretch = "none";
   /** The view's input route; null = transparent to the pointer (hit walk). */
   private sink: InputSink | null = null;
@@ -1028,9 +1065,26 @@ class CanvasSurface implements Surface {
   /** The frost spec (setBackdrop); null = none. Painted by paintFrost at the
    *  top of paintContent — under the view's own fill, over everything already
    *  on the surface. */
-  backdrop: { blur: number; saturate: number } | null = null;
+  backdrop: readonly Filter[] | null = null;
+  /** The view's own painted subtree filtered as a group (graphics-pass.md
+   *  §1): a fourth reason for the offscreen layer, landed through
+   *  `ctx.filter` (shadow and tint natively). null = none. */
+  filter: readonly Filter[] | null = null;
+  setFilter(list: readonly Filter[] | null): void {
+    this.filter = list;
+    this.compositor.invalidate();
+  }
+  /** The soft mask (graphics-pass.md §2): a `destination-in` pass over the
+   *  group layer — a gradient's alpha over the box, or a stencil surface's
+   *  own paint (read live at paint time, so a stencil attaching or moving
+   *  later just works) at its box. */
+  mask: MaskSpec | null = null;
+  setMask(spec: MaskSpec | null): void {
+    this.mask = spec;
+    this.compositor.invalidate();
+  }
 
-  setBackdrop(spec: { blur: number; saturate: number } | null): void {
+  setBackdrop(spec: readonly Filter[] | null): void {
     this.backdrop = spec;
     this.compositor.invalidate();
   }
@@ -1060,10 +1114,10 @@ class CanvasSurface implements Surface {
   // router's onHover, which brushes the host element) — nothing to repaint.
   setCursor(c: string): void { this.cursorStyle = c; }
   setScale(scale: number, px: number, py: number): void {
-    this.scaleK = scale; this.pivotX = px; this.pivotY = py; this.compositor.invalidate();
+    this.scaleK = scale; this.pivotX = px; this.pivotY = py; this.rebuildXform(); this.compositor.invalidate();
   }
   setRotation(deg: number, px: number, py: number): void {
-    this.rotationDeg = deg; this.pivotX = px; this.pivotY = py; this.compositor.invalidate();
+    this.rotationDeg = deg; this.pivotX = px; this.pivotY = py; this.rebuildXform(); this.compositor.invalidate();
   }
 
   /** Invert this surface's paint transform (scale, then rotation, about the
@@ -1071,24 +1125,17 @@ class CanvasSurface implements Surface {
    *  stays clickable where it is DRAWN. The same inverse interaction.ts
    *  toChildLocal applies in the model walk (the ONE-WALK rule). */
   invertTransform(lx: number, ly: number): [number, number] {
-    if (this.scaleK === 1 && this.rotationDeg === 0) return [lx, ly];
-    let dx = lx - this.pivotX;
-    let dy = ly - this.pivotY;
-    if (this.scaleK !== 1 && this.scaleK !== 0) {
-      dx /= this.scaleK;
-      dy /= this.scaleK;
+    if (this.spec3D !== null) {
+      // the walk subtracted x/y; the homography carries them, so add back
+      const H = this.homography3D();
+      if (this.spec3D.backfaceHidden && !frontFacing(H, this.width, this.height)) return [-1e9, -1e9];   // a hidden back is not there to hit
+      const inv = invertH(H);
+      return inFront(inv, lx + this.x, ly + this.y) ? applyH(inv, lx + this.x, ly + this.y) : [-1e9, -1e9];
     }
-    if (this.rotationDeg !== 0) {
-      const a = (-this.rotationDeg * Math.PI) / 180;
-      const ca = Math.cos(a);
-      const sa = Math.sin(a);
-      const rx = dx * ca - dy * sa;
-      const ry = dx * sa + dy * ca;
-      dx = rx;
-      dy = ry;
-    }
-    return [dx + this.pivotX, dy + this.pivotY];
+    if (affineIsIdentity(this.xform)) return [lx, ly];
+    return applyAffine(invertAffine(this.xform), lx, ly);
   }
+
 
   setFill(f: Fill): void {
     if (isGradient(f)) {
@@ -1329,7 +1376,9 @@ class CanvasSurface implements Surface {
 
   setTextStyle(st: TextStyle): void {
     this.font = fontString(st);
-    this.textFill = colorToCss(st.color);
+    // a SOLID textFill overrides textColor (schema.ts); a gradient one takes the
+    // ramp path below
+    this.textFill = colorToCss(typeof st.textFill === "number" ? st.textFill : st.color);
     this.textGradient = st.textFill != null && isGradient(st.textFill) ? st.textFill : null;
     const fm = fontMetrics(this.font);
     this.ascent = fm.ascent;
@@ -1956,7 +2005,9 @@ class CanvasSurface implements Surface {
     if (next !== sc.scrollOffset) {
       if (sc.pageRoot) {
         // the page root's offset is the window's — ask the browser, and let
-        // the compositor's scroll listener mirror it back
+        // the compositor's scroll listener mirror it back. The document must
+        // already be tall enough to reach `next` (syncPageExtent).
+        this.compositor.syncPageExtent();
         window.scrollTo({ top: next });
         return;
       }
@@ -2149,15 +2200,13 @@ class CanvasSurface implements Surface {
    *  subtree. */
   paint(ctx: CanvasRenderingContext2D): void {
     if (!this.visible || this.opacity <= 0) return;
+    if (this.spec3D !== null) { this.paint3D(ctx); return; }
     ctx.save();
     ctx.translate(this.x, this.y);
-    if (this.scaleK !== 1 || this.rotationDeg !== 0) {
-      // scale, then rotate, about the shared pivot (the documented order —
-      // commutative for uniform scale)
-      ctx.translate(this.pivotX, this.pivotY);
-      if (this.scaleK !== 1) ctx.scale(this.scaleK, this.scaleK);
-      if (this.rotationDeg !== 0) ctx.rotate((this.rotationDeg * Math.PI) / 180);
-      ctx.translate(-this.pivotX, -this.pivotY);
+    if (!affineIsIdentity(this.xform)) {
+      // one matrix: scale, skew, rotate about the shared pivot (affine.ts)
+      const m = this.xform;
+      ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
     }
     // A blending view lands with its operator from here on — set BEFORE the
     // shadow so the whole unit (shadow included) blends, the way a CSS
@@ -2182,6 +2231,8 @@ class CanvasSurface implements Surface {
     // walking; the count includes this surface itself, whose own blend is
     // the outside world's business, hence the subtraction).
     const group = this.opacity < 1
+      || this.filter !== null
+      || this.mask !== null
       || (this.blendMode !== "source-over" && this.children.length > 0)
       || (this.scrolls && this.blends > (this.blendMode !== "source-over" ? 1 : 0));
     // ignoreClip children paint OUTSIDE the clip bracket, in their declared
@@ -2207,6 +2258,79 @@ class CanvasSurface implements Surface {
     ctx.restore();
   }
 
+  /** The device-space rectangle a group layer actually needs: this subtree's
+   *  ink, every bleed that reaches past a box, clamped to the target.
+   *
+   *  Conservative by construction — it is always safe to paint into MORE than
+   *  this. It returns null (meaning "use the whole target", the old behaviour)
+   *  when the answer is unknowable or worthless: a 3D descendant, whose
+   *  projection is not its box, and a union already covering most of the window.
+   *
+   *  What reaches past a box, and is therefore added here: a filter's bleed
+   *  (filterBleed, the same call the 3D path makes), a box shadow's offset and
+   *  blur (painted before the clip, so it escapes on purpose), a drawing's own
+   *  bounds plus rasterPad, and a text run's glyphs, which exceed the line box
+   *  whenever `lineHeight` is tighter than the face — the case that bit the Mac
+   *  host this same day. A clipping surface bounds its children, so the walk
+   *  stops there and only follows the ones that opt out. */
+  private groupDeviceBox(ctx: CanvasRenderingContext2D): { x: number; y: number; w: number; h: number } | null {
+    const target = ctx.canvas;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    let unbounded = false;
+    const mark = (m: DOMMatrix, ax: number, ay: number, bx: number, by: number): void => {
+      for (const p of [[ax, ay], [bx, ay], [ax, by], [bx, by]] as ReadonlyArray<readonly [number, number]>) {
+        const dx = m.a * p[0] + m.c * p[1] + m.e, dy = m.b * p[0] + m.d * p[1] + m.f;
+        if (dx < x0) x0 = dx;
+        if (dx > x1) x1 = dx;
+        if (dy < y0) y0 = dy;
+        if (dy > y1) y1 = dy;
+      }
+    };
+    /// Mark one surface's own ink, in a matrix ALREADY in its local space.
+    const ink = (s: CanvasSurface, m: DOMMatrix): void => {
+      let bleed = s.filter === null ? 0 : filterBleed(s.filter);
+      if (s.shadow !== null) {
+        bleed = Math.max(bleed, Math.abs(s.shadow.dx) + s.shadow.blur, Math.abs(s.shadow.dy) + s.shadow.blur);
+      }
+      if (s.ascent > 0) bleed = Math.max(bleed, s.ascent);      // glyphs past a tight line box
+      mark(m, -bleed, -bleed, s.width + bleed, s.height + bleed);
+      const d = s.drawing;
+      if (d !== null && d.bounds !== null) {
+        const p = rasterPad(d) + bleed;
+        mark(m, d.bounds.x - p, d.bounds.y - p, d.bounds.x + d.bounds.w + p, d.bounds.y + d.bounds.h + p);
+      }
+    };
+    /// A CHILD, whose own offset and transform still have to be composed —
+    /// unlike the group's root, whose local space the caller's CTM already is.
+    const walk = (s: CanvasSurface, parent: DOMMatrix): void => {
+      if (unbounded || !s.visible || s.opacity <= 0) return;
+      if (s.spec3D !== null) { unbounded = true; return; }
+      let m = parent.translate(s.x, s.y);
+      if (!affineIsIdentity(s.xform)) {
+        const f = s.xform;
+        m = m.multiply(new DOMMatrix([f[0], f[1], f[2], f[3], f[4], f[5]]));
+      }
+      ink(s, m);
+      const clips = s.boxClip || s.scrolls || s.scrollsX || s.clipData !== null;
+      for (const c of s.children) if (!clips || c.ignoresClip) walk(c, m);
+    };
+    // paint() has already put the CTM in THIS surface's local space (translate
+    // by x/y, then its own affine), so the root is marked with it as-is and only
+    // descendants compose further.
+    const self = ctx.getTransform();
+    if (this.spec3D !== null) return null;
+    ink(this, self);
+    const rootClips = this.boxClip || this.scrolls || this.scrollsX || this.clipData !== null;
+    for (const c of this.children) if (!rootClips || c.ignoresClip) walk(c, self);
+    if (unbounded || !(x1 > x0) || !(y1 > y0)) return null;
+    const px = Math.max(0, Math.floor(x0) - 1), py = Math.max(0, Math.floor(y0) - 1);
+    const qx = Math.min(target.width, Math.ceil(x1) + 1), qy = Math.min(target.height, Math.ceil(y1) + 1);
+    if (qx <= px || qy <= py) return null;
+    const w = qx - px, h = qy - py;
+    if (w * h > target.width * target.height * 0.6) return null;   // nothing worth the arithmetic
+    return { x: px, y: py, w, h };
+  }
+
   /** The offscreen GROUP: the subtree paints normally (source-over, full
    *  alpha) into a layer sharing the target's device size and transform,
    *  then lands in one drawImage carrying the ambient state — this surface's
@@ -2219,17 +2343,166 @@ class CanvasSurface implements Surface {
   private paintLayer(ctx: CanvasRenderingContext2D): void {
     const target = ctx.canvas;
     if (target.width === 0 || target.height === 0) return;
+    // THE LAYER IS THE SUBTREE, not the window (2026-09-13). A group layer used
+    // to be allocated at the target's full size whatever it held, so a 200×260
+    // card fading in cost a 1880×1320 buffer — allocated, painted, filtered and
+    // blitted — every frame. Measured on Chrome, six such groups allocated 360
+    // full-canvas scratches a second, ~900 Mpx/s; on Safari, where the filter
+    // has no native path, six filtered cards at rest cost one 3.7-SECOND frame.
+    // The extent is knowable (groupDeviceBox), so take it; when it is not, or
+    // when it saves nothing, fall back to exactly what this did before.
+    const box = this.groupDeviceBox(ctx);
     const layer = document.createElement("canvas");
-    layer.width = target.width;
-    layer.height = target.height;
+    layer.width = box === null ? target.width : box.w;
+    layer.height = box === null ? target.height : box.h;
     const lctx = layer.getContext("2d")!;
-    lctx.setTransform(ctx.getTransform());
+    const m = ctx.getTransform();
+    // the same CTM, moved so the layer's own origin is the box's corner — the
+    // landing below puts it back, still integer-aligned, still no resampling
+    if (box === null) lctx.setTransform(m);
+    else lctx.setTransform(m.a, m.b, m.c, m.d, m.e - box.x, m.f - box.y);
     this.paintContent(lctx);
+    if (this.mask !== null) this.applyMaskTo(layer, lctx);
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = this.opacity;
-    ctx.drawImage(layer, 0, 0);
+    const lx = box === null ? 0 : box.x, ly = box === null ? 0 : box.y;
+    if (this.filter === null) {
+      ctx.drawImage(layer, lx, ly);
+    } else {
+      // THE FILTER TIER (graphics-pass.md §1). Lengths are view units; the
+      // filter runs in device space, so they scale by the composed transform's
+      // magnitude — frost's rule, the opposite of a drawing's d.filter. `tint`
+      // has no ctx.filter function: a source-in pass over the layer first.
+      const mag = Math.hypot(m.a, m.b) || 1;
+      let src: HTMLCanvasElement = layer;
+      const tint = this.filter.find((f) => f.fn === "tint");
+      if (tint !== undefined && tint.fn === "tint") {
+        const t = document.createElement("canvas");
+        t.width = layer.width; t.height = layer.height;
+        const tg = t.getContext("2d")!;
+        tg.drawImage(layer, 0, 0);
+        tg.globalCompositeOperation = "source-in";
+        tg.fillStyle = colorToCss(tint.color);
+        tg.fillRect(0, 0, t.width, t.height);
+        src = t;
+      }
+      const rest = this.filter.filter((f) => f.fn !== "tint");
+      const css = filterCss(rest, mag);
+      if (rest.length === 0) ctx.drawImage(src, lx, ly);
+      else if (ctxFilterSupported()) { ctx.filter = css; ctx.drawImage(src, lx, ly); ctx.filter = "none"; }
+      else ctx.drawImage(applyFilterFallback(src, parseFilter(css), this.compositor.inMotion), lx, ly);
+    }
     ctx.restore();
+  }
+
+  /** A view out of its plane: its subtree into a local-space layer at the
+   *  composed density, then onto the parent's context through the
+   *  homography, strip by strip. Children outside the box (plus the filter's
+   *  bleed) are cut — the projected layer is the box. */
+  private paint3D(ctx: CanvasRenderingContext2D): void {
+    const d = this.spec3D!;
+    const H = this.homography3D();
+    const w = this.width, h = this.height;
+    if (w <= 0 || h <= 0) return;
+    if (d.backfaceHidden && !frontFacing(H, w, h)) return;
+    const m = ctx.getTransform();
+    const k = Math.hypot(m.a, m.b) || 1;                       // device px per parent unit
+    const pad = this.filter === null ? 0 : filterBleed(this.filter);
+    const lw = Math.max(1, Math.ceil((w + 2 * pad) * k)), lh = Math.max(1, Math.ceil((h + 2 * pad) * k));
+    if (lw * lh > 16_000_000) return;                           // a projected layer past any sane budget: skip, never hang
+    const layer = document.createElement("canvas");
+    layer.width = lw; layer.height = lh;
+    const lctx = layer.getContext("2d")!;
+    lctx.setTransform(k, 0, 0, k, pad * k, pad * k);
+    this.paintContent(lctx);
+    if (this.mask !== null) this.applyMaskTo(layer, lctx);
+    // Group opacity, a blend, and the filter land ONCE, on the projected whole:
+    // the strips overlap by a row (below), so a translucent strip over its
+    // neighbour's row would show as a denser hairline, and a per-strip filter
+    // would blur or shadow each strip onto the faces around it (the composed
+    // card's bands, 2026-09-12). Under any of the three the strips go to a
+    // scratch at full alpha, unfiltered, and the scratch lands as the group.
+    const filterCss3D = this.filter !== null && ctxFilterSupported() ? filterCss(this.filter.filter((f) => f.fn !== "tint"), k) : null;
+    const grouped = this.opacity < 1 || this.blendMode !== "source-over" || filterCss3D !== null;
+    let target: CanvasRenderingContext2D = ctx;
+    let scratch: HTMLCanvasElement | null = null;
+    let sbx = 0, sby = 0;
+    if (grouped) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [cx, cy] of [[-pad, -pad], [w + pad, -pad], [-pad, h + pad], [w + pad, h + pad]] as const) {
+        const [px, py] = applyH(H, cx, cy);
+        const dx = m.a * px + m.c * py + m.e, dy = m.b * px + m.d * py + m.f;
+        x0 = Math.min(x0, dx); y0 = Math.min(y0, dy); x1 = Math.max(x1, dx); y1 = Math.max(y1, dy);
+      }
+      const bleed = Math.ceil(pad * k) + 1;                     // the filter's reach, in device px
+      sbx = Math.floor(x0) - bleed; sby = Math.floor(y0) - bleed;
+      const sw = Math.ceil(x1) + bleed - sbx, sh = Math.ceil(y1) + bleed - sby;
+      if (sw > 0 && sh > 0 && sw * sh <= 16_000_000) {
+        scratch = document.createElement("canvas");
+        scratch.width = sw; scratch.height = sh;
+        target = scratch.getContext("2d")!;
+        target.setTransform(m.a, m.b, m.c, m.d, m.e - sbx, m.f - sby);
+      }
+    }
+    ctx.save();
+    if (scratch === null) {
+      ctx.globalAlpha = this.opacity;
+      if (this.blendMode !== "source-over") ctx.globalCompositeOperation = this.blendMode;
+      if (filterCss3D !== null) ctx.filter = filterCss3D;       // only when no scratch could be had
+    }
+    const N = Math.max(8, Math.min(120, Math.ceil(h / 3)));
+    const H0 = -pad, HH = h + 2 * pad;
+    for (let i = 0; i < N; i++) {
+      const y0 = H0 + (HH * i) / N, y1 = H0 + (HH * (i + 1)) / N;
+      const [p0x, p0y] = applyH(H, -pad, y0), [p1x, p1y] = applyH(H, w + pad, y0), [p2x, p2y] = applyH(H, -pad, y1);
+      const sy0 = Math.floor((y0 + pad) * k), sy1 = Math.min(lh, Math.ceil((y1 + pad) * k) + 1);
+      if (sy1 - sy0 <= 0) continue;
+      // the affine that carries this strip's LAYER pixels into the parent's space
+      const a = (p1x - p0x) / lw, b = (p1y - p0y) / lw;
+      const rows = (y1 - y0) * k || 1;
+      const c = (p2x - p0x) / rows, dd = (p2y - p0y) / rows;
+      // each strip lands one source row past its neighbours on both sides: the
+      // antialiased edge of a strip drawn alone showed as a hairline seam
+      const o0 = Math.max(0, sy0 - 1), o1 = Math.min(lh, sy1 + 1);
+      target.save();
+      target.transform(a, b, c, dd, p0x, p0y);
+      target.drawImage(layer, 0, o0, lw, o1 - o0, 0, o0 - sy0, lw, o1 - o0);
+      target.restore();
+    }
+    if (scratch !== null) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = this.opacity;
+      if (this.blendMode !== "source-over") ctx.globalCompositeOperation = this.blendMode;
+      if (filterCss3D !== null) ctx.filter = filterCss3D;       // device space, as ctx.filter lengths are
+      ctx.drawImage(scratch, sbx, sby);
+    }
+    ctx.restore();
+  }
+
+  /** Cut the group layer to the mask's alpha. The mask is painted into its
+   *  own scratch first (a stencil's several fills must not each cut the
+   *  layer in turn), then landed with `destination-in`. */
+  private applyMaskTo(layer: HTMLCanvasElement, lctx: CanvasRenderingContext2D): void {
+    const spec = this.mask!;
+    const m = document.createElement("canvas");
+    m.width = layer.width; m.height = layer.height;
+    const mctx = m.getContext("2d")!;
+    mctx.setTransform(lctx.getTransform());          // the masked view's own frame
+    if (spec.kind === "gradient") {
+      mctx.fillStyle = realizeGradient(mctx, spec.gradient, this.width, this.height);
+      mctx.fillRect(0, 0, this.width, this.height);
+    } else {
+      const st = spec.stencil.surface as CanvasSurface | null;
+      if (st === null) return;                        // not attached yet: no mask this frame
+      mctx.translate(spec.stencil.x, spec.stencil.y);
+      st.paintContent(mctx);
+    }
+    lctx.save();
+    lctx.setTransform(1, 0, 0, 1, 0, 0);
+    lctx.globalCompositeOperation = "destination-in";
+    lctx.drawImage(m, 0, 0);
+    lctx.restore();
   }
 
   /** The sample-under frost (compositing.md §5.2), which the single-surface
@@ -2253,7 +2526,7 @@ class CanvasSurface implements Surface {
     // right region; the blur scale is the transform's magnitude, which is
     // m.a when the walk is translate+scale only
     const scaleMag = Math.hypot(m.a, m.b);
-    const pad = b.blur;
+    const pad = filterBlur(b);
     const cs = [[-pad, -pad], [this.width + pad, -pad], [-pad, this.height + pad], [this.width + pad, this.height + pad]]
       .map(([x, y]) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]);
     const dx0 = Math.max(0, Math.floor(Math.min(...cs.map((c) => c[0]))));
@@ -2272,7 +2545,7 @@ class CanvasSurface implements Surface {
     this.box ??= boxShape(this.width, this.height, this.cornerRadius);
     ctx.clip(this.box);
     // blur is stated in view px; the filter runs in device space
-    const spec = `blur(${b.blur * scaleMag}px) saturate(${b.saturate})`;
+    const spec = filterCss(b, scaleMag);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (ctxFilterSupported()) {
       ctx.filter = spec;
@@ -2323,7 +2596,7 @@ class CanvasSurface implements Surface {
           ctx.rect(0, 0, this.width, this.height);
           ctx.clip();
         }
-        ctx.drawImage(bmp, (this.width - dw) / 2, (this.height - dh) / 2, dw, dh);
+        ctx.drawImage(bmp, (this.width - dw) * (FIT_FRAC[this.alignX] ?? 0.5), (this.height - dh) * (FIT_FRAC[this.alignY] ?? 0.5), dw, dh);
         if (st === "cover") ctx.restore();
       } else {
         const w = st === "width" || st === "both" ? this.width : natW;
@@ -2424,12 +2697,20 @@ class CanvasSurface implements Surface {
         // line within the box. Mirror that — measure the line and offset x by
         // the same rule the wrap branch uses, so both backends place identical
         // glyph geometry. (align=left keeps x=0, the shrink-to-content case.)
-        let x = 0;
-        if (this.align !== "left" && this.width > 0) {
-          const lw = textWidth(disp, this.font, this.letterSpacing);
-          x = this.align === "center" ? (this.width - lw) / 2 : this.width - lw;
+        // A hard newline still breaks the line, as it does on the DOM (`pre`) and the
+        // Mac host — only SOFT wrapping is off. Painting the whole string at one
+        // baseline put every line of a Markdown code block on the first line, in a
+        // box already sized (by Text's own height) for all of them.
+        const hard = disp.split("\n");
+        for (let i = 0; i < hard.length; i++) {
+          const line = hard[i];
+          let x = 0;
+          if (this.align !== "left" && this.width > 0) {
+            const lw = textWidth(line, this.font, this.letterSpacing);
+            x = this.align === "center" ? (this.width - lw) / 2 : this.width - lw;
+          }
+          paintLine(line, x, this.ascent + i * this.lineHeight);
         }
-        paintLine(disp, x, this.ascent);
       }
       if (restoreShadow) ctx.restore();
       if (this.letterSpacing !== 0) lsCtx.letterSpacing = "0px";

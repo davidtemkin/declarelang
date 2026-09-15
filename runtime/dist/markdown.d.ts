@@ -1,9 +1,11 @@
 import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
 import { type FontWeight, type TextTransform } from "./measure.js";
+import { type Numerals, type NumeralWidth } from "./font-features.js";
+import { type FamilyValue } from "./font-value.js";
 import { type Block } from "./md.js";
 import { type Unsupported } from "./html.js";
-import { type Fill, type Shadow, type Outline, type Color } from "./value.js";
+import type { Fill, Shadow, Outline, Color } from "./value.js";
 export interface RunStyle {
     fontSize?: number;
     fontFamily?: string;
@@ -16,13 +18,17 @@ export interface RunStyle {
     outline?: Outline | null;
     textTransform?: TextTransform;
     smallCaps?: boolean;
+    numerals?: Numerals;
+    numeralWidth?: NumeralWidth;
+    slashedZero?: boolean;
     underline?: boolean;
     strike?: boolean;
 }
 export declare abstract class RichText extends View {
     textColor: Color;
     fontSize: number;
-    fontFamily: string;
+    /** A family string, a Font, or a list of them. */
+    fontFamily: FamilyValue;
     fontWeight: FontWeight;
     letterSpacing: number;
     headingColor: Color;
@@ -30,7 +36,7 @@ export declare abstract class RichText extends View {
     linkColor: Color;
     codeColor: Color;
     codeSize: number;
-    codeFamily: string;
+    codeFamily: FamilyValue;
     codeBackground: Color;
     codeRule: Color;
     richTextLayout: Readonly<Record<string, {
@@ -39,6 +45,10 @@ export declare abstract class RichText extends View {
         align?: "left" | "center" | "right";
     }>> | null;
     lineHeight: number;
+    /** Line clamp over the whole flow (schema.ts). 0 = unclamped. */
+    maxLines: number;
+    /** True when the clamp dropped something — what a "Show more" binds to. */
+    truncated: boolean;
     bodyColor: number | null;
     linkUnderline: boolean;
     scale: number;

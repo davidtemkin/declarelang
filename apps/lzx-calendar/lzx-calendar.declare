@@ -14,8 +14,6 @@ Colors (SPEC §3–4; sampled + source-verified) — day-cell bodies: weekday
 `#D3D3D3`. Event categories: default / holiday / astro / milestone.
 */
 
-font Cal [ family = "Verdana" ]
-
 /*
 ## EventBar
 
@@ -465,7 +463,7 @@ slide-in info panel, and the drag ghost, over one store.
 */
 
 App [ width = 835, height = 600, fill = #1E3A49,
-    fontFamily = [Cal, "Geneva", "sans-serif"], fontSize = 10, fontWeight = normal, textColor = #FFFFFF,
+    fontFamily = ["Verdana", "Geneva", "sans-serif"], fontSize = 10, fontWeight = normal, textColor = #FFFFFF,
 
     /* ## The store (SPEC §9)
        All months' events in one fetch (the original lazy-loaded per-month

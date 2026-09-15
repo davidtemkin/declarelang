@@ -29,6 +29,12 @@ final class TextLayer: CALayer {
     /// Font ascent/descent for the run's style — the baseline contract.
     var ascent: CGFloat = 0 { didSet { version &+= 1; setNeedsDisplay() } }
     var descent: CGFloat = 0 { didSet { version &+= 1; setNeedsDisplay() } }
+    /// Declared leading in POINTS (0 = the face's own ascent+descent). The
+    /// runtime SIZES THE BOX with this, so a host that ignores it draws bunched
+    /// lines inside a box sized for open ones — which is exactly what this did.
+    var lineHeight: CGFloat = 0 { didSet { version &+= 1; setNeedsDisplay() } }
+    /// Baseline-to-baseline distance actually used.
+    var pitch: CGFloat { lineHeight > 0 ? lineHeight : ascent + descent }
     /// `textFill` — a ramp clipped to the glyphs, overriding the solid colour.
     var fillGradient: TextGradient? = nil { didSet { version &+= 1; setNeedsDisplay() } }
 
@@ -42,6 +48,27 @@ final class TextLayer: CALayer {
     }
     override init(layer: Any) { super.init(layer: layer) }
     required init?(coder: NSCoder) { fatalError() }
+
+    /// Size the layer to the view's box, then let the glyph rows overflow it
+    /// DOWNWARD when the box is tighter than the rows themselves (a `lineHeight`
+    /// under the font's ascent+descent — an odometer digit at 0.72 — which the
+    /// DOM paints past the box). A layer's backing store is its bounds, so a
+    /// glyph outside them is never painted, whatever masksToBounds says: the
+    /// bounds grow to the rows and the layer's top stays pinned to the box's.
+    func fit(box: CGSize) {
+        let w = max(box.width, 1), h = max(box.height, 1)
+        if wrap, w != bounds.width { lines = nil }     // the breaks were taken at the old width
+        bounds = CGRect(origin: .zero, size: CGSize(width: w, height: h))
+        let ls = lines ?? buildLines()
+        lines = ls
+        let need = ceil(CGFloat(ls.count) * pitch)
+        if need > h {
+            bounds = CGRect(origin: .zero, size: CGSize(width: w, height: need))
+            position = CGPoint(x: 0, y: h - need)
+        } else {
+            position = .zero
+        }
+    }
 
     /// Break into lines once per (text, width) — CTTypesetter answers the same
     /// greedy breaks the runtime measured with.
@@ -77,7 +104,7 @@ final class TextLayer: CALayer {
         if align == .center { x = (bounds.width - CGFloat(w)) / 2 }
         else if align == .right { x = bounds.width - CGFloat(w) }
         // Text is laid top-down from the box's top; the layer is bottom-up.
-        let baseline = ascent + CGFloat(i) * (ascent + descent)
+        let baseline = ascent + CGFloat(i) * pitch
         return CGPoint(x: x, y: bounds.height - baseline)
     }
 

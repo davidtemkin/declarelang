@@ -1,32 +1,6 @@
 import { App, View } from "./view.js";
 import type { RenderBackend } from "./backend.js";
 import type { Program } from "./parser.js";
-/** A web font to make available before first paint: `src` is a URL (a
- *  self-hosted woff2 or a CDN), `weight`/`style` mirror the CSS descriptors. */
-export interface FontSpec {
-    family: string;
-    src: string;
-    weight?: string | number;
-    style?: string;
-}
-/** Load web fonts into the document so BOTH backends see them — one FontFace
- *  serves the Canvas backend's `ctx.font`/measureText and the DOM backend's
- *  `font-family` alike. A sanctioned runtime primitive: font loading lives in
- *  the runtime, never in a `{ }` body (which cannot reach `document`, per the
- *  sealed-abstraction rule). Awaiting every face lets a caller gate first paint
- *  on it so text measures against the real metrics, not a fallback that reflows
- *  on arrival. A no-op off the DOM (Node/tests), so it stays safe in the
- *  zero-dependency graph.
- *
- *  `base` is the directory relative face sources resolve against — the calling
- *  app's own program dir; omitted, the page-wide asset base applies.
- *
- *  A face that fails to load (404, a corrupt file, a CORS refusal) is REPORTED
- *  and SKIPPED, never thrown: type is the one asset whose absence has a
- *  fallback built into every text stack. A rejection here used to take the
- *  whole render with it — one missing woff2 and the app never mounted at all,
- *  which is a worse answer than the app in fallback type. */
-export declare function loadFonts(fonts: readonly FontSpec[], base?: string | null): Promise<void>;
 /** Is this mount host EMBEDDED inside another Declare app? A top-level app roots on
  *  a bare host (document.body's child); an embedded app is rendered into an
  *  `HTML []` island's box, which lives inside the outer app's marked tree

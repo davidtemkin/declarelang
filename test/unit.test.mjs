@@ -53,7 +53,6 @@ import {
   toCursor,
   resolveIncludes,
   parseLibrary,
-  fontFacesOf,
   headingSlug,
 } from "../runtime/dist/index.js";
 import { scanDatapaths, rewriteDatapaths, fillDatapaths } from "../runtime/dist/datapath.js";
@@ -1993,6 +1992,28 @@ await test("align: WrappingLayout rows align per row; justify is the renamed row
     assert.equal(bl(app.w.a), bl(app.w.b), "row one: the 24px and 12px runs share a baseline");
     assert.ok(app.w.c.y > app.w.a.y + app.w.a.height - 1, "row two starts below row one's grown line");
     assert.equal(app.j.a.x, 50, "justify = center centres a short row (the old `align`)");
+  } finally { app.discard(); }
+});
+
+await test("a layout written in a class body reads that class's instance as `classroot`", async () => {
+  // It read the enclosing scope instead: `spacing = { classroot.gap }` was NaN and
+  // every child after the first sat at y = NaN, with no error (2026-09-14).
+  const r = await compile(`
+    class Stack extends View [ gap: number = 14,
+        layout: SimpleLayout [ axis = y, spacing = { classroot.gap } ] ]
+    class Panel extends View [ n: number = 5,
+        box: View [ layout: SimpleLayout [ axis = y, spacing = { classroot.n } ],
+            p: View [ width = 10, height = 10 ], q: View [ width = 10, height = 10 ] ] ]
+    App [ width = 400, height = 400,
+        outer: Stack [ gap = 30, a: View [ width = 10, height = 10 ],
+            inner: Stack [ gap = 2, b: View [ width = 10, height = 10 ], c: View [ width = 10, height = 10 ] ] ],
+        pn: Panel [ n = 7 ] ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.outer.inner.y, 40, "the outer Stack's own gap");
+    assert.equal(app.outer.inner.c.y, 12, "the nested Stack's own gap, not its parent's");
+    assert.equal(app.pn.box.q.y, 17, "a layout at a use site inside a class still reads that class");
   } finally { app.discard(); }
 });
 
@@ -4027,13 +4048,109 @@ await test("decoration literals: gradient / stroke / shadow constructor forms", 
   assert.equal(v("fill=navy").value, 0x000080, "a bare Color coerces into the fill slot");
   assert.equal(v("fill=null").value, null);
   assert.deepEqual(v("stroke=stroke(2, #1A1A1A)").value, { width: 2, color: 0x1a1a1a });
-  assert.deepEqual(v("shadow=shadow(3, 3, 0, #00000054)").value, { dx: 3, dy: 3, blur: 0, color: colorWithAlpha(0x000000, 0x54) });
+  assert.deepEqual(v("shadow=shadow(3, 3, 0, #00000054)").value, { fn: "shadow", dx: 3, dy: 3, blur: 0, color: colorWithAlpha(0x000000, 0x54) });
   assert.match(v("fill=gradient(#111111)").error.message, /at least two stops/);
   assert.match(v("stroke=stroke(2)").error.message, /a Stroke/);
   assert.match(v("shadow=shadow(1, 2, #000000)").error.message, /a Shadow/);
   assert.match(v("width=stroke(1, #000000)").error.message, /expects a Length/);
   const t = checkAttr(SCHEMAS.Text, attrOf("Text [ textShadow=shadow(1, 0, 0, #222222) ]"));
-  assert.deepEqual(t.value, { dx: 1, dy: 0, blur: 0, color: 0x222222 });
+  assert.deepEqual(t.value, { fn: "shadow", dx: 1, dy: 0, blur: 0, color: 0x222222 });
+});
+
+await test("graphics pass: filter / mask / gradient literals coerce, and the names stay out of the way", () => {
+  const v = (src) => checkAttr(SCHEMAS.View, attrOf(`View [ ${src} ]`));
+  // one function, a list, the frost pair, null
+  assert.deepEqual(v("filter=blur(3)").value, [{ fn: "blur", radius: 3 }]);
+  assert.deepEqual(v("filter=[blur(2), brightness(0.8), colorize(#FF5A36)]").value,
+    [{ fn: "blur", radius: 2 }, { fn: "brightness", amount: 0.8 }, { fn: "tint", color: 0xff5a36 }]);
+  assert.deepEqual(v("filter=[shadow(0, 26, 52, #00000080)]").value, [{ fn: "shadow", dx: 0, dy: 26, blur: 52, color: colorWithAlpha(0, 0x80) }]);
+  assert.deepEqual(v("backdrop=frost(20, 1.4)").value, [{ fn: "blur", radius: 20 }, { fn: "saturate", amount: 1.4 }]);
+  assert.deepEqual(v("backdrop=[blur(12), saturate(1.6), brightness(1.1)]").value,
+    [{ fn: "blur", radius: 12 }, { fn: "saturate", amount: 1.6 }, { fn: "brightness", amount: 1.1 }]);
+  assert.equal(v("filter=null").value, null);
+  assert.match(v("filter=blur(-1)").error.message, /a filter/);
+  assert.match(v("filter=wobble(3)").error.message, /a filter/);
+  // masks: a gradient (its alpha), or null; a stencil view only from { }
+  assert.equal(v("mask=gradient(#00000000, #000000FF)").value.stops.length, 2);
+  assert.equal(v("mask=null").value, null);
+  assert.match(v("mask=navy").error.message, /a mask/);
+  // radial and conic gradients: three numbers, then the stops
+  const r = v("fill=radialGradient(0.5, 0.38, 0.3, #FFFFFF60, #FFFFFF00)").value;
+  assert.equal(r.kind, "radial"); assert.equal(r.cx, 0.5); assert.equal(r.cy, 0.38); assert.equal(r.r, 0.3); assert.equal(r.stops.length, 2);
+  const c = v("fill=conicGradient(0.5, 0.5, 90, #FF5A36, stop(0.5, #2EC4B6), #FF5A36)").value;
+  assert.equal(c.kind, "conic"); assert.equal(c.angle, 90); assert.deepEqual(c.stops[1], { offset: 0.5, color: 0x2ec4b6 });
+  assert.match(v("fill=radialGradient(0.5, #FFFFFF, #000000)").error.message, /three numbers/);
+});
+
+await test("graphics pass: the affine transform's footprint and inverse agree (affine.ts)", async () => {
+  const { fromParts, invert, apply, boxThrough, scaleOf } = await import("../runtime/dist/affine.js");
+  const m = fromParts({ scale: 2, scaleX: 1, scaleY: 0.5, rotation: 30, skewX: 15, skewY: 0, pivotX: 50, pivotY: 20 });
+  // the pivot is fixed
+  const [px, py] = apply(m, 50, 20);
+  assert.ok(Math.abs(px - 50) < 1e-9 && Math.abs(py - 20) < 1e-9, "the pivot maps to itself");
+  // inverse round-trips
+  const inv = invert(m);
+  for (const [x, y] of [[0, 0], [120, 7], [-3, 40]]) {
+    const [fx, fy] = apply(m, x, y); const [bx, by] = apply(inv, fx, fy);
+    assert.ok(Math.abs(bx - x) < 1e-9 && Math.abs(by - y) < 1e-9, `round trip ${x},${y}`);
+  }
+  // the geometric-mean scale of a per-axis scale
+  assert.ok(Math.abs(scaleOf(fromParts({ scale: 1, scaleX: 4, scaleY: 1, rotation: 0, skewX: 0, skewY: 0, pivotX: 0, pivotY: 0 })) - 2) < 1e-9);
+  // a footprint contains every mapped corner
+  const b = boxThrough(m, 0, 0, 100, 40);
+  for (const [x, y] of [[0, 0], [100, 0], [0, 40], [100, 40]]) {
+    const [fx, fy] = apply(m, x, y);
+    assert.ok(fx >= b.x - 1e-9 && fx <= b.x + b.width + 1e-9 && fy >= b.y - 1e-9 && fy <= b.y + b.height + 1e-9);
+  }
+});
+
+await test("graphics pass: a 3D view's homography inverts on the plane and knows its back (projective.ts)", async () => {
+  const { homography, applyH, invertH, frontFacing, inFront } = await import("../runtime/dist/projective.js");
+  const H = homography([1, 0, 0, 1, 0, 0], 30, 60, 90, 110, { rotateX: 60, rotateY: 0, translateZ: 0 }, 700, 450, 170);
+  // the pivot stays put (it is on the axis, at z = 0)
+  const [px, py] = applyH(H, 90, 110);
+  assert.ok(Math.abs(px - 120) < 1e-6 && Math.abs(py - 170) < 1e-6, "pivot maps to its parent-space position");
+  // a tipped card foreshortens: the projected top edge is above the pivot but nearer than the flat one
+  const [, topY] = applyH(H, 90, 0);
+  assert.ok(topY > 60 && topY < 170, `top edge foreshortened (${topY})`);
+  // the inverse round-trips for a point in front of the eye
+  const inv = invertH(H);
+  const [sx, sy] = applyH(H, 20, 30);
+  assert.ok(inFront(inv, sx, sy));
+  const [bx, by] = applyH(inv, sx, sy);
+  assert.ok(Math.abs(bx - 20) < 1e-6 && Math.abs(by - 30) < 1e-6, "round trip on the plane");
+  assert.ok(frontFacing(H, 180, 220), "60° still shows its front");
+  const back = homography([1, 0, 0, 1, 0, 0], 30, 60, 90, 110, { rotateX: 0, rotateY: 150, translateZ: 0 }, 700, 450, 170);
+  assert.ok(!frontFacing(back, 180, 220), "150° shows its back");
+});
+
+await test("graphics pass: drawImage records a handle op from an Image view, and nothing before it loads", async () => {
+  const { Draw } = await import("../runtime/dist/draw.js");
+  const { drawImageBitmap, drawImageHandles } = await import("../runtime/dist/draw-image.js");
+  const el = { naturalWidth: 40, naturalHeight: 20 };          // stands in for the loaded element
+  const pic = { loaded: false, bitmap: null, naturalWidth: 0, naturalHeight: 0 };
+  let d = new Draw();
+  d.drawImage(pic, 5, 5);
+  assert.equal(d.list().ops.length, 0, "an unloaded source records nothing (the read of `loaded` re-records later)");
+  Object.assign(pic, { loaded: true, bitmap: el, naturalWidth: 40, naturalHeight: 20 });
+  d = new Draw();
+  d.drawImage(pic, 5, 5);                                       // 3-arg: natural size
+  d.drawImage(pic, 0, 0, 100, 50);                              // 5-arg: scaled
+  d.drawImage(pic, 20, 0, 20, 20, 60, 60, 10, 10);              // 9-arg: a crop
+  const list = d.list();
+  assert.equal(list.ops.length, 3);
+  const [a, b, c] = list.ops;
+  assert.equal(a.op, "drawImage");
+  assert.deepEqual([a.sx, a.sy, a.sw, a.sh, a.dx, a.dy, a.dw, a.dh], [0, 0, 40, 20, 5, 5, 40, 20]);
+  assert.deepEqual([b.dx, b.dy, b.dw, b.dh], [0, 0, 100, 50]);
+  assert.deepEqual([c.sx, c.sy, c.sw, c.sh, c.dx, c.dy, c.dw, c.dh], [20, 0, 20, 20, 60, 60, 10, 10]);
+  assert.equal(a.h, b.h, "one element, one handle");
+  assert.deepEqual(drawImageHandles(list), [a.h]);
+  assert.equal(drawImageBitmap(a.h), el, "the handle resolves to the element on the recording side");
+  assert.deepEqual(list.extents[2], { x: 60, y: 60, w: 10, h: 10 }, "the extent is the destination rect — exact");
+  assert.deepEqual(list.bounds, { x: 0, y: 0, w: 100, h: 70 });   // the crop lands at 60..70
+  assert.equal(list.exact, true);
+  for (const o of list.ops) assert.doesNotThrow(() => structuredClone(o), "plain data — the op crosses a worker boundary");
 });
 
 await test("decoration values gate on structural equality (a re-produced equal record stops the cascade)", () => {
@@ -4165,58 +4282,84 @@ await test("check: a theme is a token record; a class-keyed entry has no home", 
     /'Button: \[ … \]' is a class-keyed entry — no declaration admits one/);
 });
 
-await test("font: a declaration resolves fontFamily — system to its family, web font to its name, a list to a chain", () => {
-  const app = build(`font Body [ family = "Helvetica, Arial, sans-serif" ]
-font Title [ Face [ src = "https://example.com/arimo-700.woff2", weight = bold ] ]
-App [ fontFamily = Body, t: Text [ text = "hi", fontFamily = Title ] ]`);
-  // fontFamily set on the App is a PROVISION (off View, with the text face) — the
-  // resolved family lands in the provision store; the Text reads it. A web-font
-  // ref resolves to its registered name, a system font to its family string.
-  assert.equal(app.$provides.fontFamily, "Helvetica, Arial, sans-serif", "a system font (no faces) resolves to its family string");
-  assert.equal(app.t.fontFamily, "Title", "a web font resolves to its declaration name (the registered family)");
-  // A fallback list resolves to an ordered CSS chain: a name → its family, a string verbatim.
-  assert.equal(build(`font UI [ family = "Helvetica Neue" ]
-font Brand [ Face [ src = "b.woff2", weight = bold ] ]
-App [ fontFamily = [Brand, UI, "sans-serif"] ]`).$provides.fontFamily, "Brand, Helvetica Neue, sans-serif");
-  // The raw family string still works (the literal form, no declaration).
+await test("font: a Font in a family slot names its family — a system font's, a web font's own registered name, a list in order", async () => {
+  const { familyCss } = await import("../runtime/dist/font-value.js");
+  // build() runs uncompiled source, so bodies use explicit paths (the compiler
+  // is what rewrites `app` to this.root).
+  const app = build(`App [ fontFamily = { [this.body, "sans-serif"] },
+    body: Font [ family = "Helvetica, Arial" ],
+    title: Font [ Face [ src = "https://example.com/arimo-700.woff2", weight = bold ] ],
+    t: Text [ text = "hi", fontFamily = { this.parent.title } ] ]`);
+  app.body.start(); app.title.start();
+  settle();
+  // fontFamily on the App is a PROVISION: the provided value is the list itself;
+  // what it names resolves through the fonts it holds.
+  assert.equal(familyCss(app.$provides.fontFamily), "Helvetica, Arial, sans-serif", "a system font names its family; a list joins in order");
+  assert.equal(app.t.fontFamily, app.title, "the slot holds the Font object");
+  assert.match(familyCss(app.t.fontFamily), /^declare-font-\d+-1$/, "a web font names its own registered family, never an author string");
+  assert.equal(app.body.loaded, true, "a system font is loaded from the start");
+  // The literal forms stay: a family string, or a list of them.
   assert.equal(build(`App [ fontFamily = "Tahoma, sans-serif" ]`).$provides.fontFamily, "Tahoma, sans-serif");
+  assert.equal(build(`App [ fontFamily = ["Helvetica Neue", "sans-serif"] ]`).$provides.fontFamily, "Helvetica Neue, sans-serif");
 });
 
-await test("font: web faces are collected for the runtime to load, with url()/local() sources", () => {
-  const app = build(`font Title [
-    Face [ src = "a.woff2", weight = regular ],
-    Face [ src = "b.woff2", weight = bold ],
-    Face [ src = "c.woff2", weight = bold, italic = true ],
-  ]
-App [ fontFamily = Title ]`);
-  const faces = fontFacesOf(app);
-  assert.deepEqual(
-    faces.map((f) => `${f.family}/${f.weight}/${f.style}`).sort(),
-    ["Title/400/normal", "Title/700/italic", "Title/700/normal"]);
-  assert.equal(faces.find((f) => f.weight === "700" && f.style === "normal").src, `url("b.woff2")`, "a bare string is a url() source");
-  // local() names an installed face; a list source is prefer-local-else-download.
-  const brand = fontFacesOf(build(`font Brand [ Face [ src = [local("Work Sans Bold"), "ws.woff2"], weight = bold ] ] App [ fontFamily = Brand ]`));
-  assert.equal(brand[0].src, `local("Work Sans Bold"), url("ws.woff2")`);
-  // A system font (no faces) loads nothing.
-  assert.deepEqual(fontFacesOf(build(`font Body [ family = "Helvetica" ] App [ fontFamily = Body ]`)), []);
+await test("font: a Face's literals — a url()/local() list, weight numbers and range(lo, hi) — become the CSS a face registers with", async () => {
+  const { faceSourceCss, faceWeightDescriptor } = await import("../runtime/dist/face-literal.js");
+  const app = build(`App [ f: Font [
+    a: Face [ src = [local("Work Sans Bold"), "ws.woff2"], weight = bold ],
+    b: Face [ src = url("b.woff2"), weight = 350, italic = true ],
+    c: Face [ src = "vari.woff2", weight = range(100, 900) ] ] ]`);
+  const same = (u) => u;
+  assert.equal(faceSourceCss(app.f.a.src, same), `local("Work Sans Bold"), url("ws.woff2")`, "local() names an installed face; a list tries each");
+  assert.equal(faceSourceCss(app.f.b.src, same), `url("b.woff2")`);
+  assert.equal(faceSourceCss("fonts/x.woff2", (u) => "/app/" + u), `url("/app/fonts/x.woff2")`, "a relative file resolves beside the program");
+  assert.deepEqual([app.f.a.weight, app.f.b.weight, app.f.c.weight].map(faceWeightDescriptor), ["700", "350", "100 900"]);
+  assert.equal(app.f.b.italic, true);
 });
 
-await test("font: declarations are checked — unknown ref, non-Face child, bad weight, missing src, collisions", () => {
+await test("numeric font weights: fontWeight = 350 beside the keywords; a Face takes a number or range(lo, hi)", async () => {
+  const { cssWeight } = await import("../runtime/dist/measure.js");
+  const app = build(`App [ fontWeight = 350,
+    a: Text [ text = "a" ],
+    b: Text [ fontWeight = bold, text = "b" ],
+    c: Text [ fontWeight = { 400 + 250 }, text = "c" ] ]`);
+  assert.equal(app.a.fontWeight, 350, "the number is the value, provided to the run");
+  assert.equal(cssWeight(app.a.fontWeight), "350");
+  assert.equal(cssWeight(app.b.fontWeight), "700");
+  assert.equal(cssWeight(app.c.fontWeight), "650", "a bound number rides the same slot");
+  for (const [src, re] of [
+    ["Text [ fontWeight = 1200 ]", /a FontWeight \(one of .*, or a number 1–1000\)/],
+    ["App [ f: Font [ Face [ src = \"f.woff2\", weight = 1200 ] ] ]", /a numeric weight is a whole number 1–1000/],
+    ["App [ f: Font [ Face [ src = \"f.woff2\", weight = range(900, 100) ] ] ]", /lo < hi/],
+    ["App [ f: Font [ Face [ src = \"f.woff2\", weight = \"bold\" ] ] ]", /a Face weight is a token/],
+  ]) assert.throws(() => build(src), re, src);
+});
+
+await test("font: a font's shape is checked — Face placement and children, family vs faces, sources, the retired declaration", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
-  assert.match(errs(`App [ fontFamily = Nope ]`)[0], /no font named 'Nope' — this program declares no fonts/);
-  assert.match(errs(`font Body [ family = "Helvetica" ] App [ fontFamily = Ttl ]`)[0], /no font named 'Ttl' — declared fonts: Body/);
-  assert.match(errs(`font F [ Face [ src = "x.woff2", weight = heavy ] ] App [ ]`)[0], /font F: a Face weight is a token/);
-  assert.match(errs(`font F [ Face [ weight = bold ] ] App [ ]`)[0], /font F: a Face needs a src/);
-  assert.match(errs(`font F [ family = "X", Weight [ src = "x.woff2" ] ] App [ ]`)[0], /font F: 'Weight' is not a Face/);
-  assert.match(errs(`font F [ ] App [ ]`)[0], /font F: declare a family .* or at least one Face/);
-  assert.match(errs(`font F [ Face [ src = 12 ] ] App [ ]`)[0], /a face source is a URL string/);
-  assert.match(errs(`font S [ family = "a" ] style S [ ] App [ ]`)[0], /already a component, theme, style, or font named 'S'/);
+  assert.match(errs(`App [ f: Font [ Face [ src = "x.woff2", weight = heavy ] ] ]`)[0], /'heavy' is not a weight — a token .*, a number 1–1000, or range/);
+  assert.match(errs(`App [ f: Font [ Face [ weight = bold ] ] ]`)[0], /a Face needs a src/);
+  assert.match(errs(`App [ f: Font [ Text [ text = "x" ] ] ]`)[0], /a Font holds Face children only — not 'Text'/);
+  assert.match(errs(`App [ Face [ src = "x.woff2" ] ]`)[0], /a Face belongs inside a Font/);
+  assert.match(errs(`App [ f: Font [ family = "X", Face [ src = "x.woff2" ] ] ]`)[0], /'family' names a system font/);
+  assert.match(errs(`App [ f: Font [ Face [ src = 12 ] ] ]`)[0], /a face source is a URL string/);
+  assert.match(errs(`font Body [ family = "Helvetica" ] App [ ]`)[0], /'font Body \[ … \]' is no longer a top-level declaration — .*body: Font \[ … \]/);
 });
 
-await test("font: a fallback list validates each name — an undeclared item is a positioned error", () => {
-  const errs = check(parseProgram(`font Body [ family = "Helvetica" ]
-App [ fontFamily = [Body, Ghost, "sans-serif"] ]`)).map((e) => e.message);
-  assert.match(errs[0], /no font named 'Ghost' — declared fonts: Body/);
+await test("font: a font NAME in a bare family slot or list names the object form, at the item", () => {
+  const errs = check(parseProgram(`App [ fontFamily = ["Helvetica", Ghost, "sans-serif"] ]`)).map((e) => e.message);
+  assert.match(errs[0], /'Ghost' is not a family — a font is an object in the tree: declare 'ghost: Font \[ … \]'.* fontFamily = \{ app\.ghost \}/);
+  assert.match(check(parseProgram(`App [ fontFamily = Nope ]`)).map((e) => e.message)[0], /'Nope' is not a family/);
+});
+
+await test("a node inside data is a leaf — never walked or proxied, so a record's id keeps its identity", () => {
+  // A Segmented whose choice ids were Fonts overflowed the stack at boot (the data
+  // layer walked the node's parent pointers); proxying one broke `id === value`.
+  const app = build(`App [ a: Font [ family = "A" ], d: Dataset { { "items": [] } },
+    t: Text [ text = { this.parent.d.value?.items?.[0]?.id === this.parent.a ? "same" : "different" } ] ]`);
+  app.d.set(["items"], [{ id: app.a, label: "A" }]);
+  settle();
+  assert.equal(app.t.text, "same", "read through a tracked constraint, the id is the Font itself");
 });
 
 await test("letterSpacing: a provided text value (px tracking), coerced as a number", () => {

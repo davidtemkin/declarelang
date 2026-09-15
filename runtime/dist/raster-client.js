@@ -11,11 +11,31 @@
 // bundles/declare-raster-worker.js next to bundles/declare-boot.js for the
 // bundled boot (build-boot.mjs emits it; the same `new URL(…, import.meta.url)`
 // shape the compile worker uses).
-import { onFontsLoaded, loadedFontFaces } from "./font.js";
+import { drawImageBitmap, drawImageHandles } from "./draw-image.js";
+import { onFontsLoaded, onFontsUnloaded, loadedFontFaces } from "./face-table.js";
 let worker = null;
 let dead = false;
 let nextId = 1;
 const pending = new Map();
+/** drawImage sources the worker holds (or is receiving): handle → the send.
+ *  A bitmap crosses ONCE per handle, as a clone made for the worker — never
+ *  transferred from the page, which would detach the element's own pixels. */
+const sentImages = new Map();
+function sendImages(w, list) {
+    const waits = [];
+    for (const h of drawImageHandles(list)) {
+        let p = sentImages.get(h);
+        if (p === undefined) {
+            const src = drawImageBitmap(h);
+            p = src === undefined || typeof createImageBitmap !== "function"
+                ? Promise.resolve()
+                : createImageBitmap(src).then((bmp) => { w.postMessage({ t: "image", h, bitmap: bmp }, [bmp]); }, () => undefined);
+            sentImages.set(h, p);
+        }
+        waits.push(p);
+    }
+    return waits.length === 0 ? Promise.resolve() : Promise.all(waits).then(() => undefined);
+}
 /** Can this engine raster off the main thread at all? */
 export function rasterWorkerAvailable() {
     if (dead)
@@ -48,6 +68,8 @@ function spawn() {
         // the faces the page has loaded so far, and every one it loads later
         w.postMessage({ t: "fonts", faces: loadedFontFaces() });
         onFontsLoaded((faces) => { worker?.postMessage({ t: "fonts", faces }); });
+        // and every family withdrawn (a font retired, or its source replaced)
+        onFontsUnloaded((family) => { worker?.postMessage({ t: "unfonts", family }); });
         worker = w;
         return w;
     }
@@ -60,6 +82,7 @@ function retire() {
     dead = true;
     const w = worker;
     worker = null;
+    sentImages.clear();
     for (const p of pending.values())
         p.resolve(null);
     pending.clear();
@@ -78,7 +101,10 @@ export function rasterInWorker(req) {
     return new Promise((resolve) => {
         pending.set(id, { resolve });
         try {
-            w.postMessage({ t: "raster", id, ...req });
+            // the images a list draws reach the worker before the list does
+            // (postMessage keeps order; the bitmap clones are what's awaited)
+            void sendImages(w, req.list).then(() => { if (pending.has(id))
+                w.postMessage({ t: "raster", id, ...req }); });
         }
         catch (err) {
             // a list that cannot be cloned (it should not exist — recordings are

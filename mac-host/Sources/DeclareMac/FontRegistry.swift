@@ -1,13 +1,15 @@
-// FontRegistry — the program's declared `font` families, on the native host.
+// FontRegistry — the program's web faces, on the native host.
 //
-// A `font Name [ Face [ src = "…woff2", weight = bold ] ]` is CSS's @font-face:
-// the family NAME is a label the author chose, deliberately decoupled from the
-// name inside the file. On the web that decoupling comes free with FontFace;
-// here it has to be modeled, so this registry maps (declared family, weight,
-// slant) → a face, and TextEngine consults it BEFORE asking the system for a
-// family by name. Without it, `fontFamily = Title` asked macOS for a family
-// called "Title", found nothing, and every declared face rendered — and
-// measured — in a fallback (registry §11, the web-fonts row).
+// A `Font [ Face [ src = "…woff2", weight = bold ] ]` is CSS's @font-face: the
+// runtime registers its faces under a family name of its own (font.ts,
+// `declare-font-<id>-<generation>`), deliberately decoupled from the name inside
+// the file. On the web that decoupling comes free with FontFace; here it has to
+// be modeled, so this registry maps (registered family, weight, slant) → a face,
+// and TextEngine consults it BEFORE asking the system for a family by name.
+// Without it, the host asked macOS for a family by that name, found nothing, and
+// every web face rendered — and measured — in a fallback (registry §11, the
+// web-fonts row). A family is withdrawn when its Font retires or its source is
+// replaced (`remove`), and every family when the host moves to another program.
 //
 // Two facts decided the shape, both measured on this machine 2026-09-13:
 //
@@ -51,6 +53,14 @@ enum FontRegistry {
     /// this before it loads the new program's faces).
     static func clear() {
         lock.lock(); faces.removeAll(); lock.unlock()
+        TextEngine.flushFontCaches()
+    }
+
+    /// Forget one family's faces — a Font that retired, or the faces a new source
+    /// replaced (font.ts withdraws a generation's family as a unit).
+    static func remove(family: String) {
+        let key = family.lowercased()
+        lock.lock(); faces.removeAll { $0.family == key }; lock.unlock()
         TextEngine.flushFontCaches()
     }
 

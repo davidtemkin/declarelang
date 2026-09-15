@@ -1,47 +1,54 @@
-import { type Pos } from "./errors.js";
-import type { Element } from "./parser.js";
-/** The formalized weight tokens a Face's `weight` is written with (CSS 100–900),
- *  plus the `normal`/`bold` aliases the `fontWeight` slot also accepts. */
-export declare const FONT_WEIGHTS: Readonly<Record<string, number>>;
-/** One web face to load: the family it registers under, the CSS `src` it loads
- *  from (`url("…")`, `local("…")`, or a comma chain), and its descriptors. */
-export interface FontFaceSpec {
-    readonly family: string;
-    readonly src: string;
-    readonly weight: string;
-    readonly style: string;
+import { Node } from "./node.js";
+import { FONT_CSS, FONT_PENDING } from "./font-value.js";
+export { FONT_WEIGHTS, faceWeight, faceWeightLiteral, FACE_WEIGHT_FORMS } from "./face-literal.js";
+export interface FontHost {
+    /** Fetch one face; resolves to a handle `add`/`remove` understand, rejects on failure. */
+    load(family: string, src: string, descriptors: {
+        weight: string;
+        style: string;
+    }): Promise<unknown>;
+    /** Make a loaded face available to text. */
+    add(handle: unknown): void;
+    /** Withdraw a face. */
+    remove(handle: unknown): void;
+    setTimeout(fn: () => void, ms: number): unknown;
+    clearTimeout(handle: unknown): void;
 }
-/** A resolved font: the family `fontFamily = Name` resolves to, plus (for a web
- *  font) the faces to load. A system font has no faces. */
-export interface Font {
-    readonly name: string;
-    readonly family: string;
-    readonly faces: readonly FontFaceSpec[];
+/** Replace the face loader (tests); null restores the environment's own. */
+export declare function setFontHost(h: FontHost | null): void;
+export type { LoadedFace } from "./face-table.js";
+/** One face of a Font: a file, the weight(s) it covers, and whether it is italic. */
+export declare class Face extends Node {
+    src: string | readonly string[];
+    weight: string | number | readonly [number, number];
+    italic: boolean;
 }
-/** A weight token → its numeric CSS weight, or null if not a formalized token. */
-export declare function faceWeight(token: string): string | null;
-/** Build the program's font declarations into resolved Fonts: the checker
- *  (checkFontBody) reports every error, this throws on the first as the
- *  direct-instantiate safety net. */
-export declare function buildFonts(decls: readonly {
-    name: string;
-    body: Element;
-    pos: Pos;
-}[]): Map<string, Font>;
-/** Every web face across the program's fonts — what the runtime loads before
- *  first paint. */
-export declare function collectFaces(fonts: ReadonlyMap<string, Font>): FontFaceSpec[];
-export declare function registerFontFaces(root: object, faces: readonly FontFaceSpec[]): void;
-export declare function fontFacesOf(root: object): readonly FontFaceSpec[];
-/** A face the page has loaded, as a second realm can load it identically. */
-export interface LoadedFace {
+export declare class Font extends Node {
+    #private;
+    /** A system font's family (a font with no faces). */
     family: string;
-    src: string;
-    weight: string;
-    style: string;
+    /** Milliseconds whatever is about to change to this font keeps its current look. */
+    wait: number;
+    /** An arrival after the wait: change to it, or keep the fallback for the run. */
+    late: "swap" | "keep";
+    /** Every face has arrived. Read-only. */
+    loaded: boolean;
+    /** A face could not be fetched. Read-only. */
+    failed: boolean;
+    /** The CSS family text uses for this font right now (internal). */
+    $css: string;
+    /** Inside the wait for faces not yet here (internal). */
+    $pending: boolean;
+    constructor();
+    get [FONT_CSS](): string;
+    get [FONT_PENDING](): boolean;
+    /** Construction-complete (instantiate.ts): start once the caller's synchronous
+     *  setup (the app's asset base) has run. `fontsReady` starts it sooner. */
+    autoStart(): void;
+    /** Begin watching the faces and loading them. Idempotent. */
+    start(): void;
+    /** Resolves when the first load has settled: every face arrived, one failed,
+     *  or the wait ran out. The start-up gate (fontsReady) waits on this. */
+    ready(): Promise<void>;
 }
-export declare function noteLoadedFaces(faces: readonly LoadedFace[]): void;
-/** Every face loaded so far. */
-export declare function loadedFontFaces(): readonly LoadedFace[];
-/** Hear the faces that load LATER (an island's tenant, a late app). */
-export declare function onFontsLoaded(fn: (faces: readonly LoadedFace[]) => void): void;
+export { fontsReady } from "./font-value.js";

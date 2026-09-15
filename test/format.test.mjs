@@ -27,7 +27,7 @@
 // literate-block interiors, trailing comments, blank-line CLAMP, close-style
 // conversion, opaque `{ }` bodies, `"""` blocks, literal spellings.
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join, basename } from "node:path";
@@ -348,8 +348,12 @@ await test("the whole corpus is canon (docs/system-design excluded)", () => {
   // weather.declare there showcases unlanded grammar (`state … when { }`) the
   // formatter cannot parse. Gating it would either block forever or pressure
   // someone to rewrite the artifact the formatting spec is derived FROM.
-  const files = execFileSync("git", ["ls-files", "*.declare"], { encoding: "utf8" })
-    .split("\n").filter((f) => f && !f.startsWith("docs/system-design/"));
+  // Tracked AND new-but-unignored files: a file not yet committed is exactly the
+  // one most likely to be off canon, and listing only tracked files let a new probe
+  // pass the suite and fail at the commit hook (2026-09-15). Ignored trees
+  // (my-apps/) stay out; a tracked file deleted on disk is skipped.
+  const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "*.declare"], { encoding: "utf8" })
+    .split("\n").filter((f) => f && !f.startsWith("docs/system-design/") && existsSync(f));
   const bad = files.filter((f) => {
     const before = readFileSync(f, "utf8");
     let after; try { after = execFileSync("node", ["tools/format.mjs", f], { encoding: "utf8", maxBuffer: 1 << 28 }); }

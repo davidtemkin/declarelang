@@ -123,6 +123,29 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         redraw()
     }
 
+    /// LINE CLAMP (`RichText.maxLines`), applied by the engine that wrapped the
+    /// text. `lines` is how many of THIS flow's lines may show; 0 lifts it, so a
+    /// re-render never inherits the last clamp. TextKit ends the last kept line
+    /// itself, which is the point of asking it rather than cutting runs: the
+    /// model apportions ONE budget across a document made of several flows and
+    /// model-side blocks, and the engine — the only thing that knows where the
+    /// line broke — decides where the ellipsis falls. Returns the new height.
+    func clamp(lines: Int) -> CGFloat {
+        guard let lm = text.layoutManager, let tc = text.textContainer else { return lastHeight }
+        let want = max(0, lines)
+        if tc.maximumNumberOfLines == want { return lastHeight }
+        tc.maximumNumberOfLines = want
+        tc.lineBreakMode = want > 0 ? .byTruncatingTail : .byWordWrapping
+        text.frame = CGRect(x: 0, y: 0, width: flowWidth, height: 10_000)
+        lm.ensureLayout(for: tc)
+        let h = ceil(lm.usedRect(for: tc).height)
+        lastHeight = h
+        text.frame = CGRect(x: 0, y: 0, width: flowWidth, height: max(1, h))
+        bandDirty = true
+        redraw()
+        return h
+    }
+
     /// Can this re-set be answered without parsing the JSON at all? The parse
     /// itself was 4.3 MB per resize drag, so the check has to come first.
     func cachedHeight(json: String, width: CGFloat, selectable: Bool) -> CGFloat? {
@@ -342,6 +365,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                 let weightStr: String = {
                     if let n = weight as? NSNumber { return String(n.intValue) }
                     if let w = weight as? String {
+                        if let n = Int(w) { return String(n) }               // `fontWeight = 350`
                         return w == "bold" ? "700" : w == "semibold" ? "600" : w == "medium" ? "500" : w == "light" ? "300" : "400"
                     }
                     return "400"
@@ -354,10 +378,9 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                     .paragraphStyle: para,
                 ]
                 if let c = r["color"] as? NSNumber {
-                    let v = UInt32(truncatingIfNeeded: c.intValue)
-                    attrs[.foregroundColor] = NSColor(srgbRed: CGFloat((v >> 16) & 255) / 255,
-                                                      green: CGFloat((v >> 8) & 255) / 255,
-                                                      blue: CGFloat(v & 255) / 255, alpha: 1)
+                    // declColor knows the alpha encoding; decoding the number raw
+                    // shifted every channel of a translucent run and dropped alpha.
+                    attrs[.foregroundColor] = TextEngine.declColor(c)
                 } else if let c = style.color {
                     attrs[.foregroundColor] = c
                 }

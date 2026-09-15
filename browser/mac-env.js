@@ -237,8 +237,13 @@
   doc.getSelection = () => null;
   doc.activeElement = null;
   // `add()` is a no-op because loading IS registering here: FontFace.load()
-  // hands the bytes to the host, which files them under the declared family.
-  doc.fonts = { ready: Promise.resolve(), add() {}, check: () => true, forEach() {} };
+  // hands the bytes to the host, which files them under the face's family.
+  // `delete()` withdraws that family — font.ts registers each generation of a
+  // Font under a family of its own, so the family is exactly the unit to remove.
+  doc.fonts = {
+    ready: Promise.resolve(), add() {}, check: () => true, forEach() {},
+    delete(face) { try { H.unloadFont?.(String(face && face.family)); } catch (e) { /* host without the verb */ } return true; },
+  };
   doc.createElement = (tag) => {
     // image.ts builds its loader with document.createElement("img") — NOT
     // `new Image()`, because the Image class is shadowed inside that module.

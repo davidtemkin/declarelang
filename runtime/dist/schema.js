@@ -8,10 +8,13 @@
 // Deliberately independent of the runtime classes (view.ts): the compiler
 // front-end (APPROACH §5) reuses check — and therefore these schemas — with
 // no runtime import. instantiate.ts keeps the twin tag → class table.
-import { enumType } from "./value.js";
-// The formalized weight vocabulary (CSS 100–900 tokens + normal/bold aliases),
-// shared by View's `fontWeight`/`headingWeight` and the `font` face keys.
-const FONT_WEIGHT = enumType("FontWeight", "thin", "extralight", "light", "regular", "normal", "medium", "semibold", "bold", "extrabold", "black");
+import { enumType, numericEnumType } from "./value.js";
+// The weight vocabulary: the nine CSS keywords (aliases for the hundreds) plus
+// `normal`/`bold`, OR any number 1–1000 — OpenType's usWeightClass line, which a
+// variable font's `wght` axis covers continuously (`fontWeight = 350`). Shared by
+// View's `fontWeight`/`headingWeight`; a `Face` weight follows the same rule
+// (font.ts) and adds `range(lo, hi)` for a variable file.
+const FONT_WEIGHT = numericEnumType("FontWeight", [1, 1000], "thin", "extralight", "light", "regular", "normal", "medium", "semibold", "bold", "extrabold", "black");
 // View's literal attributes (the language reference's View header, §6):
 // Length for the geometry — px, or a percent awaiting R4's resolution —
 // plain number/boolean for the rest. `clip` (R3) is the first Shape-typed
@@ -135,6 +138,26 @@ const ViewSchema = {
         // uniform scale the two commute; the order is stated so nobody has to
         // prove that). 0 = unrotated.
         rotation: { kind: "number" },
+        // The 2D affine completion of the transform (graphics-pass.md §5): a
+        // per-axis scale (`scale` stays the uniform shorthand, multiplied in) and
+        // a skew in degrees — one matrix, M = T(pivot)·R·K·S·T(−pivot), that
+        // paint, the hit walk's inverse, rootTransform and the footprint all
+        // share (runtime/src/affine.ts). 1/1/0/0 = the similarity of before.
+        scaleX: { kind: "number" },
+        scaleY: { kind: "number" },
+        skewX: { kind: "number" },
+        skewY: { kind: "number" },
+        // The third dimension (graphics-pass.md §6): rotations about the X and Y
+        // axes in degrees and a push along Z, about the same pivot, seen through
+        // the PARENT's `perspective` (the eye's distance in px; 0 = orthographic,
+        // CSS's model). `backface = hidden` hides the view when its back shows.
+        // The hit walk unprojects (projective.ts), so hovered/pressed/viewAt
+        // still name the view where it is drawn.
+        rotateX: { kind: "number" },
+        rotateY: { kind: "number" },
+        translateZ: { kind: "number" },
+        perspective: { kind: "number" },
+        backface: enumType("Backface", "visible", "hidden"),
         // How this view COMPOSITES against what has already painted beneath it
         // within the nearest isolating ancestor (compositing.md §4.1: the App
         // root, a group-opacity subtree, a scroller's content group, an island
@@ -152,7 +175,20 @@ const ViewSchema = {
         // `fill` OVER the result: the platform-material shape. Samples within
         // the same isolating ancestor blending sees (§4.2); re-samples as
         // content moves beneath — that is the point of frost. null = none.
-        backdrop: { kind: "backdrop" },
+        backdrop: { kind: "filter" },
+        // The view's own paint, filtered as a GROUP (graphics-pass.md §1): the
+        // clipped subtree — children included — passes through the list (blur,
+        // brightness, contrast, saturate, grayscale, invert, sepia, hueRotate,
+        // tint, shadow-of-alpha) before opacity and blend land. Lengths are view
+        // units and scale with the view's transform; the output may bleed past
+        // the box (a blur's 3σ, a shadow's reach) and layout ignores the bleed. A
+        // filtered view isolates (§4.1). Paint only, never input. null = none.
+        filter: { kind: "filter" },
+        // A soft alpha MASK (graphics-pass.md §2), applied after clip, before
+        // opacity: a gradient's alpha over the box, or a stencil View's painted
+        // alpha placed by its own x/y inside the box (a `visible = false` child
+        // is the idiom). A masked view isolates (§4.1). Paint only. null = none.
+        mask: { kind: "mask" },
         clip: { kind: "shape" },
         // Scroll: which AXES of interior overflow this view scrolls (ruled
         // 2026-07-29, the axis-enum form — the Stretch shape): `none` (the View
@@ -525,9 +561,13 @@ export const TextSchema = {
         // default; `wrap = false` forces a single line. `textAlign` pairs with it.
         wrap: { kind: "boolean" },
         // LINE CLAMP: at most this many lines, the last ending in an ellipsis that
-        // fits (measure.ts clampLines — one rule on every renderer). 0 = unclamped.
+        // FITS (measure.ts clampLines is the rule every renderer clamps through).
         // With `wrap = false` it is a one-line ellipsis.
         maxLines: { kind: "number" },
+        // Did the clamp actually drop anything? Read-only and reactive — what a
+        // "Show more" control binds to, and the reason a clamp is a fact about the
+        // text rather than a look you have to infer.
+        truncated: { kind: "boolean" },
         textAlign: enumType("TextAlign", "left", "center", "right"),
         italic: { kind: "boolean" },
         // Fill the glyphs with a gradient (or solid Fill), like the box `fill` —
@@ -539,6 +579,20 @@ export const TextSchema = {
         outline: { kind: "outline" },
         textTransform: enumType("TextTransform", "none", "uppercase", "lowercase", "capitalize"),
         smallCaps: { kind: "boolean" },
+        // OpenType FIGURES. Two independent axes plus one toggle, named the way the
+        // rest of the face is named — plainly, one idea per attribute:
+        //   `numerals`     the SHAPE of the digits (lining sit on the baseline at
+        //                  cap height; oldstyle have ascenders and descenders)
+        //   `numeralWidth` the ADVANCE — tabular means every digit is the same
+        //                  width, so columns of figures line up
+        //   `slashedZero`  a slash through the zero, beside `smallCaps`
+        // `normal` on either axis is whatever the face does by itself, which is why
+        // both `tabular` and `proportional` are sayable: a face may default to
+        // either. They reach the renderers inside the family NAME (font-features.ts),
+        // which is how the shared measurer comes to see exactly what paints.
+        numerals: enumType("Numerals", "normal", "lining", "oldstyle"),
+        numeralWidth: enumType("NumeralWidth", "normal", "tabular", "proportional"),
+        slashedZero: { kind: "boolean" },
         underline: { kind: "boolean" },
         strike: { kind: "boolean" },
         // Leading, as a MULTIPLIER of fontSize (the Markdown/RichText convention:
@@ -573,6 +627,12 @@ const ImageSchema = {
         // fits — contain letterboxes inside the box, cover fills and crops it —
         // beside the axis stretches, which distort by design.
         stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain"),
+        // Where an aspect-preserving fit sits in the box (graphics-pass.md §4):
+        // `contain` letterboxes on one axis and `cover` crops on one — this says
+        // which end the picture keeps. `center` (the default) is what the fits
+        // always did; CSS's object-position, as two tokens.
+        alignX: enumType("FitAlign", "start", "center", "end"),
+        alignY: enumType("FitAlign", "start", "center", "end"),
         // A color multiplied over the bitmap's ALPHA (compositing.md §3.4): the
         // one-mask-asset, many-colors idiom — result color = tint, shape = the
         // bitmap's alpha, exactly template-image rendering. null (the default) =
@@ -737,6 +797,13 @@ export const RichTextSchema = {
         // color (null = the theme-aware house body). Body size/weight/tracking follow
         // the ambient text style (fontSize/fontWeight/letterSpacing), like a `Text`.
         lineHeight: { kind: "number" },
+        // LINE CLAMP over the whole FLOW (not per block): headings, paragraphs and
+        // list items are counted in document order, the last kept line ends in an
+        // ellipsis, and blocks past the budget are never built. A block that is not
+        // flowed prose — a table, a code block, a rule, an image — spends the lines
+        // its height occupies. `truncated` says whether anything was dropped.
+        maxLines: { kind: "number" },
+        truncated: { kind: "boolean" },
         bodyColor: { kind: "color" },
         // `scale` multiplies the house structure sizes (headings, code) — a font-size
         // zoom a reader control can drive; 1 = the natural sizes.
@@ -1105,6 +1172,31 @@ const StateSchema = {
     },
     events: ["apply", "remove"],
 };
+// Font — a typeface as an object in the tree (font.ts). A Font owns Face
+// children; with none it is a system font naming `family`. `wait` and `late` are
+// the loading policy; `loaded`/`failed` are the facts the runtime writes.
+const FontSchema = {
+    name: "Font",
+    base: NodeSchema,
+    attrs: {
+        family: { kind: "string" },
+        wait: { kind: "number" },
+        late: enumType("FontLate", "swap", "keep"),
+        loaded: { kind: "boolean" },
+        failed: { kind: "boolean" },
+    },
+    readOnly: ["loaded", "failed"],
+};
+// Face — one file of a Font: where it comes from, the weight(s) it covers, italic.
+const FaceSchema = {
+    name: "Face",
+    base: NodeSchema,
+    attrs: {
+        src: { kind: "faceSource" },
+        weight: { kind: "faceWeight" },
+        italic: { kind: "boolean" },
+    },
+};
 /** Tag → schema: the checker's component registry. Must stay in step with
  *  instantiate.ts's tag → class table (layout strategies with its layout
  *  table, data nodes with its data table, animators with its animator table);
@@ -1138,6 +1230,8 @@ export const SCHEMAS = {
     AnimatorGroup: AnimatorGroupSchema,
     Spring: SpringSchema,
     Time: TimeSchema,
+    Font: FontSchema,
+    Face: FaceSchema,
     Keys: KeysSchema,
     Focus: FocusSchema,
     Tip: TipSchema,

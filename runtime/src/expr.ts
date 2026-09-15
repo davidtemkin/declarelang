@@ -29,7 +29,8 @@
 
 import { rewriteDatapaths } from "./datapath.js";
 import { diag } from "./errors.js";
-import { colorWithAlpha, frost, gradient, outline, shadow, stop, stroke } from "./value.js";
+import { colorWithAlpha, gradient, outline, shadow, stop, stroke } from "./value.js";
+import { blur, brightness, conicGradient, contrast, frost, grayscale, hueRotate, invert, radialGradient, saturate, sepia, colorize } from "./effects.js";
 
 // The ruled value constructors, in scope inside every `{ }` body — the "one
 // vocabulary, two lexical homes" ruling: the same names the literal grammar
@@ -38,7 +39,7 @@ import { colorWithAlpha, frost, gradient, outline, shadow, stop, stroke } from "
 // leading hidden argument (never globals); the compile layer leaves
 // CALLEE-position uses of these names unresolved so `stroke(…)` is the
 // constructor while bare `stroke` stays the slot.
-const DECOR = { gradient, stroke, outline, shadow, stop, frost };
+const DECOR = { gradient, radialGradient, conicGradient, stroke, outline, shadow, stop, frost, blur, brightness, contrast, saturate, grayscale, invert, sepia, hueRotate, colorize };
 
 // The lowering target for `0xRRGGBBAA` literals (compile.ts rewrites each 8-hex
 // color literal to a colorWithAlpha(…) call): in scope so the resolved body can
@@ -97,6 +98,12 @@ function scriptPrelude(scope: Record<string, unknown>): string {
  *  in callee position, and the checker reserves the two that are not already
  *  attribute names. */
 export const CONSTRUCTOR_NAMES: readonly string[] = Object.keys(DECOR);
+/** The filter functions (graphics-pass.md §1) — plain words (`blur`,
+ *  `contrast`, `invert`…) a program may well want as ATTRIBUTE names, so they
+ *  are reserved as method names only: an attribute called `blur` shadows the
+ *  constructor inside that node's own `{ }` bodies and nowhere else, and the
+ *  bare-slot call form (`filter = blur(3)`) is unaffected by any member. */
+export const FILTER_FN_NAMES: readonly string[] = ["blur", "brightness", "contrast", "saturate", "grayscale", "invert", "sepia", "hueRotate", "colorize"];
 
 /** A compiled body. Called with `this` bound to the owning node and its
  *  parent and classroot as arguments, so all three scope nouns resolve

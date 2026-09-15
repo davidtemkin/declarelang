@@ -18,10 +18,6 @@ from one place.
 
 use [ SunIcon, AutoIcon, MoonIcon ]
 
-font Sans [ family = "system-ui" ]
-
-font Code [ family = "ui-monospace, SFMono-Regular, monospace" ]   // matches the runtime house code face (PROSE.mono)
-
 /*
 ## Type tokens
 
@@ -31,17 +27,17 @@ detail pane sets `selectable = true` on its container, so all right-pane text
 unselectable chrome.
 */
 
-class Title extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
+class Title extends Text [ fontFamily = ["system-ui", "sans-serif"],
     fontWeight = semibold, textColor = { provided("theme").text }
     ]
 
 
-class Muted extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
+class Muted extends Text [ fontFamily = ["system-ui", "sans-serif"],
     textColor = { provided("theme").textMuted }
     ]
 
 
-class Mono extends Text [ fontFamily = [Code, "ui-monospace", "monospace"] ]
+class Mono extends Text [ fontFamily = ["ui-monospace, SFMono-Regular, monospace", "ui-monospace", "monospace"] ]
 
 // a component tab in the left rail — selection is one App attribute
 // (`app.selected`, the class name); a tab lights when it matches and sets it
@@ -74,7 +70,7 @@ class FoldHead extends View [ width = { parent.width }, height = 28, cornerRadiu
     onClick() { manual = !open; manualAt = app.page },
     mark: Mono [ x = 8, y = 8, fontSize = 10, wrap = false, textColor = { provided("theme").textMuted },
         text = { classroot.open ? "\u25BC" : "\u25B6" } ],
-    lbl: Text [ x = 24, y = 6, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, fontWeight = semibold, wrap = false,
+    lbl: Text [ x = 24, y = 6, fontFamily = ["system-ui", "sans-serif"], fontSize = 14, fontWeight = semibold, wrap = false,
         text = { classroot.label },
         textColor = { classroot.contains ? provided("theme").text : provided("theme").tabIdle } ]
     ]
@@ -172,7 +168,7 @@ class JumpLink extends View [
     onClick() { if (to != null) to.scrollIntoView() },
     row: View [ x = 12, y = { 5 * app.fontScale }, width = { this.contentWidth }, height = { 18 * app.fontScale },
         layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
-        name: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = { 13 * app.fontScale }, fontWeight = semibold, wrap = false,
+        name: Text [ fontFamily = ["system-ui", "sans-serif"], fontSize = { 13 * app.fontScale }, fontWeight = semibold, wrap = false,
             textColor = { provided("theme").accent }, text = { classroot.label } ],
         n: Mono [ fontSize = { 12 * app.fontScale }, wrap = false, textColor = { provided("theme").sigDim }, text = { "" + classroot.count } ]
         ]
@@ -434,7 +430,7 @@ wires.
 */
 
 class DocField extends TextInput [ multiline = true, spellcheck = false, wrap = false,
-    fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 13 * app.fontScale }, textColor = { provided("theme").code },   // 13 = the house code size (PROSE.codeSize)
+    fontFamily = ["ui-monospace, SFMono-Regular, monospace", "ui-monospace", "monospace"], fontSize = { 13 * app.fontScale }, textColor = { provided("theme").code },   // 13 = the house code size (PROSE.codeSize)
     editName: string = "",
     src: string = "",
 
@@ -502,7 +498,7 @@ class Example extends View [ width = { parent.width },
             onClick() { classroot.panel.field.text = classroot.esrc
                         app.liveCard = classroot.cname
                         app.liveSource = classroot.esrc },
-            rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
+            rlbl: Text [ x = 8, y = 3, fontFamily = ["system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
                 textColor = { parent.hovered ? provided("theme").text : provided("theme").textMuted }, text = "Revert" ]
             ],
 
@@ -520,7 +516,7 @@ class Example extends View [ width = { parent.width },
         height = { this.msg.height + 20 },
         bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").errBar } ],
         msg: Text [ x = 18, y = 10, width = { parent.width - 36 }, wrap = true,
-            fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
+            fontFamily = ["ui-monospace, SFMono-Regular, monospace", "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
             textColor = { provided("theme").errText }, text = { app.liveReport } ]
         ],
 
@@ -593,7 +589,7 @@ class RunIsland extends View [ width = { parent.width },
             onClick() { classroot.editor.field.text = classroot.rsrc
                         app.liveCard = classroot.rid
                         app.liveSource = classroot.rsrc },
-            rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
+            rlbl: Text [ x = 8, y = 3, fontFamily = ["system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
                 textColor = { parent.hovered ? provided("theme").text : provided("theme").textMuted }, text = "Revert" ]
             ],
         hint: Muted [ y = 9, fontSize = { 11 * app.fontScale }, italic = true, text = "runs live below ↓",
@@ -613,7 +609,7 @@ class RunIsland extends View [ width = { parent.width },
         height = { this.msg.height + 20 },
         bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").errBar } ],
         msg: Text [ x = 18, y = 10, width = { parent.width - 36 }, wrap = true,
-            fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
+            fontFamily = ["ui-monospace, SFMono-Regular, monospace", "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
             textColor = { provided("theme").errText }, text = { app.liveReport } ]
         ],
 
@@ -995,7 +991,7 @@ class ChapterTab extends View [ width = { parent.width }, height = 32, cornerRad
 
     // numbered, because the chapters cite each other by number ("chapter 3")
 
-    lbl: Text [ x = 24, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, wrap = false,
+    lbl: Text [ x = 24, y = 8, fontFamily = ["system-ui", "sans-serif"], fontSize = 14, wrap = false,
         text = { classroot.cnum + ". " + classroot.ctitle },
         textColor = { app.chapter == classroot.cid ? provided("theme").text : provided("theme").tabIdle } ]
     ]
@@ -1077,7 +1073,7 @@ class SizeBtn extends View [ width = 32, height = 30, cornerRadius = 6,
     fill = { hovered ? provided("theme").control : null },
     onClick() { app.fontScale = classroot.delta == 0 ? 1.0
                     : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
-    lbl: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontWeight = semibold,
+    lbl: Text [ fontFamily = ["system-ui", "sans-serif"], fontWeight = semibold,
         fontSize = { classroot.glyph }, textColor = { provided("theme").textMuted }, text = "A",
         x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ]
     ]
@@ -1422,12 +1418,12 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
             // "Declare" is the way home — navigate() resolves against the
             // distro root, so this works on either host at any mount point
 
-            Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
+            Text [ fontFamily = ["system-ui", "sans-serif"], fontSize = 18,
                 fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
                 onClick() { app.navigate("apps/homepage/homepage.declare") }
                 ],
-            Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
+            Text [ fontFamily = ["system-ui", "sans-serif"], fontSize = 18,
                 fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textColor = { provided("theme").text }, text = "Docs" ]
             ],
@@ -1553,7 +1549,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
                     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
                     link = "#language/",
                     onClick() { app.formAt = ""; app.location = "language/"; app.showPage() },
-                    Text [ x = 24, y = 6, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, wrap = false, text = "All forms", textColor = { parent.lit ? provided("theme").text : provided("theme").tabIdle } ]
+                    Text [ x = 24, y = 6, fontFamily = ["system-ui", "sans-serif"], fontSize = 14, wrap = false, text = "All forms", textColor = { parent.lit ? provided("theme").text : provided("theme").tabIdle } ]
                     ],
                 FormGroup [ datapath = :forms.groups[] ],
                 g3:    View [ height = 18 ],

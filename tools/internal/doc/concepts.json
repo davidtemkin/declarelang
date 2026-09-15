@@ -28,7 +28,7 @@
     "hover": "View.hovered",
     "rollover": "View.hovered",
     "shadow": "View.shadow",
-    "drop shadow": "View.shadow",
+    "drop shadow": "View.filter",
     "border": "View.stroke",
     "outline": "View.stroke",
     "rounded corners": "View.cornerRadius",
@@ -132,8 +132,8 @@
     "infinite scroll": "View.virtualize",
     "letter spacing": "Text.letterSpacing",
     "text align": "Text.textAlign",
-    "font family": "Text.fontFamily",
-    "typeface": "Text.fontFamily",
+    "font family": "Font",
+    "typeface": "Font",
     "italics": "Text.italic",
     "sticky": "View.ignoreScroll",
     "position sticky": "View.ignoreScroll",
@@ -158,18 +158,24 @@
     "hit testing": "View.method.viewAt",
     "element under pointer": "View.method.viewAt",
     "elementFromPoint": "View.method.viewAt",
-    "under the pointer": "View.method.viewAt"
+    "under the pointer": "View.method.viewAt",
+    "drawImage": "View.method.draw",
+    "draw image": "View.method.draw",
+    "image in canvas": "View.method.draw",
+    "blur": "View.filter",
+    "filter": "View.filter",
+    "grayscale": "View.filter",
+    "mask": "View.mask",
+    "mask image": "View.mask",
+    "skew": "View.skewX",
+    "shear": "View.skewX",
+    "perspective": "View.perspective",
+    "3d": "View.rotateX",
+    "flip": "View.rotateY",
+    "radial gradient": "View.fill",
+    "conic gradient": "View.fill"
   },
   "negative": [
-    {
-      "terms": [
-        "drawImage",
-        "draw image",
-        "rasterize image",
-        "image in canvas"
-      ],
-      "answer": "No `d.drawImage` — `Draw` cannot rasterize a picture. A picture is an `Image` view (`stretches = cover|contain` for fit, `tint` to recolor), and since the compositing arc it rotates and scales like any view (`rotation`, `scale`, about `pivotX`/`pivotY`) — so a rotated photograph no longer needs a drawing at all. What remains unreachable is compositing a decoded bitmap INSIDE a `draw(d: Draw)` recording."
-    },
     {
       "terms": [
         "bitmap cache",

@@ -18,6 +18,7 @@
 //
 // Same launch discipline as drawconform.mjs; "Declare Mac" WITH THE SPACE.
 import { execFileSync, spawn } from "node:child_process";
+import { CTL_IN, CTL_OUT, APP_NAME } from "./app.mjs";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -27,7 +28,7 @@ import { hostBinary, NO_HOST } from "./app.mjs";
 import { createDeclareServer } from "../server/create.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const IN = "/tmp/declare-ctl.in", OUT = "/tmp/declare-ctl.out";
+const IN = CTL_IN, OUT = CTL_OUT;
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf("--" + n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d; };
@@ -52,7 +53,7 @@ const URL_ = `http://127.0.0.1:${httpServer.address().port}/${target}?render=mac
 
 const bin = hostBinary();
 if (bin === null) { console.error(NO_HOST); process.exit(1); }
-for (const pat of ["Declare Mac", "DeclareMac"]) { try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* none */ } }
+for (const pat of [APP_NAME]) { try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* none */ } }
 await sleep(1.2);
 spawn(bin, [], { detached: true, stdio: "ignore",
   env: { ...process.env, DECLARE_CONTROL: "1", DECLARE_APPEARANCE: "light", DECLARE_URL: URL_ } }).unref();
@@ -74,5 +75,5 @@ const r = /rasters=(\d+)\s+rasterMs total=([\d.]+)/.exec(stats);
 console.log(`mac · ${target.replace(/^.*\//, "")} · ${STEPS} steps` + (STEP ? ` · step: ${STEP}` : " · no stimulus"));
 console.log(m ? `  motion gap ms  p50 ${m[1]}  p95 ${m[2]}  max ${m[3]}  over-budget ${m[4]} of ${m[5]}` : "  (no MOTION gap line — did the stimulus move geometry?)");
 console.log(r ? `  rasters ${r[1]}  rasterMs ${r[2]}` : "");
-for (const pat of ["Declare Mac", "DeclareMac"]) { try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* gone */ } }
+for (const pat of [APP_NAME]) { try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* gone */ } }
 httpServer.close();

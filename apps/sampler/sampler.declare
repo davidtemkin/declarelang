@@ -18,12 +18,6 @@ CARDS, two columns wide, one below the breakpoint the cards actually need.
 
 use [ TintRow, SunIcon, AutoIcon, MoonIcon ]   // the door and the menu name their icons in data
 
-font Roboto [
-    Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
-    Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
-    ]
-
-
 // A custom menu-item CONTENT class — rung 2 of the record door: named in the
 // items DATA (`kind: "TintRow"`), created by name (app.createView through the
 // menu's row host), fed `props` as its datapath context. The Finder tag-dots
@@ -80,6 +74,10 @@ class Card extends View [ width = { parent.width },
 
 
 App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, minWidth = 320,
+    roboto: Font [
+        Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
+        Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
+        ],
 
     // ── the responsive facts, each scoped to what it governs ───────────────
 
@@ -116,7 +114,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
     // the type stack is part of the styling: Roboto for Mountain View, the system face for Cupertino
 
-    fontFamily = { style == "mountainView" ? "Roboto, system-ui, sans-serif" : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : style == "redmond" ? "'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" : "system-ui, sans-serif" },
+    fontFamily = { style == "mountainView" ? [app.roboto, "system-ui", "sans-serif"] : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : style == "redmond" ? "'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" : "system-ui, sans-serif" },
 
     // ── data: the Table's cities; the DataGrid's issues (OWNED — seeded
     //    once, so cell edits persist; the sort verb reorders the data) ──────

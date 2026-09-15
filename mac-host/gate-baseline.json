@@ -74,14 +74,54 @@
     "structural": 0.2,
     "theme": "light"
   },
-  "textclamp": {
-    "differing": 99.97,
-    "structural": 99.7,
+  "gfx-filter": {
+    "differing": 2.08,
+    "structural": 0.87,
     "theme": "light"
   },
-  "webfont": {
-    "differing": 0.58,
-    "structural": 0.49,
+  "gfx-mask": {
+    "differing": 1.67,
+    "structural": 0.53,
+    "theme": "light"
+  },
+  "gfx-gradients": {
+    "differing": 4.03,
+    "structural": 1.26,
+    "theme": "light"
+  },
+  "gfx-fit": {
+    "differing": 0.23,
+    "structural": 0.18,
+    "theme": "light"
+  },
+  "gfx-affine": {
+    "differing": 0.43,
+    "structural": 0.29,
+    "theme": "light"
+  },
+  "gfx-transform3d": {
+    "differing": 0.46,
+    "structural": 0.28,
+    "theme": "light"
+  },
+  "gfx-drawimage": {
+    "differing": 0.99,
+    "structural": 0.77,
+    "theme": "light"
+  },
+  "gfx-tightline": {
+    "differing": 0.75,
+    "structural": 0.67,
+    "theme": "light"
+  },
+  "textfixes": {
+    "differing": 1.05,
+    "structural": 0.85,
+    "theme": "light"
+  },
+  "text": {
+    "differing": 4.27,
+    "structural": 3.43,
     "theme": "light"
   }
 }

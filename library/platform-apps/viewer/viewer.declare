@@ -21,9 +21,6 @@
 // beside the brand once a link has been followed, and an include's Edit tab —
 // classes, no App, nothing to run — says which program to edit instead.
 
-
-font Mono [ family = "ui-monospace" ]
-
 // the appearance switch names its icons in data — see calendar for the rule
 
 use [ SunIcon, AutoIcon, MoonIcon ]
@@ -563,7 +560,7 @@ App [ fill = { provided("theme").bg },
             // the A stepper drives every pane, this one included — it read as a
             // dead control here, since the tab it is showing ignored it
 
-            fontFamily = [Mono, "monospace"], fontSize = { 12 * app.fontScale },
+            fontFamily = ["ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
             textColor = { app.codeFg() },
             fill = { provided("theme").codeBg },
             initial = { app.demoSources["__raw__"] || app.rawSrc.value || "" },
@@ -617,7 +614,7 @@ App [ fill = { provided("theme").bg },
             fill = { app.isDark ? 0x2A1517 : 0xFDECEC },
             bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { app.isDark ? 0xE0525E : 0xC93B47 } ],
             msg: Text [ x = 14, y = 10, width = { parent.width - 28 }, wrap = true,
-                fontFamily = [Mono, "monospace"], fontSize = 11,
+                fontFamily = ["ui-monospace", "monospace"], fontSize = 11,
                 textColor = { app.isDark ? 0xFF8B8B : 0xB42318 }, text = { app.liveReport } ]
             ],
 

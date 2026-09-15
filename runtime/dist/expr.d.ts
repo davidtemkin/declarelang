@@ -9,6 +9,12 @@ export declare function evalScript(js: string): Record<string, unknown>;
  *  in callee position, and the checker reserves the two that are not already
  *  attribute names. */
 export declare const CONSTRUCTOR_NAMES: readonly string[];
+/** The filter functions (graphics-pass.md §1) — plain words (`blur`,
+ *  `contrast`, `invert`…) a program may well want as ATTRIBUTE names, so they
+ *  are reserved as method names only: an attribute called `blur` shadows the
+ *  constructor inside that node's own `{ }` bodies and nowhere else, and the
+ *  bare-slot call form (`filter = blur(3)`) is unaffected by any member. */
+export declare const FILTER_FN_NAMES: readonly string[];
 /** A compiled body. Called with `this` bound to the owning node and its
  *  parent and classroot as arguments, so all three scope nouns resolve
  *  naturally. */

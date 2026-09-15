@@ -1,0 +1,47 @@
+/* The third dimension: rotateX / rotateY / translateZ under a parent's
+   perspective, backface hidden, and clicks landing where the card is drawn. */
+
+App [ width = 900, height = 420, fill = #202124, textColor = whitesmoke,
+    hit: string = "click a card",
+    onClick() { hit = "miss" },
+    stage: View [ x = 0, y = 0, width = 900, height = 340, perspective = 700,
+        // the odometer's frame: a card tipped 60° about its horizontal axis
+
+        a: View [ x = 30, y = 60, width = 180, height = 220, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0x2EC4B6 },
+            rotateX = 60, pivotX = 90, pivotY = 110,
+            onClick() { app.hit = "a (rotateX 60)" },
+            Text [ x = 20, y = 90, fontSize = 26, fontWeight = bold, text = "rotateX" ]
+            ],
+
+        // turned about the vertical axis, with a child image
+
+        b: View [ x = 250, y = 60, width = 180, height = 220, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0xFFD23F }, textColor = #202124,
+            rotateY = -45, pivotX = 90, pivotY = 110,
+            onClick() { app.hit = "b (rotateY -45)" },
+            Text [ x = 20, y = 30, fontSize = 26, fontWeight = bold, text = "rotateY" ],
+            Image [ x = 40, y = 90, width = 100, height = 100, stretches = contain, source = "assets/badge.png" ]
+            ],
+
+        // pushed toward the viewer, so it grows
+
+        c: View [ x = 470, y = 80, width = 160, height = 180, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0x4C8DFF },
+            translateZ = 120, pivotX = 80, pivotY = 90,
+            onClick() { app.hit = "c (translateZ 120)" },
+            Text [ x = 20, y = 70, fontSize = 22, fontWeight = bold, text = "closer" ]
+            ],
+
+        // the back face: hidden, so a card turned past 90° vanishes; and a 2D affine composing with 3D
+
+        d: View [ x = 690, y = 60, width = 180, height = 220, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0x9B59B6 },
+            rotateY = 150, backface = hidden, pivotX = 90, pivotY = 110,
+            onClick() { app.hit = "d (back, hidden)" },
+            Text [ x = 20, y = 90, fontSize = 22, fontWeight = bold, text = "hidden" ]
+            ],
+        e: View [ x = 690, y = 60, width = 180, height = 220, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0x9B59B6 }, opacity = 0.9,
+            rotateX = 35, rotateY = 25, rotation = 10, scaleY = 0.9, pivotX = 90, pivotY = 110, filter = shadow(0, 12, 30, 0x000000AA),
+            onClick() { app.hit = "e (composed 3D)" },
+            Text [ x = 20, y = 90, fontSize = 22, fontWeight = bold, text = "composed" ]
+            ]
+        ],
+    readout: Text [ x = 30, y = 370, fontSize = 22, text = { app.hit } ]
+    ]

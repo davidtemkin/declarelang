@@ -19,6 +19,10 @@ import { resolveAsset } from "./asset-base.js";
 // needs the same rule for a font face, and importing it from here would pin the
 // Image class into every bundle.
 export class Image extends View {
+    /** The loaded element — what `d.drawImage(pic, …)` paints from (draw.ts's
+     *  DrawImageSource). null until a bitmap lands; kept across a re-pointed
+     *  `source` until the replacement lands, like `loaded`. */
+    bitmap = null;
     /** Discards a superseded load: only the latest request may land. */
     loadSeq = 0;
     /** The arrived bitmap's natural size — what contentExtent folds into a
@@ -39,6 +43,8 @@ export class Image extends View {
         // Pushers fire on *change*; attach's flush carries the pre-attach state
         // across (the image element itself arrives via load's async landing).
         s.setImageStretch(this.stretches);
+        if (this.alignX !== "center" || this.alignY !== "center")
+            s.setImageAlign?.(this.alignX, this.alignY);
         if (this.tint !== null)
             s.setImageTint?.(this.tint);
     }
@@ -80,6 +86,7 @@ export class Image extends View {
             if (!isSet(this, "height") && ownerOf(this, "height") === null) {
                 setBound(this, "height", img.naturalHeight);
             }
+            this.bitmap = img;
             setBound(this, "loaded", true);
             this.surface.setImage(img);
         };
@@ -94,6 +101,8 @@ export class Image extends View {
 defineAttributes(Image, {
     source: { def: "", push: (i) => i.load() },
     stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
+    alignX: { def: "center", push: (i) => i.surface?.setImageAlign?.(i.alignX, i.alignY) },
+    alignY: { def: "center", push: (i) => i.surface?.setImageAlign?.(i.alignX, i.alignY) },
     tint: { def: null, push: (i, v) => i.surface?.setImageTint?.(v) },
     loaded: { def: false },
     failed: { def: false },

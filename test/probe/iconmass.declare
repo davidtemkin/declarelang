@@ -8,8 +8,6 @@
    a mark drawn at 24 carries the same 1.6px stroke it carried at 16, so it is
    proportionally LIGHTER, and the rig has to be able to see that. */
 
-font Sans [ family = "system-ui" ]
-
 App [ width = 560, height = 96, fill = #FFFFFF,
     theme = { SanFrancisco },
 

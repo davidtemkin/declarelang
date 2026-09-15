@@ -1,13 +1,18 @@
 A run of text, sized by native browser metrics when you don't give it a width or
 height — so a bare `Text [ text = "hi" ]` is exactly as wide and tall as its glyphs.
 Its **face** lives with `Text`: `textColor`, `fontSize`, `fontFamily`, `fontWeight`,
-and `letterSpacing` each **default to a provided value** — `fontFamily: string =
+and `letterSpacing` each **default to a provided value** — `fontFamily =
 provided("fontFamily", "sans-serif")` and its kin — so a bare run inherits its
 region's style, and setting one on a container **provides** it to every `Text`
 beneath. That is why restyling a region's text means setting those on the container:
 the container provides the value, each run reads it. (These slots used to sit on
 `View`; they came off the geometry base with provided values — a container draws no
-glyphs.)
+glyphs.) `fontWeight` takes the nine keywords (`thin` … `black`, plus `normal`/`bold`)
+or a number 1–1000 — the same line, since the keywords are CSS's names for the
+hundreds — so a variable font's `wght` axis is reachable at any point:
+`fontWeight = 350`. `fontFamily` takes a family string, a `Font` object, or a list of
+them — a list holding a font is written in a `{ }`: `fontFamily = { [app.brand,
+"sans-serif"] }`.
 
 ```declare
 View [ textColor = royalblue, fontSize = 15,
@@ -40,12 +45,14 @@ to force a single line that overflows instead. Wrapping is reactive: narrow the
 bounding width and the run re-flows in the same frame. Pairs with `textAlign`.
 
 ## maxLines
-A line clamp: at most this many lines, the last ending in an ellipsis that fits the
-width — words dropped from its end until `…` fits, then characters if one word alone is
-too long. `0` (the default) means no clamp. With `wrap = false` it is a one-line ellipsis.
-The run's measured height follows the clamp, and the three renderers clamp by the one
-rule in the measurer, so what is counted is what is painted. A list's preview line is the
-case: `wrap = true, maxLines = 2`.
+A line limit (default `0`, no limit). The run keeps at most this many lines — wrapped
+lines and hard newlines alike — and the last line kept ends in an ellipsis that fits
+within the width. The height derive, `contentHeight` and every renderer honor it, so a
+clamped preview measures exactly as tall as it draws.
+
+## truncated
+`true` when `maxLines` actually dropped something. Read-only and reactive — the fact a
+"Show more" reads: `more: Text [ visible = { app.summary.truncated }, … ]`.
 
 ## textAlign
 Horizontal alignment of wrapped lines within the run's width — `left` (default),
@@ -85,6 +92,24 @@ run still fits its width and wraps correctly on every renderer.
 Renders lowercase letters as small capitals — **synthesized from the current font**, not a
 separate face, so it composes with any `fontFamily`/`fontWeight`. Measured with the caps,
 so widths agree across DOM, canvas and native.
+
+## numerals
+The **shape** of the digits, when the face carries more than one set: `lining` sit on the
+baseline at cap height (the modern default in most faces); `oldstyle` have ascenders and
+descenders and sit in running prose like lowercase letters. `normal` — the default — is
+whatever the face does by itself, which differs by face: Baskerville is lining, Hoefler
+Text is oldstyle. A face with only one set ignores this, silently and correctly.
+
+## numeralWidth
+The **advance** of the digits: `tabular` gives every digit the same width, so figures line
+up in a column and a counter does not jitter as it counts; `proportional` lets each digit
+take its natural width, which reads better in prose. `normal` is the face's own default —
+and both values are worth saying, because faces differ on which one that is (Helvetica is
+tabular by default, the system font proportional).
+
+## slashedZero
+A slash through the zero, where the face has one — for serial numbers, codes and anywhere
+`0` and `O` must not be confused.
 
 ## underline
 A rule under the baseline. A **decoration**, drawn in the text colour and independent of

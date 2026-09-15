@@ -109,6 +109,27 @@ the frame, like a window's resize border living just outside the box it resizes.
 The family has a third member, `ignoreScroll` — it belongs to the scrolling story
 below.
 
+## The transform, in two and three dimensions
+
+`scale` and `rotation` about `pivotX`/`pivotY` were the whole transform; now they are
+the middle of one family, and every member obeys the same **one-geometry rule** — paint,
+hit-testing (`hovered`, `pressed`, `viewAt`), `rootTransform()` and the parent's auto-size
+all read the same matrix:
+
+```declare-fragment
+sliver: View [ scaleY = 0.2, pivotX = 80, pivotY = 100 ],         // per-axis scale (× the uniform `scale`)
+lean:   View [ skewX = 20 ],                                        // a shear, in degrees
+stage:  View [ perspective = 700,                                   // the eye, for the children below
+    tipped: View [ rotateX = 60, pivotY = 110 ],                    // out of the plane
+    turned: View [ rotateY = -45, backface = hidden ],              // its back hides past 90°
+    nearer: View [ translateZ = 120 ] ]                             // toward the viewer, so it grows
+```
+
+`perspective` sits on the **parent**, CSS's model: the eye's distance in pixels, the
+vanishing point at that box's centre; with none, a rotated child simply foreshortens.
+A view out of its plane is hit through the projected geometry — a press on the tipped
+card lands where the card is drawn, and a hidden back face takes nothing.
+
 ## The app fills its host
 
 An `App` with no size fills its host and resizes with it — which is why responsive

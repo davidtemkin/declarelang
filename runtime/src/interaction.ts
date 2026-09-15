@@ -34,6 +34,8 @@
 // a cycle.
 
 import { Cell, Constraint } from "./reactive.js";
+import { affineFit, childHomography, unprojectChild, type Homography, type View3D } from "./projective.js";
+import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
 import { diag } from "./errors.js";
 
 /** The geometry surface the chain walk reads — structurally, any View. */
@@ -158,35 +160,36 @@ const ORPHANS = new WeakMap<InteractionView, Rec>();
  *  fold landed on the view a full scrollY away); the canvas backend's hit walk
  *  had all three terms all along (canvas-backend `hit`), which is exactly the
  *  drift the ONE-WALK rule below exists to prevent. */
+/** A view's own paint transform as a matrix (the attributes may be absent on
+ *  a minimal InteractionView — treated as their defaults). */
+function localAffine(v: InteractionView): Affine {
+  const w = v as InteractionView & { scaleX?: number; scaleY?: number; skewX?: number; skewY?: number };
+  return affineFromParts({ scale: v.scale, scaleX: w.scaleX ?? 1, scaleY: w.scaleY ?? 1, rotation: v.rotation,
+    skewX: w.skewX ?? 0, skewY: w.skewY ?? 0, pivotX: v.pivotX, pivotY: v.pivotY });
+}
+
+/** The homography of a child that leaves its plane (rotateX/rotateY/translateZ),
+ *  local → parent, or null for one that stays in it. */
+function homographyOf(parent: InteractionView | null, c: InteractionView): Homography | null {
+  return childHomography(parent as unknown as View3D | null, c as unknown as View3D, () => localAffine(c));
+}
+
 function toChildLocal(v: InteractionView, c: InteractionView, lx: number, ly: number): [number, number] {
   if (v.scrolls !== "none" && !c.ignoreScroll) {
     lx += v.scrollX;
     ly += v.scrollY;
   }
+  // a child that leaves its plane: unproject through the parent's eye
+  // (projective.ts) — the homography carries the child's position too
+  const h3 = homographyOf(v, c);
+  // (behind the eye, or a hidden back face: nothing to hit)
+  if (h3 !== null) return unprojectChild(h3, c as unknown as View3D, lx, ly);
   let cx = lx - c.x;
   let cy = ly - c.y;
-  const s = c.scale;
-  const rot = c.rotation;
-  if ((s !== 1 && s !== 0) || rot !== 0) {
-    let dx = cx - c.pivotX;
-    let dy = cy - c.pivotY;
-    if (s !== 1 && s !== 0) {
-      dx /= s;
-      dy /= s;
-    }
-    if (rot !== 0) {
-      // model degrees are clockwise in y-down coordinates; invert
-      const a = (-rot * Math.PI) / 180;
-      const ca = Math.cos(a);
-      const sa = Math.sin(a);
-      const rx = dx * ca - dy * sa;
-      const ry = dx * sa + dy * ca;
-      dx = rx;
-      dy = ry;
-    }
-    cx = dx + c.pivotX;
-    cy = dy + c.pivotY;
-  }
+  // the view's own paint transform, inverted — ONE matrix for scale, per-axis
+  // scale, skew and rotation about the pivot (affine.ts; graphics-pass.md §5)
+  const m = localAffine(c);
+  if (!affineIsIdentity(m)) [cx, cy] = applyAffine(invertAffine(m), cx, cy);
   return [cx, cy];
 }
 
@@ -407,37 +410,30 @@ export function boxContains(view: InteractionView, x: number, y: number): boolea
 export function rootTransform(
   view: InteractionView,
   stopAt: InteractionView | null = null
-): { scale: number; rotation: number; tx: number; ty: number } {
-  let cs = 1;   // composed scale
-  let cr = 0;   // composed rotation, radians
-  let tx = 0;
-  let ty = 0;
+): { scale: number; rotation: number; tx: number; ty: number; matrix: Affine } {
+  // the composed matrix, local → root: lift through each ancestor's own
+  // transform (about its pivot), then its position, then its parent's scroll
+  let m: Affine = IDENTITY_AFFINE;
   for (let n: InteractionView | null = view; n !== null && n !== stopAt; ) {
-    // lift the accumulated similarity through n's own transform: G∘A, where
-    // G(q) = pivot + s·R(rot)(q − pivot) + (x, y)
-    const s = n.scale;
-    const rot = (n.rotation * Math.PI) / 180;
-    if (s !== 1 || rot !== 0) {
-      const ca = Math.cos(rot);
-      const sa = Math.sin(rot);
-      const dx = tx - n.pivotX;
-      const dy = ty - n.pivotY;
-      tx = n.pivotX + s * (dx * ca - dy * sa);
-      ty = n.pivotY + s * (dx * sa + dy * ca);
-      cs *= s;
-      cr += rot;
-    }
-    tx += n.x;
-    ty += n.y;
     const p: InteractionView | null = isView(n.parent) ? n.parent : null;
+    const h3 = homographyOf(p, n);
+    if (h3 !== null) {
+      // a 3D view lifts by the affine that agrees with its projection at the
+      // box's corners — the similarity-shaped reading of a projective map
+      m = composeAffine(affineFit(h3, n.width, n.height), m);
+    } else {
+      const own = localAffine(n);
+      if (!affineIsIdentity(own)) m = composeAffine(own, m);
+      m = composeAffine([1, 0, 0, 1, n.x, n.y], m);
+    }
     if (p === stopAt) break;   // content space: the boundary's own scroll is not crossed
     if (p !== null && p.scrolls !== "none" && !n.ignoreScroll) {
-      tx -= p.scrollX;
-      ty -= p.scrollY;
+      m = composeAffine([1, 0, 0, 1, -p.scrollX, -p.scrollY], m);
     }
     n = p;
   }
-  return { scale: cs, rotation: cr, tx, ty };
+  // the similarity-shaped facts a general matrix "is": √|det| and its rotation
+  return { scale: affineScaleOf(m), rotation: affineRotationOf(m), tx: m[4], ty: m[5], matrix: m };
 }
 
 /** A view's origin in the ROOT'S FRAME space (viewport coordinates for a
@@ -465,18 +461,8 @@ export function rootFrameBox(
   const ry = rect?.y ?? 0;
   const rw = rect?.w ?? view.width;
   const rh = rect?.h ?? view.height;
-  const ca = Math.cos(t.rotation);
-  const sa = Math.sin(t.rotation);
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const [px, py] of [[rx, ry], [rx + rw, ry], [rx, ry + rh], [rx + rw, ry + rh]]) {
-    const fx = t.tx + t.scale * (px * ca - py * sa);
-    const fy = t.ty + t.scale * (px * sa + py * ca);
-    if (fx < minX) minX = fx;
-    if (fx > maxX) maxX = fx;
-    if (fy < minY) minY = fy;
-    if (fy > maxY) maxY = fy;
-  }
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY, scale: t.scale };
+  const box = boxThroughAffine(t.matrix, rx, ry, rw, rh);
+  return { ...box, scale: t.scale };
 }
 
 /** The tracked read behind `View.hovered`. */

@@ -420,6 +420,28 @@ const FROST_SOURCE = `App [ width=240, height=160, fill=#181C22,
   panel: View [ x=20, y=30, width=200, height=70, backdrop=frost(8), fill=#FFFFFF66, cornerRadius=12 ],
   sat: View [ x=20, y=110, width=200, height=40, backdrop=frost(6, 1.6), fill=#10141866 ] ]`;
 
+// The GRAPHICS PASS scenes (graphics-pass.md): each puts a capability where its
+// ABSENCE shows, and the two web backends must agree.
+//   filter  — a blurred+darkened box beside a plain twin: a probe on the box's
+//             edge reads blended on the filtered one, crisp on the plain; a
+//             colorized box reads the colour, not the fill.
+//   mask    — a gradient-masked box: opaque at its left, gone at its right.
+//   affine  — a scaleY-squashed box: its centre painted, its old corner bare;
+//             a skewed box: painted where the shear moved it, bare where it left.
+//   3d      — a card tipped 60° under a 700px eye: its projected bottom edge
+//             wider than its top (probes just inside/outside each).
+//   gradients — a radial fill: white at the centre, the edge colour at the corner.
+const GFX_SOURCE = `App [ width=240, height=160, fill=#20242C,
+  plain: View [ x=8, y=8, width=50, height=50, fill=#E4572E ],
+  blurred: View [ x=66, y=8, width=50, height=50, fill=#E4572E, filter=[blur(5), brightness(0.5)] ],
+  tinted: View [ x=124, y=8, width=50, height=50, fill=#E4572E, filter=colorize(#17BEBB) ],
+  sheared: View [ x=200, y=8, width=30, height=40, fill=#9B59B6, skewX=-30, pivotX=0, pivotY=0 ],
+  masked: View [ x=8, y=70, width=100, height=30, fill=#FFC914, mask=gradient("90deg", #000000FF, #000000FF, #00000000, #00000000) ],
+  squashed: View [ x=130, y=70, width=50, height=50, fill=#17BEBB, scaleY=0.2, pivotX=25, pivotY=25 ],
+  radial: View [ x=190, y=70, width=48, height=40, fill=radialGradient(0.5, 0.5, 1, #FFFFFF, #E4572E) ],
+  stage: View [ x=0, y=110, width=240, height=50, perspective=300,
+    card: View [ x=80, y=5, width=80, height=40, fill=#FFC914, rotateX=60, pivotX=40, pivotY=20 ] ] ]`;
+
 // The tint scene (compositing.md §3.4): the same half-opaque 80×80 SVG mask
 // twice — tinted and untouched. The tinted one must render as PURE tint
 // color where the mask is opaque and nothing where it is transparent
@@ -831,6 +853,8 @@ function serveDist() {
     "/dom-frost": pageHtml("DomBackend", FROST_SOURCE),
     "/canvas-frost": pageHtml("CanvasBackend", FROST_SOURCE),
     "/dom-tint": pageHtml("DomBackend", TINT_SOURCE),
+    "/dom-gfx": pageHtml("DomBackend", GFX_SOURCE),
+    "/canvas-gfx": pageHtml("CanvasBackend", GFX_SOURCE),
     "/canvas-tint": pageHtml("CanvasBackend", TINT_SOURCE),
     "/dom-rot": pageHtml("DomBackend", ROT_SOURCE),
     "/canvas-rot": pageHtml("CanvasBackend", ROT_SOURCE),
@@ -2638,6 +2662,57 @@ try {
       soft: [
         { x: 56, y: 16, w: 10, h: 90, label: "tinted mask boundary" },
         { x: 156, y: 16, w: 10, h: 90, label: "untinted mask boundary" },
+      ],
+    });
+    assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
+    assert.equal(diff.over, 0, `strict channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+  });
+
+  // ── the graphics pass: filter · mask · affine · 3D · radial (graphics-pass.md) ──
+
+  const GFX_BG = [0x20, 0x24, 0x2c];
+  const GFX_PROBES = [
+    { at: [33, 33], color: [0xe4, 0x57, 0x2e], label: "plain box, interior" },
+    { at: [91, 33], color: [0x72, 0x2b, 0x17], label: "filtered box, interior — brightness halved" },
+    { at: [149, 33], color: [0x17, 0xbe, 0xbb], label: "colorized box — the colour, not the fill" },
+    { at: [213, 11], color: [0x9b, 0x59, 0xb6], label: "sheared box, top (barely moved)" },
+    { at: [194, 45], color: [0x9b, 0x59, 0xb6], label: "sheared box, bottom (moved left)" },
+    { at: [226, 45], color: GFX_BG, label: "sheared box, old bottom-right — bare" },
+    { at: [15, 85], color: [0xff, 0xc9, 0x14], label: "masked box, left — opaque" },
+    { at: [104, 85], color: GFX_BG, label: "masked box, right — gone" },
+    { at: [155, 95], color: [0x17, 0xbe, 0xbb], label: "squashed box, centre — painted" },
+    { at: [155, 73], color: GFX_BG, label: "squashed box, old top — bare" },
+    { at: [214, 90], color: [0xff, 0xff, 0xff], label: "radial fill, centre — white" },
+    { at: [120, 135], color: [0xff, 0xc9, 0x14], label: "tipped card, centre — painted" },
+  ];
+  const domGfx = await renderShot("/dom-gfx", 1, "gfx-dom.png");
+  const canvasGfx = await renderShot("/canvas-gfx", 1, "gfx-canvas.png");
+  for (const [name, shot] of [["DOM", domGfx], ["Canvas", canvasGfx]]) {
+    await test(`${name}: the graphics pass — filter, colorize, mask, per-axis scale, skew, radial fill, a tipped card`, async () => {
+      const actual = await samplePixels(shot.page, shot.png, GFX_PROBES.map((p) => p.at));
+      GFX_PROBES.forEach((p, i) => assertColorNear(actual[i], p.color, `${name} ${p.label}`, 12));
+    });
+    await test(`${name}: a card tipped 60° is a trapezoid — its projected bottom edge wider than its top`, async () => {
+      // scan two rows of the stage for the card's colour
+      const width = async (y) => {
+        const xs = Array.from({ length: 240 }, (_, i) => [i, y]);
+        const px = await samplePixels(shot.page, shot.png, xs);
+        const hit = px.map((c, i) => (Math.abs(c[0] - 0xff) < 30 && Math.abs(c[1] - 0xc9) < 30 && c[2] < 0x60 ? i : -1)).filter((i) => i >= 0);
+        return hit.length === 0 ? 0 : hit[hit.length - 1] - hit[0];
+      };
+      const top = await width(128), bottom = await width(142);
+      assert.ok(bottom >= top + 4, `bottom ${bottom} should be wider than top ${top} (the near edge is closer to the eye)`);
+    });
+  }
+  await test("cross-backend: the graphics scene agrees (filter and 3D edges soft — kernel and strip AA)", async () => {
+    const diff = await diffShots(canvasGfx.page, domGfx.png, canvasGfx.png, {
+      soft: [
+        { x: 50, y: 0, w: 80, h: 70, label: "the blurred box and its halo" },
+        { x: 0, y: 110, w: 240, h: 50, label: "the tipped card (strip projection)" },
+        { x: 188, y: 68, w: 52, h: 44, label: "the radial fill (rasterizer ramps)" },
+        { x: 6, y: 68, w: 104, h: 34, label: "the masked box's ramp" },
+        { x: 128, y: 68, w: 54, h: 54, label: "the squashed box's edges" },
+        { x: 170, y: 6, w: 64, h: 44, label: "the sheared box's edges" },
       ],
     });
     assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);

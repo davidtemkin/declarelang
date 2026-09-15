@@ -95,7 +95,18 @@ final class Node {
     /// shaped by its own alpha — template-image rendering. nil = untouched.
     var tint: CGColor?
     /// The frost (compositing.md §5.3): what to sample beneath this node.
-    var backdrop: (blur: CGFloat, saturate: CGFloat)?
+    /// The frost's filter list (graphics-pass.md §1) — `blur`/`saturate` are
+    /// the pair Frost.swift's caches key on; the rest ride the CI chain.
+    var backdrop: FilterList?
+    /// The view's own painted subtree, filtered as a group (case 44).
+    var filterList: FilterList?
+    /// The soft mask (case 45): a gradient spec, or a stencil node's id + box.
+    var maskGradient: [String: Any]?
+    var maskStencil: (id: Int, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)?
+    var maskEpoch = -1
+    /// A `shadow(…)` inside the filter list owns the layer's shadow while set
+    /// (the box `shadow` op yields to it, and restores on removal).
+    var filterShadow = false
     /// Carries the backdrop filters, masked by the node's cornerRadius. Lives
     /// in the node's PARENT, immediately below the node's own layer — see
     /// `paint(_:)` for why it cannot be a child of the node it frosts.
@@ -104,6 +115,15 @@ final class Node {
     /// current epoch = something beneath may have moved, so re-sample.
     var frostEpoch: Int = -1
     var scaleK: CGFloat = 1
+    /// The whole paint transform as one affine (case 46; graphics-pass.md §5),
+    /// in the model's y-DOWN local space — nil until a TRANSFORM op arrives,
+    /// then it supersedes scaleK/rotation/pivot on this node.
+    var affine: (a: CGFloat, b: CGFloat, c: CGFloat, d: CGFloat, e: CGFloat, f: CGFloat)?
+    /// The third dimension (case 48): degrees about X and Y, a Z push, and
+    /// whether the back face hides; and this node's own eye for its
+    /// children (case 49, CA's sublayerTransform perspective).
+    var rot3D: (rx: CGFloat, ry: CGFloat, tz: CGFloat, backfaceHidden: Bool)?
+    var perspective: CGFloat = 0
     /// Device px per view unit a RASTERIZED drawing should be made at — the
     /// composed scale from the runtime's at-rest feed (RASTERSCALE). 0 = the
     /// backing scale, which is what a drawing under no view scale wants.
@@ -136,6 +156,9 @@ final class Node {
     var textStyle = TextStyleSpec()
     var textString = ""
     var imageHandle: Int?
+    /// Where a contain/cover fit sits in the box (case 47): 0 / 0.5 / 1 per axis.
+    var alignX: CGFloat = 0.5
+    var alignY: CGFloat = 0.5
     var stretch = "fit"
     var mediaId: Int?
     var player: AVPlayerLayer?
@@ -313,6 +336,7 @@ final class LayerTree {
         // and never per frosted node per op, which is what made the old CPU
         // sampler quadratic. See Frost.swift.
         let fr = refreshFrosts()
+        refreshMasks()
         frostLastN = fr.n; frostLastMs = fr.ms
         frostTotalN += fr.n; frostTotalMs += fr.ms
 
@@ -488,7 +512,7 @@ final class LayerTree {
             layoutContent(n)
             if n.rich != nil { refreshBand(n) }
             if n.frostLayer != nil { syncFrost(n) }
-            if n.scaleK != 1 || n.rotation != 0 { applyScale(n) }    // the pivot mirrors against the new height
+            if n.scaleK != 1 || n.rotation != 0 || n.affine != nil || n.rot3D != nil { applyScale(n) }    // the pivot mirrors against the new height
             // NOT re-rasterized here. A recording is in the view's own
             // coordinates and does not depend on the box, so moving or
             // resizing a view can never invalidate it — the rendering model's
@@ -541,7 +565,7 @@ final class LayerTree {
             }
             if n.shapeBg != nil { syncShape(n) }
         case 10: // SHADOW
-            guard let n = nodes[id] else { return }
+            guard let n = nodes[id], !n.filterShadow else { return }   // a filter's shadow(…) owns the layer's shadow while set
             if a(0) == nil || a(0) is NSNull {
                 n.layer.shadowOpacity = 0
             } else {
@@ -783,7 +807,7 @@ final class LayerTree {
                 n.frostLayer = nil
                 if let p = n.parent { restack(p) }
             } else {
-                n.backdrop = (blur: num(a(0)), saturate: num(a(1)))
+                n.backdrop = FilterList(wire: a(0))
                 if n.frostLayer == nil {
                     let f = CALayer()
                     f.anchorPoint = .zero
@@ -813,9 +837,135 @@ final class LayerTree {
             // restack/clipHost are untouched.
             guard let n = nodes[id] else { return }
             n.layer.compositingFilter = (str(a(0)).flatMap { BLEND_FILTERS[$0] }).flatMap { CIFilter(name: $0) }
+        case 44: // FILTER — the view's own painted subtree, as a group
+            // (graphics-pass.md §1). `layer.filters` is Core Image over the
+            // layer's contents AND its sublayers — the group semantics the web
+            // backends realize — and macOS 26 still honours it (frostprobe2,
+            // candidate A), unlike `backgroundFilters`. Lengths are view units
+            // and CA filters run in the layer's own space, so they ride as-is.
+            // A `shadow(…)` in the list is the layer's own shadow with no
+            // shadowPath, which follows content alpha — CSS drop-shadow.
+            guard let n = nodes[id] else { return }
+            if a(0) == nil || a(0) is NSNull {
+                n.filterList = nil
+                n.layer.filters = nil
+                if n.filterShadow { n.filterShadow = false; n.layer.shadowOpacity = 0 }
+            } else {
+                let list = FilterList(wire: a(0))
+                n.filterList = list
+                n.layer.filters = list.coreImageChain(forLayer: true)
+                if let sh = list.shadow {
+                    let color = sh.color ?? .black
+                    n.filterShadow = true
+                    n.layer.shadowPath = nil
+                    n.layer.shadowColor = color.withAlphaComponent(1).cgColor
+                    n.layer.shadowOpacity = Float(color.alphaComponent)
+                    n.layer.shadowOffset = CGSize(width: sh.dx, height: -sh.dy)     // y-up space, the SHADOW precedent
+                    n.layer.shadowRadius = sh.blur / 2                              // CSS blur ≈ 2× CA radius
+                } else if n.filterShadow {
+                    n.filterShadow = false
+                    n.layer.shadowOpacity = 0
+                }
+            }
+        case 48: // TRANSFORM3D — rotateX rotateY translateZ backfaceHidden, or null
+            guard let n = nodes[id] else { return }
+            if a(0) == nil || a(0) is NSNull { n.rot3D = nil } else {
+                n.rot3D = (num(a(0)), num(a(1)), num(a(2)), num(a(3)) != 0)
+                n.pivot = CGPoint(x: num(a(4)), y: num(a(5)))   // the affine folds the pivot in; the rotation needs it here
+            }
+            n.layer.isDoubleSided = !(n.rot3D?.backfaceHidden ?? false)
+            applyScale(n)
+        case 49: // PERSPECTIVE — this node is the eye for its children
+            guard let n = nodes[id] else { return }
+            n.perspective = num(a(0))
+            applyPerspective(n)
+        case 47: // IMAGEALIGN — start / center / end per axis
+            guard let n = nodes[id] else { return }
+            let f: (String?) -> CGFloat = { $0 == "start" ? 0 : $0 == "end" ? 1 : 0.5 }
+            n.alignX = f(str(a(0))); n.alignY = f(str(a(1)))
+            applyImage(n)
+        case 46: // TRANSFORM — the affine, y-down local → parent (pivot folded in)
+            guard let n = nodes[id] else { return }
+            n.affine = (num(a(0)), num(a(1)), num(a(2)), num(a(3)), num(a(4)), num(a(5)))
+            applyScale(n)
+        case 45: // MASK — a soft alpha mask (graphics-pass.md §2), as `layer.mask`:
+            // a gradient layer over the box, or the stencil node's subtree
+            // rendered to a bitmap at its box (re-rendered per commit — the
+            // frost's epoch rule — see refreshMasks).
+            guard let n = nodes[id] else { return }
+            if a(0) == nil || a(0) is NSNull {
+                n.maskGradient = nil; n.maskStencil = nil
+                n.layer.mask = nil
+            } else if str(a(0)) == "gradient" {
+                n.maskGradient = a(1) as? [String: Any]; n.maskStencil = nil
+                syncMask(n)
+            } else {
+                n.maskGradient = nil
+                n.maskStencil = ((a(1) as? NSNumber)?.intValue ?? -1, num(a(2)), num(a(3)), num(a(4)), num(a(5)))
+                n.maskEpoch = -1
+                syncMask(n)
+            }
         default:
             break
         }
+    }
+
+    /// Keep a node's mask layer sized to its box (a gradient mask) or placed at
+    /// the stencil's box (a view mask), and re-render a stencil whose epoch is
+    /// behind. Called from the op arm, from place(), and per commit.
+    func syncMask(_ n: Node) {
+        if let g = n.maskGradient {
+            let m = (n.layer.mask as? CAGradientLayer) ?? {
+                let l = CAGradientLayer(); l.anchorPoint = .zero
+                l.actions = ["colors": NSNull(), "bounds": NSNull(), "position": NSNull(), "locations": NSNull()]
+                n.layer.mask = l; return l }()
+            applyGradientSpec(m, g, size: n.box.size)
+            m.bounds = CGRect(origin: .zero, size: n.box.size)
+            m.position = .zero
+        } else if let st = n.maskStencil {
+            let m = (n.layer.mask as? CALayer).flatMap { $0 is CAGradientLayer ? nil : $0 } ?? {
+                let l = CALayer(); l.anchorPoint = .zero; l.contentsGravity = .resize
+                l.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull()]
+                n.layer.mask = l; return l }()
+            // the stencil's box, in the masked node's y-up layer space
+            m.bounds = CGRect(origin: .zero, size: CGSize(width: st.w, height: st.h))
+            m.position = CGPoint(x: st.x, y: n.box.size.height - st.y - st.h)
+            if n.maskEpoch != frostEpoch, let stencil = nodes[st.id] {
+                n.maskEpoch = frostEpoch
+                payOwedDrawings(stencil)
+                m.contents = renderStencil(stencil, size: CGSize(width: st.w, height: st.h))
+            }
+        }
+    }
+
+    /// A hidden stencil's drawings were owed (the hidden-raster skip); a mask
+    /// needs them now.
+    private func payOwedDrawings(_ n: Node) {
+        if n.drawList != nil, deferredDraw.contains(n.id) { rasterize(n); deferredDraw.remove(n.id) }
+        for k in n.children { payOwedDrawings(k) }
+    }
+
+    /// A stencil's painted alpha as a bitmap: its subtree rendered at its own
+    /// origin, at the screen's backing scale (`render(in:)` ignores CI
+    /// filters, so a filtered stencil masks by its unfiltered paint).
+    private func renderStencil(_ st: Node, size: CGSize) -> CGImage? {
+        let scale = max(1, view?.window?.backingScaleFactor ?? 2)
+        let w = Int((size.width * scale).rounded()), h = Int((size.height * scale).rounded())
+        guard w > 0, h > 0, let cs = CGColorSpace(name: CGColorSpace.sRGB),
+              let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return nil }
+        ctx.scaleBy(x: scale, y: scale)
+        // a hidden stencil (the `visible = false` idiom) still renders here
+        let wasHidden = st.layer.isHidden
+        st.layer.isHidden = false
+        st.layer.render(in: ctx)
+        st.layer.isHidden = wasHidden
+        return ctx.makeImage()
+    }
+
+    /// Per commit: stencil masks whose input may have changed re-render.
+    func refreshMasks() {
+        for (_, n) in nodes where n.maskStencil != nil && n.maskEpoch != frostEpoch { syncMask(n) }
     }
 
     // ── the frost (compositing.md §5.3) ─────────────────────────────────────
@@ -1073,6 +1223,8 @@ final class LayerTree {
         let parentH: CGFloat = n.parent.map { $0.box.height } ?? (view?.bounds.height ?? n.box.height)
         n.layer.bounds = CGRect(origin: .zero, size: n.box.size)
         n.layer.position = CGPoint(x: n.box.origin.x, y: parentH - n.box.origin.y - n.box.height)
+        if n.maskGradient != nil || n.maskStencil != nil { syncMask(n) }
+        if n.perspective > 0 { applyPerspective(n) }
         if n.content !== n.layer {
             // The scroll content layer spans the box; scrolling DOWN moves the
             // content UP, which is +y in this space, and scrolling RIGHT moves
@@ -1104,10 +1256,7 @@ final class LayerTree {
             }
         }
         if let p = n.player { p.bounds = CGRect(origin: .zero, size: n.box.size); p.position = .zero }
-        if let t = n.text {
-            t.bounds = CGRect(origin: .zero, size: CGSize(width: max(n.box.width, 1), height: max(h, 1)))
-            t.position = .zero
-        }
+        if let t = n.text { t.fit(box: n.box.size) }
     }
 
     /// A TextStyle payload → the spec. Shared by TEXTSTYLE and by EDIT, which
@@ -1154,6 +1303,7 @@ final class LayerTree {
         default: st.align = .left
         }
         st.wrap = (s["wrap"] as? NSNumber)?.boolValue ?? false
+        st.lineHeight = (s["lineHeight"] as? NSNumber)?.doubleValue ?? 0
         st.maxLines = (s["maxLines"] as? NSNumber)?.intValue ?? 0
         st.letterSpacing = (s["letterSpacing"] as? NSNumber)?.doubleValue ?? 0
         st.selectable = (s["selectable"] as? NSNumber)?.boolValue ?? false
@@ -1209,11 +1359,16 @@ final class LayerTree {
         t.descent = CGFloat(m[2])
         t.wrap = n.textStyle.wrap
         t.maxLines = n.textStyle.maxLines
+        // The shared model (canvas-backend does the same arithmetic): a declared
+        // leading is round(fontSize × multiplier) and spaces the BASELINES; the
+        // first one still sits at the ascent. 0 keeps the face's own line box.
+        t.lineHeight = n.textStyle.lineHeight > 0
+            ? (TextEngine.parse(n.textStyle.fontCSS).size * n.textStyle.lineHeight).rounded()
+            : 0
         t.align = n.textStyle.align
         t.fillGradient = n.textStyle.fillGradient
         t.attributed = TextEngine.attributed(n.textString, style: n.textStyle)
-        t.bounds = CGRect(origin: .zero, size: CGSize(width: max(n.box.width, 1), height: max(n.box.height, 1)))
-        t.position = .zero
+        t.fit(box: n.box.size)
     }
 
     /// Bitmaps far larger than the box they are drawn in, at the size they will
@@ -1290,10 +1445,48 @@ final class LayerTree {
         }
         let shown = displayImage(n, img)
         l.contents = n.tint.flatMap { LayerTree.tinted(shown, $0) } ?? shown
-        l.contentsGravity = n.stretch == "fill" ? .resize : (n.stretch == "cover" ? .resizeAspectFill : .resizeAspect)
         l.masksToBounds = true
-        l.bounds = CGRect(origin: .zero, size: n.box.size)
-        l.position = .zero
+        l.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+        let aligned = n.alignX != 0.5 || n.alignY != 0.5
+        if aligned, n.stretch == "contain" || n.stretch == "cover", img.width > 0, img.height > 0, n.box.width > 0, n.box.height > 0 {
+            // an ALIGNED fit (case 47): CA's aspect gravities always centre, so
+            // place the fit ourselves — contain as the picture's own rect in
+            // the box, cover as a crop (contentsRect) of the picture over the
+            // whole box; y is the layer's y-UP space, so `alignY` flips
+            let iw = CGFloat(img.width), ih = CGFloat(img.height)
+            let bw = n.box.width, bh = n.box.height
+            l.contentsGravity = .resize
+            if n.stretch == "contain" {
+                let k = min(bw / iw, bh / ih)
+                let dw = iw * k, dh = ih * k
+                l.bounds = CGRect(origin: .zero, size: CGSize(width: dw, height: dh))
+                l.position = CGPoint(x: (bw - dw) * n.alignX, y: (bh - dh) * (1 - n.alignY))
+            } else {
+                let k = max(bw / iw, bh / ih)
+                let dw = iw * k, dh = ih * k
+                // the visible fraction of the picture, offset by the alignment
+                let fw = bw / dw, fh = bh / dh
+                l.contentsRect = CGRect(x: (1 - fw) * n.alignX, y: (1 - fh) * (1 - n.alignY), width: fw, height: fh)
+                l.bounds = CGRect(origin: .zero, size: n.box.size)
+                l.position = .zero
+            }
+        } else if n.stretch == "cover" || n.stretch == "contain" {
+            l.contentsGravity = n.stretch == "cover" ? .resizeAspectFill : .resizeAspect
+            l.bounds = CGRect(origin: .zero, size: n.box.size)
+            l.position = .zero
+        } else {
+            // `none | width | height | both`: the STRETCHED axis takes the box, the
+            // other keeps the picture's natural size, drawn from the box's top-left
+            // — the arithmetic canvas-backend does. This arm used to test for a
+            // "fill" token the runtime never sends (the set is none|width|height|
+            // both|cover|contain), so all four of these fell through to aspect-fit.
+            let iw = CGFloat(img.width), ih = CGFloat(img.height)
+            let dw = max(0, (n.stretch == "width" || n.stretch == "both") ? n.box.width : iw)
+            let dh = max(0, (n.stretch == "height" || n.stretch == "both") ? n.box.height : ih)
+            l.contentsGravity = .resize
+            l.bounds = CGRect(origin: .zero, size: CGSize(width: dw, height: dh))
+            l.position = CGPoint(x: 0, y: n.box.height - dh)          // y-UP: the box's top
+        }
     }
 
     func imageLoaded(handle: Int, image: CGImage) {
@@ -1352,6 +1545,16 @@ final class LayerTree {
             n.gradient = g; restack(n)
         }
         n.layer.backgroundColor = nil
+        applyGradientSpec(g, spec, size: n.box.size)
+        g.bounds = CGRect(origin: .zero, size: n.box.size)
+        g.position = .zero
+        g.cornerRadius = n.radius
+        g.masksToBounds = true
+    }
+
+    /// A gradient spec (kind, angle, centre, reach, stops) onto a gradient
+    /// layer — the box fill and a gradient mask share it.
+    private func applyGradientSpec(_ g: CAGradientLayer, _ spec: [String: Any], size: CGSize) {
         let stops = spec["stops"] as? [[Any]] ?? []
         g.colors = stops.compactMap { ($0.count > 1 ? $0[1] as? String : nil).flatMap { CSSColor.parse($0)?.cgColor } }
         let locs = stops.enumerated().map { (i, s) -> NSNumber in
@@ -1370,14 +1573,43 @@ final class LayerTree {
         // layer were flipped, ran every `gradient()` fill upside down: the dock
         // tiles graded bottom-to-top against the web's top-to-bottom.)
         let deg = (spec["angle"] as? NSNumber)?.doubleValue ?? 180
-        let rad = deg * .pi / 180
-        let dx = sin(rad) / 2, dy = cos(rad) / 2
-        g.startPoint = CGPoint(x: 0.5 - dx, y: 0.5 - dy)
-        g.endPoint = CGPoint(x: 0.5 + dx, y: 0.5 + dy)
-        g.bounds = CGRect(origin: .zero, size: n.box.size)
-        g.position = .zero
-        g.cornerRadius = n.radius
-        g.masksToBounds = true
+        let kind = spec["kind"] as? String ?? "linear"
+        let w = size.width, h = size.height
+        // centre as fractions of the box; the layer's unit space is y-UP
+        let cx = CGFloat((spec["cx"] as? NSNumber)?.doubleValue ?? 0.5)
+        let cy = 1 - CGFloat((spec["cy"] as? NSNumber)?.doubleValue ?? 0.5)
+        switch kind {
+        case "radial":
+            // CSS `circle farthest-corner at cx cy`, the ramp reaching r of that
+            // distance; CA's radial is an ellipse from startPoint to the
+            // endPoint's axis extents, so scale the circle into unit space
+            g.type = .radial
+            let px = cx * w, py = cy * h
+            let far = hypot(max(px, w - px), max(py, h - py))
+            let reach = far * CGFloat((spec["r"] as? NSNumber)?.doubleValue ?? 1)
+            g.startPoint = CGPoint(x: cx, y: cy)
+            g.endPoint = CGPoint(x: cx + (w > 0 ? reach / w : 0), y: cy + (h > 0 ? reach / h : 0))
+        case "conic":
+            // CSS `from Adeg` starts at 12 o'clock, clockwise on screen; CA's
+            // conic sweeps from the start→end direction, counter-clockwise in
+            // its y-up space — so mirror the angle
+            g.type = .conic
+            let rad = (deg) * .pi / 180
+            g.startPoint = CGPoint(x: cx, y: cy)
+            g.endPoint = CGPoint(x: cx + sin(rad) / 2, y: cy + cos(rad) / 2)
+            // CA sweeps counter-clockwise on screen (its y-up space); CSS sweeps
+            // clockwise — mirror by reversing the stops
+            if let cs = g.colors, let ls = g.locations {
+                g.colors = Array(cs.reversed())
+                g.locations = ls.reversed().map { NSNumber(value: 1 - $0.doubleValue) }
+            }
+        default:
+            g.type = .axial
+            let rad = deg * .pi / 180
+            let dx = sin(rad) / 2, dy = cos(rad) / 2
+            g.startPoint = CGPoint(x: 0.5 - dx, y: 0.5 - dy)
+            g.endPoint = CGPoint(x: 0.5 + dx, y: 0.5 + dy)
+        }
     }
 
     private func applyClip(_ n: Node) {
@@ -1419,6 +1651,42 @@ final class LayerTree {
     /// against the CURRENT box height — a scaled-down icon whose art is drawn
     /// at a larger reference size lands far from its box otherwise.
     private func applyScale(_ n: Node) {
+        if let m = n.affine {
+            // The model's matrix is in y-DOWN local space; this layer space is
+            // y-UP, so conjugate by the flip about the box: F·M·F, F = (1,0,0,−1,0,h).
+            // With F(x,y) = (x, h−y):  F(M(F(x,y))) = (a·x − c·y + (c·h + e),  −b·x + d·y + (h − d·h − f)).
+            let h = n.box.height
+            var t = CATransform3DIdentity
+            t.m11 = m.a; t.m12 = -m.b; t.m21 = -m.c; t.m22 = m.d
+            t.m41 = m.c * h + m.e; t.m42 = h - m.d * h - m.f
+            if let r = n.rot3D {
+                // the 3D rotation about the pivot, AFTER the affine (CSS order):
+                // in this y-up space a rotation about X flips its sign, one
+                // about Y keeps it, and +z is toward the viewer as in CSS
+                let px = n.pivot.x, py = h - n.pivot.y
+                var r3 = CATransform3DMakeTranslation(px, py, 0)
+                r3 = CATransform3DRotate(r3, -r.rx * .pi / 180, 1, 0, 0)    // the y-flip negates the rotation about X (measured: trapezoid matches the DOM)
+                r3 = CATransform3DRotate(r3, r.ry * .pi / 180, 0, 1, 0)
+                r3 = CATransform3DTranslate(r3, -px, -py, r.tz)
+                t = CATransform3DConcat(t, r3)
+                // the parent's eye (CSS `perspective`, origin at the parent's
+                // centre), folded into THIS layer's transform as CSS does per
+                // element — a sublayerTransform's perspective is about the
+                // parent's anchor and was measured off-centre
+                if let par = n.parent, par.perspective > 0 {
+                    let ex = par.box.width / 2 - n.box.origin.x
+                    let ey = n.box.origin.y + n.box.height - par.box.height / 2
+                    var pm = CATransform3DIdentity
+                    pm.m34 = -1 / par.perspective
+                    var eye = CATransform3DMakeTranslation(-ex, -ey, 0)
+                    eye = CATransform3DConcat(eye, pm)
+                    eye = CATransform3DConcat(eye, CATransform3DMakeTranslation(ex, ey, 0))
+                    t = CATransform3DConcat(t, eye)
+                }
+            }
+            n.layer.transform = t
+            syncFrost(n); return
+        }
         if n.scaleK == 1 && n.rotation == 0 { n.layer.transform = CATransform3DIdentity; syncFrost(n); return }
         let px = n.pivot.x
         let py = n.box.height - n.pivot.y
@@ -1430,6 +1698,15 @@ final class LayerTree {
         if n.rotation != 0 { t = CATransform3DRotate(t, -n.rotation * .pi / 180, 0, 0, 1) }
         n.layer.transform = CATransform3DTranslate(t, -px, -py, 0)
         syncFrost(n)
+    }
+
+    /// CSS `perspective` on this node: its sublayers are seen through an eye
+    /// `perspective` px in front of the box's centre. CA's sublayerTransform
+    /// is about the anchor (the bottom-left here), so conjugate by the centre.
+    private func applyPerspective(_ n: Node) {
+        // the eye rides each 3D child's own transform (applyScale); a change
+        // of eye, or of the box it is centred on, re-projects them
+        for c in n.children where c.rot3D != nil { applyScale(c) }
     }
 
     private func applyShadowPath(_ n: Node) {
@@ -2151,6 +2428,7 @@ final class LayerTree {
         // this same transaction, exactly as an op commit does (apply)
         frostEpoch &+= 1
         let fr = refreshFrosts()
+        refreshMasks()
         frostLastN = fr.n; frostLastMs = fr.ms
         frostTotalN += fr.n; frostTotalMs += fr.ms
         CATransaction.commit()
@@ -2330,6 +2608,16 @@ final class LayerTree {
     /// Lay a rich flow out and answer its height, synchronously — the DOM
     /// backend's contract, so a flow is never zero-height for a frame (which
     /// would stack it on its siblings).
+    /// Clamp a flow to `lines` (0 lifts it) and answer its new height — the model
+    /// apportions one budget across the document, TextKit ends the last line.
+    /// -1 when this node has no flow, which tells the runtime nothing happened.
+    func richClamp(id: Int, lines: Int) -> Double {
+        guard let rich = nodes[id]?.rich else { return -1 }
+        let h = Double(rich.clamp(lines: lines))
+        if let n = nodes[id] { rich.place(inBox: n.box.size, scale: scale) }
+        return h
+    }
+
     func richLayout(id: Int, blocksJson: String, selectable: Bool, width: CGFloat) -> Double {
         let __t0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
         defer { if statsOn { richLayoutCount += 1; richLayoutMs += (CFAbsoluteTimeGetCurrent() - __t0) * 1000
@@ -2365,5 +2653,156 @@ extension Node {
     var drawList: [String: Any]? {
         get { objc_getAssociatedObject(self, &Node.drawKey) as? [String: Any] }
         set { objc_setAssociatedObject(self, &Node.drawKey, newValue, .OBJC_ASSOCIATION_RETAIN) }
+    }
+}
+
+
+// ── the filter vocabulary, off the wire (graphics-pass.md §1) ───────────────
+//
+// One list serves two tiers: `backdrop` (Frost.swift samples beneath and runs
+// the chain over the sample) and `filter` (case 44 hands the chain to the
+// node's own layer). Records ride as `{fn, v}` / `{fn, color}` / the shadow's
+// four fields, colours as CSS text — the SHADOW op's own convention.
+
+struct FilterFn {
+    let fn: String
+    let v: CGFloat
+    let color: NSColor?
+    let dx: CGFloat, dy: CGFloat, blur: CGFloat
+}
+
+struct FilterList {
+    let items: [FilterFn]
+
+    init(wire: Any?) {
+        var out: [FilterFn] = []
+        for raw in (wire as? [[String: Any]]) ?? [] {
+            let fn = raw["fn"] as? String ?? ""
+            let v = CGFloat((raw["v"] as? NSNumber)?.doubleValue ?? 0)
+            let color = (raw["color"] as? String).flatMap { CSSColor.parse($0) }
+            out.append(FilterFn(fn: fn, v: v, color: color,
+                                dx: CGFloat((raw["dx"] as? NSNumber)?.doubleValue ?? 0),
+                                dy: CGFloat((raw["dy"] as? NSNumber)?.doubleValue ?? 0),
+                                blur: CGFloat((raw["blur"] as? NSNumber)?.doubleValue ?? 0)))
+        }
+        items = out
+    }
+
+    /// The frost pair Frost.swift's snapshot caches key on.
+    var blur: CGFloat { items.filter { $0.fn == "blur" }.reduce(0) { $0 + $1.v } }
+    var saturate: CGFloat { items.filter { $0.fn == "saturate" }.reduce(1) { $0 * $1.v } }
+    /// Anything beyond the pair — the full chain then runs, keyed by `key`.
+    var isPlainFrost: Bool { items.allSatisfy { $0.fn == "blur" || $0.fn == "saturate" } }
+    var shadow: FilterFn? { items.first { $0.fn == "shadow" } }
+    var key: String {
+        items.map { f in
+            switch f.fn {
+            case "shadow": return String(format: "shadow/%.2f/%.2f/%.2f/%@", f.dx, f.dy, f.blur, f.color?.description ?? "")
+            case "tint": return "tint/" + (f.color?.description ?? "")
+            default: return String(format: "%@/%.3f", f.fn, f.v)
+            }
+        }.joined(separator: ",")
+    }
+
+    /// The CSS `saturate(s)` matrix verbatim (Filter Effects, Rec.709).
+    private static func saturateMatrix(_ s: CGFloat) -> CIFilter? {
+        guard let f = CIFilter(name: "CIColorMatrix") else { return nil }
+        f.setValue(CIVector(x: 0.213 + 0.787 * s, y: 0.715 - 0.715 * s, z: 0.072 - 0.072 * s, w: 0), forKey: "inputRVector")
+        f.setValue(CIVector(x: 0.213 - 0.213 * s, y: 0.715 + 0.285 * s, z: 0.072 - 0.072 * s, w: 0), forKey: "inputGVector")
+        f.setValue(CIVector(x: 0.213 - 0.213 * s, y: 0.715 - 0.715 * s, z: 0.072 + 0.928 * s, w: 0), forKey: "inputBVector")
+        f.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+        return f
+    }
+    /// The CSS sepia matrix, lerped by amount.
+    private static func sepiaMatrix(_ k: CGFloat) -> CIFilter? {
+        guard let f = CIFilter(name: "CIColorMatrix") else { return nil }
+        let l = { (a: CGFloat, b: CGFloat) -> CGFloat in a + (b - a) * k }
+        f.setValue(CIVector(x: l(1, 0.393), y: l(0, 0.769), z: l(0, 0.189), w: 0), forKey: "inputRVector")
+        f.setValue(CIVector(x: l(0, 0.349), y: l(1, 0.686), z: l(0, 0.168), w: 0), forKey: "inputGVector")
+        f.setValue(CIVector(x: l(0, 0.272), y: l(0, 0.534), z: l(1, 0.131), w: 0), forKey: "inputBVector")
+        f.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+        return f
+    }
+    /// invert(k): c' = c + (1 − 2c)·k = c(1 − 2k) + k, alpha kept.
+    private static func invertMatrix(_ k: CGFloat) -> CIFilter? {
+        guard let f = CIFilter(name: "CIColorMatrix") else { return nil }
+        let m = 1 - 2 * k
+        f.setValue(CIVector(x: m, y: 0, z: 0, w: 0), forKey: "inputRVector")
+        f.setValue(CIVector(x: 0, y: m, z: 0, w: 0), forKey: "inputGVector")
+        f.setValue(CIVector(x: 0, y: 0, z: m, w: 0), forKey: "inputBVector")
+        f.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+        f.setValue(CIVector(x: k, y: k, z: k, w: 0), forKey: "inputBiasVector")
+        return f
+    }
+    /// tint(color): every pixel becomes the colour, shaped by its own alpha —
+    /// premultiplied working space, so the bias rides on alpha.
+    private static func tintMatrix(_ c: NSColor) -> CIFilter? {
+        guard let f = CIFilter(name: "CIColorMatrix"), let rgb = c.usingColorSpace(.sRGB) else { return nil }
+        let a = rgb.alphaComponent
+        f.setValue(CIVector(x: 0, y: 0, z: 0, w: rgb.redComponent), forKey: "inputRVector")
+        f.setValue(CIVector(x: 0, y: 0, z: 0, w: rgb.greenComponent), forKey: "inputGVector")
+        f.setValue(CIVector(x: 0, y: 0, z: 0, w: rgb.blueComponent), forKey: "inputBVector")
+        f.setValue(CIVector(x: 0, y: 0, z: 0, w: a), forKey: "inputAVector")
+        return f
+    }
+
+    /// The chain as Core Image filters, in list order, in ENCODED sRGB (the
+    /// tone-curve sandwich `applyFrostFilters` established — without it
+    /// `saturate` bites far harder than the web's). `forLayer`: a `shadow(…)`
+    /// is the layer's own shadow, not a filter, so it is skipped here; a
+    /// `blur` on a layer clamps to its extent (CA's default) which is what a
+    /// group blur should do at the layer's edge.
+    func coreImageChain(forLayer: Bool, blurScale: CGFloat = 1) -> [CIFilter]? {
+        var fs: [CIFilter] = []
+        for f in items {
+            switch f.fn {
+            case "blur":
+                if f.v > 0.01, let g = CIFilter(name: "CIGaussianBlur") { g.setValue(f.v * blurScale, forKey: kCIInputRadiusKey); fs.append(g) }
+            case "saturate":
+                if abs(f.v - 1) > 0.001, let m = Self.saturateMatrix(f.v) { fs.append(m) }
+            case "grayscale":
+                if f.v > 0.001, let m = Self.saturateMatrix(1 - f.v) { fs.append(m) }
+            case "brightness":
+                // CSS brightness is a plain multiply; CIColorControls' brightness
+                // is an offset, so use a matrix scale instead
+                if abs(f.v - 1) > 0.001, let m = CIFilter(name: "CIColorMatrix") {
+                    m.setValue(CIVector(x: f.v, y: 0, z: 0, w: 0), forKey: "inputRVector")
+                    m.setValue(CIVector(x: 0, y: f.v, z: 0, w: 0), forKey: "inputGVector")
+                    m.setValue(CIVector(x: 0, y: 0, z: f.v, w: 0), forKey: "inputBVector")
+                    m.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+                    fs.append(m)
+                }
+            case "contrast":
+                // CSS contrast: c' = (c − 0.5)·k + 0.5 — a scale about mid-grey
+                if abs(f.v - 1) > 0.001, let m = CIFilter(name: "CIColorMatrix") {
+                    let off = (1 - f.v) * 0.5
+                    m.setValue(CIVector(x: f.v, y: 0, z: 0, w: 0), forKey: "inputRVector")
+                    m.setValue(CIVector(x: 0, y: f.v, z: 0, w: 0), forKey: "inputGVector")
+                    m.setValue(CIVector(x: 0, y: 0, z: f.v, w: 0), forKey: "inputBVector")
+                    m.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+                    m.setValue(CIVector(x: off, y: off, z: off, w: 0), forKey: "inputBiasVector")
+                    fs.append(m)
+                }
+            case "sepia":
+                if f.v > 0.001, let m = Self.sepiaMatrix(f.v) { fs.append(m) }
+            case "invert":
+                if f.v > 0.001, let m = Self.invertMatrix(f.v) { fs.append(m) }
+            case "hueRotate":
+                if abs(f.v) > 0.001, let h = CIFilter(name: "CIHueAdjust") { h.setValue(f.v * .pi / 180, forKey: kCIInputAngleKey); fs.append(h) }
+            case "tint":
+                if let c = f.color, let m = Self.tintMatrix(c) { fs.append(m) }
+            case "shadow":
+                if forLayer { break }
+                // in a backdrop chain a shadow of the sample is meaningless; skipped
+            default:
+                break
+            }
+        }
+        if fs.isEmpty { return nil }
+        if let toSRGB = CIFilter(name: "CILinearToSRGBToneCurve"),
+           let toLinear = CIFilter(name: "CISRGBToneCurveToLinear") {
+            fs = [toSRGB] + fs + [toLinear]
+        }
+        return fs
     }
 }

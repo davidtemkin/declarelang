@@ -31,11 +31,11 @@
 // Anything this cannot express is left UNAPPLIED and reported once, rather than
 // silently dropped — the failure mode that produced this file in the first
 // place.
-const IDENTITY = { blur: 0, saturate: 1, brightness: 1, contrast: 1, grayscale: 0, invert: 0, unsupported: [] };
+const IDENTITY = { blur: 0, saturate: 1, brightness: 1, contrast: 1, grayscale: 0, invert: 0, sepia: 0, hue: 0, shadows: [], unsupported: [] };
 /** Parse the CSS filter subset. A percentage or a plain number both work, as in
  *  CSS (`saturate(180%)` === `saturate(1.8)`). */
 export function parseFilter(css) {
-    const out = { ...IDENTITY, unsupported: [] };
+    const out = { ...IDENTITY, shadows: [], unsupported: [] };
     if (css === "" || css === "none")
         return out;
     const num = (raw, dflt) => {
@@ -46,10 +46,31 @@ export function parseFilter(css) {
             return parseFloat(t) / 100;
         return parseFloat(t);
     };
-    for (const m of css.matchAll(/([a-zA-Z-]+)\(([^)]*)\)/g)) {
+    // drop-shadow's colour may itself be a call (rgba(…)), so match balanced parens
+    for (const m of css.matchAll(/([a-zA-Z-]+)\(((?:[^()]|\([^()]*\))*)\)/g)) {
         const fn = m[1].toLowerCase();
         const arg = m[2];
         switch (fn) {
+            case "sepia":
+                out.sepia = Math.min(1, Math.max(0, num(arg, 0)));
+                break;
+            case "hue-rotate":
+                out.hue = parseFloat(arg) || 0;
+                break;
+            case "drop-shadow": {
+                // <dx> <dy> [<sigma>] [<color>] — lengths first, colour last
+                const parts = arg.trim().split(/\s+(?![^(]*\))/);
+                const nums = [];
+                let color = "#000";
+                for (const t of parts) {
+                    if (/^-?[\d.]+(px)?$/.test(t))
+                        nums.push(parseFloat(t));
+                    else
+                        color = t;
+                }
+                out.shadows.push({ dx: nums[0] ?? 0, dy: nums[1] ?? 0, sigma: Math.max(0, nums[2] ?? 0), color });
+                break;
+            }
             case "blur":
                 out.blur = Math.max(0, parseFloat(arg) || 0);
                 break;
@@ -76,7 +97,8 @@ export function parseFilter(css) {
     return out;
 }
 export function isIdentity(f) {
-    return f.blur === 0 && f.saturate === 1 && f.brightness === 1 && f.contrast === 1 && f.grayscale === 0 && f.invert === 0;
+    return f.blur === 0 && f.saturate === 1 && f.brightness === 1 && f.contrast === 1 && f.grayscale === 0 && f.invert === 0
+        && f.sepia === 0 && f.hue === 0 && f.shadows.length === 0;
 }
 /** Does THIS engine actually honour ctx.filter? Cached, and answered by DRAWING
  *  rather than by asking: `"filter" in ctx` happens to be false on WebKit today,
@@ -168,10 +190,17 @@ function adjustInPlace(c, f) {
         return;
     const img = g.getImageData(0, 0, c.width, c.height);
     const d = img.data;
-    const { saturate: s, brightness: b, contrast: k, grayscale: gs, invert: iv } = f;
+    const { saturate: s, brightness: b, contrast: k, grayscale: gs, invert: iv, sepia: sp, hue } = f;
     // luma coefficients CSS's saturate matrix is built from
     const LR = 0.2126, LG = 0.7152, LB = 0.0722;
     const cOff = (1 - k) * 127.5;
+    // hue-rotate: the Filter Effects matrix, cos/sin folded once
+    const hr = (hue * Math.PI) / 180, hc = Math.cos(hr), hs = Math.sin(hr);
+    const H = hue === 0 ? null : [
+        0.213 + hc * 0.787 - hs * 0.213, 0.715 - hc * 0.715 - hs * 0.715, 0.072 - hc * 0.072 + hs * 0.928,
+        0.213 - hc * 0.213 + hs * 0.143, 0.715 + hc * 0.285 + hs * 0.140, 0.072 - hc * 0.072 - hs * 0.283,
+        0.213 - hc * 0.213 - hs * 0.787, 0.715 - hc * 0.715 + hs * 0.715, 0.072 + hc * 0.928 + hs * 0.072
+    ];
     for (let i = 0; i < d.length; i += 4) {
         let r = d[i], gr = d[i + 1], bl = d[i + 2];
         if (s !== 1 || gs !== 0) {
@@ -180,6 +209,18 @@ function adjustInPlace(c, f) {
             r = lum + (r - lum) * m;
             gr = lum + (gr - lum) * m;
             bl = lum + (bl - lum) * m;
+        }
+        if (sp !== 0) { // the CSS sepia matrix, lerped by amount
+            const sr = 0.393 * r + 0.769 * gr + 0.189 * bl, sg = 0.349 * r + 0.686 * gr + 0.168 * bl, sb = 0.272 * r + 0.534 * gr + 0.131 * bl;
+            r += (sr - r) * sp;
+            gr += (sg - gr) * sp;
+            bl += (sb - bl) * sp;
+        }
+        if (H !== null) {
+            const nr = H[0] * r + H[1] * gr + H[2] * bl, ng = H[3] * r + H[4] * gr + H[5] * bl, nb = H[6] * r + H[7] * gr + H[8] * bl;
+            r = nr;
+            gr = ng;
+            bl = nb;
         }
         if (b !== 1) {
             r *= b;
@@ -280,6 +321,29 @@ function boxBlur(d, w, h, sigma) {
  *  part of the blur, so its contribution is subtracted from the box passes
  *  rather than ignored. The colour matrix rides the same small buffer. */
 export function applyFilterFallback(src, spec, approximate = false) {
+    const out = applyFilterCore(src, spec, approximate);
+    if (spec.shadows.length === 0)
+        return out;
+    // drop-shadow(s): a shadow of the result's own ALPHA, then the result over
+    // it — the canvas shadow machinery follows alpha natively on every engine
+    // (shadowBlur is 2σ, the box-shadow convention this vocabulary shares).
+    const w = out.width, h = out.height;
+    const shadowed = take(w, h);
+    const g = shadowed.getContext("2d");
+    for (const sh of spec.shadows) {
+        g.save();
+        g.shadowColor = sh.color;
+        g.shadowBlur = sh.sigma * 2;
+        g.shadowOffsetX = sh.dx + w * 2;
+        g.shadowOffsetY = sh.dy;
+        g.drawImage(out, -w * 2, 0); // draw off-canvas: only the shadow lands
+        g.restore();
+    }
+    g.drawImage(out, 0, 0);
+    give(out);
+    return shadowed;
+}
+function applyFilterCore(src, spec, approximate = false) {
     reportUnsupported(spec.unsupported);
     const w = src.width, h = src.height;
     const colour = !isIdentity({ ...spec, blur: 0 });

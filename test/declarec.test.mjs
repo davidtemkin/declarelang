@@ -165,7 +165,29 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // provider snapshot, built only for a body that calls it). Product surface;
   // carried, not shaken.
   const gz = out.sizes.totalGzip;
-  assert.ok(gz > 20 * 1024 && gz < 88 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  // 86 → 90 KB (2026-09-12, the graphics pass): the filter vocabulary at two
+  // tiers (value.ts constructors + coercion, filterCss, the DOM tint matrix),
+  // radial/conic gradients, and the mask seam — product surface every program
+  // can reach, carried deliberately. Measured 86.1 at the filter tier alone.
+  // 90 → 92 KB (2026-09-13, the text round): the seven defect fixes, the line
+  // clamp end to end (Text.maxLines through clampLines/ellipsize in the shared
+  // measurer, the flow budget in markdown.ts, and the setRichClamp seam DOM and
+  // Mac realize natively), and the group-layer sizing. Measured 90.2 — the band
+  // moves by the size of the surface added, not by the size of the overshoot.
+  // 92 → 91 KB (2026-09-15, the merge of the graphics tree into main): main at
+  // f07bf6e0 measured 86.4; the merge 93.1 — all +6.6 the graphics tree, most of
+  // it vocabulary calendar never names. Eight modules now ride only where a
+  // program's text names them (declarec programFacts, pinned in slim.test):
+  // effects.js (the filter functions, frost, radial/conic), dom-effects.js
+  // (colorize, mask-image), projective.js (3D), text-measure.js, font-derive.js
+  // (numeral features), face-literal.js (Face), draw-image.js, draw-text.js
+  // (styled runs). Measured 89.5; 89.2 once the 3D paths left view.ts,
+  // interaction.ts and dom-backend.ts for projective.ts too (spec3DOf,
+  // childHomography, footprint3D, domTransform3D). What remains is surface every program reaches:
+  // the filter list at the seam (a theme's menuBackdrop is data), the one-matrix
+  // transform (affine.js), the new attributes' schema, the font-value plumbing
+  // every text measure reads, and the rich clamp.
+  assert.ok(gz > 20 * 1024 && gz < 91 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
 // THE STUB-DRIFT TRAP, made structural. The production build replaces
@@ -185,7 +207,10 @@ await test("the production stubs mirror every value export of the modules they r
   };
   const valueExports = (file) => [...readFileSync(resolve(HERE, "../runtime/src", file), "utf8")
     .matchAll(/^export (?:async )?(?:function|const|let|class) ([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
-  for (const [src, stubName] of [["draw.ts", "drawStub"], ["canvas-filter.ts", "filterStub"]]) {
+  for (const [src, stubName] of [["draw.ts", "drawStub"], ["canvas-filter.ts", "filterStub"],
+    ["effects.ts", "effectsStub"], ["dom-effects.ts", "domEffectsStub"], ["projective.ts", "projectiveStub"],
+    ["text-measure.ts", "measureTextStub"], ["font-derive.ts", "fontDeriveStub"], ["face-literal.ts", "faceLiteralStub"],
+    ["draw-image.ts", "drawImageStub"], ["draw-text.ts", "drawTextStub"]]) {
     const stub = stubOf(stubName);
     const missing = valueExports(src).filter((n) => !new RegExp(`export (?:function|const|class) ${n}\\b`).test(stub));
     assert.deepEqual(missing, [], `${stubName} lacks exports that ${src} has: ${missing.join(", ")} — add them to the stub in tools/declarec.mjs`);

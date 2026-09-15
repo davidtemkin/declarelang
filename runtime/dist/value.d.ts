@@ -23,9 +23,22 @@ export interface GradientStop {
  *  180 (top → bottom). Plain immutable data — structured-cloneable, like
  *  every decoration value. */
 export interface Gradient {
+    /** `linear` (the default, and what a missing field means), `radial`, or
+     *  `conic` (graphics-pass.md §3). */
+    readonly kind?: "linear" | "radial" | "conic";
+    /** linear: the compass angle; conic: the start angle (CSS `from`). */
     readonly angle: number;
+    /** radial + conic: the centre as fractions of the box (0…1); linear ignores. */
+    readonly cx?: number;
+    readonly cy?: number;
+    /** radial: the ramp's reach as a fraction of the farthest-corner distance —
+     *  CSS's default sizing — so `radialGradient(0.5, 0.38, 0.3, …)` is
+     *  `radial-gradient(circle at 50% 38%, … 30%)`. */
+    readonly r?: number;
     readonly stops: readonly GradientStop[];
 }
+/** The CSS spelling of a gradient — background, mask-image and text-fill share it. */
+export declare function gradientCss(g: Gradient): string;
 /** What paints a view's box: a solid Color (null = paint nothing) or a
  *  Gradient — the ruled `fill` slot's type, subsuming backgroundColor. */
 export type Fill = Color | Gradient;
@@ -45,33 +58,82 @@ export interface Outline {
     readonly width: number;
     readonly color: Color;
 }
-/** A drop shadow (`shadow` on the view box, `textShadow` on glyphs) — the
- *  CSS box-shadow shape minus spread, until a consumer needs it. */
+/** A drop shadow — ONE value, three sites (graphics-pass.md §1.1): on the
+ *  view box (`shadow`, the CSS box-shadow shape minus spread), on glyphs
+ *  (`textShadow`), and inside a `filter` list, where it shadows the painted
+ *  group's ALPHA (CSS `drop-shadow`). It carries its function tag so a list
+ *  can hold it beside the other filters. */
 export interface Shadow {
+    readonly fn: "shadow";
     readonly dx: number;
     readonly dy: number;
     readonly blur: number;
     readonly color: Color;
 }
-/** A backdrop material (`backdrop` on the view box — the frost): sample what
- *  has already painted beneath the view's own shape, blur it by `blur`,
- *  multiply saturation by `saturate`, then let the view's own `fill` paint
- *  over the result — how every platform's material works. Constructed by
- *  `frost(radius, saturation?)`; extensible later (brightness, tint) without
- *  a new attribute. */
-export interface Backdrop {
-    readonly blur: number;
-    readonly saturate: number;
-}
+/** The filter vocabulary (graphics-pass.md §1) — ONE set of functions at two
+ *  tiers: `filter` (the view's own painted subtree, as a group) and `backdrop`
+ *  (what lies beneath, sampled before the view paints); the same names are
+ *  ordinary functions inside `{ }`, and a `draw()` body's `d.filter` takes the
+ *  list too. Plain, frozen data: a list crosses the raster worker and the Mac
+ *  bridge as-is. Lengths are VIEW units and scale with the view's transform. */
+export type Filter = {
+    readonly fn: "blur";
+    readonly radius: number;
+} | {
+    readonly fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia";
+    readonly amount: number;
+} | {
+    readonly fn: "hueRotate";
+    readonly degrees: number;
+} | {
+    readonly fn: "tint";
+    readonly color: Color;
+} | Shadow;
+/** What a `backdrop` slot holds: the frost is a filter list applied to the
+ *  sample beneath the view's own painted shape, under the view's own fill.
+ *  `frost(radius, saturation?)` builds the common pair. */
+export type Backdrop = readonly Filter[];
+/** What a `mask` slot holds (graphics-pass.md §2): a Gradient (its ALPHA over
+ *  the view's box), or a View — the stencil — whose painted alpha, placed by
+ *  its own x/y inside the masked view's box, is the mask. A stencil is usually
+ *  a `visible = false` child. Plain data or a node reference; the seam
+ *  resolves the node's surface lazily (backend.ts MaskSpec). */
+export type Mask = Gradient | {
+    readonly surface: unknown;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+};
+export declare function isMaskGradient(m: Mask): m is Gradient;
+/** A `filter`/`backdrop` value as written or bound: one function, a list, or
+ *  null — normalized to a frozen list (empty = none) at the seam. */
+export type FilterValue = Filter | readonly Filter[] | null;
+export declare function filterList(v: FilterValue | undefined): readonly Filter[];
 export declare function gradient(...args: (number | string | GradientStop)[]): Gradient;
 export declare const stop: (offset: number, color: Color) => GradientStop;
 export declare const stroke: (width: number, color: Color) => Stroke;
 export declare const outline: (width: number, color: Color) => Outline;
 export declare const shadow: (dx: number, dy: number, blur: number, color: Color) => Shadow;
-export declare const frost: (radius: number, saturation?: number) => Backdrop;
+/** The CSS spelling of a filter list — DOM `filter:`/`backdrop-filter:` and
+ *  canvas `ctx.filter` share it. `scale` maps view units to the target's
+ *  (device px on canvas, 1 on the DOM where CSS scales with the transform).
+ *  `tint` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
+ *  reference the backend registers (`tintRef`), canvas as a `source-in` pass
+ *  after the blit — both leave it out of this string. */
+export declare function filterCss(list: readonly Filter[], scale?: number, tintRef?: (color: Color) => string): string;
+/** How far a filter's output can reach past the painted box, in view units —
+ *  a blur's 3σ, a shadow's offset plus its 3σ. The over-scan a backdrop sample
+ *  and an offscreen group both pad by (graphics-pass.md §0, the bleed rule). */
+export declare function filterBleed(list: readonly Filter[]): number;
+/** The largest blur radius in a list — what a frost's sample over-scans by. */
+export declare function filterBlur(list: readonly Filter[]): number;
 export declare function shadowEqual(a: Shadow | null, b: Shadow | null): boolean;
 export declare function strokeEqual(a: Stroke | null, b: Stroke | null): boolean;
 export declare function outlineEqual(a: Outline | null, b: Outline | null): boolean;
+export declare function filterEqual(a: Filter, b: Filter): boolean;
+/** Structural equality over a filter value in any written form (one, a list, null). */
+export declare function filtersEqual(a: FilterValue | undefined, b: FilterValue | undefined): boolean;
 export declare function backdropEqual(a: Backdrop | null, b: Backdrop | null): boolean;
 export declare function fillEqual(a: Fill, b: Fill): boolean;
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
@@ -119,7 +181,7 @@ export declare function radiusFit(r: Radius, w: number, h: number): [number, num
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Backdrop | Motion | readonly ShapeField[] | {
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | readonly Filter[] | Mask | Motion | readonly ShapeField[] | {
     readonly arrayRoot: true;
     readonly fields: readonly ShapeField[];
 };
@@ -145,6 +207,10 @@ export type AttrType = {
     readonly kind: "enum";
     readonly name: string;
     readonly tokens: readonly string[];
+    /** A vocabulary that also takes a NUMBER in this inclusive range — `fontWeight = 350`
+     *  beside `fontWeight = medium` (CSS Fonts 4: the keywords are aliases for points
+     *  on the 1–1000 line). The scaffold alias gains `| number`. */
+    readonly numeric?: readonly [number, number];
 } | {
     readonly kind: "component";
     readonly of: string;
@@ -168,16 +234,24 @@ export type AttrType = {
 } | {
     readonly kind: "shadow";
 } | {
-    readonly kind: "backdrop";
+    readonly kind: "filter";
+} | {
+    readonly kind: "mask";
 } | {
     readonly kind: "motion";
 } | {
     readonly kind: "font";
+} | {
+    readonly kind: "faceSource";
+} | {
+    readonly kind: "faceWeight";
 };
 /** Declare an enum attribute type: `enumType("Stretch", "none", "width", …)`
  *  — how §6's named unions declare. Built-in consumers: Image.stretches and
  *  Text.fontWeight (R3); user unions and Align slot in as pure data. */
 export declare function enumType(name: string, ...tokens: string[]): AttrType;
+/** An enum that also takes a number in `[min, max]` — see AttrType's `numeric`. */
+export declare function numericEnumType(name: string, range: readonly [number, number], ...tokens: string[]): AttrType;
 /** Resolve a written declaration type name (`count: number`), or null when
  *  the name is not in the declarable vocabulary. */
 /** An AUTHORED literal union (`"idle" | "loading"`) is an enum whose NAME is
@@ -208,6 +282,13 @@ export type Coerced = {
 /** Coerce a parsed literal to an attribute type. Pure — safe for the checker
  *  to call speculatively; instantiate assigns the same result. */
 export declare function coerce(type: AttrType, lit: Literal): Coerced;
+export declare const FILL: string;
+/** A constructor argument as a plain color number (no null). */
+export declare function argColor(lit: Literal): number | null;
+export declare function argNumber(lit: Literal): number | null;
+/** The stops of a written gradient call (after its geometry arguments). */
+export declare function coerceStops(args: Literal[]): GradientStop[] | string;
+export declare function coerceShadow(lit: Literal): Coerced;
 /** A literal as a message names it — "got the string \"wide\"". Hex-written
  *  numbers read back as hex, so a color message shows the channels. */
 export declare function describeLiteral(lit: Literal): string;

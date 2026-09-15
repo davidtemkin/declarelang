@@ -55,7 +55,8 @@ extension LayerTree {
     func frostFloor(_ n: Node) -> Node {
         var cur = n
         while let p = cur.parent {
-            if p.isRoot || p.isEmbedHost || p.layer.opacity < 1 { return p }
+            // an effected (filtered/masked) ancestor isolates too (graphics-pass.md §0)
+            if p.isRoot || p.isEmbedHost || p.layer.opacity < 1 || p.filterList != nil { return p }
             cur = p
         }
         return cur
@@ -218,9 +219,21 @@ extension LayerTree {
     /// Blur + saturate, in ENCODED sRGB — the DrawReplay precedent, and the
     /// reason the old chain wrapped itself in tone curves. Working in linear
     /// light makes `saturate` bite far harder than the web's.
-    static func blur(_ img: CGImage, radius: CGFloat, saturate: CGFloat) -> CGImage? {
+    static func blur(_ img: CGImage, radius: CGFloat, saturate: CGFloat, chain: [CIFilter]? = nil) -> CGImage? {
         var ci = CIImage(cgImage: img)
         let extent = ci.extent
+        if let chain {
+            // the general list (graphics-pass.md §1): every function in order,
+            // the blur's radius already scaled by the caller
+            for f in chain {
+                if f.name == "CIGaussianBlur" { f.setValue(ci.clampedToExtent(), forKey: kCIInputImageKey) }
+                else { f.setValue(ci, forKey: kCIInputImageKey) }
+                guard let out = f.outputImage else { return nil }
+                ci = out.cropped(to: extent)
+            }
+            guard let cs = CGColorSpace(name: CGColorSpace.sRGB) else { return ciCtx.createCGImage(ci, from: extent) }
+            return ciCtx.createCGImage(ci, from: extent, format: .BGRA8, colorSpace: cs)
+        }
         if radius > 0.01, let f = CIFilter(name: "CIGaussianBlur") {
             f.setValue(ci.clampedToExtent(), forKey: kCIInputImageKey)
             f.setValue(radius, forKey: kCIInputRadiusKey)
@@ -289,9 +302,18 @@ extension LayerTree {
     static let forceCPUBlur = ProcessInfo.processInfo.environment["DECLARE_FROST_CPU"] != nil
 
     /// The blur chain as a CIImage — the same filters as `blur`, unexecuted.
-    private static func blurChain(_ input: CIImage, radius: CGFloat, saturate: CGFloat) -> CIImage? {
+    private static func blurChain(_ input: CIImage, radius: CGFloat, saturate: CGFloat, chain: [CIFilter]? = nil) -> CIImage? {
         var image = input
         let extent = image.extent
+        if let chain {
+            for f in chain {
+                if f.name == "CIGaussianBlur" { f.setValue(image.clampedToExtent(), forKey: kCIInputImageKey) }
+                else { f.setValue(image, forKey: kCIInputImageKey) }
+                guard let out = f.outputImage else { return nil }
+                image = out.cropped(to: extent)
+            }
+            return image
+        }
         if radius > 0.01, let f = CIFilter(name: "CIGaussianBlur") {
             f.setValue(image.clampedToExtent(), forKey: kCIInputImageKey)
             f.setValue(radius, forKey: kCIInputRadiusKey)
@@ -317,14 +339,14 @@ extension LayerTree {
     /// Returns nil when Metal is unavailable; caller falls back per-key to the
     /// CPU chain.
     static func blurManyOnGPU(_ img: CGImage,
-                              specs: [(radius: CGFloat, saturate: CGFloat)]) -> [CGImage]? {
-        blurJobsOnGPU(specs.map { (img: img, radius: $0.radius, saturate: $0.saturate) })
+                              specs: [(radius: CGFloat, saturate: CGFloat, chain: [CIFilter]?)]) -> [CGImage]? {
+        blurJobsOnGPU(specs.map { (img: img, radius: $0.radius, saturate: $0.saturate, chain: $0.chain) })
     }
 
     /// The general batch: EVERY job its own input image and radius, ONE
     /// command buffer, ONE wait — what lets a whole frame's frosts (each on its
     /// own snapshot crop) cost one round trip instead of one each.
-    static func blurJobsOnGPU(_ jobs: [(img: CGImage, radius: CGFloat, saturate: CGFloat)]) -> [CGImage]? {
+    static func blurJobsOnGPU(_ jobs: [(img: CGImage, radius: CGFloat, saturate: CGFloat, chain: [CIFilter]?)]) -> [CGImage]? {
         guard !forceCPUBlur, !jobs.isEmpty, let device = mtlDevice, let ci = ciMetal,
               let queue = mtlQueue, let cmd = queue.makeCommandBuffer() else { return nil }
         // SCRATCH TEXTURES BY SLOT, NOT BY SIZE. A frost's crop changes size
@@ -355,7 +377,7 @@ extension LayerTree {
         for (i, job) in jobs.enumerated() {
             let input = CIImage(cgImage: job.img)
             let extent = input.extent
-            guard var image = blurChain(input, radius: job.radius, saturate: job.saturate)
+            guard var image = blurChain(input, radius: job.radius, saturate: job.saturate, chain: job.chain)
             else { return nil }
             // Core Image renders y-up; flip so the copied-out rows read
             // top-down, making the result a normal CGImage — same orientation,
@@ -452,7 +474,7 @@ extension LayerTree {
         var blurred: [String: (gen: Int, img: CGImage)] = [:]
         /// Every distinct (blur, saturate) in the group, so a fresh snapshot
         /// can batch all of them into one GPU submission.
-        var specs: [(blur: CGFloat, saturate: CGFloat)] = []
+        var specs: [(blur: CGFloat, saturate: CGFloat, chain: [CIFilter]?)] = []
         /// Suffix unions of the capture rects still to come, in paint order —
         /// "can anything drawn here still reach a frost?"
         var remaining: [CGRect] = []
@@ -460,7 +482,7 @@ extension LayerTree {
         var reach: CGRect { reachIndex < remaining.count ? remaining[reachIndex] : .null }
         /// DEFERRED frosts (see landFrost): each carries its own snapshot crop
         /// and lands after the walk, all blurred in ONE GPU submission.
-        struct Job { let node: Node; let spec: (blur: CGFloat, saturate: CGFloat); let crop: CGImage; let cropRect: CGRect; let box: CGRect }
+        struct Job { let node: Node; let spec: FilterList; let chain: [CIFilter]?; let crop: CGImage; let cropRect: CGRect; let box: CGRect }
         var jobs: [Job] = []
         /// The boxes of every frost landed or deferred so far in this walk —
         /// a later frost whose capture reaches one of them STACKS on it.
@@ -577,9 +599,9 @@ extension LayerTree {
         let jobs = c.jobs
         c.jobs.removeAll()
         let tb = CFAbsoluteTimeGetCurrent()
-        var results = Self.blurJobsOnGPU(jobs.map { (img: $0.crop, radius: $0.spec.blur * c.scale, saturate: $0.spec.saturate) })
+        var results = Self.blurJobsOnGPU(jobs.map { (img: $0.crop, radius: $0.spec.blur * c.scale, saturate: $0.spec.saturate, chain: $0.chain) })
         if results == nil {
-            results = jobs.map { Self.blur($0.crop, radius: $0.spec.blur * c.scale, saturate: $0.spec.saturate) ?? $0.crop }
+            results = jobs.map { Self.blur($0.crop, radius: $0.spec.blur * c.scale, saturate: $0.spec.saturate, chain: $0.chain) ?? $0.crop }
         }
         frostBlurMs += (CFAbsoluteTimeGetCurrent() - tb) * 1000
         guard let imgs = results else { return }
@@ -631,9 +653,13 @@ extension LayerTree {
     /// STACKED on an earlier frost, whose input must contain that frost's
     /// blurred pixels: it flushes what is pending and lands synchronously with
     /// the draw-back, exactly as before.
-    private func landFrost(_ node: Node, spec: (blur: CGFloat, saturate: CGFloat), from c: Canvas) {
+    private func landFrost(_ node: Node, spec: FilterList, from c: Canvas) {
         guard let fl = node.frostLayer else { return }
         let pad = max(1, spec.blur * 2)
+        // beyond the (blur, saturate) pair the whole list runs as a Core Image
+        // chain over the sample (graphics-pass.md §1) — the blur scaled to the
+        // canvas, since the chain's radius is in model units
+        let chain: [CIFilter]? = spec.isPlainFrost ? nil : spec.coreImageChain(forLayer: false, blurScale: c.scale)
         let o = absOrigin(node)
         let box = CGRect(origin: o, size: node.box.size)
         let cap = box.insetBy(dx: -pad, dy: -pad)
@@ -665,7 +691,7 @@ extension LayerTree {
             guard let crop = snap.cropping(to: px) else { return }
             let cropRect = CGRect(x: c.rect.minX + px.minX / c.scale, y: c.rect.minY + px.minY / c.scale,
                                   width: px.width / c.scale, height: px.height / c.scale)
-            c.jobs.append(Canvas.Job(node: node, spec: spec, crop: crop, cropRect: cropRect, box: box))
+            c.jobs.append(Canvas.Job(node: node, spec: spec, chain: chain, crop: crop, cropRect: cropRect, box: box))
             return
         }
         flushDeferredFrosts(c)                  // a stacked frost needs the ones beneath it landed
@@ -686,7 +712,7 @@ extension LayerTree {
         // frost then just windows into it, which is free. The blur itself runs
         // on the GPU when Metal is there; the CPU chain is the fallback and the
         // reference.
-        let key = String(format: "%.2f/%.2f", spec.blur, spec.saturate)
+        let key = spec.isPlainFrost ? String(format: "%.2f/%.2f", spec.blur, spec.saturate) : spec.key
         var img: CGImage
         if let hit = c.blurred[key], hit.gen == c.gen {
             img = hit.img
@@ -698,17 +724,17 @@ extension LayerTree {
             // (a draw-back invalidated the snapshot) usually serve one straggler
             // frost, so they compute only the key asked for — batching all
             // radii per gen was measured SLOWER than not batching at all.
-            let wanted = c.blurred.isEmpty
-                ? c.specs : [(blur: spec.blur, saturate: spec.saturate)]
-            if let batch = Self.blurManyOnGPU(snap, specs: wanted.map { ($0.blur * c.scale, $0.saturate) }) {
-                for (i, s) in wanted.enumerated() {
-                    c.blurred[String(format: "%.2f/%.2f", s.blur, s.saturate)] = (c.gen, batch[i])
+            let wanted: [(blur: CGFloat, saturate: CGFloat, chain: [CIFilter]?)] = c.blurred.isEmpty
+                ? c.specs : [(blur: spec.blur, saturate: spec.saturate, chain: chain)]
+            if let batch = Self.blurManyOnGPU(snap, specs: wanted.map { (radius: $0.blur * c.scale, saturate: $0.saturate, chain: $0.chain) }) {
+                for (i, w) in wanted.enumerated() {
+                    c.blurred[w.chain == nil ? String(format: "%.2f/%.2f", w.blur, w.saturate) : key] = (c.gen, batch[i])
                 }
             }
             if let hit = c.blurred[key], hit.gen == c.gen {
                 img = hit.img
             } else {
-                img = Self.blur(snap, radius: spec.blur * c.scale, saturate: spec.saturate) ?? snap
+                img = Self.blur(snap, radius: spec.blur * c.scale, saturate: spec.saturate, chain: chain) ?? snap
                 c.blurred[key] = (c.gen, img)
             }
             frostBlurMs += (CFAbsoluteTimeGetCurrent() - tb) * 1000
@@ -801,12 +827,14 @@ extension LayerTree {
             // commit for weather's three radii, became the dominant term the
             // moment the rendition cache fixed the capture).
             var minBlur = CGFloat.greatestFiniteMagnitude
-            var specs: [(blur: CGFloat, saturate: CGFloat)] = []
+            var specs: [(blur: CGFloat, saturate: CGFloat, chain: [CIFilter]?)] = []
             forEachNode {
                 guard group.set.contains(ObjectIdentifier($0)), let b = $0.backdrop else { return }
                 minBlur = min(minBlur, b.blur)
-                if !specs.contains(where: { $0.blur == b.blur && $0.saturate == b.saturate }) {
-                    specs.append((b.blur, b.saturate))
+                // the plain pairs batch on the first snapshot; a general chain is
+                // built per frost in landFrost and keyed by its own list
+                if b.isPlainFrost, !specs.contains(where: { $0.chain == nil && $0.blur == b.blur && $0.saturate == b.saturate }) {
+                    specs.append((b.blur, b.saturate, nil))
                 }
             }
             let scale: CGFloat = max(0.2, min(0.5, 4.0 / max(1, minBlur)))

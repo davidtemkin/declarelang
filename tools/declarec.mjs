@@ -354,7 +354,27 @@ export const Inspect = new Proxy({ ready: () => false }, {
       walkEl(r);
       walkSel(r);
     }
-    return { usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas };
+    // The graphics and text vocabulary a program has to NAME to use — each module
+    // below rides only when its words appear in the program: a literal call's name
+    // (`"name":"blur"` in the tree), an attribute, or a body's source. Read off the
+    // whole program as text, so every place a word can be written is covered, and
+    // over-approximated on purpose (a comment-free word match keeps a module a
+    // program may not need; it never drops one it does). A stub refuses loudly
+    // (notAboard) rather than paint wrong, should a name ever be assembled at runtime.
+    const text = JSON.stringify(built.program);
+    const EFFECT_NAMES = "blur|brightness|contrast|saturate|grayscale|invert|sepia|hueRotate|colorize|frost|radialGradient|conicGradient";
+    const effects = new RegExp(`"name":"(?:${EFFECT_NAMES})"|\\b(?:${EFFECT_NAMES})\\s*\\(`).test(text);
+    // the DOM's colorize matrix and mask-image: `colorize`, a theme record's
+    // "tint" filter, or a `mask` set anywhere
+    const domEffects = /\bcolorize\b|["']tint\\?["']|"name":"mask"|\bmask\s*=[^=]/.test(text);
+    const threeD = /\b(?:rotateX|rotateY|translateZ|perspective|backface)\b/.test(text);
+    const measure = /\bmeasureText\b/.test(text);
+    const drawImage = /\bdrawImage\b/.test(text);
+    const drawText = /\b(?:fillText|strokeText)\b/.test(text);
+    const features = /\b(?:numerals|numeralWidth|slashedZero)\b/.test(text);
+    const faces = built.usedComponents.includes("Face");
+    return { usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas,
+      usesEffects: effects, usesDomEffects: domEffects, uses3D: threeD, usesMeasureText: measure, usesDrawImage: drawImage, usesDrawText: drawText, usesFeatures: features, usesFaces: faces };
   })();
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
@@ -484,7 +504,76 @@ export function isArrayDoc() { return false; }
   // a canvas-backend build: frost there filters a backdrop snapshot through this
   // module with no d.filter in the program at all.
   const filterStub = `export function parseFilter() { return { blur: 0, saturate: 1, brightness: 1, contrast: 1, grayscale: 0, invert: 0, unsupported: [] }; }\nexport function isIdentity() { return true; }\nexport function ctxFilterSupported() { return true; }\nexport function forceFilterFallback() {}\nexport function applyFilterFallback(src) { return src; }\n`;
-  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayArea() { return 0; }\nexport function rasterLooksBlank() { return false; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\nexport function makeCanvas() { return null; }\n`;
+  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayArea() { return 0; }\nexport function rasterLooksBlank() { return false; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\nexport function makeCanvas() { return null; }\nexport function registerDrawImage() {}\nexport function drawImageBitmap() { return undefined; }\nexport function drawImageHandles() { return []; }\n`;
+  // The named-vocabulary stubs (programFacts above): each keeps its module's
+  // export list and refuses through notAboard, so a program that reaches one
+  // anyway fails with the name it used instead of painting wrong.
+  const effectsStub = `import { notAboard } from "./errors.js";
+const refuse = (n) => () => { throw notAboard(n, "unused"); };
+export const blur = refuse("blur");
+export const brightness = refuse("brightness");
+export const contrast = refuse("contrast");
+export const saturate = refuse("saturate");
+export const grayscale = refuse("grayscale");
+export const invert = refuse("invert");
+export const sepia = refuse("sepia");
+export const hueRotate = refuse("hueRotate");
+export const colorize = refuse("colorize");
+export const frost = refuse("frost");
+export const radialGradient = refuse("radialGradient");
+export const conicGradient = refuse("conicGradient");
+export function coerceRadialConic(lit) { throw notAboard(lit.name, "unused"); }
+export function coerceFilter(lit) { if (lit.kind === "ident" && lit.name === "null") return { ok: true, value: null }; throw notAboard("filter", "unused"); }
+`;
+  const domEffectsStub = `import { notAboard } from "./errors.js";
+export function tintFilterRef() { throw notAboard("colorize", "unused"); }
+export function applyDomMask(s) { if (s.maskSpec !== null) throw notAboard("mask", "unused"); }
+`;
+  const projectiveStub = `import { notAboard } from "./errors.js";
+const refuse = () => { throw notAboard("rotateX", "unused"); };
+const flat = (v) => { if ((v.rotateX ?? 0) !== 0 || (v.rotateY ?? 0) !== 0 || (v.translateZ ?? 0) !== 0) refuse(); return null; };
+export const has3D = (p) => { flat(p); return false; };
+export const spec3DOf = (v) => flat(v);
+export const childHomography = (parent, c) => flat(c);
+export const unprojectChild = refuse;
+export const unproject = refuse;
+export const footprint3D = refuse;
+export const domTransform3D = refuse;
+export const homography = refuse;
+export const applyH = refuse;
+export const invertH = refuse;
+export const inFront = refuse;
+export const quadThrough = refuse;
+export const boxThroughH = refuse;
+export const affineFit = refuse;
+export const frontFacing = refuse;
+`;
+  const measureTextStub = `import { notAboard } from "./errors.js";
+export function measureText() { throw notAboard("measureText", "unused"); }
+`;
+  const fontDeriveStub = `import { notAboard } from "./errors.js";
+export function derivedName() { throw notAboard("numerals", "unused"); }
+export function splitDerived() { throw notAboard("numerals", "unused"); }
+export function ensureDerived() { throw notAboard("numerals", "unused"); }
+`;
+  const faceLiteralStub = `import { notAboard } from "./errors.js";
+export const FONT_WEIGHTS = Object.freeze({});
+export const FACE_WEIGHT_FORMS = "";
+export function faceWeight() { throw notAboard("Face", "unused"); }
+export function faceWeightLiteral() { throw notAboard("Face", "unused"); }
+export function faceWeightDescriptor() { throw notAboard("Face", "unused"); }
+export function faceSourceLiteral() { throw notAboard("Face", "unused"); }
+export function faceSourceCss() { throw notAboard("Face", "unused"); }
+`;
+  const drawImageStub = `import { notAboard } from "./errors.js";
+export function registerDrawImage() {}
+export function drawImageBitmap() { return undefined; }
+export function drawImageHandles() { return []; }
+export function drawImageOp() { throw notAboard("drawImage", "unused"); }
+`;
+  const drawTextStub = `import { notAboard } from "./errors.js";
+export function styledRun() { throw notAboard("fillText", "unused"); }
+`;
   const stubFor = (name, filterRe, contents) => ({
     name,
     setup(build) {
@@ -507,6 +596,14 @@ export function isArrayDoc() { return false; }
     ...(programFacts.usesSelectors ? [] : [stubFor("slim-select", /[/\\]select\.js$/, selectStub)]),
     ...(programFacts.usesSchemas ? [] : [stubFor("slim-dataschema", /[/\\]data-schema\.js$/, dataSchemaStub)]),
     ...(programFacts.usesSchemas ? [] : [stubFor("slim-shapes", /[/\\]shape-resolve\.js$/, shapeResolveStub)]),
+    ...(programFacts.usesEffects ? [] : [stubFor("slim-effects", /[/\\]effects\.js$/, effectsStub)]),
+    ...(programFacts.usesDomEffects ? [] : [stubFor("slim-dom-effects", /[/\\]dom-effects\.js$/, domEffectsStub)]),
+    ...(programFacts.uses3D ? [] : [stubFor("slim-3d", /[/\\]projective\.js$/, projectiveStub)]),
+    ...(programFacts.usesMeasureText ? [] : [stubFor("slim-measure-text", /[/\\]text-measure\.js$/, measureTextStub)]),
+    ...(programFacts.usesFeatures ? [] : [stubFor("slim-features", /[/\\]font-derive\.js$/, fontDeriveStub)]),
+    ...(programFacts.usesFaces ? [] : [stubFor("slim-face", /[/\\]face-literal\.js$/, faceLiteralStub)]),
+    ...(programFacts.usesDrawImage ? [] : [stubFor("slim-draw-image", /[/\\]draw-image\.js$/, drawImageStub)]),
+    ...(programFacts.usesDrawText ? [] : [stubFor("slim-draw-text", /[/\\]draw-text\.js$/, drawTextStub)]),
   ];
 
   const result = await esbuild.build({

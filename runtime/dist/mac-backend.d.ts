@@ -1,7 +1,8 @@
-import type { Surface, RenderBackend, InputSink, EditableSpec, RichBlock, Stretch, InputWants } from "./backend.js";
+import { type Affine } from "./affine.js";
+import type { MaskSpec, Surface, RenderBackend, InputSink, EditableSpec, RichBlock, Stretch, InputWants } from "./backend.js";
 import type { DisplayList } from "./draw.js";
-import type { TextStyle } from "./measure.js";
-import { type Fill, type Radius, type Shadow, type Stroke } from "./value.js";
+import { type TextStyle } from "./measure.js";
+import { type Fill, type Radius, type Shadow, type Stroke, type Filter } from "./value.js";
 import { type HitTarget } from "./input.js";
 export declare const OP: {
     readonly CREATE: 1;
@@ -50,6 +51,19 @@ export declare const OP: {
      *  instead of scrolling; and a glide request — (axis, to, duration, bezier). */
     readonly WHEELCLAIM: 42;
     readonly SCROLLGLIDE: 43;
+    /** The filter tier (graphics-pass.md §1): the node's own painted subtree
+     *  through `layer.filters` (+ the layer's own shadow for a shadow-of-alpha). */
+    readonly FILTER: 44;
+    /** The soft mask (graphics-pass.md §2): a gradient's alpha, or a stencil node's painted alpha. */
+    readonly MASK: 45;
+    /** The whole paint transform as one affine (graphics-pass.md §5): a b c d e f, y-down local space. */
+    readonly TRANSFORM: 46;
+    /** Where a contain/cover fit sits in the box: alignX alignY tokens. */
+    readonly IMAGEALIGN: 47;
+    /** The third dimension: rotateX rotateY translateZ backfaceHidden — or null (LayerTree case 48). */
+    readonly TRANSFORM3D: 48;
+    /** This node is the eye for its children: perspective px (0 = none) (case 49). */
+    readonly PERSPECTIVE: 49;
 };
 type Glide = {
     duration?: number;
@@ -67,6 +81,9 @@ export interface MacHost {
     editValue?(id: number): string;
     /** Lay a rich-text flow out natively and answer its height (cold path). */
     richLayout(id: number, blocksJson: string, selectable: boolean, width: number): number;
+    /** Clamp a laid-out flow to `lines` (0 lifts it); answers the new height, or
+     *  -1 when that node has no flow. */
+    richClamp(id: number, lines: number): number;
 }
 /** How many ops the current (unflushed) settle produced — benchmarks only. */
 export declare function countOps(): number;
@@ -162,10 +179,16 @@ declare class MacSurface implements Surface {
      *  in encoded sRGB (the DrawReplay color-space precedent) and lands the
      *  result as a masked layer under the node's own fill. [blur, saturate]
      *  ride the wire; null clears. */
-    setBackdrop(spec: {
-        blur: number;
-        saturate: number;
-    } | null): void;
+    setBackdrop(spec: readonly Filter[] | null): void;
+    /** The view's own painted subtree, filtered as a group — LayerTree case 44:
+     *  Core Image on the node's own layer (`layer.filters`), which macOS 26 still
+     *  honours (frostprobe2), plus the layer's own shadow for `shadow(…)`. */
+    setFilter(list: readonly Filter[] | null): void;
+    /** The mask — LayerTree case 45: a CAGradientLayer as `layer.mask`, or the
+     *  stencil node's subtree rendered to a bitmap at its box (re-rendered per
+     *  commit, the frost's epoch rule). A stencil not yet attached sends
+     *  nothing; its own attach re-pushes through the model (View.flush). */
+    setMask(spec: MaskSpec | null): void;
     setCursor(c: string): void;
     /** No CSS pointer-events natively: the hit walk is ours, so an inert
      *  surface simply drops its sink (setInput(null)) — this is a no-op kept
@@ -182,6 +205,22 @@ declare class MacSurface implements Surface {
      *  pivot) — the hit/cursor/wheel walks' transform term, the same inverse
      *  interaction.ts toChildLocal applies (the ONE-WALK rule). */
     invertTransform(lx: number, ly: number): [number, number];
+    /** The whole paint transform about the pivot (affine.ts). The similarity
+     *  setters rebuild it; setTransform hands it over whole and the Swift side
+     *  folds it into one CATransform3D (case 46). */
+    xform: Affine;
+    spec3D: {
+        rotateX: number;
+        rotateY: number;
+        translateZ: number;
+        backfaceHidden: boolean;
+        perspective: number;
+        originX: number;
+        originY: number;
+    } | null;
+    setTransform3D(spec: typeof this.spec3D): void;
+    setPerspective(px: number): void;
+    setTransform(m: Affine, px: number, py: number): void;
     setScale(scale: number, px: number, py: number): void;
     /** The composed scale a drawing is seen at, at rest (backend.ts). The host
      *  DESCRIBES most recordings as layers, which the render server rasterizes
@@ -265,6 +304,7 @@ declare class MacSurface implements Surface {
     setDrawing(list: DisplayList | null): void;
     setImage(image: unknown | null): void;
     setImageStretch(stretch: Stretch): void;
+    setImageAlign(ax: string, ay: string): void;
     /** Tint (compositing.md §3.4): the color rides as CSS text; the Swift side
      *  re-derives the bitmap as an alpha-mask fill (LayerTree case 37). */
     setImageTint(color: number | null): void;
@@ -279,6 +319,12 @@ declare class MacSurface implements Surface {
      *  clips the flow to nothing. No blocks cross the bridge: the host holds the
      *  laid-out state and only re-sizes its container. */
     setRichWidth(width: number): void;
+    /** The flow's LINE CLAMP (`RichText.maxLines`). Synchronous like `richLayout`
+     *  and for the same reason: the clamped height is a fact this settle needs,
+     *  since everything stacked below the flow is placed from it. The model says
+     *  HOW MANY lines (it owns the budget across the whole document); TextKit
+     *  decides where the last one ends, being the thing that wrapped it. */
+    setRichClamp(maxLines: number): number;
     /** Called from the host when a rich flow's laid-out height is known. */
     applyRichHeight(h: number): void;
     /** A REQUEST on y/x (scrollTo/scrollToX) — clamped like every other write.

@@ -1,11 +1,13 @@
 import type { RenderBackend, Surface } from "./backend.js";
 import { type FontWeight } from "./measure.js";
+import { type FamilyValue } from "./font-value.js";
 import { Editor } from "./editor.js";
 import { type Color } from "./value.js";
 export declare class TextInput extends Editor {
     textColor: Color;
     fontSize: number;
-    fontFamily: string;
+    /** A family string, a Font, or a list of them. */
+    fontFamily: FamilyValue;
     fontWeight: FontWeight;
     letterSpacing: number;
     selectable: boolean;

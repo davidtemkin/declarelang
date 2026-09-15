@@ -12,7 +12,8 @@
 //     per-probe isolation, so a number read after a long session is not
 //     comparable to one read on a fresh launch.
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
-const IN = "/tmp/declare-ctl.in", OUT = "/tmp/declare-ctl.out";
+import { CTL_IN, CTL_OUT, APP_NAME } from "./app.mjs";
+const IN = CTL_IN, OUT = CTL_OUT;
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
 async function ctl(cmd) {

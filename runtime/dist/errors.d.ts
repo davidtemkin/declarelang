@@ -68,7 +68,7 @@ export declare function diag(strings: TemplateStringsArray, ...values: unknown[]
  *  back is named. Every stub declarec emits throws one of these, so the
  *  sentences live HERE — coded like every other diagnostic — instead of as
  *  prose baked into each stub's source. */
-export declare function notAboard(member: string, which: "checker" | "inspector" | "bridge" | "selectors"): Error;
+export declare function notAboard(member: string, which: "checker" | "inspector" | "bridge" | "selectors" | "unused"): Error;
 /** A laid child under `align = baseline` that declares no baseline. A baseline
  *  is CLAIMED, never discovered: a `Text` reports its own, and a composite says
  *  which part carries it (`baseline: number = { cap.y + cap.baseline }`) — the

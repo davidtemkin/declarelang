@@ -24,6 +24,7 @@ import { Dataset, DataSource } from "./data.js";
 import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
 import { Time } from "./time.js";
+import { Font, Face } from "./font.js";
 import { KeysSource, FocusSource, TipSource } from "./sources.js";
 import { EventStream, Socket } from "./streams.js";
 import { State } from "./state.js";
@@ -38,6 +39,9 @@ export const TAGS: Readonly<Record<string, ViewCtor>> = {
   App, View, Text, Image, Video, Audio, DOMIsland, TextInput, Markdown, HTMLText,
   Node: Node as unknown as ViewCtor,
   Time: Time as unknown as ViewCtor,
+  // A typeface as an object in the tree (font.ts): generic path, like Time.
+  Font: Font as unknown as ViewCtor,
+  Face: Face as unknown as ViewCtor,
 };
 
 /** Tag → buildable layout-strategy class (R7) — built only as a component-typed
@@ -111,6 +115,8 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "HTMLText", table: "TAGS", module: "markdown.js", export: "HTMLText" },
   { name: "Node", table: "TAGS", module: "node.js", export: "Node" },
   { name: "Time", table: "TAGS", module: "time.js", export: "Time" },
+  { name: "Font", table: "TAGS", module: "font.js", export: "Font" },
+  { name: "Face", table: "TAGS", module: "font.js", export: "Face" },
   { name: "Layout", table: "LAYOUT_BASES", module: "layout.js", export: "Layout" },
   { name: "TweenLayout", table: "LAYOUT_BASES", module: "layout.js", export: "TweenLayout" },
   { name: "Dataset", table: "DATA", module: "data.js", export: "Dataset" },

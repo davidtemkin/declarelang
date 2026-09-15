@@ -11,6 +11,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { APP_NAME } from "./app.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(HERE, "winb.swift");
@@ -27,7 +28,11 @@ function ensureBuilt() {
 /** Every on-screen window of the native host, frontmost first:
  *  `{ id, x, y, w, h }`. Empty array = the host is not running. */
 export function hostWindows() {
-  const out = execFileSync(ensureBuilt(), { encoding: "utf8" }).trim();
+  // a VARIANT app (app.mjs APP_NAME) looks only at its own windows, so two
+  // trees' hosts on one machine never shoot each other; the default name
+  // keeps winb's every-spelling search
+  const args = APP_NAME === "Declare Mac" ? [] : [APP_NAME];
+  const out = execFileSync(ensureBuilt(), args, { encoding: "utf8" }).trim();
   if (out === "") return [];
   return out.split("\n").map((line) => {
     const [id, x, y, w, h] = line.split(" ").map(Number);

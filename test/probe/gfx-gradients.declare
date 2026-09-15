@@ -1,0 +1,12 @@
+/* Radial and conic gradients at the view tier, beside the linear one. */
+
+App [ width = 900, height = 400, fill = #151613,
+    // the site's page glow: circle at 50% 38%, white 5.5% → transparent at 30%
+
+    glow: View [ width = 900, height = 400, fill = radialGradient(0.5, 0.38, 0.3, #FFFFFF60, #FFFFFF00) ],
+    a: View [ x = 30, y = 40, width = 200, height = 200, cornerRadius = 100, fill = radialGradient(0.35, 0.35, 0.8, #FFFFFF, #FF5A36, #300000) ],
+    b: View [ x = 260, y = 40, width = 200, height = 200, cornerRadius = 20, fill = conicGradient(0.5, 0.5, 0, #FF5A36, #FFD23F, #2EC4B6, #FF5A36) ],
+    c: View [ x = 490, y = 40, width = 200, height = 200, fill = gradient("45deg", #2EC4B6, #1B1F3B) ],
+    d: View [ x = 720, y = 40, width = 150, height = 200, fill = { radialGradient(0.5, 1, 1, stop(0, 0xFFD23F), stop(0.5, 0xFF5A36), stop(1, 0x00000000)) } ],
+    t: Text [ x = 30, y = 280, fontSize = 64, fontWeight = bold, textFill = conicGradient(0.5, 0.5, 90, #FF5A36, #2EC4B6, #FF5A36), text = "Conic type" ]
+    ]

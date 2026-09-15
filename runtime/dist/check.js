@@ -43,7 +43,7 @@ let CHECK_SHAPES = new Set();
 let CLASS_MEMBERS = new Map();
 import { validateExpr, validateBody } from "./expr.js";
 import { isSelective, staticSegs } from "./datapath.js";
-import { faceWeight, FONT_WEIGHTS } from "./font.js";
+import { fontObjectHint } from "./font-value.js";
 import { NOUNS, RESERVED, structuralReason, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
 import { THEME_PRESET_NAMES } from "./themes.js";
 // The schema half of the twin tables — class registration, effective schemas,
@@ -253,13 +253,11 @@ export function checkStyleDecls(program, schemas, errors) {
         errors.push(...checkThemeRecord(`theme ${s.name}`, s.body));
         themes.add(s.name);
     }
+    // The top-level `font` form is retired (2026-09-14): a font is an object in the
+    // tree. The parser still reads the old form so this can say exactly what to write.
     for (const f of program.fonts) {
-        if (taken(f.name)) {
-            errors.push(new DeclareError(`there is already a component, theme, style, or font named '${f.name}'`, f.pos));
-            continue;
-        }
-        errors.push(...checkFontBody(f));
-        fonts.add(f.name);
+        const member = f.name.charAt(0).toLowerCase() + f.name.slice(1);
+        errors.push(new DeclareError(`'font ${f.name} [ … ]' is no longer a top-level declaration — ${fontObjectHint(f.name)}. Move its body into the App as '${member}: Font [ … ]' (the same family and Face children)`, f.pos));
     }
     return { bundles, themes, fonts, validated: new Set() };
 }
@@ -278,92 +276,17 @@ function checkStyleBody(decl, schemas) {
         errors.push(new DeclareError(`style ${decl.name}: a bundle has no children — attribute sets only`, c.pos));
     if (b.raw !== undefined)
         errors.push(new DeclareError(`style ${decl.name}: a bundle takes [ ] members, not a { } body`, b.raw.pos));
+    // A bundle is a plain record of literal values, like a theme (ruled 2026-09-14):
+    // it has no place in the tree, so nothing in it can depend on where it is used.
+    for (const a of b.attrs) {
+        if (a.value.kind !== "code")
+            continue;
+        errors.push(new DeclareError(`style ${decl.name}.${a.name}: a style holds literal values only — a value that depends on where it is used is written THERE: on the rich text, textStyles = { { ${decl.name}: { ${a.name}: … } } }; in a drawing or measureText, { ...${decl.name}, ${a.name}: … }`, a.value.pos));
+    }
     const text = schemas["Text"];
     if (text !== undefined)
         errors.push(...checkBundleUse(decl.name, b, text, decl.pos));
     return errors;
-}
-/** A font names a FAMILY that owns its faces (docs/system-design/fonts.md): an optional
- *  'family = "…"' (defaults to the name) and zero or more `Face` children; no
- *  faces = a system font. Reports every problem (like the bundle check); the
- *  buildFonts in font.ts is the throwing safety net. */
-function checkFontBody(decl) {
-    const errors = [];
-    const b = decl.body;
-    for (const d of b.decls)
-        errors.push(new DeclareError(`font ${decl.name}: a font has no declarations`, d.pos));
-    for (const m of b.methods)
-        errors.push(new DeclareError(`font ${decl.name}: a font has no methods`, m.pos));
-    if (b.raw !== undefined)
-        errors.push(new DeclareError(`font ${decl.name}: a font takes a [ ] body, not { }`, b.raw.pos));
-    for (const a of b.attrs) {
-        if (a.name === "family") {
-            if (a.value.kind !== "string")
-                errors.push(new DeclareError(`font ${decl.name}: family is a quoted string`, a.value.pos));
-            continue;
-        }
-        errors.push(new DeclareError(`font ${decl.name}: a font body carries 'family = "…"' and Face children only — not '${a.name}'`, a.pos));
-    }
-    let faces = 0;
-    for (const c of b.children) {
-        if (c.tag !== "Face") {
-            errors.push(new DeclareError(`font ${decl.name}: '${c.tag}' is not a Face`, c.pos));
-            continue;
-        }
-        errors.push(...checkFace(decl.name, c));
-        faces++;
-    }
-    if (b.attrs.length === 0 && faces === 0) {
-        errors.push(new DeclareError(`font ${decl.name}: declare a family ('family = "…"') or at least one Face`, decl.pos));
-    }
-    return errors;
-}
-/** One `Face [ src, weight?, italic? ]`. src is required; weight is a formalized
- *  token; italic is a boolean. */
-function checkFace(fontName, face) {
-    const errors = [];
-    let hasSrc = false;
-    for (const a of face.attrs) {
-        if (a.name === "src") {
-            errors.push(...checkSource(fontName, a.value));
-            hasSrc = true;
-            continue;
-        }
-        if (a.name === "weight") {
-            if (a.value.kind !== "ident" || faceWeight(a.value.name) === null)
-                errors.push(new DeclareError(`font ${fontName}: a Face weight is a token (${Object.keys(FONT_WEIGHTS).join(", ")})`, a.value.pos));
-            continue;
-        }
-        if (a.name === "italic") {
-            if (a.value.kind !== "ident" || (a.value.name !== "true" && a.value.name !== "false"))
-                errors.push(new DeclareError(`font ${fontName}: a Face's italic is true or false`, a.value.pos));
-            continue;
-        }
-        errors.push(new DeclareError(`font ${fontName}: a Face has src, weight, italic — not '${a.name}'`, a.pos));
-    }
-    for (const c of face.children)
-        errors.push(new DeclareError(`font ${fontName}: a Face has no children`, c.pos));
-    if (!hasSrc)
-        errors.push(new DeclareError(`font ${fontName}: a Face needs a src`, face.pos));
-    return errors;
-}
-/** A Face source: a URL string, `url("…")` / `local("…")`, or a list of those. */
-function checkSource(fontName, lit) {
-    if (lit.kind === "string")
-        return [];
-    if (lit.kind === "call") {
-        if (lit.name !== "url" && lit.name !== "local")
-            return [new DeclareError(`font ${fontName}: a face source is a URL string, url("…"), local("…"), or a list — not '${lit.name}(…)'`, lit.pos)];
-        if (lit.args.length !== 1 || lit.args[0].kind !== "string")
-            return [new DeclareError(`font ${fontName}: ${lit.name}(…) takes one quoted string`, lit.pos)];
-        return [];
-    }
-    if (lit.kind === "list") {
-        if (lit.items.length === 0)
-            return [new DeclareError(`font ${fontName}: a face source list is empty`, lit.pos)];
-        return lit.items.flatMap((i) => checkSource(fontName, i));
-    }
-    return [new DeclareError(`font ${fontName}: a face source is a URL string, url("…"), local("…"), or a list of them`, lit.pos)];
 }
 /** Validate one bundle against `Text`: every field must be a `Text` attribute
  *  of a stylable kind — the loud, positioned failure the design promises. */
@@ -446,6 +369,32 @@ classRoot = false) {
     // Elements consumed as component-typed attribute VALUES (a `layout:` member)
     // are checked by checkComponentValue, not as tree children.
     const consumed = new Set();
+    // A typeface's shape (font.ts): a Face lives only in a Font and holds nothing;
+    // a Font holds Face children only; `family` names a SYSTEM font (one with no
+    // faces) — a font with faces is named by its object, never by a string.
+    if (schema !== null && descendsFrom(schema, "Face")) {
+        if (parentSchema === null || !descendsFrom(parentSchema, "Font")) {
+            errors.push(new DeclareError(`a Face belongs inside a Font — 'brand: Font [ Face [ src = "brand.woff2" ] ]'`, el.pos));
+        }
+        for (const c of el.children)
+            errors.push(new DeclareError(`a Face has no children — src, weight and italic only`, c.pos));
+        if (!el.attrs.some((a) => a.name === "src"))
+            errors.push(new DeclareError(`a Face needs a src — the file (or local("…") face) it is`, el.pos));
+    }
+    if (schema !== null && descendsFrom(schema, "Font")) {
+        let faces = 0;
+        for (const c of el.children) {
+            if (c.tag === "Face") {
+                faces++;
+                continue;
+            }
+            errors.push(new DeclareError(`a Font holds Face children only — not '${c.tag}'`, c.pos));
+        }
+        const family = el.attrs.find((a) => a.name === "family");
+        if (faces > 0 && family !== undefined) {
+            errors.push(new DeclareError(`'family' names a system font (a Font with no faces) — a font with faces is named by its object; drop 'family'`, family.pos));
+        }
+    }
     if (schema === null) {
         // A SCHEMA used as a tag (typed data): the compiler knows exactly what
         // the name is — say so, never "unknown" (the truthful-diagnostics rule).
@@ -580,29 +529,18 @@ classRoot = false) {
                 }
                 continue;
             }
-            // `fontFamily = Name` / `[Name, "Helvetica", "sans-serif"]` resolves
-            // against the program's `font` declarations — a name must be declared, a
-            // string passes as a raw family (a bare string family falls through to
-            // coercion). Routed here because the runtime-free coercion cannot see the
-            // declarations.
-            // The font-typed FACE values are also validated when PROVIDED (a container
-            // set — `App [ fontFamily = Body ]` — where the name is not a slot of the
-            // node but a provided value), so a mistyped font ref is still caught.
+            // A bare family slot takes a family string or a list of them
+            // (`fontFamily = ["Helvetica Neue", "sans-serif"]`). A font is an OBJECT
+            // (`brand: Font [ … ]`) reached in a { } — a bare name here names the fix.
+            // Validated when PROVIDED too (`App [ fontFamily = … ]`, where the name is
+            // a provided value rather than a slot of the node).
             const fontTyped = t?.kind === "font" || (t === null && (attr.name === "fontFamily" || attr.name === "codeFamily"));
             if (fontTyped && ((attr.value.kind === "ident" && attr.value.name !== "null") || attr.value.kind === "list")) {
                 const items = attr.value.kind === "ident" ? [attr.value] : attr.value.items;
                 for (const i of items) {
                     if (i.kind === "string")
                         continue;
-                    if (i.kind !== "ident") {
-                        errors.push(new DeclareError(`a fontFamily list holds font names and strings`, i.pos));
-                        continue;
-                    }
-                    if (!env.fonts.has(i.name)) {
-                        errors.push(new DeclareError(env.fonts.size > 0
-                            ? `no font named '${i.name}' — declared fonts: ${[...env.fonts].join(", ")}`
-                            : `no font named '${i.name}' — this program declares no fonts (use a raw family string, or add a 'font ${i.name} [ … ]')`, i.pos));
-                    }
+                    errors.push(new DeclareError(i.kind === "ident" ? `'${i.name}' is not a family — ${fontObjectHint(i.name)}` : `a fontFamily list holds family strings`, i.pos));
                 }
                 continue;
             }
@@ -1354,7 +1292,7 @@ export function checkMethod(schema, m) {
         return err(`${schema.name}.${m.name} is an attribute — a method may not take an attribute's name`, m.pos);
     }
     if (RESERVED.includes(m.name)) {
-        return err(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop/frost) — it cannot be a member name`, m.pos);
+        return err(`'${m.name}' is a value constructor (gradient, stroke, shadow, stop, frost, the gradient kinds, the filter functions) — it cannot be a method name`, m.pos);
     }
     const structural = structuralReason(m.name);
     if (structural !== null) {

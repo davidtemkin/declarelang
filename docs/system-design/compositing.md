@@ -9,6 +9,8 @@ Every part obeys the two standing rules at the end of this file.
 
 # Part I · Compositing — view-level blending and the backdrop, across all three renderers
 
+*2026-09-12: the filter tier (`filter`, and `backdrop` as the same list), `mask`, the affine and 3D transforms, aligned fits and the gradient kinds landed in one pass — `graphics-pass.md` is that record; §4.1's list is amended below.*
+
 **Status: PLAN, RATIFIED TO BUILD (David, 2026-08-06 — "I am going to want all of
 this implemented").** One unified plan for the compositing surface: `blend` (the
 `mix-blend-mode` analogue, a View attribute) and `backdrop` (the frost — backdrop
@@ -144,8 +146,12 @@ The isolating boundaries, v1:
 
 - the App root (nothing blends against the page behind an embedded island),
 - a group-opacity subtree (`opacity < 1` — already an offscreen group on canvas),
-- a scroller's content group,
-- an `AppIsland` / `DOMIsland` boundary.
+- a scroller's content group — **for blending**; a `backdrop` samples THROUGH a plain
+  scroller on all three renderers (a CSS `isolation` is a stacking context, not a
+  backdrop root; Frost.swift's `frostFloor` follows Chrome deliberately), and only a
+  scroller that contains blends forms a group on canvas (corrected 2026-09-12),
+- an `AppIsland` / `DOMIsland` boundary,
+- a view with a `filter` or a `mask` (the graphics pass, graphics-pass.md §0).
 
 Everything else is transparent to blending: a plain container does not isolate, so a
 `multiply` chip inside three nested layout Views blends against the card under them —

@@ -1,0 +1,8 @@
+App [ width = 320, height = 100, fill = white, textColor = black,
+    body: Font [
+        Face [ src = [local("Georgia"), local("Times New Roman")] ],
+        Face [ src = [local("Georgia Bold"), local("Times New Roman Bold")], weight = bold ]
+        ],
+    Text [ x = 20, y = 20, fontSize = 20, fontFamily = { [app.body, "serif"] }, text = "Regular" ],
+    Text [ x = 20, y = 54, fontSize = 20, fontWeight = bold, fontFamily = { [app.body, "serif"] }, text = "Bold" ]
+    ]

@@ -17,7 +17,7 @@ import { SCHEMAS, attrType, isReadOnly, descendsFrom } from "./schema.js";
 import { coerce, declaredType, describeLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES } from "./value.js";
 /** The default (no schemas declared) — one shared frozen set. */
 const EMPTY_SHAPES = new Set();
-import { validateExpr, CONSTRUCTOR_NAMES } from "./expr.js";
+import { validateExpr, CONSTRUCTOR_NAMES, FILTER_FN_NAMES } from "./expr.js";
 /** The scope nouns of language §11 — never legal as member or parameter names.
  *  `app` is the running-App noun (compiles to `this.root`); reserving it here
  *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
@@ -233,7 +233,7 @@ export function coerceToken(lit) {
             const asShadow = coerce({ kind: "shadow" }, lit);
             if (asShadow.ok)
                 return asShadow.value;
-            const asBackdrop = coerce({ kind: "backdrop" }, lit);
+            const asBackdrop = coerce({ kind: "filter" }, lit);
             return asBackdrop.ok ? asBackdrop.value : undefined;
         }
         default:
@@ -294,8 +294,8 @@ isShape = () => false) {
     if (NOUNS.includes(d.name)) {
         return err(diag `'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
     }
-    if (RESERVED.includes(d.name)) {
-        return err(diag `'${d.name}' is a value constructor (gradient/stroke/shadow/stop/frost) — it cannot be a member name`, d.pos);
+    if (RESERVED.includes(d.name) && !FILTER_FN_NAMES.includes(d.name)) {
+        return err(diag `'${d.name}' is a value constructor (gradient, stroke, shadow, stop, frost, radialGradient, conicGradient) — it cannot be a member name`, d.pos);
     }
     const structural = structuralReason(d.name);
     if (structural !== null) {

@@ -2,10 +2,13 @@ import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
 import { type Fill, type Shadow, type Outline, type Color } from "./value.js";
 import { type TextTransform, type FontWeight } from "./measure.js";
+import type { Numerals, NumeralWidth } from "./font-features.js";
+import { type FamilyValue } from "./font-value.js";
 export declare class Text extends View {
     textColor: Color;
     fontSize: number;
-    fontFamily: string;
+    /** A family string, a Font, or a list of them. */
+    fontFamily: FamilyValue;
     fontWeight: FontWeight;
     letterSpacing: number;
     selectable: boolean;
@@ -17,12 +20,17 @@ export declare class Text extends View {
     wrap: boolean;
     /** Line clamp (schema.ts): the height derive and every renderer honour it. */
     maxLines: number;
+    /** True when the clamp actually dropped something (schema.ts). Read-only. */
+    truncated: boolean;
     textAlign: "left" | "center" | "right";
     italic: boolean;
     textFill: Fill | null;
     outline: Outline | null;
     textTransform: TextTransform;
     smallCaps: boolean;
+    numerals: Numerals;
+    numeralWidth: NumeralWidth;
+    slashedZero: boolean;
     underline: boolean;
     strike: boolean;
     lineHeight: number;

@@ -107,10 +107,11 @@ export function diag(strings: TemplateStringsArray, ...values: unknown[]): strin
  *  back is named. Every stub declarec emits throws one of these, so the
  *  sentences live HERE — coded like every other diagnostic — instead of as
  *  prose baked into each stub's source. */
-export function notAboard(member: string, which: "checker" | "inspector" | "bridge" | "selectors"): Error {
+export function notAboard(member: string, which: "checker" | "inspector" | "bridge" | "selectors" | "unused"): Error {
   const why = which === "checker" ? diag`${member}: the checker is not aboard this production build — the program was checked at compile time (declarec --debug keeps the checker)`
     : which === "inspector" ? diag`${member}: the inspector is not aboard this production build (declarec --debug keeps it)`
     : which === "bridge" ? diag`${member}: the introspection bridge is not aboard this production build (declarec --debug keeps it)`
+    : which === "unused" ? diag`${member}: not aboard this production build — the program's source names it nowhere, so the build left it out (a name assembled at runtime is not seen — write it in the source)`
     : diag`${member}: path selectors are not aboard this build (the program declared none at compile time — rebuild)`;
   return new Error(why);
 }

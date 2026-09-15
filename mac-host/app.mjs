@@ -24,6 +24,14 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
  *  claims the .declare extension for an app in an Applications directory, which
  *  is why /Applications leads; mac-host/ is the last resort for a checkout on a
  *  machine where neither is writable. */
+/** The app's name — "Declare Mac" unless a VARIANT build says otherwise
+ *  (`DECLARE_MAC_APP="Declare Mac Graphics"`): a second tree on the same
+ *  machine builds, installs and drives its own app without touching the
+ *  first. The control pipe follows the same knob (`DECLARE_CTL_PIPE`). */
+export const APP_NAME = process.env.DECLARE_MAC_APP ?? "Declare Mac";
+export const CTL_IN = process.env.DECLARE_CTL_PIPE ?? "/tmp/declare-ctl.in";
+export const CTL_OUT = CTL_IN.replace(/\.in$/, "") + ".out";
+
 export const SEARCH = [
   "/Applications",
   path.join(process.env.HOME ?? "", "Applications"),
@@ -33,8 +41,8 @@ export const SEARCH = [
 /** The installed app bundle, or null when no build has run. */
 export function hostApp() {
   for (const dir of SEARCH) {
-    const app = path.join(dir, "Declare Mac.app");
-    if (existsSync(path.join(app, "Contents/MacOS/Declare Mac"))) return app;
+    const app = path.join(dir, `${APP_NAME}.app`);
+    if (existsSync(path.join(app, `Contents/MacOS/${APP_NAME}`))) return app;
   }
   return null;
 }
@@ -43,9 +51,9 @@ export function hostApp() {
  *  `pkill -f DeclareMac` does not match it, which once cost an hour. */
 export function hostBinary() {
   const app = hostApp();
-  return app === null ? null : path.join(app, "Contents/MacOS/Declare Mac");
+  return app === null ? null : path.join(app, `Contents/MacOS/${APP_NAME}`);
 }
 
 /** The message a rig prints when there is nothing to drive. */
 export const NO_HOST =
-  "no Declare Mac.app found — build one with `npm run build:mac`";
+  `no ${APP_NAME}.app found — build one with \`npm run build:mac\``;

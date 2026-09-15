@@ -1,12 +1,8 @@
-App [ width = 380, height = 210, fill = white,
-    note: Markdown [ x = 20, y = 16, width = 340, lineHeight = 1.35,
-        text = """
-            ## Rich text, from a string
-
-            Headings, **bold**, `code`, and lists arrive as *structure* —
-            not as a pile of styled `Text` views:
-
-            - one source string
-            - one component
-            """ ]
+App [ width = 360, height = 110, fill = white, textColor = black,
+    serif: Font [ family = "Georgia" ],
+    sans: Font [ family = "Helvetica" ],
+    reading: Font = { app.serif },
+    onClick() { app.reading = app.reading == app.serif ? app.sans : app.serif },
+    Text [ x = 20, y = 20, width = 320, fontSize = 20, fontFamily = { app.reading },
+        text = "Click to switch the face; the run re-measures." ]
     ]

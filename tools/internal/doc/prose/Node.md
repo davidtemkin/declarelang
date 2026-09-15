@@ -47,3 +47,14 @@ once: mark a conversation read when the reader reaches its end, open a pane when
 lands, start a fetch when a selection changes. It is not for following a value, which is a
 constraint, nor for moving one, which is a Spring, and it is not meant for use in
 conjunction with animation.
+
+## $data()
+Reads the datum at a path **relative to the nearest cursor** — this view's, or for a node that is not a view (a Spring's target, a Time's gate, a DataSource's url) the nearest enclosing view's — the compiled form every
+`:path` lowers to, callable by hand. `$data("")` is the whole record at the cursor, which
+is what a replicated row calls to hand its own record to a method. Reach for the `:path`
+spelling in ordinary code; reach for this when the path is computed, or when you need the
+record itself rather than a field of it.
+
+```declare-fragment
+member() -> object { return this.datapath != null ? this.$data("") : this }
+```

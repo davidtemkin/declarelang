@@ -1,4 +1,27 @@
-import { type Color } from "./value.js";
+import { type FontWeight, type TextTransform } from "./measure.js";
+import { type Color, type Shadow } from "./value.js";
+import type { Numerals, NumeralWidth } from "./font-features.js";
+/** The style of one drawn run — a `style` bundle or an inline record of `Text`
+ *  attribute names (text-measure.ts takes the same). A field left out takes its
+ *  plain default, never an inherited value. */
+export interface DrawTextStyle {
+    fontFamily?: unknown;
+    fontSize?: number;
+    fontWeight?: FontWeight;
+    italic?: boolean;
+    letterSpacing?: number;
+    textColor?: Color | null;
+    textShadow?: Shadow | null;
+    textTransform?: TextTransform;
+    smallCaps?: boolean;
+    numerals?: Numerals;
+    numeralWidth?: NumeralWidth;
+    slashedZero?: boolean;
+    textFill?: unknown;
+    outline?: unknown;
+    underline?: boolean;
+    strike?: boolean;
+}
 /** An axis-aligned rectangle in the recording's local coordinates. */
 export interface Bounds {
     x: number;
@@ -149,6 +172,17 @@ export type DrawOp = {
     readonly y: number;
     readonly maxWidth?: number;
 } | {
+    readonly op: "drawImage";
+    readonly h: number;
+    readonly sx: number;
+    readonly sy: number;
+    readonly sw: number;
+    readonly sh: number;
+    readonly dx: number;
+    readonly dy: number;
+    readonly dw: number;
+    readonly dh: number;
+} | {
     readonly op: "save";
 } | {
     readonly op: "restore";
@@ -198,6 +232,16 @@ export interface DisplayList {
  *  independence, so the style properties throw on read. Inputs reach a draw
  *  method through the view's attributes; at R4, reading a constrained
  *  attribute inside draw is what re-triggers recording. */
+/** What `drawImage` takes: an `Image` view (structurally — the runtime's
+ *  Image class is not imported here, so this module stays a leaf). `bitmap`
+ *  is the element the view loaded; `loaded` is the reactive fact whose read
+ *  re-records the drawing when the bitmap lands. */
+export interface DrawImageSource {
+    readonly loaded: boolean;
+    readonly bitmap: unknown;
+    readonly naturalWidth: number;
+    readonly naturalHeight: number;
+}
 export declare class Draw {
     private readonly ops;
     /** parallel to `ops` — see DisplayList.extents */
@@ -234,10 +278,11 @@ export declare class Draw {
     private exactBounds;
     /** Mirror of the recorded text state, for bounding a run — the same
      *  pattern as `strokeHalf` for stroke expansion. Canvas2D's defaults. */
-    private tFont;
+    /** package-private: styledRun (draw-text.ts) saves and restores these */
+    tFont: string;
     private tAlign;
     private tBaseline;
-    private tLetter;
+    tLetter: number;
     /** The live transform matrix [a,b,c,d,e,f] and its save/restore stack. Every
      *  painted extent is mapped through it before it grows the ink box, so the
      *  recording's bounds land in the VIEW's local space even under scale/rotate/
@@ -323,8 +368,10 @@ export declare class Draw {
     /** Clip narrows subsequent painting to the current path — no ink of its own,
      *  scoped by save/restore. */
     clip(rule?: CanvasFillRule): void;
-    fillText(text: string, x: number, y: number, maxWidth?: number): void;
-    strokeText(text: string, x: number, y: number, maxWidth?: number): void;
+    fillText(text: string, x: number, y: number, styleOrMax?: number | DrawTextStyle, maxWidth?: number): void;
+    strokeText(text: string, x: number, y: number, styleOrMax?: number | DrawTextStyle, maxWidth?: number): void;
+    /** Canvas2D's three shapes over an `Image` view (draw-image.ts builds the op). */
+    drawImage(image: DrawImageSource, ...a: number[]): void;
     /** The run's box from the mirrored text state. With no measurer at all (a
      *  bare Node test constructing a Draw — headless verify provides one) this
      *  falls back to the anchor point, which is what every call did before. */

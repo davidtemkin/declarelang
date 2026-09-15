@@ -14,7 +14,7 @@
 //
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
-import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, afterSettle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, mountEmbeddedApp } from "../runtime/dist/index.js";
+import { renderAsync, build, mountApp, fontsReady, settle, afterSettle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, mountEmbeddedApp } from "../runtime/dist/index.js";
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -126,7 +126,7 @@ export async function bootHost(cfg) {
   }
   if (seedFrag || stepSeed !== "") settle();           // propagate to the derived constraints SYNCHRONOUSLY,
                                                        // before the first paint — the deep link's view, no home→target flash
-  await loadFonts(fontFacesOf(app));
+  await fontsReady(app);
   mountApp(app, host, new Backend());
   if (cfg.pageWeight != null) app.pageWeight = cfg.pageWeight;
   if (cfg.sourceLines != null) app.sourceLines = cfg.sourceLines;

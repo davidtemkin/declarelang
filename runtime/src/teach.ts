@@ -37,19 +37,27 @@ export const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
   gap: "spacing rides the layout — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
   margin: "there is no margin — position with x/y, a layout's spacing, or a wrapping View",
   padding: "there is no padding — inset children with x/y or an inner View",
-  onChange: "the edit event is 'onInput()'",
+  // `onChange` EXISTS (Node): it answers the values a node names in
+  // `trackChanges`. The CSS/DOM instinct arrives at it meaning something else —
+  // an input's edits — so this entry disambiguates rather than denies.
+  onChange: "onChange(e: ChangeEvent) answers the values a node names in 'trackChanges' — a state change to act on once; an INPUT's edits are 'onInput()'",
   // CSS names for capabilities Declare HAS, reached through the wrong door:
   // These earn their place by the table's own rule — one true equivalent each
   // — and they matter because "no such attribute" ends the search at exactly
   // the wrong moment. (`rotation` graduated from this table 2026-08-06: it IS
   // a View attribute now — compositing.md Part II.)
-  rotate: "rotation is the attribute — 'rotation = 45' (degrees, clockwise, about pivotX/pivotY); inside a drawing, d.rotate(rad)",
-  transform: "there is no transform: position is x/y, size is width/height, 'scale' and 'rotation' transform about a pivot, and arbitrary geometry is a 'draw(d: Draw)' member",
-  filter: "blur and friends are drawing ops — take a 'draw(d: Draw)' member and set d.filter; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
-  blur: "blur is a drawing op — take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'; to blur what lies BENEATH the view, 'backdrop = frost(radius)'",
+  rotate: "rotation is the attribute — 'rotation = 45' (degrees, clockwise, about pivotX/pivotY); 'rotateX'/'rotateY' turn a view out of its plane under the parent's 'perspective'; inside a drawing, d.rotate(rad)",
+  transform: "there is no transform list: position is x/y, size is width/height; 'scale', 'scaleX'/'scaleY', 'skewX'/'skewY', 'rotation', 'rotateX'/'rotateY'/'translateZ' transform about pivotX/pivotY (the parent's 'perspective' is the eye), and arbitrary geometry is a 'draw(d: Draw)' member",
+  skew: "a shear is 'skewX = 20' / 'skewY = 20' (degrees, about pivotX/pivotY)",
+  scaleX: "per-axis scale is 'scaleX' / 'scaleY' (multiplied with the uniform 'scale')",
+  perspective: "'perspective = 700' on the PARENT is the eye its children's 'rotateX'/'rotateY'/'translateZ' are seen through (px; 0 = orthographic)",
+  backfaceVisibility: "'backface = hidden' hides a view turned past 90° about X or Y",
+  blur: "blur is a filter — 'filter = blur(4)' blurs this view's own paint as a group (a list composes: 'filter = [blur(4), brightness(0.8)]'); 'backdrop = blur(20)' blurs what lies BENEATH; inside a drawing, d.filter",
+  dropShadow: "a shadow of the painted ALPHA is 'filter = shadow(dx, dy, blur, color)' (the box's own shadow is the 'shadow' attribute; glyphs take 'textShadow')",
   mixBlendMode: "compositing is the 'blend' attribute — 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
-  backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' — samples and blurs what lies beneath the view's own shape",
-  mask: "masking is 'clip' — true for the box, or a path for an arbitrary shape",
+  backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' — or any filter list, 'backdrop = [blur(20), saturate(1.4)]' — sampled beneath the view's own shape",
+  maskImage: "a soft mask is 'mask = gradient(…)' (its alpha over the box) or 'mask = { stencil }' (another view's painted alpha); a hard edge is 'clip' — true for the box, or a path",
+  objectPosition: "where a contain/cover fit sits is 'alignX' / 'alignY' on the Image — start, center, end",
   // The 2026-08-08 foreign-reach audit (HTML/CSS · React · native-mobile, read against the
   // whole reference): the attribute-position instincts a newcomer actually
   // types, each with its one true equivalent. Question-shaped foreign names

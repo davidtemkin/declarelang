@@ -16,6 +16,7 @@
 // a whole corpus costs one launch. Requires DECLARE_CONTROL=1 and a dev server.
 
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
+import { CTL_IN, CTL_OUT, APP_NAME } from "./app.mjs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,7 +24,7 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BASELINE = path.join(HERE, "gate-baseline.json");
 const ORIGIN = process.env.DECLARE_ORIGIN ?? "http://127.0.0.1:8260";
-const IN = "/tmp/declare-ctl.in", OUT = "/tmp/declare-ctl.out";
+const IN = CTL_IN, OUT = CTL_OUT;
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
 /** Programs under test. Small probes pin one drawing stage each; the apps are
@@ -48,10 +49,22 @@ const CORPUS = [
   "test/probe/frost.declare",
   "test/probe/rotation.declare",
   "test/probe/richtext.declare",
-  "test/probe/webfont.declare",     // declared web faces load and MEASURE here (FontRegistry, 2026-09-13)
   "test/probe/editable.declare",
   "test/probe/glowclip.declare",   // a glow on a clipping card: the clip host keeps the shadow (2026-09-10)
-  "test/probe/textclamp.declare",  // Text.maxLines: the line clamp + ellipsis on every renderer (2026-09-12)
+  // the graphics pass (graphics-pass.md, 2026-09-12): filter tiers, masks, the
+  // gradients, aligned fits, the affine, 3D, drawImage, tight line boxes
+  "test/probe/textfixes.declare",   // the seven-defect probe (rendering-gaps.md §11), fixed 2026-09-13
+  "test/probe/gfx-filter.declare",
+  "test/probe/gfx-mask.declare",
+  "test/probe/gfx-gradients.declare",
+  "test/probe/gfx-fit.declare",
+  "test/probe/gfx-affine.declare",
+  "test/probe/gfx-transform3d.declare",
+  "test/probe/gfx-drawimage.declare",
+  "test/probe/gfx-tightline.declare",
+  // the text round (2026-09-13/14): ONE row — leading, both clamps, a web face and
+  // OpenType figures in a single frame, so the text features cost one live render
+  "test/probe/text.declare",
   "apps/calendar/calendar.declare",
   "apps/lzx-weather/lzx-weather.declare",
   "apps/controls/controls.declare",

@@ -264,6 +264,27 @@ if (!CHROME) {
     assert.ok(modsOf(with_)["data-schema.js"] > STUBBED, "a declared schema keeps the validator");
   });
 
+  await test("the named vocabulary — effects, 3D, measureText, drawn text and images, features, Face — rides only where a program names it", async () => {
+    const MODS = ["effects.js", "dom-effects.js", "projective.js", "text-measure.js", "font-derive.js", "face-literal.js", "draw-image.js", "draw-text.js"];
+    const none = modsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
+    for (const f of MODS) assert.ok((none[f] ?? 0) < STUBBED, `${f} should be stubbed for a program naming none of it, was ${none[f]}`);
+    // every word named, and it RENDERS on the real modules (effects.js and value.js import each other)
+    const src = `App [ width = 200, fill = white,
+      a: View [ width = 40, height = 40, fill = radialGradient(0.5, 0.5, 1, red, blue), filter = [blur(2), colorize(navy)], rotateY = 20 ],
+      b: View [ y = 50, width = 40, height = 40, fill = red, mask = gradient(#000000, #00000000) ],
+      c: Text [ y = 100, text = "12", numerals = lining, width = { measureText("12", { fontSize: 13 }).width + 4 } ],
+      e: View [ y = 130, width = 60, height = 20, draw(d: Draw) { d.fillText("hi", 2, 14, { fontSize: 12 }) } ],
+    ]`;
+    const kept = modsOf(await buildProduction(src, {}));
+    for (const f of MODS.filter((m) => m !== "face-literal.js" && m !== "draw-image.js")) assert.ok(kept[f] > STUBBED, `${f} should ride for a program that names it, was ${kept[f]}`);
+    await renders(src);
+    const faced = await buildProduction(`App [ width = 200, img: Image [ width = 10, height = 10 ],
+      f: Font [ Face [ src = "f.woff2" ] ],
+      View [ width = 10, height = 10, draw(d: Draw) { d.drawImage(app.img, 0, 0) } ] ]`, {});
+    assert.ok(faced.ok, "build failed: " + (faced.errors || []).map((e) => e.message).join("; "));
+    assert.ok(modsOf(faced)["face-literal.js"] > STUBBED && modsOf(faced)["draw-image.js"] > STUBBED, "a Face and a drawImage call keep their modules");
+  });
+
   await test("a service-free app still RENDERS (the stubs satisfy boot's wiring)", async () => {
     await renders(`App [ width = 200, fill = white, Text [ x = 10, y = 10, text = "no services" ] ]`);
   });

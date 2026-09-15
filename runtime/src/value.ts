@@ -11,6 +11,8 @@ import { diag } from "./errors.js";
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS, type Motion } from "./animate.js";
+import { faceSourceLiteral, faceWeightLiteral } from "./face-literal.js";
+import { coerceFilter, coerceRadialConic } from "./effects.js";
 
 /** A color as one number, or `null` for "no color".
  *
@@ -43,8 +45,34 @@ export interface GradientStop {
  *  180 (top → bottom). Plain immutable data — structured-cloneable, like
  *  every decoration value. */
 export interface Gradient {
+  /** `linear` (the default, and what a missing field means), `radial`, or
+   *  `conic` (graphics-pass.md §3). */
+  readonly kind?: "linear" | "radial" | "conic";
+  /** linear: the compass angle; conic: the start angle (CSS `from`). */
   readonly angle: number;
+  /** radial + conic: the centre as fractions of the box (0…1); linear ignores. */
+  readonly cx?: number;
+  readonly cy?: number;
+  /** radial: the ramp's reach as a fraction of the farthest-corner distance —
+   *  CSS's default sizing — so `radialGradient(0.5, 0.38, 0.3, …)` is
+   *  `radial-gradient(circle at 50% 38%, … 30%)`. */
+  readonly r?: number;
   readonly stops: readonly GradientStop[];
+}
+
+/** The CSS spelling of a gradient — background, mask-image and text-fill share it. */
+export function gradientCss(g: Gradient): string {
+  const stops = g.stops.map((st) => colorToCss(st.color) + (st.offset === null ? "" : ` ${st.offset * 100}%`)).join(", ");
+  const at = `${(g.cx ?? 0.5) * 100}% ${(g.cy ?? 0.5) * 100}%`;
+  if (g.kind === "radial") {
+    // the reach scales every placed stop (an unplaced last stop lands at r)
+    const r = g.r ?? 1;
+    const scaled = g.stops.map((st, i) => colorToCss(st.color) + " " + ((st.offset ?? (i === g.stops.length - 1 ? 1 : i === 0 ? 0 : NaN)) * r * 100).toFixed(3) + "%")
+      .map((s) => s.replace(" NaN%", ""));
+    return `radial-gradient(circle farthest-corner at ${at}, ${scaled.join(", ")})`;
+  }
+  if (g.kind === "conic") return `conic-gradient(from ${g.angle}deg at ${at}, ${stops})`;
+  return `linear-gradient(${g.angle}deg, ${stops})`;
 }
 
 /** What paints a view's box: a solid Color (null = paint nothing) or a
@@ -72,25 +100,55 @@ export interface Outline {
   readonly color: Color;
 }
 
-/** A drop shadow (`shadow` on the view box, `textShadow` on glyphs) — the
- *  CSS box-shadow shape minus spread, until a consumer needs it. */
+/** A drop shadow — ONE value, three sites (graphics-pass.md §1.1): on the
+ *  view box (`shadow`, the CSS box-shadow shape minus spread), on glyphs
+ *  (`textShadow`), and inside a `filter` list, where it shadows the painted
+ *  group's ALPHA (CSS `drop-shadow`). It carries its function tag so a list
+ *  can hold it beside the other filters. */
 export interface Shadow {
+  readonly fn: "shadow";
   readonly dx: number;
   readonly dy: number;
   readonly blur: number;
   readonly color: Color;
 }
 
-/** A backdrop material (`backdrop` on the view box — the frost): sample what
- *  has already painted beneath the view's own shape, blur it by `blur`,
- *  multiply saturation by `saturate`, then let the view's own `fill` paint
- *  over the result — how every platform's material works. Constructed by
- *  `frost(radius, saturation?)`; extensible later (brightness, tint) without
- *  a new attribute. */
-export interface Backdrop {
-  readonly blur: number;
-  readonly saturate: number;
+/** The filter vocabulary (graphics-pass.md §1) — ONE set of functions at two
+ *  tiers: `filter` (the view's own painted subtree, as a group) and `backdrop`
+ *  (what lies beneath, sampled before the view paints); the same names are
+ *  ordinary functions inside `{ }`, and a `draw()` body's `d.filter` takes the
+ *  list too. Plain, frozen data: a list crosses the raster worker and the Mac
+ *  bridge as-is. Lengths are VIEW units and scale with the view's transform. */
+export type Filter =
+  | { readonly fn: "blur"; readonly radius: number }
+  | { readonly fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; readonly amount: number }
+  | { readonly fn: "hueRotate"; readonly degrees: number }
+  | { readonly fn: "tint"; readonly color: Color }
+  | Shadow;
+
+/** What a `backdrop` slot holds: the frost is a filter list applied to the
+ *  sample beneath the view's own painted shape, under the view's own fill.
+ *  `frost(radius, saturation?)` builds the common pair. */
+export type Backdrop = readonly Filter[];
+
+/** What a `mask` slot holds (graphics-pass.md §2): a Gradient (its ALPHA over
+ *  the view's box), or a View — the stencil — whose painted alpha, placed by
+ *  its own x/y inside the masked view's box, is the mask. A stencil is usually
+ *  a `visible = false` child. Plain data or a node reference; the seam
+ *  resolves the node's surface lazily (backend.ts MaskSpec). */
+export type Mask = Gradient | { readonly surface: unknown; readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+export function isMaskGradient(m: Mask): m is Gradient {
+  return typeof m === "object" && m !== null && "stops" in m;
 }
+
+/** A `filter`/`backdrop` value as written or bound: one function, a list, or
+ *  null — normalized to a frozen list (empty = none) at the seam. */
+export type FilterValue = Filter | readonly Filter[] | null;
+export function filterList(v: FilterValue | undefined): readonly Filter[] {
+  if (v === null || v === undefined) return EMPTY_FILTERS;
+  return Array.isArray(v) ? (v as readonly Filter[]) : [v as Filter];
+}
+const EMPTY_FILTERS: readonly Filter[] = Object.freeze([]);
 
 // ── The value constructors' RUNTIME forms — the same names inside `{ }`
 // bodies (expr.ts puts them in scope), producing the same immutable
@@ -116,6 +174,9 @@ export function gradient(...args: (number | string | GradientStop)[]): Gradient 
   return Object.freeze({ angle, stops: Object.freeze(stops) });
 }
 
+// radialGradient / conicGradient and the filter functions live in effects.ts —
+// carried by a production build only when a program names one.
+
 export const stop = (offset: number, color: Color): GradientStop => Object.freeze({ offset, color });
 /** A width that cannot be a width. A stroke is drawn INSIDE the box, so a value
  *  past a few thousand points is never art — and a `Color` is a number at
@@ -140,9 +201,49 @@ function checkOrder(fn: "stroke" | "outline", width: number, color: Color): void
 export const stroke = (width: number, color: Color): Stroke => { checkOrder("stroke", width, color); return Object.freeze({ width, color }); };
 export const outline = (width: number, color: Color): Outline => { checkOrder("outline", width, color); return Object.freeze({ width, color }); };
 export const shadow = (dx: number, dy: number, blur: number, color: Color): Shadow =>
-  Object.freeze({ dx, dy, blur, color });
-export const frost = (radius: number, saturation = 1): Backdrop =>
-  Object.freeze({ blur: radius, saturate: saturation });
+  Object.freeze({ fn: "shadow", dx, dy, blur, color });
+/** The CSS spelling of a filter list — DOM `filter:`/`backdrop-filter:` and
+ *  canvas `ctx.filter` share it. `scale` maps view units to the target's
+ *  (device px on canvas, 1 on the DOM where CSS scales with the transform).
+ *  `tint` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
+ *  reference the backend registers (`tintRef`), canvas as a `source-in` pass
+ *  after the blit — both leave it out of this string. */
+export function filterCss(list: readonly Filter[], scale = 1, tintRef?: (color: Color) => string): string {
+  const parts: string[] = [];
+  for (const f of list) {
+    switch (f.fn) {
+      case "blur": parts.push(`blur(${f.radius * scale}px)`); break;
+      case "brightness": case "contrast": case "saturate": case "grayscale": case "invert": case "sepia":
+        parts.push(`${f.fn}(${f.amount})`); break;
+      case "hueRotate": parts.push(`hue-rotate(${f.degrees}deg)`); break;
+      // CSS drop-shadow's third length is the Gaussian's σ; `shadow(…)`'s blur is
+      // the box-shadow radius (2σ) at every site, so one value looks the same
+      // on a box, on glyphs, and in a filter list — halve it here.
+      case "shadow": parts.push(`drop-shadow(${f.dx * scale}px ${f.dy * scale}px ${(f.blur * scale) / 2}px ${colorToCss(f.color)})`); break;
+      case "tint": if (tintRef !== undefined) parts.push(tintRef(f.color)); break;
+    }
+  }
+  return parts.length === 0 ? "none" : parts.join(" ");
+}
+
+/** How far a filter's output can reach past the painted box, in view units —
+ *  a blur's 3σ, a shadow's offset plus its 3σ. The over-scan a backdrop sample
+ *  and an offscreen group both pad by (graphics-pass.md §0, the bleed rule). */
+export function filterBleed(list: readonly Filter[]): number {
+  let pad = 0;
+  for (const f of list) {
+    if (f.fn === "blur") pad += f.radius * 3;
+    else if (f.fn === "shadow") pad = Math.max(pad, Math.max(Math.abs(f.dx), Math.abs(f.dy)) + f.blur * 3);
+  }
+  return Math.ceil(pad);
+}
+
+/** The largest blur radius in a list — what a frost's sample over-scans by. */
+export function filterBlur(list: readonly Filter[]): number {
+  let r = 0;
+  for (const f of list) if (f.fn === "blur") r += f.radius;
+  return r;
+}
 
 // Structural equality for the decoration values (ruled: the === write gate
 // extends to shallow structural equality for these — a constraint
@@ -162,8 +263,26 @@ export function outlineEqual(a: Outline | null, b: Outline | null): boolean {
   return a !== null && b !== null && a.width === b.width && a.color === b.color;
 }
 
+export function filterEqual(a: Filter, b: Filter): boolean {
+  if (a === b) return true;
+  if (a.fn !== b.fn) return false;
+  switch (a.fn) {
+    case "blur": return a.radius === (b as typeof a).radius;
+    case "hueRotate": return a.degrees === (b as typeof a).degrees;
+    case "tint": return a.color === (b as typeof a).color;
+    case "shadow": return shadowEqual(a, b as Shadow);
+    default: return a.amount === (b as typeof a).amount;
+  }
+}
+/** Structural equality over a filter value in any written form (one, a list, null). */
+export function filtersEqual(a: FilterValue | undefined, b: FilterValue | undefined): boolean {
+  const la = filterList(a), lb = filterList(b);
+  if (la.length !== lb.length) return false;
+  for (let i = 0; i < la.length; i++) if (!filterEqual(la[i], lb[i])) return false;
+  return true;
+}
 export function backdropEqual(a: Backdrop | null, b: Backdrop | null): boolean {
-  return a !== null && b !== null && a.blur === b.blur && a.saturate === b.saturate;
+  return filtersEqual(a, b);
 }
 
 export function fillEqual(a: Fill, b: Fill): boolean {
@@ -240,7 +359,7 @@ export function radiusFit(r: Radius, w: number, h: number): [number, number, num
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Backdrop | Motion | readonly ShapeField[] | { readonly arrayRoot: true; readonly fields: readonly ShapeField[] };
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | readonly Filter[] | Mask | Motion | readonly ShapeField[] | { readonly arrayRoot: true; readonly fields: readonly ShapeField[] };
 
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
@@ -268,7 +387,11 @@ export type AttrType =
   // the typechecker (a `{ }` body sees Window[], not any[]); runtime coercion
   // is per-kind and unchanged (`null` or a whole-value binding, as ever).
   | { readonly kind: "array"; readonly of?: string }
-  | { readonly kind: "enum"; readonly name: string; readonly tokens: readonly string[] }
+  | { readonly kind: "enum"; readonly name: string; readonly tokens: readonly string[];
+      /** A vocabulary that also takes a NUMBER in this inclusive range — `fontWeight = 350`
+       *  beside `fontWeight = medium` (CSS Fonts 4: the keywords are aliases for points
+       *  on the 1–1000 line). The scaffold alias gains `| number`. */
+      readonly numeric?: readonly [number, number] }
   | { readonly kind: "component"; readonly of: string }
   // A FUNCTION type — `(id: string) -> void`, the type a method IS
   // (language §4). `written` is the source form; scaffold translates it.
@@ -296,25 +419,38 @@ export type AttrType =
   | { readonly kind: "stroke" }
   | { readonly kind: "outline" }
   | { readonly kind: "shadow" }
-  // The backdrop material (compositing.md §3.2): its literal form is the
-  // `frost(radius, saturation?)` constructor, `null` (the default) = none.
-  | { readonly kind: "backdrop" }
+  // A filter list (graphics-pass.md §1): `filter` on the view's own paint,
+  // `backdrop` on what lies beneath. Literal forms: one constructor
+  // (`blur(3)`), a bare list of them (`[blur(3), brightness(0.8)]`), the
+  // `frost(radius, saturation?)` pair, or `null` (the default) = none.
+  | { readonly kind: "filter" }
+  // A soft mask (graphics-pass.md §2): a gradient's alpha, or a View's
+  // painted alpha. Literal forms: a gradient constructor or null; a stencil
+  // view arrives from a `{ }` binding (`mask = { stencil }`).
+  | { readonly kind: "mask" }
   // Animation (animation.md §1): an easing curve. Two written forms, both
   // already in the grammar — a bare named token (`easeBoth`, `quartOut`, like
   // any enum) or a value constructor (`cubicBezier(…)`, `back(…)`, `steps(…)`,
   // `laszlo(…)`, like `shadow(…)`). Resolves to a Motion value (animate.ts).
   | { readonly kind: "motion" }
-  // Fonts: `fontFamily` — either a declared `font Name` reference (an ident,
-  // resolved against the program's declarations to a family string at
-  // instantiate) or a raw family string. Stays a plain string at runtime, so
-  // the render seam and both backends are untouched.
-  | { readonly kind: "font" };
+  // Fonts: a family slot (`fontFamily`, `codeFamily`). Its literal form is a
+  // family string or a list of them; from a { } it also takes a Font object or a
+  // list mixing both (font-value.ts resolves it where text measures and paints).
+  | { readonly kind: "font" }
+  // A Face's `src`: a URL string, `url("…")`, `local("…")`, or a list of them.
+  | { readonly kind: "faceSource" }
+  // A Face's `weight`: a token, a number 1–1000, or `range(lo, hi)`.
+  | { readonly kind: "faceWeight" };
 
 /** Declare an enum attribute type: `enumType("Stretch", "none", "width", …)`
  *  — how §6's named unions declare. Built-in consumers: Image.stretches and
  *  Text.fontWeight (R3); user unions and Align slot in as pure data. */
 export function enumType(name: string, ...tokens: string[]): AttrType {
   return { kind: "enum", name, tokens };
+}
+/** An enum that also takes a number in `[min, max]` — see AttrType's `numeric`. */
+export function numericEnumType(name: string, range: readonly [number, number], ...tokens: string[]): AttrType {
+  return { kind: "enum", name, tokens, numeric: range };
 }
 
 // What a user attribute declaration may name as its type (language §4:
@@ -454,8 +590,13 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
         return fail(diag`one of ${members}`);
       }
       if (lit.kind === "ident" && type.tokens.includes(lit.name)) return ok(lit.name);
+      if (type.numeric !== undefined && lit.kind === "number") {
+        const [lo, hi] = type.numeric;
+        if (Number.isFinite(lit.value) && lit.value >= lo && lit.value <= hi) return ok(lit.value);
+        return fail(diag`a ${type.name} (one of ${type.tokens.join(" | ")}, or a number ${lo}–${hi})`);
+      }
       // Vowel-aware article: R7's Axis is the first enum that needs "an".
-      return fail(diag`${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")})`);
+      return fail(diag`${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")}${type.numeric !== undefined ? `, or a number ${type.numeric[0]}–${type.numeric[1]}` : ""})`);
     case "fn":
       // Like a component slot: `null` is the one literal form ("no callback").
       // A real function arrives by assignment from a { } body, never as a
@@ -507,16 +648,32 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       return coerceOutline(lit);
     case "shadow":
       return coerceShadow(lit);
-    case "backdrop":
-      return coerceBackdrop(lit);
+    case "filter":
+      return coerceFilter(lit);
+    case "mask": {
+      if (lit.kind === "ident" && lit.name === "null") return ok(null);
+      if (lit.kind !== "call") return fail(MASK);
+      const g = coerceFill(lit);
+      if (!g.ok || typeof g.value !== "object" || g.value === null) return fail(MASK, g.ok ? undefined : g.found);
+      return g;
+    }
     case "motion":
       return coerceMotion(lit);
     case "font":
-      // A raw family string is the literal form; a `font Name` reference (an
-      // ident) resolves against program declarations — routed in
-      // check.ts/instantiate.ts before coercion.
+      // A family string is the literal form (a list joins in check.ts/instantiate.ts
+      // before coercion); a Font object arrives from a { }.
       if (lit.kind === "string") return ok(lit.value);
-      return fail(diag`a declared font (by name), or a raw family string like "Helvetica, sans-serif"`);
+      return fail(diag`a family string like "Helvetica, sans-serif" — or a Font, written in a { } (fontFamily = { app.brand })`);
+    case "faceSource": {
+      // a source string, or the list of them tried in order
+      const r = faceSourceLiteral(lit);
+      return "error" in r ? fail(r.error) : ok(r.value as unknown as AttrValue);
+    }
+    case "faceWeight": {
+      // a token, a number, or a variable font's [lo, hi]
+      const r = faceWeightLiteral(lit);
+      return "error" in r ? fail(r.error) : ok(r.value as unknown as AttrValue);
+    }
   }
 }
 
@@ -570,22 +727,47 @@ function coerceColor(lit: Literal): Coerced {
 // names are ordinary functions inside `{ }` bodies (expr.ts puts them in
 // scope), so one vocabulary serves both lexical homes.
 
-const FILL = diag`a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
+export const FILL = diag`a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
 const STROKE = diag`a Stroke (stroke(width, color) — drawn inside the box — or null)`;
 const SHADOW = diag`a Shadow (shadow(dx, dy, blur, color), or null)`;
 
 /** A constructor argument as a plain color number (no null). */
-function argColor(lit: Literal): number | null {
+export function argColor(lit: Literal): number | null {
   const c = coerceColor(lit);
   return c.ok && typeof c.value === "number" ? c.value : null;
 }
 
-function argNumber(lit: Literal): number | null {
+export function argNumber(lit: Literal): number | null {
   return lit.kind === "number" ? lit.value : null;
+}
+
+/** The stops of a written gradient call (after its geometry arguments). */
+export function coerceStops(args: Literal[]): GradientStop[] | string {
+  const stops: GradientStop[] = [];
+  for (const a of args) {
+    if (a.kind === "call" && a.name === "stop") {
+      const offset = a.args.length === 2 ? argNumber(a.args[0]) : null;
+      const color = a.args.length === 2 ? argColor(a.args[1]) : null;
+      if (offset === null || color === null) return diag`a stop is stop(offset, color) — offset 0…1, color a Color`;
+      stops.push(Object.freeze({ offset, color }));
+      continue;
+    }
+    const color = argColor(a);
+    if (color === null) return diag`a gradient stop is a color or stop(offset, color)`;
+    stops.push(Object.freeze({ offset: null, color }));
+  }
+  if (stops.length < 2) return diag`at least two stops`;
+  return stops;
+}
+
+function coerceGradientCall(lit: Extract<Literal, { kind: "call" }>): Coerced | null {
+  return lit.name === "radialGradient" || lit.name === "conicGradient" ? coerceRadialConic(lit) : null;
 }
 
 function coerceFill(lit: Literal): Coerced {
   if (lit.kind === "call") {
+    const rc = coerceGradientCall(lit);
+    if (rc !== null) return rc;
     if (lit.name !== "gradient") return fail(FILL, diag`'${lit.name}(…)' (not a fill constructor)`);
     const args = [...lit.args];
     // An optional leading DECIMAL number is the angle (degrees, CSS compass —
@@ -643,27 +825,17 @@ function coerceOutline(lit: Literal): Coerced {
   return ok({ width, color });
 }
 
-function coerceShadow(lit: Literal): Coerced {
+export function coerceShadow(lit: Literal): Coerced {
   if (lit.kind === "ident" && lit.name === "null") return ok(null);
   if (lit.kind !== "call" || lit.name !== "shadow") return fail(SHADOW);
   if (lit.args.length !== 4) return fail(SHADOW);
   const [dx, dy, blur] = lit.args.slice(0, 3).map(argNumber);
   const color = argColor(lit.args[3]);
   if (dx === null || dy === null || blur === null || color === null || blur < 0) return fail(SHADOW);
-  return ok({ dx, dy, blur, color });
+  return ok(shadow(dx, dy, blur, color));
 }
 
-const BACKDROP = diag`a Backdrop (frost(radius) or frost(radius, saturation) — blur what lies beneath, saturation ≥ 0 (default 1) — or null)`;
-
-function coerceBackdrop(lit: Literal): Coerced {
-  if (lit.kind === "ident" && lit.name === "null") return ok(null);
-  if (lit.kind !== "call" || lit.name !== "frost") return fail(BACKDROP);
-  if (lit.args.length < 1 || lit.args.length > 2) return fail(BACKDROP);
-  const radius = argNumber(lit.args[0]);
-  const saturation = lit.args.length === 2 ? argNumber(lit.args[1]) : 1;
-  if (radius === null || saturation === null || radius < 0 || saturation < 0) return fail(BACKDROP);
-  return ok(frost(radius, saturation));
-}
+const MASK = diag`a mask — a gradient (gradient(…), radialGradient(…), conicGradient(…); its alpha masks the view), a stencil view from a { } binding (mask = { stencil }), or null`;
 
 // ── Motion (animation.md §1) ─────────────────────────────────────────────────
 //

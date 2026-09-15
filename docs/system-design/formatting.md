@@ -85,7 +85,7 @@ one line on the last member — accepted knowingly in the reversal.
 The separator between top-level declarations — `script { }`, `class`, `App`,
 a future `stylesheet` — is **normalized by the preceding item's shape**
 (ruled 2026-07-13, superseding the 2026-07-12 flat-one rule): exactly **one**
-blank line after a one-line declaration (`font Sans [ family = "system-ui" ]`),
+blank line after a one-line declaration (`style Caption [ fontSize = 13 ]`),
 exactly **two** after a multiline one — a big declaration earns a bigger
 breath, and the formatter enforces the count rather than leaving it to
 discretion. A comment describing a declaration counts as **part of the item
@@ -295,7 +295,7 @@ declaration itself.
 declaration the author kept on a **single line** stays a single line —
 
 ```Declare
-font Sans [ family = "system-ui" ]
+style Caption [ fontSize = 13, smallCaps = true ]
 ```
 
 — the hanging rule above is about bodies that *span* lines (its rationale is

@@ -39,7 +39,7 @@ const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented component surface
-  "View", "App", "Text", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
+  "View", "App", "Text", "Font", "Face", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
   "Layout", "TweenLayout", "Editor",
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "Time", "Keys", "Focus", "Tip",
@@ -793,7 +793,7 @@ for (const c of Object.values(nodes)) {
 // documented class exactly once — a new class fails extract until it is placed.
 const CLASS_GROUPS = [
   ["Core",          ["View", "App", "Node"]],
-  ["Text",          ["Text", "TextLabel", "RichText", "Markdown", "HTMLText"]],
+  ["Text",          ["Text", "TextLabel", "Font", "Face", "RichText", "Markdown", "HTMLText"]],
   ["Media",         ["Image", "Media", "Video", "Audio"]],
   ["Layout",        ["Layout", "SimpleLayout", "WrappingLayout", "ResponsiveLayout", "TweenLayout", "Spacer"]],
   ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "Editor", "TextInput", "Combobox", "Segmented", "SegmentedItem", "ProgressBar", "FocusRing"]],

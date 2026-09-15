@@ -79,7 +79,14 @@ extraSignatureTypes?: readonly string[],
 shapes?: readonly SchemaDecl[], 
 /** The program's `theme Name [ … ]` declarations — each projects as an
  *  ambient `declare const Name: Theme`, so a body can name it. */
-themeNames?: readonly string[]): string;
+themeNames?: readonly string[], 
+/** The program's `style Name [ … ]` bundles — each a value in body scope, like a
+ *  theme, typed EXACTLY by the fields it sets (so `Caption.fontSize` is a number,
+ *  not `number | undefined`), which is still a `TextStyle`. */
+styles?: readonly {
+    name: string;
+    fields: readonly string[];
+}[]): string;
 /** A shape's TS object-type text — `{ id: string; n?: number; owner: Person;
  *  status: "open" | "closed"; steps: { a: string }[] }`. A named ref prints
  *  its NAME (the interface is emitted beside it); an inline nested shape

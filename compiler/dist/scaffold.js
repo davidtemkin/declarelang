@@ -94,23 +94,53 @@ type Length = number | Percent;
 type Radius = number | readonly [number, number, number, number];
 type Color = number | null;
 type Shape = string | null;
-interface Gradient { angle: number; stops: readonly { offset: number | null; color: Color }[] }
+interface Gradient { kind?: "linear" | "radial" | "conic"; angle: number; cx?: number; cy?: number; r?: number; stops: readonly { offset: number | null; color: Color }[] }
 type Fill = Color | Gradient;
 interface Stroke { width: number; color: Color }
 interface Outline { width: number; color: Color }
-interface Shadow { dx: number; dy: number; blur: number; color: Color }
-interface Backdrop { blur: number; saturate: number }
+interface Shadow { fn: "shadow"; dx: number; dy: number; blur: number; color: Color }
+type Filter = { fn: "blur"; radius: number } | { fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; amount: number } | { fn: "hueRotate"; degrees: number } | { fn: "tint"; color: Color } | Shadow;
+type Backdrop = readonly Filter[];
 type Theme = Readonly<Record<string, any>>;
 interface Cursor { readonly data: any; readonly path: readonly string[] }
 interface IslandPost { readonly topic: string; readonly payload: unknown }
 declare function gradient(...args: (Color | string | { offset: number | null; color: Color })[]): Gradient;
+declare function radialGradient(cx: number, cy: number, r: number, ...stops: (Color | { offset: number | null; color: Color })[]): Gradient;
+declare function conicGradient(cx: number, cy: number, angle: number, ...stops: (Color | { offset: number | null; color: Color })[]): Gradient;
 declare function stroke(width: number, color: Color): Stroke;
 declare function outline(width: number, color: Color): Outline;
 declare function stop(offset: number, color: Color): { offset: number; color: Color };
 declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;
 declare function frost(radius: number, saturation?: number): Backdrop;
+declare function blur(radius: number): Filter;
+declare function brightness(amount: number): Filter;
+declare function contrast(amount: number): Filter;
+declare function saturate(amount: number): Filter;
+declare function grayscale(amount: number): Filter;
+declare function invert(amount: number): Filter;
+declare function sepia(amount: number): Filter;
+declare function hueRotate(degrees: number): Filter;
+declare function colorize(color: Color): Filter;
 declare function colorWithAlpha(rgb: number, a: number): number;
+/** The style of one run of text that has no view — a \`style\` bundle, or an inline
+ *  record with the same fields. Each field is the \`Text\` attribute of that name;
+ *  a field left out takes its plain default, never an inherited value. */
+interface TextStyle {
+  fontFamily?: string | Font | readonly (string | Font)[] | null; fontSize?: number; fontWeight?: FontWeight; italic?: boolean;
+  letterSpacing?: number; lineHeight?: number; textColor?: Color | null; textShadow?: Shadow | null;
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize"; smallCaps?: boolean;
+  numerals?: "normal" | "lining" | "oldstyle"; numeralWidth?: "normal" | "tabular" | "proportional"; slashedZero?: boolean;
+  textFill?: Fill | null; outline?: Outline | null; underline?: boolean; strike?: boolean;
+}
+/** What measureText reports — a Text's own fact names. */
+interface TextMeasure { readonly width: number; readonly height: number; readonly baseline: number; readonly capHeight: number; readonly lines: number }
+/** Measure a run of text in a style, with the measurer and wrapping a \`Text\` uses —
+ *  one line, or wrapped at \`width\`. Called in a constraint or a drawing, it re-runs
+ *  when anything it measured with changes, a font's faces included. */
+declare function measureText(text: string, style?: TextStyle, width?: number): TextMeasure;
 interface DrawGradient { addColorStop(offset: number, color: string | Color): void }
+// what drawImage takes — any Image view (structural, so a subclass qualifies)
+interface DrawImageSource { loaded: boolean; naturalWidth: number; naturalHeight: number }
 /** The canvas drawing context a \`draw(d: Draw)\` body receives — a Canvas2D-
  *  shaped recorder. Mirrors runtime/src/draw.ts; every \`draw(d)\` in the corpus
  *  was \`any\` until this was declared. */
@@ -156,10 +186,14 @@ interface Draw {
   createConicGradient(startAngle: number, x: number, y: number): DrawGradient;
   createLinearGradient(x0: number, y0: number, x1: number, y1: number): DrawGradient;
   createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): DrawGradient;
+  drawImage(image: DrawImageSource, dx: number, dy: number): void;
+  drawImage(image: DrawImageSource, dx: number, dy: number, dw: number, dh: number): void;
+  drawImage(image: DrawImageSource, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void;
   ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw?: boolean): void;
   fill(rule?: string): void;
   fillRect(x: number, y: number, w: number, h: number): void;
   fillText(text: string, x: number, y: number, maxWidth?: number): void;
+  fillText(text: string, x: number, y: number, style: TextStyle, maxWidth?: number): void;
   lineTo(x: number, y: number): void;
   list(): any;
   moveTo(x: number, y: number): void;
@@ -176,6 +210,7 @@ interface Draw {
   stroke(): void;
   strokeRect(x: number, y: number, w: number, h: number): void;
   strokeText(text: string, x: number, y: number, maxWidth?: number): void;
+  strokeText(text: string, x: number, y: number, style: TextStyle, maxWidth?: number): void;
   transform(a: number, b: number, c: number, d: number, e: number, f: number): void;
   translate(x: number, y: number): void;
 }
@@ -289,9 +324,12 @@ export function tsType(t) {
         case "stroke": return "Stroke | null";
         case "outline": return "Outline | null";
         case "shadow": return "Shadow | null";
-        case "backdrop": return "Backdrop | null";
+        case "filter": return "Filter | readonly Filter[] | null";
+        case "mask": return "Gradient | View | null";
         case "motion": return "Motion"; // the token union + MotionCurve brand (prelude)
-        case "font": return "string"; // fontFamily reads as a family string in a { } body
+        case "font": return "string | Font | readonly (string | Font)[] | null"; // a family string, a Font object, or a fallback list of them
+        case "faceSource": return "string | readonly string[]";
+        case "faceWeight": return "FontWeight | readonly [number, number]";
         case "array": return t.of !== undefined ? `${t.of}[]` : "any[]";
         case "object": return "any";
         case "view": return "View | null";
@@ -702,7 +740,11 @@ extraSignatureTypes = [],
 shapes = [], 
 /** The program's `theme Name [ … ]` declarations — each projects as an
  *  ambient `declare const Name: Theme`, so a body can name it. */
-themeNames = []) {
+themeNames = [], 
+/** The program's `style Name [ … ]` bundles — each a value in body scope, like a
+ *  theme, typed EXACTLY by the fields it sets (so `Caption.fontSize` is a number,
+ *  not `number | undefined`), which is still a `TextStyle`. */
+styles = []) {
     // Every schema reachable — the registry entries PLUS abstract bases the
     // registry omits (the `Layout` base is deliberately not a name-table key,
     // schema.ts, yet `layout: Layout | null` and `SimpleLayout extends Layout`
@@ -721,7 +763,7 @@ themeNames = []) {
     for (const s of all.values()) {
         for (const t of Object.values(s.attrs))
             if (t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name))
-                enums.set(t.name, t.tokens);
+                enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined });
     }
     // …and from METHOD SIGNATURE types. An enum (or record) named ONLY by a
     // signature — `f(a: Axis)` in a program whose attributes never mention Axis —
@@ -741,9 +783,9 @@ themeNames = []) {
     for (const name of sigTypes) {
         const t = declaredType(name);
         if (t !== null && t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name))
-            enums.set(t.name, t.tokens);
+            enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined });
     }
-    const enumLines = [...enums].map(([name, toks]) => `type ${name} = ${toks.map((t) => JSON.stringify(t)).join(" | ")};`);
+    const enumLines = [...enums].map(([name, e]) => `type ${name} = ${e.tokens.map((t) => JSON.stringify(t)).join(" | ")}${e.numeric ? " | number" : ""};`);
     // Record aliases: every record-typed attribute references a NAMED open record.
     // `Theme` ships in the prelude; any other name (e.g. `Accents`) gets its own
     // alias emitted here, so a new record-typed slot needs no prelude edit.
@@ -786,7 +828,18 @@ themeNames = []) {
     const motionLine = `type Motion = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | MotionCurve;`;
     // The theme names in scope as `Theme` values: the built-in presets plus any
     // the program declares — a body names one (`theme = { app.dark ? … : … }`).
-    const themeLine = [...new Set([...THEME_PRESET_NAMES, ...themeNames])].map((n) => `declare const ${n}: Theme;`).join("\n");
+    const themeLine = [...new Set([...THEME_PRESET_NAMES, ...themeNames])].map((n) => `declare const ${n}: Theme;`).join("\n")
+        + styles.map((s) => {
+            const textAttr = (name) => {
+                for (let sc = schemas["Text"]; sc; sc = sc.base)
+                    if (Object.hasOwn(sc.attrs, name))
+                        return sc.attrs[name];
+                return null;
+            };
+            // A bundle's literal family is a string (a Font is an object in the tree).
+            const fields = s.fields.map((f) => { const t = textAttr(f); return `readonly ${f}: ${t === null ? "any" : t.kind === "font" ? "string" : tsType(t)}`; });
+            return `\ndeclare const ${s.name}: { ${fields.join("; ")} };`;
+        }).join("");
     return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), shapeLines.join("\n"), motionLine, themeLine, tagLines.join("\n"), classes.join("\n\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
 }
 /** A shape's TS object-type text — `{ id: string; n?: number; owner: Person;

@@ -1,0 +1,4 @@
+App [ width = 320, height = 84, fill = #0B141B,
+    Text [ x = 20, y = 24, fontSize = 26, textColor = white, fontWeight = bold,
+        outline = outline(1, #C0392B), text = "OUTLINED" ]
+    ]

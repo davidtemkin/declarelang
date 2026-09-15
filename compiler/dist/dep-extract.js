@@ -540,6 +540,11 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
         if (!ts.isIdentifier(n) && n.kind !== ts.SyntaxKind.ThisKeyword)
             walk(n);
         if (!reactive) {
+            // measureText measures in whatever a Font in its style names NOW — reads
+            // of the font's own cells, reached through a value the static path cannot
+            // name. The body tracks at runtime instead, as a drawing always does.
+            if (ts.isIdentifier(base) && base.text === "measureText")
+                reads.add(DYNAMIC);
             // the alias/closure door: a chain rooted at a local that may CARRY
             // cells — a read through it is real but unnameable, so the body goes
             // DYNAMIC (tracking path) instead of silently dropping the edge. A pure
@@ -850,6 +855,26 @@ function methodHome(el, name) {
     }
     return undefined;
 }
+/** WHOSE computed `{ }` default a resolved receiver's `.name` reads — methodHome's
+ *  twin: the element's own declaration first, then up its class chain. `undefined`
+ *  = no such default is reachable from this element. */
+function defaultHome(el, name) {
+    const owners = DEFAULT_OWNERS.get(name);
+    if (owners === undefined)
+        return undefined;
+    if (owners.has(el))
+        return el;
+    let tag = el?.tag;
+    const seen = new Set();
+    while (tag !== undefined && !seen.has(tag)) {
+        seen.add(tag);
+        const ce = CLASS_EL.get(tag);
+        if (ce !== undefined && owners.has(ce))
+            return ce;
+        tag = CLASS_BASE.get(tag);
+    }
+    return undefined;
+}
 function receiverElement(receiver, owner, classRoot) {
     const p = receiver.replace(/(\.root)+/g, ".root");
     if (p === "this")
@@ -1097,6 +1122,10 @@ function buildMethodSummaries() {
     };
     // Computed `{ }` defaults join the same callable graph — a default's body is an
     // EXPRESSION (parseBody expr-mode), and same-named defaults union into one summary.
+    // Each body ALSO keeps its own summary, keyed by the element that declares it, so
+    // a read whose receiver resolves follows that default alone (follow1 below).
+    const ownDefault = new Map();
+    const defaultElId = new Map();
     for (const [name, bodies] of COMPUTED_DEFAULTS) {
         for (const body of bodies) {
             const sf = parseBody(body.src, true);
@@ -1119,6 +1148,14 @@ function buildMethodSummaries() {
             }
             else
                 own.set(name, { ...d, ...NO_PARAMS, ret: sf ? returnedPaths(sf, collectLocals(sf, [])) : NO_RET });
+            // COPIES, not the same Set: the union above mutates the first body's reads.
+            let perOwner = ownDefault.get(body.owner);
+            if (perOwner === undefined) {
+                perOwner = new Map();
+                ownDefault.set(body.owner, perOwner);
+                defaultElId.set(body.owner, defaultElId.size);
+            }
+            perOwner.set(name, { reads: new Set(d.reads), calls: [...d.calls], errors: [...d.errors], ...NO_PARAMS, ret: sf ? returnedPaths(sf, collectLocals(sf, [])) : NO_RET });
         }
     }
     // `script { }` functions are OPAQUE (the 2026-08-24 ruling: reactivity lives
@@ -1217,10 +1254,28 @@ function buildMethodSummaries() {
             return ob === undefined ? { reads: new Set(), errors: [] } : followSummary(ob, c.baseKey, c, stack, ctx);
         }
         if (COMPUTED_DEFAULTS.has(c.name)) {
-            // a computed-default read (or a name that doubles as one): the name-level
-            // merged summary, exactly as before typed residences existed
-            o = own.get(c.name);
-            tag = "m:" + c.name;
+            // A computed-default read. When the receiver resolves, follow THAT element's
+            // default (its own, or its class chain's) and nothing else. The name-level
+            // union mixed every same-named default in the program into every read: an
+            // App field `ink` inherited a library icon's `ink = { textColor }`, and
+            // `textColor = { app.ink }` on the App was refused as reading itself. A
+            // receiver that cannot be resolved keeps the union — the conservative
+            // over-approximation, exactly as before.
+            let home;
+            if (ctx !== null && c.kind === "method") {
+                const el = receiverElementDeep(c.receiver, ctx.owner, ctx.classRoot);
+                if (el !== undefined)
+                    home = defaultHome(el, c.name);
+            }
+            const per = home !== undefined ? ownDefault.get(home)?.get(c.name) : undefined;
+            if (per !== undefined) {
+                o = per;
+                tag = "d" + defaultElId.get(home) + ":" + c.name;
+            }
+            else {
+                o = own.get(c.name);
+                tag = "m:" + c.name;
+            }
         }
         else {
             // TYPED RESIDENCE (the `open` collision): resolve the receiver to an

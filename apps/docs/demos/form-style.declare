@@ -1,15 +1,15 @@
 // A run of prose, styled by name
-// `style kw [ … ]` declares a named bundle of text attributes; a `<span class='kw'>` inside
-// HTMLText (or Markdown) wears it, so a look is declared once and applied by name to words
-// the tree has no node for.
+// `style Keyword [ … ]` declares a named record of literal text attributes; a
+// `<span class='Keyword'>` inside HTMLText (or Markdown) wears it, so a look is declared once
+// and applied by name to words the tree has no node for.
 
-style kw [ textColor = #C678DD, fontWeight = bold ]
+style Keyword [ textColor = #C678DD, fontWeight = bold ]
 
-style ty [ textColor = #2E6FE0 ]
+style TypeName [ textColor = #2E6FE0 ]
 
-style st [ textColor = #98C379 ]
+style Quoted [ textColor = #98C379 ]
 
 App [ fill = #FFFFFF, textColor = #172530, fontSize = 14,
     HTMLText [ x = 20, y = 16, width = { parent.width - 40 },
-        html = "<pre><span class='kw'>class</span> <span class='ty'>Board</span> extends <span class='ty'>View</span> [\n    name = <span class='st'>\"demo\"</span>\n    ]</pre><p>Three bundles — <span class='kw'>kw</span>, <span class='ty'>ty</span>, <span class='st'>st</span> — worn by name.</p>" ]
+        html = "<pre><span class='Keyword'>class</span> <span class='TypeName'>Board</span> extends <span class='TypeName'>View</span> [\n    name = <span class='Quoted'>\"demo\"</span>\n    ]</pre><p>Three styles — <span class='Keyword'>Keyword</span>, <span class='TypeName'>TypeName</span>, <span class='Quoted'>Quoted</span> — worn by name.</p>" ]
     ]

@@ -20,6 +20,7 @@ import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault, provide
 import { Constraint, settle } from "./reactive.js";
 import { Focus } from "./focus.js";
 import { fontMetrics, fontString, wrapEditable, type TextStyle, type FontWeight } from "./measure.js";
+import { heldFamily, type FamilyValue } from "./font-value.js";
 import { isTwoWay, edited, commitDraft, Editor } from "./editor.js";
 import { stroke, type Color } from "./value.js";
 
@@ -28,7 +29,8 @@ export class TextInput extends Editor {
   // the nearest provided value, so a field inherits its region's text style.
   declare textColor: Color;
   declare fontSize: number;
-  declare fontFamily: string;
+  /** A family string, a Font, or a list of them. */
+  declare fontFamily: FamilyValue;
   declare fontWeight: FontWeight;
   declare letterSpacing: number;
   declare selectable: boolean;
@@ -141,7 +143,7 @@ export class TextInput extends Editor {
 
   private editStyle(): TextStyle {
     return {
-      fontFamily: this.fontFamily,
+      fontFamily: heldFamily(this, "fontFamily", this.fontFamily),
       fontSize: this.fontSize,
       fontWeight: this.fontWeight,
       letterSpacing: this.letterSpacing,

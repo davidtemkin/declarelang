@@ -209,10 +209,16 @@ enum LayerDescribe {
             case "strokeStyle": st.stroke = (o["grad"] as? [String: Any]) ?? (o["v"] as? String ?? "#000")
             case "translate": st.ctm = CGAffineTransform(translationX: d("x"), y: d("y")).concatenating(st.ctm)
             case "scale": st.ctm = CGAffineTransform(scaleX: d("x"), y: d("y")).concatenating(st.ctm)
-            case "rotate": st.ctm = CGAffineTransform(rotationAngle: d("a")).concatenating(st.ctm)
+            // ⚠ The op keys are `angle` and `m` (draw.ts). This read "a" for both,
+            // so a described drawing lost its rotation while the RASTERED one kept
+            // it — the same picture, two answers, depending which path it took.
+            case "rotate": st.ctm = CGAffineTransform(rotationAngle: d("angle")).concatenating(st.ctm)
             case "transform":
-                st.ctm = CGAffineTransform(a: d("a"), b: d("b"), c: d("c"), d: d("d"),
-                                           tx: d("e"), ty: d("f")).concatenating(st.ctm)
+                guard let m = o["m"] as? [NSNumber], m.count == 6 else { return nil }
+                st.ctm = CGAffineTransform(a: CGFloat(m[0].doubleValue), b: CGFloat(m[1].doubleValue),
+                                           c: CGFloat(m[2].doubleValue), d: CGFloat(m[3].doubleValue),
+                                           tx: CGFloat(m[4].doubleValue), ty: CGFloat(m[5].doubleValue))
+                    .concatenating(st.ctm)
             case "setLineDash":
                 st.dash = ((o["segments"] as? [NSNumber]) ?? []).map { CGFloat($0.doubleValue) }
             case "set":

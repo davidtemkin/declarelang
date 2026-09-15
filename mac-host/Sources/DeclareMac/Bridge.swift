@@ -392,8 +392,8 @@ final class Bridge {
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "loadImage")
 
         // Web faces (FontRegistry). The env's FontFace shim drives these, so the
-        // runtime's own loadFonts runs here unchanged and first paint waits for
-        // the bytes exactly as it does on the web.
+        // runtime's own Font loading (font.ts) runs here unchanged and first paint
+        // waits for the bytes exactly as it does on the web.
         host.setObject({ [weak self] (handle: Int, urlStr: String, family: String, weight: String, italic: Bool) in
             self?.loadFont(handle: handle, urlStr: urlStr, family: family, weight: weight, italic: italic)
         } as @convention(block) (Int, String, String, String, Bool) -> Void, forKeyedSubscript: "loadFont")
@@ -402,6 +402,12 @@ final class Bridge {
         } as @convention(block) (String, String, String, Bool) -> Bool, forKeyedSubscript: "registerLocalFont")
         host.setObject({ FontRegistry.clear() } as @convention(block) () -> Void,
                        forKeyedSubscript: "clearFonts")
+        // One family withdrawn (the env's document.fonts.delete): a Font retired,
+        // or a source replaced — font.ts removes a generation's faces as a unit.
+        host.setObject({ [weak self] (family: String) in
+            FontRegistry.remove(family: family)
+            self?.needsFrame()
+        } as @convention(block) (String) -> Void, forKeyedSubscript: "unloadFont")
 
         // Media (Media.swift): the env's media-element shim by handle. Audio is
         // a bare AVPlayer; a Video node additionally binds an AVPlayerLayer via
@@ -449,6 +455,15 @@ final class Bridge {
             let work = { self.tree.richLayout(id: id, blocksJson: blocksJson, selectable: selectable, width: CGFloat(width)) }
             return Thread.isMainThread ? work() : DispatchQueue.main.sync(execute: work)
         } as @convention(block) (Int, String, Bool, Double) -> Double, forKeyedSubscript: "richLayout")
+
+        // The flow's LINE CLAMP (RichText.maxLines). Same synchronous hop as the
+        // layout above and for the same reason: the clamped height is a fact this
+        // settle needs, since the stack below the flow is placed from it.
+        host.setObject({ [weak self] (id: Int, lines: Int) -> Double in
+            guard let self else { return -1 }
+            let work = { self.tree.richClamp(id: id, lines: lines) }
+            return Thread.isMainThread ? work() : DispatchQueue.main.sync(execute: work)
+        } as @convention(block) (Int, Int) -> Double, forKeyedSubscript: "richClamp")
 
         // COMPILE, off this thread (CompileService). The runtime hands over a
         // source string and hears back a compiled one; everything between —

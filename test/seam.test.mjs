@@ -82,6 +82,47 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
+  // The filter tier (graphics-pass.md §1, 2026-09-12): the view's own painted
+  // subtree through one filter vocabulary — DOM `filter:`, canvas an offscreen
+  // group landed through ctx.filter (fallback pyramid on WebKit), Mac
+  // `layer.filters` (Core Image on the node's own layer — which macOS 26 still
+  // honours, unlike backgroundFilters) plus the layer's own shadow.
+  setFilter: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
+  // The soft mask (graphics-pass.md §2): DOM mask-image (a gradient, or an
+  // Image/draw() stencil's bitmap), canvas destination-in over the group
+  // layer (any stencil), Mac layer.mask (a gradient layer, or the stencil's
+  // subtree rendered per commit).
+  setMask: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
+  // One affine matrix at the seam (graphics-pass.md §5) — scale, per-axis
+  // scale, skew, rotation about the pivot. Backends that take it never see
+  // setScale/setRotation; the pair stays for one that does not.
+  setTransform: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
+  // The third dimension (§6): DOM rotateX/rotateY/translateZ + the parent's
+  // perspective; canvas the group layer projected in strips; Mac a
+  // CATransform3D with the eye folded in per child.
+  setTransform3D: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
+  setPerspective: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
+  // Where a contain/cover fit sits (§4): object-position / the placement
+  // arithmetic / the fit rect or contentsRect.
+  setImageAlign: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
 
   // ── the transform seam (compositing.md Part II, 2026-08-06) ──────────────
 
@@ -163,6 +204,19 @@ const TABLE = {
     // it re-sizes the text container and the rastered band and redraws. The Swift
     // side had the same fast path inside richLayout already (same JSON, new width,
     // nothing wraps); this is that adoption reachable without the JSON.
+    mac: true,
+    headless: NOT_APPLICABLE,
+  },
+  setRichClamp: {
+    // FILLED 2026-09-13 (the truncation round). maxLines on a FLOW, not on a
+    // single Text: the host holds the laid-out prose, so only the host can say
+    // where line N ends and hang the ellipsis there. DOM reaches for
+    // -webkit-line-clamp on the flow host (it clamps ACROSS the block children,
+    // which is the whole point); Mac sets the text container's
+    // maximumNumberOfLines with .byTruncatingTail and re-measures. Both return
+    // the clamped height, because the caller's box has to shrink with it.
+    dom: true,
+    canvas: "deliberate — canvas has no host to clamp: it splits the runs into single-line Text views itself, so the line budget is spent MODEL-side while it lays them out (markdown.ts's BUDGET), and the ellipsis is written into the last kept run. Same feature, other half of the seam — a host call here would have nothing to call",
     mac: true,
     headless: NOT_APPLICABLE,
   },
@@ -318,7 +372,9 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 23,   // +setSelection (2026-08-30): the caret write half, TextInput.select — all three implement
+  assert.equal(members.length, 30,   // +setRichClamp (2026-09-13, the truncation round): maxLines on a flow — DOM/mac clamp in the host, canvas spends the budget model-side
+                                     // +setFilter/setMask/setTransform/setTransform3D/setPerspective/setImageAlign (2026-09-12, the graphics pass) — all three implement
+                                     // +setSelection (2026-08-30): the caret write half, TextInput.select — all three implement
                                      // +setRasterScale (2026-08-26): the at-rest composed scale, for a backend that holds pixels — DOM implements, canvas/mac replay/describe
                                      // +refreshVisibility (2026-08-20): the watch's pull half — DOM-only, the sprung-camera fix
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +

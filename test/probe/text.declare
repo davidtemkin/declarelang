@@ -1,0 +1,77 @@
+// THE TEXT PROBE — one Mac gate row for the text features that only a live
+// native render can check. Folds five probes into one frame (2026-09-14):
+//   top left      lineHeight       leading the host once ignored
+//   top right     Text.maxLines    two-line clamp, one-line non-wrapping, a long token, unclamped
+//   middle        Markdown.maxLines the clamp across blocks: a block-boundary cut and a mid-paragraph cut
+//   bottom left   a web font       declared faces reaching the native host
+//   bottom right  OpenType figures features carried by the family name
+// Everything sized to the gate's 1280×800 capture. The rules sit at MEASURED
+// edges, so a renderer that measures one thing and paints another shows it.
+
+
+App [ width = 1280, height = 800, fill = white, textColor = #1A1A1A,
+    roboto: Font [
+        Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
+        Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
+        ],
+
+    doc: string = "## A heading counts too\n\nThe flow clamp counts lines across the whole document, not per block, so a preview stops where it runs out of budget regardless of which block it lands in.\n\n- and a list item is prose as well\n- so is this one\n\nA final paragraph nobody should see.",
+
+    // ── lineHeight ────────────────────────────────────────────────────────────
+
+    lhKey: Text [ x = 24, y = 14, fontSize = 12, textColor = #6A6A6A, text = "lineHeight 1.0 · 2.2 — rules at each block's measured bottom" ],
+    lhA: Text [ x = 24, y = 36, width = 280, fontSize = 18, lineHeight = 1.0,
+        text = "One two three four five six seven eight nine ten eleven twelve" ],
+    lhB: Text [ x = 324, y = 36, width = 280, fontSize = 18, lineHeight = 2.2,
+        text = "One two three four five six seven eight nine ten eleven twelve" ],
+    lhRuleA: View [ x = 24, y = { app.lhA.y + app.lhA.height }, width = 280, height = 3, fill = #E4572E ],
+    lhRuleB: View [ x = 324, y = { app.lhB.y + app.lhB.height }, width = 280, height = 3, fill = #2E6FE0 ],
+
+    // ── Text.maxLines ─────────────────────────────────────────────────────────
+
+    tcKey: Text [ x = 660, y = 14, fontSize = 12, textColor = #6A6A6A, text = "Text.maxLines — 2 lines · 1 line, no wrap · a long token · unclamped" ],
+    tcA: Text [ x = 660, y = 36, width = 200, fontSize = 15, maxLines = 2,
+        text = "Marco: mine is nicest and I will not be taking questions about it from anyone at all" ],
+    tcB: Text [ x = 660, y = 96, width = 200, fontSize = 15, wrap = false, maxLines = 1,
+        text = "Kwame: it was a good morning to be up there honestly" ],
+    tcC: Text [ x = 660, y = 128, width = 120, fontSize = 15, maxLines = 1,
+        text = "supercalifragilisticexpialidocious" ],
+    tcD: Text [ x = 900, y = 36, width = 160, fontSize = 15,
+        text = "Marco: mine is nicest and I will not be taking questions about it from anyone at all" ],
+
+    // ── Markdown.maxLines ─────────────────────────────────────────────────────
+
+    fcKey: Text [ x = 24, y = 222, fontSize = 12, textColor = #6A6A6A, text = "Markdown maxLines — 5 ends on a block boundary (no ellipsis) · 3 cuts mid-paragraph (ellipsis)" ],
+    fc5: Markdown [ x = 24, y = 244, width = 340, fontSize = 15, maxLines = 5, text = { app.doc } ],
+    fc5Note: Text [ x = 24, y = { app.fc5.y + app.fc5.height + 8 }, fontSize = 12, textColor = #B0341F,
+        text = { app.fc5.truncated ? "truncated = true" : "truncated = false" } ],
+    fc3: Markdown [ x = 404, y = 244, width = 340, fontSize = 15, maxLines = 3, text = { app.doc } ],
+    fc3Note: Text [ x = 404, y = { app.fc3.y + app.fc3.height + 8 }, fontSize = 12, textColor = #B0341F,
+        text = { app.fc3.truncated ? "truncated = true" : "truncated = false" } ],
+
+    // ── a web font ────────────────────────────────────────────────────────────
+
+    wfKey: Text [ x = 24, y = 520, fontSize = 12, textColor = #6A6A6A, text = "web font: Roboto 400 · Roboto 500 · Helvetica control (blue rule)" ],
+    wfA: Text [ x = 24, y = 544, fontFamily = { [app.roboto, "Helvetica"] }, fontSize = 26, text = "Hamburgefonstiv 123" ],
+    wfRuleA: View [ x = { app.wfA.x + app.wfA.width }, y = 540, width = 2, height = 38, fill = #E4572E ],
+    wfB: Text [ x = 24, y = 596, fontFamily = { [app.roboto, "Helvetica"] }, fontWeight = medium, fontSize = 26, text = "Hamburgefonstiv 123" ],
+    wfRuleB: View [ x = { app.wfB.x + app.wfB.width }, y = 592, width = 2, height = 38, fill = #E4572E ],
+    wfC: Text [ x = 24, y = 648, fontFamily = ["Helvetica"], fontSize = 26, text = "Hamburgefonstiv 123" ],
+    wfRuleC: View [ x = { app.wfC.x + app.wfC.width }, y = 644, width = 2, height = 38, fill = #2E6FE0 ],
+
+    // ── OpenType figures: each row is the face's default, then the attribute ───
+
+    nmKey: Text [ x = 660, y = 520, fontSize = 12, textColor = #6A6A6A, text = "figures — Hoefler lining · Baskerville oldstyle · system tabular (default, then set)" ],
+    nm1a: Text [ x = 660, y = 544, fontFamily = ["Hoefler Text"], fontSize = 24, text = "1912 0.38" ],
+    nm1aRule: View [ x = { app.nm1a.x + app.nm1a.width }, y = 540, width = 2, height = 34, fill = #C9C9C9 ],
+    nm1b: Text [ x = 900, y = 544, fontFamily = ["Hoefler Text"], numerals = lining, fontSize = 24, text = "1912 0.38" ],
+    nm1bRule: View [ x = { app.nm1b.x + app.nm1b.width }, y = 540, width = 2, height = 34, fill = #E4572E ],
+    nm2a: Text [ x = 660, y = 596, fontFamily = ["Baskerville"], fontSize = 24, text = "1912 0.38" ],
+    nm2aRule: View [ x = { app.nm2a.x + app.nm2a.width }, y = 592, width = 2, height = 34, fill = #C9C9C9 ],
+    nm2b: Text [ x = 900, y = 596, fontFamily = ["Baskerville"], numerals = oldstyle, fontSize = 24, text = "1912 0.38" ],
+    nm2bRule: View [ x = { app.nm2b.x + app.nm2b.width }, y = 592, width = 2, height = 34, fill = #E4572E ],
+    nm3a: Text [ x = 660, y = 648, fontFamily = ["system-ui"], fontSize = 24, text = "1912 0.38" ],
+    nm3aRule: View [ x = { app.nm3a.x + app.nm3a.width }, y = 644, width = 2, height = 34, fill = #C9C9C9 ],
+    nm3b: Text [ x = 900, y = 648, fontFamily = ["system-ui"], numeralWidth = tabular, fontSize = 24, text = "1912 0.38" ],
+    nm3bRule: View [ x = { app.nm3b.x + app.nm3b.width }, y = 644, width = 2, height = 34, fill = #E4572E ]
+    ]

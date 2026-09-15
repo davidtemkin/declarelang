@@ -11,7 +11,7 @@
 // the full state once — literals cost no reactive machinery at all.
 import { Node, onDiscard, runRetire, authoredName, provideCursorRead } from "./node.js";
 import { DeclareError, diag } from "./errors.js";
-import { backdropEqual, fillEqual, shadowEqual, strokeEqual } from "./value.js";
+import { backdropEqual, fillEqual, filterList, filtersEqual, isMaskGradient, shadowEqual, strokeEqual } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef } from "./backend.js";
 import { Tip } from "./tip.js";
 let viewCreator = null;
@@ -21,6 +21,8 @@ export function provideViewCreator(fn) {
 import { record } from "./draw.js";
 import { sharedClock } from "./animate.js";
 import { Constraint, Cell, afterSettle, setChangeDispatcher, trackNode } from "./reactive.js";
+import { boxThrough, fromParts, isIdentity as isIdentityAffine } from "./affine.js";
+import { footprint3D, spec3DOf } from "./projective.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform } from "./interaction.js";
 import { bindDerived, declarationsOf, defineAttributes, disposeBindings, isSet, localProvision, ownerOf, percentOwned, setBound } from "./attributes.js";
 import { declaredType } from "./value.js";
@@ -134,6 +136,35 @@ export class View extends Node {
      *  element's `link`. Read only by the static extractor (static-html.ts) to wrap the
      *  subtree in `<a href>`; undefined for all but the handful of navigable views. */
     _navLink;
+    /** Does this view leave its plane? */
+    is3D() { return this.rotateX !== 0 || this.rotateY !== 0 || this.translateZ !== 0; }
+    /** This view's paint transform as one matrix, local → parent (before the
+     *  view's own x/y): what every reader composes and inverts. */
+    localTransform() {
+        return fromParts({ scale: this.scale, scaleX: this.scaleX, scaleY: this.scaleY, rotation: this.rotation,
+            skewX: this.skewX, skewY: this.skewY, pivotX: this.pivotX, pivotY: this.pivotY });
+    }
+    /** Views masked BY this one (it is their stencil) — re-pushed when this
+     *  view attaches, since a stencil declared after (or inside) the masked
+     *  view has no surface at the masked view's own push. */
+    maskUsers = null;
+    /** Push the mask to the seam; a stencil rides as the live view itself. */
+    applyMask(m) {
+        const s = this.surface;
+        if (s === null)
+            return; // pre-attach: flush replays it
+        if (m === null) {
+            s.setMask?.(null);
+            return;
+        }
+        if (isMaskGradient(m)) {
+            s.setMask?.({ kind: "gradient", gradient: m });
+            return;
+        }
+        const stencil = m;
+        (stencil.maskUsers ??= new Set()).add(this);
+        s.setMask?.({ kind: "view", stencil: stencil });
+    }
     /** The enclosing class instance — the node this view was *written* inside
      *  (a named class's root, or the App root, whose whole tree is the
      *  anonymous App class, language §5/§11): a class-body child points at its
@@ -304,33 +335,15 @@ export class View extends Node {
      *  one-pass discipline (pinned by the re-layout test). `bounds()` is this
      *  plus the position, for every reader that is not writing the position. */
     footprint() {
-        const s = this.scale;
-        const rot = this.rotation;
         const w = this.width;
         const h = this.height;
-        if (s === 1 && rot === 0)
+        // a view out of its plane: the projected quad's bounds, position-free (projective.ts)
+        if (this.is3D())
+            return footprint3D(this, this.localTransform(), this.parent instanceof View ? this.parent.perspective : 0);
+        const m = this.localTransform();
+        if (isIdentityAffine(m))
             return { x: 0, y: 0, width: w, height: h };
-        const px = this.pivotX;
-        const py = this.pivotY;
-        const a = (rot * Math.PI) / 180;
-        const ca = Math.cos(a);
-        const sa = Math.sin(a);
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const [cx, cy] of [[0, 0], [w, 0], [0, h], [w, h]]) {
-            const dx = cx - px;
-            const dy = cy - py;
-            const fx = px + s * (dx * ca - dy * sa);
-            const fy = py + s * (dx * sa + dy * ca);
-            if (fx < minX)
-                minX = fx;
-            if (fx > maxX)
-                maxX = fx;
-            if (fy < minY)
-                minY = fy;
-            if (fy > maxY)
-                maxY = fy;
-        }
-        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+        return boxThrough(m, 0, 0, w, h);
     }
     /** This view's View children — the reactive read of the child list, and the
      *  only one there is: `children` is a plain array (machinery included, and
@@ -513,14 +526,24 @@ export class View extends Node {
             s.setCursor(this.cursor);
         if (this.pointerEvents !== "")
             s.setPointerEvents(this.pointerEvents);
-        if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
-            s.setScale(this.scale, this.pivotX, this.pivotY);
-        if (this.rotation !== 0)
-            s.setRotation?.(this.rotation, this.pivotX, this.pivotY);
+        if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0 || this.rotation !== 0
+            || this.scaleX !== 1 || this.scaleY !== 1 || this.skewX !== 0 || this.skewY !== 0 || this.is3D())
+            pushTransform(this);
+        if (this.perspective !== 0)
+            s.setPerspective?.(this.perspective);
         if (this.blend !== "normal")
             s.setBlend?.(this.blend);
         if (this.backdrop !== null)
-            s.setBackdrop?.(this.backdrop);
+            s.setBackdrop?.(nullIfEmpty(filterList(this.backdrop)));
+        if (this.filter !== null)
+            s.setFilter?.(nullIfEmpty(filterList(this.filter)));
+        if (this.mask !== null)
+            this.applyMask(this.mask);
+        // a stencil attaching late: the views it masks re-push, now with a surface
+        if (this.maskUsers !== null)
+            for (const u of this.maskUsers)
+                if (u.mask === this)
+                    u.applyMask(u.mask);
         this.applyClip(this.clip);
         // The facts' read halves: the platform mirrors its offset and its
         // in-motion state in; nothing here pushes out (a request is a verb call).
@@ -1033,9 +1056,22 @@ export class View extends Node {
 /** The one composed-transform pusher (scale + rotation about a shared
  *  pivot): any of the four attributes re-pushes both seam calls, so a
  *  backend keeps a single transform and never sees a half-updated pivot. */
+/** A filter list at the seam is null when empty — a backend keys "none" on null. */
+const nullIfEmpty = (l) => (l.length === 0 ? null : l);
 const pushTransform = (v) => {
-    v.surface?.setScale(v.scale, v.pivotX, v.pivotY);
-    v.surface?.setRotation?.(v.rotation, v.pivotX, v.pivotY);
+    const s = v.surface;
+    if (s === null)
+        return;
+    // one matrix at the seam (graphics-pass.md §5); a backend without the
+    // matrix member still gets the similarity pair — the seam table says which
+    if (s.setTransform !== undefined) {
+        s.setTransform(v.localTransform(), v.pivotX, v.pivotY);
+        if (s.setTransform3D !== undefined)
+            s.setTransform3D(spec3DOf(v, v.parent instanceof View ? v.parent : null));
+        return;
+    }
+    s.setScale(v.scale, v.pivotX, v.pivotY);
+    s.setRotation?.(v.rotation, v.pivotX, v.pivotY);
 };
 /** The `scrolls` axis-enum pusher, shared by View and the App's own default
  *  (`"y"` — the App's scroller is the page; the backend realizes the root's
@@ -1096,10 +1132,24 @@ defineAttributes(View, {
     pivotX: { def: 0, push: pushTransform },
     pivotY: { def: 0, push: pushTransform },
     rotation: { def: 0, push: pushTransform },
+    rotateX: { def: 0, push: pushTransform },
+    rotateY: { def: 0, push: pushTransform },
+    translateZ: { def: 0, push: pushTransform },
+    backface: { def: "visible", push: pushTransform },
+    // the eye: a change re-projects every child that leaves its plane
+    perspective: { def: 0, push: (v) => { v.surface?.setPerspective?.(v.perspective); for (const c of v.children)
+            if (c instanceof View && c.is3D())
+                pushTransform(c); } },
+    scaleX: { def: 1, push: pushTransform },
+    scaleY: { def: 1, push: pushTransform },
+    skewX: { def: 0, push: pushTransform },
+    skewY: { def: 0, push: pushTransform },
     // optional-chained (the ignoreScroll pattern): backends adopt independently,
     // and the seam table (test/seam.test.mjs) says which have.
     blend: { def: "normal", push: (v, b) => v.surface?.setBlend?.(b) },
-    backdrop: { def: null, push: (v, b) => v.surface?.setBackdrop?.(b), equal: backdropEqual },
+    backdrop: { def: null, push: (v, b) => v.surface?.setBackdrop?.(nullIfEmpty(filterList(b))), equal: backdropEqual },
+    filter: { def: null, push: (v, f) => v.surface?.setFilter?.(nullIfEmpty(filterList(f))), equal: filtersEqual },
+    mask: { def: null, push: (v, m) => v.applyMask(m) },
     focusable: { def: false },
     focusTrap: { def: false },
     // `anchor` — the view's name in the reveal namespace (location.md §6). A stored

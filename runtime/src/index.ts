@@ -22,12 +22,12 @@ import { applyLinks, type SerializedLink } from "./links.js";
 import { Diag } from "./diagnostics.js";
 import { resolveIncludesHostless, NO_INCLUDES, type IncludeHost } from "./include.js";
 import { App } from "./view.js";
-import { fontFacesOf } from "./font.js";
+import { fontsReady } from "./font-value.js";
 import type { RenderBackend } from "./backend.js";
 import { DeclareError, DeclareErrors } from "./errors.js";
 // The render/wire/font glue lives in boot.ts (compiler-free) so the precompiled
 // production entry (`renderProgram`) can drop the parser + checker entirely.
-import { mountApp, loadFonts } from "./boot.js";
+import { mountApp } from "./boot.js";
 import { setAppAssetBase } from "./asset-base.js";
 
 /** Options for build()/render(): the file-access host `include` resolution
@@ -86,11 +86,10 @@ export function render(source: string, host: HTMLElement, backend: RenderBackend
 // unbundled ES modules and would read ~10× the shipping size. The build that
 // produces the shipping bundle knows the real figure and provides it.
 
-/** Like render(), but first loads the web faces of the program's own `font`
- *  declarations (those with a URL/woff2 source), so first paint measures
- *  against the real metrics. The declarative counterpart to a manual
- *  loadFonts(): the app names its fonts (`font Title [ bold = "…" ]`), the
- *  runtime loads them. A source with only `system` fonts awaits nothing.
+/** Like render(), but first waits for the fonts the tree starts with — each
+ *  until its faces arrive, one fails, or its `wait` runs out (font.ts
+ *  fontsReady) — so first paint measures in real faces when they come in time.
+ *  A tree with only system fonts, or none, awaits nothing.
  *
  *  `opts.assetBase` states THIS app's own directory, which an embedded child
  *  needs: its relative faces and bitmaps live beside its program, while the
@@ -108,7 +107,7 @@ export async function renderAsync(source: string, host: HTMLElement, backend: Re
     // a desktop window lost all three panes). The sibling rule holds for
     // BOOTED apps — bootHost registers their data base — not for tenants.
   }
-  await loadFonts(fontFacesOf(app), opts.assetBase);
+  await fontsReady(app);
   return mountApp(app, host, backend);
 }
 
@@ -122,11 +121,10 @@ export { instantiate } from "./instantiate.js";
 export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 export { forEachElement, serializeLinks, applyLinks, type SerializedLink } from "./links.js";
 // Precompiled production entry + render glue (compiler-free) — see boot.ts.
-export { renderProgram, renderProgramAsync, mountApp, mountEmbeddedApp, disposeApp, loadFonts, reflectAppName, isEmbedded, provideHostServices } from "./boot.js";
+export { renderProgram, renderProgramAsync, mountApp, mountEmbeddedApp, disposeApp, reflectAppName, isEmbedded, provideHostServices } from "./boot.js";
 export type { HostServices } from "./boot.js";
 export { Inspect, setInspectionTarget, inspectionTarget } from "./inspect-service.js";
 export { pickAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";
-export type { FontSpec } from "./boot.js";
 export { Node } from "./node.js";
 export { View, App, Island, DOMIsland, linkIslandTenant, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";
@@ -149,9 +147,11 @@ export { settle, afterSettle, observe } from "./reactive.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export type { InspectNode, Provenance } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";
-export { buildFonts, collectFaces, fontFacesOf, FONT_WEIGHTS } from "./font.js";
-export type { Font, FontFaceSpec } from "./font.js";
+export { Font, Face, fontsReady, setFontHost, FONT_WEIGHTS } from "./font.js";
+export type { FontHost, LoadedFace } from "./font.js";
 export { fontString, textWidth, fontMetrics, provideMeasurer } from "./measure.js";
+export { measureText } from "./text-measure.js";
+export type { TextMeasure } from "./text-measure.js";
 export { validatePathData } from "./shape.js";
 export { DomBackend } from "./dom-backend.js";
 export { onIslandSlot } from "./backend.js";

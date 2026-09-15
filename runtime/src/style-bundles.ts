@@ -5,9 +5,15 @@
 // tiny module is what preserves tree-shaking — `instantiate` (core, every app) must
 // not pull in `markdown` (the RichText engine, RichText apps only), and vice versa.
 //
-// Type-only import of Element: erased at build, so no runtime dependency crosses.
+// A bundle is a PLAIN RECORD of literal text attributes, exactly as a theme is a
+// record of tokens (ruled 2026-09-14): it has no place in the tree, so nothing in it
+// may depend on where it is used. The record is what a `<span class>` run wears,
+// what `d.fillText(…, Caption)` and `measureText(…, Caption)` take, and what a body
+// reads by the bundle's name.
 
 import type { Element } from "./parser.js";
+import { coerce } from "./value.js";
+import { attrType, TextSchema } from "./schema.js";
 
 let BUNDLES = new Map<string, Element>();
 
@@ -19,4 +25,29 @@ export function setStyleBundles(b: Map<string, Element>): void {
 /** The current program's `style` bundles, for by-name resolution. */
 export function styleBundles(): Map<string, Element> {
   return BUNDLES;
+}
+
+const RECORDS = new WeakMap<Element, Readonly<Record<string, unknown>>>();
+
+/** A bundle's fields as a frozen record of runtime values, keyed by the `Text`
+ *  attribute names they set. A field that is not a coercible literal (the
+ *  checker refuses those) is left out. */
+export function bundleRecord(el: Element): Readonly<Record<string, unknown>> {
+  const cached = RECORDS.get(el);
+  if (cached !== undefined) return cached;
+  const rec: Record<string, unknown> = {};
+  for (const a of el.attrs) {
+    const t = attrType(TextSchema, a.name);
+    const v = a.value;
+    if (t === null || v.kind === "code") continue;
+    if (t.kind === "font" && v.kind === "list") {
+      rec[a.name] = v.items.flatMap((i) => (i.kind === "string" ? [i.value] : [])).join(", ");
+      continue;
+    }
+    const c = coerce(t, v);
+    if (c.ok) rec[a.name] = c.value;
+  }
+  const frozen = Object.freeze(rec);
+  RECORDS.set(el, frozen);
+  return frozen;
 }

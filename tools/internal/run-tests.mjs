@@ -24,7 +24,6 @@ const SUITE = [
   "test/release.test.mjs",         // a release is a projection of the tree: the check, the scaffold, the projection
   "test/databinding.test.mjs",
   "test/dataset-merge.test.mjs",
-  "test/text-clamp.test.mjs",
   "test/change-event.test.mjs",
   "test/cursor-reach.test.mjs",
   "test/super.test.mjs",
@@ -48,6 +47,7 @@ const SUITE = [
   "test/themes.test.mjs",
   "test/html.test.mjs",
   "test/richtext.test.mjs",
+  "test/text.test.mjs",            // the silent text regressions only: headless, one stub measurer, ~1s
   "test/md-conformance.test.mjs",  // Declare's Markdown reader vs markdown-it (VS Code's) over the CommonMark+GFM surface
   "test/slim.test.mjs",
   "test/crawl.test.mjs",

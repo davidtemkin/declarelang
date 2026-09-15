@@ -34,6 +34,7 @@
 // fails here has moved or resized, which is a real bug; one that differs by a
 // uniform haze has not.
 import { execFileSync, spawn } from "node:child_process";
+import { APP_NAME } from "./app.mjs";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -83,7 +84,7 @@ const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 async function launchNative(url) {
   const bin = hostBinary();
   if (bin === null) { console.error(NO_HOST); process.exit(1); }
-  for (const pat of ["Declare Mac", "DeclareMac"]) {
+  for (const pat of [APP_NAME]) {
     try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* none running */ }
   }
   await sleep(1.2);
@@ -218,7 +219,7 @@ if (macOk) {
   await sleep(2.5);                       // let the first settle land
   nativeShot(macPng);
   report("chrome canvas vs MAC", await compareCells(refPng, macPng, cells, cols, cw, ch));
-  for (const pat of ["Declare Mac", "DeclareMac"]) {
+  for (const pat of [APP_NAME]) {
     try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* already gone */ }
   }
 }

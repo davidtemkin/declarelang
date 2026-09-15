@@ -122,13 +122,26 @@ export function paintBoxShadow(ctx, box, sh) {
  *  space evenly between their placed neighbors (first 0, last 1), offsets
  *  monotonic. */
 export function realizeGradient(ctx, g, w, h) {
-    const rad = (g.angle * Math.PI) / 180;
-    const dx = Math.sin(rad);
-    const dy = -Math.cos(rad);
-    const len = Math.abs(w * dx) + Math.abs(h * dy);
-    const cx = w / 2;
-    const cy = h / 2;
-    const grad = ctx.createLinearGradient(cx - (dx * len) / 2, cy - (dy * len) / 2, cx + (dx * len) / 2, cy + (dy * len) / 2);
+    let grad;
+    if (g.kind === "radial") {
+        // CSS `circle farthest-corner at cx cy`, the ramp reaching r of that distance
+        const px = (g.cx ?? 0.5) * w, py = (g.cy ?? 0.5) * h;
+        const far = Math.hypot(Math.max(px, w - px), Math.max(py, h - py));
+        grad = ctx.createRadialGradient(px, py, 0, px, py, Math.max(0.001, far * (g.r ?? 1)));
+    }
+    else if (g.kind === "conic") {
+        // CSS `from Adeg` starts at 12 o'clock; canvas 0 is 3 o'clock
+        grad = ctx.createConicGradient(((g.angle - 90) * Math.PI) / 180, (g.cx ?? 0.5) * w, (g.cy ?? 0.5) * h);
+    }
+    else {
+        const rad = (g.angle * Math.PI) / 180;
+        const dx = Math.sin(rad);
+        const dy = -Math.cos(rad);
+        const len = Math.abs(w * dx) + Math.abs(h * dy);
+        const cx = w / 2;
+        const cy = h / 2;
+        grad = ctx.createLinearGradient(cx - (dx * len) / 2, cy - (dy * len) / 2, cx + (dx * len) / 2, cy + (dy * len) / 2);
+    }
     const offs = resolveStopOffsets(g);
     g.stops.forEach((s, i) => grad.addColorStop(offs[i], colorToCss(s.color)));
     return grad;

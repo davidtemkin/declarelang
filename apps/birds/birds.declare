@@ -38,9 +38,6 @@ fixture (birds.json beside this file), which is what makes the whole guide
 crawlable from a static host.
 */
 
-font Serif [ family = "Georgia, 'Times New Roman', serif" ]
-
-// ── palette: paper #F7F3E8 · panel #FFFDF6 · ink #2B2825 · muted #8A8272
 //    hair #E2DACA · accent (oxblood) #7A3B2E · right #4A6B4D · wrong #9A4632
 
 // ── one plate in a frame: cream mat, hairline, the engraving contained ───────
@@ -92,7 +89,7 @@ class Choice extends View [ width = { parent.width }, height = 44, cornerRadius 
     fill = { this.state == "right" ? 0xDCE8DC : this.state == "wrong" ? 0xEFDCD6 : this.hovered ? 0xF2EDE0 : 0xFFFDF6 },
     stroke = { stroke(1, this.state == "right" ? 0x4A6B4D : this.state == "wrong" ? 0x9A4632 : 0xE2DACA) },
     onClick() { app.pick(this.pick) },
-    t: Text [ x = 16, y = center, fontSize = 15, fontFamily = Serif,
+    t: Text [ x = 16, y = center, fontSize = 15, fontFamily = "Georgia, 'Times New Roman', serif",
         textColor = { parent.state == "wrong" ? 0x9A4632 : 0x2B2825 }, text = { classroot.label } ]
     ]
 
@@ -253,11 +250,11 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
 
     bar: View [ ignoreScroll = true, x = 0, y = 0, width = { app.width }, height = 58, fill = #F7F3E8F2,
         rule: View [ x = 0, y = 57, width = { parent.width }, height = 1, fill = #E2DACA ],
-        mark: Text [ x = { app.colX }, y = center, fontFamily = Serif, fontSize = 19, letterSpacing = 2,
+        mark: Text [ x = { app.colX }, y = center, fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 19, letterSpacing = 2,
             text = "50 BIRDS", link = "#", textColor = #2B2825 ],
         sub: Text [ x = { app.colX + 118 }, y = 22, fontSize = 12, textColor = #8A8272, wrap = false,
             visible = { app.colW >= 700 }, text = "the plates of John James Audubon, 1827–1838" ],
-        quizLink: Text [ x = { app.colX + app.colW - 64 }, y = center, fontSize = 14, fontFamily = Serif,
+        quizLink: Text [ x = { app.colX + app.colW - 64 }, y = center, fontSize = 14, fontFamily = "Georgia, 'Times New Roman', serif",
             link = "#quiz", text = "The Quiz", textColor = { app.dest == "quiz" ? 0x7A3B2E : 0x2B2825 } ]
         ],
 
@@ -304,20 +301,20 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
             width = { parent.wide ? parent.width - parent.plateW - 36 : parent.width },
             opacity = { parent.flyT },               // the details fade up as the plate lands
             layout: SimpleLayout [ axis = y, spacing = 14 ],
-            name: Text [ fontFamily = Serif, fontSize = 30, width = { parent.width }, text = { "" + (:name ?? "") } ],
+            name: Text [ fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 30, width = { parent.width }, text = { "" + (:name ?? "") } ],
             latin: Text [ fontSize = 15, textColor = #8A8272, italic = true, text = { "" + (:latin ?? "") } ],
             plateNo: Text [ fontSize = 13, textColor = #8A8272,
                 text = { :plate == null ? "" : "Plate " + :plate + (:audubonName != :name ? "  ·  Audubon called it the " + :audubonName : "") } ],
             gone: Text [ fontSize = 13, textColor = #9A4632, visible = { :status == "extinct" }, text = "EXTINCT" ],
-            prose: Text [ width = { parent.width }, fontSize = 16, fontFamily = Serif, lineHeight = 1.55, text = { "" + (:prose ?? "") } ],
+            prose: Text [ width = { parent.width }, fontSize = 16, fontFamily = "Georgia, 'Times New Roman', serif", lineHeight = 1.55, text = { "" + (:prose ?? "") } ],
             kinHead: Text [ fontSize = 13, textColor = #8A8272, text = "SEE ALSO" ],
             kinRow: View [ width = { parent.width }, height = 24,
                 layout: SimpleLayout [ axis = x, spacing = 18 ],
-                k1: Text [ fontSize = 14, fontFamily = Serif, textColor = #7A3B2E, wrap = false,
+                k1: Text [ fontSize = 14, fontFamily = "Georgia, 'Times New Roman', serif", textColor = #7A3B2E, wrap = false,
                     onClick() { app.turnPage() },
                     link = { "#b/" + :kin[0] }, text = { app.birds.length > 0 ? "" + (app.birds.find((b) => b.slug == :kin[0])?.name ?? "") : "" }
                     ],
-                k2: Text [ fontSize = 14, fontFamily = Serif, textColor = #7A3B2E, wrap = false,
+                k2: Text [ fontSize = 14, fontFamily = "Georgia, 'Times New Roman', serif", textColor = #7A3B2E, wrap = false,
                     onClick() { app.turnPage() },
                     link = { "#b/" + :kin[1] }, text = { app.birds.length > 0 ? "" + (app.birds.find((b) => b.slug == :kin[1])?.name ?? "") : "" }
                     ]
@@ -359,12 +356,12 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
 
             invite: View [ width = { parent.width }, visible = { !app.started },
                 layout: SimpleLayout [ axis = y, spacing = 14 ],
-                h: Text [ fontFamily = Serif, fontSize = 26, text = "Name the bird." ],
+                h: Text [ fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 26, text = "Name the bird." ],
                 p: Text [ width = { parent.width }, fontSize = 15, lineHeight = 1.5, textColor = #8A8272,
                     text = "Ten plates, four names each. The Back button un-asks a question — try it mid-round and watch the URL not care." ],
                 go: View [ width = 180, height = 44, cornerRadius = 8, fill = #7A3B2E,
                     onClick() { app.startQuiz() },
-                    t: Text [ y = center, width = { parent.width }, textAlign = center, fontFamily = Serif,
+                    t: Text [ y = center, width = { parent.width }, textAlign = center, fontFamily = "Georgia, 'Times New Roman', serif",
                         fontSize = 16, textColor = #F7F3E8, text = "Begin" ]
                     ]
                 ],
@@ -390,7 +387,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
                 c3: Choice [ pick = { app.choices[3] ?? -1 }, label = { app.nameOf(app.choices[3] ?? -1) },
                     state = { !app.revealed ? "" : (app.choices[3] == app.answer ? "right" : (app.choices[3] == app.picked ? "wrong" : "")) } ],
                 verdict: View [ width = { parent.width }, height = 44, visible = { app.revealed },
-                    v: Text [ x = 0, y = center, fontFamily = Serif, fontSize = 16,
+                    v: Text [ x = 0, y = center, fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 16,
                         textColor = { app.picked == app.answer ? 0x4A6B4D : 0x9A4632 },
                         text = { app.picked == app.answer ? "Yes — the " + app.nameOf(app.answer) + "." : "No — that's the " + app.nameOf(app.answer) + "." } ],
                     onward: View [ x = { parent.width - 130 }, width = 130, height = 40, cornerRadius = 8, fill = #7A3B2E,
@@ -405,7 +402,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
 
             done: View [ width = { parent.width }, visible = { app.finished },
                 layout: SimpleLayout [ axis = y, spacing = 14 ],
-                h: Text [ fontFamily = Serif, fontSize = 26, text = { app.score + " of " + app.seeds.length } ],
+                h: Text [ fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 26, text = { app.score + " of " + app.seeds.length } ],
                 p: Text [ width = { parent.width }, fontSize = 15, lineHeight = 1.5, textColor = #8A8272,
                     text = "Hold Back and the whole round unwinds, answer by answer — ten entries, one URL. Each bird below is an address; the round never was." ],
                 r0: Recap [ t = 0 ],
@@ -420,7 +417,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
                 r9: Recap [ t = 9 ],
                 again: View [ width = 180, height = 44, cornerRadius = 8, fill = #7A3B2E,
                     onClick() { app.startQuiz() },
-                    t: Text [ y = center, width = { parent.width }, textAlign = center, fontFamily = Serif,
+                    t: Text [ y = center, width = { parent.width }, textAlign = center, fontFamily = "Georgia, 'Times New Roman', serif",
                         fontSize = 16, textColor = #F7F3E8, text = "Another ten" ]
                     ]
                 ],
@@ -448,7 +445,7 @@ class Section extends View [ width = { parent.width },
     group: string = { "" + :name },
     n: number = { Number(:count) },
     height = { 34 + Math.ceil(this.n / app.cols) * (app.tileW + 62) },
-    head: Text [ fontFamily = Serif, fontSize = 17, letterSpacing = 1, textColor = #8A8272,
+    head: Text [ fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 17, letterSpacing = 1, textColor = #8A8272,
         text = { classroot.group.toUpperCase() } ],
     grid: View [ y = 34, width = { parent.width },
         Tile [ datapath = :birds[], key = :slug ]
@@ -463,7 +460,7 @@ class Recap extends View [ width = { parent.width }, height = 26,
     ok: boolean = { app.answers[this.t] == app.seeds[this.t] },
     mark: Text [ x = 0, y = center, fontSize = 14, textColor = { classroot.ok ? 0x4A6B4D : 0x9A4632 },
         text = { classroot.ok ? "✓" : "✗" } ],
-    who: Text [ x = 26, y = center, fontSize = 14, fontFamily = Serif, textColor = #7A3B2E, wrap = false,
+    who: Text [ x = 26, y = center, fontSize = 14, fontFamily = "Georgia, 'Times New Roman', serif", textColor = #7A3B2E, wrap = false,
         link = { "#b/" + app.slugOf(app.seeds[classroot.t] ?? -1) }, text = { app.nameOf(app.seeds[classroot.t] ?? -1) } ],
     call: Text [ x = 300, y = center, fontSize = 13, textColor = #8A8272, wrap = false,
         visible = { !classroot.ok }, text = { "you said " + app.nameOf(app.answers[classroot.t] ?? -1) } ]

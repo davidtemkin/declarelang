@@ -1,0 +1,8 @@
+App [ width = 320, height = 100, fill = white, textColor = black,
+    serif: Font [ family = "Georgia" ],
+    sans: Font [ family = "Helvetica" ],
+    reading: Font = { app.serif },
+    onClick() { app.reading = app.reading == app.serif ? app.sans : app.serif },
+    Text [ x = 20, y = 20, width = 280, fontSize = 20, fontFamily = { app.reading },
+        text = "Click to switch the face" ]
+    ]

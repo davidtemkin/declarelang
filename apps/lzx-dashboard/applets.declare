@@ -34,7 +34,7 @@ class ChatPanel extends View [
             layout: SimpleLayout [ axis = y, spacing = 2 ],
             Text [ datapath = :messages[],
                 width = { parent.width }, wrap = true,
-                fontFamily = VeraRoman, fontSize = 11,
+                fontFamily = { app.veraRoman }, fontSize = 11,
                 textColor = { :self ? 0x0000FF : 0xCC0000 },
                 text = :text ]
             ]
@@ -43,7 +43,7 @@ class ChatPanel extends View [
     entry: TextInput [ x = 10, y = { parent.height - 23 }, height = 17,
         width = { parent.width - 46 },
         fill = #FFFFFF, cornerRadius = 8, stroke = stroke(2, #959964),
-        fontFamily = VeraRoman, fontSize = 11,
+        fontFamily = { app.veraRoman }, fontSize = 11,
         onEnter() { classroot.send() }
         ],
 
@@ -92,9 +92,9 @@ class ContactRow extends View [
         edgeB: View [ y = 33, width = 100%, height = 1, fill = #568A70 ],
         edgeR: View [ x = { parent.width - 1 }, width = 1, height = 34, fill = #568A70 ],
 
-        nameText:  Text [ x = 11, y = 3, fontFamily = Vera, fontWeight = bold, fontSize = 10,
+        nameText:  Text [ x = 11, y = 3, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10,
             textColor = #222222, text = :name ],
-        titleText: Text [ x = 11, y = 16, fontFamily = VeraRoman, fontSize = 10,
+        titleText: Text [ x = 11, y = 16, fontFamily = { app.veraRoman }, fontSize = 10,
             textColor = #222222, text = :title ],
 
         // Presence: when this contact is the one who just came online, a white
@@ -109,26 +109,26 @@ class ContactRow extends View [
         ],
 
     detail: View [ y = 34, width = 100%, visible = { classroot.open },
-        fontFamily = VeraRoman, fontSize = 10, textColor = #222222,
+        fontFamily = { app.veraRoman }, fontSize = 10, textColor = #222222,
 
         secInfo: View [ x = 5, y = 8, width = 35, height = 15, fill = #82998D,
-            t: Text [ x = 4, y = 1, fontFamily = Vera, fontWeight = bold, fontSize = 10,
+            t: Text [ x = 4, y = 1, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10,
                 textColor = #FFFFFF, text = "Info" ]
             ],
         divA: View [ x = 5, y = 26, width = { parent.width - 15 }, height = 1, fill = #8D9E95 ],
         divB: View [ x = 5, y = 27, width = { parent.width - 15 }, height = 1, fill = #C4DBCF ],
 
-        emailHead: Text [ x = 5, y = 33, fontFamily = Vera, fontWeight = bold, fontSize = 10, text = "Email Addresses" ],
+        emailHead: Text [ x = 5, y = 33, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, text = "Email Addresses" ],
         emailVal:  Text [ x = 12, y = 47, width = { parent.width - 20 }, text = :email ],
-        telHead:   Text [ x = 5, y = 64, fontFamily = Vera, fontWeight = bold, fontSize = 10, text = "Telephone No's" ],
+        telHead:   Text [ x = 5, y = 64, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, text = "Telephone No's" ],
         telVal:    Text [ x = 12, y = 78, width = { parent.width - 20 }, text = :telephone ],
-        addrHead:  Text [ x = 5, y = 95, fontFamily = Vera, fontWeight = bold, fontSize = 10, text = "Address" ],
+        addrHead:  Text [ x = 5, y = 95, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, text = "Address" ],
         addrVal:   Text [ x = 12, y = 109, width = { parent.width - 20 }, wrap = true, text = :address ],
 
         divC: View [ x = 5, y = 130, width = { parent.width - 15 }, height = 1, fill = #8D9E95 ],
         divD: View [ x = 5, y = 131, width = { parent.width - 15 }, height = 1, fill = #C4DBCF ],
         secNotes: View [ x = 5, y = 138, width = 90, height = 15, fill = #82998D,
-            t: Text [ x = 4, y = 1, fontFamily = Vera, fontWeight = bold, fontSize = 10,
+            t: Text [ x = 4, y = 1, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10,
                 textColor = #FFFFFF, text = "Notes & More" ]
             ],
         notesVal: Text [ x = 12, y = 158, width = { parent.width - 20 }, wrap = true,
@@ -197,39 +197,39 @@ class ContactsPanel extends View [
     form: View [ y = 25, width = 100%, height = 0, clip = true, fill = #B6CCC1,
         slide: Animator [ attribute = height, duration = 500, motion = laszloBoth ],
         gutter: View [ width = 55, height = 100%, fill = #9EBAAB ],
-        fontFamily = Vera, fontWeight = bold, fontSize = 10, textColor = #222222,
+        fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #222222,
 
         nameLbl:  Text [ x = 5, y = 5,   text = "Name" ],
         nameIn:   TextInput [ x = 60, y = 3, width = { parent.width - 65 }, height = 18,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ],
         titleLbl: Text [ x = 5, y = 22,  text = "Title" ],
         titleIn:  TextInput [ x = 60, y = 20, width = { parent.width - 65 }, height = 18,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ],
         emailLbl: Text [ x = 5, y = 50,  text = "Email" ],
         emailIn:  TextInput [ x = 60, y = 48, width = { parent.width - 65 }, height = 18,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ],
         phoneLbl: Text [ x = 5, y = 97,  text = "Phone" ],
-        homeLbl:  Text [ x = 60, y = 97, fontFamily = VeraRoman, text = "Home" ],
+        homeLbl:  Text [ x = 60, y = 97, fontFamily = { app.veraRoman }, text = "Home" ],
         phoneIn:  TextInput [ x = 93, y = 95, width = { parent.width - 98 }, height = 16,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
-        workLbl:  Text [ x = 60, y = 114, fontFamily = VeraRoman, text = "Work" ],
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ],
+        workLbl:  Text [ x = 60, y = 114, fontFamily = { app.veraRoman }, text = "Work" ],
         workIn:   TextInput [ x = 93, y = 112, width = { parent.width - 98 }, height = 16,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
-        cellLbl:  Text [ x = 60, y = 131, fontFamily = VeraRoman, text = "Cell" ],
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ],
+        cellLbl:  Text [ x = 60, y = 131, fontFamily = { app.veraRoman }, text = "Cell" ],
         cellIn:   TextInput [ x = 93, y = 129, width = { parent.width - 98 }, height = 16,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
-        faxLbl:   Text [ x = 60, y = 148, fontFamily = VeraRoman, text = "Fax" ],
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ],
+        faxLbl:   Text [ x = 60, y = 148, fontFamily = { app.veraRoman }, text = "Fax" ],
         faxIn:    TextInput [ x = 93, y = 146, width = { parent.width - 98 }, height = 16,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ],
         addrLbl:  Text [ x = 5, y = 177, text = "Address" ],
         addrIn:   TextInput [ x = 60, y = 175, width = { parent.width - 65 }, height = 16,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ],
         addr2In:  TextInput [ x = 60, y = 192, width = { parent.width - 65 }, height = 16,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ],
         addr3In:  TextInput [ x = 60, y = 209, width = { parent.width - 65 }, height = 16,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ],
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ],
         addr4In:  TextInput [ x = 60, y = 226, width = { parent.width - 65 }, height = 16,
-            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = VeraRoman, fontSize = 10 ]
+            fill = #FFFFFF, stroke = stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10 ]
         ],
 
     /*
@@ -376,7 +376,7 @@ class TrackCell extends View [
     kind: string = "audio",
     art: Image [ x = 12, y = 9, width = 40, height = 40, stretches = both,
         source = :imageurl ],
-    caption: Text [ y = 50, width = 100%, fontFamily = Kroe, fontSize = 8,
+    caption: Text [ y = 50, width = 100%, fontFamily = { app.kroe }, fontSize = 8,
         textColor = #000000, textAlign = center, text = :label ],
     onClick() { app.stage.popup.show(art, :label, :info, :imageurl, :url, kind) }
     ]
@@ -402,7 +402,7 @@ class MediaTransport extends View [
     // not worth redrawing — while the bars and their geometry are ours.
 
     info: Text [ y = 5, width = 100%, textAlign = center,
-        fontFamily = Vera, fontWeight = bold, fontSize = 10, textColor = #222222,
+        fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #222222,
         text = { app.nowPlayingInfo !== "" ? app.nowPlayingInfo : classroot.idleLabel } ],
 
     prev: Image [ x = 5, y = 25, width = 18, height = 18,
@@ -470,7 +470,7 @@ class MediaTransport extends View [
         },
 
     timeWell: Image [ x = { parent.width - 87 }, y = 27, source = "resources/img/media_timereadout.png",
-        readout: Text [ x = 3, y = 1, fontFamily = Vera, fontWeight = bold, fontSize = 10, textColor = #000000,
+        readout: Text [ x = 3, y = 1, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #000000,
             text = { classroot.clockOf(classroot.pos) } ]
         ],
 

@@ -434,9 +434,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // A document the Finder handed us wins over every default: it is what the
         // user actually asked for.
-        let explicit = pendingOpen
-            ?? ProcessInfo.processInfo.environment["DECLARE_URL"]
+        // …except under automation (a rig launched us with DECLARE_URL): the
+        // rig's program wins over a document the system replays at launch, or
+        // a variant app shot whatever the OS last handed the other one.
+        let asked = ProcessInfo.processInfo.environment["DECLARE_URL"]
             ?? CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") })
+        let explicit = Launch.isAutomated ? (asked ?? pendingOpen) : (pendingOpen ?? asked)
         // ACTIVATE WHEN THERE IS SOMETHING TO SHOW. Taking the foreground first
         // and then compiling for a second puts an empty window in front of
         // whatever the person was doing — and, because an active app's dock icon

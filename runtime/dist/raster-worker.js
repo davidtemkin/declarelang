@@ -13,20 +13,31 @@
 // translate of bitmaps that already exist.
 //
 // Fonts: text ops raster HERE, so the worker must see the same faces the page
-// loaded (boot.ts loadFonts → `fonts` message; system fonts need nothing).
+// has (font.ts noteLoadedFaces → `fonts`, noteUnloadedFamily → `unfonts`;
+// system fonts need nothing).
 // Filters: draw.ts's fallback path makes scratch canvases through
 // `makeCanvas`, which is an OffscreenCanvas off the DOM.
 //
 // Protocol (raster-client.ts is the other half):
 //   → { t: "fonts", faces: [{ family, src, weight, style }] }
+//   → { t: "unfonts", family }                          (a family withdrawn)
+//   → { t: "image", h, bitmap }                          (a drawImage source, once per handle)
 //   → { t: "raster", id, list, sx, sy, bx, by, w, h, blankCheck }
 //   ← { t: "raster", id, bitmap, rasterMs, blank }      (bitmap transferred)
 //   ← { t: "error", id, message }
 import { replay, rasterLooksBlank } from "./draw.js";
+import { registerDrawImage } from "./draw-image.js";
 const scope = self;
 /** Faces still loading — a raster with text waits for them (a raster made
  *  before its face arrived would bake the fallback face into the memo). */
 let fontsReady = Promise.resolve();
+/** The faces added here, by family — what an `unfonts` withdraws. */
+const byFamily = new Map();
+function unloadFamily(family) {
+    for (const face of byFamily.get(family) ?? [])
+        scope.fonts?.delete?.(face);
+    byFamily.delete(family);
+}
 function loadFaces(faces) {
     if (typeof FontFace === "undefined" || scope.fonts === undefined)
         return;
@@ -35,6 +46,11 @@ function loadFaces(faces) {
             const face = new FontFace(f.family, f.src, { weight: f.weight, style: f.style });
             await face.load();
             scope.fonts.add(face);
+            const list = byFamily.get(f.family);
+            if (list !== undefined)
+                list.push(face);
+            else
+                byFamily.set(f.family, [face]);
         }
         catch {
             // the page already reported the face; here it simply falls back
@@ -73,6 +89,10 @@ scope.onmessage = (e) => {
     const m = e.data;
     if (m.t === "fonts")
         loadFaces(m.faces);
+    else if (m.t === "unfonts")
+        unloadFamily(m.family);
+    else if (m.t === "image")
+        registerDrawImage(m.h, m.bitmap);
     else if (m.t === "raster")
         void raster(m);
 };

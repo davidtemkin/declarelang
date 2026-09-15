@@ -20,6 +20,7 @@
 // answer `ping`.
 
 import assert from "node:assert/strict";
+import { CTL_IN, CTL_OUT, APP_NAME } from "../mac-host/app.mjs";
 import http from "node:http";
 import path from "node:path";
 import { spawn, execFileSync } from "node:child_process";
@@ -33,7 +34,7 @@ import { hostBinary, NO_HOST } from "../mac-host/app.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // THE INSTALLED APP, not a bare binary reading the tree — see mac-host/app.mjs.
 const BIN = hostBinary();
-const IN = "/tmp/declare-ctl.in", OUT = "/tmp/declare-ctl.out";
+const IN = CTL_IN, OUT = CTL_OUT;
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
 if (process.platform !== "darwin" || BIN === null) {
@@ -44,7 +45,7 @@ if (process.platform !== "darwin" || BIN === null) {
 // A stray host owns the control channel and would answer for the one under
 // test. The installed app is "Declare Mac" WITH A SPACE, which `pkill -f
 // DeclareMac` does not match — an hour was lost to exactly that.
-for (const pat of ["DeclareMac", "Declare Mac"]) {
+for (const pat of [APP_NAME]) {
   try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* none */ }
 }
 await sleep(1);
@@ -131,8 +132,8 @@ try {
   });
 
   await test("a bundled app carries the JIT entitlement", async () => {
-    const apps = ["/Applications/Declare Mac.app", `${process.env.HOME}/Applications/Declare Mac.app`,
-                  path.join(ROOT, "mac-host/Declare Mac.app")].filter((p) => existsSync(p));
+    const apps = [`/Applications/${APP_NAME}.app`, `${process.env.HOME}/Applications/${APP_NAME}.app`,
+                  path.join(ROOT, `mac-host/${APP_NAME}.app`)].filter((p) => existsSync(p));
     if (apps.length === 0) { console.log("    (no bundled app on this machine — skipped)"); return; }
     for (const app of apps) {
       let ents = "";

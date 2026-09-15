@@ -28,7 +28,8 @@
 // never collide with a member.
 import { rewriteDatapaths } from "./datapath.js";
 import { diag } from "./errors.js";
-import { colorWithAlpha, frost, gradient, outline, shadow, stop, stroke } from "./value.js";
+import { colorWithAlpha, gradient, outline, shadow, stop, stroke } from "./value.js";
+import { blur, brightness, conicGradient, contrast, frost, grayscale, hueRotate, invert, radialGradient, saturate, sepia, colorize } from "./effects.js";
 // The ruled value constructors, in scope inside every `{ }` body — the "one
 // vocabulary, two lexical homes" ruling: the same names the literal grammar
 // admits (`stroke = stroke(1, #B0B0B0)`) are ordinary functions in TS
@@ -36,7 +37,7 @@ import { colorWithAlpha, frost, gradient, outline, shadow, stop, stroke } from "
 // leading hidden argument (never globals); the compile layer leaves
 // CALLEE-position uses of these names unresolved so `stroke(…)` is the
 // constructor while bare `stroke` stays the slot.
-const DECOR = { gradient, stroke, outline, shadow, stop, frost };
+const DECOR = { gradient, radialGradient, conicGradient, stroke, outline, shadow, stop, frost, blur, brightness, contrast, saturate, grayscale, invert, sepia, hueRotate, colorize };
 // The lowering target for `0xRRGGBBAA` literals (compile.ts rewrites each 8-hex
 // color literal to a colorWithAlpha(…) call): in scope so the resolved body can
 // call it, but NOT a user-written value constructor — kept out of DECOR so
@@ -92,6 +93,12 @@ function scriptPrelude(scope) {
  *  in callee position, and the checker reserves the two that are not already
  *  attribute names. */
 export const CONSTRUCTOR_NAMES = Object.keys(DECOR);
+/** The filter functions (graphics-pass.md §1) — plain words (`blur`,
+ *  `contrast`, `invert`…) a program may well want as ATTRIBUTE names, so they
+ *  are reserved as method names only: an attribute called `blur` shadows the
+ *  constructor inside that node's own `{ }` bodies and nowhere else, and the
+ *  bare-slot call form (`filter = blur(3)`) is unaffected by any member. */
+export const FILTER_FN_NAMES = ["blur", "brightness", "contrast", "saturate", "grayscale", "invert", "sepia", "hueRotate", "colorize"];
 /** Compile a body's source to a function, or say why it can't be. The
  *  error text is a fragment ("is not a valid expression — …") for callers
  *  to prefix with the slot's name; one wording, used by check() at check

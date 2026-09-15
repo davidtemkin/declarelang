@@ -1,93 +1,109 @@
 # Fonts
 
-A `font` names a family and holds its faces. Text picks a face at the point of
-use via the prevailing `fontWeight`/italic; `fontFamily` is an ordered fallback
-list. The model is CSS's `@font-face` / `font-family` split, in the container
-shape (a family owns its faces) that OpenLaszlo's own `<font><face/></font>`,
-Android's `FontFamily`, and Flutter's `pubspec` all use — chosen over CSS's
-flat, string-grouped `@font-face` rules because a named container is clearer and
-has no hidden grouping rule.
+A typeface is an **object in the tree** — a `Font` owning `Face` children — and a family
+slot holds it. This replaced the top-level `font Name [ … ]` declaration (2026-09-14);
+the old form still parses so the checker can name the new one. Design background, not
+binding: the reference (`Font`, `Face`) and the guide's Fonts section are the contract.
 
-## Declaration
+## The shape
 
 ```
-font Display [
-    Face [ src = "disp-400.woff2",  weight = regular ],
-    Face [ src = "disp-700.woff2",  weight = bold ],
-    Face [ src = "disp-700i.woff2", weight = bold, italic = true ],
-]
-
-font UI    [ family = "Helvetica Neue" ]          // system: a family, no faces
-
-font Brand [
-    Face [ src = [local("Work Sans"),      "ws-400.woff2"], weight = regular ],
-    Face [ src = [local("Work Sans Bold"), "ws-700.woff2"], weight = bold ],
-]
-```
-
-- **`font Name [ … ]`** declares a named family. `Name` is the handle you use as
-  `fontFamily = Name`.
-- **`family = "…"`** is the CSS family string the name resolves to. It
-  **defaults to the declaration name**, so a web font never writes it; you set it
-  when the CSS family differs — which is exactly how you **name a system font**
-  (`font UI [ family = "Helvetica Neue" ]`).
-- **`Face [ src, weight?, italic? ]`** children are the faces you pin.
-  - `src` — where the bytes come from. A bare string is a URL
-    (`"disp-700.woff2"`, a path or a full `https://…`); `url("…")` says the same
-    explicitly; `local("Name")` names an **installed** face; a list
-    `[local("…"), "…"]` tries each in order (prefer-installed-else-download).
-  - `weight` — one of the formalized tokens `thin extralight light regular
-    medium semibold bold extrabold black`. Defaults to `regular`.
-  - `italic` — `true` for the italic face. Defaults to upright.
-- **No `Face` children → a system font.** Its faces are the OS's — not shipped,
-  not enumerable (they depend on what's installed), and resolved at the use site.
-- A font must carry **either** a `family` **or** at least one `Face` (a bare
-  `font X [ ]` is an error).
-
-## Use
-
-```
-App [ fontFamily = [Brand, UI, "sans-serif"] ]
+App [ fontFamily = { [brand, "Helvetica", "sans-serif"] },
+    brand: Font [ wait = 800,
+        Face [ src = [local("Work Sans"), "ws-400.woff2"] ],
+        Face [ src = "ws-700.woff2", weight = bold ] ],
+    serif: Font [ Face [ src = "serif-var.woff2", weight = range(200, 900) ] ],
+    ui:    Font [ family = "Helvetica Neue" ]            // a system font: no faces
     …
-    Text [ text = "12°", fontWeight = bold ]     // selects Brand's bold Face here
 ```
 
-- **`fontFamily`** is an ordered **fallback list**. Each item is a declared font
-  **name** (resolved to its `family`) or a **string** (a raw family or a generic
-  like `"sans-serif"`). A single name or string (no brackets) is the one-item
-  case. An undeclared name is an error (typo-catch); strings pass through. It
-  resolves — **statically, at instantiate** — to a comma-joined CSS family
-  string, so the render seam still carries a plain string and the backends are
-  untouched.
-- **`fontWeight`/italic select the face**, at the use site, for web and system
-  fonts alike: against your `Face` set for a web family, against the installed
-  faces for a system one. A missing face is the browser's to resolve — nearest
-  match or faux bold/oblique. That uncertainty is inherent to system fonts and
-  the model owns it rather than pretending to enumerate around it.
-- `fontFamily`/`fontWeight`/italic are **prevailing** (declared on `View`): set
-  them on a container and descendants inherit until one overrides.
+- **A family owns its faces** — the container shape OpenLaszlo's `<font><face/></font>`,
+  Android's `FontFamily` and Flutter's `pubspec` use, chosen over CSS's flat,
+  string-grouped `@font-face` rules because a named container has no hidden grouping rule.
+- **Web and system fonts are one object type.** A Font with faces loads them; one with no
+  faces names a `family` the machine has. Symmetry is the point: a slot that holds one
+  holds the other, and switching between them is an assignment.
+- **`Face [ src, weight, italic ]`**: `src` is a URL, `url("…")`, `local("…")`, or a list
+  tried in order; `weight` is a token, a number 1–1000, or `range(lo, hi)` for a variable
+  file; `italic` marks the slanted face.
 
-## Loading
+## Why an object, not a declaration
 
-Web faces (any `Face` with a downloadable or `local()` source) are collected and
-loaded **before first paint** (`index.ts → loadFonts`), so text measures against
-real metrics, not a fallback. A system font (no faces) loads nothing.
+The declaration made a font a **name resolved once**, at instantiate, to a family string.
+Nothing could depend on it afterwards, so:
 
-That one loader serves all three renderers. The web backends get `FontFace` from
-the browser; the native host supplies its own (`browser/mac-env.js`), so the
-runtime code above it is identical. On the host the bytes go to
-`FontRegistry.swift`, which keys faces by the **declared** family name — the name
-is the author's label, exactly as in CSS, and a subsetted file usually carries no
-usable name of its own. Core Text reads WOFF2 directly, and a descriptor built
-from the bytes makes a usable font with no process registration, so a program's
-faces are never installed for other applications and die with the process. A face
-that does not load is reported once and skipped, on every renderer alike.
+- a font could not be chosen in a `{ }`, a method or a style (only the family *string*
+  could, bypassing the declaration);
+- a face landing late had no value to change — the platform had to track it underneath
+  (the face table), invisibly to the compiler;
+- a `draw()` or a measurement had no way to follow a font at all.
 
-## Not in v1 (extends without breaking)
+As an object, a font is an ordinary value with ordinary reactive facts, like an `Image`
+or a `DataSource`. `fontFamily = { app.reading }` depends on `app.reading`; a drawing that
+reads `app.brand` depends on it; `app.brand.loaded` is a fact a constraint reads. No
+special name resolution, no program-scope live values.
 
-Per-face `stretch` (condensed/expanded), variable-font axes, multiple `url()`
-format alternates, and `unicode-range` subsetting are all further `Face`
-attributes when needed — the container makes them additive. Semantic type
-*roles* (`body`/`heading` that bundle family+size+weight and scale with user
-settings, à la Dynamic Type) are deliberately **not** the font primitive's job —
-they live in the stylesheet / prevailing channel.
+**Why not keep it top-level for component libraries?** A component gets its face through
+the provided `fontFamily` its App sets, which needs nothing new; a component that truly
+owns a face (an icon font) holds a `Font` child. **Why not compile-time visibility?** A
+literal `src` is as visible to the build in a tree node as in a declaration, and the build
+already runs the app headless to extract it, so it can see exactly which fonts exist at
+start.
+
+**Lifetime is placement.** A font on the App lives for the program; inside a view it lives
+with the view, and its faces are withdrawn when the view retires (the web's font set has
+`delete()`; the native host unregisters).
+
+## Registration
+
+A web Font registers its faces under a name of its own, `declare-font-<id>-<generation>`,
+never under an author string: two fonts cannot collide, and a changed `src` loads a new
+generation beside the faces it replaces, so text keeps the old face until the new one is
+ready. The text machinery asks the font what family it names **now** (font-value.ts) —
+its registered name, or a system font's family — and features (OpenType figures) derive
+from that name as from any family.
+
+## Loading: `wait` and `late`
+
+Whenever something is about to be drawn in a font whose faces have not arrived, the font
+answers two questions:
+
+- **`wait`** (ms, default 500) — how long whatever is about to change to this font keeps
+  its current look: the app's **first paint** (the start-up gate waits for the fonts the
+  tree starts with, each up to its wait); a **slot switching** to a font still loading
+  (the slot holds the new font at once; the text it drives keeps its previous family and
+  changes once, when the font settles); a **source change** (text keeps the old face).
+- **`late`** — `swap` (a face arriving after the wait is used: one redraw) or `keep` (the
+  fallback stays for the run; `loaded` stays `false`).
+
+Per font, because the font being loaded is what knows whether it is worth waiting for (an
+icon font's wrong glyphs are worse than a delay; body text's fallback is fine). Text is
+never hidden while it waits: controls size themselves from text, so something always stays
+drawn.
+
+Alternatives weighed: two CSS-style periods (block + swap: expressive, but two interacting
+numbers); CSS's keywords (familiar, but fixed timings); no attributes with the program
+gating on `loaded` (the "Nothing waits" model, but it cannot hold the first paint and every
+app writes its own timeout — it remains available as an escape hatch).
+
+## Facts: `loaded`, `failed`
+
+Per font, like an `Image`'s pair: `loaded` once every face has arrived (a system font from
+the start), `failed` when a face could not be fetched; both `false` while loading. Per family
+rather than per face, because text depends on the font as a whole and face selection (weight,
+slant) happens inside measurement.
+
+## Measuring and drawing text
+
+`measureText(text, style, width?)` and `d.fillText(text, x, y, style)` take a style record —
+a `style` bundle or an inline record of `Text` attribute names. Fields left out take plain
+defaults, never inherited ones, so a measurement means the same wherever it is called; a
+drawing that wants its panel's face asks with `provided("fontFamily")`. A Font in the style is
+a tracked read, so a constraint or drawing re-runs when its faces land or the font changes.
+
+## Not yet
+
+Preloading faces alongside the app's own code (so they usually arrive before first paint) is
+proposed, not built. Per-face `stretch`, `unicode-range` subsetting and multiple `url()` format
+alternates are further `Face` attributes when needed. Semantic type roles (Dynamic Type) are not
+the font primitive's job.

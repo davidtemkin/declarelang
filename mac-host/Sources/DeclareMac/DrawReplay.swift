@@ -358,8 +358,13 @@ enum DrawReplay {
             case "scale": c.scaleBy(x: d(o, "x"), y: d(o, "y"))
             case "rotate": c.rotate(by: d(o, "angle"))
             case "transform":
-                c.concatenate(CGAffineTransform(a: d(o, "a"), b: d(o, "b"), c: d(o, "c"),
-                                                d: d(o, "d"), tx: d(o, "e"), ty: d(o, "f")))
+                // the op carries `m: [a,b,c,d,e,f]` (draw.ts). Reading keys "a"…"f"
+                // gave a ZERO matrix and collapsed the drawing — silently.
+                if let m = o["m"] as? [NSNumber], m.count == 6 {
+                    c.concatenate(CGAffineTransform(a: CGFloat(m[0].doubleValue), b: CGFloat(m[1].doubleValue),
+                                                    c: CGFloat(m[2].doubleValue), d: CGFloat(m[3].doubleValue),
+                                                    tx: CGFloat(m[4].doubleValue), ty: CGFloat(m[5].doubleValue)))
+                }
             case "setTransform", "resetTransform":
                 break   // absolute transforms are not used by the corpus; ignore rather than corrupt
             case "fillStyle": st.fill = (o["grad"] as? [String: Any]) ?? (o["v"] as? String ?? "#000")
@@ -448,6 +453,24 @@ enum DrawReplay {
                     drawText(o["text"] as? String ?? "", at: CGPoint(x: d(o, "x"), y: d(o, "y")),
                              state: st, in: t, stroke: op == "strokeText")
                 }
+            case "drawImage":
+                // the handle is the bridge's own (the Mac env's <img> shim
+                // carries it); the source rect is bitmap pixels, y-DOWN from
+                // the top as canvas states it — CG crops y-up, so mirror it
+                guard let full = bridge.image(Int(d(o, "h"))) else { break }
+                let sw = d(o, "sw"), sh = d(o, "sh")
+                let src = CGRect(x: d(o, "sx"), y: CGFloat(full.height) - d(o, "sy") - sh, width: sw, height: sh)
+                let whole = src == CGRect(x: 0, y: 0, width: CGFloat(full.width), height: CGFloat(full.height))
+                guard let img = whole ? full : full.cropping(to: src) else { break }
+                let dst = CGRect(x: d(o, "dx"), y: d(o, "dy"), width: d(o, "dw"), height: d(o, "dh"))
+                paint { t in
+                    applyShadow(t)
+                    t.saveGState()
+                    t.translateBy(x: dst.minX, y: dst.maxY)
+                    t.scaleBy(x: 1, y: -1)          // CG draws images bottom-up; flip locally
+                    t.draw(img, in: CGRect(x: 0, y: 0, width: dst.width, height: dst.height))
+                    t.restoreGState()
+                }
             default:
                 break
             }
@@ -486,6 +509,15 @@ enum DrawReplay {
         var attrs: [NSAttributedString.Key: Any] = [.font: f]
         if let s = st.fill as? String, let col = CSSColor.parse(s) { attrs[.foregroundColor] = col }
         if st.letterSpacing != 0 { attrs[.kern] = st.letterSpacing }
+        // STROKED text strokes the outline in strokeStyle at lineWidth; it does not
+        // fill. Core Text takes that from the context's text drawing mode.
+        if stroke {
+            if let s = st.stroke as? String, let col = CSSColor.parse(s) { c.setStrokeColor(col.cgColor) }
+            c.setLineWidth(st.lineWidth)
+            c.setTextDrawingMode(.stroke)
+        } else {
+            c.setTextDrawingMode(.fill)
+        }
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attrs))
         var asc: CGFloat = 0, desc: CGFloat = 0, lead: CGFloat = 0
         let w = CTLineGetTypographicBounds(line, &asc, &desc, &lead)
