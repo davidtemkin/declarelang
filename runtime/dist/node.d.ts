@@ -1,7 +1,24 @@
+/** The cursor read, installed by view.ts. A cursor belongs to a VIEW — it comes
+ *  from that view's `datapath` and its place in replication — but the things
+ *  that want to read one are often not views: a Spring's target, an Animator's
+ *  bounds, a Time's gate, a DataSource's url. Those are members OF a view, so
+ *  the read climbs to the nearest view that has a cursor (view.ts
+ *  `inheritedCursor` already walks any node's parent chain, at any depth of
+ *  non-view nesting). A seam rather than an import, because view.ts imports
+ *  this module and the dependency stays one-directional. */
+type CursorRead = (node: Node, path: string | readonly unknown[]) => unknown;
+export declare function provideCursorRead(fn: CursorRead): void;
 export declare class Node {
     parent: Node | null;
     /** The values this node reports changes to (schema.ts NodeSchema). */
     trackChanges: string[] | null;
+    /** Read `path` against the nearest enclosing cursor — what a `:path` island
+     *  lowers to (compile.ts resolveBody). On a view that is its own inherited
+     *  cursor; on a non-view member it is the nearest view above that has one.
+     *  An unresolved path yields null, as everywhere else in the language.
+     *  WRITES stay on the view (`$setData`): an edit into a record belongs to the
+     *  leaf that owns the edit, and a spring is not one. */
+    $data(path: string | readonly unknown[]): unknown;
     readonly children: Node[];
     /** The read behind `provided("name")` — a value an ancestor makes available,
      *  read explicitly here. The compiler rewrites a `provided(…)` call's callee
@@ -83,3 +100,4 @@ export declare function runRetire(node: Node): void;
  *  anonymous node. Lives here, at the bottom of the import graph, so both the
  *  inspector (inspect.ts) and a binding's error label (bind.ts) can ask. */
 export declare function authoredName(node: Node): string | null;
+export {};

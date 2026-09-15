@@ -4,7 +4,6 @@ import { type RenderBackend, type Surface } from "./backend.js";
 type ViewCreator = (root: View, tag: string, parent: View, props?: Record<string, unknown>) => View;
 export declare function provideViewCreator(fn: ViewCreator): void;
 import { type Draw } from "./draw.js";
-import { type PathSeg } from "./datapath.js";
 import type { LinkTarget } from "./parser.js";
 import type { Cursor } from "./data.js";
 /** What a layout strategy is to the View — the whole protocol: begin
@@ -195,7 +194,6 @@ export declare class View extends Node {
      *  (expr.ts's link-time rewrite). Tracked like any read: the binding wakes
      *  when exactly this region — or any datapath on the chain above — changes.
      *  An unresolved path yields null (language §9). */
-    $data(path: string | readonly PathSeg[]): unknown;
     /** Write `v` to `path` relative to this view's inherited cursor — the write
      *  twin of `$data`, the runtime half of a two-way `<->` binding (language §9,
      *  the leaf-input exception). Lands through `Dataset.set` (equality-gated →

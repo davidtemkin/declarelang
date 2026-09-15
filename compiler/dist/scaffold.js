@@ -415,6 +415,16 @@ export const LANGUAGE_STATICS = {
     ],
 };
 export const LANGUAGE_API = {
+    // The cursor READ, on Node rather than View (2026-09-14): a `:path` island
+    // lowers to `this.$data(…)`, and the things that read data are often not
+    // views — a Spring's target, a Time's gate, a DataSource's url. The read
+    // climbs to the nearest view that has a cursor; the WRITE half ($setData)
+    // stays on View, because an edit into a record belongs to the leaf that owns
+    // the edit. Data-shaped → `any`, the same deliberate under-report as
+    // Dataset.value.
+    Node: [
+        `  $data(path: string | readonly (string | { i: number } | { s: (number | null)[] } | { w: number })[]): any;`,
+    ],
     // The App's navigation SERVICE ACTION (view.ts App.navigate, capabilities.md
     // §6): a link/button calls `app.navigate(url)` in an activation handler. A
     // method, not an attribute — `app.navigate = url` is a type error now, which
@@ -458,7 +468,6 @@ export const LANGUAGE_API = {
         // callable by hand. Data-shaped → `any`, the same deliberate under-report
         // as Dataset.value: a datum's shape is unknowable until the `schema`
         // construct lands.
-        `  $data(path: string | readonly (string | { i: number } | { s: (number | null)[] } | { w: number })[]): any;`,
         `  $setData(path: string | readonly string[], v: any): void;`,
         `  scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;`,
         // The scroll-offset REQUEST verbs (platform-authorship.md): the platform

@@ -59483,14 +59483,6 @@
      "preview": "Status: RATIFIED 2026-07-14 (Fable editorial pass; the audit assigned this call here). Governs the @api prose fill — the ~67 missing entries in docs-model.json and every entry after. The format is the existing one (tools/internal/doc/prose/…"
     },
     {
-     "name": "Rendering capability registry",
-     "subtitle": "",
-     "kind": "doc",
-     "label": "Markdown file",
-     "path": "docs/system-design/rendering-gaps.md",
-     "preview": "What the three renderers can and cannot draw, as of 2026-09-12. Written when the graphics pass was set aside, so the state of the work survives the pause. Scope. Everything visual: box paint, compositing, transforms, images, text, and the d…"
-    },
-    {
      "name": "Requests & modifiers",
      "subtitle": "",
      "kind": "doc",

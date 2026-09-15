@@ -315,10 +315,10 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
         // belongs to a VIEW; a State, Spring or Animator is a non-visual member
         // with no datapath of its own, so the path has to be read on the view and
         // pointed at from here.
-        if (m[1] === "$data" || m[1] === "$setData") {
+        if (m[1] === "$setData") {
           const t = quoteType(m[2]);
-          return `a ':path' reads the enclosing VIEW's datapath, and ${t} is not a view — it has no cursor. ` +
-            `Declare an attribute on the enclosing view that reads the path ('n: number = { :field }'), and read that attribute here.`;
+          return `a two-way ':path' WRITES the enclosing view's data, and ${t} is not a view. Reading a path here is fine; ` +
+            `an edit belongs to the leaf that owns it (a TextInput, an Editor) — bind the path there, and read it from here.`;
         }
         // "declare it" is only advice on a COMPONENT, where a declaration is
         // the fix. On a primitive (a typed parameter's `number`, a `string`)

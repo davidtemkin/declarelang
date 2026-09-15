@@ -9,7 +9,7 @@
 // wakes exactly its dependents (attributes.ts has the full story). Before
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
-import { Node, onDiscard, runRetire, authoredName } from "./node.js";
+import { Node, onDiscard, runRetire, authoredName, provideCursorRead } from "./node.js";
 import { DeclareError, diag } from "./errors.js";
 import { backdropEqual, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef } from "./backend.js";
@@ -186,20 +186,6 @@ export class View extends Node {
      *  (expr.ts's link-time rewrite). Tracked like any read: the binding wakes
      *  when exactly this region — or any datapath on the chain above — changes.
      *  An unresolved path yields null (language §9). */
-    $data(path) {
-        const cursor = inheritedCursor(this);
-        if (cursor === null)
-            return null;
-        const plan = typeof path === "string" ? splitPath(path) : path;
-        // Pure-name plans ride the currency walk (today's read, coercing —
-        // `:rows.length` stays live); a plan with selectors evaluates per RFC
-        // 9535 (select.ts), the B3 surface.
-        if (plan.every((s) => typeof s === "string")) {
-            const v = cursor.data.read([...cursor.path, ...plan]);
-            return v === undefined ? null : v;
-        }
-        return selectValue(cursor.data, cursor.path, plan);
-    }
     /** Write `v` to `path` relative to this view's inherited cursor — the write
      *  twin of `$data`, the runtime half of a two-way `<->` binding (language §9,
      *  the leaf-input exception). Lands through `Dataset.set` (equality-gated →
@@ -2084,5 +2070,24 @@ setChangeDispatcher((node, changed) => {
     finally {
         n.$changing = undefined;
     }
+});
+// THE CURSOR READ (node.ts holds the seam; the walk lives here because it is a
+// fact about views). `inheritedCursor` climbs from ANY node — so a Spring two
+// levels inside an AnimatorGroup resolves to the same view its siblings do —
+// and a node with no cursor above it reads null, exactly as a view without a
+// datapath does.
+provideCursorRead((node, path) => {
+    const cursor = inheritedCursor(node);
+    if (cursor === null)
+        return null;
+    const plan = typeof path === "string" ? splitPath(path) : path;
+    // Pure-name plans ride the currency walk (today's read, coercing —
+    // `:rows.length` stays live); a plan with selectors evaluates per RFC 9535
+    // (select.ts), the B3 surface.
+    if (plan.every((sg) => typeof sg === "string")) {
+        const v = cursor.data.read([...cursor.path, ...plan]);
+        return v === undefined ? null : v;
+    }
+    return selectValue(cursor.data, cursor.path, plan);
 });
 //# sourceMappingURL=view.js.map

@@ -8,8 +8,19 @@
 // what lets those land without reshaping the base.
 import { Cell, isTracking, trackNode, untrackNode } from "./reactive.js";
 import { providedRead, defineAttributes } from "./attributes.js";
+let readCursor = null;
+export function provideCursorRead(fn) { readCursor = fn; }
 export class Node {
     parent = null;
+    /** Read `path` against the nearest enclosing cursor — what a `:path` island
+     *  lowers to (compile.ts resolveBody). On a view that is its own inherited
+     *  cursor; on a non-view member it is the nearest view above that has one.
+     *  An unresolved path yields null, as everywhere else in the language.
+     *  WRITES stay on the view (`$setData`): an edit into a record belongs to the
+     *  leaf that owns the edit, and a spring is not one. */
+    $data(path) {
+        return readCursor === null ? null : readCursor(this, path);
+    }
     children = [];
     /** The read behind `provided("name")` — a value an ancestor makes available,
      *  read explicitly here. The compiler rewrites a `provided(…)` call's callee
