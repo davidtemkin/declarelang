@@ -73,6 +73,16 @@ Web faces (any `Face` with a downloadable or `local()` source) are collected and
 loaded **before first paint** (`index.ts → loadFonts`), so text measures against
 real metrics, not a fallback. A system font (no faces) loads nothing.
 
+That one loader serves all three renderers. The web backends get `FontFace` from
+the browser; the native host supplies its own (`browser/mac-env.js`), so the
+runtime code above it is identical. On the host the bytes go to
+`FontRegistry.swift`, which keys faces by the **declared** family name — the name
+is the author's label, exactly as in CSS, and a subsetted file usually carries no
+usable name of its own. Core Text reads WOFF2 directly, and a descriptor built
+from the bytes makes a usable font with no process registration, so a program's
+faces are never installed for other applications and die with the process. A face
+that does not load is reported once and skipped, on every renderer alike.
+
 ## Not in v1 (extends without breaking)
 
 Per-face `stretch` (condensed/expanded), variable-font axes, multiple `url()`

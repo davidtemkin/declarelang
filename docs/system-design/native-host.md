@@ -351,8 +351,11 @@ over runtime + web client) and its native realization:
 - `requestAnimationFrame` (24) + timers → one **CADisplayLink**, doubling as
   the Animator clock.
 - `URL`/`URLSearchParams` (41) → a small shim (not in bare JSC).
-- `FontFace`/`document.fonts` (17) → `CTFontManager` registration + a
-  readiness promise.
+- `FontFace`/`document.fonts` (17) → **built 2026-09-13**: a `FontFace` shim in
+  the env, `FontRegistry.swift` on the far side. Core Text reads WOFF2 as-is and
+  a descriptor from the bytes needs no `CTFontManager` registration, so nothing
+  is installed system-wide; faces are keyed by the DECLARED family name, which is
+  what makes `fontFamily = Title` resolvable at all.
 - `Image()` (9) → ImageIO/`CGImage` via URLSession — which also supplies the
   decoded-bitmap **image-handle model** draw()'s deferred `drawImage` names
   as its follow-on.

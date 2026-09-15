@@ -1,0 +1,13 @@
+// Multi-line text at a declared lineHeight. The rules sit at each line's
+// baseline pitch, so a renderer that ignores lineHeight shows it twice: the
+// lines bunch, and the box no longer matches the text.
+
+App [ width = 720, height = 420, fill = white, textColor = black, fontSize = 20,
+    a: Text [ x = 24, y = 24, width = 300, wrap = true, lineHeight = 1.0,
+        text = "One two three four five six seven eight nine ten eleven twelve" ],
+    b: Text [ x = 360, y = 24, width = 300, wrap = true, lineHeight = 2.2,
+        text = "One two three four five six seven eight nine ten eleven twelve" ],
+    ra: View [ x = 24, y = { a.y + a.height }, width = 300, height = 3, fill = #E4572E ],
+    rb: View [ x = 360, y = { b.y + b.height }, width = 300, height = 3, fill = #2E6FE0 ],
+    key: Text [ x = 24, y = 330, fontSize = 14, text = "left lineHeight 1.0 · right 2.2 · rules at each block's measured bottom" ]
+    ]

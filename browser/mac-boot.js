@@ -274,6 +274,9 @@ export async function macBoot(url) {
   const hash = new URL(base).hash.replace(/^#/, "");
   if (hash) { app.location = hash; settle(); }
 
+  // Faces are PROCESS-wide here (one host, many programs in turn), so the
+  // previous program's families must not shadow this one's.
+  try { globalThis.__declareMacHost?.clearFonts?.(); } catch {}
   try { await loadFonts(fontFacesOf(app)); } catch {}
 
   backend = new MacBackend();

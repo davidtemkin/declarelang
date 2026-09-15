@@ -236,6 +236,8 @@
   };
   doc.getSelection = () => null;
   doc.activeElement = null;
+  // `add()` is a no-op because loading IS registering here: FontFace.load()
+  // hands the bytes to the host, which files them under the declared family.
   doc.fonts = { ready: Promise.resolve(), add() {}, check: () => true, forEach() {} };
   doc.createElement = (tag) => {
     // image.ts builds its loader with document.createElement("img") — NOT
@@ -373,6 +375,70 @@
     im.complete = true;
     try { if (ok) im.onload?.({ type: "load", target: im }); else im.onerror?.({ type: "error", target: im }); }
     catch (e) { g.console.error("image: " + (e && e.message || e)); }
+  };
+
+  // ── web fonts (Core Text on the far side; FontRegistry keys them) ────────
+  // The runtime's own loadFonts (boot.ts) builds a FontFace per declared face
+  // and awaits it before first paint. That code is shared with both web
+  // backends and it probes for `FontFace`, so supplying one here is all it
+  // takes for declared type to reach this host — and for first paint to wait
+  // for real metrics rather than reflowing when the face lands.
+  let faceSeq = 1;
+  const pendingFaces = new Map();
+  // A CSS `src` value: `url("…")`, `local("…")`, or a comma chain of them,
+  // tried in order (font.ts builds exactly these).
+  const SRC_PART = /(url|local)\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/g;
+  class DeclareFontFace {
+    constructor(family, source, desc) {
+      this.family = String(family);
+      this.style = (desc && desc.style) || "normal";
+      this.weight = String((desc && desc.weight) || "normal");
+      this.status = "unloaded";
+      this._src = String(source);
+    }
+    load() {
+      const italic = this.style === "italic" || this.style === "oblique";
+      const sources = [];
+      SRC_PART.lastIndex = 0;
+      for (let m = SRC_PART.exec(this._src); m !== null; m = SRC_PART.exec(this._src)) {
+        sources.push({ kind: m[1], value: String(m[2] ?? m[3] ?? m[4] ?? "").trim() });
+      }
+      const tryFrom = (i) => {
+        if (i >= sources.length) {
+          this.status = "error";
+          return Promise.reject(new Error("no usable source in " + this._src));
+        }
+        const s = sources[i];
+        if (s.kind === "local") {
+          if (H.registerLocalFont(this.family, s.value, this.weight, italic)) {
+            this.status = "loaded";
+            return Promise.resolve(this);
+          }
+          return tryFrom(i + 1);
+        }
+        // Resolve against the PROGRAM's base, as the image shim does: the host
+        // hands the string to URL(string:), which cannot read a relative path.
+        let abs = s.value;
+        try { abs = new g.URL(s.value, g.__declareBase || "http://127.0.0.1/").href; } catch (e) { /* keep raw */ }
+        const handle = faceSeq++;
+        return new Promise((resolve) => {
+          pendingFaces.set(handle, resolve);
+          H.loadFont(handle, abs, this.family, this.weight, italic);
+        }).then((ok) => {
+          if (!ok) return tryFrom(i + 1);
+          this.status = "loaded";
+          return this;
+        });
+      };
+      return tryFrom(0);
+    }
+  }
+  g.FontFace = DeclareFontFace;
+  g.__declareFontDone = (handle, ok) => {
+    const resolve = pendingFaces.get(handle);
+    if (!resolve) return;
+    pendingFaces.delete(handle);
+    resolve(!!ok);
   };
 
   // ── media elements: the transport over AVFoundation ──────────────────────

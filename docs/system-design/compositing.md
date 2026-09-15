@@ -373,6 +373,12 @@ closes: `docs/guide/20-renderers.md` (frost paragraph), `library/menu.declare`
 Offscreen groups: `runtime/src/canvas-backend.ts`. Seam discipline:
 `test/seam.test.mjs`. Baseline policy: `mac-host/gate.mjs` header.
 
+**The capability registry.** `rendering-gaps.md` records what all three renderers
+can and cannot draw, what is partial, what each one does differently, and the
+verified defects — with priorities and the reasoning behind them. Written
+2026-09-12 when the graphics pass was set aside; start there before planning any
+further visual work.
+
 # Part II · Transform — rotation and the pinch primitive
 
 **Status: scoped (David, 2026-08-06 — on rotation: "we not only need to do it,
