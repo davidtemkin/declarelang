@@ -1,0 +1,17 @@
+{
+  "_": [
+    "Per-MILLION-token list rates, by model, used by measure.mjs to price a run",
+    "from its token classes. HAND-MAINTAINED: fill a model in from the published",
+    "price list and set asOf to the date you read it. A model with null rates is",
+    "costed from the CLI's own figure instead, and the report says so — an",
+    "invented rate would read as a finding about the model rather than about us.",
+    "Four classes, four prices: uncached input, input written to the cache,",
+    "input read back from it, and output (thinking is billed as output)."
+  ],
+  "asOf": null,
+  "rates": {
+    "claude-opus-5": { "input": null, "cacheWrite": null, "cacheRead": null, "output": null },
+    "claude-sonnet-5": { "input": null, "cacheWrite": null, "cacheRead": null, "output": null },
+    "claude-haiku-4-5": { "input": null, "cacheWrite": null, "cacheRead": null, "output": null }
+  }
+}

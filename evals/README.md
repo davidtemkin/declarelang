@@ -50,6 +50,83 @@ runs/               per-run artifacts (gitignored)
 RESULTS.md          generated scoreboard (committed)
 ```
 
+## What a run COST — the measurement model
+
+Scoring says whether the program is good. This says what producing it cost, and it is
+collected the same way every time so two runs can be compared at all. One command, against
+any run directory holding a `logs/agent.stream.jsonl`:
+
+```
+node evals/harness/measure.mjs <run-dir> [--json] [--calls]
+```
+
+Three metrics matter, in this order.
+
+**Tokens, by class, per model.** Input has three prices, not one — uncached input, input
+written to the cache, and input read back from it — and the third runs two orders of
+magnitude above the others in an agent run, so a single "input" figure hides where the
+money went. Thinking is reported separately from the rest of output because it is invisible
+in the transcript and easy to forget it was paid for.
+
+**Cost**, computed from those classes and the per-model rates in
+[`harness/pricing.json`](harness/pricing.json), which is dated and hand-maintained. The CLI
+reports its own figure too; both are printed, and a disagreement over 2% is called out as a
+probably-stale rate table rather than silently resolved. A model with no rates on file is
+costed from the CLI's figure alone, and the report says so — an invented rate would read as
+a finding about the model instead of about our bookkeeping.
+
+**Time, by activity.** Wall clock splits first into model time and everything else, then the
+remainder is attributed to the tool that spent it: `render` (driving a browser), `check`
+(compile, verify, suites), `read`, `edit`, `service`, and `shell: other` for anything
+unrecognised. This is the one place tokens and time come apart, because a browser render and
+an eight-minute suite cost minutes and almost no tokens. The classification is a heuristic
+over the command text, so `--calls` prints every call with the bucket it landed in: audit it
+rather than trust it.
+
+Two measured runs, for the shape of the thing:
+
+| | Cadence run 5 | Murmur run 2 |
+|---|---|---|
+| total | 50.1 min | 80.3 min |
+| model (the API) | 42.6 min · 85% | 61.9 min · 77% |
+| driving a browser | 1.1 min · 2% | 12.1 min · 15% |
+| editing files | 2.3 min · 5% | 3.5 min · 4% |
+| reading (98–128 calls) | 2.3 min · 4% | 0.4 min · 1% |
+| everything else | 1.9 min · 4% | 2.4 min · 3% |
+| cost | $26.41 | $57.16 |
+| turns | 149 | 274 |
+
+The model is three quarters to six sevenths of the clock in both, so tokens are the right
+primary metric and time is that metric plus a tail. The tail is not uniform: the run that
+drove a browser hard spent an eighth of its life there, and reading — the activity that
+feels expensive because the files are large — cost under a minute across a hundred calls.
+
+Turns, tool calls, and checks that reported failure are collected under a heading that says
+what they are: **shape, not judgment**. They describe how a run moved, they are easy to
+optimise for dishonestly, and cost and time already price whatever they would have told us.
+
+### The friction tier — diagnostics, not scores
+
+The same command prints a second section whose job is different: not how the run did, but
+**where it got stuck, and which lever would have helped**. Each signal is chosen because it
+answers a question we would otherwise guess at.
+
+| signal | what it tells us | the lever it points at |
+|---|---|---|
+| every diagnostic the language produced, by code, with the sentence it said (counted as times *seen* in tool output, so a re-run counts again) | which refusals authors actually meet, and which they meet more than once | the message, or the rule behind it |
+| codes hit twice or more | the message did not teach the first time | rewrite it to answer "what do I write instead" |
+| what `declare-help` was asked, and how often | what an author needs at the point of writing | the reference, and what the skill routes to |
+| searches that came back empty | the author expected something to exist under that name | naming, or a missing capability |
+| files read more than once | what the run kept returning to, and what it could not hold | document shape and length; what belongs in the skill |
+| corrections that needed eyes (a render, then an edit, with no check between) | the expensive class of correction — a round trip AND the tokens to read it | make the error catchable statically |
+| truncated outputs, permission denials | friction that is ours, not the language's | packaging and the tool contract |
+
+Two examples from the runs on file. Murmur hit `DECLARE6001` forty-four times, the
+typecheck code, the first instance being a `:path` read inside a `Spring` — one confusion,
+repeated, and a clear place to spend. It also made twenty corrections that needed eyes,
+which is why that run's browser time was an eighth of its clock. Cadence's most-asked help
+topics were the library controls, and its searches all found what they were looking for.
+
 ## What's scored
 
 Every cell is judged by the verify ladder (`tools/verify.mjs`), not by taste:
